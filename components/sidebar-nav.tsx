@@ -12,6 +12,7 @@ import {
   ArrowLeftRight,
   Layers,
   Settings,
+  CircleUser,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -82,6 +83,14 @@ const navItems = [
     iconActive: "text-slate-200",
     iconInactive: "text-slate-400/60",
     borderActive: "border-l-slate-400",
+  },
+  {
+    label: "Profile",
+    href: "/profile",
+    icon: CircleUser,
+    iconActive: "text-pink-300",
+    iconInactive: "text-pink-400/60",
+    borderActive: "border-l-pink-400",
   },
 ];
 

@@ -154,6 +154,36 @@
   }
 }
 
+/* ── Per-theme colour overrides ───────────────────────────────────────────── */
+/* Applied via data-color-theme attribute on the app root wrapper.           */
+/* Only --primary and its siblings change; the dark sidebar stays unchanged. */
+
+[data-color-theme="violet"] {
+  --primary:                     oklch(0.56 0.24 285);
+  --ring:                        oklch(0.56 0.24 285);
+  --sidebar-primary:             oklch(0.56 0.24 285);
+  --sidebar-ring:                oklch(0.56 0.24 285);
+}
+[data-color-theme="emerald"] {
+  --primary:                     oklch(0.60 0.19 155);
+  --ring:                        oklch(0.60 0.19 155);
+  --sidebar-primary:             oklch(0.60 0.19 155);
+  --sidebar-ring:                oklch(0.60 0.19 155);
+}
+[data-color-theme="orange"] {
+  --primary:                     oklch(0.71 0.21 41);
+  --ring:                        oklch(0.71 0.21 41);
+  --sidebar-primary:             oklch(0.71 0.21 41);
+  --sidebar-ring:                oklch(0.71 0.21 41);
+}
+[data-color-theme="rose"] {
+  --primary:                     oklch(0.58 0.23 15);
+  --ring:                        oklch(0.58 0.23 15);
+  --sidebar-primary:             oklch(0.58 0.23 15);
+  --sidebar-ring:                oklch(0.58 0.23 15);
+}
+/* "blue" is the default — no override needed */
+
 /* ── Brand utility classes ────────────────────────────────────────────────── */
 @layer utilities {
 

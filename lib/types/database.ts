@@ -177,6 +177,11 @@ export interface UserSettings {
   cash_reserve: number;
   experience_years: number | null;
 
+  // Profile display
+  display_name: string;
+  brokerage_name: string;
+  color_theme: string; // 'blue' | 'violet' | 'emerald' | 'orange' | 'rose'
+
   // Timestamps
   created_at: string;
   updated_at: string;

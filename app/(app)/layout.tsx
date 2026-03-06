@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
 
+const VALID_THEMES = new Set(["blue", "violet", "emerald", "orange", "rose"]);
+
 async function buildFinancialContext(): Promise<string> {
   try {
     const supabase = await createClient();
@@ -109,15 +111,38 @@ async function buildFinancialContext(): Promise<string> {
   }
 }
 
+async function getColorTheme(): Promise<string> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return "blue";
+    const { data } = await supabase
+      .from("user_settings")
+      .select("color_theme")
+      .eq("user_id", user.id)
+      .single();
+    const theme = data?.color_theme ?? "blue";
+    return VALID_THEMES.has(theme) ? theme : "blue";
+  } catch {
+    return "blue";
+  }
+}
+
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const financialContext = await buildFinancialContext();
+  const [financialContext, colorTheme] = await Promise.all([
+    buildFinancialContext(),
+    getColorTheme(),
+  ]);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div
+      className="flex h-screen overflow-hidden"
+      data-color-theme={colorTheme}
+    >
       <SidebarNav />
       <div className="flex flex-1 flex-col overflow-hidden">
         <MobileNav />

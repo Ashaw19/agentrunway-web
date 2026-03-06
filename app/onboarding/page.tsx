@@ -1,15 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,87 +13,252 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Progress } from "@/components/ui/progress";
-import { Plane, ArrowRight, ArrowLeft, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  ArrowRight,
+  ArrowLeft,
+  Check,
+  MapPin,
+  User,
+  DollarSign,
+  Clock,
+  Palette,
+  Target,
+  Rocket,
+} from "lucide-react";
 import {
   PROVINCE_LABELS,
   type Province,
   type SplitPreset,
 } from "@/lib/types/database";
 
-const SPLIT_OPTIONS: { value: SplitPreset; label: string }[] = [
-  { value: "p70_30", label: "70 / 30" },
-  { value: "p75_25", label: "75 / 25" },
-  { value: "p80_20", label: "80 / 20" },
-  { value: "p85_15", label: "85 / 15" },
-  { value: "p90_10", label: "90 / 10" },
-  { value: "p95_5", label: "95 / 5" },
-  { value: "p100_0", label: "100 / 0" },
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const SPLIT_OPTIONS: { value: SplitPreset; agentPct: number }[] = [
+  { value: "p70_30", agentPct: 70 },
+  { value: "p75_25", agentPct: 75 },
+  { value: "p80_20", agentPct: 80 },
+  { value: "p85_15", agentPct: 85 },
+  { value: "p90_10", agentPct: 90 },
+  { value: "p95_5", agentPct: 95 },
+  { value: "p100_0", agentPct: 100 },
 ];
 
-const STEPS = ["Province", "Split", "Goals", "Done"];
+const EXPERIENCE_OPTIONS = [
+  {
+    range: "0-2",
+    years: 1,
+    label: "Fresh Off the Block",
+    range_label: "0–2 years",
+    subtitle: "Still figuring it out — and that's perfectly fine.",
+  },
+  {
+    range: "2-5",
+    years: 3,
+    label: "Finding My Groove",
+    range_label: "2–5 years",
+    subtitle: "Momentum building. Deals closing. Name spreading.",
+  },
+  {
+    range: "5-10",
+    years: 7,
+    label: "Battle-Tested",
+    range_label: "5–10 years",
+    subtitle: "You've seen the market cycle at least once. Maybe twice.",
+  },
+  {
+    range: "10+",
+    years: 15,
+    label: "Veteran Status",
+    range_label: "10+ years",
+    subtitle: "More deals closed than most people have had hot meals.",
+  },
+];
+
+const COLOR_THEMES = [
+  {
+    value: "blue",
+    label: "The Classic",
+    hex: "#1E72F2",
+    bg: "oklch(0.57 0.240 261)",
+    desc: "Trusted. Reliable. Blue is always right.",
+  },
+  {
+    value: "violet",
+    label: "The Visionary",
+    hex: "#7C3AED",
+    bg: "oklch(0.56 0.24 285)",
+    desc: "Purple reigns. Pipeline energy.",
+  },
+  {
+    value: "emerald",
+    label: "The Closer",
+    hex: "#10B981",
+    bg: "oklch(0.66 0.19 150)",
+    desc: "Money-coloured. Coincidence? Probably not.",
+  },
+  {
+    value: "orange",
+    label: "The Bold",
+    hex: "#F97316",
+    bg: "oklch(0.71 0.21 41)",
+    desc: "Velocity orange. Not for the faint of heart.",
+  },
+  {
+    value: "rose",
+    label: "The Disruptor",
+    hex: "#F43F5E",
+    bg: "oklch(0.58 0.23 15)",
+    desc: "Confident. A little dangerous. Unforgettable.",
+  },
+];
+
+// Step indices: 0=welcome, 1=province, 2=about, 3=money, 4=experience, 5=theme, 6=goals, 7=done
+const TOTAL_STEPS = 8;
+const NAMED_STEPS = TOTAL_STEPS - 2; // excludes welcome and done
+
+// ── Main Component ────────────────────────────────────────────────────────────
 
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   // Form state
   const [province, setProvince] = useState<Province>("ontario");
+  const [displayName, setDisplayName] = useState("");
+  const [brokerageName, setBrokerageName] = useState("");
   const [splitPreset, setSplitPreset] = useState<SplitPreset>("p80_20");
+  const [monthlyFee, setMonthlyFee] = useState("");
+  const [txFeeRate, setTxFeeRate] = useState("");
+  const [txFeeCap, setTxFeeCap] = useState("");
+  const [experienceRange, setExperienceRange] = useState("");
+  const [experienceYears, setExperienceYears] = useState<number>(1);
+  const [colorTheme, setColorTheme] = useState("blue");
   const [goalGCI, setGoalGCI] = useState("");
   const [goalTx, setGoalTx] = useState("");
-  const [monthlyFee, setMonthlyFee] = useState("");
+  const [goalVolume, setGoalVolume] = useState("");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  function advance() {
+    setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1));
+  }
+  function back() {
+    setStep((s) => Math.max(s - 1, 1));
+  }
 
   async function handleFinish() {
     setSaving(true);
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
 
-    await supabase
-      .from("user_settings")
-      .update({
-        province,
-        split_preset: splitPreset,
-        goal_gci: parseFloat(goalGCI) || 0,
-        goal_transactions: parseInt(goalTx) || 0,
-        monthly_brokerage_fee: parseFloat(monthlyFee) || 0,
-      })
-      .eq("user_id", user.id);
+      await supabase
+        .from("user_settings")
+        .update({
+          province,
+          display_name: displayName.trim(),
+          brokerage_name: brokerageName.trim(),
+          split_preset: splitPreset,
+          monthly_brokerage_fee: parseFloat(monthlyFee) || 0,
+          tx_fee_rate_pct: parseFloat(txFeeRate)
+            ? parseFloat(txFeeRate) / 100
+            : 0,
+          tx_fee_annual_cap: parseFloat(txFeeCap) || 0,
+          experience_years: experienceRange ? experienceYears : null,
+          color_theme: colorTheme,
+          goal_gci: parseFloat(goalGCI) || 0,
+          goal_transactions: parseInt(goalTx) || 0,
+          goal_volume: parseFloat(goalVolume) || 0,
+        })
+        .eq("user_id", user.id);
 
-    router.push("/dashboard");
+      router.push("/dashboard");
+    } catch (err) {
+      console.error("Onboarding save error:", err);
+      setSaving(false);
+    }
   }
 
-  const progress = ((step + 1) / STEPS.length) * 100;
+  const selectedTheme =
+    COLOR_THEMES.find((t) => t.value === colorTheme) ?? COLOR_THEMES[0];
+  const agentPct = parseInt(splitPreset.match(/p(\d+)/)?.[1] ?? "80");
+  const brokeragePct = 100 - agentPct;
+
+  // Step in the "1–6" range (for progress dots display)
+  const progressStep = step > 0 && step < TOTAL_STEPS - 1 ? step : null;
+
+  if (!mounted) return null;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 px-4">
-      <Card className="w-full max-w-lg">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Plane className="h-5 w-5" />
+    <div
+      className="flex min-h-screen flex-col items-center justify-center px-4 py-8"
+      style={{
+        background:
+          "linear-gradient(180deg, oklch(0.15 0.065 265) 0%, oklch(0.10 0.055 265) 100%)",
+      }}
+    >
+      {/* Progress header — shown for steps 1–6 */}
+      {progressStep !== null && (
+        <div className="mb-7 flex flex-col items-center gap-3">
+          <LogoMark size={38} />
+          {/* Dot progress indicator */}
+          <div className="flex items-center gap-1.5">
+            {Array.from({ length: NAMED_STEPS }, (_, i) => {
+              const dotStep = i + 1;
+              const isActive = dotStep === progressStep;
+              const isDone = dotStep < progressStep;
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    "h-1.5 rounded-full transition-all duration-300",
+                    isActive
+                      ? "w-6 bg-white"
+                      : isDone
+                        ? "w-4 bg-white/60"
+                        : "w-4 bg-white/20",
+                  )}
+                />
+              );
+            })}
           </div>
-          <CardTitle>Welcome to Agent Runway</CardTitle>
-          <CardDescription>
-            Let&apos;s set up your account — {STEPS[step]}
-          </CardDescription>
-          <Progress value={progress} className="mt-3 h-1.5" />
-        </CardHeader>
+          <p className="text-[10px] font-semibold tracking-[0.18em] text-white/30 uppercase">
+            Step {progressStep} of {NAMED_STEPS}
+          </p>
+        </div>
+      )}
 
-        <CardContent className="min-h-[260px]">
-          {/* Step 0: Province */}
-          {step === 0 && (
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label>Province / Territory</Label>
+      {/* Main card */}
+      <div
+        className="w-full max-w-[480px] rounded-2xl border border-white/10 shadow-2xl"
+        style={{ background: "oklch(0.18 0.06 265)" }}
+      >
+        <div className="p-7 sm:p-8">
+          {/* Step 0: Welcome */}
+          {step === 0 && <WelcomeStep onContinue={advance} />}
+
+          {/* Step 1: Province */}
+          {step === 1 && (
+            <StepFrame
+              icon={<MapPin className="h-5 w-5" />}
+              title="Where are you closing deals?"
+              subtitle="Tax rates, GST/HST, and provincial rules — we need to know which corner of Canada we're working with."
+            >
+              <div className="grid gap-3">
+                <Label className="text-white/80">Province / Territory</Label>
                 <Select
                   value={province}
                   onValueChange={(v) => setProvince(v as Province)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-white/20 bg-white/5 text-white focus:ring-white/30">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -111,116 +269,599 @@ export default function OnboardingPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
-                  Used for tax estimates and GST/HST rates.
+                <p className="text-xs text-white/35">
+                  We cover all 13 provinces and territories. Your tax
+                  calculations depend on this.
                 </p>
               </div>
-            </div>
+            </StepFrame>
           )}
 
-          {/* Step 1: Commission split */}
-          {step === 1 && (
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label>Commission Split (Agent / Brokerage)</Label>
-                <Select
-                  value={splitPreset}
-                  onValueChange={(v) => setSplitPreset(v as SplitPreset)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SPLIT_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label>Monthly Brokerage Fee ($)</Label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={monthlyFee}
-                  onChange={(e) => setMonthlyFee(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Desk/tech fee charged monthly by your brokerage.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Step 2: Goals */}
+          {/* Step 2: About You */}
           {step === 2 && (
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <Label>Annual GCI Goal ($)</Label>
-                <Input
-                  type="number"
-                  placeholder="e.g. 150000"
-                  value={goalGCI}
-                  onChange={(e) => setGoalGCI(e.target.value)}
-                />
+            <StepFrame
+              icon={<User className="h-5 w-5" />}
+              title="Tell us who we're building this for."
+              subtitle="These details appear on your reports and personalize your experience. No aliases, please — unless that's on your business card."
+            >
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label className="text-white/80">Your name</Label>
+                  <Input
+                    placeholder="e.g. Jordan MacLeod"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="border-white/20 bg-white/5 text-white placeholder:text-white/30 focus-visible:ring-white/30"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label className="text-white/80">Your brokerage</Label>
+                  <Input
+                    placeholder="e.g. Royal LePage, RE/MAX, Century 21..."
+                    value={brokerageName}
+                    onChange={(e) => setBrokerageName(e.target.value)}
+                    className="border-white/20 bg-white/5 text-white placeholder:text-white/30 focus-visible:ring-white/30"
+                  />
+                  <p className="text-xs text-white/35">
+                    Your work family. For better or for worse.
+                  </p>
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label>Transaction Goal (deals)</Label>
-                <Input
-                  type="number"
-                  placeholder="e.g. 20"
-                  value={goalTx}
-                  onChange={(e) => setGoalTx(e.target.value)}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                These power your pace tracking and projections. You can change
-                them later in settings.
-              </p>
-            </div>
+            </StepFrame>
           )}
 
-          {/* Step 3: Done */}
+          {/* Step 3: The Money Math */}
           {step === 3 && (
-            <div className="flex flex-col items-center gap-4 py-6 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Check className="h-6 w-6" />
+            <StepFrame
+              icon={<DollarSign className="h-5 w-5" />}
+              title="Let's talk about how you get paid."
+              subtitle="(And what gets taken away.) This powers all of your projections and tax estimates — it's worth getting right."
+            >
+              <div className="grid gap-5">
+                {/* Split selector */}
+                <div className="grid gap-2">
+                  <Label className="text-white/80">
+                    Commission Split — Agent / Brokerage
+                  </Label>
+                  <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+                    {SPLIT_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setSplitPreset(opt.value)}
+                        className={cn(
+                          "rounded-lg border py-2.5 text-[12px] font-bold transition-all",
+                          splitPreset === opt.value
+                            ? "border-primary bg-primary text-white shadow-md"
+                            : "border-white/20 bg-white/5 text-white/60 hover:border-white/40 hover:text-white",
+                        )}
+                      >
+                        {opt.agentPct}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Visual split bar */}
+                  <div className="mt-0.5 flex h-2 overflow-hidden rounded-full">
+                    <div
+                      className="bg-primary transition-all duration-300"
+                      style={{ width: `${agentPct}%` }}
+                    />
+                    <div
+                      className="bg-white/20 transition-all duration-300"
+                      style={{ width: `${brokeragePct}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-white/40">
+                    <span>You keep: {agentPct}%</span>
+                    <span>Brokerage gets: {brokeragePct}%</span>
+                  </div>
+                </div>
+
+                {/* Monthly fee */}
+                <div className="grid gap-2">
+                  <Label className="text-white/80">Monthly Brokerage Fee</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-white/40">
+                      $
+                    </span>
+                    <Input
+                      type="number"
+                      placeholder="0"
+                      value={monthlyFee}
+                      onChange={(e) => setMonthlyFee(e.target.value)}
+                      className="border-white/20 bg-white/5 pl-6 text-white placeholder:text-white/30"
+                    />
+                  </div>
+                  <p className="text-xs text-white/35">
+                    The monthly tribute to the mothership — desk fees, tech
+                    fees, etc.
+                  </p>
+                </div>
+
+                {/* Transaction fees */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-2">
+                    <Label className="text-[12px] text-white/80">
+                      Tx Fee Rate (%)
+                    </Label>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 2"
+                      value={txFeeRate}
+                      onChange={(e) => setTxFeeRate(e.target.value)}
+                      className="border-white/20 bg-white/5 text-white placeholder:text-white/30"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label className="text-[12px] text-white/80">
+                      Annual Cap ($)
+                    </Label>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 2500"
+                      value={txFeeCap}
+                      onChange={(e) => setTxFeeCap(e.target.value)}
+                      className="border-white/20 bg-white/5 text-white placeholder:text-white/30"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-white/35">
+                  Transaction fees are optional. Leave blank if your brokerage
+                  doesn&apos;t charge per deal.
+                </p>
               </div>
-              <h3 className="text-lg font-semibold">You&apos;re all set!</h3>
-              <p className="text-sm text-muted-foreground">
-                Your account is configured. Head to the dashboard to start
-                tracking your business.
-              </p>
-            </div>
+            </StepFrame>
           )}
-        </CardContent>
 
-        {/* Navigation */}
-        <div className="flex justify-between border-t px-6 py-4">
-          <Button
-            variant="ghost"
-            onClick={() => setStep((s) => s - 1)}
-            disabled={step === 0}
-          >
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Back
-          </Button>
+          {/* Step 4: Experience */}
+          {step === 4 && (
+            <StepFrame
+              icon={<Clock className="h-5 w-5" />}
+              title="How long have you been in the game?"
+              subtitle="This calibrates your benchmarks against your cohort. No judgement — everyone starts somewhere."
+            >
+              <div className="grid grid-cols-2 gap-3">
+                {EXPERIENCE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.range}
+                    onClick={() => {
+                      setExperienceRange(opt.range);
+                      setExperienceYears(opt.years);
+                    }}
+                    className={cn(
+                      "flex flex-col rounded-xl border p-4 text-left transition-all",
+                      experienceRange === opt.range
+                        ? "border-primary bg-primary/15 shadow-inner"
+                        : "border-white/20 bg-white/5 hover:border-white/40",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "text-[13px] font-semibold",
+                        experienceRange === opt.range
+                          ? "text-primary"
+                          : "text-white/90",
+                      )}
+                    >
+                      {opt.label}
+                    </span>
+                    <span className="mt-0.5 text-[11px] font-medium text-white/50">
+                      {opt.range_label}
+                    </span>
+                    <span className="mt-2 text-[11px] leading-relaxed text-white/35">
+                      {opt.subtitle}
+                    </span>
+                    {experienceRange === opt.range && (
+                      <Check className="mt-2 h-3.5 w-3.5 text-primary" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </StepFrame>
+          )}
 
-          {step < STEPS.length - 1 ? (
-            <Button onClick={() => setStep((s) => s + 1)}>
-              Next
-              <ArrowRight className="ml-1 h-4 w-4" />
-            </Button>
-          ) : (
-            <Button onClick={handleFinish} disabled={saving}>
-              {saving ? "Saving..." : "Go to Dashboard"}
-              <ArrowRight className="ml-1 h-4 w-4" />
-            </Button>
+          {/* Step 5: Color Theme */}
+          {step === 5 && (
+            <StepFrame
+              icon={<Palette className="h-5 w-5" />}
+              title="Choose your battle colour."
+              subtitle="This sets the accent colour across your dashboard. A small but deeply important decision."
+            >
+              <div className="grid gap-2.5">
+                {COLOR_THEMES.map((theme) => (
+                  <button
+                    key={theme.value}
+                    onClick={() => setColorTheme(theme.value)}
+                    className={cn(
+                      "flex items-center gap-4 rounded-xl border p-3.5 text-left transition-all",
+                      colorTheme === theme.value
+                        ? "border-white/40 bg-white/10"
+                        : "border-white/15 bg-white/5 hover:border-white/30",
+                    )}
+                  >
+                    {/* Colour swatch */}
+                    <div
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full shadow-md"
+                      style={{ background: theme.bg }}
+                    >
+                      {colorTheme === theme.value && (
+                        <Check className="h-4 w-4 text-white" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className={cn(
+                          "text-[13px] font-semibold",
+                          colorTheme === theme.value
+                            ? "text-white"
+                            : "text-white/80",
+                        )}
+                      >
+                        {theme.label}
+                      </div>
+                      <div className="text-[11px] text-white/40">
+                        {theme.desc}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </StepFrame>
+          )}
+
+          {/* Step 6: Goals (optional) */}
+          {step === 6 && (
+            <StepFrame
+              icon={<Target className="h-5 w-5" />}
+              title="Set your targets for this year."
+              subtitle="Totally optional. But the overachievers love this part — and now we know who you are."
+            >
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label className="text-white/80">Annual GCI Goal</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-white/40">
+                      $
+                    </span>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 150,000"
+                      value={goalGCI}
+                      onChange={(e) => setGoalGCI(e.target.value)}
+                      className="border-white/20 bg-white/5 pl-6 text-white placeholder:text-white/30"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label className="text-white/80">Transaction Goal (total deals)</Label>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 20"
+                    value={goalTx}
+                    onChange={(e) => setGoalTx(e.target.value)}
+                    className="border-white/20 bg-white/5 text-white placeholder:text-white/30"
+                  />
+                  <p className="text-xs text-white/35">
+                    Buyers + sellers combined. You can break this down by side in Settings.
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  <Label className="text-white/80">Sales Volume Goal</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-white/40">
+                      $
+                    </span>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 12,000,000"
+                      value={goalVolume}
+                      onChange={(e) => setGoalVolume(e.target.value)}
+                      className="border-white/20 bg-white/5 pl-6 text-white placeholder:text-white/30"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-white/35">
+                  These power your pace tracking and goal progress on the dashboard. You can update them anytime in Settings.
+                </p>
+              </div>
+            </StepFrame>
+          )}
+
+          {/* Step 7: Done */}
+          {step === TOTAL_STEPS - 1 && (
+            <DoneStep
+              displayName={displayName}
+              province={province}
+              splitPreset={splitPreset}
+              colorTheme={colorTheme}
+              saving={saving}
+              onFinish={handleFinish}
+            />
+          )}
+
+          {/* Nav buttons — steps 1–6 */}
+          {step > 0 && step < TOTAL_STEPS - 1 && (
+            <div className="mt-7 flex items-center justify-between gap-3 border-t border-white/10 pt-5">
+              <Button
+                variant="ghost"
+                onClick={back}
+                className="text-white/50 hover:bg-white/10 hover:text-white"
+              >
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                Back
+              </Button>
+
+              <div className="flex items-center gap-2">
+                {step === 6 && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => setStep(TOTAL_STEPS - 1)}
+                    className="text-white/40 hover:text-white/70 text-sm"
+                  >
+                    Skip for now
+                  </Button>
+                )}
+                <Button
+                  onClick={step === 6 ? () => setStep(TOTAL_STEPS - 1) : advance}
+                  style={{ background: selectedTheme.bg }}
+                  className="gap-2 text-white shadow-lg hover:opacity-90 transition-opacity"
+                >
+                  {step === 6 ? "Lock in Goals" : "Continue"}
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           )}
         </div>
-      </Card>
+      </div>
+
+      {/* Legal footer */}
+      <p className="mt-6 text-center text-[10px] text-white/20">
+        Agent Runway · Canadian Real Estate Analytics · All calculations are
+        estimates only.
+      </p>
+    </div>
+  );
+}
+
+// ── Sub-components ─────────────────────────────────────────────────────────────
+
+function LogoMark({ size = 36 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 40 40"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient
+          id="ob-bg"
+          x1="20"
+          y1="0"
+          x2="20"
+          y2="40"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0%" stopColor="#1e2f5e" />
+          <stop offset="100%" stopColor="#0d1526" />
+        </linearGradient>
+        <linearGradient
+          id="ob-left"
+          x1="3"
+          y1="9"
+          x2="16"
+          y2="31"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0%" stopColor="#6cb4ff" />
+          <stop offset="55%" stopColor="#2e7be6" />
+          <stop offset="100%" stopColor="#1452a8" />
+        </linearGradient>
+        <linearGradient
+          id="ob-right"
+          x1="37"
+          y1="9"
+          x2="24"
+          y2="31"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0%" stopColor="#6cb4ff" />
+          <stop offset="55%" stopColor="#2e7be6" />
+          <stop offset="100%" stopColor="#1452a8" />
+        </linearGradient>
+        <linearGradient
+          id="ob-sheen"
+          x1="0"
+          y1="0"
+          x2="0"
+          y2="1"
+          gradientUnits="objectBoundingBox"
+        >
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+        </linearGradient>
+        <radialGradient id="ob-glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#F97316" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="#F97316" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <rect width="40" height="40" rx="9" fill="url(#ob-bg)" />
+      <path d="M3 9 L17.5 9 L14.5 31 L3 31 Z" fill="url(#ob-left)" />
+      <path d="M3 9 L17.5 9 L17 13 L3 12.5 Z" fill="url(#ob-sheen)" />
+      <path d="M22.5 9 L37 9 L37 31 L25.5 31 Z" fill="url(#ob-right)" />
+      <path d="M22.5 9 L37 9 L37 13.5 L23 13 Z" fill="url(#ob-sheen)" />
+      <rect x="15" y="9" width="10" height="22" fill="#0a1020" fillOpacity="0.5" />
+      <circle cx="20" cy="14" r="5" fill="url(#ob-glow)" />
+      <circle cx="20" cy="14" r="1.8" fill="#F97316" />
+    </svg>
+  );
+}
+
+function WelcomeStep({ onContinue }: { onContinue: () => void }) {
+  return (
+    <div className="flex flex-col items-center gap-6 py-4 text-center">
+      <LogoMark size={60} />
+      <div>
+        <h1 className="text-2xl font-bold text-white">
+          Welcome to Agent Runway.
+        </h1>
+        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-white/55">
+          Your business analytics platform for Canadian real estate
+          professionals. We&apos;re going to spend about two minutes getting
+          your account properly configured.
+        </p>
+      </div>
+
+      {/* Feature bullets */}
+      <div className="flex w-full max-w-xs flex-col gap-2">
+        {[
+          { color: "bg-emerald-400", text: "Tax calculations tailored to your province" },
+          { color: "bg-blue-400", text: "Projections based on your actual split & fees" },
+          { color: "bg-violet-400", text: "Runway score, pipeline health, advisor insights" },
+        ].map((item) => (
+          <div
+            key={item.text}
+            className="flex items-center gap-3 rounded-lg bg-white/5 p-3 text-left"
+          >
+            <div className={cn("h-2 w-2 shrink-0 rounded-full", item.color)} />
+            <span className="text-[12px] text-white/60">{item.text}</span>
+          </div>
+        ))}
+      </div>
+
+      <Button
+        onClick={onContinue}
+        size="lg"
+        className="mt-2 w-full max-w-xs gap-2 bg-primary text-white shadow-lg hover:bg-primary/90"
+      >
+        Let&apos;s Get Started
+        <ArrowRight className="h-4 w-4" />
+      </Button>
+
+      <p className="text-[11px] text-white/25">
+        Takes about 2 minutes. No credit card required.
+      </p>
+    </div>
+  );
+}
+
+function StepFrame({
+  icon,
+  title,
+  subtitle,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  subtitle: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-col gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/20 text-primary">
+          {icon}
+        </div>
+        <div>
+          <h2 className="text-lg font-bold text-white">{title}</h2>
+          <p className="mt-1 text-sm leading-relaxed text-white/50">
+            {subtitle}
+          </p>
+        </div>
+      </div>
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function DoneStep({
+  displayName,
+  province,
+  splitPreset,
+  colorTheme,
+  saving,
+  onFinish,
+}: {
+  displayName: string;
+  province: Province;
+  splitPreset: SplitPreset;
+  colorTheme: string;
+  saving: boolean;
+  onFinish: () => void;
+}) {
+  const agentPct = parseInt(splitPreset.match(/p(\d+)/)?.[1] ?? "80");
+  const theme = COLOR_THEMES.find((t) => t.value === colorTheme) ?? COLOR_THEMES[0];
+  const provinceLabel = PROVINCE_LABELS[province];
+  const firstName = displayName.trim().split(" ")[0] || null;
+
+  return (
+    <div className="flex flex-col items-center gap-6 py-2 text-center">
+      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
+        <Rocket className="h-7 w-7" />
+      </div>
+
+      <div>
+        <h2 className="text-xl font-bold text-white">
+          {firstName
+            ? `You're cleared for takeoff, ${firstName}.`
+            : "You're cleared for takeoff."}
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-white/50">
+          Your account is configured and ready. The runway is yours.
+        </p>
+      </div>
+
+      {/* Summary card */}
+      <div className="w-full rounded-xl border border-white/10 bg-white/5 p-4 text-left">
+        <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-white/30">
+          Your Setup
+        </p>
+        <div className="space-y-2.5">
+          <SummaryRow label="Province" value={provinceLabel} />
+          <SummaryRow
+            label="Commission Split"
+            value={`${agentPct}% you / ${100 - agentPct}% brokerage`}
+          />
+          <SummaryRow label="Colour Theme" value={theme.label} dot={theme.bg} />
+        </div>
+      </div>
+
+      <Button
+        onClick={onFinish}
+        disabled={saving}
+        size="lg"
+        className="w-full gap-2 bg-primary text-white shadow-lg hover:bg-primary/90"
+      >
+        {saving ? "Saving your settings..." : "Go to Dashboard"}
+        <ArrowRight className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
+function SummaryRow({
+  label,
+  value,
+  dot,
+}: {
+  label: string;
+  value: string;
+  dot?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-[12px] text-white/40">{label}</span>
+      <div className="flex items-center gap-1.5">
+        {dot && (
+          <div
+            className="h-2.5 w-2.5 rounded-full"
+            style={{ background: dot }}
+          />
+        )}
+        <span className="text-[12px] font-semibold text-white/80">{value}</span>
+      </div>
     </div>
   );
 }

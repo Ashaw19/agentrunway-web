@@ -14,6 +14,7 @@ import {
   Layers,
   Settings,
   Menu,
+  CircleUser,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -24,6 +25,45 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+
+function MobileLogoMark({ size = 34 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 40 40"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="mn-bg" x1="20" y1="0" x2="20" y2="40" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#1e2f5e" /><stop offset="100%" stopColor="#0d1526" />
+        </linearGradient>
+        <linearGradient id="mn-left" x1="3" y1="9" x2="16" y2="31" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#6cb4ff" /><stop offset="55%" stopColor="#2e7be6" /><stop offset="100%" stopColor="#1452a8" />
+        </linearGradient>
+        <linearGradient id="mn-right" x1="37" y1="9" x2="24" y2="31" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#6cb4ff" /><stop offset="55%" stopColor="#2e7be6" /><stop offset="100%" stopColor="#1452a8" />
+        </linearGradient>
+        <linearGradient id="mn-sheen" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.28" /><stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+        </linearGradient>
+        <radialGradient id="mn-glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#F97316" stopOpacity="0.4" /><stop offset="100%" stopColor="#F97316" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <rect width="40" height="40" rx="9" fill="url(#mn-bg)" />
+      <path d="M3 9 L17.5 9 L14.5 31 L3 31 Z" fill="url(#mn-left)" />
+      <path d="M3 9 L17.5 9 L17 13 L3 12.5 Z" fill="url(#mn-sheen)" />
+      <path d="M22.5 9 L37 9 L37 31 L25.5 31 Z" fill="url(#mn-right)" />
+      <path d="M22.5 9 L37 9 L37 13.5 L23 13 Z" fill="url(#mn-sheen)" />
+      <rect x="15" y="9" width="10" height="22" fill="#0a1020" fillOpacity="0.5" />
+      <circle cx="20" cy="14" r="5" fill="url(#mn-glow)" />
+      <circle cx="20" cy="14" r="1.8" fill="#F97316" />
+    </svg>
+  );
+}
 
 const navItems = [
   {
@@ -90,6 +130,14 @@ const navItems = [
     iconInactive: "text-slate-400/70",
     borderActive: "border-l-slate-400",
   },
+  {
+    label: "Profile",
+    href: "/profile",
+    icon: CircleUser,
+    iconActive: "text-pink-300",
+    iconInactive: "text-pink-400/70",
+    borderActive: "border-l-pink-400",
+  },
 ];
 
 export function MobileNav() {
@@ -120,19 +168,20 @@ export function MobileNav() {
         >
           <Menu className="h-5 w-5" />
         </Button>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="Agent Runway" width={24} height={24} className="rounded-md" />
+        <MobileLogoMark size={26} />
         <span className="text-sm font-semibold">Agent Runway</span>
       </header>
 
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="left" className="flex w-64 flex-col bg-sidebar p-0 text-sidebar-foreground">
-          <div className="h-[3px] w-full bg-gradient-to-r from-blue-500 via-violet-500 to-emerald-500" />
+          <div
+            className="h-[3px] w-full shrink-0"
+            style={{ background: "linear-gradient(90deg, #F97316 0%, #1E72F2 40%, #7C3AED 70%, #10B981 100%)" }}
+          />
 
           <SheetHeader className="px-5 pb-0 pt-5">
             <div className="flex items-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="Agent Runway" width={34} height={34} className="rounded-xl" />
+              <MobileLogoMark size={34} />
               <div>
                 <SheetTitle className="text-[15px] font-semibold text-sidebar-foreground">
                   Agent Runway
