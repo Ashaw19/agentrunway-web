@@ -10,6 +10,8 @@ import {
   FileText,
   LogOut,
   Plane,
+  ArrowLeftRight,
+  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -19,6 +21,8 @@ import { Separator } from "@/components/ui/separator";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Transactions", href: "/transactions", icon: ArrowLeftRight },
+  { label: "Pipeline", href: "/pipeline", icon: Layers },
   { label: "History", href: "/history", icon: History },
   { label: "Forecast", href: "/forecast", icon: TrendingUp },
   { label: "Expenses", href: "/expenses", icon: Receipt },

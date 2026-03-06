@@ -1,0 +1,446 @@
+"use client";
+
+import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import {
+  Card,
+  CardContent,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Plus, Pencil, Trash2 } from "lucide-react";
+import { fmtCurrency, fmtPct } from "@/lib/formatters";
+import {
+  computeEstimatedGCI,
+  computeWeightedGCI,
+  computeProbability,
+  PIPELINE_STAGE_DEFAULTS,
+  type PipelineDeal,
+} from "@/lib/types/database";
+
+interface Props {
+  initialDeals: PipelineDeal[];
+}
+
+type FormState = {
+  address: string;
+  client_name: string;
+  estimated_price: string;
+  estimated_commission_pct: string;
+  side: "buyer" | "seller" | "both";
+  stage: "lead" | "showing" | "offer" | "conditional" | "firm";
+  expected_close_date: string;
+  probability_override: string;
+  notes: string;
+};
+
+const emptyForm = (): FormState => ({
+  address: "",
+  client_name: "",
+  estimated_price: "",
+  estimated_commission_pct: "2.5",
+  side: "buyer",
+  stage: "lead",
+  expected_close_date: "",
+  probability_override: "",
+  notes: "",
+});
+
+const STAGE_LABELS: Record<string, string> = {
+  lead: "Lead",
+  showing: "Showing",
+  offer: "Offer",
+  conditional: "Conditional",
+  firm: "Firm",
+};
+
+const STAGE_COLORS: Record<string, "secondary" | "outline" | "default"> = {
+  lead: "outline",
+  showing: "outline",
+  offer: "secondary",
+  conditional: "secondary",
+  firm: "default",
+};
+
+export function PipelineContent({ initialDeals }: Props) {
+  const [deals, setDeals] = useState(initialDeals);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<FormState>(emptyForm());
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  function openAdd() {
+    setEditingId(null);
+    setForm(emptyForm());
+    setDialogOpen(true);
+  }
+
+  function openEdit(deal: PipelineDeal) {
+    setEditingId(deal.id);
+    setForm({
+      address: deal.address ?? "",
+      client_name: deal.client_name ?? "",
+      estimated_price: deal.estimated_price ? String(deal.estimated_price) : "",
+      estimated_commission_pct: deal.estimated_commission_pct
+        ? String(deal.estimated_commission_pct * 100)
+        : "2.5",
+      side: deal.side,
+      stage: deal.stage,
+      expected_close_date: deal.expected_close_date ?? "",
+      probability_override:
+        deal.probability_override != null
+          ? String(Math.round(deal.probability_override * 100))
+          : "",
+      notes: deal.notes ?? "",
+    });
+    setDialogOpen(true);
+  }
+
+  function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSaving(false); return; }
+
+    const payload = {
+      address: form.address,
+      client_name: form.client_name,
+      estimated_price: parseFloat(form.estimated_price) || 0,
+      estimated_commission_pct: (parseFloat(form.estimated_commission_pct) || 0) / 100,
+      side: form.side,
+      stage: form.stage,
+      expected_close_date: form.expected_close_date || null,
+      probability_override: form.probability_override
+        ? parseFloat(form.probability_override) / 100
+        : null,
+      notes: form.notes,
+    };
+
+    if (editingId) {
+      const { data, error } = await supabase
+        .from("pipeline_deals")
+        .update(payload)
+        .eq("id", editingId)
+        .select()
+        .single();
+      if (!error && data) {
+        setDeals((prev) => prev.map((d) => (d.id === editingId ? data : d)));
+      }
+    } else {
+      const { data, error } = await supabase
+        .from("pipeline_deals")
+        .insert({ ...payload, user_id: user.id })
+        .select()
+        .single();
+      if (!error && data) {
+        setDeals((prev) => [data, ...prev]);
+      }
+    }
+
+    setSaving(false);
+    setDialogOpen(false);
+  }
+
+  async function handleDelete(id: string) {
+    const supabase = createClient();
+    const { error } = await supabase.from("pipeline_deals").delete().eq("id", id);
+    if (!error) setDeals((prev) => prev.filter((d) => d.id !== id));
+    setDeleteConfirmId(null);
+  }
+
+  const totalWeighted = deals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
+
+  // Preview GCI in form
+  const previewEstGCI =
+    (parseFloat(form.estimated_price) || 0) *
+    ((parseFloat(form.estimated_commission_pct) || 0) / 100);
+  const previewProb = form.probability_override
+    ? parseFloat(form.probability_override) / 100
+    : PIPELINE_STAGE_DEFAULTS[form.stage] ?? 0;
+  const previewWeighted = previewEstGCI * previewProb;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Pipeline</h1>
+          <p className="text-sm text-muted-foreground">
+            {deals.length} active deal{deals.length !== 1 ? "s" : ""} &middot;{" "}
+            {fmtCurrency(totalWeighted)} weighted GCI
+          </p>
+        </div>
+        <Button onClick={openAdd}>
+          <Plus className="mr-1 h-4 w-4" />
+          Add Deal
+        </Button>
+      </div>
+
+      {/* Table */}
+      <Card>
+        <CardContent className="p-0">
+          {deals.length === 0 ? (
+            <div className="py-16 text-center text-sm text-muted-foreground">
+              No pipeline deals yet. Add your active leads and listings.
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Address / Client</TableHead>
+                  <TableHead>Side</TableHead>
+                  <TableHead>Stage</TableHead>
+                  <TableHead className="text-right">Est. GCI</TableHead>
+                  <TableHead className="text-right">Weighted</TableHead>
+                  <TableHead>Close Date</TableHead>
+                  <TableHead className="w-20" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {deals.map((deal) => (
+                  <TableRow key={deal.id}>
+                    <TableCell>
+                      <p className="text-sm font-medium">
+                        {deal.address || <span className="text-muted-foreground">No address</span>}
+                      </p>
+                      {deal.client_name && (
+                        <p className="text-xs text-muted-foreground">{deal.client_name}</p>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="capitalize text-xs">
+                        {deal.side}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={STAGE_COLORS[deal.stage]} className="text-xs">
+                        {STAGE_LABELS[deal.stage]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right text-sm">
+                      {fmtCurrency(computeEstimatedGCI(deal))}
+                    </TableCell>
+                    <TableCell className="text-right text-sm font-medium">
+                      {fmtCurrency(computeWeightedGCI(deal))}
+                      <span className="ml-1 text-xs text-muted-foreground">
+                        ({fmtPct(computeProbability(deal))})
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {deal.expected_close_date
+                        ? new Date(deal.expected_close_date).toLocaleDateString("en-CA")
+                        : <span className="text-muted-foreground">&mdash;</span>}
+                    </TableCell>
+                    <TableCell>
+                      {deleteConfirmId === deal.id ? (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => handleDelete(deal.id)}
+                          >
+                            Delete
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => setDeleteConfirmId(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={() => openEdit(deal)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            onClick={() => setDeleteConfirmId(deal.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Add / Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingId ? "Edit Deal" : "Add Pipeline Deal"}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            {/* Address */}
+            <div className="grid gap-1.5">
+              <Label>Address</Label>
+              <Input
+                placeholder="123 Main St, Toronto"
+                value={form.address}
+                onChange={(e) => setField("address", e.target.value)}
+              />
+            </div>
+
+            {/* Row: Client + Side */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Client Name</Label>
+                <Input
+                  placeholder="Jane Smith"
+                  value={form.client_name}
+                  onChange={(e) => setField("client_name", e.target.value)}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Side *</Label>
+                <Select value={form.side} onValueChange={(v) => setField("side", v as FormState["side"])}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="buyer">Buyer</SelectItem>
+                    <SelectItem value="seller">Seller</SelectItem>
+                    <SelectItem value="both">Both</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Row: Est. Price + Commission % */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Estimated Price ($) *</Label>
+                <Input
+                  type="number"
+                  placeholder="750000"
+                  value={form.estimated_price}
+                  onChange={(e) => setField("estimated_price", e.target.value)}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Commission % *</Label>
+                <Input
+                  type="number"
+                  step="0.25"
+                  placeholder="2.5"
+                  value={form.estimated_commission_pct}
+                  onChange={(e) => setField("estimated_commission_pct", e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Row: Stage + Close Date */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Stage *</Label>
+                <Select value={form.stage} onValueChange={(v) => setField("stage", v as FormState["stage"])}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="lead">Lead (10%)</SelectItem>
+                    <SelectItem value="showing">Showing (25%)</SelectItem>
+                    <SelectItem value="offer">Offer (50%)</SelectItem>
+                    <SelectItem value="conditional">Conditional (75%)</SelectItem>
+                    <SelectItem value="firm">Firm (90%)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Expected Close</Label>
+                <Input
+                  type="date"
+                  value={form.expected_close_date}
+                  onChange={(e) => setField("expected_close_date", e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Probability Override */}
+            <div className="grid gap-1.5">
+              <Label>
+                Probability Override (%){" "}
+                <span className="text-xs text-muted-foreground">
+                  — leave blank to use stage default ({Math.round((PIPELINE_STAGE_DEFAULTS[form.stage] ?? 0) * 100)}%)
+                </span>
+              </Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                placeholder={String(Math.round((PIPELINE_STAGE_DEFAULTS[form.stage] ?? 0) * 100))}
+                value={form.probability_override}
+                onChange={(e) => setField("probability_override", e.target.value)}
+              />
+            </div>
+
+            {/* Notes */}
+            <div className="grid gap-1.5">
+              <Label>Notes</Label>
+              <Textarea
+                placeholder="Optional notes..."
+                rows={2}
+                value={form.notes}
+                onChange={(e) => setField("notes", e.target.value)}
+              />
+            </div>
+
+            {/* Preview */}
+            <p className="text-sm text-muted-foreground">
+              Est. GCI:{" "}
+              <span className="font-medium text-foreground">{fmtCurrency(previewEstGCI)}</span>
+              {" "}→ Weighted:{" "}
+              <span className="font-medium text-foreground">{fmtCurrency(previewWeighted)}</span>
+              {" "}({fmtPct(previewProb)})
+            </p>
+
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? "Saving…" : editingId ? "Save Changes" : "Add Deal"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
