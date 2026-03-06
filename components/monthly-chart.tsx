@@ -91,7 +91,7 @@ export function MonthlyChart({ data }: Props) {
           {data.map((entry, index) => (
             <Cell
               key={`cell-${index}`}
-              fill={entry.projected ? "oklch(0.65 0.18 150 / 0.4)" : "oklch(0.65 0.18 150)"}
+              fill={entry.projected ? "var(--chart-primary-dim)" : "var(--chart-primary)"}
             />
           ))}
         </Bar>

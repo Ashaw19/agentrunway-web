@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { createClient } from "@/lib/supabase/client";
 import {
   Card,
   CardContent,
@@ -63,11 +64,14 @@ import { compute as computeRunwayScore, type BusinessHealthReport, type RunwaySc
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { calculate as calculateTax } from "@/lib/engines/canadian-tax-engine";
 
+type DashboardView = "essentials" | "standard" | "full";
+
 interface Props {
   transactions: Transaction[];
   pipelineDeals: PipelineDeal[];
   settings: UserSettings | null;
   expenseCategories: ExpenseCategoryWithItems[];
+  initialDashboardView?: string;
 }
 
 const INSIGHT_ICONS: Record<string, React.ElementType> = {
@@ -94,6 +98,7 @@ export function DashboardContent({
   pipelineDeals,
   settings,
   expenseCategories,
+  initialDashboardView,
 }: Props) {
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -102,6 +107,25 @@ export function DashboardContent({
   const [scenario, setScenario] = useState<"conservative" | "base" | "optimistic">("base");
   // ── Business Health Narrative collapsed by default ─────────────────────
   const [narrativeOpen, setNarrativeOpen] = useState(false);
+
+  // ── Dashboard view mode ────────────────────────────────────────────────
+  const validView = (v?: string): DashboardView =>
+    v === "essentials" || v === "standard" || v === "full" ? v : "standard";
+  const [dashboardView, setDashboardView] = useState<DashboardView>(
+    validView(initialDashboardView),
+  );
+  const handleViewChange = useCallback(async (mode: DashboardView) => {
+    setDashboardView(mode);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await supabase
+        .from("user_settings")
+        .update({ dashboard_view: mode })
+        .eq("user_id", user.id);
+    } catch { /* fire-and-forget — UI already updated */ }
+  }, []);
   const scenarioMultiplier =
     scenario === "conservative" ? 0.85 : scenario === "optimistic" ? 1.15 : 1.0;
 
@@ -243,31 +267,50 @@ export function DashboardContent({
             {todayDescription()} &middot; {currentYear} year-to-date
           </p>
         </div>
-        {/* Scenario toggle */}
-        <div className="flex rounded-lg border border-border p-0.5 text-xs">
-          {(["conservative", "base", "optimistic"] as const).map((s) => (
-            <button
-              key={s}
-              onClick={() => setScenario(s)}
-              className={cn(
-                "rounded-md px-3 py-1.5 font-medium transition-colors",
-                scenario === s
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {s === "conservative" ? "−15%" : s === "optimistic" ? "+15%" : "Base"}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* View mode toggle */}
+          <div className="flex rounded-lg border border-border bg-muted/40 p-0.5 text-xs">
+            {(["essentials", "standard", "full"] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => handleViewChange(mode)}
+                className={cn(
+                  "rounded-md px-3 py-1.5 font-medium transition-colors capitalize",
+                  dashboardView === mode
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {mode.charAt(0).toUpperCase() + mode.slice(1)}
+              </button>
+            ))}
+          </div>
+          {/* Scenario toggle */}
+          <div className="flex rounded-lg border border-border p-0.5 text-xs">
+            {(["conservative", "base", "optimistic"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setScenario(s)}
+                className={cn(
+                  "rounded-md px-3 py-1.5 font-medium transition-colors",
+                  scenario === s
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {s === "conservative" ? "−15%" : s === "optimistic" ? "+15%" : "Base"}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Runway Score Hero */}
-      <Card className="bg-gradient-to-br from-slate-50 to-blue-50 border-blue-100">
+      <Card className="bg-gradient-to-br from-background to-primary/5 border-primary/20">
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/60 shadow-lg">
                 <span className="text-2xl font-bold text-white">
                   {runwayScore.grade}
                 </span>
@@ -311,8 +354,8 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      {/* Business Health Narrative */}
-      {narrative && (
+      {/* Business Health Narrative — Standard + Full */}
+      {narrative && dashboardView !== "essentials" && (
         <BusinessHealthNarrativeCard
           narrative={narrative}
           isOpen={narrativeOpen}
@@ -441,158 +484,164 @@ export function DashboardContent({
         </Card>
       </div>
 
-      {/* Monthly Performance Chart */}
-      <Card className="border-t-2 border-t-emerald-500">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base">Monthly Performance</CardTitle>
-              <CardDescription>
-                Closed GCI by month &mdash; projected months shown lighter
-              </CardDescription>
-            </div>
-            {scenario !== "base" && (
-              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary capitalize">
-                {scenario} scenario
-              </span>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <MonthlyChart data={monthlyChartData} />
-        </CardContent>
-      </Card>
-
-      {/* Probability bands + benchmark row */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card className="border-t-2 border-t-violet-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Projection Range</CardTitle>
-            <CardDescription>
-              {bands.confidence} confidence &middot; {bands.monthsOfData} months data
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Best case (P90)</span>
-                <span>{fmtCurrency(bands.p90)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Optimistic (P75)</span>
-                <span>{fmtCurrency(bands.p75)}</span>
-              </div>
-              <div className="flex justify-between font-medium">
-                <span>Base (P50)</span>
-                <span>{fmtCurrency(bands.p50)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Conservative (P25)</span>
-                <span>{fmtCurrency(bands.p25)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Pessimistic (P10)</span>
-                <span>{fmtCurrency(bands.p10)}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-t-2 border-t-teal-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Benchmark</CardTitle>
-            <CardDescription>
-              vs. {COHORT_LABELS[benchmark.cohort]} cohort (CREA 2023)
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+      {/* Monthly Performance Chart — Standard + Full */}
+      {dashboardView !== "essentials" && (
+        <Card className="border-t-2 border-t-emerald-500">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
               <div>
-                <div className="mb-1 flex justify-between text-sm">
-                  <span>Cohort percentile</span>
-                  <span className="font-medium">P{benchmark.percentile}</span>
-                </div>
-                <Progress value={benchmark.percentile} className="h-2" />
+                <CardTitle className="text-base">Monthly Performance</CardTitle>
+                <CardDescription>
+                  Closed GCI by month &mdash; projected months shown lighter
+                </CardDescription>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Cohort median GCI</span>
-                <span>{fmtCurrency(benchmark.cohortMedianGCI)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">National percentile</span>
-                <span>P{benchmark.nationalPercentile}</span>
-              </div>
-              {benchmark.distanceToNextTier != null && benchmark.distanceToNextTier > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    Gap to {benchmark.nextTierLabel}
-                  </span>
-                  <span>{fmtCurrency(benchmark.distanceToNextTier)}</span>
-                </div>
+              {scenario !== "base" && (
+                <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary capitalize">
+                  {scenario} scenario
+                </span>
               )}
             </div>
+          </CardHeader>
+          <CardContent>
+            <MonthlyChart data={monthlyChartData} />
           </CardContent>
         </Card>
-      </div>
+      )}
 
-      {/* Tax estimate + Goal progress row */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {taxResult && (
-          <Card className="border-t-2 border-t-rose-400">
+      {/* Probability bands + benchmark row — Full only */}
+      {dashboardView === "full" && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Card className="border-t-2 border-t-violet-500">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Tax Estimate</CardTitle>
+              <CardTitle className="text-base">Projection Range</CardTitle>
               <CardDescription>
-                {taxResult.taxYear} &middot; {taxResult.provinceName}
+                {bands.confidence} confidence &middot; {bands.monthsOfData} months data
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Effective rate</span>
-                  <span className="font-medium">{fmtPct(taxResult.effectiveRate)}</span>
+                  <span className="text-muted-foreground">Best case (P90)</span>
+                  <span>{fmtCurrency(bands.p90)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Quarterly estimate</span>
-                  <span>{fmtCurrency(taxResult.quarterlyEstimate)}</span>
+                  <span className="text-muted-foreground">Optimistic (P75)</span>
+                  <span>{fmtCurrency(bands.p75)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Per-deal set-aside</span>
-                  <span>{fmtCurrency(taxResult.perDealSetAside)}</span>
-                </div>
-                <Separator />
                 <div className="flex justify-between font-medium">
-                  <span>Est. total burden</span>
-                  <span>{fmtCurrency(taxResult.totalBurden)}</span>
+                  <span>Base (P50)</span>
+                  <span>{fmtCurrency(bands.p50)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Conservative (P25)</span>
+                  <span>{fmtCurrency(bands.p25)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Pessimistic (P10)</span>
+                  <span>{fmtCurrency(bands.p10)}</span>
                 </div>
               </div>
             </CardContent>
           </Card>
-        )}
 
-        {goalGCI > 0 && (
-          <Card className="border-t-2 border-t-emerald-500">
+          <Card className="border-t-2 border-t-teal-500">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Goal Progress</CardTitle>
+              <CardTitle className="text-base">Benchmark</CardTitle>
               <CardDescription>
-                {fmtCurrency(ytdGCI)} of {fmtCurrency(goalGCI)} ({fmtPct(gciProgress / 100)})
+                vs. {COHORT_LABELS[benchmark.cohort]} cohort (CREA 2023)
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Progress value={gciProgress} className="h-3" />
-              <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-                <span>$0</span>
-                <span>{fmtCompact(goalGCI)}</span>
+              <div className="space-y-3">
+                <div>
+                  <div className="mb-1 flex justify-between text-sm">
+                    <span>Cohort percentile</span>
+                    <span className="font-medium">P{benchmark.percentile}</span>
+                  </div>
+                  <Progress value={benchmark.percentile} className="h-2" />
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Cohort median GCI</span>
+                  <span>{fmtCurrency(benchmark.cohortMedianGCI)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">National percentile</span>
+                  <span>P{benchmark.nationalPercentile}</span>
+                </div>
+                {benchmark.distanceToNextTier != null && benchmark.distanceToNextTier > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      Gap to {benchmark.nextTierLabel}
+                    </span>
+                    <span>{fmtCurrency(benchmark.distanceToNextTier)}</span>
+                  </div>
+                )}
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {daysRemaining()} days remaining
-              </p>
             </CardContent>
           </Card>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Insights */}
-      {insights.length > 0 && (
+      {/* Tax estimate + Goal progress row — Full only */}
+      {dashboardView === "full" && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {taxResult && (
+            <Card className="border-t-2 border-t-rose-400">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Tax Estimate</CardTitle>
+                <CardDescription>
+                  {taxResult.taxYear} &middot; {taxResult.provinceName}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Effective rate</span>
+                    <span className="font-medium">{fmtPct(taxResult.effectiveRate)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Quarterly estimate</span>
+                    <span>{fmtCurrency(taxResult.quarterlyEstimate)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Per-deal set-aside</span>
+                    <span>{fmtCurrency(taxResult.perDealSetAside)}</span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between font-medium">
+                    <span>Est. total burden</span>
+                    <span>{fmtCurrency(taxResult.totalBurden)}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {goalGCI > 0 && (
+            <Card className="border-t-2 border-t-emerald-500">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Goal Progress</CardTitle>
+                <CardDescription>
+                  {fmtCurrency(ytdGCI)} of {fmtCurrency(goalGCI)} ({fmtPct(gciProgress / 100)})
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Progress value={gciProgress} className="h-3" />
+                <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                  <span>$0</span>
+                  <span>{fmtCompact(goalGCI)}</span>
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  {daysRemaining()} days remaining
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* Insights — Standard + Full */}
+      {insights.length > 0 && dashboardView !== "essentials" && (
         <Card className="border-t-2 border-t-blue-500">
           <CardHeader>
             <CardTitle className="text-base">Insights</CardTitle>

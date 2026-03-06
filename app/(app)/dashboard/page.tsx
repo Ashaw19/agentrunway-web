@@ -61,6 +61,7 @@ export default async function DashboardPage() {
       pipelineDeals={pipelineResult.data ?? []}
       settings={settingsResult.data}
       expenseCategories={expenseCategories}
+      initialDashboardView={settingsResult.data?.dashboard_view ?? "standard"}
     />
   );
 }

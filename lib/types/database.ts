@@ -182,6 +182,9 @@ export interface UserSettings {
   brokerage_name: string;
   color_theme: string; // 'blue' | 'violet' | 'emerald' | 'orange' | 'rose'
 
+  // UI preferences
+  dashboard_view: string; // 'essentials' | 'standard' | 'full'
+
   // Timestamps
   created_at: string;
   updated_at: string;

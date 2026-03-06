@@ -95,6 +95,11 @@
   --sidebar-border: oklch(0.24 0.05 265);
   --sidebar-ring: oklch(0.57 0.240 261);
 
+  /* ── Chart colour token — follows the active theme ───────────────── */
+  /* Consumed by MonthlyChart, ProbabilityChart, and any future chart.  */
+  --chart-primary:     oklch(0.57 0.240 261);          /* full opacity  */
+  --chart-primary-dim: oklch(0.57 0.240 261 / 0.38);   /* projected     */
+
   /* ── Brand gradient tokens (reference) ───────────────────────────── */
   --gradient-runway:    linear-gradient(135deg, oklch(0.10 0.055 265) 0%, oklch(0.57 0.240 261) 100%);
   --gradient-ascent:    linear-gradient(135deg, oklch(0.57 0.240 261) 0%, oklch(0.50 0.24 290) 100%);
@@ -163,24 +168,32 @@
   --ring:                        oklch(0.56 0.24 285);
   --sidebar-primary:             oklch(0.56 0.24 285);
   --sidebar-ring:                oklch(0.56 0.24 285);
+  --chart-primary:               oklch(0.56 0.24 285);
+  --chart-primary-dim:           oklch(0.56 0.24 285 / 0.38);
 }
 [data-color-theme="emerald"] {
   --primary:                     oklch(0.60 0.19 155);
   --ring:                        oklch(0.60 0.19 155);
   --sidebar-primary:             oklch(0.60 0.19 155);
   --sidebar-ring:                oklch(0.60 0.19 155);
+  --chart-primary:               oklch(0.60 0.19 155);
+  --chart-primary-dim:           oklch(0.60 0.19 155 / 0.38);
 }
 [data-color-theme="orange"] {
   --primary:                     oklch(0.71 0.21 41);
   --ring:                        oklch(0.71 0.21 41);
   --sidebar-primary:             oklch(0.71 0.21 41);
   --sidebar-ring:                oklch(0.71 0.21 41);
+  --chart-primary:               oklch(0.71 0.21 41);
+  --chart-primary-dim:           oklch(0.71 0.21 41 / 0.38);
 }
 [data-color-theme="rose"] {
   --primary:                     oklch(0.58 0.23 15);
   --ring:                        oklch(0.58 0.23 15);
   --sidebar-primary:             oklch(0.58 0.23 15);
   --sidebar-ring:                oklch(0.58 0.23 15);
+  --chart-primary:               oklch(0.58 0.23 15);
+  --chart-primary-dim:           oklch(0.58 0.23 15 / 0.38);
 }
 /* "blue" is the default — no override needed */
 
