@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Plus, Check, X, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   computeGCI,
@@ -47,7 +47,19 @@ const DEFAULT_CAT = { border: "border-l-slate-400", badge: "bg-slate-100 text-sl
 
 export function ExpensesContent({ initialCategories, settings, transactions }: Props) {
   const [categories, setCategories] = useState(initialCategories);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  // Auto-expand all categories on first visit (when no data has been entered yet)
+  const isFirstVisit = initialCategories.every(
+    (cat) => cat.items.every(
+      (i) => Number(i.ytd_amount) === 0 && Number(i.monthly_recurring) === 0,
+    ),
+  );
+  const [expanded, setExpanded] = useState<Set<string>>(
+    isFirstVisit
+      ? new Set(initialCategories.map((c) => c.id))
+      : new Set(),
+  );
+
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [newItemTitle, setNewItemTitle] = useState("");
 
@@ -172,11 +184,27 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
-        <p className="text-sm text-muted-foreground">
-          Track your business expenses and recurring costs by category
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
+          <p className="text-sm text-muted-foreground">
+            Track your business expenses and recurring costs by category
+          </p>
+        </div>
+        {/* QuickBooks coming-soon CTA */}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled
+          title="QuickBooks integration — coming soon"
+          className="opacity-60"
+        >
+          <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+          Connect QuickBooks
+          <Badge className="ml-1.5 bg-amber-100 px-1.5 py-0 text-[10px] font-semibold text-amber-700 hover:bg-amber-100">
+            Soon
+          </Badge>
+        </Button>
       </div>
 
       {/* KPI Summary */}
@@ -275,11 +303,57 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
         </Card>
       )}
 
+      {/* Onboarding tip — shown only when no data entered yet */}
+      {ytdTotal === 0 && monthlyTotal === 0 && (
+        <Card className="border-blue-200 bg-blue-50/60">
+          <CardContent className="flex items-start gap-3 py-4">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+            <div>
+              <p className="text-sm font-semibold text-blue-900">
+                Start by entering your monthly recurring costs
+              </p>
+              <p className="mt-0.5 text-xs text-blue-700">
+                Each category below has two fields: <strong>Monthly Recurring</strong> (e.g.
+                MLS dues, insurance, vehicle payment) and <strong>YTD Amount</strong> (what
+                you&apos;ve actually spent so far this year). Monthly costs feed directly into
+                your Cash Runway calculation. Enter what you know — you can always update later.
+              </p>
+              <p className="mt-2 text-xs text-blue-600">
+                Prefer to import your expenses automatically?{" "}
+                <span className="font-medium">QuickBooks integration is coming soon.</span>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Categories */}
       <div>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-          Categories
-        </h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+            Categories
+          </h2>
+          {/* Expand All / Collapse All */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setExpanded(new Set(categories.map((c) => c.id)))}
+            >
+              <ChevronsUpDown className="h-3.5 w-3.5" />
+              Expand all
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setExpanded(new Set())}
+            >
+              Collapse all
+            </Button>
+          </div>
+        </div>
         <div className="space-y-2">
           {categories.map((cat) => {
             const isOpen = expanded.has(cat.id);

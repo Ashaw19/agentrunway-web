@@ -8,6 +8,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -25,6 +32,8 @@ import {
   Info,
   Lightbulb,
   Star,
+  ChevronDown,
+  HelpCircle,
 } from "lucide-react";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -91,6 +100,8 @@ export function DashboardContent({
 
   // ── Scenario toggle ────────────────────────────────────────────────────
   const [scenario, setScenario] = useState<"conservative" | "base" | "optimistic">("base");
+  // ── Business Health Narrative collapsed by default ─────────────────────
+  const [narrativeOpen, setNarrativeOpen] = useState(false);
   const scenarioMultiplier =
     scenario === "conservative" ? 0.85 : scenario === "optimistic" ? 1.15 : 1.0;
 
@@ -262,9 +273,12 @@ export function DashboardContent({
                 </span>
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">
-                  Runway Score
-                </p>
+                <div className="flex items-center gap-1">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Runway Score
+                  </p>
+                  <RunwayScoreInfoDialog />
+                </div>
                 <p className="text-3xl font-bold">{runwayScore.score}</p>
               </div>
             </div>
@@ -298,7 +312,13 @@ export function DashboardContent({
       </Card>
 
       {/* Business Health Narrative */}
-      {narrative && <BusinessHealthNarrativeCard narrative={narrative} />}
+      {narrative && (
+        <BusinessHealthNarrativeCard
+          narrative={narrative}
+          isOpen={narrativeOpen}
+          onToggle={() => setNarrativeOpen((o) => !o)}
+        />
+      )}
 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -650,13 +670,21 @@ const STATUS_STYLES: Record<
 
 function BusinessHealthNarrativeCard({
   narrative,
+  isOpen,
+  onToggle,
 }: {
   narrative: HealthNarrativeResult;
+  isOpen: boolean;
+  onToggle: () => void;
 }) {
   const styles = STATUS_STYLES[narrative.status];
   return (
     <Card className={cn("border-l-4", styles.border)}>
-      <CardHeader className="pb-2 pt-4">
+      {/* Clickable header — always visible */}
+      <CardHeader
+        className="cursor-pointer pb-2 pt-4 select-none"
+        onClick={onToggle}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BarChart2 className={cn("h-4 w-4", styles.icon)} />
@@ -664,37 +692,55 @@ function BusinessHealthNarrativeCard({
               Business Health Narrative
             </CardTitle>
           </div>
-          <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", styles.chip)}>
-            {narrative.status}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", styles.chip)}>
+              {narrative.status}
+            </span>
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                isOpen && "rotate-180",
+              )}
+            />
+          </div>
         </div>
+        {/* Summary always visible below the header row */}
+        {!isOpen && (
+          <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+            {narrative.summary}
+          </p>
+        )}
       </CardHeader>
-      <CardContent className="space-y-4 pb-5">
-        {/* Executive summary paragraph */}
-        <p className="text-sm leading-relaxed text-foreground">{narrative.summary}</p>
 
-        <Separator />
+      {/* Expandable body */}
+      {isOpen && (
+        <CardContent className="space-y-4 pb-5 pt-0">
+          {/* Executive summary paragraph */}
+          <p className="text-sm leading-relaxed text-foreground">{narrative.summary}</p>
 
-        {/* Three named sections */}
-        <div className="space-y-3">
-          <NarrativeSection
-            icon={TrendingUp}
-            label="What changed"
-            text={narrative.whatChanged}
-          />
-          <NarrativeSection
-            icon={Info}
-            label="Why"
-            text={narrative.why}
-          />
-          <NarrativeSection
-            icon={Target}
-            label="Next move"
-            text={narrative.nextMove}
-            accent
-          />
-        </div>
-      </CardContent>
+          <Separator />
+
+          {/* Three named sections */}
+          <div className="space-y-3">
+            <NarrativeSection
+              icon={TrendingUp}
+              label="What changed"
+              text={narrative.whatChanged}
+            />
+            <NarrativeSection
+              icon={Info}
+              label="Why"
+              text={narrative.why}
+            />
+            <NarrativeSection
+              icon={Target}
+              label="Next move"
+              text={narrative.nextMove}
+              accent
+            />
+          </div>
+        </CardContent>
+      )}
     </Card>
   );
 }
@@ -732,6 +778,152 @@ function NarrativeSection({
         </p>
       </div>
     </div>
+  );
+}
+
+// ── Runway Score info dialog ──────────────────────────────────────────────
+
+const SCORE_COMPONENTS_INFO = [
+  {
+    label: "Goal Pace",
+    weight: "30%",
+    description:
+      "Measures how your YTD GCI tracks against your annual goal, adjusted for seasonal patterns. Full credit when you're at or ahead of expected pace.",
+  },
+  {
+    label: "Pipeline",
+    weight: "20%",
+    description:
+      "Your probability-weighted pipeline value relative to the remaining goal gap. A healthy pipeline provides a cushion for the months ahead.",
+  },
+  {
+    label: "Expenses",
+    weight: "15%",
+    description:
+      "Your expense ratio (expenses ÷ GCI) vs. the 25–30% industry benchmark. Below 30% is healthy; above 50% is a warning sign.",
+  },
+  {
+    label: "Survival",
+    weight: "15%",
+    description:
+      "Months of cash runway based on your burn rate (brokerage fee + recurring expenses) and cash reserves. 6+ months is considered strong.",
+  },
+  {
+    label: "Setup",
+    weight: "10%",
+    description:
+      "How complete your business profile is — annual goal, province, commission split, experience, and brokerage fee. A complete profile means more accurate projections.",
+  },
+  {
+    label: "Benchmark",
+    weight: "10%",
+    description:
+      "Your projected annual GCI compared to agents with similar experience (sourced from CREA cohort data). Shows where you rank within your peer group.",
+  },
+] as const;
+
+const GRADE_RANGES = [
+  { grade: "A+", range: "92–100", label: "Thriving",     textColor: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
+  { grade: "A",  range: "85–91",  label: "Strong",       textColor: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
+  { grade: "B",  range: "75–84",  label: "Healthy",      textColor: "text-blue-700",    bg: "bg-blue-50 border-blue-200"       },
+  { grade: "C",  range: "62–74",  label: "Developing",   textColor: "text-amber-700",   bg: "bg-amber-50 border-amber-200"     },
+  { grade: "D",  range: "50–61",  label: "Struggling",   textColor: "text-orange-700",  bg: "bg-orange-50 border-orange-200"   },
+  { grade: "F",  range: "0–49",   label: "Danger Zone",  textColor: "text-red-700",     bg: "bg-red-50 border-red-200"         },
+] as const;
+
+function RunwayScoreInfoDialog() {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button
+          className="rounded-full p-0.5 text-muted-foreground transition-colors hover:text-foreground focus:outline-none"
+          title="How is my Runway Score calculated?"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <HelpCircle className="h-3.5 w-3.5" />
+        </button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>How Your Runway Score Works</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-5 text-sm">
+          <p className="text-muted-foreground">
+            Your Runway Score is a composite 0–100 number that grades the overall
+            health of your real estate business across six dimensions. It updates
+            in real time as you enter data.
+          </p>
+
+          {/* Components */}
+          <div>
+            <h3 className="mb-2 font-semibold">What goes into your score</h3>
+            <div className="space-y-2">
+              {SCORE_COMPONENTS_INFO.map((c) => (
+                <div
+                  key={c.label}
+                  className="flex items-start gap-3 rounded-md border bg-muted/30 px-3 py-2.5"
+                >
+                  <div className="shrink-0 pt-0.5">
+                    <Badge
+                      variant="secondary"
+                      className="text-[10px] font-bold tabular-nums"
+                    >
+                      {c.weight}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold">{c.label}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{c.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Grade ranges */}
+          <div>
+            <h3 className="mb-2 font-semibold">Score ranges</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {GRADE_RANGES.map((g) => (
+                <div
+                  key={g.grade}
+                  className={cn(
+                    "flex items-center gap-3 rounded-md border px-3 py-2",
+                    g.bg,
+                  )}
+                >
+                  <span className={cn("w-7 text-center text-lg font-bold", g.textColor)}>
+                    {g.grade}
+                  </span>
+                  <div>
+                    <p className={cn("text-xs font-semibold", g.textColor)}>{g.label}</p>
+                    <p className="text-[10px] text-muted-foreground">{g.range}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Improvement tips */}
+          <div className="rounded-md border bg-muted/30 px-3 py-3">
+            <p className="text-xs font-semibold">How to improve your score</p>
+            <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+              <li>• Close or advance pipeline deals to boost Goal Pace and Pipeline scores</li>
+              <li>• Keep expenses below 30% of GCI to maximise the Expenses component</li>
+              <li>• Build 4–6 months of cash reserves for a strong Survival score</li>
+              <li>• Complete all fields in Settings — each unlocks more accurate projections</li>
+              <li>• Grow GCI year-over-year to climb your experience-cohort Benchmark ranking</li>
+            </ul>
+          </div>
+
+          <p className="text-xs text-muted-foreground border-t pt-3">
+            Benchmark data is sourced from CREA 2023 national agent cohort statistics.
+            Score version: {/* version shown inline */}1.0.
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
