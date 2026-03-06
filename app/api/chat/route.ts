@@ -68,8 +68,9 @@ Guidelines:
     });
   } catch (error) {
     console.error("OpenAI error:", error);
-    return new Response("Failed to get AI response. Please try again.", {
-      status: 500,
-    });
+    // Surface the real OpenAI error message so it appears in the chat bubble
+    const message =
+      error instanceof Error ? error.message : "Unknown error from OpenAI";
+    return new Response(message, { status: 500 });
   }
 }
