@@ -71,7 +71,8 @@ export function AiChat({ financialContext }: Props) {
       });
 
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+        const errText = await res.text().catch(() => "");
+        throw new Error(errText || `HTTP ${res.status}`);
       }
 
       const reader = res.body?.getReader();
@@ -92,12 +93,15 @@ export function AiChat({ financialContext }: Props) {
       }
     } catch (err) {
       console.error("Chat error:", err);
+      const errMsg =
+        err instanceof Error && err.message && !err.message.startsWith("HTTP ")
+          ? err.message
+          : "Sorry, I couldn't connect right now. Please try again in a moment.";
       setMessages([
         ...newMessages,
         {
           role: "assistant",
-          content:
-            "Sorry, I couldn't connect right now. Please try again in a moment.",
+          content: errMsg,
         },
       ]);
     } finally {
