@@ -2,15 +2,14 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Production apex hostname.
- * All www.* requests 301-redirect to this host before any auth logic runs.
- */
-const APEX_HOST = "agentrunway.ca";
-
-/**
  * Explicit list of route prefixes that require a valid Supabase session.
  * Everything NOT on this list is public — /, /login, /auth/*, and any
  * future marketing pages are automatically accessible without auth.
+ *
+ * NOTE: www ↔ apex host canonicalization is intentionally NOT done here.
+ * It must be configured exclusively in the Vercel dashboard (Domains →
+ * set one domain as primary, the other as a redirect). Doing it in both
+ * places creates a redirect loop.
  */
 const PROTECTED_PREFIXES = [
   "/dashboard",
@@ -26,20 +25,7 @@ const PROTECTED_PREFIXES = [
 ];
 
 export async function updateSession(request: NextRequest) {
-  // ── Step 1: www → apex host canonicalization ─────────────────────────────
-  // Must run BEFORE Supabase is instantiated and before any auth check.
-  // Ensures www.agentrunway.ca/* always 301-redirects to agentrunway.ca/*
-  // so crawlers, social card validators, and users on the www subdomain
-  // always land on the canonical domain regardless of Vercel domain config.
-  const host = request.headers.get("host") ?? "";
-  if (host === `www.${APEX_HOST}`) {
-    const url = request.nextUrl.clone();
-    url.hostname = APEX_HOST;
-    url.port = ""; // strip any explicit port (443 is implicit for HTTPS)
-    return NextResponse.redirect(url, { status: 301 });
-  }
-
-  // ── Step 2: Supabase session refresh ────────────────────────────────────
+  // ── Step 1: Supabase session refresh ────────────────────────────────────
   // Required on every request so the SSR auth cookie stays fresh.
   let supabaseResponse = NextResponse.next({ request });
 
@@ -70,7 +56,7 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  // ── Step 3: Auth guard ──────────────────────────────────────────────────
+  // ── Step 2: Auth guard ──────────────────────────────────────────────────
   // Use an explicit denylist (not an allowlist) so new public pages are
   // automatically public without requiring an allowlist update.
   const isProtectedRoute = PROTECTED_PREFIXES.some(
