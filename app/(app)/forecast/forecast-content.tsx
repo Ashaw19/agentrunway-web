@@ -36,6 +36,7 @@ import { probabilityBands, fiveYearBands } from "@/lib/engines/probabilistic-for
 import { survivalResult } from "@/lib/engines/survival-engine";
 import { compare } from "@/lib/engines/benchmark-engine";
 import { generateAdvisory, type AdvisorCard } from "@/lib/engines/advisor-engine";
+import { ProbabilityChart, type ProbabilityDataPoint } from "@/components/probability-chart";
 
 interface Props {
   settings: UserSettings | null;
@@ -353,7 +354,7 @@ export function ForecastContent({
         </Card>
       )}
 
-      {/* Probability bands */}
+      {/* Probability bands — chart + text summary */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Projection Range</CardTitle>
@@ -361,21 +362,42 @@ export function ForecastContent({
             {bands.confidence} confidence &middot; {bands.monthsOfData} months of data
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-2 text-sm">
+        <CardContent className="space-y-4">
+          {/* Visual chart */}
+          {(() => {
+            const chartData: ProbabilityDataPoint[] = (() => {
+              const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+              const now = new Date();
+              const currentMonth = now.getMonth();
+              return MONTHS.slice(currentMonth).map((month, i) => {
+                const t = (i + 1) / Math.max(12 - currentMonth, 1);
+                return {
+                  label: month,
+                  p10: bands.p10 * t,
+                  p25: bands.p25 * t,
+                  p50: bands.p50 * t,
+                  p75: bands.p75 * t,
+                  p90: bands.p90 * t,
+                };
+              });
+            })();
+            return <ProbabilityChart data={chartData} />;
+          })()}
+          {/* Text reference */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-1 pt-1 text-sm sm:grid-cols-3">
             {[
-              { label: "Best case (P90)", value: bands.p90 },
-              { label: "Optimistic (P75)", value: bands.p75 },
-              { label: "Base (P50)", value: bands.p50, bold: true },
-              { label: "Conservative (P25)", value: bands.p25 },
-              { label: "Pessimistic (P10)", value: bands.p10 },
+              { label: "P90 (Best)", value: bands.p90 },
+              { label: "P75 (Optimistic)", value: bands.p75 },
+              { label: "P50 (Base)", value: bands.p50, bold: true },
+              { label: "P25 (Conservative)", value: bands.p25 },
+              { label: "P10 (Pessimistic)", value: bands.p10 },
             ].map((row) => (
               <div
                 key={row.label}
-                className={`flex justify-between ${row.bold ? "font-medium" : "text-muted-foreground"}`}
+                className={`flex justify-between gap-2 ${row.bold ? "font-medium" : "text-muted-foreground"}`}
               >
-                <span>{row.label}</span>
-                <span>{fmtCurrency(row.value)}</span>
+                <span className="truncate">{row.label}</span>
+                <span className="shrink-0">{fmtCurrency(row.value)}</span>
               </div>
             ))}
           </div>

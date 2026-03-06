@@ -21,6 +21,7 @@ import {
   type Transaction,
 } from "@/lib/types/database";
 import { survivalResult } from "@/lib/engines/survival-engine";
+import { ExpenseDonut, type DonutDataPoint } from "@/components/expense-donut";
 
 interface Props {
   initialCategories: ExpenseCategoryWithItems[];
@@ -71,6 +72,14 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
     healthy: "text-emerald-600",
     strong: "text-emerald-600",
   };
+
+  // ── Donut chart data ───────────────────────────────────────────────────
+  const donutData: DonutDataPoint[] = categories
+    .map((cat) => ({
+      name: cat.title,
+      value: cat.items.reduce((s, i) => s + Number(i.ytd_amount), 0),
+    }))
+    .filter((d) => d.value > 0);
 
   function toggleExpand(id: string) {
     setExpanded((prev) => {
@@ -182,6 +191,19 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
         </Card>
       )}
 
+      {/* Expense breakdown donut */}
+      {donutData.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Expense Breakdown</CardTitle>
+            <CardDescription>YTD spending by category</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ExpenseDonut data={donutData} />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Categories */}
       <div className="space-y-3">
         {categories.map((cat) => {
@@ -231,7 +253,8 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
               </CardHeader>
               {isOpen && (
                 <CardContent>
-                  <div className="space-y-3">
+                  <div className="overflow-x-auto">
+                  <div className="min-w-[400px] space-y-3">
                     {cat.items.map((item) => (
                       <div
                         key={item.id}
@@ -267,6 +290,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
                       <span className="text-center">YTD Amount</span>
                       <span className="text-center">Monthly Recurring</span>
                     </div>
+                  </div>
                   </div>
                 </CardContent>
               )}

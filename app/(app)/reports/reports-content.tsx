@@ -65,7 +65,7 @@ export function ReportsContent({
 
   // ── YTD ───────────────────────────────────────────────────────────────
   const ytdTx = transactions.filter(
-    (tx) => new Date(tx.date).getFullYear() === currentYear,
+    (tx) => tx.date.startsWith(String(currentYear)),
   );
   const ytdGCI = ytdTx.reduce((sum, tx) => sum + computeGCI(tx), 0);
   const avgDealSize = ytdTx.length > 0 ? ytdGCI / ytdTx.length : 0;
@@ -148,14 +148,12 @@ export function ReportsContent({
   ).length;
 
   // ── Monthly breakdown ─────────────────────────────────────────────────
+  const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const monthlyData = Array.from({ length: 12 }, (_, i) => {
-    const monthTx = ytdTx.filter(
-      (tx) => new Date(tx.date).getMonth() === i,
-    );
+    const mm = String(i + 1).padStart(2, "0");
+    const monthTx = ytdTx.filter((tx) => tx.date.slice(5, 7) === mm);
     return {
-      month: new Date(currentYear, i).toLocaleString("en-CA", {
-        month: "short",
-      }),
+      month: MONTH_LABELS[i],
       gci: monthTx.reduce((sum, tx) => sum + computeGCI(tx), 0),
       deals: monthTx.length,
     };
@@ -386,6 +384,7 @@ export function ReportsContent({
           <CardTitle className="text-base">Expenses by Category</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -428,6 +427,7 @@ export function ReportsContent({
               </TableRow>
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
 
@@ -438,6 +438,7 @@ export function ReportsContent({
             <CardTitle className="text-base">Monthly Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -458,6 +459,7 @@ export function ReportsContent({
                 ))}
               </TableBody>
             </Table>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -475,6 +477,7 @@ export function ReportsContent({
               No closed deals this year.
             </p>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -489,7 +492,7 @@ export function ReportsContent({
                 {ytdTx.map((tx) => (
                   <TableRow key={tx.id}>
                     <TableCell className="whitespace-nowrap">
-                      {new Date(tx.date).toLocaleDateString("en-CA")}
+                      {tx.date}
                     </TableCell>
                     <TableCell>{tx.address || "\u2014"}</TableCell>
                     <TableCell>{tx.client_name || "\u2014"}</TableCell>
@@ -505,6 +508,7 @@ export function ReportsContent({
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

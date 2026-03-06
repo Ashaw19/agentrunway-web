@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -26,6 +27,8 @@ import {
   Star,
 } from "lucide-react";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
+import { cn } from "@/lib/utils";
+import { MonthlyChart, type MonthlyDataPoint } from "@/components/monthly-chart";
 import {
   computeGCI,
   computeWeightedGCI,
@@ -86,6 +89,11 @@ export function DashboardContent({
   const now = new Date();
   const currentYear = now.getFullYear();
 
+  // ── Scenario toggle ────────────────────────────────────────────────────
+  const [scenario, setScenario] = useState<"conservative" | "base" | "optimistic">("base");
+  const scenarioMultiplier =
+    scenario === "conservative" ? 0.85 : scenario === "optimistic" ? 1.15 : 1.0;
+
   // ── YTD calculations ──────────────────────────────────────────────────
   const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
   const ytdDealCount = transactions.length;
@@ -103,7 +111,8 @@ export function DashboardContent({
     ? (settings.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
     : [0.25, 0.25, 0.25, 0.25];
   const fraction = seasonalFractionElapsed(seasonalWeights);
-  const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction);
+  const rawProjectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction);
+  const projectedGCI = rawProjectedGCI * scenarioMultiplier;
 
   // ── Goal & pace ─────────────────────────────────────────────────────
   const goalGCI = settings?.goal_gci ?? 0;
@@ -170,6 +179,15 @@ export function DashboardContent({
       }, 3)
     : [];
 
+  // ── Monthly chart data ────────────────────────────────────────────────
+  const monthlyChartData: MonthlyDataPoint[] = buildMonthlyChartData(
+    transactions,
+    projectedGCI,
+    seasonalWeights,
+    currentYear,
+    now,
+  );
+
   const riskColors: Record<string, string> = {
     critical: "text-red-600",
     warning: "text-amber-600",
@@ -180,11 +198,30 @@ export function DashboardContent({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          {todayDescription()} &middot; {currentYear} year-to-date
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            {todayDescription()} &middot; {currentYear} year-to-date
+          </p>
+        </div>
+        {/* Scenario toggle */}
+        <div className="flex rounded-lg border border-border p-0.5 text-xs">
+          {(["conservative", "base", "optimistic"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setScenario(s)}
+              className={cn(
+                "rounded-md px-3 py-1.5 font-medium transition-colors",
+                scenario === s
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {s === "conservative" ? "−15%" : s === "optimistic" ? "+15%" : "Base"}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Runway Score Hero */}
@@ -313,6 +350,28 @@ export function DashboardContent({
           </CardContent>
         </Card>
       </div>
+
+      {/* Monthly Performance Chart */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Monthly Performance</CardTitle>
+              <CardDescription>
+                Closed GCI by month &mdash; projected months shown lighter
+              </CardDescription>
+            </div>
+            {scenario !== "base" && (
+              <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary capitalize">
+                {scenario} scenario
+              </span>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <MonthlyChart data={monthlyChartData} />
+        </CardContent>
+      </Card>
 
       {/* Probability bands + benchmark row */}
       <div className="grid gap-4 sm:grid-cols-2">
@@ -527,6 +586,49 @@ function InsightRow({ insight }: { insight: Insight }) {
       </div>
     </div>
   );
+}
+
+// ── Helper: Build monthly chart data ──────────────────────────────────────
+
+function buildMonthlyChartData(
+  transactions: Transaction[],
+  projectedGCI: number,
+  seasonalWeights: number[],
+  currentYear: number,
+  now: Date,
+): MonthlyDataPoint[] {
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const currentMonth = now.getMonth(); // 0-indexed
+
+  // Actual GCI by month (use string date to avoid timezone issues)
+  const actualByMonth = new Array(12).fill(0);
+  transactions.forEach((tx) => {
+    if (tx.date.startsWith(String(currentYear))) {
+      const monthIdx = parseInt(tx.date.slice(5, 7)) - 1;
+      actualByMonth[monthIdx] += computeGCI(tx);
+    }
+  });
+
+  const ytdActual = actualByMonth.reduce((sum, v) => sum + v, 0);
+  const remainingGCI = Math.max(0, projectedGCI - ytdActual);
+
+  // Monthly seasonality weights (quarterly weights / 3)
+  const monthlyWeights = seasonalWeights.flatMap((qw) => [qw / 3, qw / 3, qw / 3]);
+  const futureWeightTotal = monthlyWeights
+    .slice(currentMonth + 1)
+    .reduce((sum, w) => sum + w, 0);
+
+  return MONTHS.map((month, i) => {
+    if (i <= currentMonth) {
+      return { month, gci: actualByMonth[i], projected: false };
+    } else {
+      const gci =
+        futureWeightTotal > 0
+          ? remainingGCI * (monthlyWeights[i] / futureWeightTotal)
+          : 0;
+      return { month, gci, projected: true };
+    }
+  });
 }
 
 // ── Helper: Build BusinessHealthReport ────────────────────────────────────

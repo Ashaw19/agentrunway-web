@@ -40,7 +40,7 @@ export function SidebarNav() {
   }
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+    <aside className="hidden md:flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       {/* Brand */}
       <div className="flex items-center gap-3 px-5 py-5">
         {/* eslint-disable-next-line @next/next/no-img-element */}

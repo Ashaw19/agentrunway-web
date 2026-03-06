@@ -33,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { fmtCurrency } from "@/lib/formatters";
 import { computeGCI, type Transaction } from "@/lib/types/database";
 
@@ -77,6 +78,8 @@ export function TransactionsContent({ initialTransactions }: Props) {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [filter, setFilter] = useState<"all" | "closed" | "pending" | "fallen">("all");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "highest" | "lowest">("newest");
 
   function openAdd() {
     setEditingId(null);
@@ -170,10 +173,27 @@ export function TransactionsContent({ initialTransactions }: Props) {
     .filter((t) => t.status === "closed" && t.date.startsWith(currentYear))
     .reduce((sum, t) => sum + computeGCI(t), 0);
 
+  // Filtered + sorted view
+  const visibleTransactions = transactions
+    .filter((t) => filter === "all" || t.status === filter)
+    .sort((a, b) => {
+      if (sortBy === "oldest") return a.date.localeCompare(b.date);
+      if (sortBy === "highest") return computeGCI(b) - computeGCI(a);
+      if (sortBy === "lowest") return computeGCI(a) - computeGCI(b);
+      return b.date.localeCompare(a.date); // newest
+    });
+
+  const FILTERS: { value: typeof filter; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "closed", label: "Closed" },
+    { value: "pending", label: "Pending" },
+    { value: "fallen", label: "Fallen" },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
           <p className="text-sm text-muted-foreground">
@@ -186,6 +206,42 @@ export function TransactionsContent({ initialTransactions }: Props) {
         </Button>
       </div>
 
+      {/* Filter + Sort bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Filter pills */}
+        <div className="flex rounded-lg border border-border p-0.5 text-xs">
+          {FILTERS.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => setFilter(f.value)}
+              className={cn(
+                "rounded-md px-3 py-1.5 font-medium transition-colors",
+                filter === f.value
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        {/* Sort select */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>Sort:</span>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+            <SelectTrigger className="h-8 w-32 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="newest">Newest</SelectItem>
+              <SelectItem value="oldest">Oldest</SelectItem>
+              <SelectItem value="highest">Highest GCI</SelectItem>
+              <SelectItem value="lowest">Lowest GCI</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       {/* Table */}
       <Card>
         <CardContent className="p-0">
@@ -193,7 +249,12 @@ export function TransactionsContent({ initialTransactions }: Props) {
             <div className="py-16 text-center text-sm text-muted-foreground">
               No transactions yet. Add your first deal to get started.
             </div>
+          ) : visibleTransactions.length === 0 ? (
+            <div className="py-16 text-center text-sm text-muted-foreground">
+              No {filter} transactions.
+            </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -207,7 +268,7 @@ export function TransactionsContent({ initialTransactions }: Props) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.map((tx) => (
+                {visibleTransactions.map((tx) => (
                   <TableRow key={tx.id}>
                     <TableCell className="whitespace-nowrap text-sm">
                       {tx.date}
@@ -276,6 +337,7 @@ export function TransactionsContent({ initialTransactions }: Props) {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>
