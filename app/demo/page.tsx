@@ -1,0 +1,408 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import {
+  BarChart3,
+  TrendingUp,
+  Shield,
+  FileText,
+  ArrowRight,
+  CheckCircle2,
+} from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Agent Runway Demo | Real Estate Business Analytics Platform",
+  description:
+    "See how Agent Runway helps real estate agents track GCI, forecast income, and understand business performance.",
+  openGraph: {
+    url: "https://agentrunway.ca/demo",
+    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+  },
+  alternates: {
+    canonical: "https://agentrunway.ca/demo",
+  },
+};
+
+// ── Placeholder screenshot panels ─────────────────────────────────────────────
+
+function DashboardMockup() {
+  return (
+    <div className="w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      {/* Header bar */}
+      <div className="mb-4 flex items-center justify-between">
+        <div className="h-3 w-28 rounded bg-slate-200" />
+        <div className="h-3 w-16 rounded bg-blue-100" />
+      </div>
+      {/* KPI row */}
+      <div className="mb-4 grid grid-cols-3 gap-2">
+        {["YTD GCI", "Deals", "Net Income"].map((label) => (
+          <div key={label} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+            <div className="mb-1.5 h-2 w-12 rounded bg-slate-200" />
+            <div className="h-4 w-16 rounded bg-blue-600/20" />
+            <p className="mt-1.5 text-[9px] font-medium text-slate-400">{label}</p>
+          </div>
+        ))}
+      </div>
+      {/* Progress bar */}
+      <div className="mb-2 flex items-center justify-between">
+        <div className="h-2 w-20 rounded bg-slate-200" />
+        <div className="h-2 w-8 rounded bg-slate-200" />
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+        <div className="h-2 w-3/4 rounded-full bg-blue-600" />
+      </div>
+      {/* Chart placeholder */}
+      <div className="mt-4 flex h-16 items-end gap-1">
+        {[30, 50, 40, 65, 55, 80, 60, 90, 70, 85, 75, 95].map((h, i) => (
+          <div
+            key={i}
+            className="flex-1 rounded-t bg-blue-600/20"
+            style={{ height: `${h}%` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ForecastMockup() {
+  return (
+    <div className="w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      {/* Header */}
+      <div className="mb-3 flex items-center justify-between">
+        <div className="h-3 w-32 rounded bg-slate-200" />
+        <div className="h-5 w-20 rounded-full bg-emerald-100" />
+      </div>
+      {/* Projection number */}
+      <div className="mb-4">
+        <div className="h-2 w-24 rounded bg-slate-200" />
+        <div className="mt-1.5 h-6 w-36 rounded bg-blue-600/25" />
+      </div>
+      {/* Band chart */}
+      <div className="relative h-20 w-full overflow-hidden rounded-lg bg-slate-50">
+        {/* P90 band */}
+        <div className="absolute inset-x-0 bottom-4 top-0 rounded bg-blue-50" />
+        {/* P10 band */}
+        <div className="absolute inset-x-0 bottom-4 top-6 rounded bg-blue-100/60" />
+        {/* Main line */}
+        <svg
+          viewBox="0 0 200 60"
+          className="absolute inset-0 h-full w-full"
+          preserveAspectRatio="none"
+        >
+          <polyline
+            points="0,50 40,40 80,32 120,22 160,14 200,8"
+            fill="none"
+            stroke="#2563eb"
+            strokeWidth="2"
+          />
+        </svg>
+      </div>
+      {/* P10 / P90 labels */}
+      <div className="mt-2 flex justify-between">
+        <span className="text-[9px] text-slate-400">P10 conservative</span>
+        <span className="text-[9px] text-slate-400">P90 optimistic</span>
+      </div>
+    </div>
+  );
+}
+
+function ExpenseRunwayMockup() {
+  return (
+    <div className="w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      {/* Header */}
+      <div className="mb-3 h-3 w-28 rounded bg-slate-200" />
+      {/* Expense categories */}
+      <div className="mb-4 space-y-2">
+        {[
+          { label: "Marketing", pct: "72", color: "bg-blue-500" },
+          { label: "MLS & Fees", pct: "45", color: "bg-violet-400" },
+          { label: "Technology", pct: "30", color: "bg-emerald-400" },
+        ].map(({ label, pct, color }) => (
+          <div key={label}>
+            <div className="mb-0.5 flex justify-between">
+              <span className="text-[9px] text-slate-500">{label}</span>
+              <span className="text-[9px] text-slate-400">{pct}%</span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+              <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+      {/* Runway score */}
+      <div className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+        <p className="mb-1 text-[9px] font-medium text-slate-400">Financial Runway</p>
+        <div className="flex items-end justify-between">
+          <div className="h-6 w-10 rounded bg-emerald-500/20" />
+          <div className="flex flex-col items-end gap-0.5">
+            <div className="h-2 w-16 rounded bg-slate-200" />
+            <div className="h-2 w-10 rounded bg-emerald-300" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReportsMockup() {
+  return (
+    <div className="w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      {/* Header */}
+      <div className="mb-4 flex items-center justify-between">
+        <div className="h-3 w-28 rounded bg-slate-200" />
+        <div className="flex items-center gap-1.5">
+          <div className="h-5 w-5 rounded bg-slate-100" />
+          <div className="h-5 w-16 rounded bg-blue-600/20" />
+        </div>
+      </div>
+      {/* Two-column summary */}
+      <div className="mb-4 grid grid-cols-2 gap-2">
+        {["GCI", "Net Income", "Expenses", "Tax Est."].map((label) => (
+          <div key={label} className="rounded-lg border border-slate-100 bg-slate-50 p-2.5">
+            <div className="mb-1 h-2 w-12 rounded bg-slate-200" />
+            <div className="h-3 w-16 rounded bg-blue-600/20" />
+            <p className="mt-1 text-[8px] text-slate-400">{label}</p>
+          </div>
+        ))}
+      </div>
+      {/* Table rows */}
+      <div className="space-y-1.5">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="flex items-center gap-2 rounded bg-slate-50 px-2 py-1.5">
+            <div className="h-2 w-2 rounded-full bg-blue-600/30" />
+            <div className="h-2 flex-1 rounded bg-slate-200" />
+            <div className="h-2 w-10 rounded bg-slate-200" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Product sections ──────────────────────────────────────────────────────────
+
+const SECTIONS = [
+  {
+    id: "overview",
+    icon: BarChart3,
+    tag: "Dashboard Overview",
+    tagClass: "bg-blue-100 text-blue-700",
+    heading: "Your entire business at a glance",
+    explanation:
+      "The Agent Runway dashboard brings every key number together in one place — updated the moment you log a deal. See your year-to-date GCI, net income after splits and fees, deal count, average commission, and real-time pace against your annual goal.",
+    bullets: [
+      "YTD GCI and net income side by side",
+      "Goal progress with seasonality-adjusted pace indicator",
+      "Monthly bar chart showing income distribution",
+      "Benchmark score comparing your performance to peers",
+    ],
+    Mockup: DashboardMockup,
+    bg: "bg-white",
+  },
+  {
+    id: "forecasting",
+    icon: TrendingUp,
+    tag: "Income Forecasting",
+    tagClass: "bg-emerald-100 text-emerald-700",
+    heading: "Know where you'll land before year-end",
+    explanation:
+      "Agent Runway combines your closed history, probability-weighted pipeline, and Canadian market seasonality to project a realistic year-end income range. Every forecast is expressed as a band of outcomes — not a single guess — so you can plan for both the conservative and optimistic scenarios.",
+    bullets: [
+      "Seasonality-aware projection engine",
+      "P10–P90 probability bands for all forecasts",
+      "Pipeline deals weighted by close probability",
+      "5-year growth trajectory from your trend data",
+    ],
+    Mockup: ForecastMockup,
+    bg: "bg-slate-50",
+  },
+  {
+    id: "expenses",
+    icon: Shield,
+    tag: "Expenses + Runway",
+    tagClass: "bg-violet-100 text-violet-700",
+    heading: "Understand costs and business resilience",
+    explanation:
+      "Track every business expense by category and see your expense ratio against the 25–30% industry benchmark. Your financial runway — the number of months your cash reserve covers your fixed costs — is calculated automatically and classified from Critical to Strong.",
+    bullets: [
+      "Pre-built expense categories for real estate agents",
+      "Live expense ratio vs 25–30% benchmark",
+      "Runway score: Critical, Warning, Healthy, or Strong",
+      "Composite business health grade (A+ to F)",
+    ],
+    Mockup: ExpenseRunwayMockup,
+    bg: "bg-white",
+  },
+  {
+    id: "reports",
+    icon: FileText,
+    tag: "Reports",
+    tagClass: "bg-rose-100 text-rose-700",
+    heading: "Exportable analytics for your whole business",
+    explanation:
+      "Agent Runway's reports section brings your P&L summary, projected tax breakdown, expense analysis, monthly performance trends, and full transaction log into one printable view. Export a polished PDF to share with your accountant, advisor, or brokerage.",
+    bullets: [
+      "Year-to-date P&L with full deduction waterfall",
+      "Projected tax: federal, provincial, CPP, effective rate",
+      "Monthly performance chart and transaction log",
+      "One-click PDF export formatted for sharing",
+    ],
+    Mockup: ReportsMockup,
+    bg: "bg-slate-50",
+  },
+] as const;
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
+export default function DemoPage() {
+  return (
+    <div className="flex min-h-screen flex-col bg-slate-950">
+
+      {/* ── Navigation ── */}
+      <header className="border-b border-slate-800 px-6 py-5 sm:px-10">
+        <div className="mx-auto flex max-w-6xl items-center justify-between">
+          <Link href="/" className="text-lg font-bold tracking-tight text-white">
+            Agent Runway
+          </Link>
+          <Link
+            href="/login"
+            className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800"
+          >
+            Sign In
+          </Link>
+        </div>
+      </header>
+
+      <main>
+
+        {/* ── Hero ── */}
+        <section className="bg-slate-950 px-6 py-20 text-center sm:px-10 sm:py-28">
+          <div className="mx-auto max-w-3xl">
+            <div className="mb-5 inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold text-blue-400">
+              Product Overview
+            </div>
+            <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
+              See Agent Runway in Action
+            </h1>
+            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
+              Agent Runway helps real estate agents{" "}
+              <Link
+                href="/how-real-estate-agents-track-gci"
+                className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+              >
+                track GCI
+              </Link>
+              , forecast income, measure financial runway, and understand their
+              full business performance — all in one dashboard built for
+              Canadian agents.
+            </p>
+            <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+              <Link
+                href="/login"
+                className="inline-flex items-center rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
+              >
+                Start Free Account
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+              <a
+                href="#overview"
+                className="inline-flex items-center rounded-lg border border-slate-700 px-8 py-3 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-800"
+              >
+                View Dashboard
+              </a>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Product Sections ── */}
+        {SECTIONS.map(({ id, tag, tagClass, heading, explanation, bullets, Mockup, bg }, idx) => (
+          <section key={id} id={id} className={`${bg} px-6 py-20 sm:px-10`}>
+            <div className="mx-auto max-w-5xl">
+              <div
+                className={`flex flex-col gap-10 sm:flex-row sm:items-center ${
+                  idx % 2 === 1 ? "sm:flex-row-reverse" : ""
+                }`}
+              >
+                {/* Text */}
+                <div className="flex-1">
+                  <span className={`mb-3 inline-block rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${tagClass}`}>
+                    {tag}
+                  </span>
+                  <h2 className="mb-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                    {heading}
+                  </h2>
+                  <p className="mb-6 text-base leading-relaxed text-slate-600">
+                    {explanation}
+                  </p>
+                  <ul className="space-y-2.5">
+                    {bullets.map((b) => (
+                      <li key={b} className="flex items-start gap-2.5 text-sm text-slate-600">
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-7">
+                    <Link
+                      href="/login"
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:underline underline-offset-2"
+                    >
+                      Try it free
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Link>
+                  </div>
+                </div>
+
+                {/* Screenshot placeholder */}
+                <div className="flex-1">
+                  <Mockup />
+                </div>
+              </div>
+            </div>
+          </section>
+        ))}
+
+        {/* ── Closing CTA ── */}
+        <section className="bg-slate-950 px-6 py-24 text-center sm:px-10">
+          <div className="mx-auto max-w-2xl">
+            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              Ready to explore the full dashboard?
+            </h2>
+            <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-400">
+              Create a free account and connect your real numbers. Set your
+              annual GCI goal, log your first deal, and see your year-end
+              forecast update in real time — no credit card required.
+            </p>
+            <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+              <Link
+                href="/login"
+                className="inline-flex items-center rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
+              >
+                Create Free Account
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+              <Link
+                href="/pricing"
+                className="inline-flex items-center rounded-lg border border-slate-700 px-8 py-3 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-800"
+              >
+                View Pricing
+              </Link>
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+      {/* ── Footer ── */}
+      <footer className="border-t border-slate-800 bg-slate-950 px-6 py-8 sm:px-10">
+        <div className="mx-auto max-w-6xl text-center">
+          <p className="text-sm font-semibold text-white">Agent Runway</p>
+          <p className="mt-1 text-xs text-slate-500">
+            © {new Date().getFullYear()} Agent Runway. All rights reserved.
+          </p>
+        </div>
+      </footer>
+
+    </div>
+  );
+}
