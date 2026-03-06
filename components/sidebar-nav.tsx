@@ -19,14 +19,62 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Transactions", href: "/transactions", icon: ArrowLeftRight },
-  { label: "Pipeline", href: "/pipeline", icon: Layers },
-  { label: "History", href: "/history", icon: History },
-  { label: "Forecast", href: "/forecast", icon: TrendingUp },
-  { label: "Expenses", href: "/expenses", icon: Receipt },
-  { label: "Reports", href: "/reports", icon: FileText },
-  { label: "Settings", href: "/settings", icon: Settings },
+  {
+    label: "Dashboard",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+    iconActive: "text-blue-300",
+    iconInactive: "text-blue-400/60",
+  },
+  {
+    label: "Transactions",
+    href: "/transactions",
+    icon: ArrowLeftRight,
+    iconActive: "text-emerald-300",
+    iconInactive: "text-emerald-400/60",
+  },
+  {
+    label: "Pipeline",
+    href: "/pipeline",
+    icon: Layers,
+    iconActive: "text-violet-300",
+    iconInactive: "text-violet-400/60",
+  },
+  {
+    label: "History",
+    href: "/history",
+    icon: History,
+    iconActive: "text-sky-300",
+    iconInactive: "text-sky-400/60",
+  },
+  {
+    label: "Forecast",
+    href: "/forecast",
+    icon: TrendingUp,
+    iconActive: "text-violet-300",
+    iconInactive: "text-violet-400/60",
+  },
+  {
+    label: "Expenses",
+    href: "/expenses",
+    icon: Receipt,
+    iconActive: "text-amber-300",
+    iconInactive: "text-amber-400/60",
+  },
+  {
+    label: "Reports",
+    href: "/reports",
+    icon: FileText,
+    iconActive: "text-slate-200",
+    iconInactive: "text-slate-400/60",
+  },
+  {
+    label: "Settings",
+    href: "/settings",
+    icon: Settings,
+    iconActive: "text-slate-200",
+    iconInactive: "text-slate-400/60",
+  },
 ];
 
 export function SidebarNav() {
@@ -41,6 +89,9 @@ export function SidebarNav() {
 
   return (
     <aside className="hidden md:flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+      {/* Rainbow accent strip */}
+      <div className="h-[3px] w-full bg-gradient-to-r from-blue-500 via-violet-500 to-emerald-500" />
+
       {/* Brand */}
       <div className="flex items-center gap-3 px-5 py-5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -73,7 +124,12 @@ export function SidebarNav() {
                   : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
               )}
             >
-              <item.icon className="h-4 w-4" />
+              <item.icon
+                className={cn(
+                  "h-4 w-4 transition-colors",
+                  isActive ? item.iconActive : item.iconInactive,
+                )}
+              />
               {item.label}
             </Link>
           );

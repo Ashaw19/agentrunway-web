@@ -68,11 +68,12 @@
   --border: oklch(0.929 0.013 255.508);
   --input: oklch(0.929 0.013 255.508);
   --ring: oklch(0.56 0.235 261);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  /* Semantic chart palette */
+  --chart-1: oklch(0.65 0.18 150);    /* emerald  — income / GCI */
+  --chart-2: oklch(0.58 0.22 285);    /* violet   — pipeline / forecast */
+  --chart-3: oklch(0.75 0.17 65);     /* amber    — expenses / costs */
+  --chart-4: oklch(0.62 0.16 195);    /* teal     — health / score */
+  --chart-5: oklch(0.60 0.22 15);     /* rose     — tax / warnings */
   /* Dark navy sidebar — matches app icon background */
   --sidebar: oklch(0.16 0.065 265);
   --sidebar-foreground: oklch(0.93 0.013 255);

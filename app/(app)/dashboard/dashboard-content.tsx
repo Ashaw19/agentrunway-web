@@ -225,12 +225,12 @@ export function DashboardContent({
       </div>
 
       {/* Runway Score Hero */}
-      <Card>
+      <Card className="bg-gradient-to-br from-slate-50 to-blue-50 border-blue-100">
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                <span className="text-2xl font-bold text-primary">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg">
+                <span className="text-2xl font-bold text-white">
                   {runwayScore.grade}
                 </span>
               </div>
@@ -268,10 +268,12 @@ export function DashboardContent({
 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="border-t-2 border-t-emerald-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription>YTD GCI</CardDescription>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <div className="rounded-md bg-emerald-50 p-1.5">
+              <DollarSign className="h-4 w-4 text-emerald-600" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{fmtCurrency(ytdGCI)}</div>
@@ -283,10 +285,12 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-t-2 border-t-blue-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription>Closed Deals</CardDescription>
-            <Briefcase className="h-4 w-4 text-muted-foreground" />
+            <div className="rounded-md bg-blue-50 p-1.5">
+              <Briefcase className="h-4 w-4 text-blue-600" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{ytdDealCount}</div>
@@ -296,10 +300,12 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-t-2 border-t-violet-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription>Pipeline</CardDescription>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <div className="rounded-md bg-violet-50 p-1.5">
+              <TrendingUp className="h-4 w-4 text-violet-600" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -311,10 +317,12 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-t-2 border-t-teal-500">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription>Projected Year-End</CardDescription>
-            <Target className="h-4 w-4 text-muted-foreground" />
+            <div className="rounded-md bg-teal-50 p-1.5">
+              <Target className="h-4 w-4 text-teal-600" />
+            </div>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -352,7 +360,7 @@ export function DashboardContent({
       </div>
 
       {/* Monthly Performance Chart */}
-      <Card>
+      <Card className="border-t-2 border-t-emerald-500">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div>
@@ -375,7 +383,7 @@ export function DashboardContent({
 
       {/* Probability bands + benchmark row */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
+        <Card className="border-t-2 border-t-violet-500">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Projection Range</CardTitle>
             <CardDescription>
@@ -408,7 +416,7 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-t-2 border-t-teal-500">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Benchmark</CardTitle>
             <CardDescription>
@@ -448,7 +456,7 @@ export function DashboardContent({
       {/* Tax estimate + Goal progress row */}
       <div className="grid gap-4 sm:grid-cols-2">
         {taxResult && (
-          <Card>
+          <Card className="border-t-2 border-t-rose-400">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Tax Estimate</CardTitle>
               <CardDescription>
@@ -480,7 +488,7 @@ export function DashboardContent({
         )}
 
         {goalGCI > 0 && (
-          <Card>
+          <Card className="border-t-2 border-t-emerald-500">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Goal Progress</CardTitle>
               <CardDescription>
@@ -503,7 +511,7 @@ export function DashboardContent({
 
       {/* Insights */}
       {insights.length > 0 && (
-        <Card>
+        <Card className="border-t-2 border-t-blue-500">
           <CardHeader>
             <CardTitle className="text-base">Insights</CardTitle>
           </CardHeader>
@@ -518,7 +526,7 @@ export function DashboardContent({
       )}
 
       {/* Recent transactions */}
-      <Card>
+      <Card className="border-t-2 border-t-emerald-500">
         <CardHeader>
           <CardTitle className="text-base">Recent Transactions</CardTitle>
           <CardDescription>
@@ -576,10 +584,16 @@ function InsightRow({ insight }: { insight: Insight }) {
     warning: "text-amber-600",
     info: "text-muted-foreground",
   };
+  const typeBg: Record<string, string> = {
+    praise: "bg-emerald-50 border-emerald-200",
+    tip: "bg-blue-50 border-blue-200",
+    warning: "bg-amber-50 border-amber-200",
+    info: "border-border",
+  };
 
   return (
-    <div className="flex items-start gap-3 rounded-lg border p-3">
-      <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${typeColors[insight.type]}`} />
+    <div className={`flex items-start gap-3 rounded-lg border p-3 ${typeBg[insight.type] ?? "border-border"}`}>
+      <Icon className={`mt-0.5 h-5 w-5 shrink-0 ${typeColors[insight.type]}`} />
       <div>
         <p className="text-sm font-medium">{insight.title}</p>
         <p className="text-xs text-muted-foreground">{insight.message}</p>

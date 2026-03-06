@@ -10,14 +10,14 @@ export interface DonutDataPoint {
 }
 
 const COLORS = [
-  "oklch(0.56 0.235 261)",   // brand blue
-  "oklch(0.65 0.2 190)",     // teal
-  "oklch(0.7 0.18 145)",     // green
-  "oklch(0.72 0.19 55)",     // amber
-  "oklch(0.62 0.2 310)",     // purple
-  "oklch(0.65 0.22 15)",     // red-orange
-  "oklch(0.68 0.16 240)",    // slate blue
-  "oklch(0.75 0.15 100)",    // yellow-green
+  "oklch(0.72 0.19 55)",     // amber      — primary expense colour
+  "oklch(0.62 0.16 195)",    // teal       — second category
+  "oklch(0.58 0.22 285)",    // violet     — third category
+  "oklch(0.65 0.22 15)",     // rose       — fourth category
+  "oklch(0.56 0.235 261)",   // brand blue — fifth category
+  "oklch(0.65 0.18 150)",    // emerald    — sixth category
+  "oklch(0.78 0.16 85)",     // golden     — seventh category
+  "oklch(0.62 0.2 310)",     // purple     — eighth category
 ];
 
 interface Props {

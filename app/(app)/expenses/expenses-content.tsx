@@ -122,7 +122,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
 
       {/* Summary */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="border-t-2 border-t-amber-500">
           <CardHeader className="pb-2">
             <CardDescription>YTD Expenses</CardDescription>
           </CardHeader>
@@ -130,7 +130,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
             <div className="text-2xl font-bold">{fmtCurrency(ytdTotal)}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-t-2 border-t-amber-400">
           <CardHeader className="pb-2">
             <CardDescription>Monthly Recurring</CardDescription>
           </CardHeader>
@@ -141,7 +141,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-t-2 border-t-rose-400">
           <CardHeader className="pb-2">
             <CardDescription>Expense Ratio</CardDescription>
           </CardHeader>
@@ -154,7 +154,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="border-t-2 border-t-teal-500">
           <CardHeader className="pb-2">
             <CardDescription>Cash Runway</CardDescription>
           </CardHeader>
@@ -171,7 +171,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
 
       {/* Expense ratio bar */}
       {ytdGCI > 0 && (
-        <Card>
+        <Card className="border-l-4 border-l-amber-400">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Expense Ratio vs. Benchmark</CardTitle>
           </CardHeader>
@@ -193,7 +193,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
 
       {/* Expense breakdown donut */}
       {donutData.length > 0 && (
-        <Card>
+        <Card className="border-t-2 border-t-amber-500">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Expense Breakdown</CardTitle>
             <CardDescription>YTD spending by category</CardDescription>

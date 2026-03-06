@@ -76,8 +76,8 @@ export function ProbabilityChart({ data }: Props) {
       <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="bandFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="oklch(0.56 0.235 261)" stopOpacity={0.15} />
-            <stop offset="95%" stopColor="oklch(0.56 0.235 261)" stopOpacity={0.02} />
+            <stop offset="5%" stopColor="oklch(0.58 0.22 285)" stopOpacity={0.15} />
+            <stop offset="95%" stopColor="oklch(0.58 0.22 285)" stopOpacity={0.02} />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
@@ -101,7 +101,7 @@ export function ProbabilityChart({ data }: Props) {
         <Area
           type="monotone"
           dataKey="p90"
-          stroke="oklch(0.56 0.235 261)"
+          stroke="oklch(0.58 0.22 285)"
           strokeWidth={1}
           strokeOpacity={0.3}
           fill="url(#bandFill)"
@@ -110,7 +110,7 @@ export function ProbabilityChart({ data }: Props) {
         <Area
           type="monotone"
           dataKey="p10"
-          stroke="oklch(0.56 0.235 261)"
+          stroke="oklch(0.58 0.22 285)"
           strokeWidth={1}
           strokeOpacity={0.3}
           fill="white"
@@ -120,16 +120,16 @@ export function ProbabilityChart({ data }: Props) {
         <Area
           type="monotone"
           dataKey="p75"
-          stroke="oklch(0.56 0.235 261)"
+          stroke="oklch(0.58 0.22 285)"
           strokeWidth={1.5}
           strokeOpacity={0.5}
-          fill="oklch(0.56 0.235 261)"
+          fill="oklch(0.58 0.22 285)"
           fillOpacity={0.12}
         />
         <Area
           type="monotone"
           dataKey="p25"
-          stroke="oklch(0.56 0.235 261)"
+          stroke="oklch(0.58 0.22 285)"
           strokeWidth={1.5}
           strokeOpacity={0.5}
           fill="white"
@@ -139,7 +139,7 @@ export function ProbabilityChart({ data }: Props) {
         <Area
           type="monotone"
           dataKey="p50"
-          stroke="oklch(0.56 0.235 261)"
+          stroke="oklch(0.58 0.22 285)"
           strokeWidth={2.5}
           fill="none"
         />
