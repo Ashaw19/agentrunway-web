@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" role="img" aria-label="Agent Runway">
+  <defs>
+    <!-- Background: deep navy, subtle top-to-bottom depth -->
+    <linearGradient id="ar-bg" x1="20" y1="0" x2="20" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#1e2f5e"/>
+      <stop offset="100%" stop-color="#0d1526"/>
+    </linearGradient>
+
+    <!-- Left panel: light→rich blue, top-left to bottom-right -->
+    <linearGradient id="ar-left" x1="3" y1="9" x2="16" y2="31" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#6cb4ff"/>
+      <stop offset="55%"  stop-color="#2e7be6"/>
+      <stop offset="100%" stop-color="#1452a8"/>
+    </linearGradient>
+
+    <!-- Right panel: light→rich blue, top-right to bottom-left (mirror) -->
+    <linearGradient id="ar-right" x1="37" y1="9" x2="24" y2="31" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#6cb4ff"/>
+      <stop offset="55%"  stop-color="#2e7be6"/>
+      <stop offset="100%" stop-color="#1452a8"/>
+    </linearGradient>
+
+    <!-- Edge highlight: white top-sheen on panels -->
+    <linearGradient id="ar-sheen" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Glow behind orange accent -->
+    <radialGradient id="ar-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#F97316" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#F97316" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ── Background ─────────────────────────────────────────────────── -->
+  <rect width="40" height="40" rx="9" fill="url(#ar-bg)"/>
+
+  <!-- ── Left panel ─────────────────────────────────────────────────── -->
+  <!-- Outer shape -->
+  <path d="M3 9 L17.5 9 L14.5 31 L3 31 Z" fill="url(#ar-left)"/>
+  <!-- Top-sheen strip -->
+  <path d="M3 9 L17.5 9 L17 13 L3 12.5 Z" fill="url(#ar-sheen)"/>
+  <!-- Subtle shadow on right edge of left panel -->
+  <path d="M16.5 10 L14 30" stroke="#0d1526" stroke-width="1" stroke-opacity="0.25" stroke-linecap="round"/>
+
+  <!-- ── Right panel ─────────────────────────────────────────────────── -->
+  <!-- Outer shape -->
+  <path d="M22.5 9 L37 9 L37 31 L25.5 31 Z" fill="url(#ar-right)"/>
+  <!-- Top-sheen strip -->
+  <path d="M22.5 9 L37 9 L37 13.5 L23 13 Z" fill="url(#ar-sheen)"/>
+  <!-- Subtle shadow on left edge of right panel -->
+  <path d="M23.5 10 L26 30" stroke="#0d1526" stroke-width="1" stroke-opacity="0.25" stroke-linecap="round"/>
+
+  <!-- ── Runway gap (centerline) ─────────────────────────────────────── -->
+  <!-- Faint center glow to suggest depth in the gap -->
+  <rect x="15" y="9" width="10" height="22" fill="#0a1020" fill-opacity="0.5"/>
+
+  <!-- ── Orange accent — vanishing-point spark at top of gap ─────────── -->
+  <!-- Soft glow halo -->
+  <circle cx="20" cy="14" r="5" fill="url(#ar-glow)"/>
+  <!-- The dot itself -->
+  <circle cx="20" cy="14" r="1.8" fill="#F97316"/>
+
+</svg>

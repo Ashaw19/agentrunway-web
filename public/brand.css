@@ -1,0 +1,264 @@
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  AGENT RUNWAY — BRAND IDENTITY SYSTEM  v1.0
+ *  Cross-product token reference. Copy into any web project, email template,
+ *  Figma token library, or marketing asset to stay on-brand.
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ *  Designed for: Canadian real estate agents who mean business.
+ *  Voice: Confident. Precise. Forward.
+ *  Visual mood: Premium fintech — dark, deliberate, data-first.
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ *  QUICK REFERENCE (for Figma / Canva / print use)
+ * ───────────────────────────────────────────────────────────────────────────
+ *
+ *  PRIMARY BRAND BLUE      #1E72F2   RGB(30,114,242)   CMYK(88,53,0,5)
+ *  MIDNIGHT NAVY           #0D1526   RGB(13,21,38)     CMYK(66,45,0,85)
+ *  DEEP NAVY               #1a2744   RGB(26,39,68)     CMYK(62,43,0,73)
+ *  VELOCITY ORANGE         #F97316   RGB(249,115,22)   CMYK(0,54,91,2)
+ *  INCOME GREEN            #10B981   RGB(16,185,129)   CMYK(91,0,30,27)
+ *  RUNWAY WHITE            #F0F6FF   RGB(240,246,255)  CMYK(6,3,0,0)
+ *
+ * ───────────────────────────────────────────────────────────────────────────
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CORE BRAND PALETTE
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+
+  /* ── Primary ────────────────────────────────────────────────────────────
+     The signature blue. Use for primary buttons, links, active states,
+     key data callouts, and brand identification.
+  ── */
+  --ar-blue-400:       #5999F5;   /* Hover / tinted buttons          */
+  --ar-blue-500:       #1E72F2;   /* ★ PRIMARY — main brand blue     */
+  --ar-blue-600:       #1558C7;   /* Pressed / active state          */
+  --ar-blue-700:       #0F3E8F;   /* Deep accent, dark mode links    */
+  --ar-blue-900:       #071D44;   /* Near-black blue for dark panels */
+
+  /* ── Midnight / Navy ────────────────────────────────────────────────────
+     Background surfaces: sidebar, hero sections, feature cards, email dark
+     mode headers. Never use for body text on colored backgrounds.
+  ── */
+  --ar-navy-50:        #EFF4FF;   /* Faint blue-white canvas         */
+  --ar-navy-100:       #D9E6FF;   /* Light-mode card tint            */
+  --ar-navy-200:       #B3CCFF;   /* Dividers, borders on dark bg    */
+  --ar-navy-500:       #2D4A7A;   /* Mid-navy — illustrated bg       */
+  --ar-navy-700:       #1a2744;   /* ★ App icon / logo background    */
+  --ar-navy-800:       #0F1D35;   /* Sidebar, dark card surface      */
+  --ar-navy-900:       #0D1526;   /* ★ DEEPEST — hero bg, print dark */
+  --ar-navy-950:       #080D18;   /* Near-black for OLED mode        */
+
+  /* ── Velocity Orange ────────────────────────────────────────────────────
+     The accent. Reserved for urgency, energy, key CTAs, "live" indicators,
+     and the logo vanishing-point spark. Use sparingly — max 10% of colour
+     instances to maintain premium impact.
+  ── */
+  --ar-orange-300:     #FDB072;   /* Light tint, tag backgrounds     */
+  --ar-orange-400:     #FB923C;   /* Hover state                     */
+  --ar-orange-500:     #F97316;   /* ★ VELOCITY ORANGE — brand accent*/
+  --ar-orange-600:     #EA580C;   /* Pressed / active                */
+  --ar-orange-700:     #C2410C;   /* Deep orange for dark contexts   */
+
+  /* ── Semantic: Income / Growth ──────────────────────────────────────────
+     GCI, closed deals, revenue, goal progress, positive deltas.
+  ── */
+  --ar-green-400:      #34D399;
+  --ar-green-500:      #10B981;   /* ★ Income green                  */
+  --ar-green-600:      #059669;
+  --ar-green-700:      #047857;
+
+  /* ── Semantic: Pipeline / Forecast ─────────────────────────────────────
+     Projected values, pipeline deals, probability bands.
+  ── */
+  --ar-violet-400:     #A78BFA;
+  --ar-violet-500:     #7C3AED;   /* ★ Pipeline violet               */
+  --ar-violet-600:     #6D28D9;
+
+  /* ── Semantic: Expenses / Costs ─────────────────────────────────────────
+     Monthly burn, expense categories, cost tracking.
+  ── */
+  --ar-amber-400:      #FBBF24;
+  --ar-amber-500:      #F59E0B;   /* ★ Expense amber                 */
+  --ar-amber-600:      #D97706;
+
+  /* ── Semantic: Tax / Warnings ───────────────────────────────────────────
+     Tax estimates, caution states, critical warnings.
+  ── */
+  --ar-rose-400:       #FB7185;
+  --ar-rose-500:       #F43F5E;   /* ★ Tax / warning rose            */
+  --ar-rose-600:       #E11D48;
+
+  /* ── Semantic: Health / Score ───────────────────────────────────────────
+     Runway score, cash runway, business health indicators.
+  ── */
+  --ar-teal-400:       #2DD4BF;
+  --ar-teal-500:       #0D9488;   /* ★ Health teal                   */
+  --ar-teal-600:       #0F766E;
+
+  /* ── Neutral ────────────────────────────────────────────────────────────
+     Body text, muted labels, dividers. Based on cool blue-gray (not pure
+     gray) to stay harmonious with the blue-dominant palette.
+  ── */
+  --ar-slate-50:       #F8FAFF;   /* ★ RUNWAY WHITE — app canvas     */
+  --ar-slate-100:      #EEF2FB;   /* Alt card background             */
+  --ar-slate-200:      #D4DCF0;   /* Borders, dividers               */
+  --ar-slate-300:      #A8B8D8;   /* Placeholder text                */
+  --ar-slate-400:      #7A8EAD;   /* Muted labels                    */
+  --ar-slate-500:      #536180;   /* Secondary body text             */
+  --ar-slate-700:      #2D3A52;   /* Primary body on light bg        */
+  --ar-slate-900:      #111827;   /* Headlines, dark text            */
+
+  /* ── Pure functional ────────────────────────────────────────────────────*/
+  --ar-white:          #FFFFFF;
+  --ar-black:          #000000;
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     BRAND GRADIENTS
+     All gradients are available in horizontal / diagonal / vertical variants.
+     Use the "Runway" gradient for hero dark-mode sections and marketing
+     headers. Use "Ascent" for product screenshots and illustration overlays.
+  ═══════════════════════════════════════════════════════════════════════ */
+
+  /* Runway — main brand gradient (dark nav → brand blue) */
+  --ar-grad-runway:         linear-gradient(135deg, #0D1526 0%, #1E72F2 100%);
+  --ar-grad-runway-v:       linear-gradient(180deg, #1a2744 0%, #0D1526 100%);
+
+  /* Ascent — blue to violet (forecast, pipeline, premium sections) */
+  --ar-grad-ascent:         linear-gradient(135deg, #1E72F2 0%, #6B5FF8 100%);
+
+  /* Velocity — orange fire (CTAs, launch moments, conversion pages) */
+  --ar-grad-velocity:       linear-gradient(135deg, #F97316 0%, #EF4444 100%);
+
+  /* Growth — income green gradient (earnings, wins, deal-closed states) */
+  --ar-grad-growth:         linear-gradient(135deg, #10B981 0%, #0D9488 100%);
+
+  /* Horizon — orange → blue (hero banners, full-bleed marketing spreads) */
+  --ar-grad-horizon:        linear-gradient(135deg, #F97316 0%, #1E72F2 60%, #7C3AED 100%);
+
+  /* Frost — light-mode card accent (very subtle, cards on white canvas) */
+  --ar-grad-frost:          linear-gradient(135deg, #EFF4FF 0%, #F8FAFF 100%);
+
+  /* Midnight — deepest dark for email headers, social dark backgrounds */
+  --ar-grad-midnight:       linear-gradient(180deg, #1e2f5e 0%, #080D18 100%);
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     SHADOWS & GLOW
+  ═══════════════════════════════════════════════════════════════════════ */
+
+  /* Standard card elevation */
+  --ar-shadow-sm:    0 1px 3px rgba(13,21,38,0.08), 0 1px 2px rgba(13,21,38,0.05);
+  --ar-shadow-md:    0 4px 12px rgba(13,21,38,0.12), 0 2px 4px rgba(13,21,38,0.06);
+  --ar-shadow-lg:    0 10px 30px rgba(13,21,38,0.18), 0 4px 8px rgba(13,21,38,0.08);
+
+  /* Brand glow (use on hero score circles, CTA buttons) */
+  --ar-glow-blue:    0 0 20px rgba(30,114,242,0.35), 0 0 60px rgba(30,114,242,0.15);
+  --ar-glow-orange:  0 0 16px rgba(249,115,22,0.45), 0 0 40px rgba(249,115,22,0.15);
+  --ar-glow-green:   0 0 16px rgba(16,185,129,0.35), 0 0 40px rgba(16,185,129,0.12);
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     TYPOGRAPHY
+  ═══════════════════════════════════════════════════════════════════════ */
+
+  /* Primary: Geist Sans (app), Inter (email/web), SF Pro Display (Apple) */
+  --ar-font-sans: 'Geist Sans', 'Inter', 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
+  /* Monospace: for data tables, code, financial figures */
+  --ar-font-mono: 'Geist Mono', 'JetBrains Mono', 'SF Mono', monospace;
+
+  /* Display heading (hero, marketing) */
+  --ar-text-display:   700 clamp(2.5rem, 5vw, 4.5rem) / 1.05 var(--ar-font-sans);
+  /* Section heading */
+  --ar-text-heading:   600 clamp(1.25rem, 3vw, 2rem) / 1.2 var(--ar-font-sans);
+  /* Body */
+  --ar-text-body:      400 1rem / 1.6 var(--ar-font-sans);
+  /* Caption */
+  --ar-text-caption:   500 0.75rem / 1.4 var(--ar-font-sans);
+  /* Label (all-caps, wide tracking — sidebar, badges) */
+  --ar-tracking-wide:  0.1em;
+  --ar-tracking-wider: 0.15em;
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     BORDER RADIUS
+  ═══════════════════════════════════════════════════════════════════════ */
+  --ar-radius-xs:   4px;    /* Inline tags, tight badges         */
+  --ar-radius-sm:   6px;    /* Inputs, small components          */
+  --ar-radius-md:   10px;   /* Cards, modals, dropdowns          */
+  --ar-radius-lg:   14px;   /* Feature cards, overlays           */
+  --ar-radius-xl:   20px;   /* Hero sections, large callout cards*/
+  --ar-radius-pill: 9999px; /* Pills, score badges, toggle chips */
+
+  /* ═══════════════════════════════════════════════════════════════════════
+     MOTION
+  ═══════════════════════════════════════════════════════════════════════ */
+  --ar-ease-out:    cubic-bezier(0.0, 0.0, 0.2, 1);
+  --ar-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ar-duration-fast:   120ms;
+  --ar-duration-base:   200ms;
+  --ar-duration-slow:   350ms;
+
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SEMANTIC COLOUR USAGE GUIDE (for designers & marketers)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Dashboard & data contexts:
+     Income / Revenue / GCI     → --ar-green-500   #10B981
+     Pipeline / Forecast        → --ar-violet-500  #7C3AED
+     Expenses / Burn Rate       → --ar-amber-500   #F59E0B
+     Tax / Obligations          → --ar-rose-500    #F43F5E
+     Score / Health             → --ar-teal-500    #0D9488
+
+   Status badges:
+     Critical (< 2 mo runway)   → --ar-rose-500    #F43F5E
+     At Risk (< 4 mo runway)    → --ar-orange-500  #F97316
+     Watchlist (behind goal)    → --ar-amber-500   #F59E0B
+     Stable (on track)          → --ar-green-500   #10B981
+
+   Marketing use:
+     Hero / Dark headers        → --ar-grad-midnight or --ar-grad-runway
+     Primary CTAs               → --ar-blue-500 or --ar-grad-ascent
+     Promotional / Urgency CTAs → --ar-grad-velocity
+     Income / Win moments       → --ar-grad-growth
+     Full-bleed banners         → --ar-grad-horizon
+
+   ═══════════════════════════════════════════════════════════════════════════
+   PRINT / CMYK REFERENCE
+   ═══════════════════════════════════════════════════════════════════════════
+
+   PRIMARY BLUE    #1E72F2   C88 M53 Y0  K5
+   MIDNIGHT NAVY   #0D1526   C66 M45 Y0  K85
+   VELOCITY ORANGE #F97316   C0  M54 Y91 K2
+   INCOME GREEN    #10B981   C91 M0  Y30 K27
+   PIPELINE VIOLET #7C3AED   C44 M75 Y0  K7
+   EXPENSE AMBER   #F59E0B   C0  M35 Y95 K4
+   TAX ROSE        #F43F5E   C0  M74 Y62 K4
+   HEALTH TEAL     #0D9488   C91 M0  Y9  K42
+
+   ═══════════════════════════════════════════════════════════════════════════
+   APPROVED TYPOGRAPHY PAIRINGS
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Hero / Display   Geist Sans 700   "RUNWAY"   -0.03em tracking
+   Subheading       Geist Sans 600   "Business Analytics"
+   Body             Geist Sans 400   Regular text   0em tracking
+   Data / Numbers   Geist Mono 500   "$124,500"   tabular-nums
+   Badges / Labels  Geist Sans 600   "ACTIVE" "SOON"   0.12em tracking uppercase
+
+   ═══════════════════════════════════════════════════════════════════════════
+   LOGO USAGE RULES
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ✓  Use the icon mark (logo.svg) at minimum 24px with rounded background.
+   ✓  Use logo-wordmark.svg for horizontal lockups ≥ 140px wide.
+   ✓  Clear space = 1× the icon mark height on all sides.
+   ✓  Approved backgrounds: Midnight navy, white, brand blue (white logo).
+   ✗  Do not recolor the orange accent dot. It is the brand signature.
+   ✗  Do not place on busy photography without a scrim.
+   ✗  Do not stretch, rotate, or add drop shadows to the logo.
+   ✗  Minimum size: 24×24 for icon, 140px wide for full wordmark.
+
+   ═══════════════════════════════════════════════════════════════════════════ */
