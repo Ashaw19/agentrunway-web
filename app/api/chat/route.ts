@@ -2,15 +2,18 @@ import OpenAI from "openai";
 import { NextRequest } from "next/server";
 
 export async function POST(req: NextRequest) {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!process.env.GROQ_API_KEY) {
     return new Response(
-      "AI advisor is not configured yet. Please add your OPENAI_API_KEY to Vercel environment variables.",
+      "AI advisor is not configured yet. Please add your GROQ_API_KEY to Vercel environment variables.",
       { status: 503 },
     );
   }
 
-  // Lazily initialize so the module loads without a key during build
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  // Groq uses an OpenAI-compatible API — just swap baseURL and model
+  const groq = new OpenAI({
+    apiKey: process.env.GROQ_API_KEY,
+    baseURL: "https://api.groq.com/openai/v1",
+  });
 
   const { messages, financialContext } = await req.json();
 
@@ -32,8 +35,8 @@ Guidelines:
 - If you don't have enough data to answer precisely, say so and suggest what data to add`;
 
   try {
-    const stream = await openai.chat.completions.create({
-      model: "gpt-4o",
+    const stream = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
       stream: true,
       messages: [
         { role: "system", content: systemPrompt },
@@ -67,10 +70,9 @@ Guidelines:
       },
     });
   } catch (error) {
-    console.error("OpenAI error:", error);
-    // Surface the real OpenAI error message so it appears in the chat bubble
+    console.error("Groq error:", error);
     const message =
-      error instanceof Error ? error.message : "Unknown error from OpenAI";
+      error instanceof Error ? error.message : "Unknown error from Groq";
     return new Response(message, { status: 500 });
   }
 }

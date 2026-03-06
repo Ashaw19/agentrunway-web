@@ -146,7 +146,7 @@ export function AiChat({ financialContext }: Props) {
                 AI Advisor
               </p>
               <p className="text-xs text-primary-foreground/70">
-                Powered by GPT-4o
+                Powered by Llama 3.3 70B
               </p>
             </div>
           </div>
