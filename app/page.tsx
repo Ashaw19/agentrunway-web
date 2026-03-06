@@ -14,6 +14,24 @@ export const metadata: Metadata = {
   },
 };
 
+// ── Structured data (JSON-LD) ─────────────────────────────────────────────────
+
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Agent Runway",
+  description:
+    "Business analytics software for real estate agents that tracks GCI, forecasts income, and measures financial runway.",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
+  url: "https://agentrunway.ca",
+  image: "https://agentrunway.ca/og-image.png",
+  creator: {
+    "@type": "Organization",
+    name: "Agent Runway",
+  },
+};
+
 // ── Feature data ─────────────────────────────────────────────────────────────
 
 const FEATURES = [
@@ -55,6 +73,12 @@ export default async function Home() {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
+
+      {/* ── JSON-LD structured data ── */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+      />
 
       {/* ── Navigation ── */}
       <header className="border-b border-slate-800 px-6 py-5 sm:px-10">
