@@ -182,6 +182,14 @@ export interface UserSettings {
   brokerage_name: string;
   color_theme: string; // 'blue' | 'violet' | 'emerald' | 'orange' | 'rose'
 
+  // Profile media (Supabase Storage — profile-media bucket)
+  avatar_url: string;        // public URL of the agent profile photo
+  business_logo_url: string; // public URL of the business / brokerage logo
+
+  // Business identity
+  business_name: string;   // trade name or team name (e.g. "The Smith Group")
+  business_number: string; // GST/HST registration number for CRA claiming
+
   // UI preferences
   dashboard_view: string; // 'essentials' | 'standard' | 'full'
 
