@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, createElement } from "react";
 import {
   Card,
   CardContent,
@@ -7,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -18,6 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { FileDown, Loader2 } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   computeGCI,
@@ -53,6 +56,8 @@ export function ReportsContent({
   pipelineDeals,
   expenseCategories,
 }: Props) {
+  const [downloading, setDownloading] = useState(false);
+
   if (!settings) {
     return (
       <div className="py-20 text-center text-muted-foreground">
@@ -166,13 +171,85 @@ export function ReportsContent({
     strong: "text-emerald-600",
   };
 
+  // ── PDF download ───────────────────────────────────────────────────────────
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const [{ pdf }, { BusinessReportPDF }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("@/components/pdf/business-report-pdf"),
+      ]);
+
+      const pdfProps = {
+        agentName: settings.display_name ?? "",
+        brokerageName: settings.brokerage_name ?? "",
+        businessName: settings.business_name ?? "",
+        province: settings.province,
+        year: currentYear,
+        ytdGCI,
+        ytdDeals: ytdTx.length,
+        buyerDeals,
+        sellerDeals,
+        avgDealSize,
+        pipelineWeighted,
+        pipelineCount: pipelineDeals.length,
+        agentPct: getAgentPct(settings.split_preset),
+        brokerageTake,
+        txFees,
+        brokerageFeeYTD,
+        agentGrossNet: agentGross - txFees - brokerageFeeYTD,
+        expensesYTD,
+        netPreTax,
+        projectedNet,
+        taxResult,
+        expenseCategories,
+        monthlyRecurring,
+        monthlyData,
+        transactions: ytdTx,
+      };
+
+      // createElement avoids JSX typing issues with the dynamic import
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const blob = await pdf(createElement(BusinessReportPDF, pdfProps) as any).toBlob();
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `agent-runway-report-${currentYear}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
-        <p className="text-sm text-muted-foreground">
-          {currentYear} business summary \u2014 {PROVINCE_LABELS[settings.province]}
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
+          <p className="text-sm text-muted-foreground">
+            {currentYear} business summary &mdash; {PROVINCE_LABELS[settings.province]}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleDownload}
+          disabled={downloading}
+          className="shrink-0"
+        >
+          {downloading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <FileDown className="mr-2 h-4 w-4" />
+          )}
+          {downloading ? "Generating…" : "Download PDF"}
+        </Button>
       </div>
 
       {/* KPI Summary */}
