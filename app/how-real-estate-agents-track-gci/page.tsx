@@ -288,10 +288,15 @@ export default function HowRealEstateAgentsTrackGCIPage() {
               <h2 id="how-agent-runway-helps">How Agent Runway helps</h2>
 
               <p>
-                Agent Runway was built to close the gap between how most agents track GCI
+                <Link href="/">Agent Runway</Link>{" "}
+                was built to close the gap between how most agents track GCI
                 today and how the best agents manage their business. It replaces manual
                 spreadsheets, disconnected CRM fields, and end-of-year accounting surprises
-                with a live business dashboard purpose-built for Canadian real estate agents.
+                with a{" "}
+                <Link href="/real-estate-business-analytics">
+                  live business dashboard
+                </Link>
+                {" "}purpose-built for Canadian real estate agents.
               </p>
 
               <h3>Automatic GCI tracking with split and fee calculations</h3>

@@ -118,9 +118,16 @@ export default async function Home() {
 
             {/* Body copy */}
             <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
-              Agent Runway helps real estate agents track GCI, forecast income,
-              measure financial runway, and receive AI-powered business insights.
-              One dashboard built around your numbers.
+              Agent Runway helps real estate agents{" "}
+              <Link
+                href="/how-real-estate-agents-track-gci"
+                className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+              >
+                track GCI
+              </Link>
+              , forecast income, measure financial runway, and receive
+              AI-powered business insights. One dashboard built around your
+              numbers.
             </p>
 
             {/* CTAs */}
@@ -189,7 +196,14 @@ export default async function Home() {
               your true net income after commission split, transaction fees, and
               business expenses. It estimates your tax obligations before filing
               season, benchmarks your performance against CREA cohort data, and
-              builds forward-looking forecasts from your actual pipeline.
+              builds{" "}
+              <Link
+                href="/real-estate-business-analytics"
+                className="text-blue-600 underline underline-offset-2 hover:text-blue-500"
+              >
+                forward-looking forecasts
+              </Link>
+              {" "}from your actual pipeline.
             </p>
 
             <p className="mt-5 text-lg leading-relaxed text-slate-600">

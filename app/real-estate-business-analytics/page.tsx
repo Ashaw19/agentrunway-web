@@ -144,8 +144,14 @@ export default function RealEstateBusinessAnalyticsPage() {
 
             {/* Subheadline */}
             <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
-              Agent Runway gives real estate agents a better way to track GCI,
-              forecast income, measure financial runway, and understand their
+              Agent Runway gives real estate agents a better way to{" "}
+              <Link
+                href="/how-real-estate-agents-track-gci"
+                className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+              >
+                track GCI
+              </Link>
+              , forecast income, measure financial runway, and understand their
               true business performance — all in one dashboard.
             </p>
 
@@ -258,9 +264,15 @@ export default function RealEstateBusinessAnalyticsPage() {
               Start understanding your business — not just your transactions.
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-400">
-              Agent Runway is built specifically for Canadian agents. Full
-              provincial tax calculations, national seasonality data, and
-              AI-powered insights — all connected to your live business numbers.
+              <Link
+                href="/"
+                className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+              >
+                Agent Runway
+              </Link>
+              {" "}is built specifically for Canadian agents. Full provincial
+              tax calculations, national seasonality data, and AI-powered
+              insights — all connected to your live business numbers.
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link
