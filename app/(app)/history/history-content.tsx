@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -31,7 +29,6 @@ interface Props {
 }
 
 export function HistoryContent({ historyItems: initial, transactions }: Props) {
-  const router = useRouter();
   const [items, setItems] = useState(initial);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
@@ -52,7 +49,7 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
   function toggleExpand(id: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
       return next;
     });
   }
