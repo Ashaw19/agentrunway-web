@@ -9,15 +9,14 @@ import {
   Receipt,
   FileText,
   LogOut,
-  Plane,
   ArrowLeftRight,
   Layers,
 } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -40,16 +39,22 @@ export function SidebarNav() {
   }
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r bg-sidebar text-sidebar-foreground">
+    <aside className="flex h-screen w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
       {/* Brand */}
-      <div className="flex items-center gap-2 px-6 py-5">
-        <Plane className="h-6 w-6 text-sidebar-primary" />
-        <span className="text-lg font-semibold tracking-tight">
+      <div className="flex items-center gap-3 px-5 py-5">
+        <Image
+          src="/logo.png"
+          alt="Agent Runway"
+          width={32}
+          height={32}
+          className="rounded-lg"
+        />
+        <span className="text-base font-semibold tracking-tight text-sidebar-foreground">
           Agent Runway
         </span>
       </div>
 
-      <Separator />
+      <div className="mx-3 h-px bg-sidebar-border" />
 
       {/* Nav links */}
       <nav className="flex-1 space-y-1 px-3 py-4">
@@ -63,7 +68,7 @@ export function SidebarNav() {
                 "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                 isActive
                   ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
               )}
             >
               <item.icon className="h-4 w-4" />
@@ -73,13 +78,13 @@ export function SidebarNav() {
         })}
       </nav>
 
-      <Separator />
+      <div className="mx-3 h-px bg-sidebar-border" />
 
       {/* Sign out */}
       <div className="p-3">
         <Button
           variant="ghost"
-          className="w-full justify-start gap-3 text-sidebar-foreground/70"
+          className="w-full justify-start gap-3 text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           onClick={handleSignOut}
         >
           <LogOut className="h-4 w-4" />
