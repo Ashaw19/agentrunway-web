@@ -276,7 +276,7 @@ export function DashboardContent({
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmtCurrency(ytdGCI)}</div>
+            <div className="text-3xl font-bold tracking-tight">{fmtCurrency(ytdGCI)}</div>
             {goalGCI > 0 && (
               <p className="text-xs text-muted-foreground">
                 {fmtPct(ytdGCI / goalGCI)} of {fmtCompact(goalGCI)} goal
@@ -293,7 +293,7 @@ export function DashboardContent({
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{ytdDealCount}</div>
+            <div className="text-3xl font-bold tracking-tight">{ytdDealCount}</div>
             <p className="text-xs text-muted-foreground">
               Avg {fmtCurrency(avgDealSize)} per deal
             </p>
@@ -308,7 +308,7 @@ export function DashboardContent({
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-3xl font-bold tracking-tight">
               {fmtCurrency(pipelineWeightedGCI)}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -325,7 +325,7 @@ export function DashboardContent({
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-3xl font-bold tracking-tight">
               {fmtCurrency(projectedGCI)}
             </div>
             <div className="mt-1 flex items-center gap-2">

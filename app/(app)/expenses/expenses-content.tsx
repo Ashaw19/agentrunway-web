@@ -12,7 +12,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ChevronDown, ChevronRight, Plus, Check, X, Trash2 } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   computeGCI,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/types/database";
 import { survivalResult } from "@/lib/engines/survival-engine";
 import { ExpenseDonut, type DonutDataPoint } from "@/components/expense-donut";
+import { cn } from "@/lib/utils";
 
 interface Props {
   initialCategories: ExpenseCategoryWithItems[];
@@ -29,27 +31,38 @@ interface Props {
   transactions: Transaction[];
 }
 
+// Per-category colour accent (left border + header icon tint)
+const CAT_COLORS: Record<string, { border: string; badge: string }> = {
+  vehicle:       { border: "border-l-blue-500",    badge: "bg-blue-50 text-blue-700" },
+  marketing:     { border: "border-l-violet-500",  badge: "bg-violet-50 text-violet-700" },
+  office_tech:   { border: "border-l-teal-500",    badge: "bg-teal-50 text-teal-700" },
+  professional:  { border: "border-l-amber-500",   badge: "bg-amber-50 text-amber-700" },
+  education:     { border: "border-l-emerald-500", badge: "bg-emerald-50 text-emerald-700" },
+  meals:         { border: "border-l-rose-400",    badge: "bg-rose-50 text-rose-700" },
+  entertainment: { border: "border-l-purple-500",  badge: "bg-purple-50 text-purple-700" },
+  other:         { border: "border-l-slate-400",   badge: "bg-slate-100 text-slate-600" },
+};
+
+const DEFAULT_CAT = { border: "border-l-slate-400", badge: "bg-slate-100 text-slate-600" };
+
 export function ExpensesContent({ initialCategories, settings, transactions }: Props) {
   const [categories, setCategories] = useState(initialCategories);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [addingTo, setAddingTo] = useState<string | null>(null);
+  const [newItemTitle, setNewItemTitle] = useState("");
 
   // ── Totals ────────────────────────────────────────────────────────────
   const ytdTotal = categories.reduce(
-    (sum, cat) =>
-      sum + cat.items.reduce((s, item) => s + Number(item.ytd_amount), 0),
+    (sum, cat) => sum + cat.items.reduce((s, item) => s + Number(item.ytd_amount), 0),
     0,
   );
   const monthlyTotal = categories.reduce(
-    (sum, cat) =>
-      sum +
-      cat.items.reduce((s, item) => s + Number(item.monthly_recurring), 0),
+    (sum, cat) => sum + cat.items.reduce((s, item) => s + Number(item.monthly_recurring), 0),
     0,
   );
 
   // ── YTD GCI for expense ratio ─────────────────────────────────────────
   const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
-
-  // ── Expense ratio ─────────────────────────────────────────────────────
   const expenseRatio = ytdGCI > 0 ? ytdTotal / ytdGCI : 0;
   const ratioStatus =
     expenseRatio > 0.5 ? "critical" : expenseRatio > 0.35 ? "warning" : "healthy";
@@ -65,7 +78,6 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
     monthlyTotal,
     settings?.cash_reserve ?? 0,
   );
-
   const riskColors: Record<string, string> = {
     critical: "text-red-600",
     warning: "text-amber-600",
@@ -73,7 +85,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
     strong: "text-emerald-600",
   };
 
-  // ── Donut chart data ───────────────────────────────────────────────────
+  // ── Donut chart data ──────────────────────────────────────────────────
   const donutData: DonutDataPoint[] = categories
     .map((cat) => ({
       name: cat.title,
@@ -81,6 +93,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
     }))
     .filter((d) => d.value > 0);
 
+  // ── Helpers ───────────────────────────────────────────────────────────
   function toggleExpand(id: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -96,11 +109,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
   ) {
     const numValue = parseFloat(value) || 0;
     const supabase = createClient();
-    await supabase
-      .from("expense_items")
-      .update({ [field]: numValue })
-      .eq("id", itemId);
-
+    await supabase.from("expense_items").update({ [field]: numValue }).eq("id", itemId);
     setCategories((prev) =>
       prev.map((cat) => ({
         ...cat,
@@ -111,59 +120,113 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
     );
   }
 
+  async function addItem(categoryId: string) {
+    const title = newItemTitle.trim();
+    if (!title) return;
+
+    const supabase = createClient();
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData.user) return;
+
+    const cat = categories.find((c) => c.id === categoryId);
+    const sortOrder = cat?.items.length ?? 0;
+    const key = `custom_${categoryId.slice(0, 8)}_${Date.now()}`;
+
+    const { data: newItem, error } = await supabase
+      .from("expense_items")
+      .insert({
+        user_id: authData.user.id,
+        category_id: categoryId,
+        key,
+        title,
+        ytd_amount: 0,
+        monthly_recurring: 0,
+        sort_order: sortOrder,
+      })
+      .select()
+      .single();
+
+    if (newItem && !error) {
+      setCategories((prev) =>
+        prev.map((c) =>
+          c.id === categoryId ? { ...c, items: [...c.items, newItem] } : c,
+        ),
+      );
+    }
+    setAddingTo(null);
+    setNewItemTitle("");
+  }
+
+  async function deleteItem(categoryId: string, itemId: string) {
+    const supabase = createClient();
+    await supabase.from("expense_items").delete().eq("id", itemId);
+    setCategories((prev) =>
+      prev.map((cat) =>
+        cat.id === categoryId
+          ? { ...cat, items: cat.items.filter((i) => i.id !== itemId) }
+          : cat,
+      ),
+    );
+  }
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Expenses</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
         <p className="text-sm text-muted-foreground">
-          Track your business expenses by category
+          Track your business expenses and recurring costs by category
         </p>
       </div>
 
-      {/* Summary */}
+      {/* KPI Summary */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-t-2 border-t-amber-500">
           <CardHeader className="pb-2">
             <CardDescription>YTD Expenses</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmtCurrency(ytdTotal)}</div>
+            <div className="text-3xl font-bold tracking-tight">{fmtCurrency(ytdTotal)}</div>
+            <p className="mt-1 text-xs text-muted-foreground">This calendar year</p>
           </CardContent>
         </Card>
+
         <Card className="border-t-2 border-t-amber-400">
           <CardHeader className="pb-2">
             <CardDescription>Monthly Recurring</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmtCurrency(monthlyTotal)}</div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-3xl font-bold tracking-tight">{fmtCurrency(monthlyTotal)}</div>
+            <p className="mt-1 text-xs text-muted-foreground">
               {fmtCurrency(monthlyTotal * 12)} annualized
             </p>
           </CardContent>
         </Card>
+
         <Card className="border-t-2 border-t-rose-400">
           <CardHeader className="pb-2">
             <CardDescription>Expense Ratio</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${ratioColors[ratioStatus]}`}>
-              {ytdGCI > 0 ? fmtPct(expenseRatio) : "\u2014"}
+            <div className={cn("text-3xl font-bold tracking-tight", ratioColors[ratioStatus])}>
+              {ytdGCI > 0 ? fmtPct(expenseRatio) : "—"}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {ytdGCI > 0 ? "of YTD GCI \u2022 benchmark: 25\u201330%" : "Log deals to see ratio"}
+            <p className="mt-1 text-xs text-muted-foreground">
+              {ytdGCI > 0 ? "of YTD GCI · target: 25–30%" : "Log deals to see ratio"}
             </p>
           </CardContent>
         </Card>
+
         <Card className="border-t-2 border-t-teal-500">
           <CardHeader className="pb-2">
             <CardDescription>Cash Runway</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${riskColors[survival.riskLevel]}`}>
+            <div className={cn("text-3xl font-bold tracking-tight", riskColors[survival.riskLevel])}>
               {survival.label}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {fmtCurrency(survival.monthlyBurn)}/mo burn
+            <p className="mt-1 text-xs text-muted-foreground">
+              {fmtCurrency(survival.monthlyBurn)}/mo burn rate
             </p>
           </CardContent>
         </Card>
@@ -172,26 +235,34 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
       {/* Expense ratio bar */}
       {ytdGCI > 0 && (
         <Card className="border-l-4 border-l-amber-400">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Expense Ratio vs. Benchmark</CardTitle>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Expense Ratio vs. Benchmark</CardTitle>
+              <Badge
+                variant="secondary"
+                className={cn(
+                  "text-xs",
+                  ratioStatus === "healthy" && "bg-emerald-100 text-emerald-700",
+                  ratioStatus === "warning" && "bg-amber-100 text-amber-700",
+                  ratioStatus === "critical" && "bg-red-100 text-red-700",
+                )}
+              >
+                {ratioStatus === "healthy" ? "On track" : ratioStatus === "warning" ? "Elevated" : "High"}
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent>
-            <Progress
-              value={Math.min(expenseRatio * 100, 100)}
-              className="h-3"
-            />
+            <Progress value={Math.min(expenseRatio * 100, 100)} className="h-2.5" />
             <div className="mt-2 flex justify-between text-xs text-muted-foreground">
               <span>0%</span>
-              <span className="font-medium">
-                25\u201330% target
-              </span>
+              <span className="font-medium text-foreground">25–30% target</span>
               <span>50%+</span>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Expense breakdown donut */}
+      {/* Donut */}
       {donutData.length > 0 && (
         <Card className="border-t-2 border-t-amber-500">
           <CardHeader className="pb-2">
@@ -205,98 +276,148 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
       )}
 
       {/* Categories */}
-      <div className="space-y-3">
-        {categories.map((cat) => {
-          const isOpen = expanded.has(cat.id);
-          const catYtd = cat.items.reduce(
-            (s, i) => s + Number(i.ytd_amount),
-            0,
-          );
-          const catMonthly = cat.items.reduce(
-            (s, i) => s + Number(i.monthly_recurring),
-            0,
-          );
+      <div>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+          Categories
+        </h2>
+        <div className="space-y-2">
+          {categories.map((cat) => {
+            const isOpen = expanded.has(cat.id);
+            const catYtd = cat.items.reduce((s, i) => s + Number(i.ytd_amount), 0);
+            const catMonthly = cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0);
+            const colors = CAT_COLORS[cat.key] ?? DEFAULT_CAT;
 
-          return (
-            <Card key={cat.id}>
-              <CardHeader
-                className="cursor-pointer"
-                onClick={() => toggleExpand(cat.id)}
+            return (
+              <Card
+                key={cat.id}
+                className={cn("border-l-4 transition-shadow hover:shadow-md", colors.border)}
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    {isOpen ? (
-                      <ChevronDown className="h-4 w-4" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4" />
-                    )}
-                    <CardTitle className="text-base">{cat.title}</CardTitle>
-                    <Badge variant="secondary" className="text-xs">
-                      {cat.items.length} items
-                    </Badge>
-                  </div>
-                  <div className="flex gap-6 text-sm">
-                    <span>
-                      <span className="text-muted-foreground">YTD </span>
-                      <span className="font-medium">
-                        {fmtCurrency(catYtd)}
+                {/* Category header */}
+                <CardHeader
+                  className="cursor-pointer py-3"
+                  onClick={() => toggleExpand(cat.id)}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2.5">
+                      {isOpen ? (
+                        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      )}
+                      <CardTitle className="text-[15px] font-semibold">{cat.title}</CardTitle>
+                      <Badge className={cn("text-xs font-medium", colors.badge)}>
+                        {cat.items.length} item{cat.items.length !== 1 && "s"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-6 text-sm">
+                      <span className="hidden sm:block">
+                        <span className="text-muted-foreground">YTD </span>
+                        <span className="font-semibold">{fmtCurrency(catYtd)}</span>
                       </span>
-                    </span>
-                    <span>
-                      <span className="text-muted-foreground">Monthly </span>
-                      <span className="font-medium">
-                        {fmtCurrency(catMonthly)}
+                      <span className="hidden sm:block">
+                        <span className="text-muted-foreground">/mo </span>
+                        <span className="font-semibold">{fmtCurrency(catMonthly)}</span>
                       </span>
-                    </span>
-                  </div>
-                </div>
-              </CardHeader>
-              {isOpen && (
-                <CardContent>
-                  <div className="overflow-x-auto">
-                  <div className="min-w-[400px] space-y-3">
-                    {cat.items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="grid grid-cols-[1fr_150px_150px] items-center gap-3"
-                      >
-                        <span className="text-sm">{item.title}</span>
-                        <Input
-                          type="number"
-                          placeholder="YTD"
-                          defaultValue={Number(item.ytd_amount) || ""}
-                          onBlur={(e) =>
-                            updateItem(item.id, "ytd_amount", e.target.value)
-                          }
-                          className="h-8 text-sm"
-                        />
-                        <Input
-                          type="number"
-                          placeholder="Monthly"
-                          defaultValue={Number(item.monthly_recurring) || ""}
-                          onBlur={(e) =>
-                            updateItem(
-                              item.id,
-                              "monthly_recurring",
-                              e.target.value,
-                            )
-                          }
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                    ))}
-                    <div className="grid grid-cols-[1fr_150px_150px] gap-3 text-xs text-muted-foreground">
-                      <span />
-                      <span className="text-center">YTD Amount</span>
-                      <span className="text-center">Monthly Recurring</span>
+                      {/* Mobile compact */}
+                      <span className="sm:hidden font-semibold">{fmtCurrency(catYtd)}</span>
                     </div>
                   </div>
-                  </div>
-                </CardContent>
-              )}
-            </Card>
-          );
-        })}
+                </CardHeader>
+
+                {/* Expanded items */}
+                {isOpen && (
+                  <CardContent className="pb-4 pt-0">
+                    <div className="overflow-x-auto">
+                      <div className="min-w-[440px] space-y-1">
+                        {/* Column headers */}
+                        <div className="grid grid-cols-[1fr_148px_148px_32px] gap-2 pb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                          <span className="pl-1">Item</span>
+                          <span className="text-center">YTD Amount</span>
+                          <span className="text-center">Monthly Recurring</span>
+                          <span />
+                        </div>
+
+                        {/* Items */}
+                        {cat.items.map((item) => (
+                          <div
+                            key={item.id}
+                            className="group grid grid-cols-[1fr_148px_148px_32px] items-center gap-2 rounded-md px-1 py-1 hover:bg-muted/40"
+                          >
+                            <span className="truncate text-sm font-medium">{item.title}</span>
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              defaultValue={Number(item.ytd_amount) || ""}
+                              onBlur={(e) => updateItem(item.id, "ytd_amount", e.target.value)}
+                              className="h-8 text-sm text-right"
+                            />
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              defaultValue={Number(item.monthly_recurring) || ""}
+                              onBlur={(e) => updateItem(item.id, "monthly_recurring", e.target.value)}
+                              className="h-8 text-sm text-right"
+                            />
+                            <button
+                              onClick={() => deleteItem(cat.id, item.id)}
+                              className="flex h-8 w-8 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-50 hover:text-red-500"
+                              title="Delete item"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ))}
+
+                        {/* Divider + Add item row */}
+                        <div className="pt-1 border-t border-dashed border-border mt-1">
+                          {addingTo === cat.id ? (
+                            <div className="flex items-center gap-2 py-1 px-1">
+                              <Input
+                                autoFocus
+                                placeholder="Item name (e.g. Client gifts)"
+                                value={newItemTitle}
+                                onChange={(e) => setNewItemTitle(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") addItem(cat.id);
+                                  if (e.key === "Escape") { setAddingTo(null); setNewItemTitle(""); }
+                                }}
+                                className="h-8 flex-1 text-sm"
+                              />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                                onClick={() => addItem(cat.id)}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-muted-foreground hover:bg-muted"
+                                onClick={() => { setAddingTo(null); setNewItemTitle(""); }}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setAddingTo(cat.id); setNewItemTitle(""); }}
+                              className="flex w-full items-center gap-1.5 px-1 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                              Add item
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

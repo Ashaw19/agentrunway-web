@@ -121,8 +121,10 @@ export default async function AppLayout({
       <SidebarNav />
       <div className="flex flex-1 flex-col overflow-hidden">
         <MobileNav />
-        <main className="flex-1 overflow-y-auto bg-background p-4 sm:p-6 lg:p-8">
-          {children}
+        <main className="flex-1 overflow-y-auto bg-muted/30 p-4 sm:p-6 lg:p-8">
+          <div className="mx-auto max-w-screen-xl">
+            {children}
+          </div>
         </main>
       </div>
       <AiChat financialContext={financialContext} />
