@@ -11,6 +11,7 @@ import {
   LogOut,
   ArrowLeftRight,
   Layers,
+  Settings,
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ const navItems = [
   { label: "Forecast", href: "/forecast", icon: TrendingUp },
   { label: "Expenses", href: "/expenses", icon: Receipt },
   { label: "Reports", href: "/reports", icon: FileText },
+  { label: "Settings", href: "/settings", icon: Settings },
 ];
 
 export function SidebarNav() {
