@@ -186,7 +186,7 @@ export function DashboardContent({
     runwayScore, survival, paceStatus, pacePercent, healthReport,
   );
   const narrative = settings
-    ? buildHealthNarrative({
+    ? generateBusinessHealthNarrative({
         ytdGCI,
         goalGCI,
         fraction,
@@ -198,8 +198,11 @@ export function DashboardContent({
         avgDealSize,
         paceStatus,
         paceGapAmount,
+        pacePercent,
         runwayScore,
         healthReport,
+        expenseRatio: ytdGCI > 0 ? expensesYTD / ytdGCI : 0,
+        benchmark,
       })
     : null;
 
@@ -248,35 +251,6 @@ export function DashboardContent({
         </div>
       </div>
 
-      {/* Business Health Narrative */}
-      {narrative && (
-        <Card className="border-l-4 border-l-blue-500 bg-gradient-to-r from-blue-50/60 to-transparent">
-          <CardHeader className="pb-2 pt-4">
-            <div className="flex items-center gap-2">
-              <Lightbulb className="h-4 w-4 text-blue-600" />
-              <CardTitle className="text-sm font-semibold text-blue-800">
-                Today&apos;s Business Snapshot
-              </CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="pb-4 space-y-3">
-            <p className="text-sm font-semibold text-foreground">{narrative.headline}</p>
-            <ul className="space-y-1.5">
-              {narrative.bullets.map((bullet, i) => (
-                <li key={i} className="flex gap-2 text-sm text-muted-foreground">
-                  <span className="mt-0.5 shrink-0 text-blue-400 font-bold">›</span>
-                  <span>{bullet}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="flex items-start gap-2 rounded-md bg-blue-100/80 px-3 py-2.5">
-              <Target className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
-              <p className="text-sm font-medium text-blue-900">{narrative.action}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Runway Score Hero */}
       <Card className="bg-gradient-to-br from-slate-50 to-blue-50 border-blue-100">
         <CardContent className="pt-6">
@@ -322,6 +296,9 @@ export function DashboardContent({
           </p>
         </CardContent>
       </Card>
+
+      {/* Business Health Narrative */}
+      {narrative && <BusinessHealthNarrativeCard narrative={narrative} />}
 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -659,6 +636,105 @@ export function DashboardContent({
   );
 }
 
+// ── Business Health Narrative card ───────────────────────────────────────
+
+const STATUS_STYLES: Record<
+  HealthStatus,
+  { border: string; chip: string; icon: string }
+> = {
+  Stable:    { border: "border-l-emerald-500", chip: "bg-emerald-100 text-emerald-800 border border-emerald-200",  icon: "text-emerald-600" },
+  Watchlist: { border: "border-l-amber-400",   chip: "bg-amber-100 text-amber-800 border border-amber-200",       icon: "text-amber-600"   },
+  "At Risk": { border: "border-l-orange-500",  chip: "bg-orange-100 text-orange-800 border border-orange-200",    icon: "text-orange-600"  },
+  Critical:  { border: "border-l-red-500",     chip: "bg-red-100 text-red-800 border border-red-200",             icon: "text-red-600"     },
+};
+
+function BusinessHealthNarrativeCard({
+  narrative,
+}: {
+  narrative: HealthNarrativeResult;
+}) {
+  const styles = STATUS_STYLES[narrative.status];
+  return (
+    <Card className={cn("border-l-4", styles.border)}>
+      <CardHeader className="pb-2 pt-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BarChart2 className={cn("h-4 w-4", styles.icon)} />
+            <CardTitle className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Business Health Narrative
+            </CardTitle>
+          </div>
+          <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold", styles.chip)}>
+            {narrative.status}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4 pb-5">
+        {/* Executive summary paragraph */}
+        <p className="text-sm leading-relaxed text-foreground">{narrative.summary}</p>
+
+        <Separator />
+
+        {/* Three named sections */}
+        <div className="space-y-3">
+          <NarrativeSection
+            icon={TrendingUp}
+            label="What changed"
+            text={narrative.whatChanged}
+          />
+          <NarrativeSection
+            icon={Info}
+            label="Why"
+            text={narrative.why}
+          />
+          <NarrativeSection
+            icon={Target}
+            label="Next move"
+            text={narrative.nextMove}
+            accent
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function NarrativeSection({
+  icon: Icon,
+  label,
+  text,
+  accent = false,
+}: {
+  icon: React.ElementType;
+  label: string;
+  text: string;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex gap-3 rounded-md px-3 py-2.5",
+        accent ? "bg-primary/5 border border-primary/10" : "bg-muted/40",
+      )}
+    >
+      <Icon
+        className={cn(
+          "mt-0.5 h-4 w-4 shrink-0",
+          accent ? "text-primary" : "text-muted-foreground",
+        )}
+      />
+      <div>
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          {label}
+        </p>
+        <p className={cn("mt-0.5 text-sm", accent ? "font-medium text-foreground" : "text-foreground/80")}>
+          {text}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ── Insight row component ─────────────────────────────────────────────────
 
 function InsightRow({ insight }: { insight: Insight }) {
@@ -730,15 +806,50 @@ function buildScoreNarrative(
   return `Biggest opportunity: ${weakest.label} (${weakest.score}/100) — ${phrase}.`;
 }
 
-// ── Helper: Business health narrative ─────────────────────────────────────
+// ── Helper: Business Health Narrative ─────────────────────────────────────
+//
+// generateBusinessHealthNarrative() — deterministic rule-based engine.
+// Returns a structured object that can later be swapped for a Groq response
+// with no changes to the rendering layer.
 
-interface NarrativeResult {
-  headline: string;
-  bullets: string[];
-  action: string;
+export type HealthStatus = "Stable" | "Watchlist" | "At Risk" | "Critical";
+
+export interface HealthNarrativeResult {
+  status: HealthStatus;
+  summary: string;        // 2–3 sentence executive paragraph
+  whatChanged: string;    // current state vs expected — the key signal
+  why: string;            // root cause explanation
+  nextMove: string;       // single, specific, data-backed action
 }
 
-function buildHealthNarrative({
+function deriveStatus(
+  survival: SurvivalResult,
+  runwayScore: RunwayScoreResult,
+  paceStatus: string,
+  pacePercent: number,
+  pipelineCount: number,
+  ytdGCI: number,
+): HealthStatus {
+  const grade = runwayScore.grade;
+  const hasBurn = survival.monthlyBurn > 0;
+
+  if (grade === "F" || (hasBurn && survival.months < 1)) return "Critical";
+  if (
+    grade === "D" ||
+    (hasBurn && survival.months < 3) ||
+    (paceStatus === "behind" && pacePercent < -30)
+  )
+    return "At Risk";
+  if (
+    grade === "C" ||
+    paceStatus === "behind" ||
+    (pipelineCount === 0 && ytdGCI > 0)
+  )
+    return "Watchlist";
+  return "Stable";
+}
+
+function generateBusinessHealthNarrative({
   ytdGCI,
   goalGCI,
   fraction,
@@ -750,8 +861,11 @@ function buildHealthNarrative({
   avgDealSize,
   paceStatus,
   paceGapAmount,
+  pacePercent,
   runwayScore,
   healthReport,
+  expenseRatio,
+  benchmark,
 }: {
   ytdGCI: number;
   goalGCI: number;
@@ -764,110 +878,122 @@ function buildHealthNarrative({
   avgDealSize: number;
   paceStatus: string;
   paceGapAmount: number;
+  pacePercent: number;
   runwayScore: RunwayScoreResult;
   healthReport: BusinessHealthReport;
-}): NarrativeResult {
+  expenseRatio: number;
+  benchmark: { percentile: number; cohortMedianGCI: number };
+}): HealthNarrativeResult {
   const pctElapsed = Math.round(fraction * 100);
   const gciGap = Math.max(0, goalGCI - ytdGCI);
-  const dealsNeeded =
-    avgDealSize > 0 ? Math.ceil(gciGap / avgDealSize) : null;
+  const dealsNeeded = avgDealSize > 0 ? Math.ceil(gciGap / avgDealSize) : null;
+  const status = deriveStatus(
+    survival, runwayScore, paceStatus, pacePercent, pipelineCount, ytdGCI,
+  );
 
-  // No data yet
+  // ── No data yet ──────────────────────────────────────────────────────────
   if (ytdGCI === 0 && pipelineCount === 0) {
     return {
-      headline: "Set up your business data to unlock performance insights.",
-      bullets: [
-        "Add your first closed deal on the Transactions page.",
-        "Add pipeline deals to see your projected year-end income.",
-        "Set a GCI goal in Settings to enable pace tracking.",
-      ],
-      action: "Start by logging a transaction or adding a pipeline deal.",
+      status: "Watchlist",
+      summary:
+        "No business activity has been logged for this year yet. Add your first closed deal and pipeline prospects to unlock performance insights, pace tracking, and your Runway Score.",
+      whatChanged:
+        "No YTD GCI or pipeline deals are on record — the dashboard is ready but waiting for data.",
+      why: "Projections, pace, and benchmarks all require at least one closed deal to generate meaningful signals.",
+      nextMove:
+        "Log your first transaction on the Transactions page, then add active pipeline deals to enable forecasting.",
     };
   }
 
-  // Find weakest component
-  const weakestComp = runwayScore.components.reduce((a, b) =>
+  // ── Find weakest score component ─────────────────────────────────────────
+  const weakest = runwayScore.components.reduce((a, b) =>
     a.score < b.score ? a : b,
   );
 
-  // Headline
-  let headline: string;
+  // ── Summary (2–3 sentences) ───────────────────────────────────────────────
+  const dealStr =
+    ytdDealCount > 0
+      ? `${ytdDealCount} deal${ytdDealCount !== 1 ? "s" : ""} closed for ${fmtCurrency(ytdGCI)} in YTD GCI`
+      : "no deals closed yet this year";
+
+  let paceSentence: string;
   if (goalGCI <= 0) {
-    headline = `Grade ${runwayScore.grade} business health — set a GCI goal in Settings to unlock pace tracking.`;
+    paceSentence = `Projected year-end GCI is ${fmtCurrency(projectedGCI)}. Set a goal in Settings to unlock pace and gap analysis.`;
   } else if (paceStatus === "ahead") {
-    headline = `${fmtCurrency(Math.abs(paceGapAmount))} ahead of pace with ${pctElapsed}% of the year elapsed.`;
+    paceSentence = `You're ${fmtCurrency(Math.abs(paceGapAmount))} ahead of the pace required to hit your ${fmtCurrency(goalGCI)} goal, with ${pctElapsed}% of the year elapsed.`;
   } else {
-    headline = `${fmtCurrency(Math.abs(paceGapAmount))} behind pace with ${pctElapsed}% of the year elapsed.`;
+    paceSentence = `You're ${fmtCurrency(Math.abs(paceGapAmount))} behind the pace required to hit your ${fmtCurrency(goalGCI)} goal, with ${pctElapsed}% of the year elapsed.`;
   }
 
-  // Bullets
-  const bullets: string[] = [];
-
-  if (ytdDealCount > 0) {
-    bullets.push(
-      `${ytdDealCount} deal${ytdDealCount !== 1 ? "s" : ""} closed YTD averaging ${fmtCurrency(avgDealSize)} — projecting ${fmtCurrency(projectedGCI)} by year-end.`,
-    );
-  }
-
-  if (pipelineCount > 0) {
-    bullets.push(
-      `${pipelineCount} deal${pipelineCount !== 1 ? "s" : ""} in pipeline represent ${fmtCurrency(pipelineWeightedGCI)} of probability-weighted income.`,
-    );
+  let pipelineSentence: string;
+  if (survival.monthlyBurn > 0 && survival.months < 3) {
+    pipelineSentence = `Cash runway is ${formatSurvivalDisplay(survival)} — this requires immediate attention alongside revenue generation.`;
+  } else if (pipelineCount > 0) {
+    pipelineSentence = `Your pipeline carries ${fmtCurrency(pipelineWeightedGCI)} in probability-weighted income across ${pipelineCount} active deal${pipelineCount !== 1 ? "s" : ""}.`;
   } else {
-    bullets.push(
-      "No active pipeline deals — adding prospects improves forecast accuracy.",
-    );
+    pipelineSentence = "No active pipeline deals are on record — adding prospects will improve forecast accuracy and score.";
   }
 
-  const weakInsights: Record<string, string> = {
+  const summary = `With ${dealStr}, ${paceSentence.charAt(0).toLowerCase()}${paceSentence.slice(1)} ${pipelineSentence}`;
+
+  // ── What changed (current vs expected) ───────────────────────────────────
+  let whatChanged: string;
+  if (goalGCI > 0 && fraction > 0) {
+    const expectedYTD = goalGCI * fraction;
+    const direction = paceGapAmount >= 0 ? "ahead of" : "behind";
+    whatChanged = `YTD GCI of ${fmtCurrency(ytdGCI)} is ${fmtCurrency(Math.abs(paceGapAmount))} ${direction} the ${fmtCurrency(expectedYTD)} expected at this point in the year (${pctElapsed}% elapsed).`;
+  } else {
+    whatChanged = `${ytdDealCount} deal${ytdDealCount !== 1 ? "s" : ""} closed YTD averaging ${fmtCurrency(avgDealSize)}, projecting a ${fmtCurrency(projectedGCI)} year-end without a goal set.`;
+  }
+
+  // ── Why (root cause from weakest score component) ─────────────────────────
+  const whyMap: Record<string, string> = {
     "Goal Pace":
-      gciGap > 0 && dealsNeeded
-        ? `Goal pace (${healthReport.paceScore}/100) needs work — ~${dealsNeeded} more deal${dealsNeeded !== 1 ? "s" : ""} at your average size would close the gap.`
-        : `Goal pace is strong (${healthReport.paceScore}/100) — keep the momentum.`,
-    Pipeline: `Pipeline depth (${healthReport.pipelineScore}/100) is your main risk — build your prospect list to protect Q3/Q4.`,
-    Expenses: `Expense management (${healthReport.expenseScore}/100) needs attention — review monthly recurring costs to improve net income.`,
-    Setup: `Forecast setup (${healthReport.readinessScore}/100) is incomplete — finishing your Settings profile unlocks better projections.`,
-    Benchmark:
-      "You're below your experience-group benchmark — focus on deal volume and average commission size.",
+      gciGap > 0
+        ? `Goal pace (score: ${healthReport.paceScore}/100) is the primary drag. With ${ytdDealCount} closed deal${ytdDealCount !== 1 ? "s" : ""} at an average of ${fmtCurrency(avgDealSize)}, current trajectory puts year-end ${fmtCurrency(Math.abs(projectedGCI - goalGCI))} ${projectedGCI >= goalGCI ? "above" : "below"} target.`
+        : `Goal pace is strong (${healthReport.paceScore}/100) — you've maintained above-expected velocity throughout the year.`,
+    Pipeline:
+      pipelineCount === 0
+        ? `Pipeline is empty (score: ${healthReport.pipelineScore}/100). With no active deals in progress, the forecast relies entirely on closed deals and seasonal assumptions.`
+        : `Pipeline coverage is thin (score: ${healthReport.pipelineScore}/100). The ${pipelineCount} active deal${pipelineCount !== 1 ? "s" : ""} carrying ${fmtCurrency(pipelineWeightedGCI)} may not be sufficient to close a ${fmtCurrency(gciGap)} gap.`,
+    Expenses:
+      expenseRatio > 0
+        ? `Expense ratio is elevated at ${fmtPct(expenseRatio)} of YTD GCI (score: ${healthReport.expenseScore}/100), above the 25–30% benchmark. Monthly burn of ${fmtCurrency(survival.monthlyBurn)} is compressing net take-home.`
+        : `Expense tracking (score: ${healthReport.expenseScore}/100) — configure your costs in Settings to see expense ratio and burn analysis.`,
+    Setup: `Forecast profile is incomplete (score: ${healthReport.readinessScore}/100). Missing settings — such as goal, split structure, and experience years — reduce projection accuracy across all dashboard metrics.`,
+    Benchmark: `Projected GCI of ${fmtCurrency(projectedGCI)} ranks at the ${benchmark.percentile}th percentile for your experience cohort, with a median of ${fmtCurrency(benchmark.cohortMedianGCI)} (CREA 2023 data).`,
     Survival:
       survival.monthlyBurn > 0
-        ? `Cash runway is ${formatSurvivalDisplay(survival)} — consider building a 3–6 month operating reserve.`
-        : "Enable runway tracking by entering your monthly costs in Settings.",
+        ? `Cash runway is ${formatSurvivalDisplay(survival)} against a ${fmtCurrency(survival.monthlyBurn)}/month burn rate. This is the highest-priority operational risk on the dashboard.`
+        : "Cash runway cannot be calculated — configure your monthly brokerage fee and recurring expenses in Settings.",
   };
+  const why = whyMap[weakest.label] ?? `${weakest.label} scored ${weakest.score}/100 — review your business inputs to improve this component.`;
 
-  if (weakInsights[weakestComp.label]) {
-    bullets.push(weakInsights[weakestComp.label]);
-  }
-
-  // Action
-  let action: string;
-  if (weakestComp.label === "Goal Pace" && dealsNeeded && dealsNeeded > 0) {
-    action = `Close ${dealsNeeded} more deal${dealsNeeded !== 1 ? "s" : ""} at your current average (${fmtCurrency(avgDealSize)}) to reach your ${fmtCurrency(goalGCI)} goal.`;
-  } else if (weakestComp.label === "Pipeline" && pipelineCount === 0) {
-    action = "Add pipeline deals to improve your forecast and Runway Score.";
-  } else if (weakestComp.label === "Expenses") {
-    action =
-      "Review recurring expenses to bring your cost ratio below 30% of GCI.";
-  } else if (weakestComp.label === "Setup") {
-    action =
-      "Complete your Settings profile to unlock full forecast accuracy.";
-  } else if (
-    weakestComp.label === "Survival" &&
-    survival.monthlyBurn > 0 &&
-    survival.months < 3
-  ) {
-    action = "Build your cash reserve to at least 3 months of operating costs.";
+  // ── Next move (specific, data-backed) ─────────────────────────────────────
+  let nextMove: string;
+  if (status === "Critical" && survival.monthlyBurn > 0 && survival.months < 1) {
+    nextMove = "Immediate priority: build your cash reserve or reduce monthly burn to extend runway beyond 1 month.";
+  } else if (weakest.label === "Goal Pace" && dealsNeeded && dealsNeeded > 0) {
+    nextMove = `Close ${dealsNeeded} more deal${dealsNeeded !== 1 ? "s" : ""} at your current average of ${fmtCurrency(avgDealSize)} to reach your ${fmtCurrency(goalGCI)} goal. Converting active pipeline deals is the fastest path.`;
+  } else if (weakest.label === "Pipeline" && pipelineCount === 0) {
+    nextMove = "Add at least 3–5 pipeline deals on the Pipeline page to improve forecast coverage and your Runway Score.";
+  } else if (weakest.label === "Pipeline" && pipelineCount > 0) {
+    nextMove = `Push ${pipelineCount > 2 ? "top 2" : "your"} pipeline deal${pipelineCount !== 1 ? "s" : ""} toward closing this month to improve both GCI and pipeline score.`;
+  } else if (weakest.label === "Expenses") {
+    nextMove = "Review your Expenses page and identify at least $500/month in reducible recurring costs to bring the expense ratio below 30%.";
+  } else if (weakest.label === "Setup") {
+    nextMove = "Complete your Settings profile — set your annual GCI goal, brokerage split, and experience years to unlock full forecast accuracy.";
+  } else if (weakest.label === "Survival" && survival.monthlyBurn > 0) {
+    nextMove = `Build your cash reserve to cover at least 3 months of the ${fmtCurrency(survival.monthlyBurn)}/month burn rate (${fmtCurrency(survival.monthlyBurn * 3)} target).`;
   } else if (pipelineCount > 0 && gciGap > 0) {
-    action = `Convert pipeline deals to close the ${fmtCurrency(gciGap)} remaining gap to your goal.`;
-  } else if (paceStatus === "ahead") {
-    action =
-      "You're on track — keep pace and consider stretching your annual goal.";
+    nextMove = `Convert pipeline deals to close the ${fmtCurrency(gciGap)} remaining gap to your ${fmtCurrency(goalGCI)} goal.`;
+  } else if (paceStatus === "ahead" && goalGCI > 0) {
+    nextMove = "You're on track — maintain deal velocity and consider increasing your annual goal if Q3 pipeline is strong.";
   } else {
-    action =
-      "Focus on pipeline conversion to improve your year-end projection.";
+    nextMove = "Focus on building pipeline this month to protect your Q3 and Q4 forecast.";
   }
 
-  return { headline, bullets, action };
+  return { status, summary, whatChanged, why, nextMove };
 }
 
 // ── Helper: Build monthly chart data ──────────────────────────────────────
