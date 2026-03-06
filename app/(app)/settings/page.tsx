@@ -16,5 +16,7 @@ export default async function SettingsPage() {
     .eq("user_id", user.id)
     .single();
 
+  if (!settings) redirect("/dashboard");
+
   return <SettingsContent settings={settings as UserSettings} />;
 }
