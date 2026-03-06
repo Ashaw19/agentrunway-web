@@ -257,7 +257,7 @@ export function PipelineContent({ initialDeals }: Props) {
                     </TableCell>
                     <TableCell className="text-sm">
                       {deal.expected_close_date
-                        ? new Date(deal.expected_close_date).toLocaleDateString("en-CA")
+                        ? deal.expected_close_date
                         : <span className="text-muted-foreground">&mdash;</span>}
                     </TableCell>
                     <TableCell>

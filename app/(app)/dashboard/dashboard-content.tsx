@@ -486,7 +486,7 @@ export function DashboardContent({
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {tx.client_name || "\u2014"} &middot;{" "}
-                      {new Date(tx.date).toLocaleDateString("en-CA")}
+                      {tx.date}
                     </p>
                   </div>
                   <div className="text-right">

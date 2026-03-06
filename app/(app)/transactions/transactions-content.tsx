@@ -161,11 +161,13 @@ export function TransactionsContent({ initialTransactions }: Props) {
     setDeleteConfirmId(null);
   }
 
+  // Compare year strings directly to avoid UTC-vs-local-timezone mismatch
+  const currentYear = String(new Date().getFullYear());
   const ytdCount = transactions.filter(
-    (t) => t.status === "closed" && new Date(t.date).getFullYear() === new Date().getFullYear(),
+    (t) => t.status === "closed" && t.date.startsWith(currentYear),
   ).length;
   const ytdGCI = transactions
-    .filter((t) => t.status === "closed" && new Date(t.date).getFullYear() === new Date().getFullYear())
+    .filter((t) => t.status === "closed" && t.date.startsWith(currentYear))
     .reduce((sum, t) => sum + computeGCI(t), 0);
 
   return (
@@ -208,7 +210,7 @@ export function TransactionsContent({ initialTransactions }: Props) {
                 {transactions.map((tx) => (
                   <TableRow key={tx.id}>
                     <TableCell className="whitespace-nowrap text-sm">
-                      {new Date(tx.date).toLocaleDateString("en-CA")}
+                      {tx.date}
                     </TableCell>
                     <TableCell className="text-sm">
                       {tx.address || <span className="text-muted-foreground">&mdash;</span>}
