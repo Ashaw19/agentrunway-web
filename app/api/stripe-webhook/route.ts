@@ -87,11 +87,16 @@ export async function POST(request: Request) {
         break;
       }
 
+      // payment_status is "no_payment_required" when the session starts a
+      // free trial (payment_method_collection: "if_required").
+      const initStatus =
+        session.payment_status === "no_payment_required" ? "trialing" : "active";
+
       const { error } = await db
         .from("user_settings")
         .update({
           subscription_tier: "professional",
-          subscription_status: "active",
+          subscription_status: initStatus,
           stripe_customer_id: cid,
           stripe_subscription_id: sid,
         })
@@ -104,7 +109,7 @@ export async function POST(request: Request) {
           error.message,
         );
       } else {
-        console.log("[stripe] activated professional for user", userId);
+        console.log("[stripe] activated professional for user", userId, initStatus);
       }
       break;
     }

@@ -57,6 +57,12 @@ export async function POST(request: Request) {
       mode: "subscription",
       customer_email: user.email,
       line_items: [{ price: priceId, quantity: 1 }],
+      // 14-day free trial — no credit card required until trial ends
+      subscription_data: {
+        trial_period_days: 14,
+        metadata: { userId: user.id },
+      },
+      payment_method_collection: "if_required",
       success_url: `${appUrl}/dashboard?upgraded=true`,
       cancel_url: `${appUrl}/pricing`,
       metadata: { userId: user.id },

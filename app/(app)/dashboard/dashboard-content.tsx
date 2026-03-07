@@ -35,6 +35,8 @@ import {
   Star,
   ChevronDown,
   HelpCircle,
+  Sparkles,
+  X,
 } from "lucide-react";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -74,6 +76,7 @@ interface Props {
   expenseCategories: ExpenseCategoryWithItems[];
   initialDashboardView?: string;
   subscriptionTier?: string;
+  showUpgradeBanner?: boolean;
 }
 
 const INSIGHT_ICONS: Record<string, React.ElementType> = {
@@ -102,8 +105,10 @@ export function DashboardContent({
   expenseCategories,
   initialDashboardView,
   subscriptionTier = "starter",
+  showUpgradeBanner = false,
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const now = new Date();
   const currentYear = now.getFullYear();
 
@@ -263,6 +268,25 @@ export function DashboardContent({
 
   return (
     <div className="space-y-6">
+      {/* Upgrade success banner */}
+      {showUpgradeBanner && !bannerDismissed && (
+        <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="h-4 w-4 shrink-0 text-emerald-600" />
+            <p className="text-sm font-medium text-emerald-800">
+              Welcome to Professional! Your 14-day free trial has started — all Pro features are now unlocked.
+            </p>
+          </div>
+          <button
+            onClick={() => setBannerDismissed(true)}
+            aria-label="Dismiss"
+            className="ml-4 shrink-0 text-emerald-500 hover:text-emerald-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

@@ -19,7 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check } from "lucide-react";
+import { Check, Sparkles, ExternalLink, Loader2 } from "lucide-react";
+import Link from "next/link";
 import {
   PROVINCE_LABELS,
   type Province,
@@ -319,7 +320,146 @@ export function SettingsContent({ settings }: Props) {
           />
         </CardContent>
       </Card>
+
+      {/* Card 5 — Plan & Billing */}
+      <PlanBillingCard settings={settings} />
     </div>
+  );
+}
+
+// ── Plan & Billing card ───────────────────────────────────────────────────────
+
+const TIER_LABELS: Record<string, string> = {
+  starter: "Starter",
+  professional: "Professional",
+  team: "Team",
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  active: "bg-emerald-100 text-emerald-700",
+  trialing: "bg-blue-100 text-blue-700",
+  past_due: "bg-amber-100 text-amber-700",
+  canceled: "bg-slate-100 text-slate-600",
+  unpaid: "bg-red-100 text-red-700",
+  free: "bg-slate-100 text-slate-600",
+};
+
+function PlanBillingCard({ settings }: { settings: UserSettings }) {
+  const [loadingPortal, setLoadingPortal] = useState(false);
+  const [portalError, setPortalError] = useState("");
+
+  const tier = settings.subscription_tier ?? "starter";
+  const status = settings.subscription_status ?? "free";
+  const isPro = tier === "professional" || tier === "team";
+  const renewalDate = settings.subscription_current_period_end
+    ? new Date(settings.subscription_current_period_end).toLocaleDateString(
+        "en-CA",
+        { year: "numeric", month: "long", day: "numeric" },
+      )
+    : null;
+
+  async function openPortal() {
+    setLoadingPortal(true);
+    setPortalError("");
+    try {
+      const res = await fetch("/api/customer-portal", { method: "POST" });
+      const data = (await res.json()) as { url?: string; message?: string; error?: string };
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setPortalError(data.message ?? data.error ?? "Something went wrong. Please try again.");
+        setLoadingPortal(false);
+      }
+    } catch {
+      setPortalError("Could not connect. Please try again.");
+      setLoadingPortal(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Plan &amp; Billing</CardTitle>
+        <CardDescription>
+          Your current subscription and billing management.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Plan row */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div>
+              <p className="text-sm font-semibold">
+                {TIER_LABELS[tier] ?? tier} Plan
+              </p>
+              <div className="mt-1 flex items-center gap-2">
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium capitalize ${STATUS_STYLES[status] ?? STATUS_STYLES.free}`}
+                >
+                  {status === "free" ? "free" : status.replace("_", " ")}
+                </span>
+                {status === "trialing" && renewalDate && (
+                  <span className="text-xs text-muted-foreground">
+                    Trial ends {renewalDate}
+                  </span>
+                )}
+                {status === "active" && renewalDate && (
+                  <span className="text-xs text-muted-foreground">
+                    Renews {renewalDate}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {isPro ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openPortal}
+              disabled={loadingPortal}
+              className="shrink-0"
+            >
+              {loadingPortal ? (
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <ExternalLink className="mr-2 h-3.5 w-3.5" />
+              )}
+              {loadingPortal ? "Opening…" : "Manage Subscription"}
+            </Button>
+          ) : (
+            <Link
+              href="/pricing"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Upgrade to Professional
+            </Link>
+          )}
+        </div>
+
+        {/* Error message */}
+        {portalError && (
+          <p className="text-xs text-destructive">{portalError}</p>
+        )}
+
+        {/* Starter info */}
+        {!isPro && (
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Upgrade to Professional for runway scoring, probability-weighted forecasts,
+            PDF reports, AI insights, tax planning tools, and CREA benchmarking.
+            Starts with a 14-day free trial — no credit card required.
+          </p>
+        )}
+
+        {/* Portal note for Pro */}
+        {isPro && (
+          <p className="text-xs text-muted-foreground">
+            Update your payment method, download invoices, or cancel from the Stripe billing portal.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

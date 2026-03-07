@@ -2,7 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardContent } from "./dashboard-content";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ upgraded?: string }>;
+}) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -55,6 +59,9 @@ export default async function DashboardPage() {
     items: (expItemResult.data ?? []).filter((i) => i.category_id === cat.id),
   }));
 
+  const params = await searchParams;
+  const showUpgradeBanner = params.upgraded === "true";
+
   return (
     <DashboardContent
       transactions={txResult.data ?? []}
@@ -63,6 +70,7 @@ export default async function DashboardPage() {
       expenseCategories={expenseCategories}
       initialDashboardView={settingsResult.data?.dashboard_view ?? "standard"}
       subscriptionTier={settingsResult.data?.subscription_tier ?? "starter"}
+      showUpgradeBanner={showUpgradeBanner}
     />
   );
 }
