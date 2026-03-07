@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
 import { stripe } from "@/lib/stripe";
 import type Stripe from "stripe";
 
@@ -15,6 +16,32 @@ import type Stripe from "stripe";
  *
  * Set STRIPE_WEBHOOK_SECRET in .env.local to the signing secret from Stripe.
  */
+
+// ── Service-role Supabase client (bypasses RLS) ───────────────────────────────
+
+function serviceClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  );
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function customerId(
+  val: string | Stripe.Customer | Stripe.DeletedCustomer | null,
+): string | null {
+  if (!val) return null;
+  return typeof val === "string" ? val : val.id;
+}
+
+function subscriptionId(val: string | Stripe.Subscription | null): string | null {
+  if (!val) return null;
+  return typeof val === "string" ? val : val.id;
+}
+
+// ── Route handler ─────────────────────────────────────────────────────────────
+
 export async function POST(request: Request) {
   if (!stripe) {
     return NextResponse.json({ error: "Stripe not configured." }, { status: 503 });
@@ -27,7 +54,7 @@ export async function POST(request: Request) {
   if (!sig || !webhookSecret) {
     return NextResponse.json(
       { error: "Missing Stripe-Signature header or STRIPE_WEBHOOK_SECRET." },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -37,30 +64,127 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json(
       { error: "Webhook signature verification failed." },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
+  const db = serviceClient();
+
   switch (event.type) {
+
+    // ── New subscription activated via Checkout ─────────────────────────────
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.metadata?.userId;
-      // TODO: set user_settings.subscription_tier = 'professional' for userId
-      console.log("[stripe] checkout.session.completed", session.id, userId);
+      const cid = customerId(session.customer);
+      const sid = subscriptionId(session.subscription);
+
+      if (!userId) {
+        console.error(
+          "[stripe] checkout.session.completed — missing userId in metadata",
+          session.id,
+        );
+        break;
+      }
+
+      const { error } = await db
+        .from("user_settings")
+        .update({
+          subscription_tier: "professional",
+          subscription_status: "active",
+          stripe_customer_id: cid,
+          stripe_subscription_id: sid,
+        })
+        .eq("user_id", userId);
+
+      if (error) {
+        console.error(
+          "[stripe] failed to activate professional for user",
+          userId,
+          error.message,
+        );
+      } else {
+        console.log("[stripe] activated professional for user", userId);
+      }
       break;
     }
 
+    // ── Subscription status changed (renewal, payment failure, trial end) ───
     case "customer.subscription.updated": {
       const sub = event.data.object as Stripe.Subscription;
-      // TODO: sync subscription status to user_settings
-      console.log("[stripe] subscription.updated", sub.id, sub.status);
+      const cid = customerId(sub.customer);
+
+      if (!cid) {
+        console.error("[stripe] subscription.updated — no customer ID", sub.id);
+        break;
+      }
+
+      // Downgrade to starter on any non-active/trialing status
+      const isActive = sub.status === "active" || sub.status === "trialing";
+      // current_period_end is present at runtime but was removed from TS types
+      // in newer Stripe SDK versions — access via unknown to stay type-safe.
+      const rawPeriodEnd = (sub as unknown as Record<string, unknown>).current_period_end;
+      const periodEnd =
+        typeof rawPeriodEnd === "number"
+          ? new Date(rawPeriodEnd * 1000).toISOString()
+          : null;
+
+      const { error } = await db
+        .from("user_settings")
+        .update({
+          subscription_tier: isActive ? "professional" : "starter",
+          subscription_status: sub.status,
+          subscription_current_period_end: periodEnd,
+        })
+        .eq("stripe_customer_id", cid);
+
+      if (error) {
+        console.error(
+          "[stripe] failed to sync subscription for customer",
+          cid,
+          error.message,
+        );
+      } else {
+        console.log(
+          "[stripe] synced subscription",
+          sub.id,
+          sub.status,
+          "→",
+          isActive ? "professional" : "starter",
+        );
+      }
       break;
     }
 
+    // ── Subscription cancelled (end of period or immediate) ─────────────────
     case "customer.subscription.deleted": {
       const sub = event.data.object as Stripe.Subscription;
-      // TODO: downgrade user_settings.subscription_tier to 'starter'
-      console.log("[stripe] subscription.deleted", sub.id);
+      const cid = customerId(sub.customer);
+
+      if (!cid) {
+        console.error("[stripe] subscription.deleted — no customer ID", sub.id);
+        break;
+      }
+
+      const { error } = await db
+        .from("user_settings")
+        .update({
+          subscription_tier: "starter",
+          subscription_status: "canceled",
+          stripe_subscription_id: null,
+          subscription_current_period_end: null,
+        })
+        .eq("stripe_customer_id", cid);
+
+      if (error) {
+        console.error(
+          "[stripe] failed to downgrade for customer",
+          cid,
+          error.message,
+        );
+      } else {
+        console.log("[stripe] downgraded to starter for customer", cid);
+      }
       break;
     }
 

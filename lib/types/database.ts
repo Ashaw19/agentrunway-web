@@ -193,6 +193,13 @@ export interface UserSettings {
   // UI preferences
   dashboard_view: string; // 'essentials' | 'standard' | 'full'
 
+  // Subscription (Stripe)
+  subscription_tier: string;              // 'starter' | 'professional' | 'team'
+  subscription_status: string;            // 'free' | 'trialing' | 'active' | 'past_due' | 'canceled' | 'unpaid'
+  stripe_customer_id: string | null;      // cus_...
+  stripe_subscription_id: string | null;  // sub_...
+  subscription_current_period_end: string | null; // ISO timestamp
+
   // Timestamps
   created_at: string;
   updated_at: string;
