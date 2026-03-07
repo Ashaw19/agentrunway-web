@@ -143,9 +143,9 @@ export function SettingsContent({ settings }: Props) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
+      <div className="border-b border-border/60 pb-5">
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="mt-1 text-sm text-muted-foreground">
           Manage your account preferences and calculations.
         </p>
       </div>
@@ -475,7 +475,7 @@ function SaveRow({
 }) {
   return (
     <div className="flex items-center gap-3">
-      <Button onClick={onSave} disabled={saving} size="sm">
+      <Button variant="outline" onClick={onSave} disabled={saving} size="sm">
         {saving ? "Saving…" : "Save"}
       </Button>
       {saved && (

@@ -172,28 +172,28 @@ export function ForecastContent({
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="border-b border-border/60 pb-5">
         <h1 className="text-2xl font-semibold tracking-tight">Forecast</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="mt-1 text-sm text-muted-foreground">
           Year-end projections & financial outlook &middot; {PROVINCE_LABELS[settings.province]}
         </p>
       </div>
 
       {/* Projection summary */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="border-t-2 border-t-primary/40">
           <CardHeader className="pb-2">
             <CardDescription>Projected GCI</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{fmtCurrency(projectedGCI)}</div>
             <p className="text-xs text-muted-foreground">
-              P25\u2013P75: {fmtCompact(bands.p25)}\u2013{fmtCompact(bands.p75)}
+              P25–P75: {fmtCompact(bands.p25)}–{fmtCompact(bands.p75)}
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-t-2 border-t-primary/40">
           <CardHeader className="pb-2">
             <CardDescription>Projected Deals</CardDescription>
           </CardHeader>
@@ -205,7 +205,7 @@ export function ForecastContent({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-t-2 border-t-primary/40">
           <CardHeader className="pb-2">
             <CardDescription>After-Tax Net</CardDescription>
           </CardHeader>
@@ -219,7 +219,7 @@ export function ForecastContent({
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-t-2 border-t-primary/40">
           <CardHeader className="pb-2">
             <CardDescription>Cash Runway</CardDescription>
           </CardHeader>

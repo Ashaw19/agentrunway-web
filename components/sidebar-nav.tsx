@@ -226,19 +226,19 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
 
       {/* Upgrade nudge — Starter users only */}
       {!isPro && (
-        <div className="mx-3 mb-3 overflow-hidden rounded-lg border border-amber-500/25 bg-gradient-to-br from-amber-500/15 to-orange-500/8 p-3">
-          <div className="mb-1.5 flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-            <span className="text-[12px] font-semibold text-sidebar-foreground/90">
+        <div className="mx-3 mb-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.06] p-3.5">
+          <div className="mb-1 flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-blue-400" />
+            <span className="text-[12px] font-semibold text-sidebar-foreground/85">
               Go Professional
             </span>
           </div>
-          <p className="mb-2.5 text-[11px] leading-relaxed text-sidebar-foreground/50">
+          <p className="mb-3 text-[11px] leading-relaxed text-sidebar-foreground/45">
             Runway score, tax planning, AI insights &amp; more.
           </p>
           <Link
             href="/pricing"
-            className="block rounded-md bg-amber-500 px-3 py-1.5 text-center text-[11.5px] font-semibold text-white transition-colors hover:bg-amber-400"
+            className="block rounded-md bg-blue-600 px-3 py-1.5 text-center text-[11.5px] font-semibold text-white transition-colors hover:bg-blue-500"
           >
             Start Free Trial
           </Link>

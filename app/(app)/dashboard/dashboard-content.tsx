@@ -293,7 +293,7 @@ export function DashboardContent({
       )}
 
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-5">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground">
@@ -404,7 +404,7 @@ export function DashboardContent({
 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-t-2 border-t-emerald-500">
+        <Card className="border-t-2 border-t-primary/40">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription>YTD GCI</CardDescription>
             <div className="rounded-md bg-emerald-50 p-1.5">
@@ -435,7 +435,7 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-blue-500">
+        <Card className="border-t-2 border-t-primary/40">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription>Closed Deals</CardDescription>
             <div className="rounded-md bg-blue-50 p-1.5">
@@ -450,7 +450,7 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-violet-500">
+        <Card className="border-t-2 border-t-primary/40">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription>Active Pipeline</CardDescription>
             <div className="rounded-md bg-violet-50 p-1.5">
@@ -469,7 +469,7 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-teal-500">
+        <Card className="border-t-2 border-t-primary/40">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription>Projected Year-End</CardDescription>
             <div className="rounded-md bg-teal-50 p-1.5">
@@ -558,7 +558,7 @@ export function DashboardContent({
 
       {/* Monthly Performance Chart — Standard + Full */}
       {dashboardView !== "essentials" && (
-        <Card className="border-t-2 border-t-emerald-500">
+        <Card className="border-t-2 border-t-primary/40">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
@@ -588,7 +588,7 @@ export function DashboardContent({
           description="P10–P90 probability bands and CREA cohort benchmarking — available on the Professional plan."
         >
         <div className="grid gap-4 sm:grid-cols-2">
-          <Card className="border-t-2 border-t-violet-500">
+          <Card className="border-t-2 border-t-primary/40">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Projection Range</CardTitle>
               <CardDescription>
@@ -621,7 +621,7 @@ export function DashboardContent({
             </CardContent>
           </Card>
 
-          <Card className="border-t-2 border-t-teal-500">
+          <Card className="border-t-2 border-t-primary/40">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Benchmark</CardTitle>
               <CardDescription>
@@ -669,7 +669,7 @@ export function DashboardContent({
         >
         <div className="grid gap-4 sm:grid-cols-2">
           {taxResult && (
-            <Card className="border-t-2 border-t-rose-400">
+            <Card className="border-t-2 border-t-primary/40">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Tax Estimate</CardTitle>
                 <CardDescription>
@@ -701,7 +701,7 @@ export function DashboardContent({
           )}
 
           {goalGCI > 0 && (
-            <Card className="border-t-2 border-t-emerald-500">
+            <Card className="border-t-2 border-t-primary/40">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Goal Progress</CardTitle>
                 <CardDescription>
@@ -731,7 +731,7 @@ export function DashboardContent({
           feature="AI Insights"
           description="Contextual tips, warnings, and growth opportunities tailored to your business — available on the Professional plan."
         >
-          <Card className="border-t-2 border-t-blue-500">
+          <Card className="border-t-2 border-t-primary/40">
             <CardHeader>
               <CardTitle className="text-base">Insights</CardTitle>
             </CardHeader>
@@ -747,7 +747,7 @@ export function DashboardContent({
       )}
 
       {/* Recent transactions */}
-      <Card className="border-t-2 border-t-emerald-500">
+      <Card className="border-t-2 border-t-primary/40">
         <CardHeader>
           <CardTitle className="text-base">Recent Transactions</CardTitle>
           <CardDescription>

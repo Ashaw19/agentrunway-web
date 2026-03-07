@@ -184,7 +184,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-5">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
           <p className="text-sm text-muted-foreground">
@@ -209,7 +209,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
 
       {/* KPI Summary */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-t-2 border-t-amber-500">
+        <Card className="border-t-2 border-t-primary/40">
           <CardHeader className="pb-2">
             <CardDescription>YTD Expenses</CardDescription>
           </CardHeader>
@@ -219,7 +219,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-amber-400">
+        <Card className="border-t-2 border-t-primary/40">
           <CardHeader className="pb-2">
             <CardDescription>Monthly Recurring</CardDescription>
           </CardHeader>
@@ -231,7 +231,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-rose-400">
+        <Card className="border-t-2 border-t-primary/40">
           <CardHeader className="pb-2">
             <CardDescription>Expense Ratio</CardDescription>
           </CardHeader>
@@ -245,7 +245,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-teal-500">
+        <Card className="border-t-2 border-t-primary/40">
           <CardHeader className="pb-2">
             <CardDescription>Cash Runway</CardDescription>
           </CardHeader>
@@ -292,7 +292,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
 
       {/* Donut */}
       {donutData.length > 0 && (
-        <Card className="border-t-2 border-t-amber-500">
+        <Card className="border-t-2 border-t-primary/40">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Expense Breakdown</CardTitle>
             <CardDescription>YTD spending by category</CardDescription>

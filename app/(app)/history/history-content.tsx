@@ -97,7 +97,7 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between border-b border-border/60 pb-5">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">History</h1>
           <p className="text-sm text-muted-foreground">
