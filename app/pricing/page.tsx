@@ -47,11 +47,27 @@ const FAQS = [
   },
 ];
 
+// ── FAQ JSON-LD ───────────────────────────────────────────────────────────────
+
+const FAQ_SCHEMA = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: FAQS.map(({ q, a }) => ({
+    "@type": "Question",
+    name: q,
+    acceptedAnswer: { "@type": "Answer", text: a },
+  })),
+};
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PricingPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_SCHEMA) }}
+      />
 
       {/* ── Navigation ── */}
       <MarketingNav />

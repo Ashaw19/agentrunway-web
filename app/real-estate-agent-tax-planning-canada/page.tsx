@@ -354,7 +354,13 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               <p>
                 Tax planning is not a once-a-year event for serious real estate agents.
                 Every deal you close, every expense you incur, and every month that
-                passes changes your tax position for the year. <Link href="/">Agent Runway</Link>{" "}
+                passes changes your tax position for the year. Understanding how each
+                of those factors flows through to actual take-home pay is covered in
+                detail in the guide to{" "}
+                <Link href="/how-real-estate-agents-calculate-net-income">
+                  how real estate agents calculate net income
+                </Link>
+                . <Link href="/">Agent Runway</Link>{" "}
                 is built to make that continuous awareness automatic, rather than
                 something you reconstruct at the end of February.
               </p>
@@ -412,7 +418,12 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               <p>
                 For a complete overview of how Agent Runway handles income forecasting,
                 expense tracking, and financial analytics beyond tax planning, visit the{" "}
-                <Link href="/features">features page</Link>.
+                <Link href="/features">features page</Link>. Agents evaluating whether
+                a dedicated tool is worth it can also read the{" "}
+                <Link href="/real-estate-analytics-vs-spreadsheets">
+                  comparison of analytics software vs. spreadsheets
+                </Link>
+                .
               </p>
 
             </article>

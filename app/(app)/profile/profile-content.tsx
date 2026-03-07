@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import {
   Card,
@@ -283,10 +284,12 @@ export function ProfileContent({
                 title="Click to change profile photo"
               >
                 {avatarUrl ? (
-                  <img
+                  <Image
                     src={avatarUrl}
                     alt={displayName || "Profile photo"}
-                    className="h-full w-full object-cover"
+                    fill
+                    unoptimized
+                    className="object-cover"
                   />
                 ) : (
                   <div
@@ -606,10 +609,12 @@ export function ProfileContent({
                   title="Click to upload business logo"
                 >
                   {businessLogoUrl ? (
-                    <img
+                    <Image
                       src={businessLogoUrl}
                       alt="Business logo"
-                      className="h-full w-full object-contain p-2"
+                      fill
+                      unoptimized
+                      className="object-contain p-2"
                     />
                   ) : (
                     <Building2 className="h-7 w-7 text-muted-foreground/40" />

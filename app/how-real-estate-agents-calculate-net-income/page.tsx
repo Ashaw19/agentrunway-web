@@ -311,7 +311,12 @@ export default function HowRealEstateAgentsCalculateNetIncomePage() {
               <p>
                 Self-employed Canadians who expect to owe more than $3,000 in tax for
                 a given year are required by the CRA to pay in quarterly instalments —
-                in March, June, September, and December. Agents who do not set money
+                in March, June, September, and December. A full breakdown of how these
+                work is covered in the guide to{" "}
+                <Link href="/real-estate-agent-tax-planning-canada">
+                  real estate agent tax planning in Canada
+                </Link>
+                . Agents who do not set money
                 aside throughout the year find themselves in a compounding bind: not
                 only do they owe a large amount at tax time, but they may also have
                 missed instalment payments and face interest charges on top.
@@ -398,7 +403,11 @@ export default function HowRealEstateAgentsCalculateNetIncomePage() {
                   Agent Runway business analytics dashboard
                 </Link>{" "}
                 covers, including forecasting and financial runway, explore the platform
-                overview.
+                overview. Agents switching from spreadsheets can also read the{" "}
+                <Link href="/real-estate-analytics-vs-spreadsheets">
+                  comparison of real estate analytics software vs. spreadsheets
+                </Link>
+                .
               </p>
 
             </article>

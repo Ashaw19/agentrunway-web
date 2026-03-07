@@ -116,8 +116,21 @@ const PAIN_POINTS = [
     iconClass: "text-red-500",
     bgClass: "bg-red-50 border-red-100",
     title: "Manual tax math",
-    body:
-      "Estimating your federal income tax, provincial tax, CPP self-employed contributions, and quarterly instalment amounts requires a working knowledge of current rate tables and ongoing adjustment as income changes. Spreadsheets provide no help here.",
+    body: (
+      <>
+        Estimating your federal income tax, provincial tax, CPP self-employed
+        contributions, and quarterly instalment amounts requires a working knowledge
+        of current rate tables and ongoing adjustment as income changes. Spreadsheets
+        provide no help here. See the full guide to{" "}
+        <Link
+          href="/real-estate-agent-tax-planning-canada"
+          className="font-medium text-red-700 underline underline-offset-2 hover:text-red-600"
+        >
+          real estate agent tax planning in Canada
+        </Link>
+        .
+      </>
+    ),
   },
   {
     icon: Gauge,
@@ -266,7 +279,15 @@ export default function RealEstateAnalyticsVsSpreadsheets() {
                 handful of deals a year and your financial picture is straightforward,
                 a well-maintained spreadsheet is a perfectly reasonable tool. The
                 problems begin when you need your numbers to actually work for you —
-                to forecast, to plan, to warn you, and to compare.
+                to forecast, to plan, to warn you, and to compare. For a detailed look
+                at how{" "}
+                <Link
+                  href="/how-real-estate-agents-calculate-net-income"
+                  className="text-blue-600 underline-offset-2 hover:underline"
+                >
+                  real estate agents calculate net income
+                </Link>
+                {" "}from GCI through to take-home pay, see the full guide.
               </p>
             </div>
           </div>
