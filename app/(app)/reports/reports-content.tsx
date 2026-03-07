@@ -20,7 +20,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FileDown, Loader2 } from "lucide-react";
+import { FileDown, Loader2, Lock } from "lucide-react";
+import Link from "next/link";
+import { ProGate } from "@/components/pro-gate";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   computeGCI,
@@ -48,6 +50,7 @@ interface Props {
   transactions: Transaction[];
   pipelineDeals: PipelineDeal[];
   expenseCategories: ExpenseCategoryWithItems[];
+  subscriptionTier?: string;
 }
 
 export function ReportsContent({
@@ -55,7 +58,9 @@ export function ReportsContent({
   transactions,
   pipelineDeals,
   expenseCategories,
+  subscriptionTier = "starter",
 }: Props) {
+  const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const [downloading, setDownloading] = useState(false);
 
   if (!settings) {
@@ -236,20 +241,30 @@ export function ReportsContent({
             {currentYear} business summary &mdash; {PROVINCE_LABELS[settings.province]}
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleDownload}
-          disabled={downloading}
-          className="shrink-0"
-        >
-          {downloading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <FileDown className="mr-2 h-4 w-4" />
-          )}
-          {downloading ? "Generating…" : "Download PDF"}
-        </Button>
+        {isPro ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownload}
+            disabled={downloading}
+            className="shrink-0"
+          >
+            {downloading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <FileDown className="mr-2 h-4 w-4" />
+            )}
+            {downloading ? "Generating…" : "Download PDF"}
+          </Button>
+        ) : (
+          <Link
+            href="/pricing"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+          >
+            <Lock className="h-3.5 w-3.5" />
+            Download PDF
+          </Link>
+        )}
       </div>
 
       {/* KPI Summary */}
@@ -297,67 +312,73 @@ export function ReportsContent({
       </div>
 
       {/* Benchmark + Survival row */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Benchmark</CardTitle>
-            <CardDescription>
-              vs. {COHORT_LABELS[benchmark.cohort]} cohort (CREA 2023)
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div>
-                <div className="mb-1 flex justify-between text-sm">
-                  <span>Cohort percentile</span>
-                  <span className="font-medium">P{benchmark.percentile}</span>
+      <ProGate
+        isPro={isPro}
+        feature="Benchmark & Cash Runway"
+        description="CREA cohort benchmarking and cash runway analysis — available on the Professional plan."
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Benchmark</CardTitle>
+              <CardDescription>
+                vs. {COHORT_LABELS[benchmark.cohort]} cohort (CREA 2023)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div>
+                  <div className="mb-1 flex justify-between text-sm">
+                    <span>Cohort percentile</span>
+                    <span className="font-medium">P{benchmark.percentile}</span>
+                  </div>
+                  <Progress value={benchmark.percentile} className="h-2" />
                 </div>
-                <Progress value={benchmark.percentile} className="h-2" />
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Cohort median</span>
-                <span>{fmtCurrency(benchmark.cohortMedianGCI)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">National percentile</span>
-                <span>P{benchmark.nationalPercentile}</span>
-              </div>
-              {benchmark.distanceToNextTier != null && benchmark.distanceToNextTier > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    Gap to {benchmark.nextTierLabel}
-                  </span>
-                  <span>{fmtCurrency(benchmark.distanceToNextTier)}</span>
+                  <span className="text-muted-foreground">Cohort median</span>
+                  <span>{fmtCurrency(benchmark.cohortMedianGCI)}</span>
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">National percentile</span>
+                  <span>P{benchmark.nationalPercentile}</span>
+                </div>
+                {benchmark.distanceToNextTier != null && benchmark.distanceToNextTier > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      Gap to {benchmark.nextTierLabel}
+                    </span>
+                    <span>{fmtCurrency(benchmark.distanceToNextTier)}</span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Cash Runway</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Runway</span>
-                <span className={`font-medium ${riskColors[survival.riskLevel]}`}>
-                  {survival.label}
-                </span>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Cash Runway</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Runway</span>
+                  <span className={`font-medium ${riskColors[survival.riskLevel]}`}>
+                    {survival.label}
+                  </span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Monthly burn</span>
+                  <span>{fmtCurrency(survival.monthlyBurn)}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Cash reserve</span>
+                  <span>{fmtCurrency(survival.cashReserve)}</span>
+                </div>
               </div>
-              <div className="flex justify-between text-muted-foreground">
-                <span>Monthly burn</span>
-                <span>{fmtCurrency(survival.monthlyBurn)}</span>
-              </div>
-              <div className="flex justify-between text-muted-foreground">
-                <span>Cash reserve</span>
-                <span>{fmtCurrency(survival.cashReserve)}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
+      </ProGate>
 
       {/* P&L */}
       <Card>
@@ -406,54 +427,60 @@ export function ReportsContent({
       </Card>
 
       {/* Tax estimate */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Projected Tax Breakdown</CardTitle>
-          <CardDescription>
-            {taxResult.taxYear} estimate &middot; {PROVINCE_LABELS[settings.province]}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span>Projected net income</span>
-              <span className="font-medium">{fmtCurrency(projectedNet)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>CPP/QPP contributions</span>
-              <span>-{fmtCurrency(taxResult.totalCPP)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Federal income tax</span>
-              <span>-{fmtCurrency(taxResult.federalTax)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Provincial income tax</span>
-              <span>-{fmtCurrency(taxResult.provincialTax)}</span>
-            </div>
-            <Separator />
-            <div className="flex justify-between font-medium">
-              <span>Total tax burden</span>
-              <span>{fmtCurrency(taxResult.totalBurden)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Effective rate</span>
-              <span className="font-medium">{fmtPct(taxResult.effectiveRate)}</span>
-            </div>
-            <Separator />
-            <div className="grid grid-cols-2 gap-4 pt-2">
-              <div className="text-center">
-                <p className="text-lg font-bold">{fmtCurrency(taxResult.quarterlyEstimate)}</p>
-                <p className="text-xs text-muted-foreground">Quarterly instalment</p>
+      <ProGate
+        isPro={isPro}
+        feature="Projected Tax Breakdown"
+        description="Full Canadian tax breakdown including CPP/QPP, federal, and provincial estimates — available on the Professional plan."
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Projected Tax Breakdown</CardTitle>
+            <CardDescription>
+              {taxResult.taxYear} estimate &middot; {PROVINCE_LABELS[settings.province]}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Projected net income</span>
+                <span className="font-medium">{fmtCurrency(projectedNet)}</span>
               </div>
-              <div className="text-center">
-                <p className="text-lg font-bold">{fmtCurrency(taxResult.perDealSetAside)}</p>
-                <p className="text-xs text-muted-foreground">Per-deal set-aside</p>
+              <div className="flex justify-between text-muted-foreground">
+                <span>CPP/QPP contributions</span>
+                <span>-{fmtCurrency(taxResult.totalCPP)}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Federal income tax</span>
+                <span>-{fmtCurrency(taxResult.federalTax)}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Provincial income tax</span>
+                <span>-{fmtCurrency(taxResult.provincialTax)}</span>
+              </div>
+              <Separator />
+              <div className="flex justify-between font-medium">
+                <span>Total tax burden</span>
+                <span>{fmtCurrency(taxResult.totalBurden)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Effective rate</span>
+                <span className="font-medium">{fmtPct(taxResult.effectiveRate)}</span>
+              </div>
+              <Separator />
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <div className="text-center">
+                  <p className="text-lg font-bold">{fmtCurrency(taxResult.quarterlyEstimate)}</p>
+                  <p className="text-xs text-muted-foreground">Quarterly instalment</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold">{fmtCurrency(taxResult.perDealSetAside)}</p>
+                  <p className="text-xs text-muted-foreground">Per-deal set-aside</p>
+                </div>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </ProGate>
 
       {/* Expense breakdown */}
       <Card>

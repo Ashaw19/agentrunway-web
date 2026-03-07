@@ -46,6 +46,7 @@ export default async function ReportsPage() {
       transactions={txResult.data ?? []}
       pipelineDeals={pipelineResult.data ?? []}
       expenseCategories={categories}
+      subscriptionTier={settingsResult.data?.subscription_tier ?? "starter"}
     />
   );
 }

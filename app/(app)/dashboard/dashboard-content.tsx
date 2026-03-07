@@ -39,6 +39,7 @@ import {
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { MonthlyChart, type MonthlyDataPoint } from "@/components/monthly-chart";
+import { ProGate } from "@/components/pro-gate";
 import {
   computeGCI,
   computeWeightedGCI,
@@ -72,6 +73,7 @@ interface Props {
   settings: UserSettings | null;
   expenseCategories: ExpenseCategoryWithItems[];
   initialDashboardView?: string;
+  subscriptionTier?: string;
 }
 
 const INSIGHT_ICONS: Record<string, React.ElementType> = {
@@ -99,7 +101,9 @@ export function DashboardContent({
   settings,
   expenseCategories,
   initialDashboardView,
+  subscriptionTier = "starter",
 }: Props) {
+  const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const now = new Date();
   const currentYear = now.getFullYear();
 
@@ -306,53 +310,59 @@ export function DashboardContent({
       </div>
 
       {/* Runway Score Hero */}
-      <Card className="bg-gradient-to-br from-background to-primary/5 border-primary/20">
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/60 shadow-lg">
-                <span className="text-2xl font-bold text-white">
-                  {runwayScore.grade}
-                </span>
-              </div>
-              <div>
-                <div className="flex items-center gap-1">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    Runway Score
-                  </p>
-                  <RunwayScoreInfoDialog />
+      <ProGate
+        isPro={isPro}
+        feature="Runway Score"
+        description="Your composite business health score across 6 key indicators — available on the Professional plan."
+      >
+        <Card className="bg-gradient-to-br from-background to-primary/5 border-primary/20">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/60 shadow-lg">
+                  <span className="text-2xl font-bold text-white">
+                    {runwayScore.grade}
+                  </span>
                 </div>
-                <p className="text-3xl font-bold">{runwayScore.score}</p>
+                <div>
+                  <div className="flex items-center gap-1">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Runway Score
+                    </p>
+                    <RunwayScoreInfoDialog />
+                  </div>
+                  <p className="text-3xl font-bold">{runwayScore.score}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-muted-foreground" />
+                  <span className={`text-sm font-medium ${riskColors[survival.riskLevel]}`}>
+                    {formatSurvivalDisplay(survival)} runway
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {COHORT_LABELS[benchmark.cohort]} &middot; P{benchmark.percentile}
+                </p>
               </div>
             </div>
-            <div className="text-right">
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-muted-foreground" />
-                <span className={`text-sm font-medium ${riskColors[survival.riskLevel]}`}>
-                  {formatSurvivalDisplay(survival)} runway
-                </span>
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {COHORT_LABELS[benchmark.cohort]} &middot; P{benchmark.percentile}
-              </p>
+            {/* Score components */}
+            <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-6">
+              {runwayScore.components.map((c) => (
+                <div key={c.label} className="text-center">
+                  <p className="text-xs text-muted-foreground">{c.label}</p>
+                  <p className="text-sm font-semibold">{c.score}</p>
+                  <Progress value={c.score} className="mt-1 h-1" />
+                </div>
+              ))}
             </div>
-          </div>
-          {/* Score components */}
-          <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-6">
-            {runwayScore.components.map((c) => (
-              <div key={c.label} className="text-center">
-                <p className="text-xs text-muted-foreground">{c.label}</p>
-                <p className="text-sm font-semibold">{c.score}</p>
-                <Progress value={c.score} className="mt-1 h-1" />
-              </div>
-            ))}
-          </div>
-          {/* Score narrative */}
-          <p className="mt-3 border-t border-border/60 pt-3 text-xs text-muted-foreground">
-            {scoreNarrative}
-          </p>
-        </CardContent>
-      </Card>
+            {/* Score narrative */}
+            <p className="mt-3 border-t border-border/60 pt-3 text-xs text-muted-foreground">
+              {scoreNarrative}
+            </p>
+          </CardContent>
+        </Card>
+      </ProGate>
 
       {/* Business Health Narrative — Standard + Full */}
       {narrative && dashboardView !== "essentials" && (
@@ -510,6 +520,11 @@ export function DashboardContent({
 
       {/* Probability bands + benchmark row — Full only */}
       {dashboardView === "full" && (
+        <ProGate
+          isPro={isPro}
+          feature="Projection Range & Benchmark"
+          description="P10–P90 probability bands and CREA cohort benchmarking — available on the Professional plan."
+        >
         <div className="grid gap-4 sm:grid-cols-2">
           <Card className="border-t-2 border-t-violet-500">
             <CardHeader className="pb-2">
@@ -580,10 +595,16 @@ export function DashboardContent({
             </CardContent>
           </Card>
         </div>
+        </ProGate>
       )}
 
       {/* Tax estimate + Goal progress row — Full only */}
       {dashboardView === "full" && (
+        <ProGate
+          isPro={isPro}
+          feature="Tax Estimate & Goal Progress"
+          description="Quarterly tax estimates, per-deal set-asides, and goal tracking — available on the Professional plan."
+        >
         <div className="grid gap-4 sm:grid-cols-2">
           {taxResult && (
             <Card className="border-t-2 border-t-rose-400">
@@ -638,22 +659,29 @@ export function DashboardContent({
             </Card>
           )}
         </div>
+        </ProGate>
       )}
 
       {/* Insights — Standard + Full */}
       {insights.length > 0 && dashboardView !== "essentials" && (
-        <Card className="border-t-2 border-t-blue-500">
-          <CardHeader>
-            <CardTitle className="text-base">Insights</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {insights.map((insight) => (
-                <InsightRow key={insight.id} insight={insight} />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <ProGate
+          isPro={isPro}
+          feature="AI Insights"
+          description="Contextual tips, warnings, and growth opportunities tailored to your business — available on the Professional plan."
+        >
+          <Card className="border-t-2 border-t-blue-500">
+            <CardHeader>
+              <CardTitle className="text-base">Insights</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {insights.map((insight) => (
+                  <InsightRow key={insight.id} insight={insight} />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </ProGate>
       )}
 
       {/* Recent transactions */}

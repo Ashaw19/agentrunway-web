@@ -37,12 +37,14 @@ import { survivalResult } from "@/lib/engines/survival-engine";
 import { compare } from "@/lib/engines/benchmark-engine";
 import { generateAdvisory, type AdvisorCard } from "@/lib/engines/advisor-engine";
 import { ProbabilityChart, type ProbabilityDataPoint } from "@/components/probability-chart";
+import { ProGate } from "@/components/pro-gate";
 
 interface Props {
   settings: UserSettings | null;
   transactions: Transaction[];
   pipelineDeals: PipelineDeal[];
   expenseCategories: ExpenseCategoryWithItems[];
+  subscriptionTier?: string;
 }
 
 export function ForecastContent({
@@ -50,7 +52,9 @@ export function ForecastContent({
   transactions,
   pipelineDeals,
   expenseCategories,
+  subscriptionTier = "starter",
 }: Props) {
+  const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   if (!settings) {
     return (
       <div className="py-20 text-center text-muted-foreground">
@@ -294,30 +298,36 @@ export function ForecastContent({
       </Card>
 
       {/* Tax details */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Tax Planning</CardTitle>
-          <CardDescription>
-            {taxResult.taxYear} estimates &middot; {PROVINCE_LABELS[settings.province]}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="text-center">
-              <p className="text-2xl font-bold">{fmtCurrency(taxResult.quarterlyEstimate)}</p>
-              <p className="text-xs text-muted-foreground">Quarterly instalment</p>
+      <ProGate
+        isPro={isPro}
+        feature="Tax Planning"
+        description="Quarterly instalment amounts, per-deal set-asides, and effective tax rate — available on the Professional plan."
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Tax Planning</CardTitle>
+            <CardDescription>
+              {taxResult.taxYear} estimates &middot; {PROVINCE_LABELS[settings.province]}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="text-center">
+                <p className="text-2xl font-bold">{fmtCurrency(taxResult.quarterlyEstimate)}</p>
+                <p className="text-xs text-muted-foreground">Quarterly instalment</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold">{fmtCurrency(taxResult.perDealSetAside)}</p>
+                <p className="text-xs text-muted-foreground">Per-deal set-aside</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold">{fmtPct(taxResult.effectiveRate)}</p>
+                <p className="text-xs text-muted-foreground">Effective rate (all-in)</p>
+              </div>
             </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold">{fmtCurrency(taxResult.perDealSetAside)}</p>
-              <p className="text-xs text-muted-foreground">Per-deal set-aside</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold">{fmtPct(taxResult.effectiveRate)}</p>
-              <p className="text-xs text-muted-foreground">Effective rate (all-in)</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </ProGate>
 
       {/* Goal gap analysis */}
       {goalGCI > 0 && (
@@ -406,52 +416,64 @@ export function ForecastContent({
 
       {/* 5-Year growth plan with probability bands */}
       {yearBands.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">5-Year Growth Plan</CardTitle>
-            <CardDescription>
-              Projections with widening probability bands
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {yearBands.map((yb, i) => (
-                <div key={yb.year}>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{yb.year}</span>
-                    <span className="font-semibold">{fmtCurrency(yb.p50)}</span>
-                    <span className="text-xs text-muted-foreground">
-                      +{growthRates[i] ?? 0}%
-                    </span>
+        <ProGate
+          isPro={isPro}
+          feature="5-Year Growth Plan"
+          description="Multi-year GCI projections with probability bands — available on the Professional plan."
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">5-Year Growth Plan</CardTitle>
+              <CardDescription>
+                Projections with widening probability bands
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {yearBands.map((yb, i) => (
+                  <div key={yb.year}>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">{yb.year}</span>
+                      <span className="font-semibold">{fmtCurrency(yb.p50)}</span>
+                      <span className="text-xs text-muted-foreground">
+                        +{growthRates[i] ?? 0}%
+                      </span>
+                    </div>
+                    <div className="mt-1 flex justify-between text-xs text-muted-foreground">
+                      <span>P25: {fmtCompact(yb.p25)}</span>
+                      <span>P75: {fmtCompact(yb.p75)}</span>
+                    </div>
                   </div>
-                  <div className="mt-1 flex justify-between text-xs text-muted-foreground">
-                    <span>P25: {fmtCompact(yb.p25)}</span>
-                    <span>P75: {fmtCompact(yb.p75)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </ProGate>
       )}
 
       {/* Advisor cards */}
       {advisorCards.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Advisor</CardTitle>
-            <CardDescription>
-              Data-driven recommendations sorted by potential impact
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {advisorCards.map((card) => (
-                <AdvisorCardRow key={card.id} card={card} />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <ProGate
+          isPro={isPro}
+          feature="AI Advisor"
+          description="Data-driven recommendations sorted by potential revenue impact — available on the Professional plan."
+        >
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Advisor</CardTitle>
+              <CardDescription>
+                Data-driven recommendations sorted by potential impact
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {advisorCards.map((card) => (
+                  <AdvisorCardRow key={card.id} card={card} />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </ProGate>
       )}
     </div>
   );

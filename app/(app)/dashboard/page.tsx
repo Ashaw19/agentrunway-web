@@ -62,6 +62,7 @@ export default async function DashboardPage() {
       settings={settingsResult.data}
       expenseCategories={expenseCategories}
       initialDashboardView={settingsResult.data?.dashboard_view ?? "standard"}
+      subscriptionTier={settingsResult.data?.subscription_tier ?? "starter"}
     />
   );
 }

@@ -128,15 +128,33 @@ async function getColorTheme(): Promise<string> {
   }
 }
 
+async function getSubscriptionTier(): Promise<string> {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return "starter";
+    const { data } = await supabase
+      .from("user_settings")
+      .select("subscription_tier")
+      .eq("user_id", user.id)
+      .single();
+    return data?.subscription_tier ?? "starter";
+  } catch {
+    return "starter";
+  }
+}
+
 export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [financialContext, colorTheme] = await Promise.all([
+  const [financialContext, colorTheme, subscriptionTier] = await Promise.all([
     buildFinancialContext(),
     getColorTheme(),
+    getSubscriptionTier(),
   ]);
+  const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
 
   return (
     <div
@@ -152,7 +170,7 @@ export default async function AppLayout({
           </div>
         </main>
       </div>
-      <AiChat financialContext={financialContext} />
+      {isPro && <AiChat financialContext={financialContext} />}
     </div>
   );
 }
