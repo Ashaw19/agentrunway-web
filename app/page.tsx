@@ -5,6 +5,7 @@ import Link from "next/link";
 import { BarChart3, TrendingUp, Shield, Sparkles, ArrowRight } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { EmailCapture } from "@/components/email-capture";
 
 export const metadata: Metadata = {
   title: "Agent Runway | Business Analytics for Real Estate Agents",
@@ -281,6 +282,17 @@ export default async function Home() {
               ))}
             </div>
 
+          </div>
+        </section>
+
+        {/* ── Email Capture ── */}
+        <section className="bg-slate-900 px-6 py-16 sm:px-10">
+          <div className="mx-auto max-w-2xl">
+            <EmailCapture
+              heading="Stay ahead of your numbers"
+              subheading="Practical tips for running a more profitable real estate business. Sent occasionally — no spam."
+              source="homepage"
+            />
           </div>
         </section>
 

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CheckCircle2, ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { PricingCards } from "@/components/pricing-cards";
 
 export const metadata: Metadata = {
   title: "Agent Runway Pricing | Real Estate Analytics Software",
@@ -16,66 +17,6 @@ export const metadata: Metadata = {
     canonical: "https://agentrunway.ca/pricing",
   },
 };
-
-// ── Pricing tier data ─────────────────────────────────────────────────────────
-
-const TIERS = [
-  {
-    name: "Starter",
-    tagline: "For agents getting organised",
-    price: "Free",
-    priceDetail: "No credit card required",
-    cta: "Get Started",
-    ctaHref: "/login",
-    featured: false,
-    features: [
-      "GCI tracking and deal log",
-      "Year-to-date dashboard",
-      "Basic income forecasting",
-      "Expense category tracking",
-      "Transaction history",
-      "Canadian agent profile setup",
-    ],
-  },
-  {
-    name: "Professional",
-    tagline: "For serious growth-focused agents",
-    price: "$49",
-    priceDetail: "per month, billed monthly",
-    cta: "Start Free Trial",
-    ctaHref: "/login",
-    featured: true,
-    features: [
-      "Everything in Starter",
-      "Advanced forecasting with P10–P90 bands",
-      "Financial runway score (A+ to F)",
-      "Business reports and PDF download",
-      "AI insights and advisor cards",
-      "Canadian tax planning tools",
-      "CREA benchmark comparison",
-      "5-year growth projections",
-    ],
-  },
-  {
-    name: "Team",
-    tagline: "For teams and brokerages",
-    price: "Custom",
-    priceDetail: "Contact us for a quote",
-    cta: "Contact Us",
-    ctaHref: "mailto:hello@agentrunway.ca",
-    featured: false,
-    features: [
-      "Everything in Professional",
-      "Shared team visibility",
-      "Team analytics dashboard",
-      "Brokerage-level reporting",
-      "Custom report templates",
-      "Volume pricing",
-      "Priority support",
-      "Custom onboarding",
-    ],
-  },
-] as const;
 
 // ── FAQ data ──────────────────────────────────────────────────────────────────
 
@@ -144,80 +85,7 @@ export default function PricingPage() {
         {/* ── Pricing Cards ── */}
         <section className="bg-white px-6 py-20 sm:px-10">
           <div className="mx-auto max-w-5xl">
-            <div className="grid gap-6 sm:grid-cols-3">
-              {TIERS.map((tier) => (
-                <div
-                  key={tier.name}
-                  className={`relative flex flex-col rounded-2xl p-8 ${
-                    tier.featured
-                      ? "border-2 border-blue-600 bg-white shadow-xl shadow-blue-600/10"
-                      : "border border-slate-200 bg-white"
-                  }`}
-                >
-                  {/* Most Popular badge */}
-                  {tier.featured && (
-                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-3.5 py-1 text-xs font-semibold text-white">
-                        <Sparkles className="h-3 w-3" />
-                        Most Popular
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Tier name + tagline */}
-                  <div className="mb-6">
-                    <h2 className="text-lg font-bold text-slate-900">{tier.name}</h2>
-                    <p className="mt-1 text-sm text-slate-500">{tier.tagline}</p>
-                  </div>
-
-                  {/* Price */}
-                  <div className="mb-6">
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-bold tracking-tight text-slate-900">
-                        {tier.price}
-                      </span>
-                      {tier.price !== "Free" && tier.price !== "Custom" && (
-                        <span className="text-sm text-slate-500">/mo</span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs text-slate-400">{tier.priceDetail}</p>
-                  </div>
-
-                  {/* CTA */}
-                  <Link
-                    href={tier.ctaHref}
-                    className={`mb-8 inline-flex w-full items-center justify-center rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors ${
-                      tier.featured
-                        ? "bg-blue-600 text-white hover:bg-blue-500"
-                        : "border border-slate-300 text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    {tier.cta}
-                    {tier.featured && <ArrowRight className="ml-2 h-4 w-4" />}
-                  </Link>
-
-                  {/* Divider */}
-                  <div className="mb-6 border-t border-slate-100" />
-
-                  {/* Feature list */}
-                  <ul className="flex-1 space-y-3">
-                    {tier.features.map((feature) => (
-                      <li key={feature} className="flex items-start gap-2.5">
-                        <CheckCircle2
-                          className={`mt-0.5 h-4 w-4 shrink-0 ${
-                            tier.featured ? "text-blue-600" : "text-slate-400"
-                          }`}
-                        />
-                        <span className="text-sm leading-snug text-slate-600">
-                          {feature}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-
+            <PricingCards />
             {/* Trust line */}
             <p className="mt-10 text-center text-sm text-slate-400">
               All plans include SSL security, Canadian data residency, and
