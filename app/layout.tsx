@@ -4,6 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+const PLAUSIBLE_DOMAIN = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -86,6 +87,16 @@ export default function RootLayout({
               `}
             </Script>
           </>
+        )}
+
+        {/* Plausible Analytics — loads only when NEXT_PUBLIC_PLAUSIBLE_DOMAIN is set */}
+        {PLAUSIBLE_DOMAIN && (
+          <Script
+            defer
+            data-domain={PLAUSIBLE_DOMAIN}
+            src="https://plausible.io/js/script.js"
+            strategy="afterInteractive"
+          />
         )}
       </body>
     </html>

@@ -288,18 +288,18 @@ export default function DemoPage() {
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link
-                href="/login"
+                href="/demo/dashboard"
                 className="inline-flex items-center rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
               >
-                Start Free Account
+                Try Live Demo
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
-              <a
-                href="#overview"
+              <Link
+                href="/login"
                 className="inline-flex items-center rounded-lg border border-slate-700 px-8 py-3 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-800"
               >
-                View Dashboard
-              </a>
+                Start Free Account
+              </Link>
             </div>
           </div>
         </section>

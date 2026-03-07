@@ -4,6 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 import { stripe } from "@/lib/stripe";
 import { resend, FROM_ADDRESS } from "@/lib/resend";
 import { trialWelcomeEmail, formatTrialEndDate } from "@/lib/emails/trial-welcome";
+import { trialEndingSoonEmail } from "@/lib/emails/trial-ending-soon";
+import { winBackEmail } from "@/lib/emails/win-back";
 import type Stripe from "stripe";
 
 /**
@@ -15,6 +17,7 @@ import type Stripe from "stripe";
  *     - checkout.session.completed
  *     - customer.subscription.updated
  *     - customer.subscription.deleted
+ *     - customer.subscription.trial_will_end
  *
  * Set STRIPE_WEBHOOK_SECRET in .env.local to the signing secret from Stripe.
  */
@@ -210,6 +213,60 @@ export async function POST(request: Request) {
       break;
     }
 
+    // ── Trial ending soon (3 days before trial_end) ─────────────────────────
+    case "customer.subscription.trial_will_end": {
+      const sub = event.data.object as Stripe.Subscription;
+      const cid = customerId(sub.customer);
+
+      if (!cid) {
+        console.error("[stripe] trial_will_end — no customer ID", sub.id);
+        break;
+      }
+
+      if (resend) {
+        try {
+          const stripeCustomer = await stripe!.customers.retrieve(cid);
+          if (!stripeCustomer.deleted) {
+            const toEmail = stripeCustomer.email;
+            if (toEmail) {
+              const rawTrialEnd = (sub as unknown as Record<string, unknown>).trial_end;
+              const trialEndsOn =
+                typeof rawTrialEnd === "number"
+                  ? formatTrialEndDate(rawTrialEnd)
+                  : undefined;
+
+              const firstName =
+                (stripeCustomer.name?.split(" ")[0] ?? null) || null;
+
+              const { subject, html, text } = trialEndingSoonEmail({
+                firstName,
+                trialEndsOn,
+                upgradeUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://agentrunway.ca"}/pricing`,
+              });
+
+              const { error: emailError } = await resend.emails.send({
+                from: FROM_ADDRESS,
+                to: toEmail,
+                subject,
+                html,
+                text,
+              });
+
+              if (emailError) {
+                console.error("[resend] failed to send trial_will_end email", emailError);
+              } else {
+                console.log("[resend] trial_will_end email sent to", toEmail);
+              }
+            }
+          }
+        } catch (err) {
+          // Non-fatal
+          console.error("[stripe] failed to retrieve customer for trial_will_end", cid, err);
+        }
+      }
+      break;
+    }
+
     // ── Subscription cancelled (end of period or immediate) ─────────────────
     case "customer.subscription.deleted": {
       const sub = event.data.object as Stripe.Subscription;
@@ -238,6 +295,40 @@ export async function POST(request: Request) {
         );
       } else {
         console.log("[stripe] downgraded to starter for customer", cid);
+      }
+
+      // ── Send win-back email ────────────────────────────────────────────────
+      if (resend) {
+        try {
+          const stripeCustomer = await stripe!.customers.retrieve(cid);
+          if (!stripeCustomer.deleted && stripeCustomer.email) {
+            const firstName =
+              (stripeCustomer.name?.split(" ")[0] ?? null) || null;
+
+            const { subject, html, text } = winBackEmail({
+              firstName,
+              pricingUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://agentrunway.ca"}/pricing`,
+              dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://agentrunway.ca"}/dashboard`,
+            });
+
+            const { error: emailError } = await resend.emails.send({
+              from: FROM_ADDRESS,
+              to: stripeCustomer.email,
+              subject,
+              html,
+              text,
+            });
+
+            if (emailError) {
+              console.error("[resend] failed to send win-back email", emailError);
+            } else {
+              console.log("[resend] win-back email sent to", stripeCustomer.email);
+            }
+          }
+        } catch (err) {
+          // Non-fatal
+          console.error("[stripe] failed to retrieve customer for win-back email", cid, err);
+        }
       }
       break;
     }
