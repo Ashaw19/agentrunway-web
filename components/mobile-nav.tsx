@@ -15,6 +15,7 @@ import {
   Settings,
   Menu,
   CircleUser,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -140,7 +141,7 @@ const navItems = [
   },
 ];
 
-export function MobileNav() {
+export function MobileNav({ isPro = false }: { isPro?: boolean }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -223,6 +224,30 @@ export function MobileNav() {
               );
             })}
           </nav>
+
+          <div className="mx-4 h-px bg-sidebar-border/60" />
+
+          {/* Upgrade nudge — Starter users only */}
+          {!isPro && (
+            <div className="mx-3 my-3 overflow-hidden rounded-lg border border-amber-500/25 bg-gradient-to-br from-amber-500/15 to-orange-500/8 p-3">
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                <span className="text-[12px] font-semibold text-sidebar-foreground/90">
+                  Go Professional
+                </span>
+              </div>
+              <p className="mb-2.5 text-[11px] leading-relaxed text-sidebar-foreground/55">
+                Runway score, tax planning, AI insights &amp; more.
+              </p>
+              <Link
+                href="/pricing"
+                className="block rounded-md bg-amber-500 px-3 py-1.5 text-center text-[11.5px] font-semibold text-white transition-colors hover:bg-amber-400"
+                onClick={() => setOpen(false)}
+              >
+                Start Free Trial
+              </Link>
+            </div>
+          )}
 
           <div className="mx-4 h-px bg-sidebar-border/60" />
 
