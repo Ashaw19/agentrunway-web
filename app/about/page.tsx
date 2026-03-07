@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, User, Users, TrendingUp, MapPin } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
+import { MarketingFooter } from "@/components/marketing-footer";
 
 export const metadata: Metadata = {
   title: "About Agent Runway | Business Analytics for Real Estate Agents",
@@ -123,124 +124,70 @@ export default function AboutPage() {
                 They deserve the same financial clarity that every other serious
                 business owner expects.&rdquo;
               </p>
-              <footer className="mt-3 text-sm text-slate-400">
-                — Andrew Shaw, Founder
-              </footer>
+              <footer className="mt-3 text-sm text-slate-400">— Andrew Shaw, Founder</footer>
             </blockquote>
 
-            <div className="space-y-5 text-base leading-relaxed text-slate-600">
-              <p>
-                Agent Runway started as a personal tool — a way to track GCI,
-                model the year-end forecast, and understand exactly where the
-                business stood at any point in the year. It evolved into a
-                full-featured analytics platform designed for every agent who
-                wants to{" "}
-                <Link
-                  href="/how-real-estate-agents-track-gci"
-                  className="text-blue-600 underline-offset-2 hover:underline"
-                >
-                  track GCI properly
-                </Link>
-                , plan for taxes, measure financial runway, and make smarter
-                business decisions.
-              </p>
-            </div>
           </div>
         </section>
 
         {/* ── Mission ── */}
-        <section className="bg-slate-50 px-6 py-20 text-center sm:px-10">
-          <div className="mx-auto max-w-3xl">
-
+        <section className="bg-slate-50 px-6 py-20 sm:px-10">
+          <div className="mx-auto max-w-3xl text-center">
             <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
               Our mission
             </h2>
-
-            <p className="mx-auto mt-6 max-w-2xl text-xl font-medium leading-relaxed text-slate-700">
-              Help real estate agents run their business like a professional
-              company — with the analytics, forecasting, and financial clarity
-              that every serious business deserves.
+            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-slate-600">
+              Give every Canadian real estate agent the financial visibility to
+              run their business with confidence — not guesswork. Agent Runway
+              brings together GCI tracking, income forecasting, expense
+              management, tax planning, and AI-powered insights in a single
+              platform built around how real estate agents actually work.
             </p>
-
-            <div className="mx-auto mt-8 max-w-2xl space-y-4 text-left text-base leading-relaxed text-slate-500">
-              <p>
-                That means replacing end-of-year surprises with live projections.
-                Replacing gut feel with data. Replacing a spreadsheet that gets
-                updated once a quarter with a dashboard that reflects your
-                business in real time.
-              </p>
-              <p>
-                It means giving agents the same calibre of{" "}
-                <Link
-                  href="/real-estate-business-analytics"
-                  className="text-blue-600 underline-offset-2 hover:underline"
-                >
-                  real estate business analytics
-                </Link>
-                {" "}that a well-run company in any other industry would consider
-                standard — built specifically around the income structure,
-                seasonality, and tax complexity of Canadian real estate.
-              </p>
-            </div>
           </div>
         </section>
 
-        {/* ── Who It's For ── */}
+        {/* ── Who it&apos;s for ── */}
         <section className="bg-white px-6 py-20 sm:px-10">
           <div className="mx-auto max-w-5xl">
 
-            <div className="mb-12 text-center">
+            <div className="mb-14 text-center">
               <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
                 Who Agent Runway is for
               </h2>
-              <p className="mt-4 text-lg text-slate-500">
-                Built for agents at every stage who want to run their practice
-                like a business.
-              </p>
             </div>
 
-            <div className="grid gap-6 sm:grid-cols-3">
+            <div className="grid gap-8 sm:grid-cols-3">
               {AUDIENCE.map(({ icon: Icon, heading, body }) => (
-                <div
-                  key={heading}
-                  className="rounded-xl border border-slate-200 bg-slate-50 p-7"
-                >
+                <div key={heading} className="rounded-xl border border-slate-200 bg-slate-50 p-8">
                   <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600">
                     <Icon className="h-5 w-5 text-white" />
                   </div>
-                  <h3 className="mb-2 font-semibold text-slate-900">{heading}</h3>
+                  <h3 className="mb-3 text-lg font-semibold text-slate-900">{heading}</h3>
                   <p className="text-sm leading-relaxed text-slate-500">{body}</p>
                 </div>
               ))}
             </div>
+
           </div>
         </section>
 
-        {/* ── Closing ── */}
-        <section className="bg-slate-950 px-6 py-24 text-center sm:px-10">
+        {/* ── CTA ── */}
+        <section className="bg-slate-950 px-6 py-20 text-center sm:px-10">
           <div className="mx-auto max-w-2xl">
             <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              We&apos;re just getting started.
+              Ready to see your business clearly?
             </h2>
-            <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-400">
-              Agent Runway is actively developed with one goal: give real estate
-              agents the business intelligence tools they deserve. If you have
-              feedback, a feature request, or just want to share how you use
-              Agent Runway in your practice, we&apos;d love to hear from you.
+            <p className="mt-5 text-lg text-slate-400">
+              Join agents across Canada who use Agent Runway to track GCI,
+              plan for taxes, and measure their financial runway.
             </p>
-            <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+            <div className="mt-10">
               <Link
                 href="/login"
                 className="inline-flex items-center rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
               >
                 Get Started Free
                 <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-              <Link
-                href="/pricing"
-                className="inline-flex items-center rounded-lg border border-slate-700 px-8 py-3 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-800"
-              >
-                View Pricing
               </Link>
             </div>
           </div>
@@ -249,15 +196,7 @@ export default function AboutPage() {
       </main>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-slate-800 bg-slate-950 px-6 py-8 sm:px-10">
-        <div className="mx-auto max-w-6xl text-center">
-          <p className="text-sm font-semibold text-white">Agent Runway</p>
-          <p className="mt-1 text-xs text-slate-500">
-            © {new Date().getFullYear()} Agent Runway. All rights reserved.
-          </p>
-        </div>
-      </footer>
-
+      <MarketingFooter />
     </div>
   );
 }

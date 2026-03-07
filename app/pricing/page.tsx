@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CheckCircle2, ArrowRight, Sparkles } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
+import { MarketingFooter } from "@/components/marketing-footer";
 
 export const metadata: Metadata = {
   title: "Agent Runway Pricing | Real Estate Analytics Software",
@@ -288,15 +289,7 @@ export default function PricingPage() {
       </main>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-slate-800 bg-slate-950 px-6 py-8 sm:px-10">
-        <div className="mx-auto max-w-6xl text-center">
-          <p className="text-sm font-semibold text-white">Agent Runway</p>
-          <p className="mt-1 text-xs text-slate-500">
-            © {new Date().getFullYear()} Agent Runway. All rights reserved.
-          </p>
-        </div>
-      </footer>
-
+      <MarketingFooter />
     </div>
   );
 }

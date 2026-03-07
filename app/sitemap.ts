@@ -37,6 +37,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.7,
     },
     {
+      url: `${BASE_URL}/privacy`,
+      lastModified: now,
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
+    {
+      url: `${BASE_URL}/terms`,
+      lastModified: now,
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
+    {
       url: `${BASE_URL}/real-estate-metrics`,
       lastModified: now,
       changeFrequency: "monthly",

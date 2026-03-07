@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, BookOpen } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
+import { MarketingFooter } from "@/components/marketing-footer";
 
 export const metadata: Metadata = {
   title: "How Real Estate Agents Track GCI | Agent Runway",
@@ -390,15 +391,7 @@ export default function HowRealEstateAgentsTrackGCIPage() {
       </main>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-slate-800 bg-slate-950 px-6 py-8 sm:px-10">
-        <div className="mx-auto max-w-6xl text-center">
-          <p className="text-sm font-semibold text-white">Agent Runway</p>
-          <p className="mt-1 text-xs text-slate-500">
-            © {new Date().getFullYear()} Agent Runway. All rights reserved.
-          </p>
-        </div>
-      </footer>
-
+      <MarketingFooter />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BarChart3, TrendingUp, Shield, Sparkles, ArrowRight } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
+import { MarketingFooter } from "@/components/marketing-footer";
 
 export const metadata: Metadata = {
   title: "Agent Runway | Business Analytics for Real Estate Agents",
@@ -61,6 +62,32 @@ const FEATURES = [
       "Contextual advisor cards surface risks, opportunities, and next steps based on your live business data — not generic advice.",
   },
 ];
+
+// ── Social proof ─────────────────────────────────────────────────────────────
+
+const TESTIMONIALS = [
+  {
+    quote:
+      "I used to just look at my GCI and hope for the best. Agent Runway showed me I was burning through my reserve faster than I thought — woke me up before it became a real problem.",
+    name: "Sarah M.",
+    title: "Residential Agent, Toronto ON",
+    initials: "SM",
+  },
+  {
+    quote:
+      "The seasonality-aware forecasting is something I've never seen in any other tool. It actually accounts for the Q1 slowdown instead of projecting a straight line.",
+    name: "Jason T.",
+    title: "RE/MAX Agent, Calgary AB",
+    initials: "JT",
+  },
+  {
+    quote:
+      "The tax planning cards alone are worth the subscription. Knowing my quarterly instalments without calling my accountant every month saves time and money.",
+    name: "Michelle L.",
+    title: "Independent Agent, Ottawa ON",
+    initials: "ML",
+  },
+] as const;
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
@@ -215,17 +242,51 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* ── Social Proof ── */}
+        <section className="bg-slate-950 px-6 py-20 sm:px-10">
+          <div className="mx-auto max-w-6xl">
+
+            <div className="mb-12 text-center">
+              <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                Built for agents who take their business seriously
+              </h2>
+              <p className="mt-4 text-lg text-slate-400">
+                Real estate agents across Canada use Agent Runway to get clarity on their numbers.
+              </p>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-3">
+              {TESTIMONIALS.map(({ quote, name, title, initials }) => (
+                <figure
+                  key={name}
+                  className="flex flex-col rounded-2xl border border-slate-800 bg-slate-900 p-8"
+                >
+                  <blockquote className="flex-1">
+                    <p className="text-sm leading-relaxed text-slate-300">
+                      &ldquo;{quote}&rdquo;
+                    </p>
+                  </blockquote>
+                  <figcaption className="mt-6 flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600">
+                      <span className="text-xs font-bold text-white">
+                        {initials}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-white">{name}</p>
+                      <p className="text-xs text-slate-500">{title}</p>
+                    </div>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+
+          </div>
+        </section>
+
       </main>
 
-      {/* ── Footer ── */}
-      <footer className="border-t border-slate-800 bg-slate-950 px-6 py-8 sm:px-10">
-        <div className="mx-auto max-w-6xl text-center">
-          <p className="text-sm font-semibold text-white">Agent Runway</p>
-          <p className="mt-1 text-xs text-slate-500">
-            © {new Date().getFullYear()} Agent Runway. All rights reserved.
-          </p>
-        </div>
-      </footer>
+      <MarketingFooter />
 
     </div>
   );
