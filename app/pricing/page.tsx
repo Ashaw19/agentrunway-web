@@ -75,13 +75,23 @@ export default function PricingPage() {
       <main>
 
         {/* ── Hero ── */}
-        <section className="bg-slate-950 px-6 py-20 text-center sm:px-10 sm:py-28">
-          <div className="mx-auto max-w-3xl">
+        <section className="relative overflow-hidden bg-slate-950 px-6 py-20 text-center sm:px-10 sm:py-28">
+          {/* Gradient orbs */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+            <div className="absolute -left-10 -top-10 h-80 w-80 rounded-full bg-blue-600/20 blur-[100px]" />
+            <div className="absolute -right-10 top-16 h-64 w-64 rounded-full bg-violet-600/[0.12] blur-[80px]" />
+            <div className="absolute bottom-0 left-1/2 h-48 w-96 -translate-x-1/2 rounded-full bg-blue-500/10 blur-[90px]" />
+          </div>
+
+          <div className="relative mx-auto max-w-3xl">
             <div className="mb-5 inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold text-blue-400">
               Transparent Pricing
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-              Simple Pricing for Real Estate Agents
+              Simple Pricing for{" "}
+              <span className="bg-gradient-to-r from-blue-300 to-violet-300 bg-clip-text text-transparent">
+                Real Estate Agents
+              </span>
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
               Agent Runway helps you{" "}

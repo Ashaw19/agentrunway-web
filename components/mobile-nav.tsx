@@ -38,30 +38,46 @@ function MobileLogoMark({ size = 34 }: { size?: number }) {
       aria-hidden="true"
     >
       <defs>
-        <linearGradient id="mn-bg" x1="20" y1="0" x2="20" y2="40" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#1e2f5e" /><stop offset="100%" stopColor="#0d1526" />
-        </linearGradient>
-        <linearGradient id="mn-left" x1="3" y1="9" x2="16" y2="31" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#6cb4ff" /><stop offset="55%" stopColor="#2e7be6" /><stop offset="100%" stopColor="#1452a8" />
-        </linearGradient>
-        <linearGradient id="mn-right" x1="37" y1="9" x2="24" y2="31" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor="#6cb4ff" /><stop offset="55%" stopColor="#2e7be6" /><stop offset="100%" stopColor="#1452a8" />
-        </linearGradient>
-        <linearGradient id="mn-sheen" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
-          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.28" /><stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-        </linearGradient>
-        <radialGradient id="mn-glow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#F97316" stopOpacity="0.4" /><stop offset="100%" stopColor="#F97316" stopOpacity="0" />
+        {/* Background: deep radial navy, vignette to near-black at edges */}
+        <radialGradient id="mn-bg" cx="20" cy="20" r="24" gradientUnits="userSpaceOnUse">
+          <stop offset="0%"   stopColor="#0e1a38"/>
+          <stop offset="100%" stopColor="#060c18"/>
         </radialGradient>
+        {/* Left panel: bright cyan-blue top → electric blue → deep blue */}
+        <linearGradient id="mn-left" x1="3" y1="9" x2="16" y2="31" gradientUnits="userSpaceOnUse">
+          <stop offset="0%"   stopColor="#a8d8ff"/>
+          <stop offset="45%"  stopColor="#2d82f5"/>
+          <stop offset="100%" stopColor="#1245a5"/>
+        </linearGradient>
+        {/* Right panel: slightly brighter (light source from upper-right) */}
+        <linearGradient id="mn-right" x1="37" y1="9" x2="24" y2="31" gradientUnits="userSpaceOnUse">
+          <stop offset="0%"   stopColor="#b8e0ff"/>
+          <stop offset="45%"  stopColor="#3590ff"/>
+          <stop offset="100%" stopColor="#1450b8"/>
+        </linearGradient>
+        {/* Glass sheen: 3-stop — strong at top edge, fades out */}
+        <linearGradient id="mn-sheen" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0.52"/>
+          <stop offset="45%"  stopColor="#ffffff" stopOpacity="0.14"/>
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="0"/>
+        </linearGradient>
       </defs>
-      <rect width="40" height="40" rx="9" fill="url(#mn-bg)" />
-      <path d="M3 9 L17.5 9 L14.5 31 L3 31 Z" fill="url(#mn-left)" />
-      <path d="M3 9 L17.5 9 L17 13 L3 12.5 Z" fill="url(#mn-sheen)" />
-      <path d="M22.5 9 L37 9 L37 31 L25.5 31 Z" fill="url(#mn-right)" />
-      <path d="M22.5 9 L37 9 L37 13.5 L23 13 Z" fill="url(#mn-sheen)" />
-      <rect x="15" y="9" width="10" height="22" fill="#0a1020" fillOpacity="0.5" />
-      <circle cx="20" cy="14" r="5" fill="url(#mn-glow)" />
-      <circle cx="20" cy="14" r="1.8" fill="#F97316" />
+      {/* Background */}
+      <rect width="40" height="40" rx="9" fill="url(#mn-bg)"/>
+      {/* Left panel */}
+      <path d="M3 9 L17.5 9 L14.5 31 L3 31 Z" fill="url(#mn-left)"/>
+      {/* Left panel glass sheen */}
+      <path d="M3 9 L17.5 9 L16.5 15 L3 13.5 Z" fill="url(#mn-sheen)"/>
+      {/* Left panel inner-edge shadow */}
+      <path d="M16.5 10 L14 30" stroke="#050b16" strokeWidth="1.5" strokeOpacity="0.45" strokeLinecap="round"/>
+      {/* Right panel */}
+      <path d="M22.5 9 L37 9 L37 31 L25.5 31 Z" fill="url(#mn-right)"/>
+      {/* Right panel glass sheen */}
+      <path d="M22.5 9 L37 9 L37 15.5 L23 14 Z" fill="url(#mn-sheen)"/>
+      {/* Right panel inner-edge shadow */}
+      <path d="M23.5 10 L26 30" stroke="#050b16" strokeWidth="1.5" strokeOpacity="0.45" strokeLinecap="round"/>
+      {/* Gap shadow (runway centerline) */}
+      <rect x="15" y="9" width="10" height="22" fill="#0a1020" fillOpacity="0.65"/>
     </svg>
   );
 }
@@ -229,19 +245,19 @@ export function MobileNav({ isPro = false }: { isPro?: boolean }) {
 
           {/* Upgrade nudge — Starter users only */}
           {!isPro && (
-            <div className="mx-3 my-3 overflow-hidden rounded-lg border border-amber-500/25 bg-gradient-to-br from-amber-500/15 to-orange-500/8 p-3">
-              <div className="mb-1.5 flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-amber-400" />
-                <span className="text-[12px] font-semibold text-sidebar-foreground/90">
+            <div className="mx-3 my-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.06] p-3.5">
+              <div className="mb-1 flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-blue-400" />
+                <span className="text-[12px] font-semibold text-sidebar-foreground/85">
                   Go Professional
                 </span>
               </div>
-              <p className="mb-2.5 text-[11px] leading-relaxed text-sidebar-foreground/55">
+              <p className="mb-3 text-[11px] leading-relaxed text-sidebar-foreground/45">
                 Runway score, tax planning, AI insights &amp; more.
               </p>
               <Link
                 href="/pricing"
-                className="block rounded-md bg-amber-500 px-3 py-1.5 text-center text-[11.5px] font-semibold text-white transition-colors hover:bg-amber-400"
+                className="block rounded-md bg-blue-600 px-3 py-1.5 text-center text-[11.5px] font-semibold text-white transition-colors hover:bg-blue-500"
                 onClick={() => setOpen(false)}
               >
                 Start Free Trial

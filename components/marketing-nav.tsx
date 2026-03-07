@@ -20,7 +20,7 @@ export function MarketingNav() {
   const [open, setOpen] = useState(false);
 
   return (
-    <header className="border-b border-slate-800 px-6 py-5 sm:px-10">
+    <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/85 px-6 py-5 backdrop-blur-md sm:px-10">
       <div className="mx-auto flex max-w-6xl items-center justify-between">
 
         {/* Logo */}

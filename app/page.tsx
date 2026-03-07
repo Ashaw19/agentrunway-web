@@ -115,8 +115,15 @@ export default async function Home() {
       <main>
 
         {/* ── Hero ── */}
-        <section className="bg-slate-950 px-6 py-24 text-center sm:px-10 sm:py-32">
-          <div className="mx-auto max-w-3xl">
+        <section className="relative overflow-hidden bg-slate-950 px-6 py-24 text-center sm:px-10 sm:py-32">
+          {/* Gradient orbs — static depth/glow */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+            <div className="absolute -left-10 -top-10 h-80 w-80 rounded-full bg-blue-600/20 blur-[100px]" />
+            <div className="absolute -right-10 top-16 h-64 w-64 rounded-full bg-violet-600/[0.12] blur-[80px]" />
+            <div className="absolute bottom-0 left-1/2 h-48 w-96 -translate-x-1/2 rounded-full bg-blue-500/10 blur-[90px]" />
+          </div>
+
+          <div className="relative mx-auto max-w-3xl">
 
             {/* Badge */}
             <div className="mb-6 inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold text-blue-400">
@@ -124,8 +131,10 @@ export default async function Home() {
             </div>
 
             {/* Headline */}
-            <h1 className="text-5xl font-bold tracking-tight text-white sm:text-6xl lg:text-7xl">
-              Agent Runway
+            <h1 className="text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
+              <span className="bg-gradient-to-r from-blue-300 via-cyan-200 to-violet-300 bg-clip-text text-transparent">
+                Agent Runway
+              </span>
             </h1>
 
             {/* Subheadline */}
@@ -183,9 +192,9 @@ export default async function Home() {
               {FEATURES.map(({ icon: Icon, title, description }) => (
                 <article
                   key={title}
-                  className="rounded-xl border border-slate-200 bg-slate-50 p-6"
+                  className="rounded-xl border border-slate-200 bg-slate-50 p-6 transition-shadow hover:shadow-lg hover:shadow-blue-500/5"
                 >
-                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600">
+                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-700">
                     <Icon className="h-5 w-5 text-white" />
                   </div>
                   <h3 className="mb-2 font-semibold text-slate-900">{title}</h3>
