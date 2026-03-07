@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { stripe } from "@/lib/stripe";
+import { resend, FROM_ADDRESS } from "@/lib/resend";
+import { trialWelcomeEmail, formatTrialEndDate } from "@/lib/emails/trial-welcome";
 import type Stripe from "stripe";
 
 /**
@@ -110,6 +112,53 @@ export async function POST(request: Request) {
         );
       } else {
         console.log("[stripe] activated professional for user", userId, initStatus);
+
+        // ── Send welcome email on trial start ───────────────────────────────
+        // Only send when a free trial begins (no card collected yet).
+        if (initStatus === "trialing" && resend) {
+          const toEmail =
+            session.customer_details?.email ?? session.customer_email;
+
+          if (toEmail) {
+            // Retrieve the subscription to get the trial end date
+            let trialEndsOn: string | undefined;
+            if (sid) {
+              try {
+                const sub = await stripe!.subscriptions.retrieve(sid);
+                const rawTrialEnd = (sub as unknown as Record<string, unknown>).trial_end;
+                if (typeof rawTrialEnd === "number") {
+                  trialEndsOn = formatTrialEndDate(rawTrialEnd);
+                }
+              } catch {
+                // Non-fatal — email sends without trial date
+              }
+            }
+
+            const firstName =
+              session.customer_details?.name?.split(" ")[0] ?? null;
+
+            const { subject, html, text } = trialWelcomeEmail({
+              firstName,
+              dashboardUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://agentrunway.ca"}/dashboard`,
+              trialEndsOn,
+            });
+
+            const { error: emailError } = await resend.emails.send({
+              from: FROM_ADDRESS,
+              to: toEmail,
+              subject,
+              html,
+              text,
+            });
+
+            if (emailError) {
+              // Non-fatal — log but don't fail the webhook
+              console.error("[resend] failed to send trial welcome email", emailError);
+            } else {
+              console.log("[resend] trial welcome email sent to", toEmail);
+            }
+          }
+        }
       }
       break;
     }
