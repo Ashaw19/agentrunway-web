@@ -14,12 +14,14 @@ export default async function DashboardPage({
   // Check if user has completed onboarding (has settings row)
   const { data: settings } = await supabase
     .from("user_settings")
-    .select("user_id, goal_gci, province, split_preset")
+    .select("user_id, goal_gci, display_name, province, split_preset")
     .eq("user_id", user.id)
     .single();
 
-  // If no goal set, redirect to onboarding
-  if (settings && settings.goal_gci === 0) {
+  // Redirect to onboarding if user hasn't completed it yet.
+  // We check goal_gci === 0 AND display_name is empty — belt-and-suspenders guard
+  // so users who set their name but skipped goals (legacy accounts) are not bounced.
+  if (settings && settings.goal_gci === 0 && settings.display_name === '') {
     redirect("/onboarding");
   }
 

@@ -136,6 +136,7 @@ export default function OnboardingPage() {
   const [experienceRange, setExperienceRange] = useState("");
   const [experienceYears, setExperienceYears] = useState<number>(1);
   const [colorTheme, setColorTheme] = useState("blue");
+  const [cashReserve, setCashReserve] = useState("");
   const [goalGCI, setGoalGCI] = useState("");
   const [goalTx, setGoalTx] = useState("");
   const [goalVolume, setGoalVolume] = useState("");
@@ -143,6 +144,17 @@ export default function OnboardingPage() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Pre-fill a suggested GCI goal when the user reaches step 6, based on experience
+  useEffect(() => {
+    if (step === 6 && !goalGCI) {
+      const suggested =
+        experienceYears <= 2 ? "75000" :
+        experienceYears <= 5 ? "100000" :
+        experienceYears <= 10 ? "150000" : "200000";
+      setGoalGCI(suggested);
+    }
+  }, [step]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function advance() {
     setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1));
@@ -160,6 +172,13 @@ export default function OnboardingPage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Suggested goal fallback — ensures goal_gci > 0 so the dashboard
+      // redirect guard (goal_gci === 0) never triggers for completed onboardings.
+      const suggestedGoal =
+        experienceYears <= 2 ? 75000 :
+        experienceYears <= 5 ? 100000 :
+        experienceYears <= 10 ? 150000 : 200000;
+
       await supabase
         .from("user_settings")
         .update({
@@ -173,8 +192,9 @@ export default function OnboardingPage() {
             : 0,
           tx_fee_annual_cap: parseFloat(txFeeCap) || 0,
           experience_years: experienceRange ? experienceYears : null,
+          cash_reserve: parseFloat(cashReserve) || 0,
           color_theme: colorTheme,
-          goal_gci: parseFloat(goalGCI) || 0,
+          goal_gci: parseFloat(goalGCI) || suggestedGoal,
           goal_transactions: parseInt(goalTx) || 0,
           goal_volume: parseFloat(goalVolume) || 0,
         })
@@ -408,6 +428,26 @@ export default function OnboardingPage() {
                   Transaction fees are optional. Leave blank if your brokerage
                   doesn&apos;t charge per deal.
                 </p>
+
+                {/* Cash Reserve */}
+                <div className="grid gap-2">
+                  <Label className="text-white/80">Current Cash Reserve</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-white/40">
+                      $
+                    </span>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 30000"
+                      value={cashReserve}
+                      onChange={(e) => setCashReserve(e.target.value)}
+                      className="border-white/20 bg-white/5 pl-6 text-white placeholder:text-white/30"
+                    />
+                  </div>
+                  <p className="text-xs text-white/35">
+                    How much business cash do you have on hand right now? Powers your Survival Runway calculation.
+                  </p>
+                </div>
               </div>
             </StepFrame>
           )}
@@ -513,11 +553,11 @@ export default function OnboardingPage() {
             <StepFrame
               icon={<Target className="h-5 w-5" />}
               title="Set your targets for this year."
-              subtitle="Totally optional. But the overachievers love this part — and now we know who you are."
+              subtitle="We've suggested a starting goal based on your experience level — feel free to adjust it. You can update this anytime in Settings."
             >
               <div className="grid gap-4">
                 <div className="grid gap-2">
-                  <Label className="text-white/80">Annual GCI Goal</Label>
+                  <Label className="text-white/80">Annual GCI Goal <span className="text-white/35 font-normal text-[11px]">(suggested based on your experience)</span></Label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-white/40">
                       $
@@ -597,7 +637,7 @@ export default function OnboardingPage() {
                     onClick={() => setStep(TOTAL_STEPS - 1)}
                     className="text-white/40 hover:text-white/70 text-sm"
                   >
-                    Skip for now
+                    Use suggested
                   </Button>
                 )}
                 <Button

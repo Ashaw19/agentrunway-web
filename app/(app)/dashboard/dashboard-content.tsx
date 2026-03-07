@@ -37,7 +37,12 @@ import {
   HelpCircle,
   Sparkles,
   X,
+  Rocket,
+  Plus,
+  Layers,
+  Receipt,
 } from "lucide-react";
+import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { MonthlyChart, type MonthlyDataPoint } from "@/components/monthly-chart";
@@ -517,6 +522,39 @@ export function DashboardContent({
           </CardContent>
         </Card>
       </div>
+
+      {/* First-run guide — shown only when there's no data yet */}
+      {transactions.length === 0 && pipelineDeals.length === 0 && (
+        <Card className="border-dashed border-primary/30 bg-primary/5">
+          <CardContent className="p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">
+                <Rocket className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-semibold">Your runway is ready — let&apos;s fill it with data.</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Add your first closed deal or pipeline opportunity to unlock projections, tax estimates, and your Runway Score.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Link href="/transactions" className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+                    <Plus className="h-4 w-4" />
+                    Add First Deal
+                  </Link>
+                  <Link href="/pipeline" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors">
+                    <Layers className="h-4 w-4" />
+                    Add to Pipeline
+                  </Link>
+                  <Link href="/expenses" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors">
+                    <Receipt className="h-4 w-4" />
+                    Track Expenses
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Monthly Performance Chart — Standard + Full */}
       {dashboardView !== "essentials" && (
