@@ -273,8 +273,8 @@ export function DashboardContent({
   // Derived status labels for the strip
   const paceLabel = paceStatus === "ahead" ? "Ahead" : paceStatus === "behind" ? "Behind" : "On Track";
   const runwayLabel = survival.riskLevel === "critical" ? "Critical" : survival.riskLevel === "warning" ? "Watchlist" : "Stable";
-  const paceStripColor = paceStatus === "ahead" ? "text-emerald-700 bg-emerald-50 border-emerald-200" : paceStatus === "behind" ? "text-amber-700 bg-amber-50 border-amber-200" : "text-slate-600 bg-slate-50 border-slate-200";
-  const runwayStripColor = survival.riskLevel === "critical" ? "text-red-700 bg-red-50 border-red-200" : survival.riskLevel === "warning" ? "text-amber-700 bg-amber-50 border-amber-200" : "text-emerald-700 bg-emerald-50 border-emerald-200";
+  const paceStripColor = paceStatus === "ahead" ? "text-emerald-800 bg-emerald-100 border-emerald-300" : paceStatus === "behind" ? "text-amber-800 bg-amber-100 border-amber-300" : "text-slate-700 bg-slate-100 border-slate-300";
+  const runwayStripColor = survival.riskLevel === "critical" ? "text-red-800 bg-red-100 border-red-300" : survival.riskLevel === "warning" ? "text-amber-800 bg-amber-100 border-amber-300" : "text-emerald-800 bg-emerald-100 border-emerald-300";
 
   return (
     <div className="space-y-8">
@@ -345,7 +345,7 @@ export function DashboardContent({
 
       {/* ── Status strip ── */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2.5">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mr-1">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 mr-1">
           Status
         </span>
         <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold", paceStripColor)}>
@@ -369,7 +369,7 @@ export function DashboardContent({
       <SectionHeader label="Business Health" />
 
       {/* Runway Score Hero */}
-      <Card className="rounded-2xl border-indigo-100 bg-gradient-to-br from-indigo-50 via-blue-50 to-slate-50 shadow-md shadow-indigo-100/60">
+      <Card className="rounded-2xl border-indigo-200 bg-gradient-to-br from-indigo-100 via-blue-100 to-slate-50 shadow-lg shadow-indigo-200/50">
         <CardContent className="pt-6 pb-6">
           <div className="flex flex-wrap items-center justify-between gap-6">
             {/* Left: grade circle + score */}
@@ -408,14 +408,24 @@ export function DashboardContent({
             </div>
           </div>
           {/* Score components */}
-          <div className="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-6 border-t border-indigo-100 pt-4">
-            {runwayScore.components.map((c) => (
+          <div className="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-6 border-t border-indigo-200 pt-4">
+            {runwayScore.components.map((c, i) => {
+              const barColors = [
+                "[&>div]:bg-blue-500",
+                "[&>div]:bg-purple-500",
+                "[&>div]:bg-amber-500",
+                "[&>div]:bg-teal-500",
+                "[&>div]:bg-violet-500",
+                "[&>div]:bg-emerald-500",
+              ];
+              return (
               <div key={c.label} className="text-center">
-                <p className="text-[10px] font-medium text-slate-500">{c.label}</p>
-                <p className="text-sm font-bold text-slate-700 mt-0.5">{c.score}</p>
-                <Progress value={c.score} className="mt-1.5 h-2" />
+                <p className="text-[10px] font-semibold text-slate-600">{c.label}</p>
+                <p className="text-sm font-bold text-slate-800 mt-0.5">{c.score}</p>
+                <Progress value={c.score} className={cn("mt-1.5 h-2", barColors[i % barColors.length])} />
               </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -434,11 +444,11 @@ export function DashboardContent({
 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-2xl border-emerald-100 bg-gradient-to-br from-emerald-50 to-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+        <Card className="rounded-2xl border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription className="font-semibold text-emerald-700">YTD GCI</CardDescription>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100">
-              <DollarSign className="h-4 w-4 text-emerald-600" />
+            <CardDescription className="font-semibold text-emerald-800">YTD GCI</CardDescription>
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-200">
+              <DollarSign className="h-4 w-4 text-emerald-700" />
             </div>
           </CardHeader>
           <CardContent>
@@ -465,11 +475,11 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-blue-100 bg-gradient-to-br from-blue-50 to-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+        <Card className="rounded-2xl border-blue-200 bg-gradient-to-br from-blue-100 to-blue-50 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription className="font-semibold text-blue-700">Closed Deals</CardDescription>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100">
-              <Briefcase className="h-4 w-4 text-blue-600" />
+            <CardDescription className="font-semibold text-blue-800">Closed Deals</CardDescription>
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-200">
+              <Briefcase className="h-4 w-4 text-blue-700" />
             </div>
           </CardHeader>
           <CardContent>
@@ -480,11 +490,11 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-purple-100 bg-gradient-to-br from-purple-50 to-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+        <Card className="rounded-2xl border-purple-200 bg-gradient-to-br from-purple-100 to-purple-50 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription className="font-semibold text-purple-700">Active Pipeline</CardDescription>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-100">
-              <TrendingUp className="h-4 w-4 text-purple-600" />
+            <CardDescription className="font-semibold text-purple-800">Active Pipeline</CardDescription>
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-200">
+              <TrendingUp className="h-4 w-4 text-purple-700" />
             </div>
           </CardHeader>
           <CardContent>
@@ -499,11 +509,11 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-teal-100 bg-gradient-to-br from-teal-50 to-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+        <Card className="rounded-2xl border-teal-200 bg-gradient-to-br from-teal-100 to-teal-50 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription className="font-semibold text-teal-700">Projected Year-End</CardDescription>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-100">
-              <Target className="h-4 w-4 text-teal-600" />
+            <CardDescription className="font-semibold text-teal-800">Projected Year-End</CardDescription>
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-200">
+              <Target className="h-4 w-4 text-teal-700" />
             </div>
           </CardHeader>
           <CardContent>
@@ -616,7 +626,7 @@ export function DashboardContent({
       {/* Probability bands + benchmark row — Full only */}
       {dashboardView === "full" && (
         <div className="grid gap-4 sm:grid-cols-2">
-          <Card className="rounded-2xl border-blue-100 bg-blue-50/40 shadow-sm">
+          <Card className="rounded-2xl border-blue-200 bg-blue-100 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Projection Range</CardTitle>
               <CardDescription>
@@ -649,7 +659,7 @@ export function DashboardContent({
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-purple-100 bg-purple-50/40 shadow-sm">
+          <Card className="rounded-2xl border-purple-200 bg-purple-100 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Benchmark</CardTitle>
               <CardDescription>
@@ -694,7 +704,7 @@ export function DashboardContent({
       {dashboardView === "full" && (
         <div className="grid gap-4 sm:grid-cols-2">
           {taxResult && (
-            <Card className="rounded-2xl border-amber-100 bg-amber-50/40 shadow-sm">
+            <Card className="rounded-2xl border-amber-200 bg-amber-100 shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Tax Estimate</CardTitle>
                 <CardDescription>
@@ -726,7 +736,7 @@ export function DashboardContent({
           )}
 
           {goalGCI > 0 && (
-            <Card className="rounded-2xl border-emerald-100 bg-emerald-50/40 shadow-sm">
+            <Card className="rounded-2xl border-emerald-200 bg-emerald-100 shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Goal Progress</CardTitle>
                 <CardDescription>
@@ -755,11 +765,11 @@ export function DashboardContent({
 
       {/* Insights — Standard + Full */}
       {insights.length > 0 && dashboardView !== "essentials" && (
-          <Card className="rounded-2xl border-amber-100 bg-gradient-to-br from-amber-50/60 to-white shadow-sm">
+          <Card className="rounded-2xl border-amber-200 bg-gradient-to-br from-amber-100 to-amber-50 shadow-sm">
             <CardHeader>
               <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-200">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-700" />
                 </div>
                 <CardTitle className="text-base">AI Insights</CardTitle>
               </div>
@@ -828,10 +838,10 @@ export function DashboardContent({
 function SectionHeader({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3 pt-2">
-      <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 whitespace-nowrap">
+      <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 whitespace-nowrap">
         {label}
       </p>
-      <div className="h-px flex-1 bg-slate-200" />
+      <div className="h-px flex-1 bg-slate-300" />
     </div>
   );
 }
@@ -859,7 +869,7 @@ function BusinessHealthNarrativeCard({
 }) {
   const styles = STATUS_STYLES[narrative.status];
   return (
-    <Card className={cn("rounded-2xl border-l-4 bg-gradient-to-br from-slate-50 to-white shadow-sm", styles.border)}>
+    <Card className={cn("rounded-2xl border-l-4 bg-gradient-to-br from-slate-100 to-slate-50 shadow-sm", styles.border)}>
       {/* Clickable header — always visible */}
       <CardHeader
         className="cursor-pointer pb-2 pt-4 select-none"
@@ -867,7 +877,7 @@ function BusinessHealthNarrativeCard({
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className={cn("flex h-7 w-7 items-center justify-center rounded-full", styles.chip.includes("emerald") ? "bg-emerald-100" : styles.chip.includes("amber") ? "bg-amber-100" : styles.chip.includes("orange") ? "bg-orange-100" : "bg-red-100")}>
+            <div className={cn("flex h-7 w-7 items-center justify-center rounded-full", styles.chip.includes("emerald") ? "bg-emerald-200" : styles.chip.includes("amber") ? "bg-amber-200" : styles.chip.includes("orange") ? "bg-orange-200" : "bg-red-200")}>
               <BarChart2 className={cn("h-3.5 w-3.5", styles.icon)} />
             </div>
             <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-500">
