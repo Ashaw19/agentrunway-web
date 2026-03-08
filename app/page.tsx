@@ -14,6 +14,7 @@ import {
   Calculator,
   Award,
   LineChart,
+  Zap,
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
@@ -41,10 +42,7 @@ const JSON_LD = {
   operatingSystem: "Web",
   url: "https://agentrunway.ca",
   image: "https://agentrunway.ca/og-image.png",
-  creator: {
-    "@type": "Organization",
-    name: "Agent Runway",
-  },
+  creator: { "@type": "Organization", name: "Agent Runway" },
 };
 
 // ── Feature data ──────────────────────────────────────────────────────────────
@@ -55,8 +53,9 @@ const FEATURES = [
     title: "Track GCI",
     description:
       "Log every deal and watch your year-to-date commission income build against your annual goal. Know exactly where you stand at every point in the year.",
-    iconClass: "bg-gradient-to-br from-blue-500 to-blue-700",
-    gradBorder: "from-blue-500/40 to-slate-800/30",
+    iconBg: "bg-blue-500",
+    borderColor: "rgba(96,165,250,0.55)",
+    iconShadow: "0 0 20px rgba(59,130,246,0.4)",
     hasChart: true,
     wide: false,
   },
@@ -65,8 +64,9 @@ const FEATURES = [
     title: "Forecast Income",
     description:
       "Seasonality-aware projections combine your closed deals and probability-weighted pipeline to show where you'll land at year-end.",
-    iconClass: "bg-gradient-to-br from-emerald-500 to-emerald-700",
-    gradBorder: "from-emerald-500/40 to-slate-800/30",
+    iconBg: "bg-emerald-500",
+    borderColor: "rgba(52,211,153,0.55)",
+    iconShadow: "0 0 20px rgba(16,185,129,0.4)",
     hasChart: false,
     wide: false,
   },
@@ -75,8 +75,9 @@ const FEATURES = [
     title: "Measure Financial Runway",
     description:
       "See how many months your cash reserves cover your fixed costs. Know your number before you need it — not after.",
-    iconClass: "bg-gradient-to-br from-violet-500 to-violet-700",
-    gradBorder: "from-violet-500/40 to-slate-800/30",
+    iconBg: "bg-violet-500",
+    borderColor: "rgba(167,139,250,0.55)",
+    iconShadow: "0 0 20px rgba(139,92,246,0.4)",
     hasChart: false,
     wide: false,
   },
@@ -85,51 +86,44 @@ const FEATURES = [
     title: "AI Business Insights",
     description:
       "Contextual advisor cards surface risks, opportunities, and next steps based on your live business data — not generic advice.",
-    iconClass: "bg-gradient-to-br from-amber-500 to-amber-600",
-    gradBorder: "from-amber-500/40 to-slate-800/30",
+    iconBg: "bg-amber-500",
+    borderColor: "rgba(251,191,36,0.55)",
+    iconShadow: "0 0 20px rgba(245,158,11,0.4)",
     hasChart: false,
     wide: true,
   },
 ];
 
-// ── "Why It Matters" callouts ─────────────────────────────────────────────────
+// ── Why It Matters callouts ───────────────────────────────────────────────────
 
 const WHY_CALLOUTS = [
   {
     icon: DollarSign,
     title: "Net Income Clarity",
-    description:
-      "True take-home after commission splits, transaction fees, and business expenses.",
-    iconClass: "bg-gradient-to-br from-blue-500 to-blue-700",
-    gradBorder: "from-blue-500/35 to-slate-800/20",
+    description: "True take-home after splits, fees, and expenses.",
+    color: "blue",
   },
   {
     icon: Calculator,
     title: "Tax Estimates",
-    description:
-      "Know your quarterly instalments before filing season — no accountant required.",
-    iconClass: "bg-gradient-to-br from-violet-500 to-violet-700",
-    gradBorder: "from-violet-500/35 to-slate-800/20",
+    description: "Quarterly instalments calculated before filing season.",
+    color: "violet",
   },
   {
     icon: Award,
     title: "CREA Benchmarks",
-    description:
-      "See how your GCI and deal volume rank against national cohort data.",
-    iconClass: "bg-gradient-to-br from-emerald-500 to-emerald-700",
-    gradBorder: "from-emerald-500/35 to-slate-800/20",
+    description: "See how you rank against national cohort data.",
+    color: "emerald",
   },
   {
     icon: LineChart,
     title: "Pipeline Forecasts",
-    description:
-      "Probability-weighted projections from your actual deals, not spreadsheet guesses.",
-    iconClass: "bg-gradient-to-br from-teal-500 to-teal-700",
-    gradBorder: "from-teal-500/35 to-slate-800/20",
+    description: "Probability-weighted projections from real deals.",
+    color: "teal",
   },
 ];
 
-// ── Social proof ──────────────────────────────────────────────────────────────
+// ── Testimonials ──────────────────────────────────────────────────────────────
 
 const TESTIMONIALS = [
   {
@@ -138,8 +132,7 @@ const TESTIMONIALS = [
     name: "Sarah M.",
     title: "Residential Agent, Toronto ON",
     initials: "SM",
-    avatarClass: "bg-gradient-to-br from-blue-500 to-blue-700",
-    gradBorder: "from-blue-500/50 to-slate-800/20",
+    color: "blue",
   },
   {
     quote:
@@ -147,8 +140,7 @@ const TESTIMONIALS = [
     name: "Jason T.",
     title: "RE/MAX Agent, Calgary AB",
     initials: "JT",
-    avatarClass: "bg-gradient-to-br from-emerald-500 to-emerald-700",
-    gradBorder: "from-emerald-500/50 to-slate-800/20",
+    color: "emerald",
   },
   {
     quote:
@@ -156,127 +148,165 @@ const TESTIMONIALS = [
     name: "Michelle L.",
     title: "Independent Agent, Ottawa ON",
     initials: "ML",
-    avatarClass: "bg-gradient-to-br from-violet-500 to-violet-700",
-    gradBorder: "from-violet-500/50 to-slate-800/20",
+    color: "violet",
   },
 ];
 
-// ── Stats bar data ────────────────────────────────────────────────────────────
-
-const STATS = [
-  { value: "13", label: "Provinces & Territories", sublabel: "Full tax coverage" },
-  { value: "8", label: "Calculation Engines", sublabel: "Ported from iOS" },
-  { value: "14-day", label: "Free Trial", sublabel: "No card required" },
-];
-
-// ── Hero dashboard preview (static mock) ─────────────────────────────────────
+// ── Hero dashboard preview ────────────────────────────────────────────────────
 
 function HeroDashboardPreview() {
-  const bars = [38, 52, 41, 67, 78, 55, 88, 72, 49, 63, 82, 44];
+  const bars = [32, 48, 38, 62, 75, 52, 88, 70, 46, 67, 90, 58];
 
   return (
     <div className="relative">
-      {/* Ambient glow behind the card */}
-      <div className="absolute -inset-6 rounded-3xl bg-gradient-to-br from-blue-600/20 via-violet-600/10 to-transparent blur-2xl" />
+      {/* Multi-layer ambient glow */}
+      <div className="absolute -inset-10 rounded-[2rem] bg-gradient-to-br from-blue-500/35 via-violet-500/20 to-cyan-500/10 blur-3xl" />
+      <div className="absolute -inset-4 rounded-3xl bg-gradient-to-br from-blue-600/20 to-violet-600/15 blur-xl" />
 
-      {/* Main preview card */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-900 shadow-2xl shadow-black/50">
+      {/* Card with gradient border */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-400/50 via-violet-500/30 to-slate-700/20 p-px shadow-2xl shadow-black/70">
+        <div className="overflow-hidden rounded-[15px] bg-[#07101F]">
 
-        {/* Fake browser chrome */}
-        <div className="flex items-center gap-2 border-b border-slate-800 bg-slate-900/90 px-4 py-3">
-          <div className="flex gap-1.5">
-            <div className="h-2.5 w-2.5 rounded-full bg-slate-700" />
-            <div className="h-2.5 w-2.5 rounded-full bg-slate-700" />
-            <div className="h-2.5 w-2.5 rounded-full bg-slate-700" />
-          </div>
-          <div className="mx-auto flex items-center gap-1.5 rounded-md bg-slate-800 px-3 py-1">
-            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            <span className="text-[10px] text-slate-500">agentrunway.ca/dashboard</span>
-          </div>
-          <div className="w-12" />
-        </div>
-
-        {/* Dashboard content */}
-        <div className="p-4">
-
-          {/* Greeting row */}
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-white">Good morning, Sarah</p>
-              <p className="text-[10px] text-slate-500">2026 · July</p>
+          {/* Browser chrome */}
+          <div className="flex items-center gap-2 border-b border-white/5 bg-white/[0.02] px-4 py-3">
+            <div className="flex gap-1.5">
+              <div className="h-2.5 w-2.5 rounded-full bg-white/10" />
+              <div className="h-2.5 w-2.5 rounded-full bg-white/10" />
+              <div className="h-2.5 w-2.5 rounded-full bg-white/10" />
             </div>
-            <div className="rounded-full bg-blue-500/15 px-2.5 py-1 text-[10px] font-bold text-blue-300">
-              A+ Score
+            <div className="mx-auto flex items-center gap-1.5 rounded-md bg-white/5 px-3 py-1">
+              <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              <span className="text-[10px] text-slate-400">agentrunway.ca/dashboard</span>
             </div>
+            <div className="w-12" />
           </div>
 
-          {/* KPI cards */}
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <div className="rounded-lg border border-slate-800 border-t-2 border-t-emerald-500/70 bg-slate-800/60 p-2.5">
-              <p className="text-[9px] text-slate-500">YTD GCI</p>
-              <p className="text-sm font-bold text-white">$118,400</p>
-              <p className="text-[9px] text-emerald-400">↑ 12% ahead of pace</p>
-            </div>
-            <div className="rounded-lg border border-slate-800 border-t-2 border-t-violet-500/70 bg-slate-800/60 p-2.5">
-              <p className="text-[9px] text-slate-500">Financial Runway</p>
-              <p className="text-sm font-bold text-white">8.2 mo</p>
-              <p className="text-[9px] text-violet-400">● Healthy reserve</p>
-            </div>
-          </div>
+          {/* Dashboard body */}
+          <div className="p-5">
 
-          {/* Goal progress */}
-          <div className="mb-3 rounded-lg border border-slate-800 bg-slate-800/60 p-2.5">
-            <div className="mb-1 flex items-center justify-between">
-              <p className="text-[9px] text-slate-400">Annual Goal Progress</p>
-              <p className="text-[9px] font-bold text-white">59%</p>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-slate-700">
-              <div className="h-full w-[59%] rounded-full bg-gradient-to-r from-blue-500 to-cyan-400" />
-            </div>
-            <p className="mt-1 text-[9px] text-slate-500">$118,400 of $200,000 annual goal</p>
-          </div>
+            {/* Runway score hero card */}
+            <div className="mb-4 overflow-hidden rounded-xl border border-white/5 bg-gradient-to-br from-blue-500/15 via-violet-500/10 to-transparent p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500">
+                    Business Health
+                  </p>
+                  <p
+                    className="mt-0.5 text-5xl font-black leading-none"
+                    style={{
+                      background: "linear-gradient(135deg, #34d399, #22d3ee)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                    }}
+                  >
+                    A+
+                  </p>
+                  <p className="mt-1 text-[10px] text-emerald-400">Performing above target</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-slate-500">YTD GCI</p>
+                  <p className="text-xl font-bold text-white">$118,400</p>
+                  <p className="mt-2 text-[10px] text-slate-500">Runway</p>
+                  <p className="text-base font-bold text-violet-300">8.2 months</p>
+                </div>
+              </div>
 
-          {/* Monthly GCI chart */}
-          <div className="mb-3 rounded-lg border border-slate-800 bg-slate-800/60 p-2.5">
-            <p className="mb-2 text-[9px] text-slate-400">Monthly GCI — 2026</p>
-            <div className="flex h-10 items-end gap-0.5">
-              {bars.map((h, i) => (
-                <div
-                  key={i}
-                  className={`flex-1 rounded-sm ${
-                    i < 7 ? "bg-blue-600/80" : "bg-slate-700"
-                  }`}
-                  style={{ height: `${h}%` }}
-                />
+              {/* Goal progress */}
+              <div className="mt-4">
+                <div className="mb-1 flex items-center justify-between">
+                  <p className="text-[9px] text-slate-500">Annual Goal</p>
+                  <p className="text-[9px] font-bold text-white">59% — $118.4K / $200K</p>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-white/5">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: "59%",
+                      background: "linear-gradient(90deg, #3b82f6, #22d3ee)",
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* KPI row */}
+            <div className="mb-4 grid grid-cols-3 gap-2">
+              {[
+                { label: "Closed", value: "7", sub: "deals", color: "text-blue-400" },
+                { label: "Pipeline", value: "4", sub: "active", color: "text-violet-400" },
+                { label: "Avg GCI", value: "$16.9K", sub: "per deal", color: "text-emerald-400" },
+              ].map(({ label, value, sub, color }) => (
+                <div key={label} className="rounded-lg border border-white/5 bg-white/[0.03] p-2.5 text-center">
+                  <p className="text-[8px] text-slate-500">{label}</p>
+                  <p className={`text-sm font-bold ${color}`}>{value}</p>
+                  <p className="text-[8px] text-slate-600">{sub}</p>
+                </div>
               ))}
             </div>
-          </div>
 
-          {/* AI insight */}
-          <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-2.5">
-            <div className="flex items-start gap-2">
-              <div className="mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-amber-500/25">
-                <Sparkles className="h-2 w-2 text-amber-400" />
+            {/* Monthly chart */}
+            <div className="mb-4 rounded-xl border border-white/5 bg-white/[0.02] p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-[9px] font-medium text-slate-400">Monthly GCI — 2026</p>
+                <div className="flex items-center gap-1">
+                  <div className="h-1.5 w-1.5 rounded-full bg-blue-400" />
+                  <p className="text-[8px] text-slate-500">Closed</p>
+                </div>
               </div>
-              <div>
-                <p className="text-[9px] font-semibold text-amber-300">AI Insight</p>
-                <p className="text-[9px] leading-relaxed text-slate-400">
-                  Set aside $4,200 this quarter for estimated tax instalments.
-                </p>
+              <div className="flex h-14 items-end gap-[3px]">
+                {bars.map((h, i) => (
+                  <div
+                    key={i}
+                    className="flex-1 rounded-sm"
+                    style={{
+                      height: `${h}%`,
+                      background:
+                        i < 7
+                          ? `linear-gradient(to top, #2563eb, #60a5fa)`
+                          : "rgba(255,255,255,0.07)",
+                    }}
+                  />
+                ))}
               </div>
             </div>
-          </div>
 
+            {/* AI insight */}
+            <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-3">
+              <div className="flex items-start gap-2.5">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-400/20">
+                  <Sparkles className="h-2.5 w-2.5 text-amber-400" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold text-amber-300">⚡ High Impact</p>
+                  <p className="mt-0.5 text-[10px] leading-relaxed text-slate-400">
+                    Set aside $4,200 this quarter for estimated tax instalments.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
+// ── Color helpers ─────────────────────────────────────────────────────────────
+
+function colorConfig(color: string) {
+  const map: Record<string, { border: string; bg: string; icon: string; text: string; avatar: string; borderGrad: string }> = {
+    blue:    { border: "border-blue-400/40",    bg: "bg-blue-500/10",    icon: "bg-blue-500",    text: "text-blue-400",    avatar: "bg-gradient-to-br from-blue-500 to-blue-700",    borderGrad: "linear-gradient(135deg, rgba(96,165,250,0.55) 0%, rgba(96,165,250,0.08) 100%)" },
+    emerald: { border: "border-emerald-400/40", bg: "bg-emerald-500/10", icon: "bg-emerald-500", text: "text-emerald-400", avatar: "bg-gradient-to-br from-emerald-500 to-emerald-700", borderGrad: "linear-gradient(135deg, rgba(52,211,153,0.55) 0%, rgba(52,211,153,0.08) 100%)" },
+    violet:  { border: "border-violet-400/40",  bg: "bg-violet-500/10",  icon: "bg-violet-500",  text: "text-violet-400",  avatar: "bg-gradient-to-br from-violet-500 to-violet-700",  borderGrad: "linear-gradient(135deg, rgba(167,139,250,0.55) 0%, rgba(167,139,250,0.08) 100%)" },
+    teal:    { border: "border-teal-400/40",     bg: "bg-teal-500/10",    icon: "bg-teal-500",    text: "text-teal-400",    avatar: "bg-gradient-to-br from-teal-500 to-teal-700",    borderGrad: "linear-gradient(135deg, rgba(45,212,191,0.55) 0%, rgba(45,212,191,0.08) 100%)" },
+  };
+  return map[color] ?? map.blue;
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function Home() {
-  // Authenticated users go straight to their dashboard
   const supabase = await createClient();
   const {
     data: { user },
@@ -284,107 +314,111 @@ export default async function Home() {
   if (user) redirect("/dashboard");
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-950">
+    <div className="flex min-h-screen flex-col" style={{ background: "#010D1F" }}>
 
-      {/* ── JSON-LD structured data ── */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
       />
 
-      {/* ── Navigation ── */}
       <MarketingNav />
 
       <main>
 
-        {/* ── Hero ── */}
-        <section className="relative overflow-hidden bg-slate-950 px-6 py-20 sm:px-10 lg:py-28">
+        {/* ════════════════════════════════════════════════════════
+            HERO
+        ════════════════════════════════════════════════════════ */}
+        <section className="relative overflow-hidden px-6 pb-24 pt-20 sm:px-10 sm:pb-32 sm:pt-24">
 
-          {/* Dot-grid texture */}
+          {/* Vivid background orbs */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+            <div className="absolute -left-40 -top-40 h-[600px] w-[600px] rounded-full bg-blue-500/40 blur-[120px]" />
+            <div className="absolute -right-40 -top-20 h-[500px] w-[500px] rounded-full bg-violet-500/30 blur-[100px]" />
+            <div className="absolute bottom-0 left-1/2 h-64 w-[800px] -translate-x-1/2 rounded-full bg-cyan-500/15 blur-[80px]" />
+          </div>
+
+          {/* Dot-grid overlay */}
           <div
-            className="pointer-events-none absolute inset-0"
+            className="pointer-events-none absolute inset-0 opacity-40"
             aria-hidden="true"
             style={{
               backgroundImage:
-                "radial-gradient(circle, rgba(148,163,184,0.06) 1px, transparent 1px)",
-              backgroundSize: "32px 32px",
+                "radial-gradient(circle, rgba(148,163,184,0.12) 1px, transparent 1px)",
+              backgroundSize: "28px 28px",
             }}
           />
 
-          {/* Gradient orbs */}
-          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-            <div className="absolute -left-20 -top-20 h-96 w-96 rounded-full bg-blue-600/25 blur-[120px]" />
-            <div className="absolute -right-20 top-10 h-80 w-80 rounded-full bg-violet-600/[0.15] blur-[100px]" />
-            <div className="absolute bottom-0 left-1/3 h-64 w-[600px] -translate-x-1/2 rounded-full bg-blue-500/[0.08] blur-[100px]" />
-          </div>
+          {/* Vignette so grid fades at edges */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(ellipse 80% 60% at 50% 50%, transparent 40%, #010D1F 100%)",
+            }}
+          />
 
           <div className="relative mx-auto max-w-6xl">
-            <div className="grid items-center gap-12 lg:grid-cols-[1fr_1.05fr]">
+            <div className="grid items-center gap-14 lg:grid-cols-[1fr_1.1fr]">
 
-              {/* Left: copy */}
+              {/* ── Left: copy ── */}
               <div>
-                {/* Badge */}
-                <div className="mb-6 inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold text-blue-400">
+                <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-400/10 px-4 py-1.5 text-xs font-semibold text-blue-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
                   Built for Canadian Real Estate Agents
                 </div>
 
-                {/* Headline */}
-                <h1 className="text-5xl font-bold tracking-tight sm:text-6xl lg:text-[64px] lg:leading-[1.05]">
-                  <span className="bg-gradient-to-r from-blue-300 via-cyan-200 to-violet-300 bg-clip-text text-transparent">
+                <h1 className="text-6xl font-extrabold tracking-tight sm:text-7xl lg:text-[76px] lg:leading-[1.02]">
+                  <span
+                    style={{
+                      background: "linear-gradient(135deg, #93c5fd 0%, #60a5fa 30%, #a78bfa 70%, #c084fc 100%)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                    }}
+                  >
                     Agent Runway
                   </span>
                 </h1>
 
-                {/* Subheadline */}
-                <p className="mt-5 text-xl font-medium text-slate-300 sm:text-2xl">
+                <p className="mt-4 text-2xl font-semibold text-white sm:text-3xl">
                   Business Analytics for Real Estate Agents
                 </p>
 
-                {/* Body copy */}
-                <p className="mt-5 max-w-xl text-base leading-relaxed text-slate-400 sm:text-lg">
-                  Agent Runway helps real estate agents{" "}
-                  <Link
-                    href="/how-real-estate-agents-track-gci"
-                    className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
-                  >
-                    track GCI
-                  </Link>
-                  , forecast income, measure financial runway, and receive
-                  AI-powered business insights. One dashboard built around your
-                  numbers.
+                <p className="mt-5 max-w-lg text-base leading-relaxed text-slate-400 sm:text-lg">
+                  Track GCI, forecast income, measure financial runway, and receive
+                  AI-powered insights. One dashboard built around your numbers.
                 </p>
 
-                {/* CTAs */}
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                   <Link
                     href="/login"
-                    className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-500 hover:shadow-blue-500/40"
+                    className="group inline-flex items-center justify-center rounded-xl px-8 py-3.5 text-sm font-bold text-white shadow-lg transition-all duration-200"
+                    style={{
+                      background: "linear-gradient(135deg, #2563eb, #7c3aed)",
+                      boxShadow: "0 0 30px rgba(99,102,241,0.35)",
+                    }}
                   >
                     Get Started Free
-                    <ArrowRight className="ml-2 h-4 w-4" />
+                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </Link>
                   <Link
                     href="/demo"
-                    className="inline-flex items-center justify-center rounded-lg border border-slate-700 px-8 py-3 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-800"
+                    className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-8 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:border-white/20 hover:bg-white/10"
                   >
                     See the Product
                   </Link>
                 </div>
 
-                {/* Trust row */}
                 <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2">
-                  {["14-day free trial", "No credit card required", "Cancel anytime"].map(
-                    (item) => (
-                      <div key={item} className="flex items-center gap-1.5 text-sm text-slate-500">
-                        <Check className="h-3.5 w-3.5 text-emerald-500" />
-                        {item}
-                      </div>
-                    )
-                  )}
+                  {["14-day free trial", "No credit card required", "Cancel anytime"].map((item) => (
+                    <div key={item} className="flex items-center gap-1.5 text-sm text-slate-500">
+                      <Check className="h-3.5 w-3.5 text-emerald-400" />
+                      {item}
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Right: product preview — desktop only */}
+              {/* ── Right: product preview ── */}
               <div className="hidden lg:block">
                 <HeroDashboardPreview />
               </div>
@@ -393,74 +427,107 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* ── Stats bar ── */}
-        <div className="border-y border-slate-800/80 bg-slate-900/50">
+        {/* ════════════════════════════════════════════════════════
+            STATS BAR
+        ════════════════════════════════════════════════════════ */}
+        <div
+          className="relative border-y"
+          style={{
+            borderColor: "rgba(255,255,255,0.06)",
+            background: "rgba(255,255,255,0.02)",
+          }}
+        >
           <div className="mx-auto max-w-3xl px-6 py-10 sm:px-10">
-            <div className="grid grid-cols-3 divide-x divide-slate-800 text-center">
-              {STATS.map(({ value, label, sublabel }) => (
-                <div key={label} className="px-4 py-2 sm:px-6">
-                  <p className="text-2xl font-bold sm:text-3xl">
-                    <span className="bg-gradient-to-r from-blue-300 to-cyan-300 bg-clip-text text-transparent">
-                      {value}
-                    </span>
+            <div className="grid grid-cols-3 divide-x text-center" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+              {[
+                { value: "13", label: "Provinces & Territories", sub: "Full tax coverage" },
+                { value: "8", label: "Calculation Engines", sub: "Built for accuracy" },
+                { value: "14-day", label: "Free Trial", sub: "No card required" },
+              ].map(({ value, label, sub }) => (
+                <div key={label} className="px-4 py-2 sm:px-8">
+                  <p
+                    className="text-3xl font-extrabold sm:text-4xl"
+                    style={{
+                      background: "linear-gradient(135deg, #60a5fa, #22d3ee)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                    }}
+                  >
+                    {value}
                   </p>
                   <p className="mt-1 text-xs font-semibold text-white sm:text-sm">{label}</p>
-                  <p className="mt-0.5 text-[11px] text-slate-500">{sublabel}</p>
+                  <p className="mt-0.5 text-[11px] text-slate-600">{sub}</p>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        {/* ── Features ── */}
-        <section id="features" className="bg-slate-950 px-6 py-20 sm:px-10">
-          <div className="mx-auto max-w-6xl">
+        {/* ════════════════════════════════════════════════════════
+            FEATURES
+        ════════════════════════════════════════════════════════ */}
+        <section id="features" className="relative px-6 py-16 sm:px-10" style={{ background: "#010D1F" }}>
+          {/* Subtle section orb */}
+          <div className="pointer-events-none absolute left-1/2 top-0 h-96 w-96 -translate-x-1/2 rounded-full bg-violet-500/20 blur-[100px]" />
 
+          <div className="relative mx-auto max-w-6xl">
             <div className="mb-14 text-center">
-              <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                Everything you need to run your business
+              <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
+                Everything you need to{" "}
+                <span
+                  style={{
+                    background: "linear-gradient(135deg, #60a5fa, #a78bfa)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                  }}
+                >
+                  run your business
+                </span>
               </h2>
               <p className="mt-4 text-lg text-slate-400">
                 Purpose-built tools for agents who want financial clarity.
               </p>
             </div>
 
-            {/* Bento grid: 3 equal cards + 1 full-width AI card */}
+            {/* Bento grid */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {FEATURES.map(({ icon: Icon, title, description, iconClass, gradBorder, hasChart, wide }) => (
+              {FEATURES.map(({ icon: Icon, title, description, iconBg, borderColor, iconShadow, hasChart, wide }) => (
                 <div
                   key={title}
-                  className={`rounded-2xl bg-gradient-to-br ${gradBorder} p-px ${
-                    wide ? "sm:col-span-2 lg:col-span-3" : ""
-                  }`}
+                  className={`rounded-2xl p-px ${wide ? "sm:col-span-2 lg:col-span-3" : ""}`}
+                  style={{
+                    background: `linear-gradient(135deg, ${borderColor} 0%, rgba(255,255,255,0.04) 100%)`,
+                  }}
                 >
-                  <article
-                    className={`h-full rounded-2xl bg-slate-900 p-6 ${
-                      wide ? "sm:flex sm:gap-8 sm:items-start" : ""
-                    }`}
+                  <div
+                    className={`h-full overflow-hidden rounded-[15px] p-6 ${wide ? "sm:flex sm:gap-8 sm:items-start" : ""}`}
+                    style={{ background: "#07101F" }}
                   >
-                    {/* Icon + title + description */}
                     <div className={wide ? "flex-1" : ""}>
                       <div
-                        className={`mb-4 flex h-10 w-10 items-center justify-center rounded-lg ${iconClass}`}
+                        className={`mb-4 flex h-11 w-11 items-center justify-center rounded-xl ${iconBg}`}
+                        style={{ boxShadow: iconShadow }}
                       >
                         <Icon className="h-5 w-5 text-white" />
                       </div>
-                      <h3 className="mb-2 font-semibold text-white">{title}</h3>
+                      <h3 className="mb-2 text-base font-bold text-white">{title}</h3>
                       <p className="text-sm leading-relaxed text-slate-400">{description}</p>
 
-                      {/* Mini bar chart — GCI card only */}
                       {hasChart && (
-                        <div className="mt-4 rounded-lg bg-slate-800/60 p-3">
-                          <p className="mb-2 text-[10px] text-slate-500">Sample GCI trend</p>
-                          <div className="flex h-12 items-end gap-0.5">
-                            {[30, 45, 38, 60, 72, 55, 80, 68, 50, 70, 85, 62].map((h, i) => (
+                        <div className="mt-5 rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                          <p className="mb-2 text-[10px] font-medium text-slate-500">Sample GCI trend</p>
+                          <div className="flex h-14 items-end gap-0.5">
+                            {[30, 44, 36, 58, 70, 52, 78, 65, 48, 68, 84, 60].map((h, i) => (
                               <div
                                 key={i}
-                                className={`flex-1 rounded-sm ${
-                                  i === 10 ? "bg-blue-500" : "bg-blue-500/35"
-                                }`}
-                                style={{ height: `${h}%` }}
+                                className="flex-1 rounded-sm"
+                                style={{
+                                  height: `${h}%`,
+                                  background:
+                                    i === 10
+                                      ? "linear-gradient(to top, #3b82f6, #93c5fd)"
+                                      : "rgba(59,130,246,0.3)",
+                                }}
                               />
                             ))}
                           </div>
@@ -468,73 +535,88 @@ export default async function Home() {
                       )}
                     </div>
 
-                    {/* Mock AI insights — AI Insights card only */}
                     {wide && (
-                      <div className="mt-5 space-y-2.5 sm:mt-0 sm:w-72 lg:w-80 lg:shrink-0">
+                      <div className="mt-5 space-y-3 sm:mt-0 sm:w-80 lg:shrink-0">
                         {[
                           {
-                            colorKey: "amber",
-                            emoji: "⚡",
+                            icon: "⚡",
                             label: "High Impact",
                             text: "Set aside $4,200 for Q3 estimated tax instalment.",
-                            borderClass: "border-amber-500/25 bg-amber-500/5",
-                            labelClass: "text-amber-300",
+                            border: "border-amber-400/25",
+                            bg: "rgba(251,191,36,0.05)",
+                            labelColor: "text-amber-300",
                           },
                           {
-                            colorKey: "emerald",
-                            emoji: "📈",
+                            icon: "📈",
                             label: "Opportunity",
                             text: "Pace is 12% above seasonal average — strong Q2.",
-                            borderClass: "border-emerald-500/25 bg-emerald-500/5",
-                            labelClass: "text-emerald-300",
+                            border: "border-emerald-400/25",
+                            bg: "rgba(52,211,153,0.05)",
+                            labelColor: "text-emerald-300",
                           },
                           {
-                            colorKey: "red",
-                            emoji: "⚠️",
+                            icon: "⚠️",
                             label: "Watch",
                             text: "Pipeline coverage drops below 2× in October.",
-                            borderClass: "border-red-500/25 bg-red-500/5",
-                            labelClass: "text-red-300",
+                            border: "border-red-400/25",
+                            bg: "rgba(248,113,113,0.05)",
+                            labelColor: "text-red-300",
                           },
-                        ].map(({ emoji, label, text, borderClass, labelClass }) => (
+                        ].map(({ icon, label, text, border, bg, labelColor }) => (
                           <div
                             key={label}
-                            className={`rounded-lg border px-3 py-2.5 text-xs ${borderClass}`}
+                            className={`rounded-xl border px-4 py-3 text-xs ${border}`}
+                            style={{ background: bg }}
                           >
-                            <span className="mr-1.5">{emoji}</span>
-                            <span className={`font-semibold ${labelClass}`}>{label}:</span>
+                            <span className="mr-1.5">{icon}</span>
+                            <span className={`font-semibold ${labelColor}`}>{label}:</span>
                             <span className="ml-1 text-slate-400">{text}</span>
                           </div>
                         ))}
                       </div>
                     )}
-                  </article>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* ── Why It Matters ── */}
-        <section id="why" className="bg-gradient-to-b from-slate-950 to-slate-900 px-6 py-20 sm:px-10">
-          <div className="mx-auto max-w-6xl">
-            <div className="grid items-center gap-12 lg:grid-cols-2">
+        {/* ════════════════════════════════════════════════════════
+            WHY IT MATTERS
+        ════════════════════════════════════════════════════════ */}
+        <section
+          id="why"
+          className="relative overflow-hidden px-6 py-16 sm:px-10"
+          style={{ background: "linear-gradient(180deg, #010D1F 0%, #040C22 100%)" }}
+        >
+          {/* Section orbs */}
+          <div className="pointer-events-none absolute -left-40 top-1/2 h-[500px] w-[500px] -translate-y-1/2 rounded-full bg-blue-500/30 blur-[130px]" />
+          <div className="pointer-events-none absolute -right-40 top-1/2 h-[400px] w-[400px] -translate-y-1/2 rounded-full bg-violet-500/25 blur-[110px]" />
 
-              {/* Left: text */}
+          <div className="relative mx-auto max-w-6xl">
+            <div className="grid items-center gap-14 lg:grid-cols-2">
+
               <div>
-                <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
                   Most agents track transactions.
                   <br />
-                  <span className="bg-gradient-to-r from-blue-300 to-violet-300 bg-clip-text text-transparent">
-                    Agent Runway gives you CEO-level visibility.
+                  <span
+                    style={{
+                      background: "linear-gradient(135deg, #60a5fa, #a78bfa)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                    }}
+                  >
+                    You&apos;ll have CEO-level visibility.
                   </span>
                 </h2>
 
                 <p className="mt-6 text-lg leading-relaxed text-slate-400">
-                  Knowing your GCI is a start. Agent Runway goes further — showing your true net
-                  income after commission split, transaction fees, and business expenses. It
-                  estimates your tax obligations before filing season, benchmarks your performance
-                  against CREA cohort data, and builds{" "}
+                  Knowing your GCI is a start. Agent Runway goes further — showing your true
+                  net income after commission splits, transaction fees, and business expenses.
+                  Estimates your tax obligations before filing season. Benchmarks your
+                  performance against CREA cohort data. And builds{" "}
                   <Link
                     href="/real-estate-business-analytics"
                     className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
@@ -545,50 +627,75 @@ export default async function Home() {
                 </p>
 
                 <p className="mt-4 text-lg leading-relaxed text-slate-400">
-                  Built specifically for Canadian agents, with full provincial tax calculations and
-                  national seasonality data. Whether you&apos;re a solo agent or running a team,
-                  Agent Runway gives you the financial clarity to make better decisions.
+                  Built specifically for Canadian agents, with full provincial tax calculations
+                  and national seasonality data.
                 </p>
 
                 <div className="mt-8">
                   <Link
                     href="/login"
-                    className="inline-flex items-center rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-500 hover:shadow-blue-500/40"
+                    className="group inline-flex items-center rounded-xl px-8 py-3.5 text-sm font-bold text-white transition-all duration-200"
+                    style={{
+                      background: "linear-gradient(135deg, #2563eb, #7c3aed)",
+                      boxShadow: "0 0 30px rgba(99,102,241,0.35)",
+                    }}
                   >
                     Get Started
-                    <ArrowRight className="ml-2 h-4 w-4" />
+                    <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </Link>
                 </div>
               </div>
 
-              {/* Right: 4 callout cards */}
+              {/* 4 callout cards */}
               <div className="grid grid-cols-2 gap-3">
-                {WHY_CALLOUTS.map(({ icon: Icon, title, description, iconClass, gradBorder }) => (
-                  <div key={title} className={`rounded-xl bg-gradient-to-br ${gradBorder} p-px`}>
-                    <div className="h-full rounded-xl bg-slate-900/90 p-4">
+                {WHY_CALLOUTS.map(({ icon: Icon, title, description, color }) => {
+                  const c = colorConfig(color);
+                  return (
+                    <div
+                      key={title}
+                      className="rounded-2xl p-px"
+                      style={{ background: c.borderGrad }}
+                    >
                       <div
-                        className={`mb-3 flex h-8 w-8 items-center justify-center rounded-lg ${iconClass}`}
+                        className="h-full rounded-[15px] p-5"
+                        style={{ background: "#07101F" }}
                       >
-                        <Icon className="h-4 w-4 text-white" />
+                        <div
+                          className={`mb-3 flex h-9 w-9 items-center justify-center rounded-lg ${c.icon}`}
+                        >
+                          <Icon className="h-4 w-4 text-white" />
+                        </div>
+                        <h3 className="mb-1 text-sm font-bold text-white">{title}</h3>
+                        <p className="text-xs leading-relaxed text-slate-500">{description}</p>
                       </div>
-                      <h3 className="mb-1 text-sm font-semibold text-white">{title}</h3>
-                      <p className="text-xs leading-relaxed text-slate-400">{description}</p>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-
             </div>
           </div>
         </section>
 
-        {/* ── Social Proof ── */}
-        <section className="bg-slate-950 px-6 py-20 sm:px-10">
-          <div className="mx-auto max-w-6xl">
+        {/* ════════════════════════════════════════════════════════
+            SOCIAL PROOF
+        ════════════════════════════════════════════════════════ */}
+        <section className="relative px-6 py-16 sm:px-10" style={{ background: "#010D1F" }}>
+          {/* Centered glow */}
+          <div className="pointer-events-none absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/15 blur-[120px]" />
 
+          <div className="relative mx-auto max-w-6xl">
             <div className="mb-12 text-center">
-              <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-                Built for agents who take their business seriously
+              <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
+                Built for agents who take their{" "}
+                <span
+                  style={{
+                    background: "linear-gradient(135deg, #34d399, #22d3ee)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                  }}
+                >
+                  business seriously
+                </span>
               </h2>
               <p className="mt-4 text-lg text-slate-400">
                 Real estate agents across Canada use Agent Runway to get clarity on their numbers.
@@ -596,44 +703,115 @@ export default async function Home() {
             </div>
 
             <div className="grid gap-5 md:grid-cols-3">
-              {TESTIMONIALS.map(({ quote, name, title, initials, avatarClass, gradBorder }) => (
-                <div
-                  key={name}
-                  className={`rounded-2xl bg-gradient-to-br ${gradBorder} p-px`}
-                >
-                  <figure className="flex h-full flex-col rounded-2xl bg-slate-900 p-6">
-                    {/* Stars */}
-                    <div className="mb-4 flex gap-0.5">
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <Star key={s} className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                      ))}
-                    </div>
-                    <blockquote className="flex-1">
-                      <p className="text-sm leading-relaxed text-slate-300">
-                        &ldquo;{quote}&rdquo;
-                      </p>
-                    </blockquote>
-                    <figcaption className="mt-6 flex items-center gap-3">
-                      <div
-                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${avatarClass}`}
-                      >
-                        <span className="text-xs font-bold text-white">{initials}</span>
+              {TESTIMONIALS.map(({ quote, name, title, initials, color }) => {
+                const c = colorConfig(color);
+                return (
+                  <div
+                    key={name}
+                    className="rounded-2xl p-px"
+                    style={{ background: c.borderGrad }}
+                  >
+                    <figure
+                      className="flex h-full flex-col rounded-[15px] p-6"
+                      style={{ background: "#07101F" }}
+                    >
+                      <div className="mb-4 flex gap-0.5">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <Star key={s} className="h-4 w-4 fill-amber-400 text-amber-400" />
+                        ))}
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-white">{name}</p>
-                        <p className="text-xs text-slate-500">{title}</p>
-                      </div>
-                    </figcaption>
-                  </figure>
-                </div>
-              ))}
+                      <blockquote className="flex-1">
+                        <p className="text-sm leading-relaxed text-slate-300">
+                          &ldquo;{quote}&rdquo;
+                        </p>
+                      </blockquote>
+                      <figcaption className="mt-6 flex items-center gap-3">
+                        <div
+                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${c.avatar}`}
+                        >
+                          <span className="text-xs font-bold text-white">{initials}</span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-white">{name}</p>
+                          <p className="text-xs text-slate-500">{title}</p>
+                        </div>
+                      </figcaption>
+                    </figure>
+                  </div>
+                );
+              })}
             </div>
-
           </div>
         </section>
 
-        {/* ── Email Capture ── */}
-        <section className="bg-slate-900 px-6 py-16 sm:px-10">
+        {/* ════════════════════════════════════════════════════════
+            CTA BAND
+        ════════════════════════════════════════════════════════ */}
+        <section className="relative overflow-hidden px-6 py-20 sm:px-10">
+          {/* Dramatic gradient background */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(135deg, rgba(37,99,235,0.25) 0%, rgba(124,58,237,0.20) 50%, rgba(37,99,235,0.15) 100%)",
+            }}
+          />
+          <div className="absolute inset-0 border-y" style={{ borderColor: "rgba(255,255,255,0.05)" }} />
+          {/* Orbs */}
+          <div className="absolute -left-20 top-1/2 h-64 w-64 -translate-y-1/2 rounded-full bg-blue-500/30 blur-[80px]" />
+          <div className="absolute -right-20 top-1/2 h-64 w-64 -translate-y-1/2 rounded-full bg-violet-500/25 blur-[80px]" />
+
+          <div className="relative mx-auto max-w-3xl text-center">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-semibold text-slate-300">
+              <Zap className="h-3 w-3 text-amber-400" />
+              Start free · No credit card required
+            </div>
+            <h2 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
+              Your numbers.
+              <br />
+              <span
+                style={{
+                  background: "linear-gradient(135deg, #93c5fd, #c084fc)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                }}
+              >
+                Finally working for you.
+              </span>
+            </h2>
+            <p className="mt-5 text-lg text-slate-400">
+              Join Canadian real estate agents who have taken control of their financial picture.
+              Get full access free for 14 days.
+            </p>
+            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+              <Link
+                href="/login"
+                className="group inline-flex items-center rounded-xl px-10 py-4 text-sm font-bold text-white transition-all duration-200"
+                style={{
+                  background: "linear-gradient(135deg, #2563eb, #7c3aed)",
+                  boxShadow: "0 0 40px rgba(99,102,241,0.4)",
+                }}
+              >
+                Start Your Free Trial
+                <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+              <Link
+                href="/pricing"
+                className="text-sm font-medium text-slate-400 underline underline-offset-4 hover:text-white"
+              >
+                View pricing →
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* ════════════════════════════════════════════════════════
+            EMAIL CAPTURE
+        ════════════════════════════════════════════════════════ */}
+        <section
+          className="px-6 py-16 sm:px-10"
+          style={{ background: "rgba(255,255,255,0.02)", borderTop: "1px solid rgba(255,255,255,0.05)" }}
+        >
           <div className="mx-auto max-w-2xl">
             <EmailCapture
               heading="Stay ahead of your numbers"
