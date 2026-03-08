@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
   Card,
@@ -9,7 +10,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -143,6 +143,9 @@ export function TransactionsContent({ initialTransactions }: Props) {
           prev.map((t) => (t.id === editingId ? data : t))
             .sort((a, b) => b.date.localeCompare(a.date)),
         );
+        toast.success("Deal updated ✓");
+      } else if (error) {
+        toast.error("Couldn't save — try again");
       }
     } else {
       const { data, error } = await supabase
@@ -154,6 +157,11 @@ export function TransactionsContent({ initialTransactions }: Props) {
         setTransactions((prev) =>
           [data, ...prev].sort((a, b) => b.date.localeCompare(a.date)),
         );
+        toast.success("Deal logged 🎉", {
+          description: form.address ? `${form.address} added to your record.` : undefined,
+        });
+      } else if (error) {
+        toast.error("Couldn't save — try again");
       }
     }
 
@@ -166,6 +174,9 @@ export function TransactionsContent({ initialTransactions }: Props) {
     const { error } = await supabase.from("transactions").delete().eq("id", id);
     if (!error) {
       setTransactions((prev) => prev.filter((t) => t.id !== id));
+      toast("Deal removed", { description: "Your numbers have been updated." });
+    } else {
+      toast.error("Couldn't delete — try again");
     }
     setDeleteConfirmId(null);
   }
@@ -205,7 +216,9 @@ export function TransactionsContent({ initialTransactions }: Props) {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
           <p className="text-sm text-muted-foreground">
-            {ytdCount} closed deals this year &middot; {fmtCurrency(ytdGCI)} GCI
+            {ytdCount > 0
+              ? <>{ytdCount} closed deal{ytdCount !== 1 ? "s" : ""} this year &middot; {fmtCurrency(ytdGCI)} GCI</>
+              : "Log your first deal to start tracking your GCI."}
           </p>
         </div>
         <Button onClick={openAdd}>
@@ -286,7 +299,7 @@ export function TransactionsContent({ initialTransactions }: Props) {
         <CardContent className="p-0">
           {transactions.length === 0 ? (
             <div className="py-16 text-center text-sm text-muted-foreground">
-              No transactions yet. Add your first deal to get started.
+              Nothing closed yet — log your first deal and your forecast comes to life. 🚀
             </div>
           ) : visibleTransactions.length === 0 ? (
             <div className="py-16 text-center text-sm text-muted-foreground">

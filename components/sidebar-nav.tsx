@@ -174,17 +174,17 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
           <div className="mb-1 flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5 text-blue-400" />
             <span className="text-[12px] font-semibold text-sidebar-foreground/85">
-              Go Professional
+              Unlock Pro
             </span>
           </div>
           <p className="mb-3 text-[11px] leading-relaxed text-sidebar-foreground/45">
-            Runway score, tax planning, AI insights &amp; more.
+            Runway score, tax planning, AI advisor &amp; more. Pays for itself.
           </p>
           <Link
             href="/pricing"
             className="block rounded-md bg-blue-600 px-3 py-1.5 text-center text-[11.5px] font-semibold text-white transition-colors hover:bg-blue-500"
           >
-            Start Free Trial
+            Unlock Everything →
           </Link>
         </div>
       )}

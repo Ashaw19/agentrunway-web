@@ -267,45 +267,54 @@ export default function DemoPage() {
 
         {/* ── Hero ── */}
         <section className="relative overflow-hidden bg-slate-950 px-6 py-20 text-center sm:px-10 sm:py-28">
-          {/* Gradient orbs */}
+          {/* Animated gradient orbs */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-            <div className="absolute -left-10 -top-10 h-80 w-80 rounded-full bg-blue-600/20 blur-[100px]" />
-            <div className="absolute -right-10 top-16 h-64 w-64 rounded-full bg-violet-600/[0.12] blur-[80px]" />
-            <div className="absolute bottom-0 left-1/2 h-48 w-96 -translate-x-1/2 rounded-full bg-blue-500/10 blur-[90px]" />
+            <div className="orb-drift-1 absolute -left-10 -top-10 h-80 w-80 rounded-full bg-blue-600/25 blur-[100px]" />
+            <div className="orb-drift-2 absolute -right-10 top-16 h-64 w-64 rounded-full bg-violet-600/20 blur-[80px]" />
+            <div className="orb-drift-3 absolute bottom-0 left-1/2 h-48 w-96 -translate-x-1/2 rounded-full bg-cyan-500/12 blur-[90px]" />
           </div>
 
           <div className="relative mx-auto max-w-3xl">
             <div className="mb-5 inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold text-blue-400">
-              Product Overview
+              ✦ Product Tour
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-              See Agent Runway in Action
+              What running your business{" "}
+              <span style={{
+                background: "linear-gradient(135deg, #60a5fa, #a78bfa)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+              }}>
+                actually looks like
+              </span>
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
-              Agent Runway helps real estate agents{" "}
+              Not a sales deck. Not a video. A real look at the dashboard Canadian agents use to{" "}
               <Link
                 href="/how-real-estate-agents-track-gci"
                 className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
               >
                 track GCI
               </Link>
-              , forecast income, measure financial runway, and understand their
-              full business performance — all in one dashboard built for
-              Canadian agents.
+              , forecast income, plan taxes, and never get caught off guard again.
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link
-                href="/demo/dashboard"
-                className="inline-flex items-center rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
+                href="/login"
+                className="group inline-flex items-center rounded-xl px-8 py-3.5 text-sm font-bold text-white transition-all duration-200"
+                style={{
+                  background: "linear-gradient(135deg, #2563eb, #7c3aed)",
+                  boxShadow: "0 0 30px rgba(99,102,241,0.35)",
+                }}
               >
-                Try Live Demo
-                <ArrowRight className="ml-2 h-4 w-4" />
+                Try It Free — No Card Required
+                <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
               <Link
-                href="/login"
-                className="inline-flex items-center rounded-lg border border-slate-700 px-8 py-3 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-800"
+                href="/pricing"
+                className="inline-flex items-center rounded-xl border border-slate-700 px-8 py-3.5 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-800"
               >
-                Start Free Account
+                See Pricing
               </Link>
             </div>
           </div>

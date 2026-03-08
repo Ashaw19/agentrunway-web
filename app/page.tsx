@@ -19,6 +19,7 @@ import {
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { EmailCapture } from "@/components/email-capture";
+import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 
 export const metadata: Metadata = {
   title: "Agent Runway | Business Analytics for Real Estate Agents",
@@ -330,11 +331,11 @@ export default async function Home() {
         ════════════════════════════════════════════════════════ */}
         <section className="relative overflow-hidden px-6 pb-24 pt-20 sm:px-10 sm:pb-32 sm:pt-24">
 
-          {/* Vivid background orbs */}
+          {/* Vivid animated background orbs */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-            <div className="absolute -left-40 -top-40 h-[600px] w-[600px] rounded-full bg-blue-500/40 blur-[120px]" />
-            <div className="absolute -right-40 -top-20 h-[500px] w-[500px] rounded-full bg-violet-500/30 blur-[100px]" />
-            <div className="absolute bottom-0 left-1/2 h-64 w-[800px] -translate-x-1/2 rounded-full bg-cyan-500/15 blur-[80px]" />
+            <div className="orb-drift-1 absolute -left-40 -top-40 h-[600px] w-[600px] rounded-full bg-blue-500/40 blur-[120px]" />
+            <div className="orb-drift-2 absolute -right-40 -top-20 h-[500px] w-[500px] rounded-full bg-violet-500/30 blur-[100px]" />
+            <div className="orb-drift-3 absolute bottom-0 left-1/2 h-64 w-[800px] -translate-x-1/2 rounded-full bg-cyan-500/15 blur-[80px]" />
           </div>
 
           {/* Dot-grid overlay */}
@@ -380,12 +381,11 @@ export default async function Home() {
                 </h1>
 
                 <p className="mt-4 text-2xl font-semibold text-white sm:text-3xl">
-                  Business Analytics for Real Estate Agents
+                  Know your numbers. Own your future.
                 </p>
 
                 <p className="mt-5 max-w-lg text-base leading-relaxed text-slate-400 sm:text-lg">
-                  Track GCI, forecast income, measure financial runway, and receive
-                  AI-powered insights. One dashboard built around your numbers.
+                  Real estate agents who understand their finances close more confidently, plan smarter, and sleep better. Agent Runway puts everything — GCI, tax, runway, forecasts — in one place.
                 </p>
 
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -471,7 +471,7 @@ export default async function Home() {
           <div className="pointer-events-none absolute left-1/2 top-0 h-96 w-96 -translate-x-1/2 rounded-full bg-violet-500/20 blur-[100px]" />
 
           <div className="relative mx-auto max-w-6xl">
-            <div className="mb-14 text-center">
+            <ScrollRevealSection className="mb-14 text-center">
               <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
                 Everything you need to{" "}
                 <span
@@ -481,23 +481,24 @@ export default async function Home() {
                     WebkitTextFillColor: "transparent",
                   }}
                 >
-                  run your business
+                  run like a CEO
                 </span>
               </h2>
               <p className="mt-4 text-lg text-slate-400">
-                Purpose-built tools for agents who want financial clarity.
+                Purpose-built for agents who treat their business like a business.
               </p>
-            </div>
+            </ScrollRevealSection>
 
             {/* Bento grid */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {FEATURES.map(({ icon: Icon, title, description, iconBg, borderColor, iconShadow, hasChart, wide }) => (
-                <div
+              {FEATURES.map(({ icon: Icon, title, description, iconBg, borderColor, iconShadow, hasChart, wide }, featureIdx) => (
+                <ScrollRevealSection
                   key={title}
+                  delay={(featureIdx % 4) as 0 | 1 | 2 | 3 | 4}
                   className={`rounded-2xl p-px ${wide ? "sm:col-span-2 lg:col-span-3" : ""}`}
                   style={{
                     background: `linear-gradient(135deg, ${borderColor} 0%, rgba(255,255,255,0.04) 100%)`,
-                  }}
+                  } as React.CSSProperties}
                 >
                   <div
                     className={`h-full overflow-hidden rounded-[15px] p-6 ${wide ? "sm:flex sm:gap-8 sm:items-start" : ""}`}
@@ -576,7 +577,7 @@ export default async function Home() {
                       </div>
                     )}
                   </div>
-                </div>
+                </ScrollRevealSection>
               ))}
             </div>
           </div>
@@ -597,9 +598,9 @@ export default async function Home() {
           <div className="relative mx-auto max-w-6xl">
             <div className="grid items-center gap-14 lg:grid-cols-2">
 
-              <div>
+              <ScrollRevealSection>
                 <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
-                  Most agents track transactions.
+                  Most agents track deals.
                   <br />
                   <span
                     style={{
@@ -608,27 +609,23 @@ export default async function Home() {
                       WebkitTextFillColor: "transparent",
                     }}
                   >
-                    You&apos;ll have CEO-level visibility.
+                    You&apos;ll run a real business.
                   </span>
                 </h2>
 
                 <p className="mt-6 text-lg leading-relaxed text-slate-400">
-                  Knowing your GCI is a start. Agent Runway goes further — showing your true
-                  net income after commission splits, transaction fees, and business expenses.
-                  Estimates your tax obligations before filing season. Benchmarks your
-                  performance against CREA cohort data. And builds{" "}
+                  GCI is just the start. Agent Runway shows what you actually take home — after splits, fees, and expenses. It estimates your taxes before your accountant calls. It benchmarks you against real CREA data. And it builds{" "}
                   <Link
                     href="/real-estate-business-analytics"
                     className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
                   >
                     forward-looking forecasts
                   </Link>{" "}
-                  from your actual pipeline.
+                  from your actual pipeline — not wishful thinking.
                 </p>
 
                 <p className="mt-4 text-lg leading-relaxed text-slate-400">
-                  Built specifically for Canadian agents, with full provincial tax calculations
-                  and national seasonality data.
+                  Built for Canadian agents. Every province. Every tax bracket. Every slowdown season.
                 </p>
 
                 <div className="mt-8">
@@ -644,7 +641,7 @@ export default async function Home() {
                     <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </Link>
                 </div>
-              </div>
+              </ScrollRevealSection>
 
               {/* 4 callout cards */}
               <div className="grid grid-cols-2 gap-3">
@@ -684,9 +681,9 @@ export default async function Home() {
           <div className="pointer-events-none absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/15 blur-[120px]" />
 
           <div className="relative mx-auto max-w-6xl">
-            <div className="mb-12 text-center">
+            <ScrollRevealSection className="mb-12 text-center">
               <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
-                Built for agents who take their{" "}
+                Agents who fly blind{" "}
                 <span
                   style={{
                     background: "linear-gradient(135deg, #34d399, #22d3ee)",
@@ -694,22 +691,23 @@ export default async function Home() {
                     WebkitTextFillColor: "transparent",
                   }}
                 >
-                  business seriously
+                  don&apos;t last
                 </span>
               </h2>
               <p className="mt-4 text-lg text-slate-400">
-                Real estate agents across Canada use Agent Runway to get clarity on their numbers.
+                These are real agents who stopped guessing and started knowing.
               </p>
-            </div>
+            </ScrollRevealSection>
 
             <div className="grid gap-5 md:grid-cols-3">
-              {TESTIMONIALS.map(({ quote, name, title, initials, color }) => {
+              {TESTIMONIALS.map(({ quote, name, title, initials, color }, tIdx) => {
                 const c = colorConfig(color);
                 return (
-                  <div
+                  <ScrollRevealSection
                     key={name}
+                    delay={(tIdx % 4) as 0 | 1 | 2 | 3 | 4}
                     className="rounded-2xl p-px"
-                    style={{ background: c.borderGrad }}
+                    style={{ background: c.borderGrad } as React.CSSProperties}
                   >
                     <figure
                       className="flex h-full flex-col rounded-[15px] p-6"
@@ -737,7 +735,7 @@ export default async function Home() {
                         </div>
                       </figcaption>
                     </figure>
-                  </div>
+                  </ScrollRevealSection>
                 );
               })}
             </div>
@@ -767,7 +765,7 @@ export default async function Home() {
               Start free · No credit card required
             </div>
             <h2 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
-              Your numbers.
+              Stop flying blind.
               <br />
               <span
                 style={{
@@ -776,12 +774,12 @@ export default async function Home() {
                   WebkitTextFillColor: "transparent",
                 }}
               >
-                Finally working for you.
+                Take off in 5 minutes.
               </span>
             </h2>
             <p className="mt-5 text-lg text-slate-400">
-              Join Canadian real estate agents who have taken control of their financial picture.
-              Get full access free for 14 days.
+              14-day free trial. No credit card. No fluff.
+              Just the clarity your business has been missing.
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Link

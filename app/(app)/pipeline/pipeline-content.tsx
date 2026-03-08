@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
   Card,
@@ -160,6 +161,9 @@ export function PipelineContent({ initialDeals }: Props) {
         .single();
       if (!error && data) {
         setDeals((prev) => prev.map((d) => (d.id === editingId ? data : d)));
+        toast.success("Deal updated ✓");
+      } else if (error) {
+        toast.error("Couldn't save — try again");
       }
     } else {
       const { data, error } = await supabase
@@ -169,6 +173,9 @@ export function PipelineContent({ initialDeals }: Props) {
         .single();
       if (!error && data) {
         setDeals((prev) => [data, ...prev]);
+        toast.success("Deal added to pipeline 🎯");
+      } else if (error) {
+        toast.error("Couldn't save — try again");
       }
     }
 
@@ -179,7 +186,12 @@ export function PipelineContent({ initialDeals }: Props) {
   async function handleDelete(id: string) {
     const supabase = createClient();
     const { error } = await supabase.from("pipeline_deals").delete().eq("id", id);
-    if (!error) setDeals((prev) => prev.filter((d) => d.id !== id));
+    if (!error) {
+      setDeals((prev) => prev.filter((d) => d.id !== id));
+      toast("Deal removed from pipeline");
+    } else {
+      toast.error("Couldn't delete — try again");
+    }
     setDeleteConfirmId(null);
   }
 
@@ -204,8 +216,9 @@ export function PipelineContent({ initialDeals }: Props) {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Pipeline</h1>
           <p className="text-sm text-muted-foreground">
-            {deals.length} active deal{deals.length !== 1 ? "s" : ""} &middot;{" "}
-            {fmtCurrency(totalWeighted)} weighted GCI
+            {deals.length > 0
+              ? <>{deals.length} active deal{deals.length !== 1 ? "s" : ""} &middot; {fmtCurrency(totalWeighted)} weighted GCI</>
+              : "Add deals to forecast your income before they close."}
           </p>
         </div>
         <Button onClick={openAdd}>
@@ -250,7 +263,7 @@ export function PipelineContent({ initialDeals }: Props) {
         <CardContent className="p-0">
           {deals.length === 0 ? (
             <div className="py-16 text-center text-sm text-muted-foreground">
-              No pipeline deals yet. Add your active leads and listings.
+              Your pipeline is empty — add a deal and see your probability-weighted forecast instantly. 🎯
             </div>
           ) : (
             <Table>

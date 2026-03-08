@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
   Card,
@@ -164,6 +165,9 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
           c.id === categoryId ? { ...c, items: [...c.items, newItem] } : c,
         ),
       );
+      toast.success("Expense item added ✓");
+    } else if (error) {
+      toast.error("Couldn't add item — please try again.");
     }
     setAddingTo(null);
     setNewItemTitle("");
@@ -179,6 +183,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
           : cat,
       ),
     );
+    toast("Expense item removed");
   }
 
   return (
@@ -188,7 +193,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
           <p className="text-sm text-muted-foreground">
-            Track your business expenses and recurring costs by category
+            Every dollar out counts. Know your burn, protect your runway.
           </p>
         </div>
         {/* QuickBooks coming-soon CTA */}

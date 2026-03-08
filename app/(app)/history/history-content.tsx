@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
   Card,
@@ -77,6 +78,7 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
           i.id === item.id ? { ...i, is_locked: !i.is_locked } : i,
         ),
       );
+      toast(item.is_locked ? "Year unlocked ✓" : "Year locked 🔒");
     }
   }
 
@@ -149,6 +151,9 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
       setAddTx("");
       // Auto-expand the new year so user can enter quarterly data immediately
       setExpanded((prev) => new Set([...prev, data.id]));
+      toast.success(`${addYear} history added ✓`);
+    } else if (error) {
+      toast.error("Couldn't add year — please try again.");
     }
   }
 
@@ -158,7 +163,7 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">History</h1>
           <p className="text-sm text-muted-foreground">
-            Year-by-year performance &mdash; expand a year to edit quarterly breakdowns
+            Your track record — where you&apos;ve been shapes where you&apos;re going.
           </p>
         </div>
         <Dialog open={addOpen} onOpenChange={setAddOpen}>

@@ -1,7 +1,11 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { CountUp } from "@/components/count-up";
+import { useConfetti } from "@/hooks/use-confetti";
+import { AnnualReview } from "@/components/annual-review";
 import {
   Card,
   CardContent,
@@ -25,7 +29,6 @@ import {
   TrendingDown,
   Target,
   Briefcase,
-  Shield,
   BarChart2,
   Gauge,
   AlertTriangle,
@@ -62,7 +65,6 @@ import {
   projectedYearEndTransactions,
   paceVsGoalPercent,
   daysRemaining,
-  todayDescription,
   trendDirection,
 } from "@/lib/engines/projection-engine";
 import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
@@ -82,6 +84,41 @@ interface Props {
   initialDashboardView?: string;
   subscriptionTier?: string;
   showUpgradeBanner?: boolean;
+  userName?: string;
+}
+
+function getTimeGreeting(): { greeting: string; emoji: string } {
+  const hour = new Date().getHours();
+  if (hour < 12) return { greeting: "Good morning", emoji: "☀️" };
+  if (hour < 17) return { greeting: "Good afternoon", emoji: "⚡" };
+  return { greeting: "Good evening", emoji: "🌙" };
+}
+
+function getMotivationalTag(paceStatus: string, ytdDealCount: number): string {
+  if (ytdDealCount === 0) return "Ready to launch — add your first deal 🚀";
+  if (paceStatus === "ahead") return "You're ahead of pace — keep the momentum";
+  if (paceStatus === "behind") return "Time to close the gap — you've got this";
+  return "Steady as she goes — right on track";
+}
+
+function getStreakLabel(transactions: Transaction[]): string | null {
+  if (transactions.length < 2) return null;
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth();
+  const months = new Set(
+    transactions
+      .filter((tx) => tx.date.startsWith(String(currentYear)))
+      .map((tx) => new Date(tx.date).getMonth())
+  );
+  // Count consecutive months backwards from current
+  let streak = 0;
+  for (let m = currentMonth; m >= 0; m--) {
+    if (months.has(m)) streak++;
+    else break;
+  }
+  if (streak >= 3) return `🔥 ${streak}-month closing streak`;
+  if (streak === 2) return "2 months running — keep it up";
+  return null;
 }
 
 const INSIGHT_ICONS: Record<string, React.ElementType> = {
@@ -109,13 +146,17 @@ export function DashboardContent({
   settings,
   expenseCategories,
   initialDashboardView,
-  subscriptionTier = "starter",
+  subscriptionTier: _subscriptionTier = "starter",
   showUpgradeBanner = false,
+  userName,
 }: Props) {
-  const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [showAnnualReview, setShowAnnualReview] = useState(false);
+  const { fire: fireConfetti } = useConfetti();
+  const confettiFiredRef = useRef(false);
   const now = new Date();
   const currentYear = now.getFullYear();
+  const isDecember = now.getMonth() === 11; // 0-indexed
 
   // ── Scenario toggle ────────────────────────────────────────────────────
   const [scenario, setScenario] = useState<"conservative" | "base" | "optimistic">("base");
@@ -261,6 +302,41 @@ export function DashboardContent({
       })
     : null;
 
+  // ── Greeting & streak ─────────────────────────────────────────────────
+  const { greeting, emoji } = getTimeGreeting();
+  const firstName = userName?.split(" ")[0] ?? null;
+  const streakLabel = getStreakLabel(transactions);
+  const motivationalTag = getMotivationalTag(paceStatus, ytdDealCount);
+
+  // ── Confetti on goal milestone ────────────────────────────────────────
+  // Fires once per session when the agent crosses 50%, 75%, or 100% of goal
+  useEffect(() => {
+    if (confettiFiredRef.current || goalGCI <= 0) return;
+    const pct = ytdGCI / goalGCI;
+    if (pct >= 1.0) {
+      confettiFiredRef.current = true;
+      fireConfetti("goal");
+      toast.success("🎉 Goal reached! You hit your annual target!", {
+        duration: 6000,
+        description: `${fmtCurrency(ytdGCI)} closed — incredible work.`,
+      });
+    } else if (pct >= 0.75) {
+      confettiFiredRef.current = true;
+      fireConfetti("milestone");
+      toast("🏆 75% of your annual goal — you're in the home stretch!", {
+        duration: 5000,
+        description: `${fmtCurrency(goalGCI - ytdGCI)} left to your target.`,
+      });
+    } else if (pct >= 0.5) {
+      confettiFiredRef.current = true;
+      fireConfetti("milestone");
+      toast("⚡ Halfway there! You've crossed 50% of your annual goal.", {
+        duration: 4000,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ytdGCI, goalGCI]);
+
   // ── Monthly chart data ────────────────────────────────────────────────
   const monthlyChartData: MonthlyDataPoint[] = buildMonthlyChartData(
     transactions,
@@ -285,6 +361,20 @@ export function DashboardContent({
 
   return (
     <div className="space-y-8">
+      {/* Annual Review Modal */}
+      {showAnnualReview && (
+        <AnnualReview
+          year={currentYear}
+          ytdGCI={ytdGCI}
+          goalGCI={goalGCI}
+          dealCount={ytdDealCount}
+          avgDealSize={avgDealSize}
+          benchmarkPercentile={benchmark.percentile}
+          projectedGCI={projectedGCI}
+          onClose={() => setShowAnnualReview(false)}
+        />
+      )}
+
       {/* Upgrade success banner */}
       {showUpgradeBanner && !bannerDismissed && (
         <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
@@ -307,12 +397,32 @@ export function DashboardContent({
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-5">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+          <h1 className="text-2xl font-semibold tracking-tight greet-fade">
+            {emoji} {greeting}{firstName ? `, ${firstName}` : ""}
+          </h1>
           <p className="text-sm text-muted-foreground">
-            {todayDescription()} &middot; {currentYear} year-to-date
+            {motivationalTag}
           </p>
+          {streakLabel && (
+            <p className="mt-1 text-xs font-semibold text-amber-600">{streakLabel}</p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Year in Review button — always show if there's data */}
+          {ytdDealCount > 0 && (
+            <button
+              onClick={() => setShowAnnualReview(true)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all",
+                isDecember
+                  ? "border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100"
+                  : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Star className="h-3 w-3" />
+              {currentYear} Review
+            </button>
+          )}
           {/* View mode toggle */}
           <div className="flex rounded-lg border border-border bg-muted/40 p-0.5 text-xs">
             {(["essentials", "standard", "full"] as const).map((mode) => (
@@ -459,7 +569,9 @@ export function DashboardContent({
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-slate-800">{fmtCurrency(ytdGCI)}</div>
+            <div className="text-3xl font-bold tracking-tight text-slate-800">
+              $<CountUp end={ytdGCI} decimals={0} duration={1000} />
+            </div>
             {goalGCI > 0 ? (
               <>
                 <p className="text-xs text-slate-500">
@@ -477,22 +589,26 @@ export function DashboardContent({
                 )}
               </>
             ) : (
-              <p className="text-xs text-slate-400">Set a goal to track pace</p>
+              <p className="text-xs text-slate-400">Set a goal in Settings to track pace</p>
             )}
           </CardContent>
         </Card>
 
         <Card className="rounded-2xl border-blue-200 bg-gradient-to-br from-blue-100 to-blue-50 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription className="font-semibold text-blue-800">Closed Deals</CardDescription>
+            <CardDescription className="font-semibold text-blue-800">Deals Closed</CardDescription>
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-200">
               <Briefcase className="h-4 w-4 text-blue-700" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-slate-800">{ytdDealCount}</div>
+            <div className="text-3xl font-bold tracking-tight text-slate-800">
+              <CountUp end={ytdDealCount} duration={800} />
+            </div>
             <p className="text-xs text-slate-500">
-              Avg {fmtCurrency(avgDealSize)} per deal
+              {ytdDealCount === 0
+                ? "No deals yet — your first is the hardest"
+                : `Avg ${fmtCurrency(avgDealSize)} per deal`}
             </p>
           </CardContent>
         </Card>
@@ -506,11 +622,11 @@ export function DashboardContent({
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold tracking-tight text-slate-800">
-              {pipelineCount === 0 ? "—" : fmtCurrency(pipelineWeightedGCI)}
+              {pipelineCount === 0 ? "—" : <>$<CountUp end={pipelineWeightedGCI} duration={1000} /></>}
             </div>
             <p className="text-xs text-slate-500">
               {pipelineCount === 0
-                ? "No active deals — add prospects"
+                ? "Add prospects to see weighted forecasts"
                 : `${pipelineCount} deal${pipelineCount !== 1 ? "s" : ""} · probability-weighted`}
             </p>
           </CardContent>
@@ -525,7 +641,7 @@ export function DashboardContent({
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold tracking-tight">
-              {fmtCurrency(projectedGCI)}
+              $<CountUp end={projectedGCI} duration={1100} />
             </div>
             <div className="mt-1 flex items-center gap-2">
               <Badge
@@ -562,8 +678,8 @@ export function DashboardContent({
               </p>
             )}
             {goalGCI > 0 && ytdGCI >= goalGCI && (
-              <p className="mt-1.5 text-xs font-medium text-emerald-600">
-                🎉 Goal reached!
+              <p className="mt-1.5 text-xs font-semibold shimmer-text">
+                🎉 Goal reached — you crushed it!
               </p>
             )}
           </CardContent>
@@ -579,9 +695,9 @@ export function DashboardContent({
                 <Rocket className="h-5 w-5" />
               </div>
               <div className="flex-1">
-                <h3 className="text-base font-semibold">Your runway is ready — let&apos;s fill it with data.</h3>
+                <h3 className="text-base font-semibold">Your runway is clear — now let&apos;s light it up.</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Add your first closed deal or pipeline opportunity to unlock projections, tax estimates, and your Runway Score.
+                  Log your first deal and watch your Runway Score, tax forecast, and year-end projection come to life. It only takes 30 seconds.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <Link href="/transactions" className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">

@@ -238,7 +238,7 @@ export function ReportsContent({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
           <p className="text-sm text-muted-foreground">
-            {currentYear} business summary &mdash; {PROVINCE_LABELS[settings.province]}
+            {currentYear} P&amp;L &middot; benchmarks &middot; tax snapshot &mdash; {PROVINCE_LABELS[settings.province]}
           </p>
         </div>
         {isPro ? (

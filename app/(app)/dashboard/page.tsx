@@ -64,6 +64,8 @@ export default async function DashboardPage({
   const params = await searchParams;
   const showUpgradeBanner = params.upgraded === "true";
 
+  const userName = settingsResult.data?.display_name || user.email?.split("@")[0] || undefined;
+
   return (
     <DashboardContent
       transactions={txResult.data ?? []}
@@ -73,6 +75,7 @@ export default async function DashboardPage({
       initialDashboardView={settingsResult.data?.dashboard_view ?? "standard"}
       subscriptionTier={settingsResult.data?.subscription_tier ?? "starter"}
       showUpgradeBanner={showUpgradeBanner}
+      userName={userName}
     />
   );
 }

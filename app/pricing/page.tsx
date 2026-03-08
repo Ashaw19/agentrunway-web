@@ -76,34 +76,33 @@ export default function PricingPage() {
 
         {/* ── Hero ── */}
         <section className="relative overflow-hidden bg-slate-950 px-6 py-20 text-center sm:px-10 sm:py-28">
-          {/* Gradient orbs */}
+          {/* Animated gradient orbs */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-            <div className="absolute -left-10 -top-10 h-80 w-80 rounded-full bg-blue-600/20 blur-[100px]" />
-            <div className="absolute -right-10 top-16 h-64 w-64 rounded-full bg-violet-600/[0.12] blur-[80px]" />
-            <div className="absolute bottom-0 left-1/2 h-48 w-96 -translate-x-1/2 rounded-full bg-blue-500/10 blur-[90px]" />
+            <div className="orb-drift-1 absolute -left-20 -top-20 h-96 w-96 rounded-full bg-blue-600/25 blur-[120px]" />
+            <div className="orb-drift-2 absolute -right-20 top-10 h-80 w-80 rounded-full bg-violet-600/20 blur-[100px]" />
+            <div className="orb-drift-3 absolute bottom-0 left-1/2 h-48 w-96 -translate-x-1/2 rounded-full bg-cyan-500/10 blur-[90px]" />
           </div>
 
           <div className="relative mx-auto max-w-3xl">
             <div className="mb-5 inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold text-blue-400">
-              Transparent Pricing
+              ✦ No hidden fees. No surprises.
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-              Simple Pricing for{" "}
+              Priced for agents.
+              <br />
               <span className="bg-gradient-to-r from-blue-300 to-violet-300 bg-clip-text text-transparent">
-                Real Estate Agents
+                Built to pay for itself.
               </span>
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
-              Agent Runway helps you{" "}
+              One commission. That&apos;s all it takes to cover a full year of Pro. Most agents say the tax planning alone saves them more than that.{" "}
               <Link
                 href="/how-real-estate-agents-track-gci"
                 className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
               >
-                track GCI
+                Start for free
               </Link>
-              , forecast income, measure financial runway, and receive
-              AI-powered business insights — all in one dashboard built for
-              Canadian agents. Start free, upgrade when you&apos;re ready.
+              , upgrade when you&apos;re ready.
             </p>
           </div>
         </section>

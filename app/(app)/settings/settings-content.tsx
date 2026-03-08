@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
   Card,
@@ -66,6 +67,7 @@ export function SettingsContent({ settings }: Props) {
       .eq("user_id", settings.user_id);
     setSavingProvince(false);
     provinceSaved.flash();
+    toast.success("Province updated ✓");
   }
 
   // ── Section 2: Commission Structure ─────────────────────────────────────
@@ -84,6 +86,7 @@ export function SettingsContent({ settings }: Props) {
       .eq("user_id", settings.user_id);
     setSavingSplit(false);
     splitSaved.flash();
+    toast.success("Commission split locked in ✓");
   }
 
   // ── Section 3: Brokerage Fees ────────────────────────────────────────────
@@ -112,6 +115,7 @@ export function SettingsContent({ settings }: Props) {
       .eq("user_id", settings.user_id);
     setSavingFees(false);
     feesSaved.flash();
+    toast.success("Brokerage fees saved ✓");
   }
 
   // ── Section 4: Runway Inputs ─────────────────────────────────────────────
@@ -138,6 +142,7 @@ export function SettingsContent({ settings }: Props) {
       .eq("user_id", settings.user_id);
     setSavingRunway(false);
     runwaySaved.flash();
+    toast.success("Cash reserve updated ✓");
   }
 
   return (
@@ -146,7 +151,7 @@ export function SettingsContent({ settings }: Props) {
       <div className="border-b border-border/60 pb-5">
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manage your account preferences and calculations.
+          Your numbers are only as good as your inputs. Keep these dialed in.
         </p>
       </div>
 

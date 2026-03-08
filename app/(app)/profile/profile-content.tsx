@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { toast } from "sonner";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -145,6 +146,7 @@ export function ProfileContent({
       setEditingIdentity(false);
       setSavedIdentity(true);
       setTimeout(() => setSavedIdentity(false), 2500);
+      toast.success("Profile updated ✓");
     } finally {
       setSavingIdentity(false);
     }
@@ -166,6 +168,7 @@ export function ProfileContent({
       setEditingBusiness(false);
       setSavedBusiness(true);
       setTimeout(() => setSavedBusiness(false), 2500);
+      toast.success("Business info saved ✓");
     } finally {
       setSavingBusiness(false);
     }
@@ -184,6 +187,7 @@ export function ProfileContent({
         .eq("user_id", user.id);
       setSavedTheme(true);
       setTimeout(() => setSavedTheme(false), 2000);
+      toast.success("Theme updated — reloading…");
       window.location.reload();
     } finally {
       setSavingTheme(false);
@@ -214,8 +218,10 @@ export function ProfileContent({
         .from("user_settings")
         .update({ avatar_url: publicUrl })
         .eq("user_id", user.id);
+      toast.success("Avatar updated ✓");
     } catch (err) {
       console.error("Avatar upload failed:", err);
+      toast.error("Upload failed — please try again.");
     } finally {
       setUploadingAvatar(false);
       if (e.target) e.target.value = "";
@@ -244,8 +250,10 @@ export function ProfileContent({
         .from("user_settings")
         .update({ business_logo_url: publicUrl })
         .eq("user_id", user.id);
+      toast.success("Logo updated ✓");
     } catch (err) {
       console.error("Logo upload failed:", err);
+      toast.error("Upload failed — please try again.");
     } finally {
       setUploadingLogo(false);
       if (e.target) e.target.value = "";

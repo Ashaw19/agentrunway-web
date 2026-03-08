@@ -51,9 +51,8 @@ export function ForecastContent({
   transactions,
   pipelineDeals,
   expenseCategories,
-  subscriptionTier = "starter",
+  subscriptionTier: _subscriptionTier = "starter",
 }: Props) {
-  const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   if (!settings) {
     return (
       <div className="py-20 text-center text-muted-foreground">
@@ -174,7 +173,7 @@ export function ForecastContent({
       <div className="border-b border-border/60 pb-5">
         <h1 className="text-2xl font-semibold tracking-tight">Forecast</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Year-end projections & financial outlook &middot; {PROVINCE_LABELS[settings.province]}
+          Where you&apos;ll land this year — and how to close the gap &middot; {PROVINCE_LABELS[settings.province]}
         </p>
       </div>
 
