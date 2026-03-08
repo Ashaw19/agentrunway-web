@@ -292,9 +292,30 @@ export interface ExpenseCategoryWithItems extends ExpenseCategory {
   items: ExpenseItem[];
 }
 
+// ── Client identity (master record, one per unique client per agent) ──────────
+// Analytics-only — no CRM fields (no notes, activity log, reminders).
+// All metrics (lifetime GCI, deal count, etc.) are derived from client_records.
+export interface Client {
+  id: string;
+  user_id: string;
+
+  name: string;
+  name_search: string;   // lower(trim(name)) — for dedup matching
+
+  // Optional contact info for identification only (not exposed in send/email UI)
+  email: string | null;
+  phone: string | null;
+
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ClientRecord {
   id: string;
   user_id: string;
+
+  // FK to clients.id — null for pre-migration records or unmatched imports
+  client_id: string | null;
 
   name: string;
   side: "buyer" | "seller" | "both" | null; // agent's role in the deal

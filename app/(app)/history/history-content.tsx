@@ -445,14 +445,36 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       await supabase.from("client_records").delete()
         .eq("user_id", user.id).eq("year", importData.year);
 
+      // ── Upsert client identities, then attach client_id to each record ────
+      const dealNames = importData.deals
+        .map((deal, i) => {
+          const sideSelected = agentSides[i] ?? deal.agent_side;
+          return ((sideSelected === 1 ? deal.party_b : deal.party_a) ?? "").trim();
+        })
+        .filter(Boolean);
+      const uniqueNames = [...new Set(dealNames)];
+
+      if (uniqueNames.length > 0) {
+        await supabase.from("clients").upsert(
+          uniqueNames.map((name) => ({ user_id: user.id, name, name_search: name.toLowerCase() })),
+          { onConflict: "user_id,name_search", ignoreDuplicates: true },
+        );
+      }
+      const { data: clientRows } = uniqueNames.length > 0
+        ? await supabase.from("clients").select("id, name_search").eq("user_id", user.id)
+            .in("name_search", uniqueNames.map((n) => n.toLowerCase()))
+        : { data: [] as { id: string; name_search: string }[] };
+      const clientIdMap = new Map((clientRows ?? []).map((c) => [c.name_search, c.id]));
+
       const clientInserts = importData.deals
         .map((deal, i) => {
           const sideSelected = agentSides[i] ?? deal.agent_side;
-          const clientName = sideSelected === 1 ? deal.party_b : deal.party_a;
+          const clientName = ((sideSelected === 1 ? deal.party_b : deal.party_a) ?? "").trim();
           if (!clientName) return null;
           return {
             user_id: user.id,
             name: clientName,
+            client_id: clientIdMap.get(clientName.toLowerCase()) ?? null,
             side: deal.side ?? null,
             source: deal.source ?? null,
             address: deal.address || null,
@@ -546,11 +568,28 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       await supabase.from("client_records").delete()
         .eq("user_id", user.id).eq("year", yearData.year);
 
+      // ── Upsert client identities for this year, then attach client_id ─────
+      const uniqueYearNames = [
+        ...new Set(yearData.deals.map((d) => d.party_a?.trim()).filter(Boolean) as string[]),
+      ];
+      if (uniqueYearNames.length > 0) {
+        await supabase.from("clients").upsert(
+          uniqueYearNames.map((name) => ({ user_id: user.id, name, name_search: name.toLowerCase() })),
+          { onConflict: "user_id,name_search", ignoreDuplicates: true },
+        );
+      }
+      const { data: yearClientRows } = uniqueYearNames.length > 0
+        ? await supabase.from("clients").select("id, name_search").eq("user_id", user.id)
+            .in("name_search", uniqueYearNames.map((n) => n.toLowerCase()))
+        : { data: [] as { id: string; name_search: string }[] };
+      const yearClientIdMap = new Map((yearClientRows ?? []).map((c) => [c.name_search, c.id]));
+
       const clientInserts = yearData.deals
-        .filter((d) => d.party_a)
+        .filter((d) => d.party_a?.trim())
         .map((d) => ({
           user_id: user.id,
-          name: d.party_a,           // in career tracker, party_a is always the client
+          name: d.party_a,
+          client_id: yearClientIdMap.get(d.party_a.toLowerCase()) ?? null,
           side: d.side ?? null,
           source: d.source ?? null,
           address: d.address || null,
