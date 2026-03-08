@@ -43,6 +43,9 @@ import type { ImportResult } from "@/app/api/import-history/route";
 interface Props {
   historyItems: HistoryItem[];
   transactions: Transaction[];
+  /** Agent's split decimal from Settings (e.g. 0.75), or null if not set. Used as the
+   *  pre-fill default for per-year split selectors; null shows "Select split…" prompt. */
+  settingsSplit: number | null;
 }
 
 // Per-quarter colour config
@@ -65,7 +68,7 @@ const SPLIT_OPTIONS: { label: string; value: number }[] = [
   { label: "100%  — no brokerage split", value: 1.00 },
 ];
 
-export function HistoryContent({ historyItems: initial, transactions }: Props) {
+export function HistoryContent({ historyItems: initial, transactions, settingsSplit }: Props) {
   const [items, setItems] = useState(initial);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
@@ -89,10 +92,11 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
   const [batchProgress, setBatchProgress]       = useState({ current: 0, total: 0 });
 
   // ── Split selection state ─────────────────────────────────────────────────
-  // Per-dialog split selectors; batchSplitPcts is initialised from auto-detection
-  const [addSplitPct,    setAddSplitPct]    = useState<number>(0.75);
-  const [importSplitPct, setImportSplitPct] = useState<number>(0.75);
-  const [batchSplitPcts, setBatchSplitPcts] = useState<Record<number, number>>({});
+  // Default from the user's Settings split; null = "Select split…" placeholder shown.
+  // Auto-detected splits (from GCI/Net ratio in the spreadsheet) take precedence.
+  const [addSplitPct,    setAddSplitPct]    = useState<number | null>(settingsSplit);
+  const [importSplitPct, setImportSplitPct] = useState<number | null>(settingsSplit);
+  const [batchSplitPcts, setBatchSplitPcts] = useState<Record<number, number | null>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -333,9 +337,10 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
           setBatchImportData(sortedResults);
           // Pre-populate split selectors from auto-detected GCI/Net ratios
           setBatchSplitPcts(sortedResults.reduce((acc, r) => {
-            acc[r.year] = detectedSplitMap[r.year] ?? r.split_pct ?? 0.75;
+            // Priority: auto-detected from spreadsheet → user's Settings split → null (user must choose)
+            acc[r.year] = detectedSplitMap[r.year] ?? r.split_pct ?? settingsSplit ?? null;
             return acc;
-          }, {} as Record<number, number>));
+          }, {} as Record<number, number | null>));
           setImportStatus("preview");
           return; // skip single-year flow
         }
@@ -376,7 +381,8 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
       });
 
       setImportData(data);
-      setImportSplitPct(data.split_pct ?? 0.75);
+      // Priority: auto-detected from spreadsheet → user's Settings split → null (user must choose)
+      setImportSplitPct(data.split_pct ?? settingsSplit ?? null);
       setAgentSides(sides);
       setImportStatus("preview");
     } catch (err) {
@@ -505,7 +511,7 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
     let totalClients = 0;
 
     for (const yearData of batchImportData) {
-      const effectiveSplit = batchSplitPcts[yearData.year] ?? yearData.split_pct ?? 0.75;
+      const effectiveSplit = batchSplitPcts[yearData.year] ?? yearData.split_pct ?? settingsSplit ?? null;
       const payload = {
         user_id: user.id,
         year: yearData.year,
@@ -648,10 +654,11 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
                 <div className="grid gap-2">
                   <Label>Brokerage Split</Label>
                   <select
-                    value={addSplitPct}
-                    onChange={(e) => setAddSplitPct(Number(e.target.value))}
+                    value={addSplitPct ?? ""}
+                    onChange={(e) => setAddSplitPct(e.target.value === "" ? null : Number(e.target.value))}
                     className="border border-input rounded-md h-10 px-3 text-sm bg-background w-full outline-none cursor-pointer"
                   >
+                    <option value="" disabled>Select split…</option>
                     {SPLIT_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
@@ -748,10 +755,11 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                         <span className="text-[11px] text-muted-foreground">Brokerage split:</span>
                         <select
-                          value={batchSplitPcts[yr.year] ?? 0.75}
-                          onChange={(e) => setBatchSplitPcts((prev) => ({ ...prev, [yr.year]: Number(e.target.value) }))}
+                          value={batchSplitPcts[yr.year] ?? ""}
+                          onChange={(e) => setBatchSplitPcts((prev) => ({ ...prev, [yr.year]: e.target.value === "" ? null : Number(e.target.value) }))}
                           className="text-[11px] border border-border rounded px-2 py-0.5 bg-card outline-none cursor-pointer"
                         >
+                          <option value="" disabled>Select split…</option>
                           {SPLIT_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>{opt.label}</option>
                           ))}
@@ -820,10 +828,11 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
                   <p className="text-[11px] text-muted-foreground mt-0.5">Your share of each commission this year</p>
                 </div>
                 <select
-                  value={importSplitPct}
-                  onChange={(e) => setImportSplitPct(Number(e.target.value))}
+                  value={importSplitPct ?? ""}
+                  onChange={(e) => setImportSplitPct(e.target.value === "" ? null : Number(e.target.value))}
                   className="text-sm border border-input rounded-md px-2.5 py-1.5 bg-background outline-none cursor-pointer shrink-0"
                 >
+                  <option value="" disabled>Select split…</option>
                   {SPLIT_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
