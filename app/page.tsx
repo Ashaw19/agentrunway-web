@@ -43,24 +43,36 @@ const FEATURES = [
     title: "Track GCI",
     description:
       "Log every deal and watch your year-to-date commission income build against your annual goal. Know exactly where you stand at every point in the year.",
+    iconClass: "bg-gradient-to-br from-blue-500 to-blue-700",
+    topBorder: "border-t-blue-500/60",
+    hoverShadow: "hover:shadow-blue-500/10",
   },
   {
     icon: TrendingUp,
     title: "Forecast Income",
     description:
       "Seasonality-aware projections combine your closed deals and probability-weighted pipeline to show where you'll land at year-end.",
+    iconClass: "bg-gradient-to-br from-emerald-500 to-emerald-700",
+    topBorder: "border-t-emerald-500/60",
+    hoverShadow: "hover:shadow-emerald-500/10",
   },
   {
     icon: Shield,
     title: "Measure Financial Runway",
     description:
       "See how many months your cash reserves cover your fixed costs. Know your number before you need it — not after.",
+    iconClass: "bg-gradient-to-br from-violet-500 to-violet-700",
+    topBorder: "border-t-violet-500/60",
+    hoverShadow: "hover:shadow-violet-500/10",
   },
   {
     icon: Sparkles,
     title: "AI Business Insights",
     description:
       "Contextual advisor cards surface risks, opportunities, and next steps based on your live business data — not generic advice.",
+    iconClass: "bg-gradient-to-br from-amber-500 to-amber-600",
+    topBorder: "border-t-amber-500/60",
+    hoverShadow: "hover:shadow-amber-500/10",
   },
 ];
 
@@ -73,6 +85,8 @@ const TESTIMONIALS = [
     name: "Sarah M.",
     title: "Residential Agent, Toronto ON",
     initials: "SM",
+    avatarClass: "bg-gradient-to-br from-blue-500 to-blue-700",
+    cardAccent: "border-l-blue-500/40",
   },
   {
     quote:
@@ -80,6 +94,8 @@ const TESTIMONIALS = [
     name: "Jason T.",
     title: "RE/MAX Agent, Calgary AB",
     initials: "JT",
+    avatarClass: "bg-gradient-to-br from-emerald-500 to-emerald-700",
+    cardAccent: "border-l-emerald-500/40",
   },
   {
     quote:
@@ -87,6 +103,8 @@ const TESTIMONIALS = [
     name: "Michelle L.",
     title: "Independent Agent, Ottawa ON",
     initials: "ML",
+    avatarClass: "bg-gradient-to-br from-violet-500 to-violet-700",
+    cardAccent: "border-l-violet-500/40",
   },
 ] as const;
 
@@ -160,7 +178,7 @@ export default async function Home() {
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link
                 href="/login"
-                className="inline-flex items-center rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
+                className="inline-flex items-center rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-500 hover:shadow-blue-500/40"
               >
                 Get Started
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -176,29 +194,29 @@ export default async function Home() {
         </section>
 
         {/* ── Features ── */}
-        <section id="features" className="bg-white px-6 py-20 sm:px-10">
+        <section id="features" className="bg-slate-950 px-6 py-20 sm:px-10">
           <div className="mx-auto max-w-6xl">
 
             <div className="mb-14 text-center">
-              <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+              <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
                 Everything you need to run your business
               </h2>
-              <p className="mt-4 text-lg text-slate-500">
+              <p className="mt-4 text-lg text-slate-400">
                 Purpose-built tools for agents who want financial clarity.
               </p>
             </div>
 
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {FEATURES.map(({ icon: Icon, title, description }) => (
+              {FEATURES.map(({ icon: Icon, title, description, iconClass, topBorder, hoverShadow }) => (
                 <article
                   key={title}
-                  className="rounded-xl border border-slate-200 bg-slate-50 p-6 transition-shadow hover:shadow-lg hover:shadow-blue-500/5"
+                  className={`rounded-xl border border-slate-700/60 bg-slate-900/60 p-6 border-t-2 ${topBorder} transition-shadow hover:shadow-xl ${hoverShadow}`}
                 >
-                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-700">
+                  <div className={`mb-4 flex h-10 w-10 items-center justify-center rounded-lg ${iconClass}`}>
                     <Icon className="h-5 w-5 text-white" />
                   </div>
-                  <h3 className="mb-2 font-semibold text-slate-900">{title}</h3>
-                  <p className="text-sm leading-relaxed text-slate-500">
+                  <h3 className="mb-2 font-semibold text-white">{title}</h3>
+                  <p className="text-sm leading-relaxed text-slate-400">
                     {description}
                   </p>
                 </article>
@@ -208,16 +226,16 @@ export default async function Home() {
         </section>
 
         {/* ── Why It Matters ── */}
-        <section id="why" className="bg-slate-50 px-6 py-20 sm:px-10">
+        <section id="why" className="bg-gradient-to-b from-slate-950 to-slate-900 px-6 py-20 sm:px-10">
           <div className="mx-auto max-w-3xl text-center">
 
-            <h2 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
               Most agents track transactions.
               <br className="hidden sm:block" />
               Agent Runway gives you CEO-level visibility.
             </h2>
 
-            <p className="mt-8 text-lg leading-relaxed text-slate-600">
+            <p className="mt-8 text-lg leading-relaxed text-slate-400">
               Knowing your GCI is a start. Agent Runway goes further — showing
               your true net income after commission split, transaction fees, and
               business expenses. It estimates your tax obligations before filing
@@ -225,14 +243,14 @@ export default async function Home() {
               builds{" "}
               <Link
                 href="/real-estate-business-analytics"
-                className="text-blue-600 underline underline-offset-2 hover:text-blue-500"
+                className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
               >
                 forward-looking forecasts
               </Link>
               {" "}from your actual pipeline.
             </p>
 
-            <p className="mt-5 text-lg leading-relaxed text-slate-600">
+            <p className="mt-5 text-lg leading-relaxed text-slate-400">
               Built specifically for Canadian agents, with full provincial tax
               calculations and national seasonality data. Whether you&apos;re a
               solo agent or running a team, Agent Runway gives you the financial
@@ -242,7 +260,7 @@ export default async function Home() {
             <div className="mt-10">
               <Link
                 href="/login"
-                className="inline-flex items-center rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
+                className="inline-flex items-center rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-500 hover:shadow-blue-500/40"
               >
                 Get Started
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -266,10 +284,10 @@ export default async function Home() {
             </div>
 
             <div className="grid gap-6 md:grid-cols-3">
-              {TESTIMONIALS.map(({ quote, name, title, initials }) => (
+              {TESTIMONIALS.map(({ quote, name, title, initials, avatarClass, cardAccent }) => (
                 <figure
                   key={name}
-                  className="flex flex-col rounded-2xl border border-slate-800 bg-slate-900 p-8"
+                  className={`flex flex-col rounded-2xl border border-slate-800 border-l-2 ${cardAccent} bg-slate-900 p-8`}
                 >
                   <blockquote className="flex-1">
                     <p className="text-sm leading-relaxed text-slate-300">
@@ -277,7 +295,7 @@ export default async function Home() {
                     </p>
                   </blockquote>
                   <figcaption className="mt-6 flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600">
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${avatarClass}`}>
                       <span className="text-xs font-bold text-white">
                         {initials}
                       </span>

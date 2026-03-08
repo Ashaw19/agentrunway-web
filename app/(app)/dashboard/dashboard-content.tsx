@@ -397,10 +397,10 @@ export function DashboardContent({
 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-t-2 border-t-primary/40">
+        <Card className="border-t-2 border-t-emerald-500/50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription>YTD GCI</CardDescription>
-            <div className="rounded-md bg-emerald-50 p-1.5">
+            <div className="rounded-md bg-emerald-500/10 p-1.5">
               <DollarSign className="h-4 w-4 text-emerald-600" />
             </div>
           </CardHeader>
@@ -428,10 +428,10 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-primary/40">
+        <Card className="border-t-2 border-t-blue-500/50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription>Closed Deals</CardDescription>
-            <div className="rounded-md bg-blue-50 p-1.5">
+            <div className="rounded-md bg-blue-500/10 p-1.5">
               <Briefcase className="h-4 w-4 text-blue-600" />
             </div>
           </CardHeader>
@@ -443,10 +443,10 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-primary/40">
+        <Card className="border-t-2 border-t-violet-500/50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription>Active Pipeline</CardDescription>
-            <div className="rounded-md bg-violet-50 p-1.5">
+            <div className="rounded-md bg-violet-500/10 p-1.5">
               <TrendingUp className="h-4 w-4 text-violet-600" />
             </div>
           </CardHeader>
@@ -462,10 +462,10 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-primary/40">
+        <Card className="border-t-2 border-t-teal-500/50">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription>Projected Year-End</CardDescription>
-            <div className="rounded-md bg-teal-50 p-1.5">
+            <div className="rounded-md bg-teal-500/10 p-1.5">
               <Target className="h-4 w-4 text-teal-600" />
             </div>
           </CardHeader>
@@ -551,7 +551,7 @@ export function DashboardContent({
 
       {/* Monthly Performance Chart — Standard + Full */}
       {dashboardView !== "essentials" && (
-        <Card className="border-t-2 border-t-primary/40">
+        <Card className="border-t-2 border-t-primary/30">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
