@@ -270,8 +270,14 @@ export function DashboardContent({
     strong: "text-emerald-600",
   };
 
+  // Derived status labels for the strip
+  const paceLabel = paceStatus === "ahead" ? "Ahead" : paceStatus === "behind" ? "Behind" : "On Track";
+  const runwayLabel = survival.riskLevel === "critical" ? "Critical" : survival.riskLevel === "warning" ? "Watchlist" : "Stable";
+  const paceStripColor = paceStatus === "ahead" ? "text-emerald-700 bg-emerald-50 border-emerald-200" : paceStatus === "behind" ? "text-amber-700 bg-amber-50 border-amber-200" : "text-slate-600 bg-slate-50 border-slate-200";
+  const runwayStripColor = survival.riskLevel === "critical" ? "text-red-700 bg-red-50 border-red-200" : survival.riskLevel === "warning" ? "text-amber-700 bg-amber-50 border-amber-200" : "text-emerald-700 bg-emerald-50 border-emerald-200";
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Upgrade success banner */}
       {showUpgradeBanner && !bannerDismissed && (
         <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
@@ -337,54 +343,82 @@ export function DashboardContent({
         </div>
       </div>
 
+      {/* ── Status strip ── */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2.5">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mr-1">
+          Status
+        </span>
+        <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold", paceStripColor)}>
+          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+          Pace: {paceLabel}
+        </span>
+        <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold", runwayStripColor)}>
+          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+          Runway: {runwayLabel}
+        </span>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+          Scenario: {scenario === "conservative" ? "Conservative −15%" : scenario === "optimistic" ? "Optimistic +15%" : "Base"}
+        </span>
+        <span className="ml-auto text-[11px] text-slate-400 hidden sm:block">
+          {runwayScore.grade} · Score {runwayScore.score}/100
+        </span>
+      </div>
+
+      {/* ── Section: Business Health ── */}
+      <SectionHeader label="Business Health" />
+
       {/* Runway Score Hero */}
-        <Card className="bg-gradient-to-br from-background to-primary/5 border-primary/20">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/60 shadow-lg">
-                  <span className="text-2xl font-bold text-white">
-                    {runwayScore.grade}
-                  </span>
-                </div>
-                <div>
-                  <div className="flex items-center gap-1">
-                    <p className="text-sm font-medium text-muted-foreground">
-                      Runway Score
-                    </p>
-                    <RunwayScoreInfoDialog />
-                  </div>
-                  <p className="text-3xl font-bold">{runwayScore.score}</p>
-                </div>
+      <Card className="rounded-2xl border-indigo-100 bg-gradient-to-br from-indigo-50 via-blue-50 to-slate-50 shadow-md shadow-indigo-100/60">
+        <CardContent className="pt-6 pb-6">
+          <div className="flex flex-wrap items-center justify-between gap-6">
+            {/* Left: grade circle + score */}
+            <div className="flex items-center gap-5">
+              <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-blue-600 shadow-lg shadow-indigo-200/70">
+                <span className="text-3xl font-black text-white leading-none">
+                  {runwayScore.grade}
+                </span>
               </div>
-              <div className="text-right">
-                <div className="flex items-center gap-2">
-                  <Shield className="h-4 w-4 text-muted-foreground" />
-                  <span className={`text-sm font-medium ${riskColors[survival.riskLevel]}`}>
-                    {formatSurvivalDisplay(survival)} runway
-                  </span>
+              <div>
+                <div className="flex items-center gap-1">
+                  <p className="text-sm font-semibold text-slate-500">Runway Score</p>
+                  <RunwayScoreInfoDialog />
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {COHORT_LABELS[benchmark.cohort]} &middot; P{benchmark.percentile}
+                <p className="text-4xl font-extrabold text-slate-800 leading-none mt-0.5">
+                  {runwayScore.score}
+                  <span className="text-base font-medium text-slate-400">/100</span>
                 </p>
+                <p className="mt-1 text-xs text-slate-500">{scoreNarrative}</p>
               </div>
             </div>
-            {/* Score components */}
-            <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-6">
-              {runwayScore.components.map((c) => (
-                <div key={c.label} className="text-center">
-                  <p className="text-xs text-muted-foreground">{c.label}</p>
-                  <p className="text-sm font-semibold">{c.score}</p>
-                  <Progress value={c.score} className="mt-1 h-1" />
-                </div>
-              ))}
+            {/* Right: survival + benchmark */}
+            <div className="flex gap-6 text-right sm:gap-8">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Runway</p>
+                <p className={cn("text-xl font-bold mt-0.5", riskColors[survival.riskLevel])}>
+                  {formatSurvivalDisplay(survival)}
+                </p>
+                <p className="text-xs text-slate-400">cash coverage</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Cohort Rank</p>
+                <p className="text-xl font-bold mt-0.5 text-slate-700">P{benchmark.percentile}</p>
+                <p className="text-xs text-slate-400">{COHORT_LABELS[benchmark.cohort]}</p>
+              </div>
             </div>
-            {/* Score narrative */}
-            <p className="mt-3 border-t border-border/60 pt-3 text-xs text-muted-foreground">
-              {scoreNarrative}
-            </p>
-          </CardContent>
-        </Card>
+          </div>
+          {/* Score components */}
+          <div className="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-6 border-t border-indigo-100 pt-4">
+            {runwayScore.components.map((c) => (
+              <div key={c.label} className="text-center">
+                <p className="text-[10px] font-medium text-slate-500">{c.label}</p>
+                <p className="text-sm font-bold text-slate-700 mt-0.5">{c.score}</p>
+                <Progress value={c.score} className="mt-1.5 h-2" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Business Health Narrative — Standard + Full */}
       {narrative && dashboardView !== "essentials" && (
@@ -395,25 +429,28 @@ export function DashboardContent({
         />
       )}
 
+      {/* ── Section: Performance Metrics ── */}
+      <SectionHeader label="Performance Metrics" />
+
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-t-2 border-t-emerald-500/50">
+        <Card className="rounded-2xl border-emerald-100 bg-gradient-to-br from-emerald-50 to-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription>YTD GCI</CardDescription>
-            <div className="rounded-md bg-emerald-500/10 p-1.5">
+            <CardDescription className="font-semibold text-emerald-700">YTD GCI</CardDescription>
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100">
               <DollarSign className="h-4 w-4 text-emerald-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold tracking-tight">{fmtCurrency(ytdGCI)}</div>
+            <div className="text-3xl font-bold tracking-tight text-slate-800">{fmtCurrency(ytdGCI)}</div>
             {goalGCI > 0 ? (
               <>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-slate-500">
                   {fmtPct(ytdGCI / goalGCI)} of {fmtCompact(goalGCI)} goal
                 </p>
                 {fraction > 0 && paceStatus !== "no-goal" && (
                   <p className={cn(
-                    "mt-0.5 text-xs font-medium",
+                    "mt-0.5 text-xs font-semibold",
                     paceStatus === "ahead" ? "text-emerald-600" : "text-amber-600",
                   )}>
                     {paceStatus === "ahead"
@@ -423,38 +460,38 @@ export function DashboardContent({
                 )}
               </>
             ) : (
-              <p className="text-xs text-muted-foreground">Set a goal to track pace</p>
+              <p className="text-xs text-slate-400">Set a goal to track pace</p>
             )}
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-blue-500/50">
+        <Card className="rounded-2xl border-blue-100 bg-gradient-to-br from-blue-50 to-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription>Closed Deals</CardDescription>
-            <div className="rounded-md bg-blue-500/10 p-1.5">
+            <CardDescription className="font-semibold text-blue-700">Closed Deals</CardDescription>
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100">
               <Briefcase className="h-4 w-4 text-blue-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold tracking-tight">{ytdDealCount}</div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-3xl font-bold tracking-tight text-slate-800">{ytdDealCount}</div>
+            <p className="text-xs text-slate-500">
               Avg {fmtCurrency(avgDealSize)} per deal
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-violet-500/50">
+        <Card className="rounded-2xl border-purple-100 bg-gradient-to-br from-purple-50 to-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription>Active Pipeline</CardDescription>
-            <div className="rounded-md bg-violet-500/10 p-1.5">
-              <TrendingUp className="h-4 w-4 text-violet-600" />
+            <CardDescription className="font-semibold text-purple-700">Active Pipeline</CardDescription>
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-100">
+              <TrendingUp className="h-4 w-4 text-purple-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold tracking-tight">
+            <div className="text-3xl font-bold tracking-tight text-slate-800">
               {pipelineCount === 0 ? "—" : fmtCurrency(pipelineWeightedGCI)}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-slate-500">
               {pipelineCount === 0
                 ? "No active deals — add prospects"
                 : `${pipelineCount} deal${pipelineCount !== 1 ? "s" : ""} · probability-weighted`}
@@ -462,10 +499,10 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-teal-500/50">
+        <Card className="rounded-2xl border-teal-100 bg-gradient-to-br from-teal-50 to-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription>Projected Year-End</CardDescription>
-            <div className="rounded-md bg-teal-500/10 p-1.5">
+            <CardDescription className="font-semibold text-teal-700">Projected Year-End</CardDescription>
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-100">
               <Target className="h-4 w-4 text-teal-600" />
             </div>
           </CardHeader>
@@ -549,9 +586,12 @@ export function DashboardContent({
         </Card>
       )}
 
+      {/* ── Section: Activity & Trends ── */}
+      {dashboardView !== "essentials" && <SectionHeader label="Activity & Trends" />}
+
       {/* Monthly Performance Chart — Standard + Full */}
       {dashboardView !== "essentials" && (
-        <Card className="border-t-2 border-t-primary/30">
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
@@ -576,7 +616,7 @@ export function DashboardContent({
       {/* Probability bands + benchmark row — Full only */}
       {dashboardView === "full" && (
         <div className="grid gap-4 sm:grid-cols-2">
-          <Card className="border-t-2 border-t-primary/40">
+          <Card className="rounded-2xl border-blue-100 bg-blue-50/40 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Projection Range</CardTitle>
               <CardDescription>
@@ -609,7 +649,7 @@ export function DashboardContent({
             </CardContent>
           </Card>
 
-          <Card className="border-t-2 border-t-primary/40">
+          <Card className="rounded-2xl border-purple-100 bg-purple-50/40 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Benchmark</CardTitle>
               <CardDescription>
@@ -647,11 +687,14 @@ export function DashboardContent({
         </div>
       )}
 
+      {/* ── Section: Planning ── */}
+      {dashboardView === "full" && <SectionHeader label="Planning" />}
+
       {/* Tax estimate + Goal progress row — Full only */}
       {dashboardView === "full" && (
         <div className="grid gap-4 sm:grid-cols-2">
           {taxResult && (
-            <Card className="border-t-2 border-t-primary/40">
+            <Card className="rounded-2xl border-amber-100 bg-amber-50/40 shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Tax Estimate</CardTitle>
                 <CardDescription>
@@ -683,7 +726,7 @@ export function DashboardContent({
           )}
 
           {goalGCI > 0 && (
-            <Card className="border-t-2 border-t-primary/40">
+            <Card className="rounded-2xl border-emerald-100 bg-emerald-50/40 shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Goal Progress</CardTitle>
                 <CardDescription>
@@ -691,7 +734,7 @@ export function DashboardContent({
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Progress value={gciProgress} className="h-3" />
+                <Progress value={gciProgress} className="h-2.5 [&>div]:bg-emerald-500" />
                 <div className="mt-2 flex justify-between text-xs text-muted-foreground">
                   <span>$0</span>
                   <span>{fmtCompact(goalGCI)}</span>
@@ -705,11 +748,21 @@ export function DashboardContent({
         </div>
       )}
 
+      {/* ── Section: Insights & Activity ── */}
+      {(insights.length > 0 || true) && dashboardView !== "essentials" && (
+        <SectionHeader label="Insights & Activity" />
+      )}
+
       {/* Insights — Standard + Full */}
       {insights.length > 0 && dashboardView !== "essentials" && (
-          <Card className="border-t-2 border-t-primary/40">
+          <Card className="rounded-2xl border-amber-100 bg-gradient-to-br from-amber-50/60 to-white shadow-sm">
             <CardHeader>
-              <CardTitle className="text-base">Insights</CardTitle>
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-100">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                </div>
+                <CardTitle className="text-base">AI Insights</CardTitle>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -722,7 +775,7 @@ export function DashboardContent({
       )}
 
       {/* Recent transactions */}
-      <Card className="border-t-2 border-t-primary/40">
+      <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base">Recent Transactions</CardTitle>
           <CardDescription>
@@ -770,6 +823,19 @@ export function DashboardContent({
   );
 }
 
+// ── Section header ────────────────────────────────────────────────────────
+
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 pt-2">
+      <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400 whitespace-nowrap">
+        {label}
+      </p>
+      <div className="h-px flex-1 bg-slate-200" />
+    </div>
+  );
+}
+
 // ── Business Health Narrative card ───────────────────────────────────────
 
 const STATUS_STYLES: Record<
@@ -793,16 +859,18 @@ function BusinessHealthNarrativeCard({
 }) {
   const styles = STATUS_STYLES[narrative.status];
   return (
-    <Card className={cn("border-l-4", styles.border)}>
+    <Card className={cn("rounded-2xl border-l-4 bg-gradient-to-br from-slate-50 to-white shadow-sm", styles.border)}>
       {/* Clickable header — always visible */}
       <CardHeader
         className="cursor-pointer pb-2 pt-4 select-none"
         onClick={onToggle}
       >
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BarChart2 className={cn("h-4 w-4", styles.icon)} />
-            <CardTitle className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          <div className="flex items-center gap-2.5">
+            <div className={cn("flex h-7 w-7 items-center justify-center rounded-full", styles.chip.includes("emerald") ? "bg-emerald-100" : styles.chip.includes("amber") ? "bg-amber-100" : styles.chip.includes("orange") ? "bg-orange-100" : "bg-red-100")}>
+              <BarChart2 className={cn("h-3.5 w-3.5", styles.icon)} />
+            </div>
+            <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-500">
               Business Health Narrative
             </CardTitle>
           </div>
@@ -820,7 +888,7 @@ function BusinessHealthNarrativeCard({
         </div>
         {/* Summary always visible below the header row */}
         {!isOpen && (
-          <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+          <p className="mt-1.5 line-clamp-2 text-sm text-slate-600">
             {narrative.summary}
           </p>
         )}
