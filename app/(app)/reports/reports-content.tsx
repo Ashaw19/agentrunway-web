@@ -106,8 +106,9 @@ export function ReportsContent({
     settings.tx_fee_rate_pct,
     settings.tx_fee_annual_cap,
   );
+  // getMonth() is 0-based (Jan=0, Feb=1, …) — add 1 to include the current month
   const brokerageFeeYTD =
-    settings.monthly_brokerage_fee * new Date().getMonth();
+    settings.monthly_brokerage_fee * (new Date().getMonth() + 1);
 
   // ── Expenses ──────────────────────────────────────────────────────────
   const expensesYTD = expenseCategories.reduce(

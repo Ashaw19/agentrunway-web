@@ -59,6 +59,7 @@ import {
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
+  projectedYearEndTransactions,
   paceVsGoalPercent,
   daysRemaining,
   todayDescription,
@@ -203,9 +204,15 @@ export function DashboardContent({
   const runwayScore = computeRunwayScore(healthReport, benchmark.percentile, survival.months);
 
   // ── Tax estimate ──────────────────────────────────────────────────────
+  // Annualised expenses used for tax basis (matching forecast page)
+  const annualExpenses = expensesYTD + monthlyRecurring * 12;
   const projectedNet = computeProjectedNet(projectedGCI, settings);
+  // Net self-employment income = gross-of-brokerage minus all business expenses
+  const netForTax = Math.max(0, projectedNet - annualExpenses);
+  // Per-deal set-aside is more useful against projected deal count, not just YTD
+  const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);
   const taxResult = settings
-    ? calculateTax(projectedNet, settings.province, Math.max(ytdDealCount, 1))
+    ? calculateTax(netForTax, settings.province, Math.max(projectedDealCount, 1))
     : null;
 
   // ── Trend ─────────────────────────────────────────────────────────────
@@ -1452,9 +1459,11 @@ function buildHealthReport(
   }
 
   // Expense score: lower ratio = higher score
+  // Use ytdGCI (not projectedGCI) so the ratio is apples-to-apples with
+  // the expense ratio shown on the Expenses page and in the Insights engine.
   let expenseScore = 80;
-  if (projectedGCI > 0) {
-    const ratio = expensesYTD / projectedGCI;
+  if (ytdGCI > 0) {
+    const ratio = expensesYTD / ytdGCI;
     if (ratio > 0.5) expenseScore = 30;
     else if (ratio > 0.35) expenseScore = 55;
     else if (ratio > 0.25) expenseScore = 75;
