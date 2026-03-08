@@ -282,6 +282,7 @@ export async function POST(req: NextRequest) {
     imageBase64?: string;
     mimeType?: string;       // e.g. "image/jpeg", "image/png"
     textContent?: string;    // for Excel/CSV
+    yearHint?: number;       // override year detection (extracted from sheet name client-side)
   };
 
   if (!body.imageBase64 && !body.textContent) {
@@ -348,8 +349,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Malformed response", raw }, { status: 422 });
     }
 
+    // yearHint from the sheet name overrides Groq's title-row year detection
+    // (e.g. "2026 SALES" sheet has a title row saying "2025 Transaction Tracker")
+    const effectiveYear = (body.yearHint && body.yearHint > 2000 && body.yearHint < 2100)
+      ? body.yearHint
+      : parsed.year;
+
     // Compute all aggregates in code — never trust Groq's arithmetic
-    const result = computeAggregates(parsed.deals, parsed.year);
+    const result = computeAggregates(parsed.deals, effectiveYear);
 
     return NextResponse.json(result);
   } catch (err) {

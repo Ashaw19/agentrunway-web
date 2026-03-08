@@ -277,16 +277,34 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
           const results: ImportResult[] = [];
           for (let si = 0; si < yearSheets.length; si++) {
             setBatchProgress({ current: si + 1, total: yearSheets.length });
-            const ws = workbook.Sheets[yearSheets[si]];
-            const csv = XLSX.utils.sheet_to_csv(ws);
-            const res = await fetch("/api/import-history", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ textContent: csv }),
-            });
-            if (res.ok) {
-              const yr = await res.json() as ImportResult;
-              if (yr.annual_tx > 0) results.push(yr); // skip empty sheets
+            const sheetName = yearSheets[si];
+            // Extract year from the SHEET NAME (reliable) — not the title row
+            const sheetYear = parseInt(/\b(20\d{2})\b/.exec(sheetName)?.[1] ?? "0");
+            const ws = workbook.Sheets[sheetName];
+
+            // Try browser-side parsing first — 100% reliable for agent tracker format
+            // (handles $-prefixed numbers, 2-digit years, Q1-Q4, missing-year dates)
+            const rawRows = XLSX.utils.sheet_to_json<string[]>(ws, {
+              header: 1, defval: "", raw: false,
+            }) as string[][];
+            const trackerDeals = parseTrackerSheet(rawRows, sheetYear);
+
+            if (trackerDeals.length > 0) {
+              // No Groq needed — computed fully in-browser
+              const result = computeLocalAggregates(trackerDeals, sheetYear);
+              if (result.annual_tx > 0) results.push(result);
+            } else {
+              // Fallback: send to Groq with year hint from sheet name
+              const csv = XLSX.utils.sheet_to_csv(ws);
+              const res = await fetch("/api/import-history", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ textContent: csv, yearHint: sheetYear }),
+              });
+              if (res.ok) {
+                const yr = await res.json() as ImportResult;
+                if (yr.annual_tx > 0) results.push(yr);
+              }
             }
           }
 
@@ -1145,4 +1163,152 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
       )}
     </div>
   );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Browser-side Agent Tracker CSV Parser
+// Parses the agent's own career tracker spreadsheet WITHOUT Groq.
+// Handles: $-prefixed numbers, 2-digit years, Q1-Q4 labels, missing-year dates.
+// Falls back to the Groq API for any sheet that doesn't match this format.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+type TrackerHeaders = {
+  nameCol: number;
+  addrCol: number;
+  dateCol: number;
+  sideCol: number;
+  sourceCol: number;
+  netCol: number;
+  rowIdx: number;
+};
+
+function normaliseHeader(h: string): string {
+  return h.toLowerCase().replace(/[\s|$,#]/g, "");
+}
+
+/** Find the header row and column indices for the agent tracker format. */
+function findTrackerHeaders(rows: string[][]): TrackerHeaders | null {
+  for (let i = 0; i < Math.min(rows.length, 12); i++) {
+    const hdrs = rows[i].map(normaliseHeader);
+    const nameCol   = hdrs.findIndex((h) => h === "name");
+    const sideCol   = hdrs.findIndex((h) => h.startsWith("buy") || h.startsWith("rent"));
+    const netCol    = hdrs.findIndex((h) => h.includes("netcommission"));
+    if (nameCol !== -1 && sideCol !== -1 && netCol !== -1) {
+      return {
+        nameCol,
+        addrCol:   hdrs.findIndex((h) => h === "address"),
+        dateCol:   hdrs.findIndex((h) => h.includes("date")),
+        sideCol,
+        sourceCol: hdrs.findIndex((h) => h === "source"),
+        netCol,
+        rowIdx: i,
+      };
+    }
+  }
+  return null;
+}
+
+/** Parse a messy date cell from the agent tracker into YYYY-MM-DD. */
+function parseTrackerDate(raw: string, year: number): string {
+  const s = raw?.trim() ?? "";
+  if (!s) return `${year}-06-15`;
+
+  // Q1 / Q2 / Q3 / Q4
+  const qm = s.match(/^Q([1-4])$/i);
+  if (qm) {
+    const ends = [{ m: 3, d: 31 }, { m: 6, d: 30 }, { m: 9, d: 30 }, { m: 12, d: 31 }];
+    const q = ends[parseInt(qm[1]) - 1];
+    return `${year}-${String(q.m).padStart(2, "0")}-${q.d}`;
+  }
+
+  // Strip parenthetical annotations: "Jan 12 (paid)" → "Jan 12"
+  let cleaned = s.replace(/\s*\([^)]*\)/g, "").trim();
+
+  // 2-digit year at end: "April 22, 25" or "Sept 28, 22"
+  cleaned = cleaned.replace(/,?\s*\b(\d{2})\s*$/, (_, y2) => `, ${2000 + parseInt(y2)}`);
+
+  // No 4-digit year → append sheet year: "May 1" → "May 1 2025"
+  if (!/\b\d{4}\b/.test(cleaned)) cleaned = `${cleaned} ${year}`;
+
+  const d = new Date(cleaned);
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  return `${year}-06-15`;
+}
+
+/** Parse all deal rows from a tracker sheet. Returns [] if not a tracker sheet. */
+function parseTrackerSheet(
+  rows: string[][],
+  sheetYear: number,
+): import("@/app/api/import-history/route").ExtractedDeal[] {
+  const hdrs = findTrackerHeaders(rows);
+  if (!hdrs) return [];
+
+  const deals: import("@/app/api/import-history/route").ExtractedDeal[] = [];
+
+  for (let i = hdrs.rowIdx + 1; i < rows.length; i++) {
+    const row = rows[i];
+    const name = row[hdrs.nameCol]?.trim() ?? "";
+
+    // Skip blank / total / header rows
+    if (!name || /^(totals?|number|name|transaction|$)/i.test(name)) continue;
+
+    // Strip $ and commas from GCI: "$10,875" → 10875
+    const rawGCI = (row[hdrs.netCol] ?? "").replace(/[$,\s]/g, "");
+    const gci = parseFloat(rawGCI) || 0;
+    if (gci <= 0) continue;
+
+    const rawSide = (row[hdrs.sideCol] ?? "").toLowerCase();
+    const side: import("@/app/api/import-history/route").ExtractedDeal["side"] =
+      rawSide.includes("sell") && rawSide.includes("buy") ? "both"
+      : rawSide.includes("sell") ? "seller"
+      : rawSide.includes("buy") || rawSide.includes("rent") ? "buyer"
+      : undefined;
+
+    const source  = (hdrs.sourceCol  >= 0 ? row[hdrs.sourceCol]?.trim() : "") || undefined;
+    const address = (hdrs.addrCol    >= 0 ? row[hdrs.addrCol]?.trim()   : "") ?? "";
+    const rawDate = (hdrs.dateCol    >= 0 ? row[hdrs.dateCol]?.trim()   : "") ?? "";
+
+    deals.push({
+      date:       parseTrackerDate(rawDate, sheetYear),
+      address,
+      gci,
+      party_a:    name,
+      party_b:    "",
+      agent_side: 0 as const,
+      source,
+      side,
+    });
+  }
+  return deals;
+}
+
+/** Compute quarterly/annual aggregates in the browser (same logic as the server). */
+function computeLocalAggregates(
+  deals: import("@/app/api/import-history/route").ExtractedDeal[],
+  year: number,
+): import("@/app/api/import-history/route").ImportResult {
+  const quarter_gci: [number, number, number, number] = [0, 0, 0, 0];
+  const quarter_tx:  [number, number, number, number] = [0, 0, 0, 0];
+
+  for (const deal of deals) {
+    const d = new Date(deal.date + "T12:00:00");
+    if (d.getFullYear() !== year) continue;
+    const q = Math.floor(d.getMonth() / 3) as 0 | 1 | 2 | 3;
+    quarter_gci[q] = Math.round((quarter_gci[q] + deal.gci) * 100) / 100;
+    quarter_tx[q]++;
+  }
+
+  return {
+    year,
+    annual_gci: Math.round(deals.reduce((s, d) => s + d.gci, 0) * 100) / 100,
+    annual_tx:  deals.length,
+    quarter_gci,
+    quarter_tx,
+    deals,
+  };
 }
