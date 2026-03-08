@@ -58,16 +58,41 @@ Required JSON structure:
   ]
 }
 
-CRITICAL RULES — read carefully:
+CRITICAL RULES — read every rule carefully before outputting:
 
-1. PARTY NAMES — each deal has exactly two sides separated by a "/" character:
-   - party_a = every name BEFORE the first "/" (trim spaces)
-   - party_b = every name AFTER the first "/" (trim spaces)
-   - The "&" character connects multiple people on the SAME side — it is NOT a separator
-   - Example: "John & Mary Smith / Bob Jones Ltd." → party_a="John & Mary Smith", party_b="Bob Jones Ltd."
-   - Example: "Ashley Mathias / Jiaolao Meng" → party_a="Ashley Mathias", party_b="Jiaolao Meng"
-   - NEVER include a "/" character in either party_a or party_b
-   - NEVER put both parties into party_a and leave party_b blank
+1. PARTY NAMES — the "/" character is the ONLY separator between the two sides of a deal.
+   You MUST split every name field into exactly two parts using the FIRST "/" as the dividing line.
+
+   SPLITTING RULES:
+   - party_a = everything BEFORE the first "/" (trimmed)
+   - party_b = everything AFTER the first "/" (trimmed)
+   - "&" joins people on the SAME side — it is never a separator between sides
+   - Names may span multiple lines in the PDF — treat them as one continuous string, find the "/", then split
+
+   WORKED EXAMPLES (study these carefully):
+   - "Ashley Mathias / Jiaolao Meng"
+     → party_a="Ashley Mathias", party_b="Jiaolao Meng"
+
+   - "John & Mary Smith / Bob Jones Ltd."
+     → party_a="John & Mary Smith", party_b="Bob Jones Ltd."
+
+   - "Micheal Beaton / Jeremy Silvio Macaulay & Ashley Diane Macaulay"
+     → party_a="Micheal Beaton", party_b="Jeremy Silvio Macaulay & Ashley Diane Macaulay"
+
+   - "Afshin & Donya Adivi / Estate Of Audrey Elizabeth Ferris"
+     → party_a="Afshin & Donya Adivi", party_b="Estate Of Audrey Elizabeth Ferris"
+
+   - "Ashley & Silvio Macaulay / J.P. Custom Homes Ltd."
+     → party_a="Ashley & Silvio Macaulay", party_b="J.P. Custom Homes Ltd."
+
+   HARD PROHIBITIONS:
+   - NEVER include a "/" character inside party_a or party_b
+   - NEVER put the full name string (including the "/") into party_a and leave party_b blank
+   - NEVER leave party_b as an empty string when a "/" is visible in the names field
+
+   SELF-CHECK before outputting each deal:
+   → Does party_a contain a "/"? If YES, you have made an error — re-split.
+   → Is party_b empty but the names field had a "/"? If YES, you have made an error — re-split.
 
 2. GCI VALUE — use the NET / TAXABLE column, not the gross commission:
    - Ignore the "Commission", "Gross", or full amount before the brokerage deduction
@@ -110,22 +135,42 @@ Return ONLY a raw JSON object (no markdown, no code fences). Required structure:
 Rules:
 - party_a and party_b represent the two sides of a real estate transaction (buyer / seller).
 - If names appear in separate columns (e.g. "Buyer" and "Seller" columns), use those columns directly.
-- If names appear combined with "/" separator: party_a = before the "/", party_b = after it.
+- If names appear combined with "/" separator: split on the FIRST "/" only.
+  party_a = everything BEFORE the first "/" (trimmed)
+  party_b = everything AFTER the first "/" (trimmed)
+  Examples:
+    "Afshin & Donya Adivi / Estate Of Audrey Elizabeth Ferris" → party_a="Afshin & Donya Adivi", party_b="Estate Of Audrey Elizabeth Ferris"
+    "Micheal Beaton / Jeremy Silvio Macaulay & Ashley Diane Macaulay" → party_a="Micheal Beaton", party_b="Jeremy Silvio Macaulay & Ashley Diane Macaulay"
+- "&" connects people on the SAME side — it is NOT a side separator.
 - NEVER include "/" in either party_a or party_b.
+- NEVER leave party_b empty when a "/" is present in the name field.
 - Ignore header rows, totals rows, expense rows, and anything that is not a closed transaction.
 - Return ONLY the JSON.`;
 
 // ── Aggregate computation (done in code — not trusted to Groq) ───────────────
 
 function computeAggregates(deals: GroqRawResponse["deals"], year: number): ImportResult {
-  const cleanDeals: ExtractedDeal[] = deals.map((d) => ({
-    date: d.date,
-    address: d.address ?? "",
-    gci: Number(d.gci) || 0,
-    party_a: d.party_a ?? "",
-    party_b: d.party_b ?? "",
-    agent_side: d.agent_side ?? null,
-  }));
+  const cleanDeals: ExtractedDeal[] = deals.map((d) => {
+    let party_a = (d.party_a ?? "").trim();
+    let party_b = (d.party_b ?? "").trim();
+
+    // Safety net: if Groq put the full "Name A / Name B" string into party_a
+    // and left party_b empty, split it here in code — guaranteed correct.
+    if (party_a.includes("/") && !party_b) {
+      const slashIdx = party_a.indexOf("/");
+      party_b = party_a.slice(slashIdx + 1).trim();
+      party_a = party_a.slice(0, slashIdx).trim();
+    }
+
+    return {
+      date: d.date,
+      address: d.address ?? "",
+      gci: Number(d.gci) || 0,
+      party_a,
+      party_b,
+      agent_side: d.agent_side ?? null,
+    };
+  });
 
   const quarter_gci: [number, number, number, number] = [0, 0, 0, 0];
   const quarter_tx:  [number, number, number, number] = [0, 0, 0, 0];
