@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -20,10 +20,24 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Lock, Unlock, Plus, ChevronDown, ChevronRight, Info } from "lucide-react";
+import {
+  Lock,
+  Unlock,
+  Plus,
+  ChevronDown,
+  ChevronRight,
+  Info,
+  Trash2,
+  Upload,
+  Loader2,
+  FileText,
+  CheckCircle2,
+  UserCheck,
+} from "lucide-react";
 import { fmtCurrency } from "@/lib/formatters";
 import { computeGCI, type HistoryItem, type Transaction } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
+import type { ImportResult } from "@/app/api/import-history/route";
 
 interface Props {
   historyItems: HistoryItem[];
@@ -38,6 +52,8 @@ const QUARTER_STYLES = [
   { label: "Q4", border: "border-violet-200", bg: "bg-violet-50", heading: "text-violet-700", ring: "focus-visible:ring-violet-400"  },
 ];
 
+type ImportStatus = "idle" | "rendering" | "extracting" | "preview" | "saving";
+
 export function HistoryContent({ historyItems: initial, transactions }: Props) {
   const [items, setItems] = useState(initial);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -47,6 +63,16 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
   const [addTx, setAddTx] = useState("");
   // Track which item+field is currently saving (for subtle feedback)
   const [saving, setSaving] = useState<string | null>(null);
+  // Two-step delete confirmation: holds the id of the year pending confirmation
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // ── PDF import state ─────────────────────────────────────────────────────
+  const [importOpen, setImportOpen]       = useState(false);
+  const [importStatus, setImportStatus]   = useState<ImportStatus>("idle");
+  const [importData, setImportData]       = useState<ImportResult | null>(null);
+  // Per-deal: which party is the agent's client (0 = party_a, 1 = party_b)
+  const [agentSides, setAgentSides]       = useState<Record<number, 0 | 1>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Group transactions by year for auto-derived stats
   const txByYear = transactions.reduce<Record<number, Transaction[]>>(
@@ -86,7 +112,6 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
 
   async function updateAnnualGCI(item: HistoryItem, value: string) {
     const num = parseFloat(value) || 0;
-    // Optimistic update
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, annual_gci: num } : i));
     setSaving(`${item.id}-annual_gci`);
     const supabase = createClient();
@@ -107,7 +132,6 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
     const num = parseFloat(value) || 0;
     const newArr = [...(item.quarter_gci as number[])];
     newArr[qi] = num;
-    // Optimistic update
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, quarter_gci: newArr } : i));
     setSaving(`${item.id}-qgci-${qi}`);
     const supabase = createClient();
@@ -149,13 +173,142 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
       setAddOpen(false);
       setAddGCI("");
       setAddTx("");
-      // Auto-expand the new year so user can enter quarterly data immediately
       setExpanded((prev) => new Set([...prev, data.id]));
       toast.success(`${addYear} history added ✓`);
     } else if (error) {
       toast.error("Couldn't add year — please try again.");
     }
   }
+
+  async function handleDeleteYear(item: HistoryItem) {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("history_items")
+      .delete()
+      .eq("id", item.id);
+    if (!error) {
+      setItems((prev) => prev.filter((i) => i.id !== item.id));
+      setConfirmDeleteId(null);
+      toast.success(`${item.year} removed from history.`);
+    } else {
+      toast.error("Couldn't delete year — please try again.");
+    }
+  }
+
+  // ── PDF import handlers ──────────────────────────────────────────────────
+
+  async function handleImportFile(file: File) {
+    setImportOpen(true);
+    setImportStatus("rendering");
+    setImportData(null);
+    setAgentSides({});
+
+    try {
+      // Dynamically import pdfjs-dist — client-only, avoids SSR issues
+      const pdfjsLib = await import("pdfjs-dist");
+      // Use the worker we copied to /public — no CDN, no webpack bundling issues
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+
+      // Page 1 = T4A (skip), Page 2 = transaction report
+      // Fall back to page 1 if the PDF has only one page
+      const pageNum = pdf.numPages >= 2 ? 2 : 1;
+      const page = await pdf.getPage(pageNum);
+
+      // Render at 2× scale for legibility — a letter page at 2× ≈ 1700×2200px
+      const scale = 2.0;
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      // pdfjs-dist v5: pass `canvas` directly (canvasContext is deprecated)
+      await page.render({ canvas, viewport }).promise;
+
+      // JPEG at 0.90 quality stays well under Groq's 4 MB base64 limit
+      const base64 = canvas.toDataURL("image/jpeg", 0.90).split(",")[1];
+
+      setImportStatus("extracting");
+
+      const res = await fetch("/api/import-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64 }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? "Extraction failed");
+      }
+
+      const data = await res.json() as ImportResult;
+
+      // Pre-populate agent_side selections from Groq's best guess
+      const sides: Record<number, 0 | 1> = {};
+      data.deals.forEach((deal, i) => {
+        if (deal.agent_side === 0 || deal.agent_side === 1) {
+          sides[i] = deal.agent_side;
+        }
+      });
+
+      setImportData(data);
+      setAgentSides(sides);
+      setImportStatus("preview");
+    } catch (err) {
+      console.error("[import] error:", err);
+      toast.error("Couldn't read the PDF — please try again.");
+      setImportStatus("idle");
+      setImportOpen(false);
+    } finally {
+      // Reset file input so the same file can be re-selected if needed
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleSaveImport() {
+    if (!importData) return;
+    setImportStatus("saving");
+
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("history_items")
+      .insert({
+        user_id: user.id,
+        year: importData.year,
+        annual_gci: importData.annual_gci,
+        annual_tx: importData.annual_tx,
+        quarter_gci: importData.quarter_gci,
+        quarter_tx: importData.quarter_tx,
+      })
+      .select()
+      .single();
+
+    if (!error && data) {
+      setItems((prev) => [data, ...prev].sort((a, b) => b.year - a.year));
+      setExpanded((prev) => new Set([...prev, data.id]));
+      setImportOpen(false);
+      setImportStatus("idle");
+      setImportData(null);
+      toast.success(`${importData.year} imported from brokerage report ✓`);
+    } else {
+      toast.error("Couldn't save — please try again.");
+      setImportStatus("preview");
+    }
+  }
+
+  function handleImportClose() {
+    if (importStatus === "saving") return; // don't close mid-save
+    setImportOpen(false);
+    setImportStatus("idle");
+    setImportData(null);
+    setAgentSides({});
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-8">
@@ -166,54 +319,260 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
             Your track record — where you&apos;ve been shapes where you&apos;re going.
           </p>
         </div>
-        <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm">
-              <Plus className="mr-1 h-4 w-4" />
-              Add Year
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add History Year</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <p className="text-xs text-muted-foreground flex items-start gap-1.5">
-                <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" />
-                Enter your annual totals here. After saving, expand the year card to fill in quarterly breakdowns — quarterly data powers the seasonality engine.
-              </p>
-              <div className="grid gap-2">
-                <Label>Year</Label>
-                <Input
-                  type="number"
-                  value={addYear}
-                  onChange={(e) => setAddYear(parseInt(e.target.value))}
-                />
+
+        {/* ── Action buttons ─────────────────────────────────────── */}
+        <div className="flex items-center gap-2">
+
+          {/* Import from brokerage report */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="mr-1 h-4 w-4" />
+            Import from Report
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,application/pdf"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleImportFile(file);
+            }}
+          />
+
+          {/* Manual Add Year dialog */}
+          <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="mr-1 h-4 w-4" />
+                Add Year
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add History Year</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <p className="text-xs text-muted-foreground flex items-start gap-1.5">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" />
+                  Enter your annual totals here. After saving, expand the year card to fill in quarterly breakdowns — quarterly data powers the seasonality engine.
+                </p>
+                <div className="grid gap-2">
+                  <Label>Year</Label>
+                  <Input
+                    type="number"
+                    value={addYear}
+                    onChange={(e) => setAddYear(parseInt(e.target.value))}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Annual GCI ($)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={addGCI}
+                    onChange={(e) => setAddGCI(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>Total Transactions</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={addTx}
+                    onChange={(e) => setAddTx(e.target.value)}
+                  />
+                </div>
+                <Button onClick={handleAddYear}>Save &amp; Add Quarterly Data</Button>
               </div>
-              <div className="grid gap-2">
-                <Label>Annual GCI ($)</Label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={addGCI}
-                  onChange={(e) => setAddGCI(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>Total Transactions</Label>
-                <Input
-                  type="number"
-                  placeholder="0"
-                  value={addTx}
-                  onChange={(e) => setAddTx(e.target.value)}
-                />
-              </div>
-              <Button onClick={handleAddYear}>Save &amp; Add Quarterly Data</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
+      {/* ── Import dialog ─────────────────────────────────────────────────── */}
+      <Dialog open={importOpen} onOpenChange={handleImportClose}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-primary" />
+              Import from Brokerage Report
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Loading states */}
+          {(importStatus === "rendering" || importStatus === "extracting") && (
+            <div className="flex flex-col items-center gap-4 py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <div className="text-center">
+                <p className="text-sm font-semibold text-foreground">
+                  {importStatus === "rendering"
+                    ? "Rendering your PDF…"
+                    : "Extracting data with AI…"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {importStatus === "rendering"
+                    ? "Reading page 2 of your brokerage report"
+                    : "Groq is reading your transaction table — usually takes 5–10 seconds"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Preview / confirm */}
+          {(importStatus === "preview" || importStatus === "saving") && importData && (
+            <div className="space-y-5 py-2">
+
+              {/* Summary banner */}
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-start gap-3">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-emerald-800">
+                    {importData.year} — {fmtCurrency(importData.annual_gci)} GCI · {importData.annual_tx} deals
+                  </p>
+                  <p className="text-xs text-emerald-700 mt-0.5">
+                    Extracted from your brokerage report. Review the details below before saving.
+                  </p>
+                </div>
+              </div>
+
+              {/* Quarterly breakdown */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-2">
+                  Quarterly Breakdown
+                </p>
+                <div className="grid grid-cols-4 gap-2">
+                  {QUARTER_STYLES.map((qs, qi) => (
+                    <div
+                      key={qs.label}
+                      className={cn("rounded-xl border p-3 text-center", qs.border, qs.bg)}
+                    >
+                      <p className={cn("text-[11px] font-bold uppercase tracking-wide mb-1", qs.heading)}>
+                        {qs.label}
+                      </p>
+                      <p className="text-sm font-bold text-slate-800 tabular-nums">
+                        {fmtCurrency(importData.quarter_gci[qi] ?? 0)}
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        {importData.quarter_tx[qi] ?? 0} deal{(importData.quarter_tx[qi] ?? 0) !== 1 ? "s" : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Deal-by-deal review */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <UserCheck className="h-3.5 w-3.5 text-slate-500" />
+                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                    Deals — tap to select which party was your client
+                  </p>
+                </div>
+
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {importData.deals.map((deal, i) => {
+                    const selected = agentSides[i];
+                    const date = new Date(deal.date + "T12:00:00").toLocaleDateString("en-CA", {
+                      month: "short",
+                      day: "numeric",
+                    });
+
+                    return (
+                      <div
+                        key={i}
+                        className="rounded-xl border border-border/60 bg-card px-3 py-2.5 space-y-2"
+                      >
+                        {/* Deal header */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-foreground truncate">
+                              {deal.address}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {date} · {fmtCurrency(deal.gci)} GCI
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-medium text-slate-400 shrink-0 tabular-nums">
+                            #{String(i + 1).padStart(2, "0")}
+                          </span>
+                        </div>
+
+                        {/* Party toggle buttons */}
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setAgentSides((prev) => ({ ...prev, [i]: 0 }))}
+                            className={cn(
+                              "rounded-lg border px-2 py-1.5 text-left text-[11px] leading-snug transition-all",
+                              selected === 0
+                                ? "border-primary bg-primary/10 text-primary font-semibold"
+                                : "border-border/60 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5",
+                            )}
+                          >
+                            <span className="block text-[10px] font-bold uppercase tracking-wide mb-0.5 opacity-60">
+                              {selected === 0 ? "✓ My Client" : "Party A"}
+                            </span>
+                            {deal.party_a}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAgentSides((prev) => ({ ...prev, [i]: 1 }))}
+                            className={cn(
+                              "rounded-lg border px-2 py-1.5 text-left text-[11px] leading-snug transition-all",
+                              selected === 1
+                                ? "border-primary bg-primary/10 text-primary font-semibold"
+                                : "border-border/60 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5",
+                            )}
+                          >
+                            <span className="block text-[10px] font-bold uppercase tracking-wide mb-0.5 opacity-60">
+                              {selected === 1 ? "✓ My Client" : "Party B"}
+                            </span>
+                            {deal.party_b}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <p className="mt-2 text-[11px] text-muted-foreground flex items-start gap-1">
+                  <Info className="h-3 w-3 mt-0.5 shrink-0" />
+                  Party selection is for your records. Your GCI values come from the
+                  &ldquo;Taxable&rdquo; column and are correct regardless of which side you represented.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center justify-between border-t border-border/40 pt-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleImportClose}
+                  disabled={importStatus === "saving"}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveImport}
+                  disabled={importStatus === "saving"}
+                >
+                  {importStatus === "saving" ? (
+                    <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</>
+                  ) : (
+                    `Save ${importData.year} to History`
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── History year cards ────────────────────────────────────────────── */}
       {items.length === 0 ? (
         <Card className="rounded-2xl border-slate-200 shadow-sm">
           <CardContent className="py-12 text-center text-muted-foreground">
@@ -227,14 +586,12 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
             const yearTx = txByYear[item.year] ?? [];
             const derivedGCI = yearTx.reduce((sum, tx) => sum + computeGCI(tx), 0);
 
-            // Quarter sums for comparison
             const quarterGCI = item.quarter_gci as number[];
             const quarterTx = item.quarter_tx as number[];
             const quarterGCISum = quarterGCI.reduce((s, v) => s + (v ?? 0), 0);
             const quarterTxSum = quarterTx.reduce((s, v) => s + (v ?? 0), 0);
             const hasQuarterData = quarterGCISum > 0 || quarterTxSum > 0;
 
-            // Cycle through accent colors for each year
             const accentBorders = [
               "border-l-blue-500",
               "border-l-violet-500",
@@ -368,7 +725,6 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
                                 />
                               </div>
                             </div>
-                            {/* Quarter summary */}
                             {(quarterGCI[qi] ?? 0) > 0 && (
                               <p className={cn("text-[10px] font-medium", qs.heading)}>
                                 {fmtCurrency(quarterGCI[qi])}
@@ -392,22 +748,55 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
                       </div>
                     )}
 
-                    {/* ── Lock / Unlock ─────────────────────────────────────── */}
+                    {/* ── Lock / Unlock + Delete ────────────────────────────── */}
                     <div className="flex items-center justify-between border-t border-border/40 pt-3">
                       <p className="text-xs text-muted-foreground">
                         {item.is_locked ? "Locked — data frozen for use in projections." : "Unlocked — you can edit all values."}
                       </p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => toggleLock(item)}
-                      >
-                        {item.is_locked ? (
-                          <><Unlock className="mr-1 h-3 w-3" /> Unlock</>
+                      <div className="flex items-center gap-1">
+                        {confirmDeleteId === item.id ? (
+                          <>
+                            <span className="text-xs text-red-600 font-medium mr-1">Delete {item.year}?</span>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDeleteYear(item)}
+                            >
+                              Confirm
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setConfirmDeleteId(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </>
                         ) : (
-                          <><Lock className="mr-1 h-3 w-3" /> Lock</>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-muted-foreground hover:text-red-600 hover:bg-red-50"
+                            disabled={item.is_locked}
+                            title={item.is_locked ? "Unlock this year before deleting" : `Delete ${item.year}`}
+                            onClick={() => setConfirmDeleteId(item.id)}
+                          >
+                            <Trash2 className="mr-1 h-3 w-3" />
+                            Delete
+                          </Button>
                         )}
-                      </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => toggleLock(item)}
+                        >
+                          {item.is_locked ? (
+                            <><Unlock className="mr-1 h-3 w-3" /> Unlock</>
+                          ) : (
+                            <><Lock className="mr-1 h-3 w-3" /> Lock</>
+                          )}
+                        </Button>
+                      </div>
                     </div>
 
                   </CardContent>
