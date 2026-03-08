@@ -14,6 +14,7 @@ import {
   Settings,
   CircleUser,
   Sparkles,
+  Users,
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,14 @@ const navItems = [
     iconActive: "text-sky-300",
     iconInactive: "text-sky-400/60",
     borderActive: "border-l-sky-400",
+  },
+  {
+    label: "Clients",
+    href: "/clients",
+    icon: Users,
+    iconActive: "text-teal-300",
+    iconInactive: "text-teal-400/60",
+    borderActive: "border-l-teal-400",
   },
   {
     label: "Forecast",

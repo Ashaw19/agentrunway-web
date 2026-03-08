@@ -11,6 +11,8 @@ export interface ExtractedDeal {
   party_a: string;      // names from ONE side of the deal (before the /)
   party_b: string;      // names from the OTHER side (after the /)
   agent_side: 0 | 1 | null; // 0 = represented party_a, 1 = party_b, null = unclear
+  source?: string;      // lead source: SOI, Agent Referral, Realtor.ca, etc.
+  side?: "buyer" | "seller" | "both"; // agent's role: from "Buy | Sell" column
 }
 
 export interface ImportResult {
@@ -33,6 +35,8 @@ interface GroqRawResponse {
     party_a: string;
     party_b: string;
     agent_side?: 0 | 1 | null;
+    source?: string;
+    side?: string; // "buyer" | "seller" | "both" — from "Buy | Sell" column
   }>;
 }
 
@@ -107,45 +111,98 @@ CRITICAL RULES — read every rule carefully before outputting:
 
 5. Return ONLY the JSON — nothing before or after it.`;
 
-// Used for text-based input (Excel converted to CSV, or plain CSV)
-const TEXT_PROMPT = (content: string) => `You are extracting real estate commission transaction data from a brokerage report exported as text/spreadsheet data.
+// Used for text-based input (Excel converted to CSV, or plain CSV).
+// Handles both:
+//   A) Brokerage commission reports (party_a / party_b separated by "/")
+//   B) Agent's own transaction tracker (Name | Address | Close Date | Buy | Sell | Source | GCI | Net)
+const TEXT_PROMPT = (content: string) => `You are extracting real estate commission transaction data from a spreadsheet or CSV export.
 
-The report content is below. Find the commission/transaction records and extract per-deal data.
+The data below may be EITHER:
+  (A) A brokerage commission report — two party names separated by "/"
+  (B) An agent's own deal tracker — one client name per row, with a "Buy | Sell" column
 
-REPORT CONTENT:
+SPREADSHEET CONTENT:
 ---
-${content.slice(0, 12000)}
+${content.slice(0, 14000)}
 ---
 
 Return ONLY a raw JSON object (no markdown, no code fences). Required structure:
 {
-  "year": <integer — the year this report covers>,
+  "year": <integer — the calendar year this sheet covers. Infer from the sheet title row (e.g. "2025 Transaction Tracker") or from the dates. If the title says "2026" use 2026 even if the sheet label was "2025".>,
   "deals": [
     {
       "date": "<YYYY-MM-DD — closing or payment date>",
-      "address": "<property address, or empty string if not present>",
-      "gci": <number — agent's net commission. Look for columns: Taxable, Net Commission, Agent Share, Net, Your Commission, or the amount after brokerage deduction>,
-      "party_a": "<buyer or seller name(s) — ONE side of the deal>",
-      "party_b": "<the other side of the deal — leave empty string if not available>",
-      "agent_side": <0 if agent represented party_a, 1 if party_b, null if unclear>
+      "address": "<property street address, or empty string>",
+      "gci": <number — agent's NET commission after brokerage split. Use "Net Commission Income", "Net Commission", "Taxable", "Agent Share", or equivalent. Do NOT use gross/pre-split amounts.>,
+      "party_a": "<client name — see rules below>",
+      "party_b": "<other party — see rules below>",
+      "agent_side": <0 = agent represented party_a, 1 = party_b, null = unclear>,
+      "side": "<\"buyer\" | \"seller\" | \"both\" | null — agent's role in the transaction>",
+      "source": "<lead source string, e.g. SOI, Agent Referral, Realtor.ca — or null if not present>"
     }
   ]
 }
 
-Rules:
-- party_a and party_b represent the two sides of a real estate transaction (buyer / seller).
-- If names appear in separate columns (e.g. "Buyer" and "Seller" columns), use those columns directly.
-- If names appear combined with "/" separator: split on the FIRST "/" only.
-  party_a = everything BEFORE the first "/" (trimmed)
-  party_b = everything AFTER the first "/" (trimmed)
-  Examples:
-    "Afshin & Donya Adivi / Estate Of Audrey Elizabeth Ferris" → party_a="Afshin & Donya Adivi", party_b="Estate Of Audrey Elizabeth Ferris"
-    "Micheal Beaton / Jeremy Silvio Macaulay & Ashley Diane Macaulay" → party_a="Micheal Beaton", party_b="Jeremy Silvio Macaulay & Ashley Diane Macaulay"
-- "&" connects people on the SAME side — it is NOT a side separator.
-- NEVER include "/" in either party_a or party_b.
-- NEVER leave party_b empty when a "/" is present in the name field.
-- Ignore header rows, totals rows, expense rows, and anything that is not a closed transaction.
-- Return ONLY the JSON.`;
+═══════════════════════════════════════════════════════════════════
+FORMAT A — Agent's Own Tracker (Name / Buy | Sell / Source columns)
+═══════════════════════════════════════════════════════════════════
+Detected when columns include: Name, Buy | Sell (or Buy/Sell), Source, Net Commission Income.
+
+Rules for Format A:
+- party_a = the Name column value (this is the agent's client)
+- party_b = "" (empty — only one side is tracked in this format)
+- agent_side = 0 (party_a is always the agent's client)
+- side: map the "Buy | Sell" column as follows:
+    "Buy"        → "buyer"
+    "Sell"       → "seller"
+    "Buy | Sell" → "both"
+    "Rent"       → "buyer"   (treat rentals as buyer-side)
+- source: copy the "Source" column verbatim (e.g. "SOI", "Agent Referral", "Referral from SOI", "Realtor.ca")
+- gci: use the "Net Commission Income" column (rightmost number column before Notes)
+
+Date handling for Format A:
+- Excel serial numbers (integers like 45769): convert using Excel epoch.
+  Formula: JS Date(Math.round((serial - 25569) * 86400000)) — but just approximate: 45769 ≈ 2025-03-21.
+  Common serials: 44927=2023-01-01, 45292=2024-01-01, 45658=2025-01-01, 46023=2026-01-01.
+  For serials between these anchors, interpolate to the nearest date.
+- "Q1" / "Q2" / "Q3" / "Q4": use the last day of the quarter for that year (Mar 31 / Jun 30 / Sep 30 / Dec 31).
+- Text dates like "Sept 15, 2023" or "Jan 12 (paid)": parse normally, ignore any parenthetical annotation.
+
+WORKED EXAMPLES for Format A:
+  Row: Matt Foster | 531 Ridge Row | Jan 12 (paid) | Sell | SOI | 580000 | 14500 | 10875
+  → party_a="Matt Foster", party_b="", agent_side=0, side="seller", source="SOI", gci=10875
+
+  Row: Tong & Sunny Gao | 68 Elizabeth Parkway | 45769 | Buy | Sell | SOI | 430000 | 10750 | 8062.5
+  → party_a="Tong & Sunny Gao", party_b="", agent_side=0, side="both", source="SOI", gci=8062.5
+
+  Row: Travis & Chryssie Radtke | 290 Simms Street | 45777 | Sell | Referral from SOI | 280000 | 7000 | 5250
+  → party_a="Travis & Chryssie Radtke", party_b="", agent_side=0, side="seller", source="Referral from SOI", gci=5250
+
+══════════════════════════════════════════════════════════════════
+FORMAT B — Brokerage Commission Report (party_a / party_b names)
+══════════════════════════════════════════════════════════════════
+Detected when party names are combined with "/" separator.
+
+Rules for Format B:
+- Split on the FIRST "/" only:
+    party_a = everything BEFORE the first "/" (trimmed)
+    party_b = everything AFTER the first "/" (trimmed)
+- "&" connects people on the SAME side — NEVER treat "&" as a separator between sides
+- agent_side: 0 if agent represented party_a, 1 if party_b, null if unclear
+- side: null (cannot determine buyer vs seller from brokerage format alone)
+- source: null
+
+NEVER include "/" in party_a or party_b. NEVER leave party_b empty when "/" is present.
+
+══════════════════════════════════════════════════
+UNIVERSAL RULES (apply to BOTH formats)
+══════════════════════════════════════════════════
+- SKIP rows where Name/party_a is empty, "Totals", "Name", or a sheet heading
+- SKIP rows that are subtotals, quarterly summaries, or expense entries
+- Use the NET commission column, not gross
+- year: read from the sheet title row (e.g. "2025 Transaction Tracker" → year=2025, "2026 SALES" → year=2026)
+- If no title row, infer year from the dates in the data
+- Return ONLY the JSON — nothing before or after it`;
 
 // ── Aggregate computation (done in code — not trusted to Groq) ───────────────
 
@@ -162,6 +219,14 @@ function computeAggregates(deals: GroqRawResponse["deals"], year: number): Impor
       party_a = party_a.slice(0, slashIdx).trim();
     }
 
+    // Normalise side value
+    const rawSide = (d.side ?? "").toLowerCase();
+    const side: ExtractedDeal["side"] =
+      rawSide === "buyer" ? "buyer"
+      : rawSide === "seller" ? "seller"
+      : rawSide === "both" ? "both"
+      : undefined;
+
     return {
       date: d.date,
       address: d.address ?? "",
@@ -169,6 +234,8 @@ function computeAggregates(deals: GroqRawResponse["deals"], year: number): Impor
       party_a,
       party_b,
       agent_side: d.agent_side ?? null,
+      source: d.source || undefined,
+      side,
     };
   });
 

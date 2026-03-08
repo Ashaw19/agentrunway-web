@@ -291,6 +291,23 @@ export interface ExpenseCategoryWithItems extends ExpenseCategory {
   items: ExpenseItem[];
 }
 
+export interface ClientRecord {
+  id: string;
+  user_id: string;
+
+  name: string;
+  side: "buyer" | "seller" | "both" | null; // agent's role in the deal
+  source: string | null;   // SOI, Agent Referral, Realtor.ca, etc.
+  address: string | null;
+  close_date: string | null; // ISO date
+  year: number | null;
+  gci: number;
+  notes: string | null;
+
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Milestone {
   id: string;
   user_id: string;

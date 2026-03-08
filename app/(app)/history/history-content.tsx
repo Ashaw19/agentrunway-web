@@ -67,12 +67,17 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
   // Two-step delete confirmation: holds the id of the year pending confirmation
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  // ── PDF import state ─────────────────────────────────────────────────────
+  // ── PDF / single-year import state ───────────────────────────────────────
   const [importOpen, setImportOpen]       = useState(false);
   const [importStatus, setImportStatus]   = useState<ImportStatus>("idle");
   const [importData, setImportData]       = useState<ImportResult | null>(null);
   // Per-deal: which party is the agent's client (0 = party_a, 1 = party_b)
   const [agentSides, setAgentSides]       = useState<Record<number, 0 | 1>>({});
+
+  // ── Batch (multi-year) import state ──────────────────────────────────────
+  const [batchImportData, setBatchImportData]   = useState<ImportResult[]>([]);
+  const [batchProgress, setBatchProgress]       = useState({ current: 0, total: 0 });
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Group transactions by year for auto-derived stats
@@ -255,11 +260,42 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
         mimeType = file.type || "image/jpeg";
 
       } else if (fileType === "excel") {
-        // ── Excel: parse with SheetJS, convert first sheet to CSV ───────────
+        // ── Excel: parse with SheetJS ────────────────────────────────────────
         const XLSX = await import("xlsx");
         const arrayBuffer = await file.arrayBuffer();
         const workbook = XLSX.read(arrayBuffer, { type: "array" });
-        // Prefer a sheet whose name suggests transactions/commissions
+
+        // Detect multi-year career tracker (sheets named with 4-digit years)
+        const yearSheets = workbook.SheetNames.filter((n) => /\b20\d{2}\b/.test(n));
+
+        if (yearSheets.length > 1) {
+          // ── Batch mode: process each year-sheet separately ─────────────────
+          setBatchImportData([]);
+          setBatchProgress({ current: 0, total: yearSheets.length });
+          setImportStatus("extracting");
+
+          const results: ImportResult[] = [];
+          for (let si = 0; si < yearSheets.length; si++) {
+            setBatchProgress({ current: si + 1, total: yearSheets.length });
+            const ws = workbook.Sheets[yearSheets[si]];
+            const csv = XLSX.utils.sheet_to_csv(ws);
+            const res = await fetch("/api/import-history", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ textContent: csv }),
+            });
+            if (res.ok) {
+              const yr = await res.json() as ImportResult;
+              if (yr.annual_tx > 0) results.push(yr); // skip empty sheets
+            }
+          }
+
+          setBatchImportData(results.sort((a, b) => b.year - a.year));
+          setImportStatus("preview");
+          return; // skip single-year flow
+        }
+
+        // Single-sheet Excel — existing flow
         const targetSheet =
           workbook.SheetNames.find((n) =>
             /commission|transaction|deal|sale/i.test(n),
@@ -351,6 +387,33 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
     }
 
     if (!error && data) {
+      // ── Save client records for this year ─────────────────────────────────
+      // Delete existing client_records for this year then re-insert
+      await supabase.from("client_records").delete()
+        .eq("user_id", user.id).eq("year", importData.year);
+
+      const clientInserts = importData.deals
+        .map((deal, i) => {
+          const sideSelected = agentSides[i] ?? deal.agent_side;
+          const clientName = sideSelected === 1 ? deal.party_b : deal.party_a;
+          if (!clientName) return null;
+          return {
+            user_id: user.id,
+            name: clientName,
+            side: deal.side ?? null,
+            source: deal.source ?? null,
+            address: deal.address || null,
+            close_date: deal.date || null,
+            year: importData.year,
+            gci: deal.gci,
+          };
+        })
+        .filter(Boolean);
+
+      if (clientInserts.length > 0) {
+        await supabase.from("client_records").insert(clientInserts);
+      }
+
       setItems((prev) => {
         const without = prev.filter((i) => i.id !== (existing?.id ?? "___"));
         return [data, ...without].sort((a, b) => b.year - a.year);
@@ -361,8 +424,8 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
       setImportData(null);
       toast.success(
         existing?.id
-          ? `${importData.year} history replaced with imported data ✓`
-          : `${importData.year} imported from brokerage report ✓`,
+          ? `${importData.year} history replaced · ${clientInserts.length} clients saved ✓`
+          : `${importData.year} imported · ${clientInserts.length} clients saved ✓`,
       );
     } else {
       console.error("[save import]", error);
@@ -377,6 +440,81 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
     setImportStatus("idle");
     setImportData(null);
     setAgentSides({});
+    setBatchImportData([]);
+    setBatchProgress({ current: 0, total: 0 });
+  }
+
+  // ── Batch save: save all years from a multi-sheet Excel ──────────────────
+  async function handleBatchSave() {
+    if (batchImportData.length === 0) return;
+    setImportStatus("saving");
+
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    let savedYears = 0;
+    let totalClients = 0;
+
+    for (const yearData of batchImportData) {
+      const payload = {
+        user_id: user.id,
+        year: yearData.year,
+        annual_gci: yearData.annual_gci,
+        annual_tx: yearData.annual_tx,
+        quarter_gci: yearData.quarter_gci,
+        quarter_tx: yearData.quarter_tx,
+      };
+
+      const { data: existing } = await supabase
+        .from("history_items").select("id")
+        .eq("user_id", user.id).eq("year", yearData.year).maybeSingle();
+
+      let saved;
+      if (existing?.id) {
+        ({ data: saved } = await supabase
+          .from("history_items").update(payload).eq("id", existing.id).select().single());
+      } else {
+        ({ data: saved } = await supabase
+          .from("history_items").insert(payload).select().single());
+      }
+      if (saved) {
+        setItems((prev) => {
+          const without = prev.filter((i) => i.id !== (existing?.id ?? "___"));
+          return [saved, ...without].sort((a, b) => b.year - a.year);
+        });
+        savedYears++;
+      }
+
+      // Save client records for this year
+      await supabase.from("client_records").delete()
+        .eq("user_id", user.id).eq("year", yearData.year);
+
+      const clientInserts = yearData.deals
+        .filter((d) => d.party_a)
+        .map((d) => ({
+          user_id: user.id,
+          name: d.party_a,           // in career tracker, party_a is always the client
+          side: d.side ?? null,
+          source: d.source ?? null,
+          address: d.address || null,
+          close_date: d.date || null,
+          year: yearData.year,
+          gci: d.gci,
+        }));
+
+      if (clientInserts.length > 0) {
+        await supabase.from("client_records").insert(clientInserts);
+        totalClients += clientInserts.length;
+      }
+    }
+
+    setImportOpen(false);
+    setImportStatus("idle");
+    setBatchImportData([]);
+    toast.success(
+      `${savedYears} years imported · ${totalClients} clients saved to your database ✓`,
+    );
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -482,19 +620,93 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
                 <p className="text-sm font-semibold text-foreground">
                   {importStatus === "rendering"
                     ? "Preparing your file…"
+                    : batchProgress.total > 1
+                    ? `Processing year ${batchProgress.current} of ${batchProgress.total}…`
                     : "Extracting data with AI…"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {importStatus === "rendering"
                     ? "Reading your brokerage report"
+                    : batchProgress.total > 1
+                    ? "Analysing each year sheet with Groq — please wait"
                     : "Groq is reading your transaction table — usually 5–10 seconds"}
                 </p>
               </div>
             </div>
           )}
 
+          {/* ── Batch import preview (multi-year Excel career tracker) ── */}
+          {(importStatus === "preview" || importStatus === "saving") && batchImportData.length > 0 && (
+            <div className="space-y-4 py-2">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-start gap-3">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-emerald-800">
+                    {batchImportData.length} years found in your career tracker
+                  </p>
+                  <p className="text-xs text-emerald-700 mt-0.5">
+                    Review each year below, then click Import to save all at once.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {batchImportData.map((yr) => {
+                  const hasExisting = items.some((i) => i.year === yr.year);
+                  const totalClients = yr.deals.filter((d) => d.party_a).length;
+                  return (
+                    <div
+                      key={yr.year}
+                      className="flex items-center justify-between rounded-xl border border-border/60 bg-card px-3 py-2.5 gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-foreground">{yr.year}</span>
+                          {hasExisting && (
+                            <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                              replaces existing
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {fmtCurrency(yr.annual_gci)} GCI · {yr.annual_tx} deal{yr.annual_tx !== 1 ? "s" : ""} · {totalClients} client{totalClients !== 1 ? "s" : ""}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1 shrink-0">
+                        {yr.quarter_gci.map((q, qi) => (
+                          <div key={qi} className={cn("rounded px-1.5 py-1 text-center text-[10px]", QUARTER_STYLES[qi].bg, QUARTER_STYLES[qi].border, "border")}>
+                            <span className={cn("font-bold block", QUARTER_STYLES[qi].heading)}>Q{qi + 1}</span>
+                            <span className="text-slate-600">{q > 0 ? `$${Math.round(q / 1000)}k` : "—"}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Info className="h-3 w-3 shrink-0" />
+                {batchImportData.reduce((s, yr) => s + yr.deals.filter((d) => d.party_a).length, 0)} client records will be saved to your database.
+              </p>
+
+              <div className="flex items-center justify-between border-t border-border/40 pt-3">
+                <Button variant="ghost" size="sm" onClick={handleImportClose} disabled={importStatus === "saving"}>
+                  Cancel
+                </Button>
+                <Button onClick={handleBatchSave} disabled={importStatus === "saving"}>
+                  {importStatus === "saving" ? (
+                    <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</>
+                  ) : (
+                    `Import All ${batchImportData.length} Years`
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Preview / confirm */}
-          {(importStatus === "preview" || importStatus === "saving") && importData && (
+          {(importStatus === "preview" || importStatus === "saving") && importData && batchImportData.length === 0 && (
             <div className="space-y-5 py-2">
 
               {/* Duplicate year warning */}
@@ -548,20 +760,37 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
 
               {/* Deal-by-deal review */}
               <div>
-                <div className="flex items-center gap-1.5 mb-2">
-                  <UserCheck className="h-3.5 w-3.5 text-slate-500" />
-                  <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-                    Deals — tap to select which party was your client
-                  </p>
-                </div>
+                {/* Only show party-selection header when party_b data is present */}
+                {importData.deals.some((d) => d.party_b) ? (
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <UserCheck className="h-3.5 w-3.5 text-slate-500" />
+                    <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                      Deals — tap to select which party was your client
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <UserCheck className="h-3.5 w-3.5 text-slate-500" />
+                    <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                      Deals
+                    </p>
+                  </div>
+                )}
 
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                   {importData.deals.map((deal, i) => {
                     const selected = agentSides[i];
+                    const hasTwoParties = Boolean(deal.party_b);
                     const date = new Date(deal.date + "T12:00:00").toLocaleDateString("en-CA", {
                       month: "short",
                       day: "numeric",
                     });
+
+                    const sideBadge =
+                      deal.side === "buyer"  ? { label: "Buyer",  cls: "bg-teal-50 text-teal-700 border-teal-200" }
+                      : deal.side === "seller" ? { label: "Seller", cls: "bg-amber-50 text-amber-700 border-amber-200" }
+                      : deal.side === "both"   ? { label: "Both",   cls: "bg-violet-50 text-violet-700 border-violet-200" }
+                      : null;
 
                     return (
                       <div
@@ -570,62 +799,86 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
                       >
                         {/* Deal header */}
                         <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <p className="text-xs font-semibold text-foreground truncate">
                               {deal.address}
                             </p>
-                            <p className="text-[11px] text-muted-foreground">
-                              {date} · {fmtCurrency(deal.gci)} GCI
-                            </p>
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <p className="text-[11px] text-muted-foreground">
+                                {date} · {fmtCurrency(deal.gci)} GCI
+                              </p>
+                              {sideBadge && (
+                                <span className={cn("text-[10px] font-semibold border rounded px-1.5 py-0.5", sideBadge.cls)}>
+                                  {sideBadge.label}
+                                </span>
+                              )}
+                              {deal.source && (
+                                <span className="text-[10px] text-slate-400 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5">
+                                  {deal.source}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <span className="text-[10px] font-medium text-slate-400 shrink-0 tabular-nums">
                             #{String(i + 1).padStart(2, "0")}
                           </span>
                         </div>
 
-                        {/* Party toggle buttons */}
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setAgentSides((prev) => ({ ...prev, [i]: 0 }))}
-                            className={cn(
-                              "rounded-lg border px-2 py-1.5 text-left text-[11px] leading-snug transition-all",
-                              selected === 0
-                                ? "border-primary bg-primary/10 text-primary font-semibold"
-                                : "border-border/60 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5",
-                            )}
-                          >
-                            <span className="block text-[10px] font-bold uppercase tracking-wide mb-0.5 opacity-60">
-                              {selected === 0 ? "✓ My Client" : "Party A"}
+                        {/* Party display — toggle if two parties, read-only if only one */}
+                        {hasTwoParties ? (
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setAgentSides((prev) => ({ ...prev, [i]: 0 }))}
+                              className={cn(
+                                "rounded-lg border px-2 py-1.5 text-left text-[11px] leading-snug transition-all",
+                                selected === 0
+                                  ? "border-primary bg-primary/10 text-primary font-semibold"
+                                  : "border-border/60 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5",
+                              )}
+                            >
+                              <span className="block text-[10px] font-bold uppercase tracking-wide mb-0.5 opacity-60">
+                                {selected === 0 ? "✓ My Client" : "Party A"}
+                              </span>
+                              {deal.party_a}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAgentSides((prev) => ({ ...prev, [i]: 1 }))}
+                              className={cn(
+                                "rounded-lg border px-2 py-1.5 text-left text-[11px] leading-snug transition-all",
+                                selected === 1
+                                  ? "border-primary bg-primary/10 text-primary font-semibold"
+                                  : "border-border/60 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5",
+                              )}
+                            >
+                              <span className="block text-[10px] font-bold uppercase tracking-wide mb-0.5 opacity-60">
+                                {selected === 1 ? "✓ My Client" : "Party B"}
+                              </span>
+                              {deal.party_b}
+                            </button>
+                          </div>
+                        ) : (
+                          // Single-party tracker: show client name as a read-only pill
+                          <div className="rounded-lg border border-primary/30 bg-primary/5 px-2 py-1.5">
+                            <span className="block text-[10px] font-bold uppercase tracking-wide mb-0.5 text-primary/60">
+                              ✓ My Client
                             </span>
-                            {deal.party_a}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setAgentSides((prev) => ({ ...prev, [i]: 1 }))}
-                            className={cn(
-                              "rounded-lg border px-2 py-1.5 text-left text-[11px] leading-snug transition-all",
-                              selected === 1
-                                ? "border-primary bg-primary/10 text-primary font-semibold"
-                                : "border-border/60 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5",
-                            )}
-                          >
-                            <span className="block text-[10px] font-bold uppercase tracking-wide mb-0.5 opacity-60">
-                              {selected === 1 ? "✓ My Client" : "Party B"}
-                            </span>
-                            {deal.party_b}
-                          </button>
-                        </div>
+                            <span className="text-[11px] font-semibold text-primary">{deal.party_a}</span>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
                 </div>
 
-                <p className="mt-2 text-[11px] text-muted-foreground flex items-start gap-1">
-                  <Info className="h-3 w-3 mt-0.5 shrink-0" />
-                  Party selection is for your records. Your GCI values come from the
-                  &ldquo;Taxable&rdquo; column and are correct regardless of which side you represented.
-                </p>
+                {importData.deals.some((d) => d.party_b) && (
+                  <p className="mt-2 text-[11px] text-muted-foreground flex items-start gap-1">
+                    <Info className="h-3 w-3 mt-0.5 shrink-0" />
+                    Party selection is for your records. Your GCI values come from the
+                    &ldquo;Taxable&rdquo; column and are correct regardless of which side you represented.
+                  </p>
+                )}
               </div>
 
               {/* Actions */}
