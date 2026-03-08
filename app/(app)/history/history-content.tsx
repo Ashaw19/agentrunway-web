@@ -33,6 +33,7 @@ import {
   FileText,
   CheckCircle2,
   UserCheck,
+  AlertCircle,
 } from "lucide-react";
 import { fmtCurrency } from "@/lib/formatters";
 import { computeGCI, type HistoryItem, type Transaction } from "@/lib/types/database";
@@ -197,44 +198,85 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
 
   // ── PDF import handlers ──────────────────────────────────────────────────
 
+  function detectFileType(file: File): "pdf" | "image" | "excel" | "csv" | null {
+    const name = file.name.toLowerCase();
+    if (file.type === "application/pdf" || name.endsWith(".pdf")) return "pdf";
+    if (file.type.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|bmp|tiff?)$/.test(name)) return "image";
+    if (/\.(xlsx?|xls)$/.test(name) || file.type.includes("spreadsheet")) return "excel";
+    if (name.endsWith(".csv") || file.type === "text/csv") return "csv";
+    return null;
+  }
+
   async function handleImportFile(file: File) {
+    const fileType = detectFileType(file);
+    if (!fileType) {
+      toast.error("Unsupported file type. Please upload a PDF, image (JPG/PNG), Excel, or CSV file.");
+      return;
+    }
+
     setImportOpen(true);
     setImportStatus("rendering");
     setImportData(null);
     setAgentSides({});
 
     try {
-      // Dynamically import pdfjs-dist — client-only, avoids SSR issues
-      const pdfjsLib = await import("pdfjs-dist");
-      // Use the worker we copied to /public — no CDN, no webpack bundling issues
-      pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+      let imageBase64: string | undefined;
+      let mimeType: string | undefined;
+      let textContent: string | undefined;
 
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+      if (fileType === "pdf") {
+        // ── PDF: render page 2 (transaction report), skip page 1 (T4A) ──────
+        const pdfjsLib = await import("pdfjs-dist");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
-      // Page 1 = T4A (skip), Page 2 = transaction report
-      // Fall back to page 1 if the PDF has only one page
-      const pageNum = pdf.numPages >= 2 ? 2 : 1;
-      const page = await pdf.getPage(pageNum);
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+        const pageNum = pdf.numPages >= 2 ? 2 : 1;
+        const page = await pdf.getPage(pageNum);
 
-      // Render at 2× scale for legibility — a letter page at 2× ≈ 1700×2200px
-      const scale = 2.0;
-      const viewport = page.getViewport({ scale });
-      const canvas = document.createElement("canvas");
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      // pdfjs-dist v5: pass `canvas` directly (canvasContext is deprecated)
-      await page.render({ canvas, viewport }).promise;
+        const scale = 2.0;
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement("canvas");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        // pdfjs-dist v5: pass canvas directly
+        await page.render({ canvas, viewport }).promise;
 
-      // JPEG at 0.90 quality stays well under Groq's 4 MB base64 limit
-      const base64 = canvas.toDataURL("image/jpeg", 0.90).split(",")[1];
+        imageBase64 = canvas.toDataURL("image/jpeg", 0.90).split(",")[1];
+        mimeType = "image/jpeg";
+
+      } else if (fileType === "image") {
+        // ── Image: read as base64 and send directly to Groq vision ──────────
+        const arrayBuffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = "";
+        bytes.forEach((b) => (binary += String.fromCharCode(b)));
+        imageBase64 = btoa(binary);
+        mimeType = file.type || "image/jpeg";
+
+      } else if (fileType === "excel") {
+        // ── Excel: parse with SheetJS, convert first sheet to CSV ───────────
+        const XLSX = await import("xlsx");
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: "array" });
+        // Prefer a sheet whose name suggests transactions/commissions
+        const targetSheet =
+          workbook.SheetNames.find((n) =>
+            /commission|transaction|deal|sale/i.test(n),
+          ) ?? workbook.SheetNames[0];
+        textContent = XLSX.utils.sheet_to_csv(workbook.Sheets[targetSheet]);
+
+      } else if (fileType === "csv") {
+        // ── CSV: read as plain text ──────────────────────────────────────────
+        textContent = await file.text();
+      }
 
       setImportStatus("extracting");
 
       const res = await fetch("/api/import-history", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64 }),
+        body: JSON.stringify({ imageBase64, mimeType, textContent }),
       });
 
       if (!res.ok) {
@@ -257,11 +299,10 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
       setImportStatus("preview");
     } catch (err) {
       console.error("[import] error:", err);
-      toast.error("Couldn't read the PDF — please try again.");
+      toast.error("Couldn't read the file — please try again.");
       setImportStatus("idle");
       setImportOpen(false);
     } finally {
-      // Reset file input so the same file can be re-selected if needed
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
@@ -274,28 +315,58 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { data, error } = await supabase
+    const payload = {
+      user_id: user.id,
+      year: importData.year,
+      annual_gci: importData.annual_gci,
+      annual_tx: importData.annual_tx,
+      quarter_gci: importData.quarter_gci,
+      quarter_tx: importData.quarter_tx,
+    };
+
+    // Check if a row for this year already exists — UNIQUE (user_id, year)
+    const { data: existing } = await supabase
       .from("history_items")
-      .insert({
-        user_id: user.id,
-        year: importData.year,
-        annual_gci: importData.annual_gci,
-        annual_tx: importData.annual_tx,
-        quarter_gci: importData.quarter_gci,
-        quarter_tx: importData.quarter_tx,
-      })
-      .select()
-      .single();
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("year", importData.year)
+      .maybeSingle();
+
+    let data, error;
+    if (existing?.id) {
+      // Update the existing row
+      ({ data, error } = await supabase
+        .from("history_items")
+        .update(payload)
+        .eq("id", existing.id)
+        .select()
+        .single());
+    } else {
+      // Insert a new row
+      ({ data, error } = await supabase
+        .from("history_items")
+        .insert(payload)
+        .select()
+        .single());
+    }
 
     if (!error && data) {
-      setItems((prev) => [data, ...prev].sort((a, b) => b.year - a.year));
+      setItems((prev) => {
+        const without = prev.filter((i) => i.id !== (existing?.id ?? "___"));
+        return [data, ...without].sort((a, b) => b.year - a.year);
+      });
       setExpanded((prev) => new Set([...prev, data.id]));
       setImportOpen(false);
       setImportStatus("idle");
       setImportData(null);
-      toast.success(`${importData.year} imported from brokerage report ✓`);
+      toast.success(
+        existing?.id
+          ? `${importData.year} history replaced with imported data ✓`
+          : `${importData.year} imported from brokerage report ✓`,
+      );
     } else {
-      toast.error("Couldn't save — please try again.");
+      console.error("[save import]", error);
+      toast.error(error?.message ?? "Couldn't save — please try again.");
       setImportStatus("preview");
     }
   }
@@ -335,7 +406,7 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,application/pdf"
+            accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xlsx,.xls,.csv,application/pdf,image/*,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
@@ -410,13 +481,13 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
               <div className="text-center">
                 <p className="text-sm font-semibold text-foreground">
                   {importStatus === "rendering"
-                    ? "Rendering your PDF…"
+                    ? "Preparing your file…"
                     : "Extracting data with AI…"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {importStatus === "rendering"
-                    ? "Reading page 2 of your brokerage report"
-                    : "Groq is reading your transaction table — usually takes 5–10 seconds"}
+                    ? "Reading your brokerage report"
+                    : "Groq is reading your transaction table — usually 5–10 seconds"}
                 </p>
               </div>
             </div>
@@ -425,6 +496,17 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
           {/* Preview / confirm */}
           {(importStatus === "preview" || importStatus === "saving") && importData && (
             <div className="space-y-5 py-2">
+
+              {/* Duplicate year warning */}
+              {items.some((i) => i.year === importData.year) && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                  <p className="text-xs text-amber-800">
+                    You already have a <strong>{importData.year}</strong> history year.
+                    Saving will replace it with the data below.
+                  </p>
+                </div>
+              )}
 
               {/* Summary banner */}
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-start gap-3">
