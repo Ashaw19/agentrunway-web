@@ -644,6 +644,8 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
                 >
                   {importStatus === "saving" ? (
                     <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</>
+                  ) : items.some((i) => i.year === importData.year) ? (
+                    `Replace ${importData.year} Data`
                   ) : (
                     `Save ${importData.year} to History`
                   )}
