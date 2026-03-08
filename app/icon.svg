@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none" role="img" aria-label="Agent Runway">
+  <defs>
+    <!-- Background: deep radial navy, vignette to near-black at edges -->
+    <radialGradient id="ar-bg" cx="20" cy="20" r="24" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#0e1a38"/>
+      <stop offset="100%" stop-color="#060c18"/>
+    </radialGradient>
+
+    <!-- Left panel: bright cyan-blue top → electric blue → deep blue -->
+    <linearGradient id="ar-left" x1="3" y1="9" x2="16" y2="31" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#a8d8ff"/>
+      <stop offset="45%"  stop-color="#2d82f5"/>
+      <stop offset="100%" stop-color="#1245a5"/>
+    </linearGradient>
+
+    <!-- Right panel: slightly brighter (light source from upper-right) -->
+    <linearGradient id="ar-right" x1="37" y1="9" x2="24" y2="31" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#b8e0ff"/>
+      <stop offset="45%"  stop-color="#3590ff"/>
+      <stop offset="100%" stop-color="#1450b8"/>
+    </linearGradient>
+
+    <!-- Glass sheen: 3-stop — strong at top edge, fades out -->
+    <linearGradient id="ar-sheen" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.52"/>
+      <stop offset="45%"  stop-color="#ffffff" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ── Background ─────────────────────────────────────────────────── -->
+  <rect width="40" height="40" rx="9" fill="url(#ar-bg)"/>
+
+  <!-- ── Left panel ─────────────────────────────────────────────────── -->
+  <path d="M3 9 L17.5 9 L14.5 31 L3 31 Z" fill="url(#ar-left)"/>
+  <!-- Glass sheen (wider strip for more glassy look) -->
+  <path d="M3 9 L17.5 9 L16.5 15 L3 13.5 Z" fill="url(#ar-sheen)"/>
+  <!-- Inner-edge shadow (panel depth separator) -->
+  <path d="M16.5 10 L14 30" stroke="#050b16" stroke-width="1.5" stroke-opacity="0.45" stroke-linecap="round"/>
+
+  <!-- ── Right panel ─────────────────────────────────────────────────── -->
+  <path d="M22.5 9 L37 9 L37 31 L25.5 31 Z" fill="url(#ar-right)"/>
+  <!-- Glass sheen -->
+  <path d="M22.5 9 L37 9 L37 15.5 L23 14 Z" fill="url(#ar-sheen)"/>
+  <!-- Inner-edge shadow -->
+  <path d="M23.5 10 L26 30" stroke="#050b16" stroke-width="1.5" stroke-opacity="0.45" stroke-linecap="round"/>
+
+  <!-- ── Gap shadow (runway centerline) ────────────────────────────── -->
+  <rect x="15" y="9" width="10" height="22" fill="#0a1020" fill-opacity="0.65"/>
+
+</svg>
