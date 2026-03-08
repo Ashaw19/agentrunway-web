@@ -17,6 +17,7 @@ import {
   CircleUser,
   Sparkles,
 } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -27,60 +28,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-function MobileLogoMark({ size = 34 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 40 40"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <defs>
-        {/* Background: deep radial navy, vignette to near-black at edges */}
-        <radialGradient id="mn-bg" cx="20" cy="20" r="24" gradientUnits="userSpaceOnUse">
-          <stop offset="0%"   stopColor="#0e1a38"/>
-          <stop offset="100%" stopColor="#060c18"/>
-        </radialGradient>
-        {/* Left panel: bright cyan-blue top → electric blue → deep blue */}
-        <linearGradient id="mn-left" x1="3" y1="9" x2="16" y2="31" gradientUnits="userSpaceOnUse">
-          <stop offset="0%"   stopColor="#a8d8ff"/>
-          <stop offset="45%"  stopColor="#2d82f5"/>
-          <stop offset="100%" stopColor="#1245a5"/>
-        </linearGradient>
-        {/* Right panel: slightly brighter (light source from upper-right) */}
-        <linearGradient id="mn-right" x1="37" y1="9" x2="24" y2="31" gradientUnits="userSpaceOnUse">
-          <stop offset="0%"   stopColor="#b8e0ff"/>
-          <stop offset="45%"  stopColor="#3590ff"/>
-          <stop offset="100%" stopColor="#1450b8"/>
-        </linearGradient>
-        {/* Glass sheen: 3-stop — strong at top edge, fades out */}
-        <linearGradient id="mn-sheen" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
-          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0.52"/>
-          <stop offset="45%"  stopColor="#ffffff" stopOpacity="0.14"/>
-          <stop offset="100%" stopColor="#ffffff" stopOpacity="0"/>
-        </linearGradient>
-      </defs>
-      {/* Background */}
-      <rect width="40" height="40" rx="9" fill="url(#mn-bg)"/>
-      {/* Left panel */}
-      <path d="M3 9 L17.5 9 L14.5 31 L3 31 Z" fill="url(#mn-left)"/>
-      {/* Left panel glass sheen */}
-      <path d="M3 9 L17.5 9 L16.5 15 L3 13.5 Z" fill="url(#mn-sheen)"/>
-      {/* Left panel inner-edge shadow */}
-      <path d="M16.5 10 L14 30" stroke="#050b16" strokeWidth="1.5" strokeOpacity="0.45" strokeLinecap="round"/>
-      {/* Right panel */}
-      <path d="M22.5 9 L37 9 L37 31 L25.5 31 Z" fill="url(#mn-right)"/>
-      {/* Right panel glass sheen */}
-      <path d="M22.5 9 L37 9 L37 15.5 L23 14 Z" fill="url(#mn-sheen)"/>
-      {/* Right panel inner-edge shadow */}
-      <path d="M23.5 10 L26 30" stroke="#050b16" strokeWidth="1.5" strokeOpacity="0.45" strokeLinecap="round"/>
-      {/* Gap shadow (runway centerline) */}
-      <rect x="15" y="9" width="10" height="22" fill="#0a1020" fillOpacity="0.65"/>
-    </svg>
-  );
-}
 
 const navItems = [
   {
@@ -185,7 +132,7 @@ export function MobileNav({ isPro = false }: { isPro?: boolean }) {
         >
           <Menu className="h-5 w-5" />
         </Button>
-        <MobileLogoMark size={26} />
+        <Image src="/logo.png" alt="Agent Runway" width={26} height={26} className="rounded-lg" />
         <span className="text-sm font-semibold">Agent Runway</span>
       </header>
 
@@ -198,7 +145,7 @@ export function MobileNav({ isPro = false }: { isPro?: boolean }) {
 
           <SheetHeader className="px-5 pb-0 pt-5">
             <div className="flex items-center gap-3">
-              <MobileLogoMark size={34} />
+              <Image src="/logo.png" alt="Agent Runway" width={34} height={34} className="rounded-lg" />
               <div>
                 <SheetTitle className="text-[15px] font-semibold text-sidebar-foreground">
                   Agent Runway

@@ -46,7 +46,6 @@ import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { MonthlyChart, type MonthlyDataPoint } from "@/components/monthly-chart";
-import { ProGate } from "@/components/pro-gate";
 import {
   computeGCI,
   computeWeightedGCI,
@@ -339,11 +338,6 @@ export function DashboardContent({
       </div>
 
       {/* Runway Score Hero */}
-      <ProGate
-        isPro={isPro}
-        feature="Runway Score"
-        description="Your composite business health score across 6 key indicators — available on the Professional plan."
-      >
         <Card className="bg-gradient-to-br from-background to-primary/5 border-primary/20">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -391,7 +385,6 @@ export function DashboardContent({
             </p>
           </CardContent>
         </Card>
-      </ProGate>
 
       {/* Business Health Narrative — Standard + Full */}
       {narrative && dashboardView !== "essentials" && (
@@ -582,11 +575,6 @@ export function DashboardContent({
 
       {/* Probability bands + benchmark row — Full only */}
       {dashboardView === "full" && (
-        <ProGate
-          isPro={isPro}
-          feature="Projection Range & Benchmark"
-          description="P10–P90 probability bands and CREA cohort benchmarking — available on the Professional plan."
-        >
         <div className="grid gap-4 sm:grid-cols-2">
           <Card className="border-t-2 border-t-primary/40">
             <CardHeader className="pb-2">
@@ -657,16 +645,10 @@ export function DashboardContent({
             </CardContent>
           </Card>
         </div>
-        </ProGate>
       )}
 
       {/* Tax estimate + Goal progress row — Full only */}
       {dashboardView === "full" && (
-        <ProGate
-          isPro={isPro}
-          feature="Tax Estimate & Goal Progress"
-          description="Quarterly tax estimates, per-deal set-asides, and goal tracking — available on the Professional plan."
-        >
         <div className="grid gap-4 sm:grid-cols-2">
           {taxResult && (
             <Card className="border-t-2 border-t-primary/40">
@@ -721,16 +703,10 @@ export function DashboardContent({
             </Card>
           )}
         </div>
-        </ProGate>
       )}
 
       {/* Insights — Standard + Full */}
       {insights.length > 0 && dashboardView !== "essentials" && (
-        <ProGate
-          isPro={isPro}
-          feature="AI Insights"
-          description="Contextual tips, warnings, and growth opportunities tailored to your business — available on the Professional plan."
-        >
           <Card className="border-t-2 border-t-primary/40">
             <CardHeader>
               <CardTitle className="text-base">Insights</CardTitle>
@@ -743,7 +719,6 @@ export function DashboardContent({
               </div>
             </CardContent>
           </Card>
-        </ProGate>
       )}
 
       {/* Recent transactions */}

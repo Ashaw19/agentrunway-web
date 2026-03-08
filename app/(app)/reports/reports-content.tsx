@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/table";
 import { FileDown, Loader2, Lock } from "lucide-react";
 import Link from "next/link";
-import { ProGate } from "@/components/pro-gate";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   computeGCI,
@@ -312,11 +311,6 @@ export function ReportsContent({
       </div>
 
       {/* Benchmark + Survival row */}
-      <ProGate
-        isPro={isPro}
-        feature="Benchmark & Cash Runway"
-        description="CREA cohort benchmarking and cash runway analysis — available on the Professional plan."
-      >
         <div className="grid gap-4 sm:grid-cols-2">
           <Card>
             <CardHeader className="pb-2">
@@ -378,7 +372,6 @@ export function ReportsContent({
             </CardContent>
           </Card>
         </div>
-      </ProGate>
 
       {/* P&L */}
       <Card>
@@ -427,11 +420,6 @@ export function ReportsContent({
       </Card>
 
       {/* Tax estimate */}
-      <ProGate
-        isPro={isPro}
-        feature="Projected Tax Breakdown"
-        description="Full Canadian tax breakdown including CPP/QPP, federal, and provincial estimates — available on the Professional plan."
-      >
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Projected Tax Breakdown</CardTitle>
@@ -480,7 +468,6 @@ export function ReportsContent({
             </div>
           </CardContent>
         </Card>
-      </ProGate>
 
       {/* Expense breakdown */}
       <Card>

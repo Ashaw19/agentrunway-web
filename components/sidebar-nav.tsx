@@ -15,6 +15,7 @@ import {
   CircleUser,
   Sparkles,
 } from "lucide-react";
+import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -95,66 +96,6 @@ const navItems = [
   },
 ];
 
-// ── Inline SVG logo mark ───────────────────────────────────────────────────
-// Rendered as an SVG element instead of an <img> so it:
-//   • Scales perfectly on all DPRs (Retina, 4K, etc.)
-//   • Loads instantly with zero network request
-//   • Inherits colour overrides via CSS if needed
-
-function LogoMark({ size = 36 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 40 40"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <defs>
-        {/* Background: deep radial navy, vignette to near-black at edges */}
-        <radialGradient id="sb-bg" cx="20" cy="20" r="24" gradientUnits="userSpaceOnUse">
-          <stop offset="0%"   stopColor="#0e1a38"/>
-          <stop offset="100%" stopColor="#060c18"/>
-        </radialGradient>
-        {/* Left panel: bright cyan-blue top → electric blue → deep blue */}
-        <linearGradient id="sb-left" x1="3" y1="9" x2="16" y2="31" gradientUnits="userSpaceOnUse">
-          <stop offset="0%"   stopColor="#a8d8ff"/>
-          <stop offset="45%"  stopColor="#2d82f5"/>
-          <stop offset="100%" stopColor="#1245a5"/>
-        </linearGradient>
-        {/* Right panel: slightly brighter (light source from upper-right) */}
-        <linearGradient id="sb-right" x1="37" y1="9" x2="24" y2="31" gradientUnits="userSpaceOnUse">
-          <stop offset="0%"   stopColor="#b8e0ff"/>
-          <stop offset="45%"  stopColor="#3590ff"/>
-          <stop offset="100%" stopColor="#1450b8"/>
-        </linearGradient>
-        {/* Glass sheen: 3-stop — strong at top edge, fades out */}
-        <linearGradient id="sb-sheen" x1="0" y1="0" x2="0" y2="1" gradientUnits="objectBoundingBox">
-          <stop offset="0%"   stopColor="#ffffff" stopOpacity="0.52"/>
-          <stop offset="45%"  stopColor="#ffffff" stopOpacity="0.14"/>
-          <stop offset="100%" stopColor="#ffffff" stopOpacity="0"/>
-        </linearGradient>
-      </defs>
-      {/* Background */}
-      <rect width="40" height="40" rx="9" fill="url(#sb-bg)"/>
-      {/* Left panel */}
-      <path d="M3 9 L17.5 9 L14.5 31 L3 31 Z" fill="url(#sb-left)"/>
-      {/* Left panel glass sheen (wider strip for more glassy look) */}
-      <path d="M3 9 L17.5 9 L16.5 15 L3 13.5 Z" fill="url(#sb-sheen)"/>
-      {/* Left panel inner-edge shadow (panel depth separator) */}
-      <path d="M16.5 10 L14 30" stroke="#050b16" strokeWidth="1.5" strokeOpacity="0.45" strokeLinecap="round"/>
-      {/* Right panel */}
-      <path d="M22.5 9 L37 9 L37 31 L25.5 31 Z" fill="url(#sb-right)"/>
-      {/* Right panel glass sheen */}
-      <path d="M22.5 9 L37 9 L37 15.5 L23 14 Z" fill="url(#sb-sheen)"/>
-      {/* Right panel inner-edge shadow */}
-      <path d="M23.5 10 L26 30" stroke="#050b16" strokeWidth="1.5" strokeOpacity="0.45" strokeLinecap="round"/>
-      {/* Gap shadow (runway centerline) */}
-      <rect x="15" y="9" width="10" height="22" fill="#0a1020" fillOpacity="0.65"/>
-    </svg>
-  );
-}
 
 export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
   const pathname = usePathname();
@@ -181,9 +122,8 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
 
       {/* Brand lockup */}
       <div className="flex items-center gap-3 px-5 py-[22px]">
-        {/* Vector logo mark — pixel-perfect at all DPRs */}
-        <div className="shrink-0 drop-shadow-md">
-          <LogoMark size={36} />
+        <div className="shrink-0">
+          <Image src="/logo.png" alt="Agent Runway" width={36} height={36} className="rounded-lg" />
         </div>
         <div>
           <span className="block text-[15px] font-bold tracking-tight text-sidebar-foreground">

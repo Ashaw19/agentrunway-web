@@ -37,7 +37,6 @@ import { survivalResult } from "@/lib/engines/survival-engine";
 import { compare } from "@/lib/engines/benchmark-engine";
 import { generateAdvisory, type AdvisorCard } from "@/lib/engines/advisor-engine";
 import { ProbabilityChart, type ProbabilityDataPoint } from "@/components/probability-chart";
-import { ProGate } from "@/components/pro-gate";
 
 interface Props {
   settings: UserSettings | null;
@@ -298,11 +297,6 @@ export function ForecastContent({
       </Card>
 
       {/* Tax details */}
-      <ProGate
-        isPro={isPro}
-        feature="Tax Planning"
-        description="Quarterly instalment amounts, per-deal set-asides, and effective tax rate — available on the Professional plan."
-      >
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Tax Planning</CardTitle>
@@ -327,7 +321,6 @@ export function ForecastContent({
             </div>
           </CardContent>
         </Card>
-      </ProGate>
 
       {/* Goal gap analysis */}
       {goalGCI > 0 && (
@@ -416,11 +409,6 @@ export function ForecastContent({
 
       {/* 5-Year growth plan with probability bands */}
       {yearBands.length > 0 && (
-        <ProGate
-          isPro={isPro}
-          feature="5-Year Growth Plan"
-          description="Multi-year GCI projections with probability bands — available on the Professional plan."
-        >
           <Card>
             <CardHeader>
               <CardTitle className="text-base">5-Year Growth Plan</CardTitle>
@@ -448,16 +436,10 @@ export function ForecastContent({
               </div>
             </CardContent>
           </Card>
-        </ProGate>
       )}
 
       {/* Advisor cards */}
       {advisorCards.length > 0 && (
-        <ProGate
-          isPro={isPro}
-          feature="AI Advisor"
-          description="Data-driven recommendations sorted by potential revenue impact — available on the Professional plan."
-        >
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Advisor</CardTitle>
@@ -473,7 +455,6 @@ export function ForecastContent({
               </div>
             </CardContent>
           </Card>
-        </ProGate>
       )}
     </div>
   );
