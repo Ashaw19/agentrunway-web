@@ -200,6 +200,9 @@ export interface UserSettings {
   stripe_subscription_id: string | null;  // sub_...
   subscription_current_period_end: string | null; // ISO timestamp
 
+  // Admin override
+  is_admin: boolean; // founder/admin flag — bypasses all subscription checks
+
   // Timestamps
   created_at: string;
   updated_at: string;

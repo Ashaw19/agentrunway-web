@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardContent } from "./dashboard-content";
+import type { HistoryItem } from "@/lib/types/database";
 
 export default async function DashboardPage({
   searchParams,
@@ -26,7 +27,7 @@ export default async function DashboardPage({
   }
 
   // Fetch dashboard data in parallel
-  const [txResult, pipelineResult, settingsResult, expCatResult, expItemResult] =
+  const [txResult, pipelineResult, settingsResult, expCatResult, expItemResult, historyResult] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -54,6 +55,11 @@ export default async function DashboardPage({
         .from("expense_items")
         .select("*")
         .eq("user_id", user.id),
+      supabase
+        .from("history_items")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("year", { ascending: false }),
     ]);
 
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
@@ -62,7 +68,8 @@ export default async function DashboardPage({
   }));
 
   const params = await searchParams;
-  const showUpgradeBanner = params.upgraded === "true";
+  const isAdmin = settingsResult.data?.is_admin ?? false;
+  const showUpgradeBanner = params.upgraded === "true" && !isAdmin;
 
   const userName = settingsResult.data?.display_name || user.email?.split("@")[0] || undefined;
 
@@ -72,6 +79,7 @@ export default async function DashboardPage({
       pipelineDeals={pipelineResult.data ?? []}
       settings={settingsResult.data}
       expenseCategories={expenseCategories}
+      historyItems={(historyResult.data ?? []) as HistoryItem[]}
       initialDashboardView={settingsResult.data?.dashboard_view ?? "standard"}
       subscriptionTier={settingsResult.data?.subscription_tier ?? "starter"}
       showUpgradeBanner={showUpgradeBanner}

@@ -44,6 +44,9 @@ import {
   Plus,
   Layers,
   Receipt,
+  Trophy,
+  CalendarCheck,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
@@ -58,6 +61,7 @@ import {
   type PipelineDeal,
   type UserSettings,
   type ExpenseCategoryWithItems,
+  type HistoryItem,
 } from "@/lib/types/database";
 import {
   seasonalFractionElapsed,
@@ -66,6 +70,9 @@ import {
   paceVsGoalPercent,
   daysRemaining,
   trendDirection,
+  dayOfYear,
+  daysInYear,
+  weekOfYear,
 } from "@/lib/engines/projection-engine";
 import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
@@ -81,6 +88,7 @@ interface Props {
   pipelineDeals: PipelineDeal[];
   settings: UserSettings | null;
   expenseCategories: ExpenseCategoryWithItems[];
+  historyItems?: HistoryItem[];
   initialDashboardView?: string;
   subscriptionTier?: string;
   showUpgradeBanner?: boolean;
@@ -145,6 +153,7 @@ export function DashboardContent({
   pipelineDeals,
   settings,
   expenseCategories,
+  historyItems = [],
   initialDashboardView,
   subscriptionTier: _subscriptionTier = "starter",
   showUpgradeBanner = false,
@@ -160,8 +169,8 @@ export function DashboardContent({
 
   // ── Scenario toggle ────────────────────────────────────────────────────
   const [scenario, setScenario] = useState<"conservative" | "base" | "optimistic">("base");
-  // ── Business Health Narrative collapsed by default ─────────────────────
-  const [narrativeOpen, setNarrativeOpen] = useState(false);
+  // ── Business Health Narrative expanded by default (Weekly Brief) ────────
+  const [narrativeOpen, setNarrativeOpen] = useState(true);
 
   // ── Dashboard view mode ────────────────────────────────────────────────
   const validView = (v?: string): DashboardView =>
@@ -259,7 +268,33 @@ export function DashboardContent({
   // ── Trend ─────────────────────────────────────────────────────────────
   const trend = trendDirection(transactions);
 
+  // ── History / vs last year ────────────────────────────────────────────
+  const lastYearItem = historyItems.find(h => h.year === currentYear - 1) ?? null;
+  const lastYearAtThisPoint = lastYearItem ? lastYearItem.annual_gci * fraction : null;
+  const vsLastYearGCI = lastYearAtThisPoint !== null ? ytdGCI - lastYearAtThisPoint : null;
+  const lastYearDealAtThisPoint = lastYearItem
+    ? Math.round(lastYearItem.annual_tx * fraction)
+    : null;
+
+  // ── Deal velocity: this quarter vs same quarter last year ─────────────
+  const currentQ = Math.floor(now.getMonth() / 3); // 0-based
+  const dealsThisQ = transactions.filter(tx => {
+    const d = new Date(tx.date);
+    return d.getFullYear() === currentYear && Math.floor(d.getMonth() / 3) === currentQ;
+  }).length;
+  const lastYearQDeals: number | null = lastYearItem?.quarter_tx?.[currentQ] ?? null;
+
+  // ── Period recap (month boundary) ─────────────────────────────────────
+  const periodRecap = getPeriodRecap(transactions, now);
+
+  // ── Tax readiness ─────────────────────────────────────────────────────
+  const monthsElapsed = now.getMonth() + 1; // 1-12
+  const recommendedMonthlySave = taxResult ? taxResult.totalBurden / 12 : 0;
+  const expectedSavedByNow = Math.round(recommendedMonthlySave * monthsElapsed);
+  const quarterlyInstalment = taxResult ? taxResult.totalBurden / 4 : 0;
+
   // ── Insights ──────────────────────────────────────────────────────────
+  const insightsLimit = dashboardView === "full" ? 5 : dashboardView === "essentials" ? 2 : 3;
   const insights = settings
     ? generateInsights({
         transactions,
@@ -274,7 +309,7 @@ export function DashboardContent({
         postCapAgentPct: settings.post_cap_agent_pct ?? 0,
         estimatedCapMonth: null,
         forecastReadiness: goalGCI > 0 ? 0.6 : 0,
-      }, 3)
+      }, insightsLimit)
     : [];
 
   // ── Health narrative ──────────────────────────────────────────────────
@@ -460,6 +495,14 @@ export function DashboardContent({
         </div>
       </div>
 
+      {/* ── You Are Here strip ── */}
+      <YouAreHereStrip
+        fraction={fraction}
+        pacePercent={pacePercent}
+        paceStatus={paceStatus}
+        goalGCI={goalGCI}
+      />
+
       {/* ── Status strip ── */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2.5">
         <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 mr-1">
@@ -481,6 +524,34 @@ export function DashboardContent({
           {runwayScore.grade} · Score {runwayScore.score}/100
         </span>
       </div>
+
+      {/* ── Period recap (month boundary) ── */}
+      {periodRecap && (
+        <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-violet-800">
+              {periodRecap.monthName} recap — {fmtCurrency(periodRecap.monthGCI)} · {periodRecap.monthTx} deal{periodRecap.monthTx !== 1 ? "s" : ""}
+            </p>
+            <p className="text-xs text-violet-600 mt-0.5">
+              {periodRecap.vsAvg >= 1.2
+                ? `↑ ${Math.round((periodRecap.vsAvg - 1) * 100)}% above your monthly average`
+                : periodRecap.vsAvg <= 0.8 && periodRecap.vsAvg > 0
+                ? `↓ ${Math.round((1 - periodRecap.vsAvg) * 100)}% below your monthly average`
+                : "Right in line with your monthly average"}
+            </p>
+          </div>
+          <CalendarCheck className="h-5 w-5 text-violet-400 shrink-0" />
+        </div>
+      )}
+
+      {/* ── Weekly Business Brief (elevated, always visible) ── */}
+      {narrative && (
+        <BusinessHealthNarrativeCard
+          narrative={narrative}
+          isOpen={narrativeOpen}
+          onToggle={() => setNarrativeOpen((o) => !o)}
+        />
+      )}
 
       {/* ── Section: Business Health ── */}
       <SectionHeader label="Business Health" />
@@ -547,15 +618,6 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      {/* Business Health Narrative — Standard + Full */}
-      {narrative && dashboardView !== "essentials" && (
-        <BusinessHealthNarrativeCard
-          narrative={narrative}
-          isOpen={narrativeOpen}
-          onToggle={() => setNarrativeOpen((o) => !o)}
-        />
-      )}
-
       {/* ── Section: Performance Metrics ── */}
       <SectionHeader label="Performance Metrics" />
 
@@ -591,6 +653,13 @@ export function DashboardContent({
             ) : (
               <p className="text-xs text-slate-400">Set a goal in Settings to track pace</p>
             )}
+            {vsLastYearGCI !== null && ytdGCI > 0 && (
+              <p className={cn("mt-0.5 text-xs font-medium", vsLastYearGCI >= 0 ? "text-emerald-600" : "text-amber-600")}>
+                {vsLastYearGCI >= 0
+                  ? `↑ ${fmtCurrency(vsLastYearGCI)} vs last year`
+                  : `↓ ${fmtCurrency(Math.abs(vsLastYearGCI))} vs last year`}
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -610,6 +679,21 @@ export function DashboardContent({
                 ? "No deals yet — your first is the hardest"
                 : `Avg ${fmtCurrency(avgDealSize)} per deal`}
             </p>
+            {dealsThisQ > 0 && (
+              <p className={cn("mt-0.5 text-xs font-medium",
+                lastYearQDeals !== null
+                  ? dealsThisQ >= lastYearQDeals ? "text-emerald-600" : "text-amber-600"
+                  : "text-slate-500"
+              )}>
+                {dealsThisQ} deal{dealsThisQ !== 1 ? "s" : ""} this Q{currentQ + 1}
+                {lastYearQDeals !== null ? ` · vs ${lastYearQDeals} last year` : ""}
+              </p>
+            )}
+            {lastYearDealAtThisPoint !== null && ytdDealCount > 0 && (
+              <p className="text-xs text-slate-400">
+                vs {lastYearDealAtThisPoint} at this point last year
+              </p>
+            )}
           </CardContent>
         </Card>
 
@@ -686,6 +770,16 @@ export function DashboardContent({
         </Card>
       </div>
 
+      {/* Personal Records — standard + full, only when there's data */}
+      {dashboardView !== "essentials" && (transactions.length > 0 || historyItems.length > 0) && (
+        <PersonalRecordsCard
+          transactions={transactions}
+          historyItems={historyItems}
+          ytdGCI={ytdGCI}
+          currentYear={currentYear}
+        />
+      )}
+
       {/* First-run guide — shown only when there's no data yet */}
       {transactions.length === 0 && pipelineDeals.length === 0 && (
         <Card className="border-dashed border-primary/30 bg-primary/5">
@@ -714,6 +808,44 @@ export function DashboardContent({
                   </Link>
                 </div>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Section: Insights & Actions ── */}
+      {insights.length > 0 && <SectionHeader label="Insights & Actions" />}
+
+      {/* Top Priority Action callout */}
+      {insights.length > 0 && (
+        <div className="rounded-xl border-2 border-primary/20 bg-primary/5 px-4 py-3 flex items-start gap-3">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15 mt-0.5">
+            <Zap className="h-3.5 w-3.5 text-primary" />
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-primary mb-0.5">Top Priority Action</p>
+            <p className="text-sm font-semibold text-foreground">{insights[0].title}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{insights[0].message}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Full insight list */}
+      {insights.length > 1 && (
+        <Card className="rounded-2xl border-amber-200 bg-gradient-to-br from-amber-100 to-amber-50 shadow-sm">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-200">
+                <Sparkles className="h-3.5 w-3.5 text-amber-700" />
+              </div>
+              <CardTitle className="text-base">Insights</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {insights.slice(1).map((insight) => (
+                <InsightRow key={insight.id} insight={insight} />
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -829,29 +961,46 @@ export function DashboardContent({
           {taxResult && (
             <Card className="rounded-2xl border-amber-200 bg-amber-100 shadow-sm">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Tax Estimate</CardTitle>
-                <CardDescription>
-                  {taxResult.taxYear} &middot; {taxResult.provinceName}
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base">Tax Readiness</CardTitle>
+                    <CardDescription>
+                      {taxResult.taxYear} · {taxResult.provinceName} · {fmtPct(taxResult.effectiveRate)} effective rate
+                    </CardDescription>
+                  </div>
+                  <span className={cn(
+                    "rounded-full px-2.5 py-0.5 text-xs font-semibold border",
+                    monthsElapsed <= 3
+                      ? "bg-blue-100 text-blue-800 border-blue-200"
+                      : monthsElapsed <= 6
+                      ? "bg-amber-200 text-amber-900 border-amber-300"
+                      : "bg-orange-100 text-orange-800 border-orange-200"
+                  )}>
+                    {monthsElapsed <= 3 ? "Q1 in progress" : monthsElapsed <= 6 ? "Q2 in progress" : monthsElapsed <= 9 ? "Q3 in progress" : "Q4 — year-end"}
+                  </span>
+                </div>
               </CardHeader>
               <CardContent>
+                <div className="mb-3">
+                  <p className="text-2xl font-bold text-slate-800">{fmtCurrency(taxResult.totalBurden)}</p>
+                  <p className="text-xs text-slate-500">estimated total owed at year-end</p>
+                </div>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Effective rate</span>
-                    <span className="font-medium">{fmtPct(taxResult.effectiveRate)}</span>
+                  <div className="flex justify-between items-center rounded-md bg-amber-200/60 px-3 py-1.5">
+                    <span className="text-amber-900 font-medium">Set aside monthly</span>
+                    <span className="font-bold text-amber-900">{fmtCurrency(recommendedMonthlySave)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Quarterly estimate</span>
-                    <span>{fmtCurrency(taxResult.quarterlyEstimate)}</span>
+                    <span className="text-muted-foreground">Should have saved by now</span>
+                    <span className="font-medium">{fmtCurrency(expectedSavedByNow)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Quarterly instalment</span>
+                    <span>{fmtCurrency(quarterlyInstalment)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Per-deal set-aside</span>
                     <span>{fmtCurrency(taxResult.perDealSetAside)}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between font-medium">
-                    <span>Est. total burden</span>
-                    <span>{fmtCurrency(taxResult.totalBurden)}</span>
                   </div>
                 </div>
               </CardContent>
@@ -881,31 +1030,8 @@ export function DashboardContent({
         </div>
       )}
 
-      {/* ── Section: Insights & Activity ── */}
-      {(insights.length > 0 || true) && dashboardView !== "essentials" && (
-        <SectionHeader label="Insights & Activity" />
-      )}
-
-      {/* Insights — Standard + Full */}
-      {insights.length > 0 && dashboardView !== "essentials" && (
-          <Card className="rounded-2xl border-amber-200 bg-gradient-to-br from-amber-100 to-amber-50 shadow-sm">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-200">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-700" />
-                </div>
-                <CardTitle className="text-base">AI Insights</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {insights.map((insight) => (
-                  <InsightRow key={insight.id} insight={insight} />
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-      )}
+      {/* ── Section: Recent Activity ── */}
+      <SectionHeader label="Recent Activity" />
 
       {/* Recent transactions */}
       <Card className="rounded-2xl border-slate-200 shadow-sm">
@@ -953,6 +1079,195 @@ export function DashboardContent({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ── YouAreHereStrip ───────────────────────────────────────────────────────
+
+function YouAreHereStrip({
+  fraction,
+  pacePercent,
+  paceStatus,
+  goalGCI,
+}: {
+  fraction: number;
+  pacePercent: number;
+  paceStatus: string;
+  goalGCI: number;
+}) {
+  const now = new Date();
+  const doy = dayOfYear(now);
+  const total = daysInYear(now);
+  const week = weekOfYear(now);
+  const pctThrough = Math.round(fraction * 100);
+  const daysLeft = total - doy;
+  const paceAbs = Math.abs(Math.round(pacePercent));
+  const paceColor =
+    paceStatus === "ahead"
+      ? "text-emerald-600"
+      : paceStatus === "behind"
+      ? "text-amber-600"
+      : "text-slate-500";
+
+  return (
+    <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+          You Are Here
+        </span>
+        <span className="text-[11px] text-muted-foreground">
+          Week {week} of 52 &middot; {daysLeft} days left in {now.getFullYear()}
+        </span>
+      </div>
+      <Progress value={pctThrough} className="h-2" />
+      <div className="flex items-center justify-between mt-1.5">
+        <span className="text-[11px] text-muted-foreground">Jan 1</span>
+        <span className="text-[11px] font-semibold text-foreground">
+          {pctThrough}% through {now.getFullYear()}
+        </span>
+        <span className="text-[11px] text-muted-foreground">Dec 31</span>
+      </div>
+      {goalGCI > 0 && paceStatus !== "no-goal" && (
+        <p className={cn("mt-1.5 text-xs font-medium", paceColor)}>
+          {paceStatus === "ahead"
+            ? `↑ ${paceAbs}% ahead of goal pace`
+            : paceStatus === "behind"
+            ? `↓ ${paceAbs}% behind goal pace`
+            : "Right on track with goal pace"}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── getPeriodRecap ────────────────────────────────────────────────────────
+
+function getPeriodRecap(
+  transactions: Transaction[],
+  now: Date,
+): { monthName: string; monthGCI: number; monthTx: number; vsAvg: number } | null {
+  const day = now.getDate();
+  const month = now.getMonth(); // 0-based
+  const year = now.getFullYear();
+
+  // Show only in last 2 days of a month OR first 3 days of new month
+  const isMonthBoundary = day >= 28 || day <= 3;
+  if (!isMonthBoundary) return null;
+
+  // The month that just completed
+  const recapMonth = day <= 3 ? (month === 0 ? 11 : month - 1) : month;
+  const recapYear = day <= 3 && month === 0 ? year - 1 : year;
+
+  const monthTxList = transactions.filter((tx) => {
+    const d = new Date(tx.date);
+    return d.getFullYear() === recapYear && d.getMonth() === recapMonth;
+  });
+  const monthGCI = monthTxList.reduce((s, tx) => s + computeGCI(tx), 0);
+  if (monthGCI === 0 || monthTxList.length === 0) return null;
+
+  const monthName = new Date(recapYear, recapMonth).toLocaleString("en-CA", { month: "long" });
+
+  // Average monthly GCI across distinct months with transactions
+  const monthsWithData = new Set(
+    transactions.map((tx) => {
+      const d = new Date(tx.date);
+      return `${d.getFullYear()}-${d.getMonth()}`;
+    }),
+  ).size;
+  const totalGCI = transactions.reduce((s, tx) => s + computeGCI(tx), 0);
+  const avgMonthly = monthsWithData > 0 ? totalGCI / monthsWithData : 0;
+  const vsAvg = avgMonthly > 0 ? monthGCI / avgMonthly : 0;
+
+  return { monthName, monthGCI, monthTx: monthTxList.length, vsAvg };
+}
+
+// ── computePersonalRecords ────────────────────────────────────────────────
+
+function computePersonalRecords(
+  transactions: Transaction[],
+  historyItems: HistoryItem[],
+  ytdGCI: number,
+  currentYear: number,
+) {
+  // Best single deal (YTD)
+  const bestDeal =
+    transactions.length > 0
+      ? Math.max(...transactions.map((tx) => computeGCI(tx)))
+      : null;
+
+  // Best month YTD
+  const monthlyGCI: Record<number, number> = {};
+  for (const tx of transactions) {
+    const m = new Date(tx.date).getMonth();
+    monthlyGCI[m] = (monthlyGCI[m] ?? 0) + computeGCI(tx);
+  }
+  const bestMonthEntries = Object.entries(monthlyGCI).sort((a, b) => Number(b[1]) - Number(a[1]));
+  const bestMonthEntry = bestMonthEntries[0] ?? null;
+  const bestMonthGCI = bestMonthEntry ? Number(bestMonthEntry[1]) : null;
+  const bestMonthName = bestMonthEntry
+    ? new Date(currentYear, Number(bestMonthEntry[0])).toLocaleString("en-CA", { month: "long" })
+    : null;
+
+  // Best year (career history + current year)
+  const allYearGCIs = [
+    ...historyItems.map((h) => ({ year: h.year, gci: h.annual_gci })),
+    { year: currentYear, gci: ytdGCI },
+  ].filter((y) => y.gci > 0);
+  const bestYearEntry = allYearGCIs.sort((a, b) => b.gci - a.gci)[0] ?? null;
+
+  return { bestDeal, bestMonthGCI, bestMonthName, bestYear: bestYearEntry };
+}
+
+// ── PersonalRecordsCard ───────────────────────────────────────────────────
+
+function PersonalRecordsCard({
+  transactions,
+  historyItems,
+  ytdGCI,
+  currentYear,
+}: {
+  transactions: Transaction[];
+  historyItems: HistoryItem[];
+  ytdGCI: number;
+  currentYear: number;
+}) {
+  const { bestDeal, bestMonthGCI, bestMonthName, bestYear } = computePersonalRecords(
+    transactions,
+    historyItems,
+    ytdGCI,
+    currentYear,
+  );
+
+  type RecordEntry = { label: string; value: string; sub: string };
+  const records: RecordEntry[] = [];
+  if (bestYear) records.push({ label: "Best Year", value: fmtCurrency(bestYear.gci), sub: String(bestYear.year) });
+  if (bestMonthGCI && bestMonthName) records.push({ label: "Best Month", value: fmtCurrency(bestMonthGCI), sub: bestMonthName });
+  if (bestDeal) records.push({ label: "Best Single Deal", value: fmtCurrency(bestDeal), sub: "single commission" });
+
+  if (records.length === 0) return null;
+
+  return (
+    <Card className="rounded-2xl border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <Trophy className="h-4 w-4 text-amber-600" />
+          <CardTitle className="text-sm font-semibold text-amber-800">Personal Records</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-3 gap-4">
+          {records.map((r) => (
+            <div key={r.label} className="text-center">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">
+                {r.label}
+              </p>
+              <p className="text-xl font-bold text-slate-800 mt-0.5 tabular-nums">{r.value}</p>
+              <p className="text-xs text-slate-500">{r.sub}</p>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

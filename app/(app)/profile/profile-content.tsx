@@ -34,6 +34,7 @@ import {
   PROVINCE_LABELS,
   SPLIT_PRESET_AGENT_PCT,
   type UserSettings,
+  type HistoryItem,
 } from "@/lib/types/database";
 import { fmtCurrency, fmtCompact } from "@/lib/formatters";
 
@@ -73,6 +74,9 @@ interface ProfileContentProps {
   ytdDeals: number;
   avgDeal: number;
   lifetimeDeals: number;
+  lifetimeGCI?: number;
+  historyItems?: HistoryItem[];
+  bestYear?: { year: number; gci: number } | null;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -84,6 +88,9 @@ export function ProfileContent({
   ytdDeals,
   avgDeal,
   lifetimeDeals,
+  lifetimeGCI = 0,
+  historyItems = [],
+  bestYear = null,
 }: ProfileContentProps) {
 
   // ── Identity ──────────────────────────────────────────────────────────────
@@ -506,6 +513,18 @@ export function ProfileContent({
         </div>
       )}
 
+      {/* ── My Business, By the Numbers ───────────────────────────────────── */}
+      {(lifetimeDeals > 0 || historyItems.length > 0) && (
+        <CareerSummaryCard
+          experienceYears={settings?.experience_years ?? null}
+          lifetimeDeals={lifetimeDeals}
+          lifetimeGCI={lifetimeGCI}
+          bestYear={bestYear}
+          goalGCI={settings?.goal_gci ?? 0}
+          historyItems={historyItems}
+        />
+      )}
+
       {/* ── Colour Theme + Business Configuration ─────────────────────────── */}
       <div className="grid gap-4 sm:grid-cols-2">
 
@@ -897,5 +916,91 @@ function GoalItem({
         </div>
       )}
     </div>
+  );
+}
+
+// ── CareerSummaryCard ─────────────────────────────────────────────────────────
+
+function StatBlock({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div className="text-center">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-indigo-500">{label}</p>
+      <p className="text-2xl font-bold text-slate-800 mt-0.5 tabular-nums">{value}</p>
+      <p className="text-xs text-slate-500">{sub}</p>
+    </div>
+  );
+}
+
+function CareerSummaryCard({
+  experienceYears,
+  lifetimeDeals,
+  lifetimeGCI,
+  bestYear,
+  goalGCI,
+  historyItems,
+}: {
+  experienceYears: number | null;
+  lifetimeDeals: number;
+  lifetimeGCI: number;
+  bestYear: { year: number; gci: number } | null;
+  goalGCI: number;
+  historyItems: HistoryItem[];
+}) {
+  // Compute goal achievement streak (consecutive years hitting goal, working backwards)
+  let goalStreakYears = 0;
+  if (goalGCI > 0 && historyItems.length > 0) {
+    const sorted = [...historyItems].sort((a, b) => b.year - a.year);
+    for (const h of sorted) {
+      if (h.annual_gci >= goalGCI) goalStreakYears++;
+      else break;
+    }
+  }
+
+  return (
+    <Card className="rounded-2xl border-indigo-200 bg-gradient-to-br from-indigo-50 via-blue-50 to-slate-50 shadow-sm">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm font-semibold text-indigo-800">
+          My Business, By the Numbers
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">Your career in real estate at a glance</p>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {experienceYears !== null && experienceYears > 0 && (
+            <StatBlock
+              label="Experience"
+              value={`${experienceYears}+`}
+              sub="years in real estate"
+            />
+          )}
+          <StatBlock
+            label="Lifetime Deals"
+            value={String(lifetimeDeals)}
+            sub="closed transactions"
+          />
+          {lifetimeGCI > 0 && (
+            <StatBlock
+              label="Lifetime GCI"
+              value={fmtCurrency(lifetimeGCI)}
+              sub="gross commission earned"
+            />
+          )}
+          {bestYear && (
+            <StatBlock
+              label="Best Year"
+              value={fmtCurrency(bestYear.gci)}
+              sub={String(bestYear.year)}
+            />
+          )}
+          {goalStreakYears >= 2 && (
+            <StatBlock
+              label="Goal Streak"
+              value={`${goalStreakYears} yr${goalStreakYears !== 1 ? "s" : ""}`}
+              sub="goals hit in a row"
+            />
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
