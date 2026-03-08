@@ -254,6 +254,7 @@ export interface HistoryItem {
   quarter_gci: number[]; // [Q1, Q2, Q3, Q4]
   quarter_tx: number[];
   is_locked: boolean;
+  split_pct: number | null; // agent's brokerage split this year (e.g. 0.75 = 75/25)
 
   created_at: string;
   updated_at: string;

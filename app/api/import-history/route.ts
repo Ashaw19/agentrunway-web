@@ -22,6 +22,7 @@ export interface ImportResult {
   quarter_gci: [number, number, number, number];
   quarter_tx: [number, number, number, number];
   deals: ExtractedDeal[];
+  split_pct?: number;  // detected or user-specified agent split (e.g. 0.75 = 75/25)
 }
 
 // ── Groq raw response (before we compute aggregates) ─────────────────────────
@@ -133,7 +134,7 @@ Return ONLY a raw JSON object (no markdown, no code fences). Required structure:
     {
       "date": "<YYYY-MM-DD — closing or payment date>",
       "address": "<property street address, or empty string>",
-      "gci": <number — agent's NET commission after brokerage split. Use "Net Commission Income", "Net Commission", "Taxable", "Agent Share", or equivalent. Do NOT use gross/pre-split amounts.>,
+      "gci": <number — the agent's GROSS commission BEFORE the brokerage split. Look for a column labelled exactly "GCI". Do NOT use "Net Commission", "Net Income", or any post-split column.>,
       "party_a": "<client name — see rules below>",
       "party_b": "<other party — see rules below>",
       "agent_side": <0 = agent represented party_a, 1 = party_b, null = unclear>,
@@ -158,7 +159,7 @@ Rules for Format A:
     "Buy | Sell" → "both"
     "Rent"       → "buyer"   (treat rentals as buyer-side)
 - source: copy the "Source" column verbatim (e.g. "SOI", "Agent Referral", "Referral from SOI", "Realtor.ca")
-- gci: use the "Net Commission Income" column (rightmost number column before Notes)
+- gci: use the "GCI" column (agent's gross commission BEFORE brokerage split). Do NOT use "Net Commission", "Net Income", or any post-split column.
 
 Date handling for Format A:
 - Excel serial numbers (integers like 45769): convert using Excel epoch.
@@ -170,13 +171,16 @@ Date handling for Format A:
 
 WORKED EXAMPLES for Format A:
   Row: Matt Foster | 531 Ridge Row | Jan 12 (paid) | Sell | SOI | 580000 | 14500 | 10875
-  → party_a="Matt Foster", party_b="", agent_side=0, side="seller", source="SOI", gci=10875
+  → party_a="Matt Foster", party_b="", agent_side=0, side="seller", source="SOI", gci=14500
+     (14500 is the GCI column; 10875 is Net Commission — use GCI)
 
   Row: Tong & Sunny Gao | 68 Elizabeth Parkway | 45769 | Buy | Sell | SOI | 430000 | 10750 | 8062.5
-  → party_a="Tong & Sunny Gao", party_b="", agent_side=0, side="both", source="SOI", gci=8062.5
+  → party_a="Tong & Sunny Gao", party_b="", agent_side=0, side="both", source="SOI", gci=10750
+     (10750 is the GCI column; 8062.5 is Net Commission — use GCI)
 
   Row: Travis & Chryssie Radtke | 290 Simms Street | 45777 | Sell | Referral from SOI | 280000 | 7000 | 5250
-  → party_a="Travis & Chryssie Radtke", party_b="", agent_side=0, side="seller", source="Referral from SOI", gci=5250
+  → party_a="Travis & Chryssie Radtke", party_b="", agent_side=0, side="seller", source="Referral from SOI", gci=7000
+     (7000 is the GCI column; 5250 is Net Commission — use GCI)
 
 ══════════════════════════════════════════════════════════════════
 FORMAT B — Brokerage Commission Report (party_a / party_b names)

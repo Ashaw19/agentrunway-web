@@ -55,6 +55,16 @@ const QUARTER_STYLES = [
 
 type ImportStatus = "idle" | "rendering" | "extracting" | "preview" | "saving";
 
+const SPLIT_OPTIONS: { label: string; value: number }[] = [
+  { label: "70/30 — agent keeps 70%", value: 0.70 },
+  { label: "75/25 — agent keeps 75%", value: 0.75 },
+  { label: "80/20 — agent keeps 80%", value: 0.80 },
+  { label: "85/15 — agent keeps 85%", value: 0.85 },
+  { label: "90/10 — agent keeps 90%", value: 0.90 },
+  { label: "95/5  — agent keeps 95%", value: 0.95 },
+  { label: "100%  — no brokerage split", value: 1.00 },
+];
+
 export function HistoryContent({ historyItems: initial, transactions }: Props) {
   const [items, setItems] = useState(initial);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -77,6 +87,12 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
   // ── Batch (multi-year) import state ──────────────────────────────────────
   const [batchImportData, setBatchImportData]   = useState<ImportResult[]>([]);
   const [batchProgress, setBatchProgress]       = useState({ current: 0, total: 0 });
+
+  // ── Split selection state ─────────────────────────────────────────────────
+  // Per-dialog split selectors; batchSplitPcts is initialised from auto-detection
+  const [addSplitPct,    setAddSplitPct]    = useState<number>(0.75);
+  const [importSplitPct, setImportSplitPct] = useState<number>(0.75);
+  const [batchSplitPcts, setBatchSplitPcts] = useState<Record<number, number>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -170,6 +186,7 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
         annual_tx: parseInt(addTx) || 0,
         quarter_gci: [0, 0, 0, 0],
         quarter_tx: [0, 0, 0, 0],
+        split_pct: addSplitPct,
       })
       .select()
       .single();
@@ -275,6 +292,7 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
           setImportStatus("extracting");
 
           const results: ImportResult[] = [];
+          const detectedSplitMap: Record<number, number> = {};
           for (let si = 0; si < yearSheets.length; si++) {
             setBatchProgress({ current: si + 1, total: yearSheets.length });
             const sheetName = yearSheets[si];
@@ -283,16 +301,19 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
             const ws = workbook.Sheets[sheetName];
 
             // Try browser-side parsing first — 100% reliable for agent tracker format
-            // (handles $-prefixed numbers, 2-digit years, Q1-Q4, missing-year dates)
+            // (handles $-prefixed GCI, 2-digit years, Q1-Q4, missing-year dates)
             const rawRows = XLSX.utils.sheet_to_json<string[]>(ws, {
               header: 1, defval: "", raw: false,
             }) as string[][];
-            const trackerDeals = parseTrackerSheet(rawRows, sheetYear);
+            const { deals: trackerDeals, detectedSplit } = parseTrackerSheet(rawRows, sheetYear);
 
             if (trackerDeals.length > 0) {
-              // No Groq needed — computed fully in-browser
-              const result = computeLocalAggregates(trackerDeals, sheetYear);
-              if (result.annual_tx > 0) results.push(result);
+              // No Groq needed — computed fully in-browser; pass detected split
+              const result = computeLocalAggregates(trackerDeals, sheetYear, detectedSplit ?? undefined);
+              if (result.annual_tx > 0) {
+                results.push(result);
+                if (detectedSplit) detectedSplitMap[sheetYear] = detectedSplit;
+              }
             } else {
               // Fallback: send to Groq with year hint from sheet name
               const csv = XLSX.utils.sheet_to_csv(ws);
@@ -308,7 +329,13 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
             }
           }
 
-          setBatchImportData(results.sort((a, b) => b.year - a.year));
+          const sortedResults = results.sort((a, b) => b.year - a.year);
+          setBatchImportData(sortedResults);
+          // Pre-populate split selectors from auto-detected GCI/Net ratios
+          setBatchSplitPcts(sortedResults.reduce((acc, r) => {
+            acc[r.year] = detectedSplitMap[r.year] ?? r.split_pct ?? 0.75;
+            return acc;
+          }, {} as Record<number, number>));
           setImportStatus("preview");
           return; // skip single-year flow
         }
@@ -349,6 +376,7 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
       });
 
       setImportData(data);
+      setImportSplitPct(data.split_pct ?? 0.75);
       setAgentSides(sides);
       setImportStatus("preview");
     } catch (err) {
@@ -376,6 +404,7 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
       annual_tx: importData.annual_tx,
       quarter_gci: importData.quarter_gci,
       quarter_tx: importData.quarter_tx,
+      split_pct: importSplitPct,
     };
 
     // Check if a row for this year already exists — UNIQUE (user_id, year)
@@ -460,6 +489,7 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
     setAgentSides({});
     setBatchImportData([]);
     setBatchProgress({ current: 0, total: 0 });
+    setBatchSplitPcts({});
   }
 
   // ── Batch save: save all years from a multi-sheet Excel ──────────────────
@@ -475,6 +505,7 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
     let totalClients = 0;
 
     for (const yearData of batchImportData) {
+      const effectiveSplit = batchSplitPcts[yearData.year] ?? yearData.split_pct ?? 0.75;
       const payload = {
         user_id: user.id,
         year: yearData.year,
@@ -482,6 +513,7 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
         annual_tx: yearData.annual_tx,
         quarter_gci: yearData.quarter_gci,
         quarter_tx: yearData.quarter_tx,
+        split_pct: effectiveSplit,
       };
 
       const { data: existing } = await supabase
@@ -613,6 +645,18 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
                     onChange={(e) => setAddTx(e.target.value)}
                   />
                 </div>
+                <div className="grid gap-2">
+                  <Label>Brokerage Split</Label>
+                  <select
+                    value={addSplitPct}
+                    onChange={(e) => setAddSplitPct(Number(e.target.value))}
+                    className="border border-input rounded-md h-10 px-3 text-sm bg-background w-full outline-none cursor-pointer"
+                  >
+                    {SPLIT_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
                 <Button onClick={handleAddYear}>Save &amp; Add Quarterly Data</Button>
               </div>
             </DialogContent>
@@ -675,28 +719,46 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
                   return (
                     <div
                       key={yr.year}
-                      className="flex items-center justify-between rounded-xl border border-border/60 bg-card px-3 py-2.5 gap-3"
+                      className="rounded-xl border border-border/60 bg-card px-3 py-2.5"
                     >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-foreground">{yr.year}</span>
-                          {hasExisting && (
-                            <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
-                              replaces existing
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {fmtCurrency(yr.annual_gci)} GCI · {yr.annual_tx} deal{yr.annual_tx !== 1 ? "s" : ""} · {totalClients} client{totalClients !== 1 ? "s" : ""}
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-4 gap-1 shrink-0">
-                        {yr.quarter_gci.map((q, qi) => (
-                          <div key={qi} className={cn("rounded px-1.5 py-1 text-center text-[10px]", QUARTER_STYLES[qi].bg, QUARTER_STYLES[qi].border, "border")}>
-                            <span className={cn("font-bold block", QUARTER_STYLES[qi].heading)}>Q{qi + 1}</span>
-                            <span className="text-slate-600">{q > 0 ? `$${Math.round(q / 1000)}k` : "—"}</span>
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-foreground">{yr.year}</span>
+                            {hasExisting && (
+                              <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                                replaces existing
+                              </span>
+                            )}
                           </div>
-                        ))}
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {fmtCurrency(yr.annual_gci)} GCI · {yr.annual_tx} deal{yr.annual_tx !== 1 ? "s" : ""} · {totalClients} client{totalClients !== 1 ? "s" : ""}
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-4 gap-1 shrink-0">
+                          {yr.quarter_gci.map((q, qi) => (
+                            <div key={qi} className={cn("rounded px-1.5 py-1 text-center text-[10px]", QUARTER_STYLES[qi].bg, QUARTER_STYLES[qi].border, "border")}>
+                              <span className={cn("font-bold block", QUARTER_STYLES[qi].heading)}>Q{qi + 1}</span>
+                              <span className="text-slate-600">{q > 0 ? `$${Math.round(q / 1000)}k` : "—"}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Per-year brokerage split selector */}
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <span className="text-[11px] text-muted-foreground">Brokerage split:</span>
+                        <select
+                          value={batchSplitPcts[yr.year] ?? 0.75}
+                          onChange={(e) => setBatchSplitPcts((prev) => ({ ...prev, [yr.year]: Number(e.target.value) }))}
+                          className="text-[11px] border border-border rounded px-2 py-0.5 bg-card outline-none cursor-pointer"
+                        >
+                          {SPLIT_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                        {yr.split_pct && (
+                          <span className="text-[10px] text-emerald-600 font-medium">✓ auto-detected</span>
+                        )}
                       </div>
                     </div>
                   );
@@ -749,6 +811,23 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
                     Extracted from your brokerage report. Review the details below before saving.
                   </p>
                 </div>
+              </div>
+
+              {/* Brokerage split selector */}
+              <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-foreground">Brokerage Split</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Your share of each commission this year</p>
+                </div>
+                <select
+                  value={importSplitPct}
+                  onChange={(e) => setImportSplitPct(Number(e.target.value))}
+                  className="text-sm border border-input rounded-md px-2.5 py-1.5 bg-background outline-none cursor-pointer shrink-0"
+                >
+                  {SPLIT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Quarterly breakdown */}
@@ -1178,7 +1257,8 @@ type TrackerHeaders = {
   dateCol: number;
   sideCol: number;
   sourceCol: number;
-  netCol: number;
+  gciCol: number;   // GCI column (pre-split) — primary dollar value
+  netCol: number;   // Net Commission (post-split) — used to detect brokerage split ratio
   rowIdx: number;
 };
 
@@ -1190,16 +1270,20 @@ function normaliseHeader(h: string): string {
 function findTrackerHeaders(rows: string[][]): TrackerHeaders | null {
   for (let i = 0; i < Math.min(rows.length, 12); i++) {
     const hdrs = rows[i].map(normaliseHeader);
-    const nameCol   = hdrs.findIndex((h) => h === "name");
-    const sideCol   = hdrs.findIndex((h) => h.startsWith("buy") || h.startsWith("rent"));
-    const netCol    = hdrs.findIndex((h) => h.includes("netcommission"));
-    if (nameCol !== -1 && sideCol !== -1 && netCol !== -1) {
+    const nameCol = hdrs.findIndex((h) => h === "name");
+    const sideCol = hdrs.findIndex((h) => h.startsWith("buy") || h.startsWith("rent"));
+    // Primary: dedicated GCI column (pre-split); fallback: Net Commission (post-split)
+    const gciCol  = hdrs.findIndex((h) => h === "gci" || h === "grosscommission" || h === "grosscommissionincome");
+    const netCol  = hdrs.findIndex((h) => h.includes("netcommission") || h.includes("netincome") || h === "net");
+    // Require: name + side + at least one money column
+    if (nameCol !== -1 && sideCol !== -1 && (gciCol !== -1 || netCol !== -1)) {
       return {
         nameCol,
         addrCol:   hdrs.findIndex((h) => h === "address"),
-        dateCol:   hdrs.findIndex((h) => h.includes("date")),
+        dateCol:   hdrs.findIndex((h) => h.includes("date") || h.includes("close")),
         sideCol,
         sourceCol: hdrs.findIndex((h) => h === "source"),
+        gciCol,
         netCol,
         rowIdx: i,
       };
@@ -1240,15 +1324,21 @@ function parseTrackerDate(raw: string, year: number): string {
   return `${year}-06-15`;
 }
 
-/** Parse all deal rows from a tracker sheet. Returns [] if not a tracker sheet. */
+/** Parse all deal rows from a tracker sheet.
+ *  Returns deals (empty if not a tracker sheet) and the auto-detected brokerage split. */
 function parseTrackerSheet(
   rows: string[][],
   sheetYear: number,
-): import("@/app/api/import-history/route").ExtractedDeal[] {
+): { deals: import("@/app/api/import-history/route").ExtractedDeal[]; detectedSplit: number | null } {
   const hdrs = findTrackerHeaders(rows);
-  if (!hdrs) return [];
+  if (!hdrs) return { deals: [], detectedSplit: null };
+
+  // The primary column for GCI is the GCI column (pre-split).
+  // If no dedicated GCI column exists, fall back to Net Commission.
+  const moneyCol = hdrs.gciCol >= 0 ? hdrs.gciCol : hdrs.netCol;
 
   const deals: import("@/app/api/import-history/route").ExtractedDeal[] = [];
+  const splitRatios: number[] = [];
 
   for (let i = hdrs.rowIdx + 1; i < rows.length; i++) {
     const row = rows[i];
@@ -1257,10 +1347,19 @@ function parseTrackerSheet(
     // Skip blank / total / header rows
     if (!name || /^(totals?|number|name|transaction|$)/i.test(name)) continue;
 
-    // Strip $ and commas from GCI: "$10,875" → 10875
-    const rawGCI = (row[hdrs.netCol] ?? "").replace(/[$,\s]/g, "");
+    // Strip $ and commas: "$14,500" → 14500
+    const rawGCI = (row[moneyCol] ?? "").replace(/[$,\s]/g, "");
     const gci = parseFloat(rawGCI) || 0;
     if (gci <= 0) continue;
+
+    // Collect split ratios when both GCI and Net columns exist
+    if (hdrs.gciCol >= 0 && hdrs.netCol >= 0) {
+      const rawNet = (row[hdrs.netCol] ?? "").replace(/[$,\s]/g, "");
+      const netVal = parseFloat(rawNet) || 0;
+      if (netVal > 0 && netVal < gci) {
+        splitRatios.push(netVal / gci);
+      }
+    }
 
     const rawSide = (row[hdrs.sideCol] ?? "").toLowerCase();
     const side: import("@/app/api/import-history/route").ExtractedDeal["side"] =
@@ -1269,9 +1368,9 @@ function parseTrackerSheet(
       : rawSide.includes("buy") || rawSide.includes("rent") ? "buyer"
       : undefined;
 
-    const source  = (hdrs.sourceCol  >= 0 ? row[hdrs.sourceCol]?.trim() : "") || undefined;
-    const address = (hdrs.addrCol    >= 0 ? row[hdrs.addrCol]?.trim()   : "") ?? "";
-    const rawDate = (hdrs.dateCol    >= 0 ? row[hdrs.dateCol]?.trim()   : "") ?? "";
+    const source  = (hdrs.sourceCol >= 0 ? row[hdrs.sourceCol]?.trim() : "") || undefined;
+    const address = (hdrs.addrCol   >= 0 ? row[hdrs.addrCol]?.trim()   : "") ?? "";
+    const rawDate = (hdrs.dateCol   >= 0 ? row[hdrs.dateCol]?.trim()   : "") ?? "";
 
     deals.push({
       date:       parseTrackerDate(rawDate, sheetYear),
@@ -1284,13 +1383,26 @@ function parseTrackerSheet(
       side,
     });
   }
-  return deals;
+
+  // Detect split: take the median ratio and snap to nearest common split
+  let detectedSplit: number | null = null;
+  if (splitRatios.length >= 2) {
+    const sorted = [...splitRatios].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const commonSplits = [0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.00];
+    detectedSplit = commonSplits.reduce((best, s) =>
+      Math.abs(s - median) < Math.abs(best - median) ? s : best
+    );
+  }
+
+  return { deals, detectedSplit };
 }
 
 /** Compute quarterly/annual aggregates in the browser (same logic as the server). */
 function computeLocalAggregates(
   deals: import("@/app/api/import-history/route").ExtractedDeal[],
   year: number,
+  splitPct?: number,
 ): import("@/app/api/import-history/route").ImportResult {
   const quarter_gci: [number, number, number, number] = [0, 0, 0, 0];
   const quarter_tx:  [number, number, number, number] = [0, 0, 0, 0];
@@ -1310,5 +1422,6 @@ function computeLocalAggregates(
     quarter_gci,
     quarter_tx,
     deals,
+    split_pct: splitPct,
   };
 }
