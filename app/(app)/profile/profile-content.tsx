@@ -255,7 +255,7 @@ export function ProfileContent({
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
 
       {/* Page header */}
       <div>
@@ -445,33 +445,51 @@ export function ProfileContent({
             {
               label: "YTD GCI",
               value: fmtCurrency(ytdGCI),
-              icon: <TrendingUp className="h-4 w-4 text-emerald-500" />,
+              icon: <TrendingUp className="h-4 w-4 text-emerald-700" />,
+              border: "border-emerald-200",
+              bg: "from-emerald-100 to-emerald-50",
+              iconBg: "bg-emerald-200",
+              labelColor: "text-emerald-700",
             },
             {
               label: "YTD Deals",
               value: String(ytdDeals),
-              icon: <Check className="h-4 w-4 text-blue-500" />,
+              icon: <Check className="h-4 w-4 text-blue-700" />,
+              border: "border-blue-200",
+              bg: "from-blue-100 to-blue-50",
+              iconBg: "bg-blue-200",
+              labelColor: "text-blue-700",
             },
             {
               label: "Avg / Deal",
               value: avgDeal > 0 ? fmtCurrency(avgDeal) : "—",
-              icon: <Target className="h-4 w-4 text-violet-500" />,
+              icon: <Target className="h-4 w-4 text-violet-700" />,
+              border: "border-violet-200",
+              bg: "from-violet-100 to-violet-50",
+              iconBg: "bg-violet-200",
+              labelColor: "text-violet-700",
             },
             {
               label: "Lifetime Deals",
               value: fmtCompact(lifetimeDeals),
-              icon: <Calendar className="h-4 w-4 text-amber-500" />,
+              icon: <Calendar className="h-4 w-4 text-amber-700" />,
+              border: "border-amber-200",
+              bg: "from-amber-100 to-amber-50",
+              iconBg: "bg-amber-200",
+              labelColor: "text-amber-700",
             },
           ].map((stat) => (
-            <Card key={stat.label} className="border bg-card">
+            <Card key={stat.label} className={`rounded-2xl border ${stat.border} bg-gradient-to-br ${stat.bg} shadow-sm`}>
               <CardContent className="p-4">
                 <div className="mb-1.5 flex items-center gap-2">
-                  {stat.icon}
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${stat.iconBg}`}>
+                    {stat.icon}
+                  </div>
+                  <span className={`text-[11px] font-semibold uppercase tracking-wide ${stat.labelColor}`}>
                     {stat.label}
                   </span>
                 </div>
-                <p className="text-lg font-bold tabular-nums text-foreground">
+                <p className="text-lg font-bold tabular-nums text-slate-800">
                   {stat.value}
                 </p>
               </CardContent>
@@ -484,7 +502,7 @@ export function ProfileContent({
       <div className="grid gap-4 sm:grid-cols-2">
 
         {/* Colour Theme card */}
-        <Card>
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-sm font-semibold">
               <Palette className="h-4 w-4 text-muted-foreground" />
@@ -537,7 +555,7 @@ export function ProfileContent({
         </Card>
 
         {/* Business Configuration card */}
-        <Card>
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-sm font-semibold">
               <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -581,7 +599,7 @@ export function ProfileContent({
       </div>
 
       {/* ── Business Identity card ─────────────────────────────────────────── */}
-      <Card>
+      <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
             <Hash className="h-4 w-4 text-muted-foreground" />
@@ -745,7 +763,7 @@ export function ProfileContent({
       </Card>
 
       {/* ── Annual Goals card ─────────────────────────────────────────────── */}
-      <Card>
+      <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-sm font-semibold">
             <Target className="h-4 w-4 text-muted-foreground" />
@@ -829,27 +847,43 @@ function GoalItem({
   color: "emerald" | "blue" | "violet";
 }) {
   const pct = goal > 0 ? Math.min(1, current / goal) : 0;
-  const trackColors = {
-    emerald: "bg-emerald-500",
-    blue: "bg-blue-500",
-    violet: "bg-violet-500",
+  const colorStyles = {
+    emerald: {
+      container: "border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50",
+      label: "text-emerald-700",
+      track: "bg-emerald-500",
+      progress: "text-emerald-700",
+    },
+    blue: {
+      container: "border-blue-200 bg-gradient-to-br from-blue-100 to-blue-50",
+      label: "text-blue-700",
+      track: "bg-blue-500",
+      progress: "text-blue-700",
+    },
+    violet: {
+      container: "border-violet-200 bg-gradient-to-br from-violet-100 to-violet-50",
+      label: "text-violet-700",
+      track: "bg-violet-500",
+      progress: "text-violet-700",
+    },
   };
+  const styles = colorStyles[color];
 
   return (
-    <div className="rounded-lg border bg-muted/30 p-3.5">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+    <div className={cn("rounded-xl border p-3.5 shadow-sm", styles.container)}>
+      <p className={cn("text-[11px] font-semibold uppercase tracking-wide", styles.label)}>
         {label}
       </p>
-      <p className="mt-1 text-base font-bold text-foreground">{value}</p>
+      <p className="mt-1 text-base font-bold text-slate-800">{value}</p>
       {goal > 0 && (
         <div className="mt-2">
-          <div className="h-1 overflow-hidden rounded-full bg-border">
+          <div className="h-1.5 overflow-hidden rounded-full bg-white/60">
             <div
-              className={cn("h-full rounded-full transition-all", trackColors[color])}
+              className={cn("h-full rounded-full transition-all", styles.track)}
               style={{ width: `${pct * 100}%` }}
             />
           </div>
-          <p className="mt-1 text-[10px] text-muted-foreground">
+          <p className={cn("mt-1 text-[10px] font-medium", styles.progress)}>
             {Math.round(pct * 100)}% of goal
           </p>
         </div>

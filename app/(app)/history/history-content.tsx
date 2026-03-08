@@ -96,7 +96,7 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between border-b border-border/60 pb-5">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">History</h1>
@@ -149,23 +149,33 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
       </div>
 
       {items.length === 0 ? (
-        <Card>
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
           <CardContent className="py-12 text-center text-muted-foreground">
             No history years yet. Add your first year to improve projections.
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {items.map((item) => {
+          {items.map((item, idx) => {
             const isOpen = expanded.has(item.id);
             const yearTx = txByYear[item.year] ?? [];
             const derivedGCI = yearTx.reduce(
               (sum, tx) => sum + computeGCI(tx),
               0,
             );
+            // Cycle through accent colors for each year
+            const accentBorders = [
+              "border-l-blue-500",
+              "border-l-violet-500",
+              "border-l-emerald-500",
+              "border-l-amber-500",
+              "border-l-teal-500",
+              "border-l-rose-500",
+            ];
+            const accentBorder = accentBorders[idx % accentBorders.length];
 
             return (
-              <Card key={item.id}>
+              <Card key={item.id} className={`rounded-2xl border-l-4 shadow-sm transition-shadow hover:shadow-md ${accentBorder}`}>
                 <CardHeader
                   className="cursor-pointer"
                   onClick={() => toggleExpand(item.id)}
@@ -173,11 +183,11 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {isOpen ? (
-                        <ChevronDown className="h-4 w-4" />
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
                       ) : (
-                        <ChevronRight className="h-4 w-4" />
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       )}
-                      <CardTitle className="text-base">{item.year}</CardTitle>
+                      <CardTitle className="text-lg font-bold">{item.year}</CardTitle>
                       {item.is_locked && (
                         <Badge variant="outline" className="text-xs">
                           Locked
@@ -185,7 +195,7 @@ export function HistoryContent({ historyItems: initial, transactions }: Props) {
                       )}
                     </div>
                     <div className="flex items-center gap-4 text-sm">
-                      <span className="font-semibold">
+                      <span className="text-base font-bold text-slate-800">
                         {fmtCurrency(item.annual_gci)}
                       </span>
                       <span className="text-muted-foreground">

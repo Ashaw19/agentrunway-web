@@ -9,7 +9,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -32,7 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Layers, DollarSign, TrendingUp } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   computeEstimatedGCI,
@@ -41,6 +40,7 @@ import {
   PIPELINE_STAGE_DEFAULTS,
   type PipelineDeal,
 } from "@/lib/types/database";
+import { cn } from "@/lib/utils";
 
 interface Props {
   initialDeals: PipelineDeal[];
@@ -78,12 +78,18 @@ const STAGE_LABELS: Record<string, string> = {
   firm: "Firm",
 };
 
-const STAGE_COLORS: Record<string, "secondary" | "outline" | "default"> = {
-  lead: "outline",
-  showing: "outline",
-  offer: "secondary",
-  conditional: "secondary",
-  firm: "default",
+const STAGE_CHIP: Record<string, string> = {
+  lead:        "bg-slate-100 text-slate-700 border border-slate-200",
+  showing:     "bg-blue-100 text-blue-800 border border-blue-200",
+  offer:       "bg-amber-100 text-amber-800 border border-amber-200",
+  conditional: "bg-purple-100 text-purple-800 border border-purple-200",
+  firm:        "bg-emerald-100 text-emerald-800 border border-emerald-200",
+};
+
+const SIDE_CHIP: Record<string, string> = {
+  buyer:  "bg-blue-100 text-blue-800 border border-blue-200",
+  seller: "bg-purple-100 text-purple-800 border border-purple-200",
+  both:   "bg-teal-100 text-teal-800 border border-teal-200",
 };
 
 export function PipelineContent({ initialDeals }: Props) {
@@ -178,6 +184,9 @@ export function PipelineContent({ initialDeals }: Props) {
   }
 
   const totalWeighted = deals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
+  const avgDealValue = deals.length > 0
+    ? deals.reduce((sum, d) => sum + computeEstimatedGCI(d), 0) / deals.length
+    : 0;
 
   // Preview GCI in form
   const previewEstGCI =
@@ -189,7 +198,7 @@ export function PipelineContent({ initialDeals }: Props) {
   const previewWeighted = previewEstGCI * previewProb;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border/60 pb-5">
         <div>
@@ -205,8 +214,39 @@ export function PipelineContent({ initialDeals }: Props) {
         </Button>
       </div>
 
+      {/* KPI strip */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-100 to-blue-50 px-5 py-4 shadow-sm">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-200">
+            <Layers className="h-5 w-5 text-blue-700" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Active Deals</p>
+            <p className="text-2xl font-bold text-slate-800">{deals.length}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-100 to-purple-50 px-5 py-4 shadow-sm">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-200">
+            <TrendingUp className="h-5 w-5 text-purple-700" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">Weighted GCI</p>
+            <p className="text-2xl font-bold text-slate-800">{fmtCurrency(totalWeighted)}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-100 to-teal-50 px-5 py-4 shadow-sm">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-200">
+            <DollarSign className="h-5 w-5 text-teal-700" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">Avg Deal Value</p>
+            <p className="text-2xl font-bold text-slate-800">{deals.length > 0 ? fmtCurrency(avgDealValue) : "—"}</p>
+          </div>
+        </div>
+      </div>
+
       {/* Table */}
-      <Card>
+      <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardContent className="p-0">
           {deals.length === 0 ? (
             <div className="py-16 text-center text-sm text-muted-foreground">
@@ -237,14 +277,14 @@ export function PipelineContent({ initialDeals }: Props) {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="capitalize text-xs">
+                      <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize", SIDE_CHIP[deal.side] ?? "bg-slate-100 text-slate-700 border border-slate-200")}>
                         {deal.side}
-                      </Badge>
+                      </span>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={STAGE_COLORS[deal.stage]} className="text-xs">
+                      <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold", STAGE_CHIP[deal.stage] ?? "bg-slate-100 text-slate-700 border border-slate-200")}>
                         {STAGE_LABELS[deal.stage]}
-                      </Badge>
+                      </span>
                     </TableCell>
                     <TableCell className="text-right text-sm">
                       {fmtCurrency(computeEstimatedGCI(deal))}

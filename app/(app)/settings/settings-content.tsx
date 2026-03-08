@@ -141,7 +141,7 @@ export function SettingsContent({ settings }: Props) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
       <div className="border-b border-border/60 pb-5">
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
@@ -151,7 +151,7 @@ export function SettingsContent({ settings }: Props) {
       </div>
 
       {/* Card 1 — Province & Tax */}
-      <Card>
+      <Card className="rounded-2xl border-l-4 border-l-blue-500 shadow-sm">
         <CardHeader>
           <CardTitle>Province &amp; Tax</CardTitle>
           <CardDescription>
@@ -186,7 +186,7 @@ export function SettingsContent({ settings }: Props) {
       </Card>
 
       {/* Card 2 — Commission Structure */}
-      <Card>
+      <Card className="rounded-2xl border-l-4 border-l-violet-500 shadow-sm">
         <CardHeader>
           <CardTitle>Commission Structure</CardTitle>
           <CardDescription>
@@ -221,7 +221,7 @@ export function SettingsContent({ settings }: Props) {
       </Card>
 
       {/* Card 3 — Brokerage Fees */}
-      <Card>
+      <Card className="rounded-2xl border-l-4 border-l-amber-500 shadow-sm">
         <CardHeader>
           <CardTitle>Brokerage Fees</CardTitle>
           <CardDescription>
@@ -277,7 +277,7 @@ export function SettingsContent({ settings }: Props) {
       </Card>
 
       {/* Card 4 — Runway Inputs */}
-      <Card>
+      <Card className="rounded-2xl border-l-4 border-l-emerald-500 shadow-sm">
         <CardHeader>
           <CardTitle>Runway Inputs</CardTitle>
           <CardDescription>
@@ -377,7 +377,7 @@ function PlanBillingCard({ settings }: { settings: UserSettings }) {
   }
 
   return (
-    <Card>
+    <Card className="rounded-2xl border-l-4 border-l-indigo-500 shadow-sm">
       <CardHeader>
         <CardTitle>Plan &amp; Billing</CardTitle>
         <CardDescription>

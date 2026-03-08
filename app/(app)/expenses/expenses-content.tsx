@@ -182,7 +182,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-5">
         <div>
@@ -209,31 +209,40 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
 
       {/* KPI Summary */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-t-2 border-t-primary/40">
+        <Card className="rounded-2xl border border-rose-200 bg-gradient-to-br from-rose-100 to-rose-50 shadow-sm">
           <CardHeader className="pb-2">
-            <CardDescription>YTD Expenses</CardDescription>
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-rose-700">YTD Expenses</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold tracking-tight">{fmtCurrency(ytdTotal)}</div>
-            <p className="mt-1 text-xs text-muted-foreground">This calendar year</p>
+            <div className="text-3xl font-bold tracking-tight text-slate-800">{fmtCurrency(ytdTotal)}</div>
+            <p className="mt-1 text-xs text-rose-600/80">This calendar year</p>
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-primary/40">
+        <Card className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-100 to-amber-50 shadow-sm">
           <CardHeader className="pb-2">
-            <CardDescription>Monthly Recurring</CardDescription>
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-amber-700">Monthly Recurring</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold tracking-tight">{fmtCurrency(monthlyTotal)}</div>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <div className="text-3xl font-bold tracking-tight text-slate-800">{fmtCurrency(monthlyTotal)}</div>
+            <p className="mt-1 text-xs text-amber-600/80">
               {fmtCurrency(monthlyTotal * 12)} annualized
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-primary/40">
+        <Card className={cn(
+          "rounded-2xl shadow-sm",
+          ratioStatus === "healthy" ? "border border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50" :
+          ratioStatus === "warning"  ? "border border-amber-200 bg-gradient-to-br from-amber-100 to-amber-50" :
+                                       "border border-red-200 bg-gradient-to-br from-red-100 to-red-50"
+        )}>
           <CardHeader className="pb-2">
-            <CardDescription>Expense Ratio</CardDescription>
+            <CardDescription className={cn(
+              "text-xs font-semibold uppercase tracking-wide",
+              ratioStatus === "healthy" ? "text-emerald-700" :
+              ratioStatus === "warning"  ? "text-amber-700" : "text-red-700"
+            )}>Expense Ratio</CardDescription>
           </CardHeader>
           <CardContent>
             <div className={cn("text-3xl font-bold tracking-tight", ratioColors[ratioStatus])}>
@@ -245,9 +254,20 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-primary/40">
+        <Card className={cn(
+          "rounded-2xl shadow-sm",
+          survival.riskLevel === "strong" || survival.riskLevel === "healthy"
+            ? "border border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50"
+            : survival.riskLevel === "warning"
+            ? "border border-amber-200 bg-gradient-to-br from-amber-100 to-amber-50"
+            : "border border-red-200 bg-gradient-to-br from-red-100 to-red-50"
+        )}>
           <CardHeader className="pb-2">
-            <CardDescription>Cash Runway</CardDescription>
+            <CardDescription className={cn(
+              "text-xs font-semibold uppercase tracking-wide",
+              survival.riskLevel === "strong" || survival.riskLevel === "healthy" ? "text-emerald-700" :
+              survival.riskLevel === "warning" ? "text-amber-700" : "text-red-700"
+            )}>Cash Runway</CardDescription>
           </CardHeader>
           <CardContent>
             <div className={cn("text-3xl font-bold tracking-tight", riskColors[survival.riskLevel])}>
@@ -292,7 +312,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
 
       {/* Donut */}
       {donutData.length > 0 && (
-        <Card className="border-t-2 border-t-primary/40">
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Expense Breakdown</CardTitle>
             <CardDescription>YTD spending by category</CardDescription>

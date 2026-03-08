@@ -232,7 +232,7 @@ export function ReportsContent({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-5">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
@@ -268,42 +268,42 @@ export function ReportsContent({
 
       {/* KPI Summary */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 shadow-sm">
           <CardHeader className="pb-2">
-            <CardDescription>YTD GCI</CardDescription>
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-emerald-700">YTD GCI</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">{fmtCurrency(ytdGCI)}</div>
+            <div className="text-xl font-bold text-slate-800">{fmtCurrency(ytdGCI)}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-100 to-blue-50 shadow-sm">
           <CardHeader className="pb-2">
-            <CardDescription>Closed Deals</CardDescription>
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-blue-700">Closed Deals</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">{ytdTx.length}</div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-xl font-bold text-slate-800">{ytdTx.length}</div>
+            <p className="text-xs text-blue-600/80">
               {buyerDeals}B / {sellerDeals}S
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-100 to-purple-50 shadow-sm">
           <CardHeader className="pb-2">
-            <CardDescription>Avg Deal Size</CardDescription>
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-purple-700">Avg Deal Size</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">{fmtCurrency(avgDealSize)}</div>
+            <div className="text-xl font-bold text-slate-800">{fmtCurrency(avgDealSize)}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-100 to-teal-50 shadow-sm">
           <CardHeader className="pb-2">
-            <CardDescription>Pipeline (Weighted)</CardDescription>
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-teal-700">Pipeline (Weighted)</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold">
+            <div className="text-xl font-bold text-slate-800">
               {fmtCurrency(pipelineWeighted)}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-teal-600/80">
               {pipelineDeals.length} deals
             </p>
           </CardContent>
@@ -312,7 +312,7 @@ export function ReportsContent({
 
       {/* Benchmark + Survival row */}
         <div className="grid gap-4 sm:grid-cols-2">
-          <Card>
+          <Card className="rounded-2xl border border-purple-200 bg-purple-50/40 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Benchmark</CardTitle>
               <CardDescription>
@@ -348,7 +348,7 @@ export function ReportsContent({
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="rounded-2xl border border-emerald-200 bg-emerald-50/40 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Cash Runway</CardTitle>
             </CardHeader>
@@ -374,7 +374,7 @@ export function ReportsContent({
         </div>
 
       {/* P&L */}
-      <Card>
+      <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base">
             Profit & Loss \u2014 YTD {currentYear}
@@ -420,7 +420,7 @@ export function ReportsContent({
       </Card>
 
       {/* Tax estimate */}
-        <Card>
+        <Card className="rounded-2xl border border-amber-200 bg-amber-50/40 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Projected Tax Breakdown</CardTitle>
             <CardDescription>
@@ -470,7 +470,7 @@ export function ReportsContent({
         </Card>
 
       {/* Expense breakdown */}
-      <Card>
+      <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base">Expenses by Category</CardTitle>
         </CardHeader>
@@ -524,7 +524,7 @@ export function ReportsContent({
 
       {/* Monthly breakdown */}
       {monthlyData.length > 0 && (
-        <Card>
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Monthly Breakdown</CardTitle>
           </CardHeader>
@@ -556,7 +556,7 @@ export function ReportsContent({
       )}
 
       {/* Deal log */}
-      <Card>
+      <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base">
             Transaction Log ({ytdTx.length} deals)

@@ -32,7 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, DollarSign, Briefcase, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtCurrency } from "@/lib/formatters";
 import { computeGCI, type Transaction } from "@/lib/types/database";
@@ -65,10 +65,16 @@ const emptyForm = (): FormState => ({
   notes: "",
 });
 
-const STATUS_COLORS: Record<string, "default" | "secondary" | "destructive"> = {
-  closed: "default",
-  pending: "secondary",
-  fallen: "destructive",
+const STATUS_CHIP: Record<string, string> = {
+  closed:  "bg-emerald-100 text-emerald-800 border border-emerald-200",
+  pending: "bg-amber-100 text-amber-800 border border-amber-200",
+  fallen:  "bg-red-100 text-red-800 border border-red-200",
+};
+
+const SIDE_CHIP: Record<string, string> = {
+  buyer:  "bg-blue-100 text-blue-800 border border-blue-200",
+  seller: "bg-purple-100 text-purple-800 border border-purple-200",
+  both:   "bg-teal-100 text-teal-800 border border-teal-200",
 };
 
 export function TransactionsContent({ initialTransactions }: Props) {
@@ -190,8 +196,10 @@ export function TransactionsContent({ initialTransactions }: Props) {
     { value: "fallen", label: "Fallen" },
   ];
 
+  const avgDealSize = ytdCount > 0 ? ytdGCI / ytdCount : 0;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-5">
         <div>
@@ -204,6 +212,37 @@ export function TransactionsContent({ initialTransactions }: Props) {
           <Plus className="mr-1 h-4 w-4" />
           Add Deal
         </Button>
+      </div>
+
+      {/* KPI strip */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 px-5 py-4 shadow-sm">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-200">
+            <DollarSign className="h-5 w-5 text-emerald-700" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">YTD GCI</p>
+            <p className="text-2xl font-bold text-slate-800">{fmtCurrency(ytdGCI)}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-100 to-blue-50 px-5 py-4 shadow-sm">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-200">
+            <Briefcase className="h-5 w-5 text-blue-700" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Closed Deals</p>
+            <p className="text-2xl font-bold text-slate-800">{ytdCount}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-100 to-purple-50 px-5 py-4 shadow-sm">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-200">
+            <TrendingUp className="h-5 w-5 text-purple-700" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">Avg Deal Size</p>
+            <p className="text-2xl font-bold text-slate-800">{ytdCount > 0 ? fmtCurrency(avgDealSize) : "—"}</p>
+          </div>
+        </div>
       </div>
 
       {/* Filter + Sort bar */}
@@ -243,7 +282,7 @@ export function TransactionsContent({ initialTransactions }: Props) {
       </div>
 
       {/* Table */}
-      <Card>
+      <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardContent className="p-0">
           {transactions.length === 0 ? (
             <div className="py-16 text-center text-sm text-muted-foreground">
@@ -280,16 +319,16 @@ export function TransactionsContent({ initialTransactions }: Props) {
                       {tx.client_name || <span className="text-muted-foreground">&mdash;</span>}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="capitalize text-xs">
+                      <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize", SIDE_CHIP[tx.side] ?? "bg-slate-100 text-slate-700 border border-slate-200")}>
                         {tx.side}
-                      </Badge>
+                      </span>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={STATUS_COLORS[tx.status]} className="capitalize text-xs">
+                      <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize", STATUS_CHIP[tx.status] ?? "bg-slate-100 text-slate-700 border border-slate-200")}>
                         {tx.status}
-                      </Badge>
+                      </span>
                     </TableCell>
-                    <TableCell className="text-right font-medium">
+                    <TableCell className={cn("text-right font-semibold", tx.status === "closed" ? "text-emerald-700" : tx.status === "pending" ? "text-amber-700" : "text-slate-400")}>
                       {fmtCurrency(computeGCI(tx))}
                     </TableCell>
                     <TableCell>

@@ -170,7 +170,7 @@ export function ForecastContent({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="border-b border-border/60 pb-5">
         <h1 className="text-2xl font-semibold tracking-tight">Forecast</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -180,53 +180,53 @@ export function ForecastContent({
 
       {/* Projection summary */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-t-2 border-t-primary/40">
+        <Card className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-100 to-blue-50 shadow-sm">
           <CardHeader className="pb-2">
-            <CardDescription>Projected GCI</CardDescription>
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-blue-700">Projected GCI</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fmtCurrency(projectedGCI)}</div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-2xl font-bold text-slate-800">{fmtCurrency(projectedGCI)}</div>
+            <p className="text-xs text-blue-600/80">
               P25–P75: {fmtCompact(bands.p25)}–{fmtCompact(bands.p75)}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-primary/40">
+        <Card className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-100 to-indigo-50 shadow-sm">
           <CardHeader className="pb-2">
-            <CardDescription>Projected Deals</CardDescription>
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Projected Deals</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{projectedDeals}</div>
-            <p className="text-xs text-muted-foreground">
+            <div className="text-2xl font-bold text-slate-800">{projectedDeals}</div>
+            <p className="text-xs text-indigo-600/80">
               {ytdDealCount} closed + {pipelineDeals.length} pipeline
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-primary/40">
+        <Card className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 shadow-sm">
           <CardHeader className="pb-2">
-            <CardDescription>After-Tax Net</CardDescription>
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-emerald-700">After-Tax Net</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold text-slate-800">
               {fmtCurrency(Math.max(0, netForTax - taxResult.totalBurden))}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-emerald-600/80">
               {fmtPct(taxResult.effectiveRate)} effective rate
             </p>
           </CardContent>
         </Card>
 
-        <Card className="border-t-2 border-t-primary/40">
+        <Card className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-100 to-amber-50 shadow-sm">
           <CardHeader className="pb-2">
-            <CardDescription>Cash Runway</CardDescription>
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-amber-700">Cash Runway</CardDescription>
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${riskColors[survival.riskLevel]}`}>
               {survival.label}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-amber-600/80">
               {fmtCurrency(survival.monthlyBurn)}/mo burn
             </p>
           </CardContent>
@@ -234,7 +234,7 @@ export function ForecastContent({
       </div>
 
       {/* Financial waterfall with tax */}
-      <Card>
+      <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base">Financial Waterfall</CardTitle>
           <CardDescription>
@@ -297,7 +297,7 @@ export function ForecastContent({
       </Card>
 
       {/* Tax details */}
-        <Card>
+        <Card className="rounded-2xl border border-amber-200 bg-amber-50/50 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Tax Planning</CardTitle>
             <CardDescription>
@@ -324,7 +324,7 @@ export function ForecastContent({
 
       {/* Goal gap analysis */}
       {goalGCI > 0 && (
-        <Card>
+        <Card className="rounded-2xl border border-emerald-200 bg-emerald-50/50 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Goal Gap Analysis</CardTitle>
           </CardHeader>
@@ -358,7 +358,7 @@ export function ForecastContent({
       )}
 
       {/* Probability bands — chart + text summary */}
-      <Card>
+      <Card className="rounded-2xl border border-blue-200 bg-blue-50/40 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base">Projection Range</CardTitle>
           <CardDescription>
@@ -409,7 +409,7 @@ export function ForecastContent({
 
       {/* 5-Year growth plan with probability bands */}
       {yearBands.length > 0 && (
-          <Card>
+          <Card className="rounded-2xl border border-violet-200 bg-violet-50/40 shadow-sm">
             <CardHeader>
               <CardTitle className="text-base">5-Year Growth Plan</CardTitle>
               <CardDescription>
@@ -440,7 +440,7 @@ export function ForecastContent({
 
       {/* Advisor cards */}
       {advisorCards.length > 0 && (
-          <Card>
+          <Card className="rounded-2xl border border-indigo-200 bg-indigo-50/40 shadow-sm">
             <CardHeader>
               <CardTitle className="text-base">Advisor</CardTitle>
               <CardDescription>
@@ -464,11 +464,11 @@ export function ForecastContent({
 
 function AdvisorCardRow({ card }: { card: AdvisorCard }) {
   return (
-    <div className="rounded-lg border p-4">
+    <div className="rounded-xl border border-indigo-100 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-semibold">{card.title}</p>
-          <Badge variant="secondary" className="mt-1 text-xs">
+          <Badge variant="secondary" className="mt-1 bg-indigo-100 text-indigo-700 text-xs">
             {card.estimatedImpact}
           </Badge>
         </div>
