@@ -38,9 +38,13 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  /* Brand accent exposed to Tailwind utilities */
+  /* Brand accents exposed to Tailwind utilities */
   --color-brand-orange: var(--brand-orange);
   --color-brand-orange-foreground: var(--brand-orange-foreground);
+  /* Commission Gold — primary brand accent (achievement / premium) */
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-gold-foreground: var(--brand-gold-foreground);
+  --color-brand-gold-dim: var(--brand-gold-dim);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -63,7 +67,15 @@
   --primary: oklch(0.57 0.240 261);        /* slightly more vibrant     */
   --primary-foreground: oklch(1 0 0);
 
-  /* ── Brand accent — Velocity Orange #F97316 ──────────────────────── */
+  /* ── Commission Gold #F0A800 ─────────────────────────────────────── */
+  /* Primary brand accent: achievement, milestones, score, top-rank     */
+  /* Hue 73° = pure amber/gold — max split-complement to Runway Blue    */
+  --brand-gold: oklch(0.75 0.19 73);
+  --brand-gold-foreground: oklch(0.15 0.04 80);     /* dark warm brown for text on gold bg */
+  --brand-gold-dim: oklch(0.75 0.19 73 / 0.30);     /* subtle tints, glow fill             */
+
+  /* ── Velocity Orange #F97316 — reserved for urgency signals only ──  */
+  /* (survival critical, CTA bursts, alert states)                       */
   --brand-orange: oklch(0.71 0.21 41);
   --brand-orange-foreground: oklch(1 0 0);
 
@@ -101,11 +113,15 @@
   --chart-primary-dim: oklch(0.57 0.240 261 / 0.38);   /* projected     */
 
   /* ── Brand gradient tokens (reference) ───────────────────────────── */
-  --gradient-runway:    linear-gradient(135deg, oklch(0.10 0.055 265) 0%, oklch(0.57 0.240 261) 100%);
-  --gradient-ascent:    linear-gradient(135deg, oklch(0.57 0.240 261) 0%, oklch(0.50 0.24 290) 100%);
-  --gradient-velocity:  linear-gradient(135deg, oklch(0.71 0.21 41) 0%, oklch(0.60 0.22 15) 100%);
-  --gradient-growth:    linear-gradient(135deg, oklch(0.66 0.19 150) 0%, oklch(0.60 0.17 195) 100%);
-  --gradient-horizon:   linear-gradient(135deg, oklch(0.71 0.21 41) 0%, oklch(0.57 0.240 261) 55%, oklch(0.50 0.24 290) 100%);
+  --gradient-runway:      linear-gradient(135deg, oklch(0.10 0.055 265) 0%, oklch(0.57 0.240 261) 100%);
+  --gradient-ascent:      linear-gradient(135deg, oklch(0.57 0.240 261) 0%, oklch(0.50 0.24 290) 100%);
+  --gradient-velocity:    linear-gradient(135deg, oklch(0.71 0.21 41) 0%, oklch(0.60 0.22 15) 100%);
+  --gradient-growth:      linear-gradient(135deg, oklch(0.66 0.19 150) 0%, oklch(0.60 0.17 195) 100%);
+  /* Commission Gold gradients — use for score circles, CTAs, achievement badges */
+  --gradient-commission:  linear-gradient(135deg, oklch(0.75 0.19 73) 0%, oklch(0.68 0.17 62) 100%);
+  --gradient-gold-runway: linear-gradient(135deg, oklch(0.75 0.19 73) 0%, oklch(0.45 0.22 265) 100%);
+  /* Horizon — gold → blue → violet (hero banners, sidebar strip) */
+  --gradient-horizon:     linear-gradient(135deg, oklch(0.75 0.19 73) 0%, oklch(0.57 0.240 261) 55%, oklch(0.50 0.24 290) 100%);
 }
 
 .dark {
@@ -221,16 +237,20 @@
   }
 
   /* Gradient backgrounds */
-  .bg-runway  { background: var(--gradient-runway); }
-  .bg-ascent  { background: var(--gradient-ascent); }
-  .bg-velocity { background: var(--gradient-velocity); }
-  .bg-growth  { background: var(--gradient-growth); }
-  .bg-horizon { background: var(--gradient-horizon); }
+  .bg-runway      { background: var(--gradient-runway); }
+  .bg-ascent      { background: var(--gradient-ascent); }
+  .bg-velocity    { background: var(--gradient-velocity); }
+  .bg-growth      { background: var(--gradient-growth); }
+  .bg-horizon     { background: var(--gradient-horizon); }
+  .bg-commission  { background: var(--gradient-commission); }
+  .bg-gold-runway { background: var(--gradient-gold-runway); }
 
   /* Brand glow rings — use on hero score circles, key CTAs */
   .glow-blue   { box-shadow: 0 0 20px oklch(0.57 0.240 261 / 0.35), 0 0 50px oklch(0.57 0.240 261 / 0.12); }
   .glow-orange { box-shadow: 0 0 16px oklch(0.71 0.21 41 / 0.45),  0 0 40px oklch(0.71 0.21 41 / 0.15); }
   .glow-green  { box-shadow: 0 0 16px oklch(0.66 0.19 150 / 0.35), 0 0 40px oklch(0.66 0.19 150 / 0.12); }
+  /* Commission Gold glow — for Runway Score circle, milestone badges, achievement rings */
+  .glow-gold   { box-shadow: 0 0 24px oklch(0.75 0.19 73 / 0.50),  0 0 60px oklch(0.75 0.19 73 / 0.18), 0 0 4px oklch(0.75 0.19 73 / 0.80); }
 
   /* Edgy card variant — sharper radius + stronger border */
   .card-sharp {
@@ -250,6 +270,14 @@
   @keyframes pulseOrange {
     0%, 100% { box-shadow: 0 0 0 0 oklch(0.71 0.21 41 / 0.5); }
     50%       { box-shadow: 0 0 0 6px oklch(0.71 0.21 41 / 0); }
+  }
+  /* Commission Gold pulse — for achievement, score, top-rank indicators */
+  .pulse-gold {
+    animation: pulseGold 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  @keyframes pulseGold {
+    0%, 100% { box-shadow: 0 0 0 0 oklch(0.75 0.19 73 / 0.55); }
+    50%       { box-shadow: 0 0 0 8px oklch(0.75 0.19 73 / 0); }
   }
 
   /* Sidebar top gradient — applied on the aside element */

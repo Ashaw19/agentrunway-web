@@ -16,9 +16,14 @@
  *  PRIMARY BRAND BLUE      #1E72F2   RGB(30,114,242)   CMYK(88,53,0,5)
  *  MIDNIGHT NAVY           #0D1526   RGB(13,21,38)     CMYK(66,45,0,85)
  *  DEEP NAVY               #1a2744   RGB(26,39,68)     CMYK(62,43,0,73)
+ *  COMMISSION GOLD ★       #F0A800   RGB(240,168,0)    CMYK(0,30,100,6)
  *  VELOCITY ORANGE         #F97316   RGB(249,115,22)   CMYK(0,54,91,2)
  *  INCOME GREEN            #10B981   RGB(16,185,129)   CMYK(91,0,30,27)
  *  RUNWAY WHITE            #F0F6FF   RGB(240,246,255)  CMYK(6,3,0,0)
+ *
+ *  ★ Commission Gold is the primary brand ACCENT (not primary brand colour).
+ *    Use for: score circles, achievement badges, goal-reached moments,
+ *    high-rank indicators, and primary CTAs. Max 10% of colour instances.
  *
  * ───────────────────────────────────────────────────────────────────────────
  */
@@ -51,14 +56,35 @@
   --ar-navy-900:       #0D1526;   /* ★ DEEPEST — hero bg, print dark */
   --ar-navy-950:       #080D18;   /* Near-black for OLED mode        */
 
+  /* ── Commission Gold ────────────────────────────────────────────────────
+     The PRIMARY brand accent. Used for: Runway Score circle, top-rank
+     badges, achievement milestones, goal-reached moments, score ring arcs,
+     and high-impact CTA buttons. The colour of a commission cheque.
+     Split-complementary to Runway Blue at hue 73° — maximum premium impact.
+     Use sparingly — max 10% of colour instances to maintain prestige.
+
+     OKLCH: oklch(0.75 0.19 73)     HEX: #F0A800
+     RGB: 240, 168, 0               CMYK: C0 M30 Y100 K6
+  ── */
+  --ar-gold-50:        #FFFBEB;   /* Near-white warm cream           */
+  --ar-gold-100:       #FEF3C7;   /* Light mode card tint            */
+  --ar-gold-200:       #FDE68A;   /* Pale gold — hover backgrounds   */
+  --ar-gold-300:       #FCD34D;   /* Light gold — icon tints         */
+  --ar-gold-400:       #F5B83A;   /* Mid gold — badge backgrounds    */
+  --ar-gold-500:       #F0A800;   /* ★ COMMISSION GOLD — brand accent*/
+  --ar-gold-600:       #D97706;   /* Pressed / active state          */
+  --ar-gold-700:       #B45309;   /* Deep gold — dark text on gold   */
+  --ar-gold-800:       #8A3E06;   /* Dark mode text-on-surface       */
+  --ar-gold-900:       #6B2D04;   /* Near-black warm — print dark    */
+
   /* ── Velocity Orange ────────────────────────────────────────────────────
-     The accent. Reserved for urgency, energy, key CTAs, "live" indicators,
-     and the logo vanishing-point spark. Use sparingly — max 10% of colour
-     instances to maintain premium impact.
+     RESERVED FOR URGENCY ONLY. Survival critical alerts, "At Risk" states,
+     and high-energy launch CTAs where immediate action is required.
+     NOT the primary brand accent — Commission Gold fills that role.
   ── */
   --ar-orange-300:     #FDB072;   /* Light tint, tag backgrounds     */
   --ar-orange-400:     #FB923C;   /* Hover state                     */
-  --ar-orange-500:     #F97316;   /* ★ VELOCITY ORANGE — brand accent*/
+  --ar-orange-500:     #F97316;   /* ★ VELOCITY ORANGE — urgency     */
   --ar-orange-600:     #EA580C;   /* Pressed / active                */
   --ar-orange-700:     #C2410C;   /* Deep orange for dark contexts   */
 
@@ -129,14 +155,20 @@
   /* Ascent — blue to violet (forecast, pipeline, premium sections) */
   --ar-grad-ascent:         linear-gradient(135deg, #1E72F2 0%, #6B5FF8 100%);
 
-  /* Velocity — orange fire (CTAs, launch moments, conversion pages) */
+  /* Commission — gold to deep amber (score circles, achievement badges, CTAs) */
+  --ar-grad-commission:     linear-gradient(135deg, #F0A800 0%, #D97706 100%);
+
+  /* Gold Runway — gold to deep navy (hero score, premium dark cards) */
+  --ar-grad-gold-runway:    linear-gradient(135deg, #F0A800 0%, #1a2744 100%);
+
+  /* Velocity — orange fire (urgency CTAs, survival alerts only) */
   --ar-grad-velocity:       linear-gradient(135deg, #F97316 0%, #EF4444 100%);
 
   /* Growth — income green gradient (earnings, wins, deal-closed states) */
   --ar-grad-growth:         linear-gradient(135deg, #10B981 0%, #0D9488 100%);
 
-  /* Horizon — orange → blue (hero banners, full-bleed marketing spreads) */
-  --ar-grad-horizon:        linear-gradient(135deg, #F97316 0%, #1E72F2 60%, #7C3AED 100%);
+  /* Horizon — gold → blue → violet (hero banners, sidebar accent strip) */
+  --ar-grad-horizon:        linear-gradient(90deg, #F0A800 0%, #1E72F2 50%, #7C3AED 100%);
 
   /* Frost — light-mode card accent (very subtle, cards on white canvas) */
   --ar-grad-frost:          linear-gradient(135deg, #EFF4FF 0%, #F8FAFF 100%);
@@ -206,6 +238,7 @@
    ═══════════════════════════════════════════════════════════════════════════
 
    Dashboard & data contexts:
+     Achievement / Score / Rank → --ar-gold-500    #F0A800   ← BRAND ACCENT
      Income / Revenue / GCI     → --ar-green-500   #10B981
      Pipeline / Forecast        → --ar-violet-500  #7C3AED
      Expenses / Burn Rate       → --ar-amber-500   #F59E0B
@@ -218,10 +251,20 @@
      Watchlist (behind goal)    → --ar-amber-500   #F59E0B
      Stable (on track)          → --ar-green-500   #10B981
 
+   Achievement signals (Commission Gold):
+     Runway Score grade circle  → --ar-grad-commission  (gold → deep amber)
+     Top-rank badge (P50+)      → --ar-gold-500     text or fill
+     Goal reached / milestone   → --ar-gold-500     shimmer text or badge
+     High-impact advisor card   → --ar-gold-500     dot / left border
+     Score progress bar (high)  → --ar-gold-500     fill
+
    Marketing use:
      Hero / Dark headers        → --ar-grad-midnight or --ar-grad-runway
      Primary CTAs               → --ar-blue-500 or --ar-grad-ascent
-     Promotional / Urgency CTAs → --ar-grad-velocity
+     Achievement CTAs           → --ar-grad-commission  ← NEW
+     Sidebar accent strip       → --ar-grad-horizon (gold → blue → violet)
+     Hero banners               → --ar-grad-gold-runway or --ar-grad-horizon
+     Promotional / Urgency CTAs → --ar-grad-velocity (orange only for urgency)
      Income / Win moments       → --ar-grad-growth
      Full-bleed banners         → --ar-grad-horizon
 
@@ -229,14 +272,15 @@
    PRINT / CMYK REFERENCE
    ═══════════════════════════════════════════════════════════════════════════
 
-   PRIMARY BLUE    #1E72F2   C88 M53 Y0  K5
-   MIDNIGHT NAVY   #0D1526   C66 M45 Y0  K85
-   VELOCITY ORANGE #F97316   C0  M54 Y91 K2
-   INCOME GREEN    #10B981   C91 M0  Y30 K27
-   PIPELINE VIOLET #7C3AED   C44 M75 Y0  K7
-   EXPENSE AMBER   #F59E0B   C0  M35 Y95 K4
-   TAX ROSE        #F43F5E   C0  M74 Y62 K4
-   HEALTH TEAL     #0D9488   C91 M0  Y9  K42
+   PRIMARY BLUE      #1E72F2   C88 M53 Y0   K5
+   MIDNIGHT NAVY     #0D1526   C66 M45 Y0   K85
+   COMMISSION GOLD ★ #F0A800   C0  M30 Y100 K6
+   VELOCITY ORANGE   #F97316   C0  M54 Y91  K2
+   INCOME GREEN      #10B981   C91 M0  Y30  K27
+   PIPELINE VIOLET   #7C3AED   C44 M75 Y0   K7
+   EXPENSE AMBER     #F59E0B   C0  M35 Y95  K4
+   TAX ROSE          #F43F5E   C0  M74 Y62  K4
+   HEALTH TEAL       #0D9488   C91 M0  Y9   K42
 
    ═══════════════════════════════════════════════════════════════════════════
    APPROVED TYPOGRAPHY PAIRINGS

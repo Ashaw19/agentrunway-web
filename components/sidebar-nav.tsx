@@ -123,10 +123,10 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
         background: "linear-gradient(180deg, oklch(0.15 0.065 265) 0%, oklch(0.12 0.060 265) 55%, oklch(0.10 0.055 265) 100%)",
       }}
     >
-      {/* Brand accent strip — orange → blue → emerald (brand palette) */}
+      {/* Brand accent strip — Commission Gold → blue → violet (brand palette) */}
       <div
         className="h-[3px] w-full shrink-0"
-        style={{ background: "linear-gradient(90deg, #F97316 0%, #1E72F2 40%, #7C3AED 70%, #10B981 100%)" }}
+        style={{ background: "linear-gradient(90deg, #F0A800 0%, #1E72F2 45%, #7C3AED 80%, #10B981 100%)" }}
       />
 
       {/* Brand lockup */}
@@ -181,7 +181,7 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
       {!isPro && (
         <div className="mx-3 mb-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.06] p-3.5">
           <div className="mb-1 flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-blue-400" />
+            <Sparkles className="h-3.5 w-3.5" style={{ color: "#F0A800" }} />
             <span className="text-[12px] font-semibold text-sidebar-foreground/85">
               Unlock Pro
             </span>
@@ -191,7 +191,11 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
           </p>
           <Link
             href="/pricing"
-            className="block rounded-md bg-blue-600 px-3 py-1.5 text-center text-[11.5px] font-semibold text-white transition-colors hover:bg-blue-500"
+            className="block rounded-md px-3 py-1.5 text-center text-[11.5px] font-semibold transition-opacity hover:opacity-90"
+            style={{
+              background: "linear-gradient(135deg, #F0A800 0%, #D97706 100%)",
+              color: "#15110A",
+            }}
           >
             Unlock Everything →
           </Link>

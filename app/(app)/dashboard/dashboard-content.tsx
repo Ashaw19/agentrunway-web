@@ -583,13 +583,20 @@ export function DashboardContent({
       <SectionHeader label="Business Health" />
 
       {/* Runway Score Hero */}
-      <Card className="rounded-2xl border-indigo-200 bg-gradient-to-br from-indigo-100 via-blue-100 to-slate-50 shadow-lg shadow-indigo-200/50">
+      <Card className="rounded-2xl border-amber-200/60 bg-gradient-to-br from-amber-50/80 via-slate-50 to-blue-50/60 shadow-lg shadow-amber-100/50">
         <CardContent className="pt-6 pb-6">
           <div className="flex flex-wrap items-center justify-between gap-6">
             {/* Left: grade circle + score */}
             <div className="flex items-center gap-5">
-              <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-blue-600 shadow-lg shadow-indigo-200/70">
-                <span className="text-3xl font-black text-white leading-none">
+              {/* Commission Gold grade circle — signature brand moment */}
+              <div
+                className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full"
+                style={{
+                  background: "linear-gradient(135deg, #F0A800 0%, #D97706 55%, #a85c00 100%)",
+                  boxShadow: "0 0 24px rgba(240,168,0,0.45), 0 0 60px rgba(240,168,0,0.14), inset 0 1px 1px rgba(255,255,255,0.22)",
+                }}
+              >
+                <span className="text-3xl font-black leading-none" style={{ color: "#15110A" }}>
                   {runwayScore.grade}
                 </span>
               </div>
@@ -616,27 +623,44 @@ export function DashboardContent({
               </div>
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Cohort Rank</p>
-                <p className="text-xl font-bold mt-0.5 text-slate-700">P{benchmark.percentile}</p>
+                {/* Gold for top-half performers — commission gold as achievement signal */}
+                <p
+                  className="text-xl font-bold mt-0.5"
+                  style={{ color: benchmark.percentile >= 50 ? "#D97706" : "#334155" }}
+                >
+                  P{benchmark.percentile}
+                  {benchmark.percentile >= 75 && <span className="ml-1 text-base">★</span>}
+                </p>
                 <p className="text-xs text-slate-400">{COHORT_LABELS[benchmark.cohort]}</p>
               </div>
             </div>
           </div>
           {/* Score components */}
-          <div className="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-6 border-t border-indigo-200 pt-4">
+          <div className="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-6 border-t border-amber-200/40 pt-4">
             {runwayScore.components.map((c, i) => {
               const barColors = [
                 "[&>div]:bg-blue-500",
                 "[&>div]:bg-purple-500",
-                "[&>div]:bg-amber-500",
                 "[&>div]:bg-teal-500",
                 "[&>div]:bg-violet-500",
                 "[&>div]:bg-emerald-500",
+                "[&>div]:bg-sky-500",
               ];
+              // High-scoring components (≥80) earn the gold bar
+              const isTopScore = c.score >= 80;
               return (
               <div key={c.label} className="text-center">
                 <p className="text-[10px] font-semibold text-slate-600">{c.label}</p>
-                <p className="text-sm font-bold text-slate-800 mt-0.5">{c.score}</p>
-                <Progress value={c.score} className={cn("mt-1.5 h-2", barColors[i % barColors.length])} />
+                <p
+                  className="text-sm font-bold mt-0.5"
+                  style={{ color: isTopScore ? "#D97706" : "#1e293b" }}
+                >
+                  {c.score}
+                </p>
+                <Progress
+                  value={c.score}
+                  className={cn("mt-1.5 h-2", isTopScore ? "[&>div]:bg-amber-500" : barColors[i % barColors.length])}
+                />
               </div>
               );
             })}
