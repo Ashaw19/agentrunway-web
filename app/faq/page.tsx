@@ -51,7 +51,7 @@ const FAQ_SECTIONS = [
       },
       {
         q: "Is there a refund policy?",
-        a: "We do not issue partial refunds for unused portions of a billing period. If you cancel, your access continues until the end of the period you've already paid for. If you believe you were charged in error, contact us at support@agentrunway.ca within 7 days.",
+        a: "We do not issue partial refunds for unused portions of a billing period. If you cancel, your access continues until the end of the period you've already paid for. If you believe you were charged in error, contact us at hello@agentrunway.ca within 7 days.",
       },
     ],
   },
@@ -103,7 +103,7 @@ const FAQ_SECTIONS = [
       },
       {
         q: "Can I export my data?",
-        a: "Your data belongs to you. You can view and download your transaction history and reports from within the app. If you need a full data export for any reason, contact us at support@agentrunway.ca and we will provide it.",
+        a: "Your data belongs to you. You can view and download your transaction history and reports from within the app. If you need a full data export for any reason, contact us at hello@agentrunway.ca and we will provide it.",
       },
       {
         q: "What happens to my data if I cancel?",
@@ -163,7 +163,7 @@ const FAQ_SECTIONS = [
       },
       {
         q: "Is there a setup guide or tutorial?",
-        a: "The onboarding wizard covers the essentials. If you need help beyond that, our GCI Tracking Guide explains the key concepts, and you can always email us at support@agentrunway.ca — we're a small team and we respond personally.",
+        a: "The onboarding wizard covers the essentials. If you need help beyond that, our GCI Tracking Guide explains the key concepts, and you can always email us at hello@agentrunway.ca — we're a small team and we respond personally.",
       },
     ],
   },
@@ -310,10 +310,10 @@ export default function FAQPage() {
               business day.
             </p>
             <a
-              href="mailto:support@agentrunway.ca"
+              href="mailto:hello@agentrunway.ca"
               className="mt-8 inline-flex items-center rounded-lg bg-blue-600 px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
             >
-              Email us at support@agentrunway.ca
+              Email us at hello@agentrunway.ca
             </a>
           </div>
         </section>

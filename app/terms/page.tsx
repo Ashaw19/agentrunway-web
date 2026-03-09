@@ -81,10 +81,10 @@ export default function TermsPage() {
                 your login credentials and for all activity that occurs under
                 your account. Notify us immediately at{" "}
                 <a
-                  href="mailto:support@agentrunway.ca"
+                  href="mailto:hello@agentrunway.ca"
                   className="text-blue-400 hover:text-blue-300"
                 >
-                  support@agentrunway.ca
+                  hello@agentrunway.ca
                 </a>{" "}
                 if you suspect unauthorized access.
               </p>
@@ -413,10 +413,10 @@ export default function TermsPage() {
                 New Brunswick, Canada
                 <br />
                 <a
-                  href="mailto:support@agentrunway.ca"
+                  href="mailto:hello@agentrunway.ca"
                   className="text-blue-400 hover:text-blue-300"
                 >
-                  support@agentrunway.ca
+                  hello@agentrunway.ca
                 </a>
               </address>
             </section>
