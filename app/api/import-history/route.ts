@@ -159,11 +159,15 @@ Rules:
 - source: copy the Source column verbatim
 - gci: use the "GCI" column. Do NOT use "Net Commission" or any post-split column.
 
-Date handling:
-- Excel serial numbers (e.g. 45769 ≈ 2025-03-21). Anchors: 44927=2023-01-01, 45292=2024-01-01, 45658=2025-01-01, 46023=2026-01-01.
-- "Q1"/"Q2"/"Q3"/"Q4": use last day of that quarter (Mar 31 / Jun 30 / Sep 30 / Dec 31).
-- Text like "Sept 15, 2023" or "Jan 12 (paid)": parse normally, ignore parenthetical annotations.
-- Partial dates like "Oct 2024" or "June 2024": use the 15th of that month.
+Date handling — apply rules in this exact priority order:
+1. If the date cell contains a SPECIFIC day (e.g. "Jan 12 2024", "March 26th 2024", "2024-04-22", "30/04/2024", "May 1 (2024)"):
+   → Parse the specific date directly. NEVER fall back to a quarter-end date when a day is present.
+   → Ignore any parenthetical annotation e.g. "(paid)", "(closed)".
+   → "30/04/2024" is DD/MM/YYYY → 2024-04-30. "05-01-2024" is ambiguous — prefer MM-DD-YYYY unless context suggests otherwise.
+2. If the date cell contains ONLY a quarter code with no day or month (exactly "Q1", "Q2", "Q3", or "Q4"):
+   → Use the LAST day of that quarter for the inferred year: Q1→Mar 31, Q2→Jun 30, Q3→Sep 30, Q4→Dec 31.
+3. Excel serial numbers (e.g. 45769 ≈ 2025-03-21). Anchors: 44927=2023-01-01, 45292=2024-01-01, 45658=2025-01-01, 46023=2026-01-01.
+4. Partial month+year only (e.g. "Oct 2024", "June 2024"): use the 15th of that month.
 
 EXAMPLES:
   Row: Matt Foster | 531 Ridge Row | Jan 12 (paid) | Sell | SOI | 580000 | 14500 | 10875

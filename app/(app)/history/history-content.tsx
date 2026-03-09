@@ -35,6 +35,7 @@ import {
   UserCheck,
   AlertCircle,
   BarChart2,
+  Clipboard,
 } from "lucide-react";
 import { fmtCurrency } from "@/lib/formatters";
 import { computeGCI, type HistoryItem, type Transaction } from "@/lib/types/database";
@@ -980,18 +981,64 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
               <div>
                 {/* Only show party-selection header when party_b data is present */}
                 {importData.deals.some((d) => d.party_b) ? (
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <UserCheck className="h-3.5 w-3.5 text-slate-500" />
-                    <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-                      Deals — tap to select which party was your client
-                    </p>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <UserCheck className="h-3.5 w-3.5 text-slate-500" />
+                      <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                        Deals — tap to select which party was your client
+                      </p>
+                    </div>
+                    <button
+                      title="Copy all deals to clipboard"
+                      onClick={() => {
+                        const lines = [
+                          `${importData.year} Import Preview — ${importData.annual_tx} deals — ${fmtCurrency(importData.annual_gci)} GCI`,
+                          "",
+                          ...importData.deals.map((d, i) => {
+                            const dt = new Date(d.date + "T12:00:00").toLocaleDateString("en-CA", { month: "short", day: "numeric" });
+                            const side = d.side ? ` | ${d.side.charAt(0).toUpperCase() + d.side.slice(1)}` : "";
+                            const src = d.source ? ` | ${d.source}` : "";
+                            return `#${String(i+1).padStart(2,"0")} ${d.address || "(no address)"} | ${dt} | ${fmtCurrency(d.gci)} GCI${side}${src} | ${d.party_a || "—"}`;
+                          }),
+                        ];
+                        navigator.clipboard.writeText(lines.join("\n"));
+                        toast.success("Deals copied to clipboard");
+                      }}
+                      className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <Clipboard className="h-3 w-3" />
+                      Copy
+                    </button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <UserCheck className="h-3.5 w-3.5 text-slate-500" />
-                    <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
-                      Deals
-                    </p>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <UserCheck className="h-3.5 w-3.5 text-slate-500" />
+                      <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                        Deals
+                      </p>
+                    </div>
+                    <button
+                      title="Copy all deals to clipboard"
+                      onClick={() => {
+                        const lines = [
+                          `${importData.year} Import Preview — ${importData.annual_tx} deals — ${fmtCurrency(importData.annual_gci)} GCI`,
+                          "",
+                          ...importData.deals.map((d, i) => {
+                            const dt = new Date(d.date + "T12:00:00").toLocaleDateString("en-CA", { month: "short", day: "numeric" });
+                            const side = d.side ? ` | ${d.side.charAt(0).toUpperCase() + d.side.slice(1)}` : "";
+                            const src = d.source ? ` | ${d.source}` : "";
+                            return `#${String(i+1).padStart(2,"0")} ${d.address || "(no address)"} | ${dt} | ${fmtCurrency(d.gci)} GCI${side}${src} | ${d.party_a || "—"}`;
+                          }),
+                        ];
+                        navigator.clipboard.writeText(lines.join("\n"));
+                        toast.success("Deals copied to clipboard");
+                      }}
+                      className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <Clipboard className="h-3 w-3" />
+                      Copy
+                    </button>
                   </div>
                 )}
 
