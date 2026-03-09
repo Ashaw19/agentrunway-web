@@ -163,7 +163,7 @@ Date handling — apply rules in this exact priority order:
 1. If the date cell contains a SPECIFIC day (e.g. "Jan 12 2024", "March 26th 2024", "2024-04-22", "30/04/2024", "May 1 (2024)"):
    → Parse the specific date directly. NEVER fall back to a quarter-end date when a day is present.
    → Ignore any parenthetical annotation e.g. "(paid)", "(closed)".
-   → "30/04/2024" is DD/MM/YYYY → 2024-04-30. "05-01-2024" is ambiguous — prefer MM-DD-YYYY unless context suggests otherwise.
+   → For DD/MM vs MM/DD ambiguity: scan ALL dates in the file first. If ANY date has a first component > 12 (e.g. "22/04", "26/03", "30/04"), the entire file uses DD/MM/YYYY — apply DD/MM to ALL dates including ambiguous ones like "12/01/2024" (→ Jan 12, not Dec 1). Only default to MM/DD if no date in the file has a first component > 12.
 2. If the date cell contains ONLY a quarter code with no day or month (exactly "Q1", "Q2", "Q3", or "Q4"):
    → Use the LAST day of that quarter for the inferred year: Q1→Mar 31, Q2→Jun 30, Q3→Sep 30, Q4→Dec 31.
 3. Excel serial numbers (e.g. 45769 ≈ 2025-03-21). Anchors: 44927=2023-01-01, 45292=2024-01-01, 45658=2025-01-01, 46023=2026-01-01.
