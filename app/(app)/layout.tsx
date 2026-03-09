@@ -7,7 +7,12 @@ import { createClient } from "@/lib/supabase/server";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
 
-const VALID_THEMES = new Set(["blue", "violet", "emerald", "orange", "rose"]);
+const VALID_THEMES = new Set([
+  // Original 5
+  "blue", "violet", "emerald", "orange", "rose",
+  // Extended 10
+  "gold", "sky", "teal", "mint", "indigo", "crimson", "amber", "fuchsia", "cyan", "forest",
+]);
 
 async function buildFinancialContext(): Promise<string> {
   try {

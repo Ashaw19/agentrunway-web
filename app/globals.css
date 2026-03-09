@@ -213,6 +213,105 @@
 }
 /* "blue" is the default — no override needed */
 
+/* ── 10 extended themes ───────────────────────────────────────────────────── */
+/* Light-primary themes also override --primary-foreground so text on buttons  */
+/* remains accessible (dark text on bright backgrounds).                        */
+
+/* The Achiever — Commission Gold. Celebrates every closed deal like a trophy. */
+[data-color-theme="gold"] {
+  --primary:                     oklch(0.75 0.19 73);
+  --primary-foreground:          oklch(0.15 0.04 80);
+  --ring:                        oklch(0.75 0.19 73);
+  --sidebar-primary:             oklch(0.75 0.19 73);
+  --sidebar-ring:                oklch(0.75 0.19 73);
+  --chart-primary:               oklch(0.75 0.19 73);
+  --chart-primary-dim:           oklch(0.75 0.19 73 / 0.38);
+}
+/* The Connector — Clear Sky Blue. Warmth, trust, relationship-first agents. */
+[data-color-theme="sky"] {
+  --primary:                     oklch(0.71 0.18 222);
+  --ring:                        oklch(0.71 0.18 222);
+  --sidebar-primary:             oklch(0.71 0.18 222);
+  --sidebar-ring:                oklch(0.71 0.18 222);
+  --chart-primary:               oklch(0.71 0.18 222);
+  --chart-primary-dim:           oklch(0.71 0.18 222 / 0.38);
+}
+/* The Strategist — Deep Teal. Methodical, calm, data-first thinkers. */
+[data-color-theme="teal"] {
+  --primary:                     oklch(0.60 0.17 192);
+  --ring:                        oklch(0.60 0.17 192);
+  --sidebar-primary:             oklch(0.60 0.17 192);
+  --sidebar-ring:                oklch(0.60 0.17 192);
+  --chart-primary:               oklch(0.60 0.17 192);
+  --chart-primary-dim:           oklch(0.60 0.17 192 / 0.38);
+}
+/* The Fresh Lister — Bright Mint. Always new inventory, always moving. */
+[data-color-theme="mint"] {
+  --primary:                     oklch(0.73 0.15 170);
+  --primary-foreground:          oklch(0.15 0.04 180);
+  --ring:                        oklch(0.73 0.15 170);
+  --sidebar-primary:             oklch(0.73 0.15 170);
+  --sidebar-ring:                oklch(0.73 0.15 170);
+  --chart-primary:               oklch(0.73 0.15 170);
+  --chart-primary-dim:           oklch(0.73 0.15 170 / 0.38);
+}
+/* The Analyst — Deep Indigo. Late nights, deep data, zero guesswork. */
+[data-color-theme="indigo"] {
+  --primary:                     oklch(0.51 0.26 272);
+  --ring:                        oklch(0.51 0.26 272);
+  --sidebar-primary:             oklch(0.51 0.26 272);
+  --sidebar-ring:                oklch(0.51 0.26 272);
+  --chart-primary:               oklch(0.51 0.26 272);
+  --chart-primary-dim:           oklch(0.51 0.26 272 / 0.38);
+}
+/* The Dealmaker — Bold Crimson. Gets to yes faster than anyone in the room. */
+[data-color-theme="crimson"] {
+  --primary:                     oklch(0.55 0.23 9);
+  --ring:                        oklch(0.55 0.23 9);
+  --sidebar-primary:             oklch(0.55 0.23 9);
+  --sidebar-ring:                oklch(0.55 0.23 9);
+  --chart-primary:               oklch(0.55 0.23 9);
+  --chart-primary-dim:           oklch(0.55 0.23 9 / 0.38);
+}
+/* The Momentum Player — Warm Amber. Always on a streak, never cooling down. */
+[data-color-theme="amber"] {
+  --primary:                     oklch(0.77 0.17 58);
+  --primary-foreground:          oklch(0.15 0.04 65);
+  --ring:                        oklch(0.77 0.17 58);
+  --sidebar-primary:             oklch(0.77 0.17 58);
+  --sidebar-ring:                oklch(0.77 0.17 58);
+  --chart-primary:               oklch(0.77 0.17 58);
+  --chart-primary-dim:           oklch(0.77 0.17 58 / 0.38);
+}
+/* The Luxury Specialist — Bold Fuchsia. Commands the high end of every market. */
+[data-color-theme="fuchsia"] {
+  --primary:                     oklch(0.62 0.26 316);
+  --ring:                        oklch(0.62 0.26 316);
+  --sidebar-primary:             oklch(0.62 0.26 316);
+  --sidebar-ring:                oklch(0.62 0.26 316);
+  --chart-primary:               oklch(0.62 0.26 316);
+  --chart-primary-dim:           oklch(0.62 0.26 316 / 0.38);
+}
+/* The Innovator — Electric Cyan. Digital-native, always three steps ahead. */
+[data-color-theme="cyan"] {
+  --primary:                     oklch(0.73 0.16 204);
+  --primary-foreground:          oklch(0.15 0.04 210);
+  --ring:                        oklch(0.73 0.16 204);
+  --sidebar-primary:             oklch(0.73 0.16 204);
+  --sidebar-ring:                oklch(0.73 0.16 204);
+  --chart-primary:               oklch(0.73 0.16 204);
+  --chart-primary-dim:           oklch(0.73 0.16 204 / 0.38);
+}
+/* The Long Game — Deep Forest. Plays it steady, builds wealth over decades. */
+[data-color-theme="forest"] {
+  --primary:                     oklch(0.49 0.16 148);
+  --ring:                        oklch(0.49 0.16 148);
+  --sidebar-primary:             oklch(0.49 0.16 148);
+  --sidebar-ring:                oklch(0.49 0.16 148);
+  --chart-primary:               oklch(0.49 0.16 148);
+  --chart-primary-dim:           oklch(0.49 0.16 148 / 0.38);
+}
+
 /* ── Brand utility classes ────────────────────────────────────────────────── */
 @layer utilities {
 

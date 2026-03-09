@@ -41,11 +41,23 @@ import { fmtCurrency, fmtCompact } from "@/lib/formatters";
 // ── Theme config ──────────────────────────────────────────────────────────────
 
 const COLOR_THEMES = [
-  { value: "blue",    label: "The Classic",   bg: "oklch(0.57 0.240 261)", hex: "#1E72F2" },
-  { value: "violet",  label: "The Visionary", bg: "oklch(0.56 0.24 285)",  hex: "#7C3AED" },
-  { value: "emerald", label: "The Closer",    bg: "oklch(0.60 0.19 155)",  hex: "#10B981" },
-  { value: "orange",  label: "The Bold",      bg: "oklch(0.71 0.21 41)",   hex: "#F97316" },
-  { value: "rose",    label: "The Disruptor", bg: "oklch(0.58 0.23 15)",   hex: "#F43F5E" },
+  // ── Original 5 ────────────────────────────────────────────────────────────
+  { value: "blue",    label: "The Classic",          bg: "oklch(0.57 0.240 261)", hex: "#1E72F2" },
+  { value: "violet",  label: "The Visionary",        bg: "oklch(0.56 0.24 285)",  hex: "#7C3AED" },
+  { value: "emerald", label: "The Closer",           bg: "oklch(0.60 0.19 155)",  hex: "#10B981" },
+  { value: "orange",  label: "The Bold",             bg: "oklch(0.71 0.21 41)",   hex: "#F97316" },
+  { value: "rose",    label: "The Disruptor",        bg: "oklch(0.58 0.23 15)",   hex: "#F43F5E" },
+  // ── Extended 10 ───────────────────────────────────────────────────────────
+  { value: "gold",    label: "The Achiever",         bg: "oklch(0.75 0.19 73)",   hex: "#F0A800" },
+  { value: "sky",     label: "The Connector",        bg: "oklch(0.71 0.18 222)",  hex: "#0EA5E9" },
+  { value: "teal",    label: "The Strategist",       bg: "oklch(0.60 0.17 192)",  hex: "#0D9488" },
+  { value: "mint",    label: "The Fresh Lister",     bg: "oklch(0.73 0.15 170)",  hex: "#2DD4AA" },
+  { value: "indigo",  label: "The Analyst",          bg: "oklch(0.51 0.26 272)",  hex: "#4F46E5" },
+  { value: "crimson", label: "The Dealmaker",        bg: "oklch(0.55 0.23 9)",    hex: "#DC2626" },
+  { value: "amber",   label: "The Momentum Player",  bg: "oklch(0.77 0.17 58)",   hex: "#F5B020" },
+  { value: "fuchsia", label: "The Luxury Specialist",bg: "oklch(0.62 0.26 316)",  hex: "#D946EF" },
+  { value: "cyan",    label: "The Innovator",        bg: "oklch(0.73 0.16 204)",  hex: "#06B6D4" },
+  { value: "forest",  label: "The Long Game",        bg: "oklch(0.49 0.16 148)",  hex: "#166534" },
 ];
 
 function getExperienceLabel(years: number | null | undefined): string {
@@ -542,34 +554,38 @@ export function ProfileContent({
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {/* 15 swatches — 5 per row, 3 rows */}
             <div className="grid grid-cols-5 gap-2">
-              {COLOR_THEMES.map((theme) => (
-                <button
-                  key={theme.value}
-                  disabled={savingTheme}
-                  onClick={() => saveTheme(theme.value)}
-                  title={theme.label}
-                  className={cn(
-                    "group relative flex aspect-square items-center justify-center rounded-xl transition-all",
-                    colorTheme === theme.value
-                      ? "scale-110 shadow-lg"
-                      : "opacity-80 hover:scale-105 hover:opacity-100",
-                  )}
-                  style={{
-                    background: theme.bg,
-                    outline:
-                      colorTheme === theme.value
-                        ? `2px solid ${theme.hex}`
-                        : undefined,
-                    outlineOffset:
-                      colorTheme === theme.value ? "3px" : undefined,
-                  }}
-                >
-                  {colorTheme === theme.value && (
-                    <Check className="h-4 w-4 text-white drop-shadow" />
-                  )}
-                </button>
-              ))}
+              {COLOR_THEMES.map((theme) => {
+                const isSelected = colorTheme === theme.value;
+                return (
+                  <div key={theme.value} className="flex flex-col items-center gap-1">
+                    <button
+                      disabled={savingTheme}
+                      onClick={() => saveTheme(theme.value)}
+                      title={theme.label}
+                      className={cn(
+                        "relative flex h-10 w-10 items-center justify-center rounded-full transition-all",
+                        isSelected
+                          ? "scale-110 shadow-lg"
+                          : "opacity-75 hover:scale-105 hover:opacity-100",
+                      )}
+                      style={{
+                        background: theme.bg,
+                        outline: isSelected ? `2px solid ${theme.hex}` : undefined,
+                        outlineOffset: isSelected ? "3px" : undefined,
+                      }}
+                    >
+                      {isSelected && (
+                        <Check className="h-3.5 w-3.5 drop-shadow" style={{ color: theme.value === "gold" || theme.value === "amber" || theme.value === "mint" || theme.value === "cyan" ? "#15110A" : "white" }} />
+                      )}
+                    </button>
+                    <span className="text-center text-[9px] leading-tight text-muted-foreground max-w-[52px]">
+                      {theme.label.replace("The ", "")}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
             <p className="mt-3 text-[11px] text-muted-foreground">
               Current:{" "}
