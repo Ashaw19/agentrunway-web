@@ -217,6 +217,30 @@ UNIVERSAL RULES (apply to ALL formats)
 - If no title, infer year from the dates in the data
 - Return ONLY the JSON — nothing before or after it`;
 
+// ── Date normalization (pre-processes content before sending to LLM) ─────────
+// Detects DD/MM vs MM/DD by scanning all slash-dates; if any first component > 12
+// the whole file is DD/MM. Converts all matched dates to ISO YYYY-MM-DD so the
+// LLM never sees ambiguous date strings.
+
+function normalizeDateFormats(content: string): string {
+  const slashDate = /\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g;
+  const matches = [...content.matchAll(slashDate)];
+  if (matches.length === 0) return content;
+
+  const isDDMM = matches.some(m => parseInt(m[1]) > 12);
+  const isMDY  = !isDDMM && matches.some(m => parseInt(m[2]) > 12);
+
+  if (isDDMM) {
+    return content.replace(slashDate, (_, d, m, y) =>
+      `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
+  }
+  if (isMDY) {
+    return content.replace(slashDate, (_, m, d, y) =>
+      `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
+  }
+  return content; // all ambiguous — leave for LLM
+}
+
 // ── Aggregate computation (done in code — not trusted to Groq) ───────────────
 
 function computeAggregates(deals: GroqRawResponse["deals"], year: number): ImportResult {
@@ -314,12 +338,14 @@ export async function POST(req: NextRequest) {
 
     if (body.textContent) {
       // ── Text path: Excel / CSV ────────────────────────────────────────────
+      // Pre-normalise slash dates (DD/MM vs MM/DD) before the LLM ever sees them
+      const normalizedContent = normalizeDateFormats(body.textContent);
       const response = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",  // text model — fast and accurate
         messages: [
           {
             role: "user",
-            content: TEXT_PROMPT(body.textContent),
+            content: TEXT_PROMPT(normalizedContent),
           },
         ],
         temperature: 0.1,
