@@ -57,6 +57,7 @@ import {
   computeWeightedGCI,
   computeTxFees,
   computeAgentGross,
+  PROVINCE_LABELS,
   type Transaction,
   type PipelineDeal,
   type UserSettings,
@@ -967,7 +968,7 @@ export function DashboardContent({
                   <div>
                     <CardTitle className="text-base">Tax Readiness</CardTitle>
                     <CardDescription>
-                      {taxResult.taxYear} · {taxResult.provinceName} · {fmtPct(taxResult.effectiveRate)} effective rate
+                      {taxResult.taxYear} · {PROVINCE_LABELS[settings!.province]} · {fmtPct(taxResult.effectiveRate)} effective rate
                     </CardDescription>
                   </div>
                   <span className={cn(
