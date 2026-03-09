@@ -254,8 +254,10 @@ export function DashboardContent({
   const runwayScore = computeRunwayScore(healthReport, benchmark.percentile, survival.months);
 
   // ── Tax estimate ──────────────────────────────────────────────────────
-  // Annualised expenses used for tax basis (matching forecast page)
-  const annualExpenses = expensesYTD + monthlyRecurring * 12;
+  // Project full-year expenses: actual YTD + remaining months of recurring.
+  // Using expRemainingMonths avoids double-counting recurring costs already in expensesYTD.
+  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
+  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
   const projectedNet = computeProjectedNet(projectedGCI, settings);
   // Net self-employment income = gross-of-brokerage minus all business expenses
   const netForTax = Math.max(0, projectedNet - annualExpenses);

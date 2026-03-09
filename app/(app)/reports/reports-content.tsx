@@ -134,7 +134,11 @@ export function ReportsContent({
     );
     const tf = computeTxFees(projectedGCI, settings.tx_fee_rate_pct, settings.tx_fee_annual_cap);
     const bf = settings.monthly_brokerage_fee * 12;
-    const annualExp = expensesYTD + monthlyRecurring * 12;
+    // Project full-year expenses: actual YTD + remaining months of recurring.
+    // Using remainingMonths avoids double-counting recurring costs already in expensesYTD.
+    const _rNow = new Date();
+    const _rRemainingMonths = Math.max(0, 12 - (_rNow.getMonth() + 1));
+    const annualExp = expensesYTD + monthlyRecurring * _rRemainingMonths;
     return Math.max(0, ag - tf - bf - annualExp);
   })();
   const taxResult = calculateTax(projectedNet, settings.province, Math.max(projectedDeals, 1));

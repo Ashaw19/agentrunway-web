@@ -109,7 +109,12 @@ export function ForecastContent({
     (sum, cat) => sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
     0,
   );
-  const annualExpenses = expensesYTD + monthlyRecurring * 12;
+  // Project full-year expenses: actual YTD + remaining months of recurring.
+  // Using remainingMonths avoids double-counting recurring costs already in expensesYTD.
+  const _now = new Date();
+  const _monthsElapsed = _now.getMonth() + 1; // 1–12
+  const remainingMonths = Math.max(0, 12 - _monthsElapsed);
+  const annualExpenses = expensesYTD + monthlyRecurring * remainingMonths;
 
   // ── Tax estimate ──────────────────────────────────────────────────────
   const netForTax = Math.max(0, projectedNet - annualExpenses);
