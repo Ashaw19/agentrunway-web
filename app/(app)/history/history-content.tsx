@@ -133,6 +133,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
   // Auto-detected splits (from GCI/Net ratio in the spreadsheet) take precedence.
   const [addSplitPct,    setAddSplitPct]    = useState<number | null>(settingsSplit);
   const [importSplitPct, setImportSplitPct] = useState<number | null>(settingsSplit);
+  const [importIsImage,  setImportIsImage]  = useState(false); // true = PDF/image (amounts already net)
   const [batchSplitPcts, setBatchSplitPcts] = useState<Record<number, number | null>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -423,6 +424,10 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       setImportData(data);
       // Priority: auto-detected from spreadsheet → user's Settings split → null (user must choose)
       setImportSplitPct(data.split_pct ?? settingsSplit ?? null);
+      const isImage = fileType === "pdf" || fileType === "image";
+      setImportIsImage(isImage);
+      // PDF/image = brokerage report with net amounts already; default split to 100%
+      if (isImage) setImportSplitPct(1.00);
       setAgentSides(sides);
       setImportStatus("preview");
     } catch (err) {
@@ -958,7 +963,11 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
               <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold text-foreground">Brokerage Split</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">Your share of each commission this year</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {importIsImage
+                      ? "Importing from a T4A or brokerage report? Amounts are already net — choose 100%."
+                      : "Your share of each commission this year"}
+                  </p>
                 </div>
                 <select
                   value={importSplitPct ?? ""}
