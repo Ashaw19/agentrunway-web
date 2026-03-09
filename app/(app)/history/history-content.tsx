@@ -34,6 +34,7 @@ import {
   CheckCircle2,
   UserCheck,
   AlertCircle,
+  BarChart2,
 } from "lucide-react";
 import { fmtCurrency } from "@/lib/formatters";
 import { computeGCI, type HistoryItem, type Transaction } from "@/lib/types/database";
@@ -50,11 +51,46 @@ interface Props {
 
 // Per-quarter colour config
 const QUARTER_STYLES = [
-  { label: "Q1", border: "border-blue-200",   bg: "bg-blue-50",   heading: "text-blue-700",   ring: "focus-visible:ring-blue-400"   },
-  { label: "Q2", border: "border-amber-200",  bg: "bg-amber-50",  heading: "text-amber-700",  ring: "focus-visible:ring-amber-400"  },
-  { label: "Q3", border: "border-emerald-200",bg: "bg-emerald-50",heading: "text-emerald-700",ring: "focus-visible:ring-emerald-400" },
-  { label: "Q4", border: "border-violet-200", bg: "bg-violet-50", heading: "text-violet-700", ring: "focus-visible:ring-violet-400"  },
+  { label: "Q1", border: "border-blue-200",   bg: "bg-blue-50",   heading: "text-blue-700",   ring: "focus-visible:ring-blue-400",   bar: "bg-blue-400"   },
+  { label: "Q2", border: "border-amber-200",  bg: "bg-amber-50",  heading: "text-amber-700",  ring: "focus-visible:ring-amber-400",  bar: "bg-amber-400"  },
+  { label: "Q3", border: "border-emerald-200",bg: "bg-emerald-50",heading: "text-emerald-700",ring: "focus-visible:ring-emerald-400", bar: "bg-emerald-400" },
+  { label: "Q4", border: "border-violet-200", bg: "bg-violet-50", heading: "text-violet-700", ring: "focus-visible:ring-violet-400",  bar: "bg-violet-400"  },
 ];
+
+// ── Seasonal profile helper ───────────────────────────────────────────────────
+interface SeasonalProfile {
+  avgGCI:     number[];  // [Q1..Q4] avg GCI across years with data
+  avgTx:      number[];  // [Q1..Q4] avg deal count
+  pcts:       number[];  // [Q1..Q4] fraction of annual total (sums to 1)
+  strongestQ: number;    // index of highest-GCI quarter
+  weakestQ:   number;    // index of lowest-GCI quarter
+  yearCount:  number;    // how many years had quarterly data
+}
+
+function buildSeasonalProfile(items: HistoryItem[]): SeasonalProfile | null {
+  const withData = items.filter((it) =>
+    (it.quarter_gci ?? []).some((v) => (v ?? 0) > 0),
+  );
+  if (withData.length === 0) return null;
+
+  const avgGCI = [0, 1, 2, 3].map((q) =>
+    withData.reduce((sum, it) => sum + ((it.quarter_gci ?? [])[q] ?? 0), 0) /
+    withData.length,
+  );
+  const avgTx = [0, 1, 2, 3].map((q) =>
+    withData.reduce((sum, it) => sum + ((it.quarter_tx ?? [])[q] ?? 0), 0) /
+    withData.length,
+  );
+  const totalAvg = avgGCI.reduce((a, b) => a + b, 0);
+  const pcts =
+    totalAvg > 0
+      ? avgGCI.map((v) => v / totalAvg)
+      : [0.25, 0.25, 0.25, 0.25];
+  const strongestQ = pcts.indexOf(Math.max(...pcts));
+  const weakestQ   = pcts.indexOf(Math.min(...pcts));
+
+  return { avgGCI, avgTx, pcts, strongestQ, weakestQ, yearCount: withData.length };
+}
 
 type ImportStatus = "idle" | "rendering" | "extracting" | "preview" | "saving";
 
@@ -109,6 +145,9 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     },
     {},
   );
+
+  // Seasonal profile — recomputes whenever items changes
+  const seasonalProfile = buildSeasonalProfile(items);
 
   function toggleExpand(id: string) {
     setExpanded((prev) => {
@@ -1053,6 +1092,59 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── Seasonal Profile ──────────────────────────────────────────────── */}
+      {seasonalProfile && (
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BarChart2 className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-base font-semibold">Seasonal Profile</CardTitle>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                avg. across {seasonalProfile.yearCount}{" "}
+                {seasonalProfile.yearCount === 1 ? "year" : "years"} of quarterly data
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-4 gap-3">
+              {QUARTER_STYLES.map((qs, q) => (
+                <div
+                  key={q}
+                  className={`relative rounded-xl border p-4 ${qs.border} ${qs.bg}`}
+                >
+                  {q === seasonalProfile.strongestQ && (
+                    <span className="absolute right-2.5 top-2.5 rounded-full border border-slate-200 bg-white/80 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 shadow-sm">
+                      Best
+                    </span>
+                  )}
+                  <p className={`text-xs font-bold uppercase tracking-widest ${qs.heading}`}>
+                    {qs.label}
+                  </p>
+                  <p className="mt-1.5 text-xl font-bold text-slate-800">
+                    {fmtCurrency(seasonalProfile.avgGCI[q])}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {Math.round(seasonalProfile.avgTx[q] * 10) / 10} deals avg
+                  </p>
+                  {/* Relative-share bar */}
+                  <div className="mt-3 h-1.5 w-full rounded-full bg-white/70">
+                    <div
+                      className={`h-1.5 rounded-full ${qs.bar}`}
+                      style={{ width: `${Math.round(seasonalProfile.pcts[q] * 100)}%` }}
+                    />
+                  </div>
+                  <p className={`mt-1 text-xs font-semibold ${qs.heading}`}>
+                    {Math.round(seasonalProfile.pcts[q] * 100)}% of annual
+                  </p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── History year cards ────────────────────────────────────────────── */}
       {items.length === 0 ? (
