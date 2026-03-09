@@ -112,100 +112,105 @@ CRITICAL RULES — read every rule carefully before outputting:
 
 5. Return ONLY the JSON — nothing before or after it.`;
 
-// Used for text-based input (Excel converted to CSV, or plain CSV).
-// Handles both:
-//   A) Brokerage commission reports (party_a / party_b separated by "/")
-//   B) Agent's own transaction tracker (Name | Address | Close Date | Buy | Sell | Source | GCI | Net)
-const TEXT_PROMPT = (content: string) => `You are extracting real estate commission transaction data from a spreadsheet or CSV export.
+// Used for text-based input (Excel converted to CSV, plain CSV, or .txt files).
+// Handles:
+//   A) Agent's own transaction tracker (Name | Address | Close Date | Buy | Sell | Source | GCI | Net)
+//   B) Brokerage commission reports (party_a / party_b separated by "/")
+//   C) Freeform narrative / bullet-point text (prose summaries, notes, copy-pasted text)
+const TEXT_PROMPT = (content: string) => `You are extracting real estate commission transaction data from a document.
 
-The data below may be EITHER:
-  (A) A brokerage commission report — two party names separated by "/"
-  (B) An agent's own deal tracker — one client name per row, with a "Buy | Sell" column
+The data below may be in any of three formats:
+  (A) An agent's own deal tracker — tabular rows with columns like Name, Address, Close Date, Buy | Sell, Source, GCI, Net Commission
+  (B) A brokerage commission report — tabular rows where party names are joined by "/"
+  (C) Freeform narrative / bullet-point text — prose paragraphs or bullet lists describing closed deals
 
-SPREADSHEET CONTENT:
+DOCUMENT CONTENT:
 ---
 ${content.slice(0, 14000)}
 ---
 
 Return ONLY a raw JSON object (no markdown, no code fences). Required structure:
 {
-  "year": <integer — the calendar year this sheet covers. Infer from the sheet title row (e.g. "2025 Transaction Tracker") or from the dates. If the title says "2026" use 2026 even if the sheet label was "2025".>,
+  "year": <integer — the calendar year this document covers. Infer from a title line (e.g. "2024 YEAR-END TRANSACTION SUMMARY", "2025 Transaction Tracker") or from the dates. If explicitly stated in a heading, always use that year.>,
   "deals": [
     {
       "date": "<YYYY-MM-DD — closing or payment date>",
-      "address": "<property street address, or empty string>",
-      "gci": <number — the agent's GROSS commission BEFORE the brokerage split. Look for a column labelled exactly "GCI". Do NOT use "Net Commission", "Net Income", or any post-split column.>,
-      "party_a": "<client name — see rules below>",
-      "party_b": "<other party — see rules below>",
+      "address": "<property street address, or empty string if not mentioned>",
+      "gci": <number — the agent's GROSS commission BEFORE brokerage split. In tracker format use the "GCI" column. In narrative format use amounts labelled "GCI", "GCI earned", "Earned ... GCI", or "Commission" — NOT net/after-split amounts.>,
+      "party_a": "<client name — see format rules below>",
+      "party_b": "<other party name, or empty string>",
       "agent_side": <0 = agent represented party_a, 1 = party_b, null = unclear>,
-      "side": "<\"buyer\" | \"seller\" | \"both\" | null — agent's role in the transaction>",
-      "source": "<lead source string, e.g. SOI, Agent Referral, Realtor.ca — or null if not present>"
+      "side": "<\"buyer\" | \"seller\" | \"both\" | null — agent's role>",
+      "source": "<lead source, e.g. SOI, Agent Referral, Realtor.ca — or null>"
     }
   ]
 }
 
 ═══════════════════════════════════════════════════════════════════
-FORMAT A — Agent's Own Tracker (Name / Buy | Sell / Source columns)
+FORMAT A — Agent's Own Tracker (tabular, one client per row)
 ═══════════════════════════════════════════════════════════════════
-Detected when columns include: Name, Buy | Sell (or Buy/Sell), Source, Net Commission Income.
+Detected when columns include: Name, Buy | Sell (or Buy/Sell), Source, GCI, Net Commission Income.
 
-Rules for Format A:
-- party_a = the Name column value (this is the agent's client)
-- party_b = "" (empty — only one side is tracked in this format)
-- agent_side = 0 (party_a is always the agent's client)
-- side: map the "Buy | Sell" column as follows:
-    "Buy"        → "buyer"
-    "Sell"       → "seller"
-    "Buy | Sell" → "both"
-    "Rent"       → "buyer"   (treat rentals as buyer-side)
-- source: copy the "Source" column verbatim (e.g. "SOI", "Agent Referral", "Referral from SOI", "Realtor.ca")
-- gci: use the "GCI" column (agent's gross commission BEFORE brokerage split). Do NOT use "Net Commission", "Net Income", or any post-split column.
+Rules:
+- party_a = the Name column value (agent's client)
+- party_b = "" (empty)
+- agent_side = 0
+- side: "Buy" → "buyer" | "Sell" → "seller" | "Buy | Sell" → "both" | "Rent" → "buyer"
+- source: copy the Source column verbatim
+- gci: use the "GCI" column. Do NOT use "Net Commission" or any post-split column.
 
-Date handling for Format A:
-- Excel serial numbers (integers like 45769): convert using Excel epoch.
-  Formula: JS Date(Math.round((serial - 25569) * 86400000)) — but just approximate: 45769 ≈ 2025-03-21.
-  Common serials: 44927=2023-01-01, 45292=2024-01-01, 45658=2025-01-01, 46023=2026-01-01.
-  For serials between these anchors, interpolate to the nearest date.
-- "Q1" / "Q2" / "Q3" / "Q4": use the last day of the quarter for that year (Mar 31 / Jun 30 / Sep 30 / Dec 31).
-- Text dates like "Sept 15, 2023" or "Jan 12 (paid)": parse normally, ignore any parenthetical annotation.
+Date handling:
+- Excel serial numbers (e.g. 45769 ≈ 2025-03-21). Anchors: 44927=2023-01-01, 45292=2024-01-01, 45658=2025-01-01, 46023=2026-01-01.
+- "Q1"/"Q2"/"Q3"/"Q4": use last day of that quarter (Mar 31 / Jun 30 / Sep 30 / Dec 31).
+- Text like "Sept 15, 2023" or "Jan 12 (paid)": parse normally, ignore parenthetical annotations.
+- Partial dates like "Oct 2024" or "June 2024": use the 15th of that month.
 
-WORKED EXAMPLES for Format A:
+EXAMPLES:
   Row: Matt Foster | 531 Ridge Row | Jan 12 (paid) | Sell | SOI | 580000 | 14500 | 10875
-  → party_a="Matt Foster", party_b="", agent_side=0, side="seller", source="SOI", gci=14500
-     (14500 is the GCI column; 10875 is Net Commission — use GCI)
+  → party_a="Matt Foster", side="seller", source="SOI", gci=14500
 
-  Row: Tong & Sunny Gao | 68 Elizabeth Parkway | 45769 | Buy | Sell | SOI | 430000 | 10750 | 8062.5
-  → party_a="Tong & Sunny Gao", party_b="", agent_side=0, side="both", source="SOI", gci=10750
-     (10750 is the GCI column; 8062.5 is Net Commission — use GCI)
-
-  Row: Travis & Chryssie Radtke | 290 Simms Street | 45777 | Sell | Referral from SOI | 280000 | 7000 | 5250
-  → party_a="Travis & Chryssie Radtke", party_b="", agent_side=0, side="seller", source="Referral from SOI", gci=7000
-     (7000 is the GCI column; 5250 is Net Commission — use GCI)
+  Row: Tong & Sunny Gao | 68 Elizabeth Pkwy | 45769 | Buy | Sell | SOI | 430000 | 10750 | 8062.5
+  → party_a="Tong & Sunny Gao", side="both", source="SOI", gci=10750
 
 ══════════════════════════════════════════════════════════════════
 FORMAT B — Brokerage Commission Report (party_a / party_b names)
 ══════════════════════════════════════════════════════════════════
-Detected when party names are combined with "/" separator.
+Detected when party names are combined with a "/" separator in one field.
 
-Rules for Format B:
-- Split on the FIRST "/" only:
-    party_a = everything BEFORE the first "/" (trimmed)
-    party_b = everything AFTER the first "/" (trimmed)
-- "&" connects people on the SAME side — NEVER treat "&" as a separator between sides
+Rules:
+- Split on the FIRST "/" only: party_a = before, party_b = after (trimmed)
+- "&" connects people on the SAME side — never a separator between sides
 - agent_side: 0 if agent represented party_a, 1 if party_b, null if unclear
-- side: null (cannot determine buyer vs seller from brokerage format alone)
-- source: null
+- side: null | source: null
 
-NEVER include "/" in party_a or party_b. NEVER leave party_b empty when "/" is present.
+══════════════════════════════════════════════════════════════════════
+FORMAT C — Freeform Narrative / Bullet-Point Text
+══════════════════════════════════════════════════════════════════════
+Detected when the content is prose paragraphs or bullet lists rather than rows with consistent columns.
+Examples: "January 12: Sold 531 Ridge Row for Matt Foster. GCI earned $14,500."
+          "- Jun 12: Buyer rep for Angelique Simpson — purchased 139 McCarthy's Point Road. Earned $12,700 GCI."
+          "May 2: Out-of-area referral sent for Travis & Chryssie Radtke (Cape Breton). Received referral fee of $832.70."
+
+Rules for Format C:
+- Extract EVERY transaction mentioned — including small referral fees, rentals, and out-of-area referrals
+- party_a = the client name (person described as "for [Name]", "buyer rep for [Name]", "[Name] purchased", etc.)
+- party_b = "" (narratives typically only mention the agent's client)
+- agent_side = 0
+- side: look for words like "Sold/Listing/Sell" → "seller"; "Buyer rep/purchased/bought" → "buyer"; "Double-ended/both sides" → "both"
+- source: extract from phrases like "SOI", "Agent Referral", "Realtor.ca", "Referral from SOI", "Database" etc.
+- gci: extract the dollar amount labelled "GCI", "GCI earned", "Earned ... GCI", "Commission", or "referral fee". Use the GROSS (pre-split) amount when both gross and net are mentioned.
+- date: extract from date mentions at the start of bullets or sentences. If only a quarter section is given (e.g. "Q2 CLOSINGS:"), use the last day of that quarter.
+- address: extract any street address mentioned (e.g. "531 Ridge Row", "139 McCarthy's Point Road"). If only a city/region is mentioned (e.g. "Cape Breton"), use that as the address.
+
+CRITICAL for Format C: Do NOT skip deals just because they are small, referral-only, or lack a property address. Every bullet or sentence describing a closed transaction or referral fee must produce one deal object.
 
 ══════════════════════════════════════════════════
-UNIVERSAL RULES (apply to BOTH formats)
+UNIVERSAL RULES (apply to ALL formats)
 ══════════════════════════════════════════════════
-- SKIP rows where Name/party_a is empty, "Totals", "Name", or a sheet heading
-- SKIP rows that are subtotals, quarterly summaries, or expense entries
-- Use the NET commission column, not gross
-- year: read from the sheet title row (e.g. "2025 Transaction Tracker" → year=2025, "2026 SALES" → year=2026)
-- If no title row, infer year from the dates in the data
+- SKIP rows/lines where party_a is empty, "Totals", "Name", or a section heading with no deal data
+- SKIP subtotals, quarterly summary lines, and expense entries
+- year: read from the document title/heading (e.g. "2024 YEAR-END TRANSACTION SUMMARY" → year=2024, "2025 Transaction Tracker" → year=2025)
+- If no title, infer year from the dates in the data
 - Return ONLY the JSON — nothing before or after it`;
 
 // ── Aggregate computation (done in code — not trusted to Groq) ───────────────
