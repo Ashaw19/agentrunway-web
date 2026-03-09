@@ -1042,100 +1042,89 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                   </div>
                 )}
 
-                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                  {importData.deals.map((deal, i) => {
-                    const selected = agentSides[i];
-                    const hasTwoParties = Boolean(deal.party_b);
-                    const date = new Date(deal.date + "T12:00:00").toLocaleDateString("en-CA", {
-                      month: "short",
-                      day: "numeric",
-                    });
-
-                    const sideBadge =
-                      deal.side === "buyer"  ? { label: "Buyer",  cls: "bg-teal-50 text-teal-700 border-teal-200" }
-                      : deal.side === "seller" ? { label: "Seller", cls: "bg-amber-50 text-amber-700 border-amber-200" }
-                      : deal.side === "both"   ? { label: "Both",   cls: "bg-violet-50 text-violet-700 border-violet-200" }
-                      : null;
-
-                    return (
-                      <div
-                        key={i}
-                        className="rounded-xl border border-border/60 bg-card px-3 py-2.5 space-y-2"
-                      >
-                        {/* Deal header */}
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-foreground truncate">
-                              {deal.address}
-                            </p>
-                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              <p className="text-[11px] text-muted-foreground">
-                                {date} · {fmtCurrency(deal.gci)} GCI
-                              </p>
-                              {sideBadge && (
-                                <span className={cn("text-[10px] font-semibold border rounded px-1.5 py-0.5", sideBadge.cls)}>
-                                  {sideBadge.label}
-                                </span>
-                              )}
-                              {deal.source && (
-                                <span className="text-[10px] text-slate-400 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5">
-                                  {deal.source}
-                                </span>
-                              )}
+                {/* Two-party (brokerage) format — keep interactive cards */}
+                {importData.deals.some((d) => d.party_b) ? (
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                    {importData.deals.map((deal, i) => {
+                      const selected = agentSides[i];
+                      const date = new Date(deal.date + "T12:00:00").toLocaleDateString("en-CA", { month: "short", day: "numeric" });
+                      const sideBadge =
+                        deal.side === "buyer"  ? { label: "Buyer",  cls: "bg-teal-50 text-teal-700 border-teal-200" }
+                        : deal.side === "seller" ? { label: "Seller", cls: "bg-amber-50 text-amber-700 border-amber-200" }
+                        : deal.side === "both"   ? { label: "Both",   cls: "bg-violet-50 text-violet-700 border-violet-200" }
+                        : null;
+                      return (
+                        <div key={i} className="rounded-xl border border-border/60 bg-card px-3 py-2.5 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-foreground truncate">{deal.address}</p>
+                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                <p className="text-[11px] text-muted-foreground">{date} · {fmtCurrency(deal.gci)} GCI</p>
+                                {sideBadge && <span className={cn("text-[10px] font-semibold border rounded px-1.5 py-0.5", sideBadge.cls)}>{sideBadge.label}</span>}
+                                {deal.source && <span className="text-[10px] text-slate-400 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5">{deal.source}</span>}
+                              </div>
                             </div>
+                            <span className="text-[10px] font-medium text-slate-400 shrink-0 tabular-nums">#{String(i + 1).padStart(2, "0")}</span>
                           </div>
-                          <span className="text-[10px] font-medium text-slate-400 shrink-0 tabular-nums">
-                            #{String(i + 1).padStart(2, "0")}
-                          </span>
-                        </div>
-
-                        {/* Party display — toggle if two parties, read-only if only one */}
-                        {hasTwoParties ? (
                           <div className="grid grid-cols-2 gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => setAgentSides((prev) => ({ ...prev, [i]: 0 }))}
-                              className={cn(
-                                "rounded-lg border px-2 py-1.5 text-left text-[11px] leading-snug transition-all",
-                                selected === 0
-                                  ? "border-primary bg-primary/10 text-primary font-semibold"
-                                  : "border-border/60 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5",
-                              )}
-                            >
-                              <span className="block text-[10px] font-bold uppercase tracking-wide mb-0.5 opacity-60">
-                                {selected === 0 ? "✓ My Client" : "Party A"}
-                              </span>
+                            <button type="button" onClick={() => setAgentSides((prev) => ({ ...prev, [i]: 0 }))}
+                              className={cn("rounded-lg border px-2 py-1.5 text-left text-[11px] leading-snug transition-all",
+                                selected === 0 ? "border-primary bg-primary/10 text-primary font-semibold" : "border-border/60 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5")}>
+                              <span className="block text-[10px] font-bold uppercase tracking-wide mb-0.5 opacity-60">{selected === 0 ? "✓ My Client" : "Party A"}</span>
                               {deal.party_a}
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => setAgentSides((prev) => ({ ...prev, [i]: 1 }))}
-                              className={cn(
-                                "rounded-lg border px-2 py-1.5 text-left text-[11px] leading-snug transition-all",
-                                selected === 1
-                                  ? "border-primary bg-primary/10 text-primary font-semibold"
-                                  : "border-border/60 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5",
-                              )}
-                            >
-                              <span className="block text-[10px] font-bold uppercase tracking-wide mb-0.5 opacity-60">
-                                {selected === 1 ? "✓ My Client" : "Party B"}
-                              </span>
+                            <button type="button" onClick={() => setAgentSides((prev) => ({ ...prev, [i]: 1 }))}
+                              className={cn("rounded-lg border px-2 py-1.5 text-left text-[11px] leading-snug transition-all",
+                                selected === 1 ? "border-primary bg-primary/10 text-primary font-semibold" : "border-border/60 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5")}>
+                              <span className="block text-[10px] font-bold uppercase tracking-wide mb-0.5 opacity-60">{selected === 1 ? "✓ My Client" : "Party B"}</span>
                               {deal.party_b}
                             </button>
                           </div>
-                        ) : (
-                          // Single-party tracker: show client name as a read-only pill
-                          <div className="rounded-lg border border-primary/30 bg-primary/5 px-2 py-1.5">
-                            <span className="block text-[10px] font-bold uppercase tracking-wide mb-0.5 text-primary/60">
-                              ✓ My Client
-                            </span>
-                            <span className="text-[11px] font-semibold text-primary">{deal.party_a}</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Single-party (agent tracker) format — compact table, all deals visible at once */
+                  <div className="rounded-lg border border-border/60 overflow-hidden">
+                    <table className="w-full text-[11px]">
+                      <thead>
+                        <tr className="bg-muted/50 border-b border-border/60">
+                          <th className="text-left px-2 py-1.5 text-[10px] font-semibold text-slate-500 w-6">#</th>
+                          <th className="text-left px-2 py-1.5 text-[10px] font-semibold text-slate-500">Address</th>
+                          <th className="text-left px-2 py-1.5 text-[10px] font-semibold text-slate-500 whitespace-nowrap">Date</th>
+                          <th className="text-right px-2 py-1.5 text-[10px] font-semibold text-slate-500 whitespace-nowrap">GCI</th>
+                          <th className="text-left px-2 py-1.5 text-[10px] font-semibold text-slate-500">Side</th>
+                          <th className="text-left px-2 py-1.5 text-[10px] font-semibold text-slate-500">Client</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importData.deals.map((deal, i) => {
+                          const date = new Date(deal.date + "T12:00:00").toLocaleDateString("en-CA", { month: "short", day: "numeric" });
+                          const sideBadge =
+                            deal.side === "buyer"  ? { label: "Buyer",  cls: "text-teal-700" }
+                            : deal.side === "seller" ? { label: "Seller", cls: "text-amber-700" }
+                            : deal.side === "both"   ? { label: "Both",   cls: "text-violet-700" }
+                            : null;
+                          return (
+                            <tr key={i} className={cn("border-b border-border/40 last:border-0", i % 2 === 0 ? "bg-card" : "bg-muted/20")}>
+                              <td className="px-2 py-1.5 text-slate-400 tabular-nums">{i + 1}</td>
+                              <td className="px-2 py-1.5 font-medium text-foreground max-w-[140px] truncate">{deal.address || <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap">{date}</td>
+                              <td className="px-2 py-1.5 text-right font-semibold text-emerald-700 tabular-nums whitespace-nowrap">{fmtCurrency(deal.gci)}</td>
+                              <td className="px-2 py-1.5">
+                                {sideBadge
+                                  ? <span className={cn("font-semibold", sideBadge.cls)}>{sideBadge.label}</span>
+                                  : <span className="text-slate-400">—</span>}
+                              </td>
+                              <td className="px-2 py-1.5 text-foreground max-w-[120px] truncate">{deal.party_a || <span className="text-slate-400 italic">—</span>}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
                 {importData.deals.some((d) => d.party_b) && (
                   <p className="mt-2 text-[11px] text-muted-foreground flex items-start gap-1">
