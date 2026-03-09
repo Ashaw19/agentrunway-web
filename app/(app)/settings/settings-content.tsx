@@ -128,6 +128,23 @@ export function SettingsContent({ settings }: Props) {
   const [savingRunway, setSavingRunway] = useState(false);
   const runwaySaved = useSaved();
 
+  // ── Section 5: Annual Goal ───────────────────────────────────────────────
+  const [goalGCI, setGoalGCI] = useState(String(settings.goal_gci ?? 0));
+  const [savingGoal, setSavingGoal] = useState(false);
+  const goalSaved = useSaved();
+
+  async function saveGoal() {
+    setSavingGoal(true);
+    const supabase = createClient();
+    await supabase
+      .from("user_settings")
+      .update({ goal_gci: parseFloat(goalGCI) || 0 })
+      .eq("user_id", settings.user_id);
+    setSavingGoal(false);
+    goalSaved.flash();
+    toast.success("Annual goal updated ✓");
+  }
+
   async function saveRunway() {
     setSavingRunway(true);
     const supabase = createClient();
@@ -326,7 +343,36 @@ export function SettingsContent({ settings }: Props) {
         </CardContent>
       </Card>
 
-      {/* Card 5 — Plan & Billing */}
+      {/* Card 5 — Annual Goal */}
+      <Card className="rounded-2xl border-l-4 border-l-orange-500 shadow-sm">
+        <CardHeader>
+          <CardTitle>Annual Goal</CardTitle>
+          <CardDescription>
+            Your target GCI for the year — drives pace tracking and dashboard forecasts.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-1.5 max-w-xs">
+            <Label>Annual GCI Target ($)</Label>
+            <Input
+              type="number"
+              placeholder="e.g. 100000"
+              value={goalGCI}
+              onChange={(e) => setGoalGCI(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Used for pace scoring, goal progress, and projection benchmarks.
+            </p>
+          </div>
+          <SaveRow
+            saving={savingGoal}
+            saved={goalSaved.saved}
+            onSave={saveGoal}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Card 6 — Plan & Billing */}
       <PlanBillingCard settings={settings} />
     </div>
   );
