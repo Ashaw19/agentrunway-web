@@ -1,6 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, BookOpen } from "lucide-react";
+import {
+  ArrowRight,
+  BookOpen,
+  TrendingUp,
+  AlertTriangle,
+  BarChart3,
+  Rocket,
+  CheckCircle2,
+  XCircle,
+  ArrowDown,
+  Target,
+  Activity,
+  Layers,
+  Banknote,
+  Clock,
+} from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 
@@ -17,7 +32,7 @@ export const metadata: Metadata = {
   },
 };
 
-// ── Table of contents entries ─────────────────────────────────────────────────
+// ── Table of contents ─────────────────────────────────────────────────────────
 
 const TOC = [
   { href: "#what-is-gci", label: "What is GCI?" },
@@ -32,7 +47,6 @@ export default function HowRealEstateAgentsTrackGCIPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
 
-      {/* ── Navigation ── */}
       <MarketingNav />
 
       <main>
@@ -49,12 +63,16 @@ export default function HowRealEstateAgentsTrackGCIPage() {
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
               Gross Commission Income is the single most important number in a real estate
-              agent&apos;s business — yet most agents track it poorly, forecast it never,
-              and only see the real picture at tax time. This guide covers what GCI actually
-              means, where common tracking methods fall short, and how top-performing agents
-              manage it with discipline.
+              agent&apos;s business — yet most agents track it poorly, forecast it never, and
+              only see the real picture at tax time.
             </p>
-            <p className="mt-3 text-xs text-slate-500">6 min read</p>
+            <div className="mt-4 flex items-center justify-center gap-4 text-xs text-slate-500">
+              <span className="flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5" /> 6 min read
+              </span>
+              <span className="h-1 w-1 rounded-full bg-slate-700" />
+              <span>Canadian real estate agents</span>
+            </div>
           </div>
         </section>
 
@@ -63,299 +81,383 @@ export default function HowRealEstateAgentsTrackGCIPage() {
           <div className="mx-auto max-w-3xl">
 
             {/* Table of Contents */}
-            <nav
-              aria-label="Table of contents"
-              className="mb-12 rounded-xl border border-slate-200 bg-slate-50 p-6"
-            >
-              <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">
-                In this article
+            <nav aria-label="Table of contents" className="mb-14 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+              <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-400">
+                In this guide
               </p>
-              <ol className="space-y-2">
+              <ol className="space-y-3">
                 {TOC.map(({ href, label }, i) => (
-                  <li key={href} className="flex items-baseline gap-2 text-sm">
-                    <span className="font-mono text-xs text-slate-400">{i + 1}.</span>
+                  <li key={href}>
                     <a
                       href={href}
-                      className="text-blue-600 underline-offset-2 hover:underline"
+                      className="flex items-center gap-3 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-slate-100"
                     >
-                      {label}
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600/10 text-xs font-bold text-blue-600">
+                        {i + 1}
+                      </span>
+                      <span className="text-blue-600 font-medium">{label}</span>
                     </a>
                   </li>
                 ))}
               </ol>
             </nav>
 
-            <article className="prose prose-slate max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-h2:text-2xl prose-h2:text-slate-900 prose-h3:text-lg prose-h3:text-slate-800 prose-p:leading-relaxed prose-p:text-slate-600 prose-li:text-slate-600 prose-strong:text-slate-800">
+            {/* ── Section 1: What is GCI ── */}
+            <section id="what-is-gci" className="mb-16 scroll-mt-20">
 
-              {/* ── Section 1: What is GCI ── */}
-              <h2 id="what-is-gci">What is GCI?</h2>
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600/10">
+                  <Banknote className="h-5 w-5 text-blue-600" />
+                </div>
+                <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                  What is GCI?
+                </h2>
+              </div>
 
-              <p>
-                Gross Commission Income (GCI) is the total commission earned from real estate
-                transactions before any deductions are applied. When a home sells for $800,000
-                and the total commission rate is 3.5%, the gross commission is $28,000. That
-                $28,000 — before your brokerage split, transaction fees, or any other cost —
-                is your GCI contribution from that deal.
+              <p className="mb-5 text-base leading-relaxed text-slate-600">
+                <strong className="text-slate-800">Gross Commission Income (GCI)</strong> is the
+                total commission earned from real estate transactions before any deductions. It sits
+                at the same level as gross revenue for any self-employed professional — everything
+                meaningful about your business flows downstream from it.
               </p>
 
-              <p>
-                GCI is the top-line revenue number for a real estate agent&apos;s business.
-                It sits at the same level as gross revenue for any other self-employed
-                professional. Everything meaningful about your business — your income trajectory,
-                your tax obligations, your benchmarks against peers — flows downstream from it.
+              {/* Formula callout */}
+              <div className="my-8 overflow-hidden rounded-2xl border border-blue-100 bg-blue-50">
+                <div className="bg-blue-600 px-6 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-blue-100">
+                    The GCI formula
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-3 px-6 py-8 text-center">
+                  <div className="rounded-xl border border-blue-200 bg-white px-5 py-3 shadow-sm">
+                    <p className="text-xs text-slate-500">Sale Price</p>
+                    <p className="mt-0.5 text-xl font-bold text-slate-900">$800,000</p>
+                  </div>
+                  <span className="text-2xl font-light text-blue-400">×</span>
+                  <div className="rounded-xl border border-blue-200 bg-white px-5 py-3 shadow-sm">
+                    <p className="text-xs text-slate-500">Commission Rate</p>
+                    <p className="mt-0.5 text-xl font-bold text-slate-900">3.5%</p>
+                  </div>
+                  <span className="text-2xl font-light text-blue-400">=</span>
+                  <div className="rounded-xl border-2 border-blue-600 bg-blue-600 px-5 py-3 shadow-sm">
+                    <p className="text-xs font-semibold text-blue-100">Your GCI</p>
+                    <p className="mt-0.5 text-xl font-bold text-white">$28,000</p>
+                  </div>
+                </div>
+                <p className="border-t border-blue-100 bg-white px-6 py-3 text-xs text-slate-500">
+                  That $28,000 — before your brokerage split, transaction fees, or any other cost — is your GCI contribution from that deal.
+                </p>
+              </div>
+
+              <h3 className="mb-3 mt-10 text-lg font-bold text-slate-900">
+                GCI vs. net agent income
+              </h3>
+
+              <p className="mb-5 text-base leading-relaxed text-slate-600">
+                GCI is what you earn. Net agent income is what you keep. The gap between the two
+                surprises most agents until they see it laid out.
               </p>
 
-              <p>
-                Because real estate agents are typically independent contractors rather than
-                salaried employees, GCI is also variable and lumpy. A strong March and a slow
-                August can both be part of the same good year. Understanding GCI therefore
-                requires more than a running total — it requires context, pacing, and projection.
+              {/* Income waterfall */}
+              <div className="my-8 rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="bg-slate-800 px-6 py-4">
+                  <p className="text-sm font-semibold text-white">
+                    Where $200,000 GCI actually goes
+                  </p>
+                </div>
+                <div className="divide-y divide-slate-100 bg-white">
+                  {[
+                    { label: "GCI (top-line)", value: "$200,000", note: "What you billed", color: "text-slate-900", bg: "bg-white", bold: true },
+                    { label: "Brokerage split (20%)", value: "−$40,000", note: "Goes to your brokerage", color: "text-red-600", bg: "bg-red-50/40", bold: false },
+                    { label: "Transaction fees", value: "−$3,000", note: "Per-deal fees", color: "text-red-600", bg: "bg-red-50/40", bold: false },
+                    { label: "Monthly desk fees", value: "−$4,800", note: "$400/month × 12", color: "text-red-600", bg: "bg-red-50/40", bold: false },
+                    { label: "Business expenses", value: "−$22,000", note: "Marketing, MLS, E&O, tech, vehicle", color: "text-red-600", bg: "bg-red-50/40", bold: false },
+                    { label: "Net before tax", value: "$130,200", note: "After all business costs", color: "text-amber-600", bg: "bg-amber-50/40", bold: true },
+                    { label: "Federal + provincial tax + CPP", value: "−$38,000", note: "Approx. — varies by province", color: "text-red-600", bg: "bg-red-50/40", bold: false },
+                    { label: "Take-home income", value: "≈ $92,000", note: "What actually lands in your account", color: "text-emerald-600", bg: "bg-emerald-50/40", bold: true },
+                  ].map(({ label, value, note, color, bg, bold }) => (
+                    <div key={label} className={`flex items-center justify-between px-6 py-3.5 ${bg}`}>
+                      <div>
+                        <p className={`text-sm ${bold ? "font-semibold text-slate-900" : "text-slate-700"}`}>
+                          {label}
+                        </p>
+                        <p className="text-xs text-slate-400">{note}</p>
+                      </div>
+                      <p className={`text-sm font-bold ${color}`}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="border-t border-slate-100 bg-slate-50 px-6 py-3 text-xs text-slate-500">
+                  Tracking GCI alone — without understanding what flows through to net — is one of the most common financial blind spots in the industry.
+                </p>
+              </div>
+
+            </section>
+
+            {/* Divider */}
+            <div className="mb-16 flex items-center gap-4">
+              <div className="h-px flex-1 bg-slate-100" />
+              <ArrowDown className="h-4 w-4 text-slate-300" />
+              <div className="h-px flex-1 bg-slate-100" />
+            </div>
+
+            {/* ── Section 2: Why agents track GCI incorrectly ── */}
+            <section id="why-agents-track-gci-incorrectly" className="mb-16 scroll-mt-20">
+
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10">
+                  <AlertTriangle className="h-5 w-5 text-amber-500" />
+                </div>
+                <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                  Why most agents track GCI incorrectly
+                </h2>
+              </div>
+
+              <p className="mb-8 text-base leading-relaxed text-slate-600">
+                Ask ten real estate agents how they track their GCI and you&apos;ll hear a familiar
+                range of answers — a spreadsheet, their CRM, a rough mental tally, or &ldquo;my
+                accountant handles it.&rdquo; Each of these approaches has serious gaps.
               </p>
 
-              <h3>GCI versus net agent income</h3>
+              {/* Comparison cards */}
+              <div className="my-8 grid gap-4 sm:grid-cols-3">
+                {[
+                  {
+                    method: "Spreadsheet",
+                    icon: "📊",
+                    pros: ["Free", "Flexible"],
+                    cons: [
+                      "Updated inconsistently",
+                      "No time context",
+                      "No forecasting",
+                      "No seasonality",
+                    ],
+                    verdict: "Common but incomplete",
+                    color: "border-amber-200 bg-amber-50",
+                    verdictColor: "text-amber-600",
+                  },
+                  {
+                    method: "CRM",
+                    icon: "📇",
+                    pros: ["Tied to pipeline", "Auto-tracks closes"],
+                    cons: [
+                      "Raw totals only",
+                      "No split applied",
+                      "No projections",
+                      "No expense tracking",
+                    ],
+                    verdict: "Useful but limited",
+                    color: "border-amber-200 bg-amber-50",
+                    verdictColor: "text-amber-600",
+                  },
+                  {
+                    method: "Agent Runway",
+                    icon: "🛩️",
+                    pros: [
+                      "Net after split + fees",
+                      "Seasonality forecasting",
+                      "P10–P90 bands",
+                      "Tax planning built in",
+                    ],
+                    cons: [],
+                    verdict: "Purpose-built",
+                    color: "border-blue-200 bg-blue-50",
+                    verdictColor: "text-blue-600",
+                  },
+                ].map(({ method, icon, pros, cons, verdict, color, verdictColor }) => (
+                  <div key={method} className={`rounded-2xl border p-5 ${color}`}>
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className="text-xl">{icon}</span>
+                      <span className="font-bold text-slate-900">{method}</span>
+                    </div>
+                    <ul className="mb-3 space-y-1.5">
+                      {pros.map((p) => (
+                        <li key={p} className="flex items-start gap-1.5 text-xs text-slate-700">
+                          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                          {p}
+                        </li>
+                      ))}
+                      {cons.map((c) => (
+                        <li key={c} className="flex items-start gap-1.5 text-xs text-slate-500">
+                          <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-400" />
+                          {c}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className={`text-xs font-semibold ${verdictColor}`}>{verdict}</p>
+                  </div>
+                ))}
+              </div>
 
-              <p>
-                One of the most important distinctions agents must understand is the difference
-                between GCI and actual take-home income. From your GCI, the following are
-                typically deducted before you see a dollar:
+              {/* Key gap callout */}
+              <div className="my-8 rounded-xl border-l-4 border-amber-400 bg-amber-50 px-6 py-5">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-amber-600">
+                  The most costly gap
+                </p>
+                <p className="text-sm leading-relaxed text-slate-700">
+                  Knowing you&apos;ve earned $95,000 GCI by August is useful — but knowing whether
+                  that pace implies a <strong>$165,000 year or a $135,000 year</strong> is far more
+                  actionable. Most tracking methods answer the historical question and leave the
+                  forward question unanswered. Real estate income is seasonal: transactions cluster
+                  in spring and fall, slow through December and January. Without seasonality
+                  adjustments, naive projections routinely mislead.
+                </p>
+              </div>
+
+            </section>
+
+            {/* Divider */}
+            <div className="mb-16 flex items-center gap-4">
+              <div className="h-px flex-1 bg-slate-100" />
+              <ArrowDown className="h-4 w-4 text-slate-300" />
+              <div className="h-px flex-1 bg-slate-100" />
+            </div>
+
+            {/* ── Section 3: How top agents track GCI ── */}
+            <section id="how-top-agents-track-gci" className="mb-16 scroll-mt-20">
+
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10">
+                  <TrendingUp className="h-5 w-5 text-emerald-500" />
+                </div>
+                <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                  How top agents track GCI
+                </h2>
+              </div>
+
+              <p className="mb-8 text-base leading-relaxed text-slate-600">
+                High-producing agents — those running their practice as a deliberate business — monitor
+                a richer set of metrics. GCI is the starting point, not the endpoint.
               </p>
 
-              <ul>
-                <li>
-                  <strong>Brokerage commission split</strong> — commonly 70/30, 80/20, or a
-                  graduated structure, meaning your brokerage keeps 20–30 cents of every
-                  dollar you earn.
-                </li>
-                <li>
-                  <strong>Transaction fees</strong> — a per-deal fee charged by many brokerages,
-                  often ranging from $200 to $600 or more, sometimes capped annually.
-                </li>
-                <li>
-                  <strong>Monthly brokerage desk fees</strong> — a recurring fixed cost that
-                  continues whether you close deals or not.
-                </li>
-                <li>
-                  <strong>Business expenses</strong> — marketing, MLS fees, E&O insurance,
-                  technology subscriptions, vehicle costs, and more.
-                </li>
-              </ul>
+              {/* Five practices */}
+              <div className="space-y-5">
+                {[
+                  {
+                    icon: Target,
+                    color: "bg-blue-500/10 text-blue-600",
+                    title: "Monthly pace against goal",
+                    body: "Rather than watching a cumulative total, disciplined agents track their monthly pace — how much GCI they need to close each month to hit their annual goal, adjusted for which months historically produce more volume. Closing $15,000 in January on a $200,000 goal might actually be ahead of pace, because Q1 is historically slow.",
+                  },
+                  {
+                    icon: Activity,
+                    color: "bg-violet-500/10 text-violet-600",
+                    title: "Pipeline forecasting with weighted probability",
+                    body: "Closed deals represent certainty; active pipeline represents probability. Top agents apply close probabilities to in-progress deals — a listing with a firm accepted offer is near 100%, while a buyer showing early interest might be 20–30%. Weighted pipeline added to year-to-date GCI gives a much sharper year-end estimate.",
+                  },
+                  {
+                    icon: BarChart3,
+                    color: "bg-emerald-500/10 text-emerald-600",
+                    title: "Annual projections with confidence bands",
+                    body: "Rather than committing to a single year-end number, rigorous agents think probabilistically. A base-case projection reflects current pace. A conservative case accounts for a slow Q4. An optimistic case factors in one or two additional deals. Layering in variance — P10 through P90 bands — turns a forecast into a range of realistic outcomes rather than a single guess.",
+                  },
+                  {
+                    icon: Layers,
+                    color: "bg-amber-500/10 text-amber-600",
+                    title: "Net vs. gross income at every stage",
+                    body: "Tracking net agent income — not just GCI — means applying your specific brokerage split, transaction fee structure, desk fees, and known business expenses at every stage. When you receive a commission cheque, the net-to-you figure should be calculable immediately, not discovered at tax time.",
+                  },
+                  {
+                    icon: Rocket,
+                    color: "bg-rose-500/10 text-rose-600",
+                    title: "Financial runway as a business metric",
+                    body: "The agents least vulnerable to market slowdowns monitor their cash runway: how many months their reserves cover their fixed operating costs. This single number determines how much risk you can afford to take, how aggressively you can invest in marketing, and whether you're building a resilient business or living deal-to-deal.",
+                  },
+                ].map(({ icon: Icon, color, title, body }) => (
+                  <div key={title} className="flex gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                    <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${color}`}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="mb-1.5 font-bold text-slate-900">{title}</h3>
+                      <p className="text-sm leading-relaxed text-slate-600">{body}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-              <p>
-                A $200,000 GCI year does not mean $200,000 in the bank. After a 20% brokerage
-                split, transaction fees, a monthly desk fee, and business expenses, the real
-                net figure might be closer to $130,000 — before income tax and CPP contributions.
-                Tracking GCI alone, without understanding what flows through to net, is one of
-                the most common financial blind spots in the industry.
-              </p>
+            </section>
 
-              {/* ── Section 2: Why agents track GCI incorrectly ── */}
-              <h2 id="why-agents-track-gci-incorrectly">
-                Why most agents track GCI incorrectly
-              </h2>
+            {/* Divider */}
+            <div className="mb-16 flex items-center gap-4">
+              <div className="h-px flex-1 bg-slate-100" />
+              <ArrowDown className="h-4 w-4 text-slate-300" />
+              <div className="h-px flex-1 bg-slate-100" />
+            </div>
 
-              <p>
-                Ask ten real estate agents how they track their GCI and you&apos;ll hear a
-                familiar range of answers: a spreadsheet, their CRM&apos;s commission field,
-                a rough mental tally, or &quot;my accountant handles it.&quot; Each of these
-                approaches has serious gaps.
-              </p>
+            {/* ── Section 4: How Agent Runway helps ── */}
+            <section id="how-agent-runway-helps" className="mb-8 scroll-mt-20">
 
-              <h3>The spreadsheet trap</h3>
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600/10">
+                  <Rocket className="h-5 w-5 text-blue-600" />
+                </div>
+                <h2 className="text-2xl font-bold tracking-tight text-slate-900">
+                  How Agent Runway helps
+                </h2>
+              </div>
 
-              <p>
-                Spreadsheets are the most popular tracking method among self-employed agents.
-                They&apos;re free, flexible, and familiar. The problem is that a spreadsheet
-                only reflects what you enter into it — and most agents update it infrequently,
-                inconsistently, or not at all during busy stretches. A spreadsheet also has no
-                understanding of time. It can tell you your cumulative GCI, but it cannot tell
-                you whether that number is ahead of or behind where you should be in week 32
-                of a 52-week year.
-              </p>
-
-              <h3>CRM commission totals</h3>
-
-              <p>
-                Many agents use a CRM to manage their pipeline and track closed transactions.
-                Most CRMs include a commission or deal-value field, and some offer basic
-                reporting. But CRM commission tracking is typically a static total — it doesn&apos;t
-                apply your split, doesn&apos;t deduct fees, doesn&apos;t factor in seasonality,
-                and doesn&apos;t project forward. You&apos;re left with a raw number that
-                requires a separate calculation to become meaningful.
-              </p>
-
-              <h3>No forecasting built in</h3>
-
-              <p>
-                Perhaps the most costly gap in typical GCI tracking is the absence of forward
-                projection. Knowing you&apos;ve earned $95,000 GCI by August is useful —
-                but knowing whether that pace implies a $165,000 year or a $135,000 year is
-                far more actionable. Most tracking methods answer the historical question and
-                leave the forward question unanswered.
-              </p>
-
-              <p>
-                Real estate income is seasonal. Transactions cluster in spring and fall in
-                most Canadian markets, and slow through December and January. A simple
-                straight-line projection from August will overestimate full-year income if
-                the remaining months are historically slower. Without seasonality adjustments,
-                naive projections routinely mislead.
-              </p>
-
-              <h3>No visibility into expenses</h3>
-
-              <p>
-                GCI tracking that ignores the expense side of the business produces a
-                dangerously incomplete picture. An agent who closes $180,000 in GCI but runs
-                $60,000 in business expenses — and owes $35,000 in taxes — has a fundamentally
-                different financial position than one who closed $150,000 with $20,000 in
-                expenses and optimal tax planning. Without expense tracking wired into the
-                same system as GCI tracking, the full picture never materialises.
-              </p>
-
-              {/* ── Section 3: How top agents track GCI ── */}
-              <h2 id="how-top-agents-track-gci">How top agents track GCI</h2>
-
-              <p>
-                High-producing agents — particularly those running their practice as a
-                deliberate business rather than a series of transactions — tend to monitor a
-                richer set of metrics. GCI is the starting point, not the endpoint.
-              </p>
-
-              <h3>Monthly pace against goal</h3>
-
-              <p>
-                Rather than watching a cumulative total, disciplined agents track their monthly
-                pace: how much GCI they need to close each month to hit their annual goal,
-                adjusted for which months historically produce more volume. If your goal is
-                $200,000 GCI and you&apos;re in a market where Q2 represents 30% of annual
-                transactions, closing $15,000 in January is actually ahead of the adjusted pace
-                — even though it represents only 7.5% of your annual target.
-              </p>
-
-              <h3>Pipeline forecasting with weighted probability</h3>
-
-              <p>
-                Closed deals represent certainty; active pipeline represents probability. Top
-                agents apply close probabilities to their in-progress deals — a listing with
-                an accepted offer and firm conditions removed is near 100%, while a buyer
-                showing interest in a property might be 20–30%. Weighting pipeline by
-                probability and adding it to year-to-date GCI gives a much sharper year-end
-                estimate than closed deals alone.
-              </p>
-
-              <h3>Annual projections with confidence bands</h3>
-
-              <p>
-                Rather than committing to a single year-end number, the most rigorous agents
-                think probabilistically. A base-case projection reflects current pace. A
-                conservative case accounts for a slow Q4. An optimistic case factors in one or
-                two additional deals. Layering in variance — often called P10 through P90
-                bands, borrowed from financial modelling — turns a forecast into a range of
-                realistic outcomes rather than a single guess.
-              </p>
-
-              <h3>Net versus gross income at every stage</h3>
-
-              <p>
-                Tracking net agent income — not just GCI — means applying your specific
-                brokerage split, transaction fee structure, desk fees, and known business
-                expenses at every stage. When you receive a commission cheque, the net-to-you
-                figure should be calculable immediately, not discovered at tax time.
-              </p>
-
-              <h3>Financial runway as a business metric</h3>
-
-              <p>
-                The agents least vulnerable to market slowdowns are those who monitor their
-                cash runway: the number of months their reserves cover their fixed operating
-                costs. This single number — how long you can sustain your business without a
-                single new commission — determines how much risk you can afford to take, how
-                aggressively you can invest in marketing, and whether you&apos;re building a
-                resilient business or living deal-to-deal.
-              </p>
-
-              {/* ── Section 4: How Agent Runway helps ── */}
-              <h2 id="how-agent-runway-helps">How Agent Runway helps</h2>
-
-              <p>
-                <Link href="/">Agent Runway</Link>{" "}
-                was built to close the gap between how most agents track GCI
-                today and how the best agents manage their business. It replaces manual
-                spreadsheets, disconnected CRM fields, and end-of-year accounting surprises
-                with a{" "}
-                <Link href="/real-estate-business-analytics">
+              <p className="mb-8 text-base leading-relaxed text-slate-600">
+                <Link href="/" className="font-semibold text-blue-600 underline-offset-2 hover:underline">
+                  Agent Runway
+                </Link>{" "}
+                was built to close the gap between how most agents track GCI today and how the best
+                agents manage their business — replacing manual spreadsheets and disconnected CRM
+                fields with a{" "}
+                <Link href="/real-estate-business-analytics" className="font-semibold text-blue-600 underline-offset-2 hover:underline">
                   live business dashboard
-                </Link>
-                {" "}purpose-built for Canadian real estate agents.
+                </Link>{" "}
+                purpose-built for Canadian agents.
               </p>
 
-              <h3>Automatic GCI tracking with split and fee calculations</h3>
+              {/* Feature grid */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                {[
+                  {
+                    icon: Banknote,
+                    title: "Automatic GCI tracking",
+                    body: "Every transaction is immediately processed through your split, transaction fees, desk fees, and expenses. Net agent income — not just gross GCI — is calculated from the moment a deal is entered.",
+                  },
+                  {
+                    icon: TrendingUp,
+                    title: "Seasonality-aware forecasting",
+                    body: "Agent Runway's projection engine applies Canadian real estate seasonality curves to your year-to-date performance. The forecast understands that March and October close more deals than January and July.",
+                  },
+                  {
+                    icon: BarChart3,
+                    title: "P10–P90 probability bands",
+                    body: "Every forecast is expressed as a range, not a single number. P10 is a conservative outcome; P90 is optimistic. You can see at a glance whether your year-end income is likely to come in above or below your goal.",
+                  },
+                  {
+                    icon: Activity,
+                    title: "Financial runway measurement",
+                    body: "Agent Runway calculates your runway in months using your cash reserve and total monthly fixed costs — classified as Critical, Warning, Healthy, or Strong. A six-component composite score gives you a single letter grade.",
+                  },
+                  {
+                    icon: Layers,
+                    title: "Tax planning built in",
+                    body: "Federal and provincial tax obligations calculated for all 13 provinces and territories, including CPP and Quebec QPP. Shows your recommended quarterly instalment and per-deal set-aside amount.",
+                  },
+                  {
+                    icon: Rocket,
+                    title: "AI business insights",
+                    body: "An AI chat assistant with access to your live data — GCI pace, pipeline, expenses, runway, and projections. Contextual advisor cards surface the highest-impact observations automatically.",
+                  },
+                ].map(({ icon: Icon, title, body }) => (
+                  <div key={title} className="rounded-2xl border border-slate-100 bg-slate-50 p-5">
+                    <div className="mb-3 flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600/10">
+                        <Icon className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <h3 className="font-bold text-slate-900">{title}</h3>
+                    </div>
+                    <p className="text-sm leading-relaxed text-slate-600">{body}</p>
+                  </div>
+                ))}
+              </div>
 
-              <p>
-                Every transaction you log in Agent Runway is immediately processed through
-                your specific commission split, transaction fee rate, monthly brokerage fee
-                allocation, and business expenses. The platform shows your net agent income —
-                not just gross GCI — from the moment a deal is entered. Year-to-date figures,
-                average deal size, buyer versus seller split, and pace against your annual
-                goal are all calculated automatically and updated in real time.
-              </p>
+            </section>
 
-              <h3>Seasonality-aware income forecasting</h3>
-
-              <p>
-                Agent Runway&apos;s projection engine applies Canadian real estate seasonality
-                curves to your year-to-date performance and probability-weighted pipeline.
-                Rather than a naive straight-line projection, the forecast understands that
-                March and October close more deals than January and July in most markets. The
-                result is a year-end estimate that reflects realistic market patterns, not
-                just arithmetic extrapolation.
-              </p>
-
-              <h3>P10–P90 probability bands</h3>
-
-              <p>
-                Every forecast in Agent Runway is expressed as a range, not a single number.
-                The P10 band represents a conservative outcome; P90 represents an optimistic
-                one. You can see at a glance whether your year-end income is likely to come
-                in above or below your goal — and by how much — even when your pipeline is
-                uncertain.
-              </p>
-
-              <h3>Financial runway measurement</h3>
-
-              <p>
-                Agent Runway calculates your financial runway in months using your current
-                cash reserve and your total monthly fixed costs. It classifies your position
-                as Critical, Warning, Healthy, or Strong, and updates automatically as your
-                reserve and expenses change. A composite runway score across six financial
-                dimensions gives you a single letter grade that summarises the overall health
-                of your business.
-              </p>
-
-              <h3>Tax planning built in</h3>
-
-              <p>
-                For Canadian agents, tax planning is a year-round responsibility, not a
-                February scramble. Agent Runway calculates your projected federal and
-                provincial tax obligation using current rates for all 13 provinces and
-                territories, including CPP and Quebec QPP contributions. It shows your
-                recommended quarterly instalment amount and the per-deal amount to set aside
-                so you never face a year-end surprise.
-              </p>
-
-              <h3>AI-powered business insights</h3>
-
-              <p>
-                Beyond the numbers, Agent Runway includes an AI chat assistant that has access
-                to your live business data — your GCI pace, pipeline, expenses, runway, and
-                projections. Ask it how you&apos;re tracking against your goal, what your
-                biggest financial risk is right now, or how many deals you need to close in
-                Q4 to hit your target. Contextual advisor cards surface the highest-impact
-                observations automatically, ranked by their potential effect on your business
-                outcomes.
-              </p>
-
-            </article>
           </div>
         </section>
 
@@ -366,9 +468,9 @@ export default function HowRealEstateAgentsTrackGCIPage() {
               Stop guessing. Start tracking GCI the right way.
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-400">
-              Agent Runway gives you the GCI tracking, income forecasting, and financial
-              runway measurement that top agents use to run their business with clarity.
-              Built specifically for Canadian real estate agents.
+              Agent Runway gives you the GCI tracking, income forecasting, and financial runway
+              measurement that top agents use to run their business with clarity. Built
+              specifically for Canadian real estate agents.
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link
@@ -390,7 +492,6 @@ export default function HowRealEstateAgentsTrackGCIPage() {
 
       </main>
 
-      {/* ── Footer ── */}
       <MarketingFooter />
     </div>
   );

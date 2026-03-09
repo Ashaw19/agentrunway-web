@@ -1250,10 +1250,17 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                         <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
                           Quarterly Breakdown
                         </p>
-                        {quarterGCISum > 0 && Math.abs(quarterGCISum - item.annual_gci) > 100 && (
-                          <span className="text-[11px] text-amber-600">
-                            ∑Q = {fmtCurrency(quarterGCISum)} (differs from annual)
-                          </span>
+                        {quarterGCISum > 0 && Math.abs(quarterGCISum - item.annual_gci) > 100 && !item.is_locked && (
+                          <button
+                            className="text-[11px] text-amber-600 hover:text-amber-700 underline underline-offset-2 cursor-pointer"
+                            onClick={async () => {
+                              await updateAnnualGCI(item, String(quarterGCISum));
+                              await updateAnnualTx(item, String(quarterTxSum));
+                              toast.success("Annual totals synced to quarterly sum ✓");
+                            }}
+                          >
+                            ∑Q = {fmtCurrency(quarterGCISum)} — click to sync
+                          </button>
                         )}
                       </div>
                       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -1403,26 +1410,35 @@ type TrackerHeaders = {
 };
 
 function normaliseHeader(h: string): string {
-  return h.toLowerCase().replace(/[\s|$,#]/g, "");
+  // Strip spaces, pipes, $, commas, #, and brackets so headers like
+  // "Gross Commission Income [GCI]" normalise to "grosscommissionincomegci"
+  return h.toLowerCase().replace(/[\s|$,#\[\]()]/g, "");
 }
 
 /** Find the header row and column indices for the agent tracker format. */
 function findTrackerHeaders(rows: string[][]): TrackerHeaders | null {
   for (let i = 0; i < Math.min(rows.length, 12); i++) {
     const hdrs = rows[i].map(normaliseHeader);
-    const nameCol = hdrs.findIndex((h) => h === "name");
-    const sideCol = hdrs.findIndex((h) => h.startsWith("buy") || h.startsWith("rent"));
+    // Match "Name", "Client Name", "Client", "Buyer Name", "Seller Name", etc.
+    const nameCol = hdrs.findIndex((h) =>
+      h === "name" || h === "client" || h.endsWith("name") || h.startsWith("client"),
+    );
+    // Match "Buyer/Seller", "Sell/Buy", "Side", "Transaction Type", "Role", etc.
+    const sideCol = hdrs.findIndex((h) =>
+      h.startsWith("buy") || h.startsWith("sell") || h.startsWith("rent") ||
+      h === "side" || h.includes("transtype") || h.includes("dealtype"),
+    );
     // Primary: dedicated GCI column (pre-split); fallback: Net Commission (post-split)
-    const gciCol  = hdrs.findIndex((h) => h === "gci" || h === "grosscommission" || h === "grosscommissionincome");
+    const gciCol  = hdrs.findIndex((h) => h === "gci" || h.includes("grosscommission"));
     const netCol  = hdrs.findIndex((h) => h.includes("netcommission") || h.includes("netincome") || h === "net");
-    // Require: name + side + at least one money column
-    if (nameCol !== -1 && sideCol !== -1 && (gciCol !== -1 || netCol !== -1)) {
+    // Require: name + at least one money column (sideCol is optional — not all trackers have it)
+    if (nameCol !== -1 && (gciCol !== -1 || netCol !== -1)) {
       return {
         nameCol,
-        addrCol:   hdrs.findIndex((h) => h === "address"),
+        addrCol:   hdrs.findIndex((h) => h === "address" || h.includes("property") || h.includes("addr")),
         dateCol:   hdrs.findIndex((h) => h.includes("date") || h.includes("close")),
-        sideCol,
-        sourceCol: hdrs.findIndex((h) => h === "source"),
+        sideCol,   // may be -1; all deals get side:undefined if so
+        sourceCol: hdrs.findIndex((h) => h === "source" || h.includes("leadsource") || h.includes("referral")),
         gciCol,
         netCol,
         rowIdx: i,
@@ -1448,8 +1464,9 @@ function parseTrackerDate(raw: string, year: number): string {
   // Strip parenthetical annotations: "Jan 12 (paid)" → "Jan 12"
   let cleaned = s.replace(/\s*\([^)]*\)/g, "").trim();
 
-  // 2-digit year at end: "April 22, 25" or "Sept 28, 22"
-  cleaned = cleaned.replace(/,?\s*\b(\d{2})\s*$/, (_, y2) => `, ${2000 + parseInt(y2)}`);
+  // 2-digit year at end: "April 22, 25" or "Sept 28, 22" (comma required —
+  // prevents bare day numbers like "June 12" from matching as "June, year 2012")
+  cleaned = cleaned.replace(/,\s*\b(\d{2})\s*$/, (_, y2) => `, ${2000 + parseInt(y2)}`);
 
   // No 4-digit year → append sheet year: "May 1" → "May 1 2025"
   if (!/\b\d{4}\b/.test(cleaned)) cleaned = `${cleaned} ${year}`;
@@ -1501,7 +1518,7 @@ function parseTrackerSheet(
       }
     }
 
-    const rawSide = (row[hdrs.sideCol] ?? "").toLowerCase();
+    const rawSide = (hdrs.sideCol >= 0 ? row[hdrs.sideCol] ?? "" : "").toLowerCase();
     const side: import("@/app/api/import-history/route").ExtractedDeal["side"] =
       rawSide.includes("sell") && rawSide.includes("buy") ? "both"
       : rawSide.includes("sell") ? "seller"
@@ -1555,10 +1572,12 @@ function computeLocalAggregates(
     quarter_tx[q]++;
   }
 
+  // Derive annual totals from year-filtered quarterly accumulators (same fix as
+  // server-side computeAggregates) — deals outside `year` are excluded.
   return {
     year,
-    annual_gci: Math.round(deals.reduce((s, d) => s + d.gci, 0) * 100) / 100,
-    annual_tx:  deals.length,
+    annual_gci: Math.round(quarter_gci.reduce((s, v) => s + v, 0) * 100) / 100,
+    annual_tx:  quarter_tx.reduce((s, v) => s + v, 0),
     quarter_gci,
     quarter_tx,
     deals,

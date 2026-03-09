@@ -455,6 +455,17 @@ export function ForecastContent({
             </CardContent>
           </Card>
       )}
+
+      {/* Disclaimer */}
+      <p className="text-center text-xs leading-relaxed text-muted-foreground/60 pb-2">
+        All projections, tax estimates, and advisor recommendations are approximations
+        for planning purposes only — not financial, tax, or professional advice. Actual
+        results will differ. Always consult a qualified accountant or tax professional.{" "}
+        <a href="/terms" className="underline underline-offset-2 hover:text-muted-foreground">
+          Terms of Service
+        </a>
+        .
+      </p>
     </div>
   );
 }

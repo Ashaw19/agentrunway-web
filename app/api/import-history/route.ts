@@ -264,8 +264,10 @@ function computeAggregates(deals: GroqRawResponse["deals"], year: number): Impor
     quarter_gci[i] = Math.round(quarter_gci[i] * 100) / 100;
   }
 
-  const annual_gci = Math.round(cleanDeals.reduce((s, d) => s + d.gci, 0) * 100) / 100;
-  const annual_tx  = cleanDeals.length;
+  // Derive annual totals from the year-filtered quarterly accumulators so they
+  // always agree with the quarterly breakdown (deals outside `year` are excluded).
+  const annual_gci = Math.round(quarter_gci.reduce((s, v) => s + v, 0) * 100) / 100;
+  const annual_tx  = quarter_tx.reduce((s, v) => s + v, 0);
 
   return { year, annual_gci, annual_tx, quarter_gci, quarter_tx, deals: cleanDeals };
 }

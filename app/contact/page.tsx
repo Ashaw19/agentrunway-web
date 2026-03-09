@@ -122,12 +122,12 @@ export default function ContactPage() {
             <p className="text-sm text-slate-500">
               Looking for quick answers?{" "}
               <Link
-                href="/pricing#faq"
+                href="/faq"
                 className="font-semibold text-blue-600 underline-offset-2 hover:underline"
               >
                 Check our FAQ
-              </Link>{" "}
-              on the pricing page, or browse{" "}
+              </Link>
+              , or browse{" "}
               <Link
                 href="/real-estate-business-analytics"
                 className="font-semibold text-blue-600 underline-offset-2 hover:underline"
