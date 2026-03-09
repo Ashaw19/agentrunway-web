@@ -63,9 +63,9 @@
 
 :root {
   --radius: 0.75rem;
-  /* Warm cream canvas — noticeably warm without being yellow                   */
+  /* Cool blue-grey canvas — crisp, professional, complements Runway Blue        */
   /* Cards stay pure white so they visually lift above the canvas (depth effect) */
-  --background: oklch(0.968 0.016 70);
+  --background: oklch(0.967 0.012 250);
   --foreground: oklch(0.129 0.042 264.695);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.129 0.042 264.695);
