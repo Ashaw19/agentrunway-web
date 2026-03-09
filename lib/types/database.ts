@@ -9,6 +9,10 @@ export type TransactionSide = "buyer" | "seller" | "both";
 
 export type TransactionStatus = "closed" | "pending" | "fallen";
 
+// Phase 1 — Unified Ledger
+export type TxDatePrecision = "day" | "month" | "quarter" | "year";
+export type TxSource = "manual" | "imported";
+
 export type PipelineStage = "lead" | "showing" | "offer" | "conditional" | "firm";
 
 export const PIPELINE_STAGE_DEFAULTS: Record<PipelineStage, number> = {
@@ -221,6 +225,10 @@ export interface Transaction {
   status: TransactionStatus;
   client_name: string;
   notes: string;
+
+  // Phase 1 — Unified Ledger (optional until migration 00011 is applied)
+  date_precision?: TxDatePrecision;  // 'day' for manual entries; coarser for imports
+  source?: TxSource;                 // 'manual' | 'imported'
 
   created_at: string;
   updated_at: string;

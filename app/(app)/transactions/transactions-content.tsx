@@ -32,7 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, DollarSign, Briefcase, TrendingUp } from "lucide-react";
+import { Plus, Pencil, Trash2, DollarSign, Briefcase, TrendingUp, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtCurrency } from "@/lib/formatters";
 import { computeGCI, type Transaction } from "@/lib/types/database";
@@ -425,6 +425,16 @@ export function TransactionsContent({ initialTransactions }: Props) {
                 </Select>
               </div>
             </div>
+
+            {/* Past/future year warning */}
+            {form.date && new Date(form.date + "T12:00:00").getFullYear() !== new Date().getFullYear() && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  This date is in <strong>{new Date(form.date + "T12:00:00").getFullYear()}</strong> — it will count toward that year&apos;s history, not your {new Date().getFullYear()} YTD.
+                </span>
+              </div>
+            )}
 
             {/* Address */}
             <div className="grid gap-1.5">
