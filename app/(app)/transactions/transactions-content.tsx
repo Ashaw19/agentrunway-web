@@ -85,6 +85,7 @@ export function TransactionsContent({ initialTransactions }: Props) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<"all" | "closed" | "pending" | "fallen">("all");
+  const [yearFilter, setYearFilter] = useState<"all" | number>("all");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "highest" | "lowest">("newest");
 
   function openAdd() {
@@ -190,9 +191,15 @@ export function TransactionsContent({ initialTransactions }: Props) {
     .filter((t) => t.status === "closed" && t.date.startsWith(currentYear))
     .reduce((sum, t) => sum + computeGCI(t), 0);
 
+  // Available years for the year filter — derived from data
+  const availableYears = [...new Set(
+    transactions.map((t) => parseInt(t.date.slice(0, 4))).filter(Boolean)
+  )].sort((a, b) => b - a);
+
   // Filtered + sorted view
   const visibleTransactions = transactions
     .filter((t) => filter === "all" || t.status === filter)
+    .filter((t) => yearFilter === "all" || t.date.startsWith(String(yearFilter)))
     .sort((a, b) => {
       if (sortBy === "oldest") return a.date.localeCompare(b.date);
       if (sortBy === "highest") return computeGCI(b) - computeGCI(a);
@@ -277,8 +284,24 @@ export function TransactionsContent({ initialTransactions }: Props) {
             </button>
           ))}
         </div>
-        {/* Sort select */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        {/* Right controls: year filter + sort */}
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          {availableYears.length > 1 && (
+            <Select
+              value={String(yearFilter)}
+              onValueChange={(v) => setYearFilter(v === "all" ? "all" : parseInt(v))}
+            >
+              <SelectTrigger className="h-8 w-24 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All years</SelectItem>
+                {availableYears.map((y) => (
+                  <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <span>Sort:</span>
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
             <SelectTrigger className="h-8 w-32 text-xs">
@@ -323,13 +346,27 @@ export function TransactionsContent({ initialTransactions }: Props) {
                 {visibleTransactions.map((tx) => (
                   <TableRow key={tx.id}>
                     <TableCell className="whitespace-nowrap text-sm">
-                      {tx.date}
+                      <div className="flex flex-col gap-0.5">
+                        <span>{tx.date}</span>
+                        {tx.source === "imported" && (
+                          <span className="inline-flex w-fit items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                            imported
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-sm">
                       {tx.address || <span className="text-muted-foreground">&mdash;</span>}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {tx.client_name || <span className="text-muted-foreground">&mdash;</span>}
+                      <div className="flex items-center gap-1.5">
+                        {tx.client_name || <span className="text-muted-foreground">&mdash;</span>}
+                        {tx.source === "imported" && !tx.client_name && (
+                          <span title="Client name missing — click edit to complete">
+                            <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold capitalize", SIDE_CHIP[tx.side] ?? "bg-slate-100 text-slate-700 border border-slate-200")}>
