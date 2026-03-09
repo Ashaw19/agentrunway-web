@@ -366,3 +366,47 @@ function zeroResult(province: Province, dealCount: number): CanadianTaxResult {
     projectedDealCount: dealCount, provinceName: province, taxYear: TAX_YEAR,
   };
 }
+
+// ── GST/HST utilities ───────────────────────────────────────────────────────
+
+/** GST/HST rate agents charge on commissions, by province.
+ *  HST provinces: ON 13%, NB/NS/NL/PE 15%
+ *  QST province (QC): GST 5% + QST 9.975% = 14.975%
+ *  BC/MB: GST 5% + PST (not collected on services by real estate agents)
+ *  SK: GST 5% + PST 6% on services = 11%
+ *  All others: GST 5% only
+ */
+export function gstHstRate(province: string): number {
+  switch (province) {
+    case "ontario":                 return 0.13;
+    case "novaScotia":              return 0.15;
+    case "newBrunswick":            return 0.15;
+    case "newfoundland":            return 0.15;
+    case "princeEdwardIsland":      return 0.15;
+    case "quebec":                  return 0.14975; // GST + QST combined
+    case "britishColumbia":         return 0.12;    // GST + PST
+    case "manitoba":                return 0.12;    // GST + PST
+    case "saskatchewan":            return 0.11;    // GST + PST
+    default:                        return 0.05;    // GST only
+  }
+}
+
+/** Human-readable label for the tax type by province */
+export function gstHstLabel(province: string): string {
+  switch (province) {
+    case "ontario":
+    case "novaScotia":
+    case "newBrunswick":
+    case "newfoundland":
+    case "princeEdwardIsland":
+      return "HST";
+    case "quebec":
+      return "GST + QST";
+    case "britishColumbia":
+    case "manitoba":
+    case "saskatchewan":
+      return "GST + PST";
+    default:
+      return "GST";
+  }
+}

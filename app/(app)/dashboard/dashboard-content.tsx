@@ -81,6 +81,27 @@ import { survivalResult, type SurvivalResult } from "@/lib/engines/survival-engi
 import { compute as computeRunwayScore, type BusinessHealthReport, type RunwayScoreResult } from "@/lib/engines/runway-score-engine";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { calculate as calculateTax } from "@/lib/engines/canadian-tax-engine";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+function MetricInfo({ tip }: { tip: string }) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Info className="h-3.5 w-3.5 text-muted-foreground/50 hover:text-muted-foreground cursor-help transition-colors shrink-0" />
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[220px] text-center leading-snug">
+          {tip}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 type DashboardView = "essentials" | "standard" | "full";
 
@@ -602,7 +623,10 @@ export function DashboardContent({
               </div>
               <div>
                 <div className="flex items-center gap-1">
-                  <p className="text-sm font-semibold text-slate-500">Runway Score</p>
+                  <span className="flex items-center gap-1">
+                    <p className="text-sm font-semibold text-slate-500">Runway Score</p>
+                    <MetricInfo tip="A composite score across 6 factors: pace vs goal, expense ratio, pipeline health, cash runway, trend direction, and deal consistency." />
+                  </span>
                   <RunwayScoreInfoDialog />
                 </div>
                 <p className="text-4xl font-extrabold text-slate-800 leading-none mt-0.5">
@@ -615,14 +639,20 @@ export function DashboardContent({
             {/* Right: survival + benchmark */}
             <div className="flex gap-6 text-right sm:gap-8">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Runway</p>
+                <span className="flex items-center gap-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Cash Runway</p>
+                  <MetricInfo tip="How many months you could sustain current expenses using only your cash reserve, with zero new income." />
+                </span>
                 <p className={cn("text-xl font-bold mt-0.5", riskColors[survival.riskLevel])}>
                   {formatSurvivalDisplay(survival)}
                 </p>
                 <p className="text-xs text-slate-400">cash coverage</p>
               </div>
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Cohort Rank</p>
+                <span className="flex items-center gap-1">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Cohort Rank</p>
+                  <MetricInfo tip="How you rank vs Canadian agents with similar experience, based on CREA 2023 benchmarks. P75 means you out-earned 75% of your peers." />
+                </span>
                 {/* Gold for top-half performers — commission gold as achievement signal */}
                 <p
                   className="text-xl font-bold mt-0.5"
@@ -724,11 +754,17 @@ export function DashboardContent({
             <div className="text-3xl font-bold tracking-tight text-slate-800">
               <CountUp end={ytdDealCount} duration={800} />
             </div>
-            <p className="text-xs text-slate-500">
-              {ytdDealCount === 0
-                ? "No deals yet — your first is the hardest"
-                : `Avg ${fmtCurrency(avgDealSize)} per deal`}
-            </p>
+            {ytdDealCount === 0 ? (
+              <p className="text-xs text-slate-500">No deals yet — your first is the hardest</p>
+            ) : (
+              <p className="text-xs text-slate-500 flex items-center gap-1">
+                <span className="flex items-center gap-1">
+                  Avg Deal Size
+                  <MetricInfo tip="Your total GCI divided by the number of closed deals this year." />
+                </span>
+                <span>· {fmtCurrency(avgDealSize)}</span>
+              </p>
+            )}
             {dealsThisQ > 0 && (
               <p className={cn("mt-0.5 text-xs font-medium",
                 lastYearQDeals !== null
@@ -749,7 +785,12 @@ export function DashboardContent({
 
         <Card className="rounded-2xl border-purple-200 bg-gradient-to-br from-purple-100 to-purple-50 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription className="font-semibold text-purple-800">Active Pipeline</CardDescription>
+            <CardDescription className="font-semibold text-purple-800">
+              <span className="flex items-center gap-1">
+                Pipeline Weighted
+                <MetricInfo tip="Your in-progress deals weighted by their probability of closing. A $50K deal at 60% odds counts as $30K here." />
+              </span>
+            </CardDescription>
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-200">
               <TrendingUp className="h-4 w-4 text-purple-700" />
             </div>

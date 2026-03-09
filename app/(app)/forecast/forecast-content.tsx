@@ -32,12 +32,14 @@ import {
   paceVsGoalPercent,
   dailyPaceRequired,
 } from "@/lib/engines/projection-engine";
-import { calculate as calculateTax } from "@/lib/engines/canadian-tax-engine";
+import { calculate as calculateTax, gstHstRate, gstHstLabel } from "@/lib/engines/canadian-tax-engine";
 import { probabilityBands, fiveYearBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
 import { compare } from "@/lib/engines/benchmark-engine";
 import { generateAdvisory, type AdvisorCard } from "@/lib/engines/advisor-engine";
 import { ProbabilityChart, type ProbabilityDataPoint } from "@/components/probability-chart";
+import Link from "next/link";
+import { Settings } from "lucide-react";
 
 interface Props {
   settings: UserSettings | null;
@@ -138,6 +140,12 @@ export function ForecastContent({
   // ── Tax estimate ──────────────────────────────────────────────────────
   const netForTax = Math.max(0, projectedNet - annualExpenses);
   const taxResult = calculateTax(netForTax, settings.province, Math.max(projectedDeals, 1));
+
+  // ── GST/HST collected on commissions ──────────────────────────────────
+  const taxLabel = gstHstLabel(settings.province);
+  const taxRate = gstHstRate(settings.province);
+  const gstHstCollectedYTD = ytdGCI * taxRate;
+  const gstHstCollectedProjected = projectedGCI * taxRate;
 
   // ── Probability bands ─────────────────────────────────────────────────
   const bands = probabilityBands(transactions, projectedGCI, fraction);
@@ -328,7 +336,24 @@ export function ForecastContent({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 sm:grid-cols-3">
+            {/* HST/GST Collected */}
+            <div className="flex items-center justify-between py-2 border-b border-border/50">
+              <div>
+                <p className="text-sm font-medium">{taxLabel} Collected YTD</p>
+                <p className="text-xs text-muted-foreground">
+                  On {fmtCurrency(ytdGCI)} GCI &middot; {(taxRate * 100).toFixed(taxRate === 0.14975 ? 3 : 0)}% rate &middot; set aside for remittance
+                </p>
+              </div>
+              <p className="text-lg font-bold tabular-nums">{fmtCurrency(gstHstCollectedYTD)}</p>
+            </div>
+            <div className="flex items-center justify-between py-2 border-b border-border/50">
+              <div>
+                <p className="text-sm font-medium">{taxLabel} Full-Year Projected</p>
+                <p className="text-xs text-muted-foreground">Based on {fmtCurrency(projectedGCI)} projected GCI</p>
+              </div>
+              <p className="text-lg font-bold tabular-nums text-muted-foreground">{fmtCurrency(gstHstCollectedProjected)}</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3 pt-4">
               <div className="text-center">
                 <p className="text-2xl font-bold">{fmtCurrency(taxResult.quarterlyEstimate)}</p>
                 <p className="text-xs text-muted-foreground">Quarterly instalment</p>
@@ -433,11 +458,20 @@ export function ForecastContent({
       {/* 5-Year growth plan with probability bands */}
       {yearBands.length > 0 && (
           <Card className="rounded-2xl border border-violet-200 bg-violet-50/40 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-base">5-Year Growth Plan</CardTitle>
-              <CardDescription>
-                Projections with widening probability bands
-              </CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between">
+              <div>
+                <CardTitle className="text-base">5-Year Growth Plan</CardTitle>
+                <CardDescription>
+                  Projections with widening probability bands
+                </CardDescription>
+              </div>
+              <Link
+                href="/settings#growth-plan"
+                className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors shrink-0"
+              >
+                <Settings className="h-3 w-3" />
+                Edit targets
+              </Link>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">

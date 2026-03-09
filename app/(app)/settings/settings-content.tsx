@@ -133,6 +133,32 @@ export function SettingsContent({ settings }: Props) {
   const [savingGoal, setSavingGoal] = useState(false);
   const goalSaved = useSaved();
 
+  // ── Section 6: 5-Year Growth Plan ───────────────────────────────────────
+  const currentYear = new Date().getFullYear();
+  const [growthGoals, setGrowthGoals] = useState<number[]>(() => {
+    const raw = settings.growth_goal_year_pcts;
+    if (Array.isArray(raw) && raw.length === 5) return raw.map(Number);
+    return [0, 0, 0, 0, 0];
+  });
+  const [savingGoals, setSavingGoals] = useState(false);
+  const growthGoalsSaved = useSaved();
+
+  async function saveGrowthGoals() {
+    setSavingGoals(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("user_settings")
+      .update({ growth_goal_year_pcts: growthGoals })
+      .eq("user_id", settings.user_id);
+    setSavingGoals(false);
+    if (!error) {
+      growthGoalsSaved.flash();
+      toast.success("Growth plan saved ✓");
+    } else {
+      toast.error("Couldn't save growth goals — please try again.");
+    }
+  }
+
   async function saveGoal() {
     setSavingGoal(true);
     const supabase = createClient();
@@ -373,7 +399,58 @@ export function SettingsContent({ settings }: Props) {
         </CardContent>
       </Card>
 
-      {/* Card 6 — Plan & Billing */}
+      {/* Card 6 — 5-Year Growth Plan */}
+      <Card id="growth-plan" className="rounded-2xl border-l-4 border-l-violet-500 shadow-sm">
+        <CardHeader>
+          <CardTitle>5-Year Growth Plan</CardTitle>
+          <CardDescription>
+            Your GCI targets for the next five years — used to plot your growth trajectory on the Forecast page.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="grid gap-1.5">
+                <Label>{currentYear + 1 + i} Target ($)</Label>
+                <Input
+                  type="number"
+                  placeholder="$0"
+                  value={growthGoals[i] === 0 ? "" : growthGoals[i]}
+                  onChange={(e) =>
+                    setGrowthGoals((prev) => {
+                      const next = [...prev];
+                      next[i] = parseFloat(e.target.value) || 0;
+                      return next;
+                    })
+                  }
+                />
+              </div>
+            ))}
+          </div>
+          <div className="grid gap-1.5 max-w-xs">
+            <Label>{currentYear + 5} Target ($)</Label>
+            <Input
+              type="number"
+              placeholder="$0"
+              value={growthGoals[4] === 0 ? "" : growthGoals[4]}
+              onChange={(e) =>
+                setGrowthGoals((prev) => {
+                  const next = [...prev];
+                  next[4] = parseFloat(e.target.value) || 0;
+                  return next;
+                })
+              }
+            />
+          </div>
+          <SaveRow
+            saving={savingGoals}
+            saved={growthGoalsSaved.saved}
+            onSave={saveGrowthGoals}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Card 7 — Plan & Billing */}
       <PlanBillingCard settings={settings} />
     </div>
   );

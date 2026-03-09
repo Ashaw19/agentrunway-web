@@ -32,8 +32,29 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Layers, DollarSign, TrendingUp } from "lucide-react";
+import { Plus, Pencil, Trash2, Layers, DollarSign, TrendingUp, Info } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+function MetricInfo({ tip }: { tip: string }) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Info className="h-3.5 w-3.5 text-muted-foreground/50 hover:text-muted-foreground cursor-help transition-colors shrink-0" />
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[220px] text-center leading-snug">
+          {tip}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 import {
   computeEstimatedGCI,
   computeWeightedGCI,
@@ -243,7 +264,10 @@ export function PipelineContent({ initialDeals }: Props) {
             <TrendingUp className="h-5 w-5 text-purple-700" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">Weighted GCI</p>
+            <span className="flex items-center gap-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">Weighted GCI</p>
+              <MetricInfo tip="Your pipeline total adjusted for each deal's probability of closing — a more realistic picture than face value." />
+            </span>
             <p className="text-2xl font-bold text-slate-800">{fmtCurrency(totalWeighted)}</p>
           </div>
         </div>

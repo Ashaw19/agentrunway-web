@@ -40,7 +40,7 @@ import {
   projectedYearEndGCI,
   projectedYearEndTransactions,
 } from "@/lib/engines/projection-engine";
-import { calculate as calculateTax } from "@/lib/engines/canadian-tax-engine";
+import { calculate as calculateTax, gstHstRate, gstHstLabel } from "@/lib/engines/canadian-tax-engine";
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
 
@@ -142,6 +142,11 @@ export function ReportsContent({
     return Math.max(0, ag - tf - bf - annualExp);
   })();
   const taxResult = calculateTax(projectedNet, settings.province, Math.max(projectedDeals, 1));
+
+  // ── GST/HST collected on commissions ──────────────────────────────────
+  const taxLabel = gstHstLabel(settings.province);
+  const taxRate = gstHstRate(settings.province);
+  const gstHstCollectedYTD = ytdGCI * taxRate;
 
   // ── Benchmark ─────────────────────────────────────────────────────────
   const benchmark = compare(projectedGCI, settings.experience_years);
@@ -460,6 +465,13 @@ export function ReportsContent({
                 <span className="font-medium">{fmtPct(taxResult.effectiveRate)}</span>
               </div>
               <Separator />
+              <div className="flex justify-between text-sm py-1.5 border-b border-border/40">
+                <span className="text-muted-foreground">{taxLabel} collected on commissions</span>
+                <span className="font-medium">{fmtCurrency(gstHstCollectedYTD)}</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1 mb-3">
+                This amount was charged to clients and must be remitted to CRA. Net of input tax credits (ITCs) on your business expenses may reduce your actual remittance.
+              </p>
               <div className="grid grid-cols-2 gap-4 pt-2">
                 <div className="text-center">
                   <p className="text-lg font-bold">{fmtCurrency(taxResult.quarterlyEstimate)}</p>
