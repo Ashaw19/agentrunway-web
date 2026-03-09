@@ -822,7 +822,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             <div className="space-y-4 py-2">
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-start gap-3">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-emerald-800">
                     {batchImportData.length} years found in your career tracker
                   </p>
@@ -830,6 +830,26 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                     Review each year below, then click Import to save all at once.
                   </p>
                 </div>
+                <button
+                  onClick={() => {
+                    const lines: string[] = [];
+                    batchImportData.forEach((yr) => {
+                      lines.push(`\n── ${yr.year} — ${yr.annual_tx} deals — ${fmtCurrency(yr.annual_gci)} GCI ──`);
+                      yr.deals.forEach((d, i) => {
+                        const dt = new Date(d.date + "T12:00:00").toLocaleDateString("en-CA", { month: "short", day: "numeric" });
+                        const side = d.side ? ` | ${d.side.charAt(0).toUpperCase() + d.side.slice(1)}` : "";
+                        const src  = d.source ? ` | ${d.source}` : "";
+                        lines.push(`  #${String(i + 1).padStart(2, "0")} ${d.address || "(no address)"} | ${dt} | ${fmtCurrency(d.gci)} GCI${side}${src} | ${d.party_a || "—"}`);
+                      });
+                    });
+                    navigator.clipboard.writeText(lines.join("\n"));
+                    toast.success("All deals copied to clipboard");
+                  }}
+                  className="flex items-center gap-1 text-[11px] text-emerald-700 hover:text-emerald-900 transition-colors shrink-0 mt-0.5"
+                >
+                  <Clipboard className="h-3 w-3" />
+                  Copy all
+                </button>
               </div>
 
               <div className="space-y-2">
