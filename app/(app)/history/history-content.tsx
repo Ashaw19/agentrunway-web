@@ -269,7 +269,6 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     if (file.type.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|bmp|tiff?)$/.test(name)) return "image";
     if (/\.(xlsx?|xls)$/.test(name) || file.type.includes("spreadsheet")) return "excel";
     if (name.endsWith(".csv") || file.type === "text/csv") return "csv";
-    if (name.endsWith(".txt") || file.type === "text/plain") return "csv";
     return null;
   }
 
@@ -713,7 +712,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xlsx,.xls,.csv,.txt,application/pdf,image/*,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
+            accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.xlsx,.xls,.csv,application/pdf,image/*,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
