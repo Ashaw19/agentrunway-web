@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   computeGCI,
@@ -25,11 +25,25 @@ import {
 import { survivalResult } from "@/lib/engines/survival-engine";
 import { ExpenseDonut, type DonutDataPoint } from "@/components/expense-donut";
 import { cn } from "@/lib/utils";
+import { ReceiptCaptureDialog } from "@/components/receipt-capture-dialog";
+import {
+  RECEIPT_CATEGORIES,
+  type ReceiptExpense,
+} from "@/lib/types/receipt";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface Props {
   initialCategories: ExpenseCategoryWithItems[];
   settings: UserSettings | null;
   transactions: Transaction[];
+  initialReceipts?: ReceiptExpense[];
 }
 
 // Per-category colour accent (left border + header icon tint)
@@ -46,8 +60,30 @@ const CAT_COLORS: Record<string, { border: string; badge: string }> = {
 
 const DEFAULT_CAT = { border: "border-l-slate-400", badge: "bg-slate-100 text-slate-600" };
 
-export function ExpensesContent({ initialCategories, settings, transactions }: Props) {
+// Map category key → label for the receipt log
+const CAT_LABEL: Record<string, string> = Object.fromEntries(
+  RECEIPT_CATEGORIES.map((c) => [c.key, c.label]),
+);
+
+export function ExpensesContent({ initialCategories, settings, transactions, initialReceipts = [] }: Props) {
   const [categories, setCategories] = useState(initialCategories);
+
+  // ── Receipt capture ────────────────────────────────────────────────────────
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const [receipts,    setReceipts]    = useState<ReceiptExpense[]>(initialReceipts);
+
+  const handleReceiptSaved = async () => {
+    // Refresh receipt list from Supabase after save
+    const { createClient: cc } = await import("@/lib/supabase/client");
+    const supabase = cc();
+    const { data } = await supabase
+      .from("receipt_expenses")
+      .select("*")
+      .order("expense_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (data) setReceipts(data as ReceiptExpense[]);
+  };
 
   // Auto-expand all categories on first visit (when no data has been entered yet)
   const isFirstVisit = initialCategories.every(
@@ -196,20 +232,32 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
             Every dollar out counts. Know your burn, protect your runway.
           </p>
         </div>
-        {/* QuickBooks coming-soon CTA */}
-        <Button
-          variant="outline"
-          size="sm"
-          disabled
-          title="QuickBooks integration — coming soon"
-          className="opacity-60"
-        >
-          <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-          Connect QuickBooks
-          <Badge className="ml-1.5 bg-amber-100 px-1.5 py-0 text-[10px] font-semibold text-amber-700 hover:bg-amber-100">
-            Soon
-          </Badge>
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Capture Receipt */}
+          <Button
+            size="sm"
+            onClick={() => setCaptureOpen(true)}
+            className="gap-1.5"
+          >
+            <Camera className="h-3.5 w-3.5" />
+            Capture Receipt
+          </Button>
+
+          {/* QuickBooks coming-soon CTA */}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled
+            title="QuickBooks integration — coming soon"
+            className="opacity-60"
+          >
+            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+            Connect QuickBooks
+            <Badge className="ml-1.5 bg-amber-100 px-1.5 py-0 text-[10px] font-semibold text-amber-700 hover:bg-amber-100">
+              Soon
+            </Badge>
+          </Button>
+        </div>
       </div>
 
       {/* KPI Summary */}
@@ -518,6 +566,113 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
           })}
         </div>
       </div>
+
+      {/* ── Receipt Log ─────────────────────────────────────────────────────── */}
+      <Card className="rounded-2xl border-slate-200 shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-base font-semibold">Receipt Log</CardTitle>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setCaptureOpen(true)}
+              className="gap-1.5 h-7 text-xs"
+            >
+              <Camera className="h-3 w-3" />
+              Add Receipt
+            </Button>
+          </div>
+          <CardDescription className="mt-1">
+            Individual receipts captured from photos
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {receipts.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-8">
+              <div className="rounded-full bg-muted p-4">
+                <Camera className="h-7 w-7 text-muted-foreground" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-foreground">No receipts yet</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Tap &ldquo;Capture Receipt&rdquo; above to snap a photo and log an expense in seconds.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setCaptureOpen(true)}
+                className="gap-1.5 mt-1"
+              >
+                <Camera className="h-3.5 w-3.5" />
+                Capture your first receipt
+              </Button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Vendor</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Tax</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {receipts.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="font-medium">
+                        {r.vendor ?? <span className="text-muted-foreground italic">Unknown</span>}
+                        {r.notes && (
+                          <p className="text-[11px] text-muted-foreground truncate max-w-[160px]">
+                            {r.notes}
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                        {r.expense_date
+                          ? new Date(r.expense_date + "T12:00:00").toLocaleDateString("en-CA", {
+                              month: "short", day: "numeric", year: "numeric",
+                            })
+                          : "—"}
+                      </TableCell>
+                      <TableCell>
+                        {r.category_key ? (
+                          <Badge variant="outline" className="text-xs font-normal">
+                            {CAT_LABEL[r.category_key] ?? r.category_key}
+                          </Badge>
+                        ) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {r.total_amount != null
+                          ? fmtCurrency(r.total_amount)
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-right text-sm text-muted-foreground tabular-nums">
+                        {r.tax_amount != null
+                          ? fmtCurrency(r.tax_amount)
+                          : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── Capture dialog ───────────────────────────────────────────────────── */}
+      <ReceiptCaptureDialog
+        open={captureOpen}
+        onClose={() => setCaptureOpen(false)}
+        onSaved={handleReceiptSaved}
+      />
     </div>
   );
 }

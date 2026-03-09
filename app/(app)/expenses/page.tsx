@@ -128,7 +128,7 @@ export default async function ExpensesPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [categoriesResult, itemsResult, settingsResult, txResult] = await Promise.all([
+  const [categoriesResult, itemsResult, settingsResult, txResult, receiptsResult] = await Promise.all([
     supabase
       .from("expense_categories")
       .select("*")
@@ -150,6 +150,13 @@ export default async function ExpensesPage() {
       .eq("user_id", user.id)
       .eq("status", "closed")
       .gte("date", `${new Date().getFullYear()}-01-01`),
+    supabase
+      .from("receipt_expenses")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("expense_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(50),
   ]);
 
   let cats = categoriesResult.data ?? [];
@@ -187,6 +194,7 @@ export default async function ExpensesPage() {
       initialCategories={categories}
       settings={settingsResult.data}
       transactions={txResult.data ?? []}
+      initialReceipts={receiptsResult.data ?? []}
     />
   );
 }
