@@ -230,6 +230,12 @@ export interface Transaction {
   date_precision?: TxDatePrecision;  // 'day' for manual entries; coarser for imports
   source?: TxSource;                 // 'manual' | 'imported'
 
+  // Per-deal team / referral split (migration 00012)
+  // Agent's share of the commission BEFORE the brokerage split is applied.
+  // NULL = no team split (agent keeps 100% before brokerage cut).
+  // Waterfall: sale_price × commission_pct × team_split_pct × brokerage_split = net
+  team_split_pct?: number | null;
+
   created_at: string;
   updated_at: string;
 }
@@ -424,9 +430,24 @@ export interface MarketDataPoint {
 
 // ── Computed Helpers (mirror iOS computed properties) ────────────────────────
 
-/** Compute GCI for a transaction (mirrors iOS Transaction.gci) */
+/** Compute GCI for a transaction (mirrors iOS Transaction.gci)
+ *
+ * Waterfall:
+ *   1. gci_override set → use directly (user entered their exact net GCI).
+ *   2. Otherwise: sale_price × commission_pct × team_split_pct (if set)
+ *
+ * The brokerage split is NOT applied here — it is applied downstream in
+ * computeAgentGross() when computing net income or tax projections.
+ *
+ * Note: gci_override bypasses the team split intentionally — if a user
+ * types in their GCI directly they already know their share of the deal.
+ */
 export function computeGCI(tx: Transaction): number {
-  return tx.gci_override ?? tx.sale_price * tx.commission_pct;
+  if (tx.gci_override != null) return tx.gci_override;
+  const raw = tx.sale_price * tx.commission_pct;
+  return (tx.team_split_pct != null && tx.team_split_pct > 0)
+    ? raw * tx.team_split_pct
+    : raw;
 }
 
 /** Compute pipeline deal probability (mirrors iOS PipelineDeal.probability) */

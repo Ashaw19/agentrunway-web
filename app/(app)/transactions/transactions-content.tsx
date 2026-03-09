@@ -32,7 +32,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, DollarSign, Briefcase, TrendingUp, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, DollarSign, Briefcase, TrendingUp, AlertTriangle, Users } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { fmtCurrency } from "@/lib/formatters";
 import { computeGCI, type Transaction } from "@/lib/types/database";
@@ -51,6 +52,9 @@ type FormState = {
   commission_pct: string;
   gci_override: string;
   notes: string;
+  // Team / referral split
+  has_team_split: boolean;
+  team_split_pct: string; // display percentage, e.g. "60" = 60%
 };
 
 const emptyForm = (): FormState => ({
@@ -63,6 +67,8 @@ const emptyForm = (): FormState => ({
   commission_pct: "2.5",
   gci_override: "",
   notes: "",
+  has_team_split: false,
+  team_split_pct: "60",
 });
 
 const STATUS_CHIP: Record<string, string> = {
@@ -106,6 +112,8 @@ export function TransactionsContent({ initialTransactions }: Props) {
       commission_pct: tx.commission_pct ? String(tx.commission_pct * 100) : "2.5",
       gci_override: tx.gci_override ? String(tx.gci_override) : "",
       notes: tx.notes ?? "",
+      has_team_split: tx.team_split_pct != null,
+      team_split_pct: tx.team_split_pct != null ? String(Math.round(tx.team_split_pct * 100)) : "60",
     });
     setDialogOpen(true);
   }
@@ -130,6 +138,10 @@ export function TransactionsContent({ initialTransactions }: Props) {
       commission_pct: (parseFloat(form.commission_pct) || 0) / 100,
       gci_override: form.gci_override ? parseFloat(form.gci_override) : null,
       notes: form.notes,
+      // Convert display % (e.g. "60") → decimal (0.60); null when toggle is off
+      team_split_pct: form.has_team_split
+        ? (parseFloat(form.team_split_pct) || 0) / 100
+        : null,
     };
 
     if (editingId) {
@@ -379,7 +391,15 @@ export function TransactionsContent({ initialTransactions }: Props) {
                       </span>
                     </TableCell>
                     <TableCell className={cn("text-right font-semibold", tx.status === "closed" ? "text-emerald-700" : tx.status === "pending" ? "text-amber-700" : "text-slate-400")}>
-                      {fmtCurrency(computeGCI(tx))}
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span>{fmtCurrency(computeGCI(tx))}</span>
+                        {tx.team_split_pct != null && (
+                          <span className="text-[10px] font-normal text-amber-600 flex items-center gap-0.5">
+                            <Users className="h-2.5 w-2.5" />
+                            {Math.round(tx.team_split_pct * 100)}% split
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {deleteConfirmId === tx.id ? (
@@ -547,6 +567,51 @@ export function TransactionsContent({ initialTransactions }: Props) {
               />
             </div>
 
+            {/* Team / Referral Split */}
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                  Team / Referral Split
+                </Label>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {form.has_team_split ? "On" : "Off"}
+                  </span>
+                  <Switch
+                    checked={form.has_team_split}
+                    onCheckedChange={(checked) => setField("has_team_split", checked)}
+                  />
+                </div>
+              </div>
+              {form.has_team_split && (
+                <div className="grid gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+                  <Label className="text-xs text-amber-800">
+                    Your share of this deal&apos;s commission (%)
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min="1"
+                      max="99"
+                      step="1"
+                      placeholder="60"
+                      className="w-28 bg-white"
+                      value={form.team_split_pct}
+                      onChange={(e) => setField("team_split_pct", e.target.value)}
+                    />
+                    <span className="text-sm text-amber-700">
+                      % &mdash; team member gets{" "}
+                      {(100 - (parseFloat(form.team_split_pct) || 0)).toFixed(0)}%
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-700/80">
+                    Applied before your brokerage split. E.g. 60% means you keep 60 of every 100 earned on this deal.
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Notes */}
             <div className="grid gap-1.5">
               <Label>Notes</Label>
@@ -564,11 +629,26 @@ export function TransactionsContent({ initialTransactions }: Props) {
               <span className="font-medium text-foreground">
                 {form.gci_override
                   ? fmtCurrency(parseFloat(form.gci_override) || 0)
-                  : fmtCurrency(
-                      (parseFloat(form.sale_price) || 0) *
-                        ((parseFloat(form.commission_pct) || 0) / 100),
-                    )}
+                  : (() => {
+                      const raw =
+                        (parseFloat(form.sale_price) || 0) *
+                        ((parseFloat(form.commission_pct) || 0) / 100);
+                      const withSplit = form.has_team_split
+                        ? raw * ((parseFloat(form.team_split_pct) || 0) / 100)
+                        : raw;
+                      return fmtCurrency(withSplit);
+                    })()}
               </span>
+              {form.has_team_split && !form.gci_override && (
+                <span className="ml-2 text-xs text-amber-600">
+                  (your {form.team_split_pct}% share of{" "}
+                  {fmtCurrency(
+                    (parseFloat(form.sale_price) || 0) *
+                      ((parseFloat(form.commission_pct) || 0) / 100),
+                  )}
+                  )
+                </span>
+              )}
             </p>
 
             <Button onClick={handleSave} disabled={saving}>
