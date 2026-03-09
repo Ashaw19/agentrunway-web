@@ -56,7 +56,9 @@
 
 :root {
   --radius: 0.75rem;
-  --background: oklch(1 0 0);
+  /* Warm off-white canvas — oklch(0.985 0.006 70) adds the faintest warmth    */
+  /* Cards stay pure white so they visually lift above the canvas (depth effect) */
+  --background: oklch(0.985 0.006 70);
   --foreground: oklch(0.129 0.042 264.695);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.129 0.042 264.695);
