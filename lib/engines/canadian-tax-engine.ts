@@ -1,7 +1,7 @@
 // CanadianTaxEngine — ported from Swift
 // Comprehensive Canadian self-employed income tax estimator.
 // Federal + all 13 provinces/territories, CPP/QPP, Ontario surtax, Quebec abatement.
-// Tax year: 2025 (estimated from confirmed 2024 CRA figures).
+// Tax year: 2025 (confirmed 2025 CRA / TaxTips.ca figures).
 //
 // ESTIMATE ONLY — Not legal or tax advice.
 
@@ -30,28 +30,28 @@ export interface CanadianTaxResult {
 
 const TAX_YEAR = 2025;
 
-// Federal (2025 estimated)
+// Federal (2025 confirmed — rate cut from 15% to 14% effective Jul 1, blended 14.5%)
 const FEDERAL_BPA = 16_129;
-const FEDERAL_BPA_RATE = 0.15;
+const FEDERAL_BPA_RATE = 0.145; // blended 2025 rate (15% Jan–Jun, 14% Jul–Dec)
 
 const FEDERAL_BRACKETS: [number, number][] = [
-  [57_375, 0.150],
+  [57_375,  0.145], // blended 14.5% for 2025
   [114_750, 0.205],
-  [159_154, 0.260],
-  [220_000, 0.290],
+  [177_882, 0.260],
+  [253_414, 0.290],
   [Infinity, 0.330],
 ];
 
-// CPP/QPP (2025)
+// CPP/QPP (2025 confirmed by CRA)
 const CPP_BASIC_EXEMPTION = 3_500;
-const CPP_YMPE = 71_300;
-const CPP_YAMPE = 81_900;
+const CPP_YMPE  = 71_300; // Year's Maximum Pensionable Earnings
+const CPP_YAMPE = 81_200; // Year's Additional Maximum Pensionable Earnings
 
 // Self-employed rates (employee + employer combined)
 const CPP1_SELF_RATE = 0.0595 * 2; // 11.90%
-const CPP2_SELF_RATE = 0.04 * 2; // 8.00%
-const QPP1_SELF_RATE = 0.064 * 2; // 12.80%
-const QPP2_SELF_RATE = 0.04 * 2; // 8.00%
+const CPP2_SELF_RATE = 0.04   * 2; //  8.00%
+const QPP1_SELF_RATE = 0.064  * 2; // 12.80%
+const QPP2_SELF_RATE = 0.04   * 2; //  8.00%
 
 // ── Main calculation ────────────────────────────────────────────────────────
 
@@ -66,8 +66,10 @@ export function calculate(
   const { cpp1, cpp2 } = cppContributions(netIncome, province);
   const totalCPP = cpp1 + cpp2;
 
-  // Self-employed deduct 50% of total CPP
-  const cppDeduction = totalCPP * 0.5;
+  // Self-employed deduction:
+  //   CPP1 — 50% deductible from income (employer half); employee half → credit below
+  //   CPP2 — 100% deductible from income (CRA confirmed for 2024+)
+  const cppDeduction = cpp1 * 0.5 + cpp2;
 
   // Step 2: Federal income tax
   const fedTaxable = Math.max(0, netIncome - cppDeduction);
@@ -76,7 +78,7 @@ export function calculate(
   // Federal BPA non-refundable credit
   fedTax = Math.max(0, fedTax - FEDERAL_BPA * FEDERAL_BPA_RATE);
 
-  // CPP employee-portion credit (15% of employee-half CPP1)
+  // CPP employee-portion credit (14.5% of employee-half CPP1 only; CPP2 is a deduction)
   const cppEmployeeHalf = cpp1 * 0.5;
   const cppFedCredit = cppEmployeeHalf * FEDERAL_BPA_RATE;
   fedTax = Math.max(0, fedTax - cppFedCredit);
@@ -152,12 +154,12 @@ function provincialTax(income: number, province: Province): number {
   return Math.max(0, tax);
 }
 
-// ── Ontario Surtax ──────────────────────────────────────────────────────────
+// ── Ontario Surtax (2025 confirmed thresholds) ──────────────────────────────
 
 function ontarioSurtax(provTax: number): number {
   let surtax = 0;
-  if (provTax > 5_387) surtax += (provTax - 5_387) * 0.2;
-  if (provTax > 6_902) surtax += (provTax - 6_902) * 0.36;
+  if (provTax > 5_710) surtax += (provTax - 5_710) * 0.20;
+  if (provTax > 7_307) surtax += (provTax - 7_307) * 0.36;
   return surtax;
 }
 
@@ -177,7 +179,7 @@ export function bracketTax(
   return tax;
 }
 
-// ── Provincial Info Table (2025 brackets) ───────────────────────────────────
+// ── Provincial Info Table (2025 confirmed rates) ─────────────────────────────
 
 interface ProvincialInfo {
   basicPersonalAmount: number;
@@ -188,14 +190,30 @@ interface ProvincialInfo {
 export function provincialInfo(province: Province): ProvincialInfo {
   switch (province) {
     case "alberta":
+      // 2025: New 8% first bracket introduced; BPA raised to $22,323
       return {
-        basicPersonalAmount: 21_003, lowestRate: 0.1,
-        brackets: [[148_269, 0.1], [177_922, 0.12], [237_230, 0.13], [355_845, 0.14], [Infinity, 0.15]],
+        basicPersonalAmount: 22_323, lowestRate: 0.08,
+        brackets: [
+          [60_000,  0.08],
+          [151_234, 0.10],
+          [181_481, 0.12],
+          [241_974, 0.13],
+          [362_961, 0.14],
+          [Infinity, 0.15],
+        ],
       };
     case "britishColumbia":
       return {
-        basicPersonalAmount: 12_215, lowestRate: 0.0506,
-        brackets: [[45_654, 0.0506], [91_310, 0.077], [104_835, 0.105], [127_299, 0.1229], [172_602, 0.147], [240_716, 0.168], [Infinity, 0.205]],
+        basicPersonalAmount: 12_932, lowestRate: 0.0506,
+        brackets: [
+          [49_279,  0.0506],
+          [98_560,  0.077],
+          [113_158, 0.105],
+          [137_407, 0.1229],
+          [186_306, 0.147],
+          [259_829, 0.168],
+          [Infinity, 0.205],
+        ],
       };
     case "manitoba":
       return {
@@ -204,53 +222,114 @@ export function provincialInfo(province: Province): ProvincialInfo {
       };
     case "newBrunswick":
       return {
-        basicPersonalAmount: 12_707, lowestRate: 0.094,
-        brackets: [[49_958, 0.094], [99_916, 0.14], [185_064, 0.16], [Infinity, 0.195]],
+        basicPersonalAmount: 13_396, lowestRate: 0.094,
+        brackets: [
+          [51_306,  0.094],
+          [102_614, 0.14],
+          [190_060, 0.16],
+          [Infinity, 0.195],
+        ],
       };
     case "newfoundland":
       return {
-        basicPersonalAmount: 10_818, lowestRate: 0.087,
-        brackets: [[43_198, 0.087], [86_395, 0.145], [154_244, 0.158], [215_943, 0.178], [275_870, 0.198], [551_739, 0.208], [Infinity, 0.213]],
+        basicPersonalAmount: 11_067, lowestRate: 0.087,
+        brackets: [
+          [44_192,    0.087],
+          [88_382,    0.145],
+          [157_792,   0.158],
+          [220_910,   0.178],
+          [282_214,   0.198],
+          [564_429,   0.208],
+          [1_128_858, 0.213],
+          [Infinity,  0.218],
+        ],
       };
     case "northwestTerritories":
       return {
-        basicPersonalAmount: 16_593, lowestRate: 0.059,
-        brackets: [[50_597, 0.059], [101_198, 0.086], [164_525, 0.122], [Infinity, 0.1405]],
+        basicPersonalAmount: 17_842, lowestRate: 0.059,
+        brackets: [
+          [51_964,  0.059],
+          [103_930, 0.086],
+          [168_967, 0.122],
+          [Infinity, 0.1405],
+        ],
       };
     case "novaScotia":
+      // 2025: NS budget raised BPA to $11,744 and indexed brackets
       return {
-        basicPersonalAmount: 8_481, lowestRate: 0.0879,
-        brackets: [[29_590, 0.0879], [59_180, 0.1495], [93_000, 0.1667], [150_000, 0.175], [Infinity, 0.21]],
+        basicPersonalAmount: 11_744, lowestRate: 0.0879,
+        brackets: [
+          [30_507,  0.0879],
+          [61_015,  0.1495],
+          [95_883,  0.1667],
+          [154_650, 0.175],
+          [Infinity, 0.21],
+        ],
       };
     case "nunavut":
       return {
-        basicPersonalAmount: 17_925, lowestRate: 0.04,
-        brackets: [[53_268, 0.04], [106_537, 0.07], [173_205, 0.09], [Infinity, 0.115]],
+        basicPersonalAmount: 19_274, lowestRate: 0.04,
+        brackets: [
+          [54_707,  0.04],
+          [109_413, 0.07],
+          [177_881, 0.09],
+          [Infinity, 0.115],
+        ],
       };
     case "ontario":
       return {
-        basicPersonalAmount: 12_026, lowestRate: 0.0505,
-        brackets: [[51_446, 0.0505], [102_894, 0.0915], [150_000, 0.1116], [220_000, 0.1216], [Infinity, 0.1316]],
+        basicPersonalAmount: 12_747, lowestRate: 0.0505,
+        brackets: [
+          [52_886,  0.0505],
+          [105_775, 0.0915],
+          [150_000, 0.1116],
+          [220_000, 0.1216],
+          [Infinity, 0.1316],
+        ],
       };
     case "princeEdwardIsland":
+      // 2025: Rates reduced; BPA raised to $14,650
       return {
-        basicPersonalAmount: 12_000, lowestRate: 0.0965,
-        brackets: [[32_656, 0.0965], [64_313, 0.1363], [105_000, 0.1665], [140_000, 0.18], [Infinity, 0.1875]],
+        basicPersonalAmount: 14_650, lowestRate: 0.095,
+        brackets: [
+          [33_328,  0.095],
+          [64_656,  0.1347],
+          [105_000, 0.166],
+          [140_000, 0.1762],
+          [Infinity, 0.19],
+        ],
       };
     case "quebec":
+      // BPA raised to $18,571; brackets confirmed correct for 2025
       return {
-        basicPersonalAmount: 17_183, lowestRate: 0.14,
-        brackets: [[53_255, 0.14], [106_495, 0.19], [129_590, 0.24], [Infinity, 0.2575]],
+        basicPersonalAmount: 18_571, lowestRate: 0.14,
+        brackets: [
+          [53_255,  0.14],
+          [106_495, 0.19],
+          [129_590, 0.24],
+          [Infinity, 0.2575],
+        ],
       };
     case "saskatchewan":
       return {
-        basicPersonalAmount: 17_661, lowestRate: 0.105,
-        brackets: [[49_720, 0.105], [142_058, 0.125], [Infinity, 0.145]],
+        basicPersonalAmount: 19_491, lowestRate: 0.105,
+        brackets: [
+          [53_463,  0.105],
+          [152_750, 0.125],
+          [Infinity, 0.145],
+        ],
       };
     case "yukon":
+      // Third bracket ceiling aligns with federal third bracket ($177,882)
       return {
-        basicPersonalAmount: 15_705, lowestRate: 0.064,
-        brackets: [[57_375, 0.064], [114_750, 0.09], [158_519, 0.109], [500_000, 0.128], [Infinity, 0.15]],
+        basicPersonalAmount: 16_129, lowestRate: 0.064,
+        brackets: [
+          [57_375,  0.064],
+          [114_750, 0.09],
+          [177_882, 0.109],
+          [500_000, 0.128],
+          [Infinity, 0.15],
+        ],
       };
   }
 }
