@@ -369,11 +369,12 @@ function zeroResult(province: Province, dealCount: number): CanadianTaxResult {
 
 // ── GST/HST utilities ───────────────────────────────────────────────────────
 
-/** GST/HST rate agents charge on commissions, by province.
- *  HST provinces: ON 13%, NB/NS/NL/PE 15%
- *  QST province (QC): GST 5% + QST 9.975% = 14.975%
- *  BC/MB: GST 5% + PST (not collected on services by real estate agents)
- *  SK: GST 5% + PST 6% on services = 11%
+/** GST/HST/QST/PST rate agents charge on commissions, by province.
+ *  HST provinces (harmonised): ON 13%, NB/NS/NL/PE 15%
+ *  QST province: QC GST 5% + QST 9.975% = 14.975%
+ *  PST on agent commissions: SK only — GST 5% + PST 6% = 11%
+ *    (BC/MB PST does NOT apply to residential real estate commissions;
+ *     BC commercial PST expansion is Oct 2026 and excludes residential)
  *  All others: GST 5% only
  */
 export function gstHstRate(province: string): number {
@@ -383,11 +384,9 @@ export function gstHstRate(province: string): number {
     case "newBrunswick":            return 0.15;
     case "newfoundland":            return 0.15;
     case "princeEdwardIsland":      return 0.15;
-    case "quebec":                  return 0.14975; // GST + QST combined
-    case "britishColumbia":         return 0.12;    // GST + PST
-    case "manitoba":                return 0.12;    // GST + PST
-    case "saskatchewan":            return 0.11;    // GST + PST
-    default:                        return 0.05;    // GST only
+    case "quebec":                  return 0.14975; // GST + QST
+    case "saskatchewan":            return 0.11;    // GST + PST 6%
+    default:                        return 0.05;    // GST only (AB, BC, MB, territories)
   }
 }
 
@@ -402,8 +401,6 @@ export function gstHstLabel(province: string): string {
       return "HST";
     case "quebec":
       return "GST + QST";
-    case "britishColumbia":
-    case "manitoba":
     case "saskatchewan":
       return "GST + PST";
     default:
