@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -32,7 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Layers, DollarSign, TrendingUp, Info } from "lucide-react";
+import { Plus, Pencil, Trash2, Layers, DollarSign, TrendingUp, Info, CheckCircle2 } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   Tooltip,
@@ -114,6 +114,14 @@ const SIDE_CHIP: Record<string, string> = {
   both:   "bg-teal-100 text-teal-800 border border-teal-200",
 };
 
+type CloseForm = {
+  client_name: string;
+  sale_price: string;
+  commission_pct: string;
+  side: "buyer" | "seller" | "both";
+  date: string;
+};
+
 export function PipelineContent({ initialDeals }: Props) {
   const [deals, setDeals] = useState(initialDeals);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -121,6 +129,28 @@ export function PipelineContent({ initialDeals }: Props) {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [closeTarget, setCloseTarget] = useState<PipelineDeal | null>(null);
+  const [closeForm, setCloseForm] = useState<CloseForm>({
+    client_name: "",
+    sale_price: "",
+    commission_pct: "",
+    side: "buyer",
+    date: new Date().toISOString().split("T")[0],
+  });
+
+  useEffect(() => {
+    if (closeTarget) {
+      setCloseForm({
+        client_name: closeTarget.client_name ?? "",
+        sale_price: closeTarget.estimated_price?.toString() ?? "",
+        commission_pct: closeTarget.estimated_commission_pct != null
+          ? String(closeTarget.estimated_commission_pct * 100)
+          : "",
+        side: closeTarget.side ?? "buyer",
+        date: new Date().toISOString().split("T")[0],
+      });
+    }
+  }, [closeTarget]);
 
   function openAdd() {
     setEditingId(null);
@@ -214,6 +244,45 @@ export function PipelineContent({ initialDeals }: Props) {
       toast.error("Couldn't delete — try again");
     }
     setDeleteConfirmId(null);
+  }
+
+  async function handleClose() {
+    if (!closeTarget) return;
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const gci =
+      (parseFloat(closeForm.sale_price) || 0) *
+      ((parseFloat(closeForm.commission_pct) || 0) / 100);
+    void gci; // computed for preview only; not stored separately
+
+    const { error: txErr } = await supabase.from("transactions").insert({
+      user_id: user.id,
+      address: closeTarget.address,
+      client_name: closeForm.client_name || null,
+      sale_price: parseFloat(closeForm.sale_price) || 0,
+      commission_pct: parseFloat(closeForm.commission_pct) || 0,
+      side: closeForm.side,
+      status: "closed",
+      date: closeForm.date,
+      source: "manual",
+    });
+    if (txErr) {
+      toast.error("Couldn't close deal — try again");
+      return;
+    }
+
+    const { error: delErr } = await supabase
+      .from("pipeline_deals")
+      .delete()
+      .eq("id", closeTarget.id);
+    if (!delErr) {
+      setDeals((prev) => prev.filter((d) => d.id !== closeTarget.id));
+      const address = closeTarget.address;
+      setCloseTarget(null);
+      toast.success(`${address} closed and added to transactions. 🎉`);
+    }
   }
 
   const totalWeighted = deals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
@@ -359,6 +428,15 @@ export function PipelineContent({ initialDeals }: Props) {
                         </div>
                       ) : (
                         <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                            title="Mark as Closed"
+                            onClick={() => setCloseTarget(deal)}
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </Button>
                           <Button
                             size="icon"
                             variant="ghost"
@@ -515,6 +593,107 @@ export function PipelineContent({ initialDeals }: Props) {
             <Button onClick={handleSave} disabled={saving}>
               {saving ? "Saving…" : editingId ? "Save Changes" : "Add Deal"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Close Deal Dialog */}
+      <Dialog open={!!closeTarget} onOpenChange={(o) => !o && setCloseTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Close Deal — {closeTarget?.address}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            {/* Address (read-only) */}
+            <div className="grid gap-1.5">
+              <Label>Address</Label>
+              <p className="rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                {closeTarget?.address || <span className="italic">No address</span>}
+              </p>
+            </div>
+
+            {/* Client Name */}
+            <div className="grid gap-1.5">
+              <Label>Client Name</Label>
+              <Input
+                placeholder="Jane Smith"
+                value={closeForm.client_name}
+                onChange={(e) => setCloseForm((prev) => ({ ...prev, client_name: e.target.value }))}
+              />
+            </div>
+
+            {/* Row: Sale Price + Commission % */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Sale Price ($)</Label>
+                <Input
+                  type="number"
+                  placeholder="750000"
+                  value={closeForm.sale_price}
+                  onChange={(e) => setCloseForm((prev) => ({ ...prev, sale_price: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Commission %</Label>
+                <Input
+                  type="number"
+                  step="0.25"
+                  placeholder="2.5"
+                  value={closeForm.commission_pct}
+                  onChange={(e) => setCloseForm((prev) => ({ ...prev, commission_pct: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* Row: Side + Date */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Side</Label>
+                <Select
+                  value={closeForm.side}
+                  onValueChange={(v) => setCloseForm((prev) => ({ ...prev, side: v as CloseForm["side"] }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="buyer">Buyer</SelectItem>
+                    <SelectItem value="seller">Seller</SelectItem>
+                    <SelectItem value="both">Both</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Close Date</Label>
+                <Input
+                  type="date"
+                  value={closeForm.date}
+                  onChange={(e) => setCloseForm((prev) => ({ ...prev, date: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            {/* GCI Preview */}
+            <p className="text-sm text-muted-foreground">
+              GCI:{" "}
+              <span className="font-medium text-foreground">
+                {fmtCurrency(
+                  (parseFloat(closeForm.sale_price) || 0) *
+                  ((parseFloat(closeForm.commission_pct) || 0) / 100)
+                )}
+              </span>
+            </p>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setCloseTarget(null)}>
+                Cancel
+              </Button>
+              <Button
+                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                onClick={handleClose}
+              >
+                Close Deal ✓
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

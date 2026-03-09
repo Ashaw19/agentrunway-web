@@ -38,9 +38,11 @@ import {
   Clipboard,
 } from "lucide-react";
 import { fmtCurrency } from "@/lib/formatters";
-import { computeGCI, type HistoryItem, type Transaction } from "@/lib/types/database";
+import { computeGCI, type HistoryItem, type Transaction, type UserSettings } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 import type { ImportResult } from "@/app/api/import-history/route";
+import { ProductionReportDialog } from "@/components/production-report-dialog";
+import { Download } from "lucide-react";
 
 interface Props {
   historyItems: HistoryItem[];
@@ -48,6 +50,8 @@ interface Props {
   /** Agent's split decimal from Settings (e.g. 0.75), or null if not set. Used as the
    *  pre-fill default for per-year split selectors; null shows "Select split…" prompt. */
   settingsSplit: number | null;
+  /** Full user settings — used by the production report dialog. */
+  settings: UserSettings | null;
 }
 
 // Per-quarter colour config
@@ -105,7 +109,7 @@ const SPLIT_OPTIONS: { label: string; value: number }[] = [
   { label: "100%  — no brokerage split", value: 1.00 },
 ];
 
-export function HistoryContent({ historyItems: initial, transactions, settingsSplit }: Props) {
+export function HistoryContent({ historyItems: initial, transactions, settingsSplit, settings }: Props) {
   const [items, setItems] = useState(initial);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
@@ -127,6 +131,9 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
   // ── Batch (multi-year) import state ──────────────────────────────────────
   const [batchImportData, setBatchImportData]   = useState<ImportResult[]>([]);
   const [batchProgress, setBatchProgress]       = useState({ current: 0, total: 0 });
+
+  // ── Production report dialog state ───────────────────────────────────────
+  const [reportOpen, setReportOpen] = useState(false);
 
   // ── Split selection state ─────────────────────────────────────────────────
   // Default from the user's Settings split; null = "Select split…" placeholder shown.
@@ -767,6 +774,20 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
         {/* ── Action buttons ─────────────────────────────────────── */}
         <div className="flex items-center gap-2">
+
+          {/* Generate Production Report */}
+          {settings && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setReportOpen(true)}
+              disabled={items.length === 0}
+              className="gap-1.5"
+            >
+              <Download className="h-4 w-4" />
+              Generate Report
+            </Button>
+          )}
 
           {/* Import from brokerage report */}
           <Button
@@ -1584,6 +1605,16 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             );
           })}
         </div>
+      )}
+
+      {/* ── Production Report Dialog ──────────────────────────────────────── */}
+      {settings && (
+        <ProductionReportDialog
+          open={reportOpen}
+          onClose={() => setReportOpen(false)}
+          historyItems={items}
+          settings={settings}
+        />
       )}
     </div>
   );

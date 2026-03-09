@@ -39,7 +39,21 @@ import { compare } from "@/lib/engines/benchmark-engine";
 import { generateAdvisory, type AdvisorCard } from "@/lib/engines/advisor-engine";
 import { ProbabilityChart, type ProbabilityDataPoint } from "@/components/probability-chart";
 import Link from "next/link";
-import { Settings } from "lucide-react";
+import { Settings, CalendarCheck } from "lucide-react";
+
+// ── CRA quarterly remittance helper ─────────────────────────────────────────
+function nextRemittanceDate(from: Date): { date: Date; label: string; quarter: string } {
+  // CRA quarterly filer deadlines: Apr 30, Jul 31, Oct 31, Jan 31
+  const year = from.getFullYear();
+  const candidates = [
+    { date: new Date(year, 3, 30),  quarter: "Q1", label: "April 30" },
+    { date: new Date(year, 6, 31),  quarter: "Q2", label: "July 31" },
+    { date: new Date(year, 9, 31),  quarter: "Q3", label: "October 31" },
+    { date: new Date(year, 11, 31), quarter: "Q4", label: "December 31" },
+    { date: new Date(year + 1, 0, 31), quarter: "Q4", label: "January 31" },
+  ];
+  return candidates.find(c => c.date > from) ?? candidates[candidates.length - 1];
+}
 
 interface Props {
   settings: UserSettings | null;
@@ -146,6 +160,12 @@ export function ForecastContent({
   const taxRate = gstHstRate(settings.province);
   const gstHstCollectedYTD = ytdGCI * taxRate;
   const gstHstCollectedProjected = projectedGCI * taxRate;
+
+  // ── CRA remittance calendar ────────────────────────────────────────────
+  const today = new Date();
+  const remittance = nextRemittanceDate(today);
+  const daysUntilRemittance = Math.ceil((remittance.date.getTime() - today.getTime()) / 86400000);
+  const isUrgent = daysUntilRemittance <= 30;
 
   // ── Probability bands ─────────────────────────────────────────────────
   const bands = probabilityBands(transactions, projectedGCI, fraction);
@@ -369,6 +389,39 @@ export function ForecastContent({
             </div>
           </CardContent>
         </Card>
+
+      {/* CRA Remittance Calendar */}
+      <Card className={isUrgent ? "border-orange-200" : ""}>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CalendarCheck className="h-4 w-4 text-primary" />
+              CRA Remittance Calendar
+            </CardTitle>
+            {isUrgent && <Badge variant="outline" className="border-orange-300 text-orange-600 text-xs">Due soon</Badge>}
+          </div>
+          <CardDescription>Quarterly {taxLabel} remittance — {PROVINCE_LABELS[settings.province]}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Next deadline</p>
+              <p className="text-xs text-muted-foreground">{remittance.quarter} · {remittance.label}</p>
+            </div>
+            <p className={`text-lg font-bold ${isUrgent ? "text-orange-600" : "text-foreground"}`}>
+              {daysUntilRemittance}d away
+            </p>
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">{taxLabel} collected YTD</p>
+              <p className="text-xs text-muted-foreground">Set this aside — it&apos;s the government&apos;s, not yours</p>
+            </div>
+            <p className="text-lg font-bold tabular-nums">{fmtCurrency(gstHstCollectedYTD)}</p>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Goal gap analysis */}
       {goalGCI > 0 && (

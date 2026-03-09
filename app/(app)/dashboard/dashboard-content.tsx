@@ -390,6 +390,49 @@ export function DashboardContent({
   const streakLabel = getStreakLabel(transactions);
   const motivationalTag = getMotivationalTag(paceStatus, ytdDealCount);
 
+  // ── Smart alerts — only render when conditions are met ────────────────
+  const smartAlerts: Array<{ type: "warning" | "danger" | "info"; icon: string; title: string; body: string }> = [];
+
+  // Alert 1: Low cash runway
+  if (survival.months < 3) {
+    smartAlerts.push({
+      type: "danger",
+      icon: "🔴",
+      title: "Cash runway is critically low",
+      body: `At current burn, your reserves cover ~${survival.months.toFixed(1)} months. Time to close some pipeline.`,
+    });
+  } else if (survival.months < 5) {
+    smartAlerts.push({
+      type: "warning",
+      icon: "🟡",
+      title: "Runway is getting thin",
+      body: `~${survival.months.toFixed(1)} months of runway remaining. A few closes would extend it significantly.`,
+    });
+  }
+
+  // Alert 2: Significantly behind pace
+  if (pacePercent < -30 && goalGCI > 0) {
+    const gap = goalGCI - ytdGCI;
+    const dealsNeededForAlert = ytdDealCount > 0 ? Math.ceil(gap / (ytdGCI / Math.max(ytdDealCount, 1))) : null;
+    smartAlerts.push({
+      type: "warning",
+      icon: "⚠️",
+      title: "Behind pace on your annual goal",
+      body: `You're at ${(100 + pacePercent).toFixed(0)}% of expected pace. ${fmtCurrency(gap)} to go${dealsNeededForAlert !== null ? ` — ~${dealsNeededForAlert} more deals at your average size` : ""}.`,
+    });
+  }
+
+  // Alert 3: High expense ratio
+  const expenseRatioForAlert = ytdGCI > 0 ? expensesYTD / ytdGCI : 0;
+  if (expenseRatioForAlert > 0.40 && ytdGCI > 0) {
+    smartAlerts.push({
+      type: "warning",
+      icon: "💸",
+      title: "Expense ratio is elevated",
+      body: `Your costs are ${fmtPct(expenseRatioForAlert)} of GCI — above the 25–30% benchmark. Every dollar saved here goes straight to your net.`,
+    });
+  }
+
   // ── Confetti on goal milestone ────────────────────────────────────────
   // Fires once per session when the agent crosses 50%, 75%, or 100% of goal
   useEffect(() => {
@@ -541,6 +584,28 @@ export function DashboardContent({
           </div>
         </div>
       </div>
+
+      {/* ── Smart alerts ── */}
+      {smartAlerts.length > 0 && (
+        <div className="space-y-2">
+          {smartAlerts.map((alert, i) => (
+            <div
+              key={i}
+              className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+                alert.type === "danger"
+                  ? "border-red-200 bg-red-50 text-red-900"
+                  : "border-amber-200 bg-amber-50 text-amber-900"
+              }`}
+            >
+              <span className="text-base leading-none mt-0.5">{alert.icon}</span>
+              <div>
+                <p className="font-medium">{alert.title}</p>
+                <p className="text-xs mt-0.5 opacity-80">{alert.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── You Are Here strip ── */}
       <YouAreHereStrip

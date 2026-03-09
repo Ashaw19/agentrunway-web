@@ -7,7 +7,7 @@ export default async function ReportsPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [settingsResult, txResult, pipelineResult, expCatResult, expItemResult] =
+  const [settingsResult, txResult, pipelineResult, expCatResult, expItemResult, historyResult] =
     await Promise.all([
       supabase
         .from("user_settings")
@@ -33,6 +33,11 @@ export default async function ReportsPage() {
         .from("expense_items")
         .select("*")
         .eq("user_id", user.id),
+      supabase
+        .from("history_items")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("year", { ascending: false }),
     ]);
 
   const categories = (expCatResult.data ?? []).map((cat) => ({
@@ -47,6 +52,7 @@ export default async function ReportsPage() {
       pipelineDeals={pipelineResult.data ?? []}
       expenseCategories={categories}
       subscriptionTier={settingsResult.data?.subscription_tier ?? "starter"}
+      historyItems={historyResult.data ?? []}
     />
   );
 }

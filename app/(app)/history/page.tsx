@@ -22,9 +22,9 @@ export default async function HistoryPage() {
       .order("date", { ascending: false }),
     supabase
       .from("user_settings")
-      .select("split_preset")
+      .select("*")
       .eq("user_id", user.id)
-      .maybeSingle(),
+      .single(),
   ]);
 
   // Convert the user's saved split preset (e.g. "p75_25") to a decimal (0.75),
@@ -38,6 +38,7 @@ export default async function HistoryPage() {
       historyItems={historyResult.data ?? []}
       transactions={txResult.data ?? []}
       settingsSplit={settingsSplit}
+      settings={settingsResult.data ?? null}
     />
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
@@ -29,7 +29,10 @@ import {
   Calendar,
   TrendingUp,
   Hash,
+  Moon,
+  Sun,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 import {
   PROVINCE_LABELS,
   SPLIT_PRESET_AGENT_PCT,
@@ -116,6 +119,11 @@ export function ProfileContent({
   const [colorTheme, setColorTheme] = useState(settings?.color_theme ?? "blue");
   const [savingTheme, setSavingTheme] = useState(false);
   const [savedTheme, setSavedTheme] = useState(false);
+
+  // ── Dark mode ─────────────────────────────────────────────────────────────
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // ── Profile photo ─────────────────────────────────────────────────────────
   const [avatarUrl, setAvatarUrl] = useState(settings?.avatar_url ?? "");
@@ -543,6 +551,23 @@ export function ProfileContent({
         {/* Colour Theme card */}
         <Card className="rounded-2xl border-slate-200 shadow-sm">
           <CardHeader className="pb-3">
+            {/* Appearance toggle */}
+            {mounted && (
+              <div className="flex items-center justify-between py-3 mb-2 border-b border-border">
+                <div>
+                  <p className="text-sm font-medium">Dark Mode</p>
+                  <p className="text-xs text-muted-foreground">Switch between light and dark interface</p>
+                </div>
+                <button
+                  onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-border text-sm hover:bg-muted transition-colors"
+                >
+                  {resolvedTheme === "dark"
+                    ? <><Sun className="h-4 w-4" /> Light</>
+                    : <><Moon className="h-4 w-4" /> Dark</>}
+                </button>
+              </div>
+            )}
             <CardTitle className="flex items-center gap-2 text-sm font-semibold">
               <Palette className="h-4 w-4 text-muted-foreground" />
               Colour Theme

@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FileDown, Loader2, Lock } from "lucide-react";
+import { FileDown, Loader2, Lock, History } from "lucide-react";
 import Link from "next/link";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
@@ -34,7 +34,9 @@ import {
   type PipelineDeal,
   type UserSettings,
   type ExpenseCategoryWithItems,
+  type HistoryItem,
 } from "@/lib/types/database";
+import { ProductionReportDialog } from "@/components/production-report-dialog";
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
@@ -50,6 +52,7 @@ interface Props {
   pipelineDeals: PipelineDeal[];
   expenseCategories: ExpenseCategoryWithItems[];
   subscriptionTier?: string;
+  historyItems?: HistoryItem[];
 }
 
 export function ReportsContent({
@@ -58,9 +61,11 @@ export function ReportsContent({
   pipelineDeals,
   expenseCategories,
   subscriptionTier = "starter",
+  historyItems = [],
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const [downloading, setDownloading] = useState(false);
+  const [histReportOpen, setHistReportOpen] = useState(false);
 
   if (!settings) {
     return (
@@ -319,6 +324,26 @@ export function ReportsContent({
           </CardContent>
         </Card>
       </div>
+
+      {/* Historical Production Report card */}
+      {historyItems.length > 0 && (
+        <Card className="rounded-2xl border-dashed border-slate-300 shadow-sm">
+          <CardContent className="flex items-center justify-between py-4">
+            <div className="flex items-center gap-3">
+              <div className="rounded-md bg-primary/10 p-2">
+                <History className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">Historical Production Report</p>
+                <p className="text-xs text-muted-foreground">Export your full career history as PDF or Excel</p>
+              </div>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setHistReportOpen(true)}>
+              Generate &rarr;
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Benchmark + Survival row */}
         <div className="grid gap-4 sm:grid-cols-2">
@@ -632,6 +657,16 @@ export function ReportsContent({
         </a>
         .
       </p>
+
+      {/* Historical Production Report dialog */}
+      {settings && (
+        <ProductionReportDialog
+          open={histReportOpen}
+          onClose={() => setHistReportOpen(false)}
+          historyItems={historyItems}
+          settings={settings}
+        />
+      )}
     </div>
   );
 }

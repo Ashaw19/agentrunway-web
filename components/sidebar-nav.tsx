@@ -15,12 +15,16 @@ import {
   CircleUser,
   Sparkles,
   Users,
+  Moon,
+  Sun,
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
 
 const navItems = [
   {
@@ -109,6 +113,9 @@ const navItems = [
 export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -204,6 +211,22 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
 
       {/* Bottom separator */}
       <div className="mx-4 h-px bg-gradient-to-r from-transparent via-sidebar-border/70 to-transparent" />
+
+      {/* Dark mode toggle */}
+      <div className="px-3 pb-1">
+        {mounted && (
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark"
+              ? <Sun className="h-3.5 w-3.5" />
+              : <Moon className="h-3.5 w-3.5" />}
+            {theme === "dark" ? "Light mode" : "Dark mode"}
+          </button>
+        )}
+      </div>
 
       {/* Sign out */}
       <div className="p-3">
