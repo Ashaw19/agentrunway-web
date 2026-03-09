@@ -1193,6 +1193,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             const isOpen = expanded.has(item.id);
             const yearTx = txByYear[item.year] ?? [];
             const derivedGCI = yearTx.reduce((sum, tx) => sum + computeGCI(tx), 0);
+            const importedDeals = yearTx.filter((tx) => tx.source === "imported");
 
             const quarterGCI = item.quarter_gci as number[];
             const quarterTx = item.quarter_tx as number[];
@@ -1230,6 +1231,11 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                       {!hasQuarterData && !item.is_locked && (
                         <Badge className="bg-amber-100 text-amber-700 text-xs border border-amber-200 hover:bg-amber-100">
                           No quarterly data
+                        </Badge>
+                      )}
+                      {importedDeals.length > 0 && (
+                        <Badge className="bg-indigo-50 text-indigo-700 text-xs border border-indigo-200 hover:bg-indigo-50">
+                          {importedDeals.length} deal{importedDeals.length !== 1 ? "s" : ""} imported
                         </Badge>
                       )}
                     </div>
@@ -1360,6 +1366,35 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                           <span className="font-semibold">Live data:</span>{" "}
                           {yearTx.length} transactions in your log → {fmtCurrency(derivedGCI)} GCI
                         </p>
+                      </div>
+                    )}
+
+                    {/* ── Imported deals list ──────────────────────────────── */}
+                    {importedDeals.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-2">
+                          Imported Deals ({importedDeals.length})
+                        </p>
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                          {importedDeals.map((tx) => (
+                            <div
+                              key={tx.id}
+                              className="rounded-lg border border-border/60 bg-card px-3 py-2 flex items-center justify-between gap-2"
+                            >
+                              <div className="min-w-0">
+                                <p className="text-xs font-medium text-foreground truncate">
+                                  {tx.address || "—"}
+                                </p>
+                                <p className="text-[11px] text-muted-foreground">
+                                  {tx.date} · {tx.client_name || <span className="text-amber-600">no client</span>}
+                                </p>
+                              </div>
+                              <span className="text-xs font-semibold text-emerald-700 shrink-0">
+                                {fmtCurrency(computeGCI(tx))}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
 

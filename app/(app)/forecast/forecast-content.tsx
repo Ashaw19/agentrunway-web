@@ -22,6 +22,7 @@ import {
   type PipelineDeal,
   type UserSettings,
   type ExpenseCategoryWithItems,
+  type HistoryItem,
 } from "@/lib/types/database";
 import {
   seasonalFractionElapsed,
@@ -43,6 +44,7 @@ interface Props {
   transactions: Transaction[];
   pipelineDeals: PipelineDeal[];
   expenseCategories: ExpenseCategoryWithItems[];
+  historyItems: HistoryItem[];
   subscriptionTier?: string;
 }
 
@@ -51,6 +53,7 @@ export function ForecastContent({
   transactions,
   pipelineDeals,
   expenseCategories,
+  historyItems,
   subscriptionTier: _subscriptionTier = "starter",
 }: Props) {
   if (!settings) {
@@ -77,9 +80,25 @@ export function ForecastContent({
   );
 
   // ── Seasonality-aware projection ──────────────────────────────────────
-  const seasonalWeights = settings.use_national_seasonality
-    ? (settings.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
-    : [0.25, 0.25, 0.25, 0.25];
+  // Phase 4: prefer agent-specific weights derived from their own history
+  const agentSeasonalWeights = (() => {
+    const withData = historyItems.filter((h) =>
+      (h.quarter_gci as number[]).some((v) => (v ?? 0) > 0),
+    );
+    if (withData.length < 2) return null;
+    const avgQ = [0, 1, 2, 3].map((q) =>
+      withData.reduce((sum, h) => sum + ((h.quarter_gci as number[])[q] ?? 0), 0) /
+      withData.length,
+    );
+    const total = avgQ.reduce((a, b) => a + b, 0);
+    return total > 0 ? avgQ.map((v) => v / total) : null;
+  })();
+
+  const seasonalWeights =
+    agentSeasonalWeights ??
+    (settings.use_national_seasonality
+      ? (settings.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
+      : [0.25, 0.25, 0.25, 0.25]);
   const fraction = seasonalFractionElapsed(seasonalWeights);
   const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeighted, fraction);
   const projectedDeals = projectedYearEndTransactions(ytdDealCount, pipelineDeals.length, fraction);

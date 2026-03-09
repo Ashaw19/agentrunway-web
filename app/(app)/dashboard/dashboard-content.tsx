@@ -207,9 +207,32 @@ export function DashboardContent({
   const pipelineCount = pipelineDeals.length;
 
   // ── Seasonality-aware projections ─────────────────────────────────────
-  const seasonalWeights = settings?.use_national_seasonality
-    ? (settings.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
-    : [0.25, 0.25, 0.25, 0.25];
+  // Phase 4: prefer agent-specific weights derived from their own history
+  const agentSeasonalWeights = (() => {
+    const withData = historyItems.filter((h) =>
+      (h.quarter_gci as number[]).some((v) => (v ?? 0) > 0),
+    );
+    if (withData.length < 2) return null;
+    const avgQ = [0, 1, 2, 3].map((q) =>
+      withData.reduce((sum, h) => sum + ((h.quarter_gci as number[])[q] ?? 0), 0) /
+      withData.length,
+    );
+    const total = avgQ.reduce((a, b) => a + b, 0);
+    return total > 0 ? avgQ.map((v) => v / total) : null;
+  })();
+
+  const seasonalWeights =
+    agentSeasonalWeights ??
+    (settings?.use_national_seasonality
+      ? (settings.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
+      : [0.25, 0.25, 0.25, 0.25]);
+
+  const seasonalSource: "agent" | "national" | "default" =
+    agentSeasonalWeights
+      ? "agent"
+      : settings?.use_national_seasonality
+        ? "national"
+        : "default";
   const fraction = seasonalFractionElapsed(seasonalWeights);
   const rawProjectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction);
   const projectedGCI = rawProjectedGCI * scenarioMultiplier;
@@ -769,6 +792,13 @@ export function DashboardContent({
                 🎉 Goal reached — you crushed it!
               </p>
             )}
+            <p className="mt-2 text-[10px] text-muted-foreground/70">
+              {seasonalSource === "agent"
+                ? `Seasonality: your ${historyItems.filter((h) => (h.quarter_gci as number[]).some((v) => (v ?? 0) > 0)).length}-yr pattern`
+                : seasonalSource === "national"
+                  ? "Seasonality: national averages"
+                  : "Seasonality: uniform (add history to improve)"}
+            </p>
           </CardContent>
         </Card>
       </div>
