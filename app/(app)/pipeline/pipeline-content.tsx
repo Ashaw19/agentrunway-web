@@ -173,7 +173,7 @@ export function PipelineContent({ initialDeals }: Props) {
         .single();
       if (!error && data) {
         setDeals((prev) => [data, ...prev]);
-        toast.success("Deal added to pipeline 🎯");
+        toast.success("In the pipeline. Let's see it through. 🎯");
       } else if (error) {
         toast.error("Couldn't save — try again");
       }
@@ -188,7 +188,7 @@ export function PipelineContent({ initialDeals }: Props) {
     const { error } = await supabase.from("pipeline_deals").delete().eq("id", id);
     if (!error) {
       setDeals((prev) => prev.filter((d) => d.id !== id));
-      toast("Deal removed from pipeline");
+      toast("Removed. On to the next one.");
     } else {
       toast.error("Couldn't delete — try again");
     }
@@ -218,7 +218,7 @@ export function PipelineContent({ initialDeals }: Props) {
           <p className="text-sm text-muted-foreground">
             {deals.length > 0
               ? <>{deals.length} active deal{deals.length !== 1 ? "s" : ""} &middot; {fmtCurrency(totalWeighted)} weighted GCI</>
-              : "Add deals to forecast your income before they close."}
+              : "Track deals before they close. Probability is just math with ambition."}
           </p>
         </div>
         <Button onClick={openAdd}>
@@ -263,7 +263,7 @@ export function PipelineContent({ initialDeals }: Props) {
         <CardContent className="p-0">
           {deals.length === 0 ? (
             <div className="py-16 text-center text-sm text-muted-foreground">
-              Your pipeline is empty — add a deal and see your probability-weighted forecast instantly. 🎯
+              Empty pipeline. Even Gretzky skated to where the puck was going. 🎯
             </div>
           ) : (
             <Table>

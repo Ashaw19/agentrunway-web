@@ -168,7 +168,7 @@ export function SettingsContent({ settings }: Props) {
       <div className="border-b border-border/60 pb-5">
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Your numbers are only as good as your inputs. Keep these dialed in.
+          Garbage in, garbage out. Keep these honest.
         </p>
       </div>
 

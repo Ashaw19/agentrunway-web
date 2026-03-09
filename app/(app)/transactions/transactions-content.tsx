@@ -156,7 +156,7 @@ export function TransactionsContent({ initialTransactions }: Props) {
           prev.map((t) => (t.id === editingId ? data : t))
             .sort((a, b) => b.date.localeCompare(a.date)),
         );
-        toast.success("Deal updated ✓");
+        toast.success("Updated. Clean records win deals. ✓");
       } else if (error) {
         toast.error("Couldn't save — try again");
       }
@@ -170,7 +170,7 @@ export function TransactionsContent({ initialTransactions }: Props) {
         setTransactions((prev) =>
           [data, ...prev].sort((a, b) => b.date.localeCompare(a.date)),
         );
-        toast.success("Deal logged 🎉", {
+        toast.success("Deal locked in. 🎉", {
           description: form.address ? `${form.address} added to your record.` : undefined,
         });
       } else if (error) {
@@ -237,7 +237,7 @@ export function TransactionsContent({ initialTransactions }: Props) {
           <p className="text-sm text-muted-foreground">
             {ytdCount > 0
               ? <>{ytdCount} closed deal{ytdCount !== 1 ? "s" : ""} this year &middot; {fmtCurrency(ytdGCI)} GCI</>
-              : "Log your first deal to start tracking your GCI."}
+              : "Log your first deal. Your GCI won't track itself."}
           </p>
         </div>
         <Button onClick={openAdd}>
@@ -334,11 +334,11 @@ export function TransactionsContent({ initialTransactions }: Props) {
         <CardContent className="p-0">
           {transactions.length === 0 ? (
             <div className="py-16 text-center text-sm text-muted-foreground">
-              Nothing closed yet — log your first deal and your forecast comes to life. 🚀
+              No closed deals yet. Every top producer has a day one. 🚀
             </div>
           ) : visibleTransactions.length === 0 ? (
             <div className="py-16 text-center text-sm text-muted-foreground">
-              No {filter} transactions.
+              No {filter} deals in the books. Yet.
             </div>
           ) : (
             <div className="overflow-x-auto">

@@ -197,7 +197,7 @@ export function ForecastContent({
       <div className="border-b border-border/60 pb-5">
         <h1 className="text-2xl font-semibold tracking-tight">Forecast</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Where you&apos;ll land this year — and how to close the gap &middot; {PROVINCE_LABELS[settings.province]}
+          Where you&apos;ll land this year — and what to do about the gap. &middot; {PROVINCE_LABELS[settings.province]}
         </p>
       </div>
 
@@ -374,7 +374,7 @@ export function ForecastContent({
                 </p>
               </div>
             ) : (
-              <Badge variant="default">Goal reached!</Badge>
+              <Badge variant="default">Nailed it. 🎯</Badge>
             )}
           </CardContent>
         </Card>

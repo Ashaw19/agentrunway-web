@@ -104,10 +104,10 @@ function getTimeGreeting(): { greeting: string; emoji: string } {
 }
 
 function getMotivationalTag(paceStatus: string, ytdDealCount: number): string {
-  if (ytdDealCount === 0) return "Ready to launch — add your first deal 🚀";
-  if (paceStatus === "ahead") return "You're ahead of pace — keep the momentum";
-  if (paceStatus === "behind") return "Time to close the gap — you've got this";
-  return "Steady as she goes — right on track";
+  if (ytdDealCount === 0) return "Zero on the board. The market has no idea what's coming. 🚀";
+  if (paceStatus === "ahead") return "Ahead of pace. Your accountant is cautiously optimistic.";
+  if (paceStatus === "behind") return "Behind pace. The market doesn't know that yet.";
+  return "Right on track. Quietly dangerous.";
 }
 
 function getStreakLabel(transactions: Transaction[]): string | null {
@@ -126,7 +126,7 @@ function getStreakLabel(transactions: Transaction[]): string | null {
     else break;
   }
   if (streak >= 3) return `🔥 ${streak}-month closing streak`;
-  if (streak === 2) return "2 months running — keep it up";
+  if (streak === 2) return "2 months running. Someone's hungry.";
   return null;
 }
 
@@ -377,21 +377,21 @@ export function DashboardContent({
     if (pct >= 1.0) {
       confettiFiredRef.current = true;
       fireConfetti("goal");
-      toast.success("🎉 Goal reached! You hit your annual target!", {
+      toast.success("🎉 Number hit. Take five — then set a bigger one.", {
         duration: 6000,
         description: `${fmtCurrency(ytdGCI)} closed — incredible work.`,
       });
     } else if (pct >= 0.75) {
       confettiFiredRef.current = true;
       fireConfetti("milestone");
-      toast("🏆 75% of your annual goal — you're in the home stretch!", {
+      toast("🏆 Three-quarters done. One good push and it's yours.", {
         duration: 5000,
         description: `${fmtCurrency(goalGCI - ytdGCI)} left to your target.`,
       });
     } else if (pct >= 0.5) {
       confettiFiredRef.current = true;
       fireConfetti("milestone");
-      toast("⚡ Halfway there! You've crossed 50% of your annual goal.", {
+      toast("⚡ Halfway. This is where reps become pros.", {
         duration: 4000,
       });
     }

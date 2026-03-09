@@ -288,7 +288,7 @@ export function ProfileContent({
       <div>
         <h1 className="text-xl font-bold text-foreground">Profile</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Your identity, business details, and colour theme.
+          Make it yours. Agents close more when they like their tools.
         </p>
       </div>
 

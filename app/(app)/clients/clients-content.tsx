@@ -205,7 +205,7 @@ export function ClientsContent({ clients, records }: Props) {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
           <p className="text-sm text-muted-foreground">
-            Client value intelligence — your most valuable relationships, by the numbers.
+            The people who made your year — quantified.
           </p>
         </div>
       </div>
@@ -345,10 +345,10 @@ export function ClientsContent({ clients, records }: Props) {
                 })}
                 <p className="text-xs text-muted-foreground pt-1 border-t border-border/40">
                   {concentrationPct > 60
-                    ? `Your top 5 clients generate ${concentrationPct}% of your GCI. Strong relationships, but consider broadening your base.`
+                    ? `Your top 5 clients generate ${concentrationPct}% of your GCI. Solid loyalists. Just don't put all your eggs in three baskets.`
                     : concentrationPct > 40
-                    ? `Your top 5 clients generate ${concentrationPct}% of your GCI — moderately concentrated.`
-                    : `Well-diversified. Your top 5 clients account for ${concentrationPct}% of GCI — no over-reliance on any single relationship.`}
+                    ? `Your top 5 clients generate ${concentrationPct}% of your GCI — decent spread. Room to diversify.`
+                    : `Nicely spread. Your top 5 clients account for ${concentrationPct}% of GCI — no single client can make or break your year.`}
                 </p>
               </CardContent>
             </Card>

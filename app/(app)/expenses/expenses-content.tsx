@@ -335,7 +335,7 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
             <div>
               <p className="text-sm font-semibold text-blue-900">
-                Start by entering your monthly recurring costs
+                Start simple: your monthly bills first.
               </p>
               <p className="mt-0.5 text-xs text-blue-700">
                 Each category below has two fields: <strong>Monthly Recurring</strong> (e.g.
@@ -344,8 +344,8 @@ export function ExpensesContent({ initialCategories, settings, transactions }: P
                 your Cash Runway calculation. Enter what you know — you can always update later.
               </p>
               <p className="mt-2 text-xs text-blue-600">
-                Prefer to import your expenses automatically?{" "}
-                <span className="font-medium">QuickBooks integration is coming soon.</span>
+                Rather let the numbers import themselves?{" "}
+                <span className="font-medium">QuickBooks sync is coming soon.</span>
               </p>
             </div>
           </CardContent>
