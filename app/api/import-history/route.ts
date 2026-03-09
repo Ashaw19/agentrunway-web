@@ -126,7 +126,7 @@ The data below may be in any of three formats:
 
 DOCUMENT CONTENT:
 ---
-${content.slice(0, 14000)}
+${content.slice(0, 20000)}
 ---
 
 Return ONLY a raw JSON object (no markdown, no code fences). Required structure:
@@ -349,7 +349,7 @@ export async function POST(req: NextRequest) {
           },
         ],
         temperature: 0.1,
-        max_tokens: 3000,
+        max_tokens: 8000,
       });
       raw = response.choices[0]?.message?.content ?? "";
     } else {
@@ -373,7 +373,7 @@ export async function POST(req: NextRequest) {
           },
         ],
         temperature: 0.1,
-        max_tokens: 3000,
+        max_tokens: 8000,
       });
       raw = response.choices[0]?.message?.content ?? "";
     }
