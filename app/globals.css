@@ -52,6 +52,13 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+  /* ── Elevation shadows — two-layer system for warm cream canvas ─────── */
+  /* Layer 1 (tight): crisp contact shadow for visual separation           */
+  /* Layer 2 (diffused): soft depth halo so warm cards lift off canvas     */
+  --shadow-sm: 0 1px 2px oklch(0.129 0.042 264.695 / 0.07), 0 2px 6px oklch(0.129 0.042 264.695 / 0.05);
+  --shadow:    0 1px 3px oklch(0.129 0.042 264.695 / 0.09), 0 5px 16px oklch(0.129 0.042 264.695 / 0.08);
+  --shadow-md: 0 4px 8px oklch(0.129 0.042 264.695 / 0.11), 0 12px 28px oklch(0.129 0.042 264.695 / 0.09);
+  --shadow-lg: 0 8px 16px oklch(0.129 0.042 264.695 / 0.12), 0 20px 40px oklch(0.129 0.042 264.695 / 0.10);
 }
 
 :root {
