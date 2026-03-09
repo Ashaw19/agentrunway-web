@@ -486,7 +486,7 @@ export function ProfileContent({
             },
             {
               label: "Lifetime Deals",
-              value: fmtCompact(lifetimeDeals),
+              value: String(lifetimeDeals),
               icon: <Calendar className="h-4 w-4 text-amber-700" />,
               border: "border-amber-200",
               bg: "from-amber-100 to-amber-50",
