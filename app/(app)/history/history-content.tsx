@@ -250,17 +250,79 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
   async function handleDeleteYear(item: HistoryItem) {
     const supabase = createClient();
-    const { error } = await supabase
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // 1. Delete the history_items row first.
+    const { error: historyError } = await supabase
       .from("history_items")
       .delete()
       .eq("id", item.id);
-    if (!error) {
-      setItems((prev) => prev.filter((i) => i.id !== item.id));
-      setConfirmDeleteId(null);
-      toast.success(`${item.year} removed from history.`);
-    } else {
+
+    if (historyError) {
       toast.error("Couldn't delete year — please try again.");
+      return;
     }
+
+    // history_items row removed — update local state immediately.
+    setItems((prev) => prev.filter((i) => i.id !== item.id));
+    setConfirmDeleteId(null);
+
+    // 2. Cascade: delete imported transactions for this year.
+    const { error: txError } = await supabase
+      .from("transactions")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("source", "imported")
+      .gte("date", `${item.year}-01-01`)
+      .lte("date", `${item.year}-12-31`);
+
+    if (txError) {
+      toast.error(`${item.year} history removed, but some imported deals couldn't be deleted. Please refresh.`);
+    }
+
+    // 3. Cascade: delete client_records for this year.
+    const { data: deletedRecords, error: crError } = await supabase
+      .from("client_records")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("year", item.year)
+      .select("client_id");
+
+    if (crError) {
+      toast.error(`${item.year} history removed, but some client records couldn't be deleted. Please refresh.`);
+      toast.success(`${item.year} removed from history.`);
+      return;
+    }
+
+    // 4. Orphan cleanup: if any client_records were deleted, check for clients
+    //    that now have zero remaining records for this user and remove them.
+    if (deletedRecords && deletedRecords.length > 0) {
+      const { data: remainingRecords } = await supabase
+        .from("client_records")
+        .select("client_id")
+        .eq("user_id", user.id);
+
+      const stillReferencedIds = new Set(
+        (remainingRecords ?? []).map((r) => r.client_id).filter(Boolean)
+      );
+
+      const candidateIds = [
+        ...new Set(deletedRecords.map((r) => r.client_id).filter(Boolean)),
+      ];
+
+      const orphanedIds = candidateIds.filter((id) => !stillReferencedIds.has(id));
+
+      if (orphanedIds.length > 0) {
+        await supabase
+          .from("clients")
+          .delete()
+          .eq("user_id", user.id)
+          .in("id", orphanedIds);
+      }
+    }
+
+    toast.success(`${item.year} removed from history.`);
   }
 
   // ── PDF import handlers ──────────────────────────────────────────────────
@@ -1471,7 +1533,9 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                       <div className="flex items-center gap-1">
                         {confirmDeleteId === item.id ? (
                           <>
-                            <span className="text-xs text-red-600 font-medium mr-1">Delete {item.year}?</span>
+                            <span className="text-xs text-red-600 font-medium mr-1">
+                              Delete {item.year}? This will permanently remove your {item.year} history summary, all imported deals from that year, and any client records that only exist in {item.year}. This cannot be undone.
+                            </span>
                             <Button
                               variant="destructive"
                               size="sm"

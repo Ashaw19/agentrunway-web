@@ -317,8 +317,9 @@ export function SettingsContent({ settings }: Props) {
                 onChange={(e) => setCashReserve(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Current cash on hand — used to calculate how many months you can
-                sustain at current expenses.
+                Your liquid savings or operating account balance — what you&apos;d
+                live on if commissions stopped tomorrow. Drives your cash runway
+                estimate and financial risk score.
               </p>
             </div>
             <div className="grid gap-1.5">

@@ -5,6 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   Users,
   Search,
   TrendingUp,
@@ -14,6 +22,9 @@ import {
   Star,
   BarChart3,
   PieChart,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import { fmtCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -115,32 +126,50 @@ function computeSourceStats(records: ClientRecord[]): SourceStat[] {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const SIDE_STYLES: Record<string, { label: string; cls: string }> = {
-  buyer:  { label: "Buyer",  cls: "bg-teal-50 text-teal-700 border-teal-200" },
-  seller: { label: "Seller", cls: "bg-amber-50 text-amber-700 border-amber-200" },
-  both:   { label: "Both",   cls: "bg-violet-50 text-violet-700 border-violet-200" },
+  buyer:  { label: "Buyer",  cls: "bg-blue-50 text-blue-700 border-blue-200" },
+  seller: { label: "Seller", cls: "bg-purple-50 text-purple-700 border-purple-200" },
+  both:   { label: "Both",   cls: "bg-teal-50 text-teal-700 border-teal-200" },
 };
 
-type SortKey = "gci" | "deals" | "recent" | "name";
+type SortCol = "name" | "deals" | "gci" | "avg" | "last" | "years" | "side";
+type SortDir = "asc" | "desc";
 
-function sortGroups(groups: ClientGroup[], sort: SortKey): ClientGroup[] {
+function dominantSide(deals: ClientRecord[]): "buyer" | "seller" | "both" {
+  const counts = { buyer: 0, seller: 0, both: 0 };
+  deals.forEach((d) => { if (d.side) counts[d.side as keyof typeof counts]++; });
+  return (Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]) as "buyer" | "seller" | "both";
+}
+
+function sortTableGroups(groups: ClientGroup[], col: SortCol, dir: SortDir): ClientGroup[] {
   return [...groups].sort((a, b) => {
-    switch (sort) {
-      case "gci":    return b.totalGCI - a.totalGCI;
-      case "deals":  return b.dealCount - a.dealCount;
-      case "recent": return (b.lastDeal ?? "").localeCompare(a.lastDeal ?? "");
-      case "name":   return a.name.localeCompare(b.name);
-      default:       return 0;
+    let cmp = 0;
+    switch (col) {
+      case "name":  cmp = a.name.localeCompare(b.name); break;
+      case "deals": cmp = a.dealCount - b.dealCount; break;
+      case "gci":   cmp = a.totalGCI - b.totalGCI; break;
+      case "avg":   cmp = a.avgDeal - b.avgDeal; break;
+      case "last":
+        if (!a.lastDeal && !b.lastDeal) cmp = 0;
+        else if (!a.lastDeal) cmp = 1;   // nulls to bottom
+        else if (!b.lastDeal) cmp = -1;
+        else cmp = a.lastDeal.localeCompare(b.lastDeal);
+        break;
+      case "years": cmp = a.years.length - b.years.length; break;
+      case "side":  cmp = dominantSide(a.deals).localeCompare(dominantSide(b.deals)); break;
+      default:      cmp = 0;
     }
+    return dir === "asc" ? cmp : -cmp;
   });
 }
 
-function formatDate(iso: string) {
+function formatLastDeal(iso: string): string {
   try {
     return new Date(iso + "T12:00:00").toLocaleDateString("en-CA", {
-      month: "short", day: "numeric", year: "numeric",
+      month: "short", year: "numeric",
     });
   } catch { return iso; }
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -148,8 +177,18 @@ export function ClientsContent({ clients, records }: Props) {
   const [search, setSearch]             = useState("");
   const [filterSide, setFilterSide]     = useState<"all" | "buyer" | "seller" | "both">("all");
   const [filterSource, setFilterSource] = useState<string>("all");
-  const [sortKey, setSortKey]           = useState<SortKey>("gci");
+  const [sortCol, setSortCol]           = useState<SortCol>("gci");
+  const [sortDir, setSortDir]           = useState<SortDir>("desc");
   const [tab, setTab]                   = useState<"clients" | "insights">("clients");
+
+  function handleSort(col: SortCol) {
+    if (col === sortCol) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortCol(col);
+      setSortDir("asc");
+    }
+  }
 
   // ── Core data ───────────────────────────────────────────────────────────────
   const grouped     = useMemo(() => buildAllGroups(clients, records), [clients, records]);
@@ -193,8 +232,8 @@ export function ClientsContent({ clients, records }: Props) {
       if (filterSource !== "all" && !g.deals.some((d) => d.source === filterSource)) return false;
       return true;
     });
-    return sortGroups(f, sortKey);
-  }, [grouped, search, filterSide, filterSource, sortKey]);
+    return sortTableGroups(f, sortCol, sortDir);
+  }, [grouped, search, filterSide, filterSource, sortCol, sortDir]);
 
   const hasAnyData = records.length > 0;
 
@@ -504,138 +543,165 @@ export function ClientsContent({ clients, records }: Props) {
                   </select>
                 </>
               )}
-              <span className="text-muted-foreground/40 text-xs">|</span>
-              <select
-                value={sortKey}
-                onChange={(e) => setSortKey(e.target.value as SortKey)}
-                className="rounded-full px-3 py-1 text-xs font-semibold border border-border bg-card text-muted-foreground hover:border-primary/40 transition-colors cursor-pointer outline-none"
-              >
-                <option value="gci">Sort: Most GCI</option>
-                <option value="deals">Sort: Most Deals</option>
-                <option value="recent">Sort: Most Recent</option>
-                <option value="name">Sort: Name A–Z</option>
-              </select>
             </div>
           </div>
 
-          {/* Client cards */}
-          {filtered.length === 0 ? (
+          {/* Sortable client table */}
+          {!hasAnyData ? (
             <Card className="rounded-2xl border-slate-200 shadow-sm">
               <CardContent className="py-12 text-center text-muted-foreground">
-                {!hasAnyData
-                  ? "No clients yet. Import a brokerage report or career tracker from the History page to populate your client database."
-                  : "No clients match your search."}
+                No clients yet. Import a brokerage report or career tracker from the History page to populate your client database.
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {filtered.map((group) => {
-                const sides   = [...new Set(group.deals.map((d) => d.side).filter(Boolean))];
-                const srcs    = [...new Set(group.deals.map((d) => d.source).filter(Boolean))];
-                const isRepeat = group.dealCount > 1;
-
-                return (
-                  <Card
-                    key={group.clientId ?? group.name}
-                    className={cn(
-                      "rounded-2xl shadow-sm border transition-shadow hover:shadow-md",
-                      isRepeat ? "border-violet-200" : "border-border",
-                    )}
-                  >
-                    <CardHeader className="pb-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <CardTitle className="text-sm font-semibold text-foreground leading-snug">
-                          {group.name}
-                        </CardTitle>
-                        {isRepeat && (
-                          <Badge variant="outline" className="text-[10px] bg-violet-50 text-violet-700 border-violet-200 shrink-0">
-                            Repeat
-                          </Badge>
-                        )}
-                      </div>
-                      {sides.length > 0 && (
-                        <div className="flex gap-1 flex-wrap mt-0.5">
-                          {sides.map((side) => {
-                            if (!side) return null;
-                            const style = SIDE_STYLES[side];
-                            return style ? (
-                              <span key={side} className={cn("text-[10px] font-semibold border rounded px-1.5 py-0.5", style.cls)}>
-                                {style.label}
-                              </span>
-                            ) : null;
-                          })}
-                        </div>
-                      )}
-                    </CardHeader>
-
-                    <CardContent className="space-y-2 pt-0">
-                      {/* Deal rows */}
-                      <div className="space-y-1.5">
-                        {group.deals
-                          .sort((a, b) => (b.close_date ?? "").localeCompare(a.close_date ?? ""))
-                          .map((deal, di) => (
-                            <div key={di} className="flex items-start justify-between gap-2 text-[11px]">
-                              <div className="min-w-0">
-                                <p className="text-foreground/80 truncate">{deal.address ?? "—"}</p>
-                                <p className="text-muted-foreground">
-                                  {deal.year}
-                                  {deal.close_date ? ` · ${formatDate(deal.close_date)}` : ""}
-                                  {deal.source ? ` · ${deal.source}` : ""}
-                                </p>
+            <Card className="rounded-2xl shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-border/60 hover:bg-transparent">
+                      <SortableHead col="name"  label="Client"       active={sortCol} dir={sortDir} onSort={handleSort} className="pl-4" />
+                      <SortableHead col="deals" label="Deals"        active={sortCol} dir={sortDir} onSort={handleSort} className="text-right" />
+                      <SortableHead col="gci"   label="Lifetime GCI" active={sortCol} dir={sortDir} onSort={handleSort} className="text-right" />
+                      <SortableHead col="avg"   label="Avg / Deal"   active={sortCol} dir={sortDir} onSort={handleSort} className="text-right" />
+                      <SortableHead col="last"  label="Last Deal"    active={sortCol} dir={sortDir} onSort={handleSort} className="text-right" />
+                      <SortableHead col="years" label="Years Active" active={sortCol} dir={sortDir} onSort={handleSort} />
+                      <SortableHead col="side"  label="Side"         active={sortCol} dir={sortDir} onSort={handleSort} className="pr-4" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filtered.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
+                          No clients match your search.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filtered.map((group) => {
+                        const isRepeat = group.dealCount > 1;
+                        const side     = dominantSide(group.deals);
+                        const sideStyle = SIDE_STYLES[side];
+                        return (
+                          <TableRow
+                            key={group.clientId ?? group.name}
+                            className="hover:bg-muted/30 transition-colors"
+                          >
+                            {/* Client */}
+                            <TableCell className="pl-4 py-3">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold shrink-0">
+                                  {group.name.charAt(0).toUpperCase()}
+                                </div>
+                                <span className="font-medium text-foreground text-sm truncate">
+                                  {group.name}
+                                </span>
+                                {isRepeat && (
+                                  <Badge variant="outline" className="text-[10px] bg-violet-50 text-violet-700 border-violet-200 shrink-0 py-0">
+                                    ×{group.dealCount}
+                                  </Badge>
+                                )}
                               </div>
-                              <span className="font-semibold text-foreground/90 tabular-nums shrink-0">
-                                {fmtCurrency(deal.gci ?? 0)}
-                              </span>
-                            </div>
-                          ))}
-                      </div>
+                            </TableCell>
 
-                      {/* Lifetime stats footer (always shown — even single deal shows avg context) */}
-                      <div className={cn(
-                        "pt-2 flex items-center justify-between text-[11px]",
-                        group.dealCount > 1 && "border-t border-border/40",
-                      )}>
-                        <span className="text-muted-foreground">
-                          {group.dealCount > 1
-                            ? `${group.dealCount} deals · avg ${fmtCurrency(group.avgDeal)}`
-                            : `avg ${fmtCurrency(group.avgDeal)} / deal`}
-                          {group.years.length > 1 && ` · ${group.years[group.years.length - 1]}–${group.years[0]}`}
-                        </span>
-                        {group.dealCount > 1 && (
-                          <span className="font-bold text-foreground tabular-nums">
-                            {fmtCurrency(group.totalGCI)}
-                          </span>
-                        )}
-                      </div>
+                            {/* Deals */}
+                            <TableCell className="text-right tabular-nums text-sm text-muted-foreground py-3">
+                              {group.dealCount}
+                            </TableCell>
 
-                      {/* Source badges */}
-                      {srcs.length > 0 && (
-                        <div className="flex flex-wrap gap-1 pt-0.5">
-                          {srcs.map((src) => src && (
-                            <span key={src} className="text-[10px] text-slate-500 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5">
-                              {src}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+                            {/* Lifetime GCI */}
+                            <TableCell className="text-right tabular-nums text-sm font-semibold text-foreground py-3">
+                              {fmtCurrency(group.totalGCI)}
+                            </TableCell>
+
+                            {/* Avg / Deal */}
+                            <TableCell className="text-right tabular-nums text-sm text-muted-foreground py-3">
+                              {fmtCurrency(group.avgDeal)}
+                            </TableCell>
+
+                            {/* Last Deal */}
+                            <TableCell className="text-right text-sm text-muted-foreground py-3 whitespace-nowrap">
+                              {group.lastDeal ? formatLastDeal(group.lastDeal) : "—"}
+                            </TableCell>
+
+                            {/* Years Active */}
+                            <TableCell className="py-3">
+                              <div className="flex flex-wrap gap-1">
+                                {group.years.map((y) => (
+                                  <span
+                                    key={y}
+                                    className="text-[10px] font-medium text-muted-foreground bg-muted rounded px-1.5 py-0.5"
+                                  >
+                                    {y}
+                                  </span>
+                                ))}
+                              </div>
+                            </TableCell>
+
+                            {/* Side */}
+                            <TableCell className="pr-4 py-3">
+                              {sideStyle && (
+                                <span className={cn(
+                                  "text-[10px] font-semibold border rounded px-1.5 py-0.5 whitespace-nowrap",
+                                  sideStyle.cls,
+                                )}>
+                                  {sideStyle.label}
+                                </span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
           )}
         </>
       )}
 
-      {/* Empty state */}
-      {!hasAnyData && (
-        <Card className="rounded-2xl border-slate-200 shadow-sm">
-          <CardContent className="py-12 text-center text-muted-foreground">
-            No clients yet. Import a brokerage report or career tracker from the History page to populate your client database.
-          </CardContent>
-        </Card>
-      )}
     </div>
+  );
+}
+
+// ── Sortable table header cell ────────────────────────────────────────────────
+
+function SortableHead({
+  col,
+  label,
+  active,
+  dir,
+  onSort,
+  className,
+}: {
+  col: SortCol;
+  label: string;
+  active: SortCol;
+  dir: SortDir;
+  onSort: (col: SortCol) => void;
+  className?: string;
+}) {
+  const isActive = col === active;
+  return (
+    <TableHead
+      onClick={() => onSort(col)}
+      className={cn(
+        "text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer select-none hover:text-foreground transition-colors whitespace-nowrap",
+        className,
+      )}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {isActive ? (
+          dir === "asc" ? (
+            <ArrowUp className="h-3 w-3 shrink-0" />
+          ) : (
+            <ArrowDown className="h-3 w-3 shrink-0" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3 w-3 shrink-0 opacity-40" />
+        )}
+      </span>
+    </TableHead>
   );
 }
 
