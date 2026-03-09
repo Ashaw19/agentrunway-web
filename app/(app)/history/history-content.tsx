@@ -42,6 +42,7 @@ import { computeGCI, type HistoryItem, type Transaction, type UserSettings } fro
 import { cn } from "@/lib/utils";
 import type { ImportResult } from "@/app/api/import-history/route";
 import { ProductionReportDialog } from "@/components/production-report-dialog";
+import { YearOverYearChart, type YoYDataPoint } from "@/components/year-over-year-chart";
 import { Download } from "lucide-react";
 
 interface Props {
@@ -157,6 +158,37 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
   // Seasonal profile — recomputes whenever items changes
   const seasonalProfile = buildSeasonalProfile(items);
+
+  // ── Year-over-year chart data ─────────────────────────────────────────
+  const currentYear = new Date().getFullYear();
+  const yoyData: YoYDataPoint[] = [
+    // Historical items sorted oldest → newest
+    ...[...items]
+      .sort((a, b) => a.year - b.year)
+      .map((it) => ({
+        year: it.year,
+        gci: it.annual_gci,
+        deals: it.annual_tx,
+        isCurrentYear: it.year === currentYear,
+      })),
+    // If no history item exists for the current year, add current-year actuals from transactions
+    ...(items.some((it) => it.year === currentYear)
+      ? []
+      : (() => {
+          const thisYearTx = transactions.filter((tx) =>
+            tx.date.startsWith(String(currentYear)),
+          );
+          if (thisYearTx.length === 0) return [];
+          return [
+            {
+              year: currentYear,
+              gci: thisYearTx.reduce((sum, tx) => sum + computeGCI(tx), 0),
+              deals: thisYearTx.length,
+              isCurrentYear: true,
+            },
+          ];
+        })()),
+  ];
 
   function toggleExpand(id: string) {
     setExpanded((prev) => {
@@ -1274,6 +1306,29 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ── Year-over-year chart ──────────────────────────────────────────── */}
+      {yoyData.length >= 2 && (
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BarChart2 className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-base font-semibold">Year-over-Year Performance</CardTitle>
+              </div>
+              <span className="text-xs text-muted-foreground">GCI (bars) &middot; Deals (line)</span>
+            </div>
+          </CardHeader>
+          <CardContent className="pb-4">
+            <YearOverYearChart data={yoyData} height={240} />
+            {yoyData.some((d) => d.isCurrentYear) && (
+              <p className="mt-1.5 text-center text-[11px] text-muted-foreground/70">
+                Light bar = current year (partial)
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Seasonal Profile ──────────────────────────────────────────────── */}
       {seasonalProfile && (

@@ -37,6 +37,7 @@ import {
   type HistoryItem,
 } from "@/lib/types/database";
 import { ProductionReportDialog } from "@/components/production-report-dialog";
+import { YearOverYearChart, type YoYDataPoint } from "@/components/year-over-year-chart";
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
@@ -190,6 +191,24 @@ export function ReportsContent({
     strong: "text-emerald-600",
   };
 
+  // ── Year-over-year chart data ─────────────────────────────────────────────
+  const yoyData: YoYDataPoint[] = [
+    ...[...historyItems]
+      .sort((a, b) => a.year - b.year)
+      .map((it) => ({
+        year: it.year,
+        gci: it.annual_gci,
+        deals: it.annual_tx,
+        isCurrentYear: it.year === currentYear,
+      })),
+    // Append current year from live transactions if not already in history
+    ...(historyItems.some((it) => it.year === currentYear)
+      ? []
+      : ytdTx.length > 0
+      ? [{ year: currentYear, gci: ytdGCI, deals: ytdTx.length, isCurrentYear: true }]
+      : []),
+  ];
+
   // ── PDF download ───────────────────────────────────────────────────────────
   const handleDownload = async () => {
     setDownloading(true);
@@ -341,6 +360,29 @@ export function ReportsContent({
             <Button size="sm" variant="outline" onClick={() => setHistReportOpen(true)}>
               Generate &rarr;
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Career Trend chart ────────────────────────────────────────────── */}
+      {yoyData.length >= 2 && (
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Career Trend</CardTitle>
+                <CardDescription>Year-over-year GCI &amp; deal volume</CardDescription>
+              </div>
+              <span className="text-xs text-muted-foreground">GCI (bars) &middot; Deals (line)</span>
+            </div>
+          </CardHeader>
+          <CardContent className="pb-4">
+            <YearOverYearChart data={yoyData} height={240} />
+            {yoyData.some((d) => d.isCurrentYear) && (
+              <p className="mt-1.5 text-center text-[11px] text-muted-foreground/70">
+                Light bar = current year (partial)
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
