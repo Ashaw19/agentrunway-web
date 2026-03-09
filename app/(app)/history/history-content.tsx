@@ -641,6 +641,40 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
         await supabase.from("client_records").insert(clientInserts);
         totalClients += clientInserts.length;
       }
+
+      // ── Phase 2: write individual transactions for past years ─────────────
+      // Current year stays manual-only (user tracks live deals themselves).
+      const currentYear = new Date().getFullYear();
+      if (yearData.year < currentYear && yearData.deals.length > 0) {
+        // Clear any previously-imported transactions for this year before re-importing
+        await supabase.from("transactions")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("source", "imported")
+          .gte("date", `${yearData.year}-01-01`)
+          .lte("date", `${yearData.year}-12-31`);
+
+        const txInserts = yearData.deals
+          .filter((d) => d.gci > 0) // skip $0 deals (headers, subtotals Groq might have slipped through)
+          .map((d) => ({
+            user_id: user.id,
+            date: d.date,
+            address: d.address || "",
+            sale_price: 0,           // not available from commission reports
+            commission_pct: 0,       // not available from commission reports
+            gci_override: d.gci,     // store GCI directly
+            side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
+            status: "closed" as const,
+            client_name: d.party_a || "",
+            notes: d.party_b ? `Other party: ${d.party_b}` : "",
+            source: "imported" as const,
+            date_precision: "day" as const,
+          }));
+
+        if (txInserts.length > 0) {
+          await supabase.from("transactions").insert(txInserts);
+        }
+      }
     }
 
     setImportOpen(false);
