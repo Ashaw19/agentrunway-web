@@ -6,17 +6,23 @@
  * Full receipt capture flow in a single dialog:
  *   idle → processing → review → saving → done
  *
- * Mobile: uses <input capture="environment"> to open the native camera.
- * Desktop: file picker (JPEG, PNG, WEBP).
- * Images are compressed client-side to ≤ 1600px before upload.
+ * Three capture modes (all feed into the same post-upload flow):
+ *   Mode 1 — File upload       : file picker (JPEG, PNG, WEBP, HEIC)
+ *   Mode 2 — Mobile camera     : <input capture="environment"> — opens rear camera on mobile
+ *   Mode 3 — QR handoff        : desktop creates a one-time token, shows QR code,
+ *                                phone opens /receipt-upload/{token} and uploads there,
+ *                                desktop polls every 3 s and transitions to review on complete.
+ *
+ * Images are compressed client-side to ≤ 1600 px before upload (modes 1 & 2).
+ * Mode 3 compression happens on the phone page.
  */
 
-import { useState, useRef, useCallback } from "react";
-import { toast }                          from "sonner";
-import { createClient }                   from "@/lib/supabase/client";
-import { normalizeExtraction }            from "@/lib/receipts/normalize";
-import { RECEIPT_CATEGORIES }             from "@/lib/types/receipt";
-import type { ReceiptDraft, ProcessReceiptResponse, ProcessReceiptError } from "@/lib/types/receipt";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { toast }                                     from "sonner";
+import { createClient }                              from "@/lib/supabase/client";
+import { normalizeExtraction }                       from "@/lib/receipts/normalize";
+import { RECEIPT_CATEGORIES }                        from "@/lib/types/receipt";
+import type { OcrExtraction, ReceiptDraft, ProcessReceiptResponse, ProcessReceiptError } from "@/lib/types/receipt";
 
 import {
   Dialog,
@@ -43,28 +49,32 @@ import {
   AlertTriangle,
   Receipt,
   X,
+  Smartphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type FlowState = "idle" | "processing" | "review" | "saving" | "done";
+type FlowState = "idle" | "processing" | "review" | "saving" | "done" | "qr";
 
 interface Props {
-  open:      boolean;
-  onClose:   () => void;
+  open:     boolean;
+  onClose:  () => void;
   /** Called after a receipt is saved so the parent can refresh its list. */
-  onSaved?:  () => void;
+  onSaved?: () => void;
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
-const CURRENCIES = ["CAD", "USD"];
+const CURRENCIES     = ["CAD", "USD"];
+const QR_POLL_MS     = 3_000;   // 3 seconds between polls
+const TOKEN_TTL_MS   = 5 * 60 * 1000; // 5 minutes
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
  * Client-side image compression using Canvas.
  * Resizes to ≤ maxWidth and re-encodes as JPEG at 0.85 quality.
- * Returns a Blob with type "image/jpeg".
  */
 async function compressImage(file: File, maxWidth = 1600): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -100,63 +110,88 @@ function confidenceLabel(conf: number): { text: string; color: string } {
   return               { text: "Low confidence — please review carefully", color: "text-red-500" };
 }
 
+/** Format seconds as M:SS */
+function fmtCountdown(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/** Build QR code image URL using free qrserver.com API */
+function qrCodeUrl(text: string, size = 240): string {
+  return `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(text)}&size=${size}x${size}&margin=8&format=png`;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
   const [state,      setState]      = useState<FlowState>("idle");
   const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
   const [draft,      setDraft]      = useState<ReceiptDraft | null>(null);
-  const [preview,    setPreview]    = useState<string | null>(null);  // data URL for img preview
+  const [preview,    setPreview]    = useState<string | null>(null);
 
-  // Separate file inputs: one for camera, one for gallery/file
+  // QR mode state
+  const [qrUrl,      setQrUrl]      = useState<string | null>(null);   // full phone URL
+  const [tokenId,    setTokenId]    = useState<string | null>(null);   // for polling
+  const [countdown,  setCountdown]  = useState<number>(300);           // seconds remaining
+
+  // Refs
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef   = useRef<HTMLInputElement>(null);
+  const pollTimerRef   = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cdTimerRef     = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── Reset ──────────────────────────────────────────────────────────────────
+  // ── Cleanup helpers ──────────────────────────────────────────────────────
+  const stopPolling = useCallback(() => {
+    if (pollTimerRef.current) { clearInterval(pollTimerRef.current); pollTimerRef.current = null; }
+    if (cdTimerRef.current)   { clearInterval(cdTimerRef.current);   cdTimerRef.current   = null; }
+  }, []);
+
+  // ── Reset ────────────────────────────────────────────────────────────────
   const reset = useCallback(() => {
+    stopPolling();
     setState("idle");
     setErrorMsg(null);
     setDraft(null);
     setPreview(null);
+    setQrUrl(null);
+    setTokenId(null);
+    setCountdown(300);
     if (cameraInputRef.current) cameraInputRef.current.value = "";
     if (fileInputRef.current)   fileInputRef.current.value   = "";
-  }, []);
+  }, [stopPolling]);
 
   const handleClose = useCallback(() => {
     reset();
     onClose();
   }, [reset, onClose]);
 
-  // ── File selected ──────────────────────────────────────────────────────────
+  // Stop polling when dialog closes
+  useEffect(() => {
+    if (!open) stopPolling();
+  }, [open, stopPolling]);
+
+  // ── File selected (modes 1 & 2) ─────────────────────────────────────────
   const handleFile = useCallback(async (file: File | undefined | null) => {
     if (!file) return;
 
     setState("processing");
     setErrorMsg(null);
 
-    // Show preview immediately while processing
     const reader = new FileReader();
     reader.onload = (e) => setPreview(e.target?.result as string);
     reader.readAsDataURL(file);
 
     try {
-      // Compress client-side
       const compressed = await compressImage(file);
-      const form        = new FormData();
+      const form       = new FormData();
       form.append("file", new File([compressed], "receipt.jpg", { type: "image/jpeg" }));
 
-      const res = await fetch("/api/receipts/process", {
-        method: "POST",
-        body:   form,
-      });
-
+      const res  = await fetch("/api/receipts/process", { method: "POST", body: form });
       const data = (await res.json()) as ProcessReceiptResponse | ProcessReceiptError;
 
-      if (!data.ok) {
-        throw new Error(data.error ?? "Processing failed");
-      }
+      if (!data.ok) throw new Error(data.error ?? "Processing failed");
 
-      // Normalize into a form-ready draft
       const normalized = normalizeExtraction(data.extraction, data.path);
       setDraft(normalized);
       setState("review");
@@ -168,7 +203,81 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
     }
   }, []);
 
-  // ── Form field update ──────────────────────────────────────────────────────
+  // ── QR handoff mode ─────────────────────────────────────────────────────
+
+  /** Start QR mode: create token, build URL, begin polling + countdown */
+  const handleQrMode = useCallback(async () => {
+    setErrorMsg(null);
+
+    try {
+      const res  = await fetch("/api/receipts/create-token", { method: "POST" });
+      const data = await res.json() as { ok: boolean; tokenId?: string; token?: string; error?: string };
+
+      if (!data.ok || !data.tokenId || !data.token) {
+        throw new Error(data.error ?? "Failed to create upload link");
+      }
+
+      const phoneUrl = `${window.location.origin}/receipt-upload/${data.token}`;
+      setQrUrl(phoneUrl);
+      setTokenId(data.tokenId);
+      setCountdown(Math.floor(TOKEN_TTL_MS / 1000));
+      setState("qr");
+
+      // ── Countdown timer (1 second tick) ────────────────────────────────
+      cdTimerRef.current = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            stopPolling();
+            setState("idle");
+            setErrorMsg("The QR code expired. Generate a new one.");
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      // ── Polling (every 3 seconds) ───────────────────────────────────────
+      pollTimerRef.current = setInterval(async () => {
+        try {
+          const pollRes  = await fetch(`/api/receipts/token-status/${data.tokenId}`);
+          const pollData = await pollRes.json() as {
+            ok: boolean;
+            status: string;
+            receiptPath?: string;
+            extraction?: OcrExtraction;
+            errorMessage?: string;
+          };
+
+          if (!pollData.ok) return; // network hiccup — keep polling
+
+          if (pollData.status === "complete" && pollData.receiptPath && pollData.extraction) {
+            stopPolling();
+            const normalized = normalizeExtraction(pollData.extraction, pollData.receiptPath);
+            setDraft(normalized);
+            // No local preview for QR mode — that's fine, review form works without it
+            setState("review");
+          } else if (pollData.status === "error") {
+            stopPolling();
+            setErrorMsg(pollData.errorMessage ?? "Upload failed on your phone. Please try again.");
+            setState("idle");
+          } else if (pollData.status === "expired") {
+            stopPolling();
+            setErrorMsg("The QR code expired. Generate a new one.");
+            setState("idle");
+          }
+          // status === 'pending' → keep polling
+        } catch {
+          // network error — silently retry next tick
+        }
+      }, QR_POLL_MS);
+
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setErrorMsg(msg);
+    }
+  }, [stopPolling]);
+
+  // ── Form field update ────────────────────────────────────────────────────
   const updateDraft = useCallback(
     <K extends keyof ReceiptDraft>(key: K, value: ReceiptDraft[K]) => {
       setDraft((prev) => prev ? { ...prev, [key]: value } : prev);
@@ -176,16 +285,15 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
     [],
   );
 
-  // ── Save ───────────────────────────────────────────────────────────────────
+  // ── Save ─────────────────────────────────────────────────────────────────
   const handleSave = useCallback(async () => {
     if (!draft) return;
     setState("saving");
 
-    const supabase = createClient();
-
-    const totalAmt = draft.total_amount !== "" ? parseFloat(draft.total_amount) : null;
-    const taxAmt   = draft.tax_amount   !== "" ? parseFloat(draft.tax_amount)   : null;
-    const subAmt   = draft.subtotal     !== "" ? parseFloat(draft.subtotal)     : null;
+    const supabase  = createClient();
+    const totalAmt  = draft.total_amount !== "" ? parseFloat(draft.total_amount) : null;
+    const taxAmt    = draft.tax_amount   !== "" ? parseFloat(draft.tax_amount)   : null;
+    const subAmt    = draft.subtotal     !== "" ? parseFloat(draft.subtotal)     : null;
 
     const { error } = await supabase.from("receipt_expenses").insert({
       vendor:         draft.vendor       || null,
@@ -212,20 +320,18 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
     toast.success("Receipt saved!");
     onSaved?.();
 
-    // Auto-close after a brief success moment
     setTimeout(() => {
       reset();
       onClose();
     }, 1200);
   }, [draft, reset, onClose, onSaved]);
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
       <DialogContent
         className={cn(
           "max-w-lg w-full",
-          // On mobile (below sm), take most of the screen height so form is usable
           "max-h-[92dvh] overflow-y-auto",
           "sm:max-h-[85vh]",
         )}
@@ -237,7 +343,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
           </DialogTitle>
         </DialogHeader>
 
-        {/* ── IDLE ─────────────────────────────────────────────────────────── */}
+        {/* ── IDLE ──────────────────────────────────────────────────────── */}
         {state === "idle" && (
           <div className="space-y-4 py-2">
             {errorMsg && (
@@ -251,30 +357,39 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
               Take a photo of your receipt or upload one from your device. We&apos;ll read the key details for you.
             </p>
 
-            <div className="grid grid-cols-2 gap-3">
-              {/* Camera button — triggers native camera on mobile */}
+            <div className="grid grid-cols-3 gap-3">
+              {/* Mode 2 — Camera (mobile) */}
               <button
                 onClick={() => cameraInputRef.current?.click()}
-                className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border bg-muted/30 p-6 transition-colors hover:border-primary/50 hover:bg-primary/5 active:scale-95"
+                className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border bg-muted/30 p-5 transition-colors hover:border-primary/50 hover:bg-primary/5 active:scale-95"
               >
-                <Camera className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
-                <span className="text-sm font-medium text-foreground">Take Photo</span>
-                <span className="text-[11px] text-muted-foreground text-center">Opens camera on mobile</span>
+                <Camera className="h-7 w-7 text-muted-foreground group-hover:text-primary transition-colors" />
+                <span className="text-xs font-medium text-foreground text-center">Take Photo</span>
+                <span className="text-[10px] text-muted-foreground text-center leading-tight">Opens camera</span>
               </button>
 
-              {/* File upload button */}
+              {/* Mode 1 — File upload */}
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border bg-muted/30 p-6 transition-colors hover:border-primary/50 hover:bg-primary/5 active:scale-95"
+                className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border bg-muted/30 p-5 transition-colors hover:border-primary/50 hover:bg-primary/5 active:scale-95"
               >
-                <Upload className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
-                <span className="text-sm font-medium text-foreground">Upload Photo</span>
-                <span className="text-[11px] text-muted-foreground text-center">JPEG, PNG, WEBP</span>
+                <Upload className="h-7 w-7 text-muted-foreground group-hover:text-primary transition-colors" />
+                <span className="text-xs font-medium text-foreground text-center">Upload File</span>
+                <span className="text-[10px] text-muted-foreground text-center leading-tight">JPEG · PNG · WEBP</span>
+              </button>
+
+              {/* Mode 3 — QR handoff */}
+              <button
+                onClick={handleQrMode}
+                className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border bg-muted/30 p-5 transition-colors hover:border-primary/50 hover:bg-primary/5 active:scale-95"
+              >
+                <Smartphone className="h-7 w-7 text-muted-foreground group-hover:text-primary transition-colors" />
+                <span className="text-xs font-medium text-foreground text-center">Use Phone</span>
+                <span className="text-[10px] text-muted-foreground text-center leading-tight">Scan QR code</span>
               </button>
             </div>
 
             {/* Hidden inputs */}
-            {/* capture="environment" tells mobile browsers to open the rear camera */}
             <input
               ref={cameraInputRef}
               type="file"
@@ -293,17 +408,72 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
           </div>
         )}
 
-        {/* ── PROCESSING ───────────────────────────────────────────────────── */}
+        {/* ── QR MODE ────────────────────────────────────────────────────── */}
+        {state === "qr" && qrUrl && (
+          <div className="space-y-4 py-2">
+            <div className="text-center space-y-1">
+              <p className="text-sm font-medium text-foreground">Scan with your phone</p>
+              <p className="text-xs text-muted-foreground">
+                Point your phone camera at this QR code to open the upload page.
+              </p>
+            </div>
+
+            {/* QR image */}
+            <div className="mx-auto flex h-56 w-56 items-center justify-center rounded-2xl border border-border bg-white p-2 shadow-sm">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={qrCodeUrl(qrUrl, 220)}
+                alt="QR code for phone receipt upload"
+                className="h-full w-full rounded-xl object-contain"
+              />
+            </div>
+
+            {/* Countdown + waiting indicator */}
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span>Waiting for upload from your phone…</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Expires in{" "}
+                <span className={cn(
+                  "font-mono font-medium",
+                  countdown <= 60 ? "text-red-500" : "text-foreground",
+                )}>
+                  {fmtCountdown(countdown)}
+                </span>
+              </p>
+            </div>
+
+            {/* Manual URL for when camera QR scanning isn't available */}
+            <details className="text-center">
+              <summary className="cursor-pointer text-[11px] text-muted-foreground hover:text-foreground select-none">
+                Can&apos;t scan? Open link manually
+              </summary>
+              <p className="mt-2 break-all rounded-lg bg-muted px-3 py-2 text-[11px] font-mono text-muted-foreground">
+                {qrUrl}
+              </p>
+            </details>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={reset}
+              className="w-full gap-1"
+            >
+              <X className="h-3.5 w-3.5" />
+              Cancel
+            </Button>
+          </div>
+        )}
+
+        {/* ── PROCESSING ─────────────────────────────────────────────────── */}
         {state === "processing" && (
           <div className="flex flex-col items-center gap-5 py-10">
             {preview && (
               <div className="relative h-32 w-32 overflow-hidden rounded-xl border border-border shadow-sm">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={preview}
-                  alt="Receipt preview"
-                  className="h-full w-full object-cover"
-                />
+                <img src={preview} alt="Receipt preview" className="h-full w-full object-cover" />
                 <div className="absolute inset-0 flex items-center justify-center bg-background/50">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
@@ -317,7 +487,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
           </div>
         )}
 
-        {/* ── REVIEW ───────────────────────────────────────────────────────── */}
+        {/* ── REVIEW ─────────────────────────────────────────────────────── */}
         {(state === "review" || state === "saving") && draft && (
           <div className="space-y-5 py-1">
             {/* Receipt image + confidence */}
@@ -325,11 +495,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
               {preview && (
                 <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-border shadow-sm">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={preview}
-                    alt="Receipt"
-                    className="h-full w-full object-cover"
-                  />
+                  <img src={preview} alt="Receipt" className="h-full w-full object-cover" />
                 </div>
               )}
               <div className="flex-1 min-w-0">
@@ -350,7 +516,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
 
             {/* Form */}
             <div className="grid gap-4">
-              {/* Vendor + Date row */}
+              {/* Vendor + Date */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-1.5">
                   <Label htmlFor="vendor" className="text-xs">Merchant / Vendor</Label>
@@ -374,7 +540,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
                 </div>
               </div>
 
-              {/* Amounts row */}
+              {/* Amounts */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="grid gap-1.5">
                   <Label htmlFor="total_amount" className="text-xs">
@@ -419,7 +585,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
                 </div>
               </div>
 
-              {/* Currency + Category row */}
+              {/* Currency + Category */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-1.5">
                   <Label className="text-xs">Currency</Label>
@@ -460,8 +626,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
               {/* Notes */}
               <div className="grid gap-1.5">
                 <Label htmlFor="notes" className="text-xs">
-                  Notes{" "}
-                  <span className="text-muted-foreground">(optional)</span>
+                  Notes <span className="text-muted-foreground">(optional)</span>
                 </Label>
                 <Textarea
                   id="notes"
@@ -502,7 +667,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
           </div>
         )}
 
-        {/* ── DONE ─────────────────────────────────────────────────────────── */}
+        {/* ── DONE ───────────────────────────────────────────────────────── */}
         {state === "done" && (
           <div className="flex flex-col items-center gap-3 py-10">
             <CheckCircle2 className="h-12 w-12 text-emerald-500" />
