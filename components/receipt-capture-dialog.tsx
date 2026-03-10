@@ -135,6 +135,10 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
   const [tokenId,    setTokenId]    = useState<string | null>(null);   // for polling
   const [countdown,  setCountdown]  = useState<number>(300);           // seconds remaining
 
+  // Device detection — starts false (SSR-safe), updates after mount
+  // `pointer: coarse` is true on touchscreen phones & tablets
+  const [isMobile,   setIsMobile]   = useState(false);
+
   // Refs
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef   = useRef<HTMLInputElement>(null);
@@ -170,6 +174,11 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
   useEffect(() => {
     if (!open) stopPolling();
   }, [open, stopPolling]);
+
+  // Detect touch device once on mount
+  useEffect(() => {
+    setIsMobile(window.matchMedia("(pointer: coarse)").matches);
+  }, []);
 
   // ── File selected (modes 1 & 2) ─────────────────────────────────────────
   const handleFile = useCallback(async (file: File | undefined | null) => {
@@ -354,40 +363,74 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
             )}
 
             <p className="text-sm text-muted-foreground">
-              Take a photo of your receipt or upload one from your device. We&apos;ll read the key details for you.
+              {isMobile
+                ? "Take a photo of your receipt or choose one from your gallery."
+                : "Upload a receipt image or send a QR link to your phone to capture it there."}
             </p>
 
-            <div className="grid grid-cols-3 gap-3">
-              {/* Mode 2 — Camera (mobile) */}
+            {/*
+              Adaptive 2-column layout:
+                Mobile  → primary: [Take Photo | Upload File]
+                Desktop → primary: [Upload File | Use Phone]
+              The third mode is shown as a small secondary link below.
+            */}
+            <div className="grid grid-cols-2 gap-3">
+              {isMobile ? (
+                <>
+                  {/* Mobile primary 1 — camera */}
+                  <button
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border bg-muted/30 p-6 transition-colors hover:border-primary/50 hover:bg-primary/5 active:scale-95"
+                  >
+                    <Camera className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                    <span className="text-sm font-medium text-foreground">Take Photo</span>
+                    <span className="text-[11px] text-muted-foreground text-center">Opens camera</span>
+                  </button>
+
+                  {/* Mobile primary 2 — file */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border bg-muted/30 p-6 transition-colors hover:border-primary/50 hover:bg-primary/5 active:scale-95"
+                  >
+                    <Upload className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                    <span className="text-sm font-medium text-foreground">Upload File</span>
+                    <span className="text-[11px] text-muted-foreground text-center">JPEG · PNG · WEBP</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Desktop primary 1 — file */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border bg-muted/30 p-6 transition-colors hover:border-primary/50 hover:bg-primary/5 active:scale-95"
+                  >
+                    <Upload className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                    <span className="text-sm font-medium text-foreground">Upload File</span>
+                    <span className="text-[11px] text-muted-foreground text-center">JPEG · PNG · WEBP</span>
+                  </button>
+
+                  {/* Desktop primary 2 — QR handoff */}
+                  <button
+                    onClick={handleQrMode}
+                    className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border bg-muted/30 p-6 transition-colors hover:border-primary/50 hover:bg-primary/5 active:scale-95"
+                  >
+                    <Smartphone className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
+                    <span className="text-sm font-medium text-foreground">Use Phone</span>
+                    <span className="text-[11px] text-muted-foreground text-center">Scan QR to capture</span>
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Secondary option — shown as a small text link */}
+            {!isMobile && (
               <button
                 onClick={() => cameraInputRef.current?.click()}
-                className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border bg-muted/30 p-5 transition-colors hover:border-primary/50 hover:bg-primary/5 active:scale-95"
+                className="w-full text-center text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
               >
-                <Camera className="h-7 w-7 text-muted-foreground group-hover:text-primary transition-colors" />
-                <span className="text-xs font-medium text-foreground text-center">Take Photo</span>
-                <span className="text-[10px] text-muted-foreground text-center leading-tight">Opens camera</span>
+                or take a photo directly (uses device camera)
               </button>
-
-              {/* Mode 1 — File upload */}
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border bg-muted/30 p-5 transition-colors hover:border-primary/50 hover:bg-primary/5 active:scale-95"
-              >
-                <Upload className="h-7 w-7 text-muted-foreground group-hover:text-primary transition-colors" />
-                <span className="text-xs font-medium text-foreground text-center">Upload File</span>
-                <span className="text-[10px] text-muted-foreground text-center leading-tight">JPEG · PNG · WEBP</span>
-              </button>
-
-              {/* Mode 3 — QR handoff */}
-              <button
-                onClick={handleQrMode}
-                className="group flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-border bg-muted/30 p-5 transition-colors hover:border-primary/50 hover:bg-primary/5 active:scale-95"
-              >
-                <Smartphone className="h-7 w-7 text-muted-foreground group-hover:text-primary transition-colors" />
-                <span className="text-xs font-medium text-foreground text-center">Use Phone</span>
-                <span className="text-[10px] text-muted-foreground text-center leading-tight">Scan QR code</span>
-              </button>
-            </div>
+            )}
 
             {/* Hidden inputs */}
             <input
