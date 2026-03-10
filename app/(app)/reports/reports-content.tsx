@@ -420,12 +420,29 @@ export function ReportsContent({
         import("@react-pdf/renderer"),
         import("@/components/pdf/business-report-pdf"),
       ]);
+
+      // Full 12-month array for the PDF bar chart (includes zero-GCI months)
+      const pdfMonthlyData = MONTH_LABELS.map((month, i) => {
+        const mm = String(i + 1).padStart(2, "0");
+        const monthTx = ytdTx.filter((tx) => tx.date.slice(5, 7) === mm);
+        return {
+          month,
+          gci: monthTx.reduce((sum, tx) => sum + computeGCI(tx), 0),
+          deals: monthTx.length,
+        };
+      });
+
       const pdfProps = {
+        // Identity
         agentName: settings.display_name ?? "",
         brokerageName: settings.brokerage_name ?? "",
         businessName: settings.business_name ?? "",
         province: settings.province,
         year: currentYear,
+        avatarUrl: settings.avatar_url || undefined,
+        logoUrl: settings.business_logo_url || undefined,
+
+        // KPIs
         ytdGCI,
         ytdDeals: ytdTx.length,
         buyerDeals,
@@ -433,6 +450,13 @@ export function ReportsContent({
         avgDealSize,
         pipelineWeighted,
         pipelineCount: pipelineDeals.length,
+
+        // Goals + projections
+        goalGCI,
+        fraction,
+        projectedGCI,
+
+        // P&L
         agentPct: getAgentPct(settings.split_preset),
         brokerageTake,
         txFees,
@@ -440,19 +464,40 @@ export function ReportsContent({
         agentGrossNet: agentGross - txFees - brokerageFeeYTD,
         expensesYTD,
         netPreTax,
+        afterTaxNet,
+
+        // Tax
         projectedNet,
         taxResult,
+        gstHstCollectedYTD,
+        gstHstLabel: taxLabel,
+
+        // Expenses
+        expenseRatio,
         expenseCategories,
         monthlyRecurring,
-        monthlyData,
+        receiptTotalsByKey,
+
+        // Projections
+        bands,
+        monthlyData: pdfMonthlyData,
+
+        // Engines
+        benchmark,
+        survival,
+        runwayScore,
+        advisorCards,
+
+        // Transactions
         transactions: ytdTx,
       };
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const blob = await pdf(createElement(BusinessReportPDF, pdfProps) as any).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `agent-runway-report-${currentYear}.pdf`;
+      a.download = `the-runway-briefing-${currentYear}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
