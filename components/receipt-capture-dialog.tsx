@@ -342,11 +342,21 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
     setState("saving");
 
     const supabase  = createClient();
+
+    // Fetch the current user — required for the user_id NOT NULL column and RLS
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Session expired. Please refresh and try again.");
+      setState("review");
+      return;
+    }
+
     const totalAmt  = draft.total_amount !== "" ? parseFloat(draft.total_amount) : null;
     const taxAmt    = draft.tax_amount   !== "" ? parseFloat(draft.tax_amount)   : null;
     const subAmt    = draft.subtotal     !== "" ? parseFloat(draft.subtotal)     : null;
 
     const { error } = await supabase.from("receipt_expenses").insert({
+      user_id:        user.id,
       vendor:         draft.vendor       || null,
       expense_date:   draft.expense_date || null,
       total_amount:   isNaN(totalAmt!)   ? null : totalAmt,
