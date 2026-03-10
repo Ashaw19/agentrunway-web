@@ -266,7 +266,9 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
       // Use phoneOrigin from server: LAN IP on localhost so the phone can
       // reach it over Wi-Fi; real domain in production.
       const baseUrl  = data.phoneOrigin ?? window.location.origin;
-      const phoneUrl = `${baseUrl}/receipt-upload/${data.token}`;
+      // /r/[token] is a raw HTML route — no React/Next.js runtime, works in
+      // iOS Camera's restricted WKWebView in-app preview browser.
+      const phoneUrl = `${baseUrl}/r/${data.token}`;
       setQrUrl(phoneUrl);
       setTokenId(data.tokenId);
       setCountdown(Math.floor(TOKEN_TTL_MS / 1000));
