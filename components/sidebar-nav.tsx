@@ -99,6 +99,14 @@ const navItems = [
     iconInactive: "text-slate-400/60",
     borderActive: "border-l-slate-400",
   },
+  {
+    label: "Profile",
+    href: "/profile",
+    icon: CircleUser,
+    iconActive: "text-pink-300",
+    iconInactive: "text-pink-400/60",
+    borderActive: "border-l-pink-400",
+  },
 ];
 
 
@@ -146,84 +154,65 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
       {/* Separator with subtle fade */}
       <div className="mx-4 h-px bg-gradient-to-r from-transparent via-sidebar-border/70 to-transparent" />
 
-      {/* Nav links */}
-      <nav className="flex-1 space-y-0.5 px-2 py-4 overflow-y-auto">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] transition-all duration-150 border-l-[3px]",
-                isActive
-                  ? cn(
-                      "bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-sm",
-                      item.borderActive,
-                    )
-                  : "border-l-transparent font-medium text-sidebar-foreground/65 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground hover:border-l-sidebar-border",
-              )}
-            >
-              <item.icon
+      {/* Nav links — Unlock Pro card lives inside here so it never overlaps items */}
+      <nav className="flex-1 px-2 py-4 overflow-y-auto">
+        <div className="space-y-0.5">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
                 className={cn(
-                  "h-[17px] w-[17px] shrink-0 transition-colors duration-150",
-                  isActive ? item.iconActive : item.iconInactive,
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] transition-all duration-150 border-l-[3px]",
+                  isActive
+                    ? cn(
+                        "bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-sm",
+                        item.borderActive,
+                      )
+                    : "border-l-transparent font-medium text-sidebar-foreground/65 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground hover:border-l-sidebar-border",
                 )}
-              />
-              <span className="tracking-[0.015em]">{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* Upgrade nudge — Starter users only */}
-      {!isPro && (
-        <div className="mx-3 mb-3 overflow-hidden rounded-xl border border-white/10 bg-white/[0.06] p-3.5">
-          <div className="mb-1 flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5" style={{ color: "#F0A800" }} />
-            <span className="text-[12px] font-semibold text-sidebar-foreground/85">
-              Unlock Pro
-            </span>
-          </div>
-          <p className="mb-3 text-[11px] leading-relaxed text-sidebar-foreground/45">
-            Runway score, tax planning, AI advisor &amp; more. Pays for itself.
-          </p>
-          <Link
-            href="/pricing"
-            className="block rounded-md px-3 py-1.5 text-center text-[11.5px] font-semibold transition-opacity hover:opacity-90"
-            style={{
-              background: "linear-gradient(135deg, #F0A800 0%, #D97706 100%)",
-              color: "#15110A",
-            }}
-          >
-            Unlock Everything →
-          </Link>
+              >
+                <item.icon
+                  className={cn(
+                    "h-[17px] w-[17px] shrink-0 transition-colors duration-150",
+                    isActive ? item.iconActive : item.iconInactive,
+                  )}
+                />
+                <span className="tracking-[0.015em]">{item.label}</span>
+              </Link>
+            );
+          })}
         </div>
-      )}
+
+        {/* Upgrade nudge — inside the scroll area so it never covers nav items */}
+        {!isPro && (
+          <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-white/[0.06] p-3.5">
+            <div className="mb-1 flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" style={{ color: "#F0A800" }} />
+              <span className="text-[12px] font-semibold text-sidebar-foreground/85">
+                Unlock Pro
+              </span>
+            </div>
+            <p className="mb-3 text-[11px] leading-relaxed text-sidebar-foreground/45">
+              Runway score, tax planning, AI advisor &amp; more. Pays for itself.
+            </p>
+            <Link
+              href="/pricing"
+              className="block rounded-md px-3 py-1.5 text-center text-[11.5px] font-semibold transition-opacity hover:opacity-90"
+              style={{
+                background: "linear-gradient(135deg, #F0A800 0%, #D97706 100%)",
+                color: "#15110A",
+              }}
+            >
+              Unlock Everything →
+            </Link>
+          </div>
+        )}
+      </nav>
 
       {/* Bottom separator */}
       <div className="mx-4 h-px bg-gradient-to-r from-transparent via-sidebar-border/70 to-transparent" />
-
-      {/* Profile link — always visible above sign-out */}
-      <div className="px-2 pt-1">
-        <Link
-          href="/profile"
-          className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] transition-all duration-150 border-l-[3px]",
-            pathname === "/profile"
-              ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-sm border-l-pink-400"
-              : "border-l-transparent font-medium text-sidebar-foreground/65 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground hover:border-l-sidebar-border",
-          )}
-        >
-          <CircleUser
-            className={cn(
-              "h-[17px] w-[17px] shrink-0 transition-colors duration-150",
-              pathname === "/profile" ? "text-pink-300" : "text-pink-400/60",
-            )}
-          />
-          <span className="tracking-[0.015em]">Profile</span>
-        </Link>
-      </div>
 
       {/* Dark mode toggle */}
       <div className="px-3 pb-1">
