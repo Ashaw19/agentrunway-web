@@ -253,7 +253,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
 
     try {
       const res  = await fetch("/api/receipts/create-token", { method: "POST" });
-      const data = await safeJson<{ ok: boolean; tokenId?: string; token?: string; error?: string }>(res);
+      const data = await safeJson<{ ok: boolean; tokenId?: string; token?: string; phoneOrigin?: string; error?: string }>(res);
 
       if (!data) {
         throw new Error(`Server error (${res.status}) — check server logs`);
@@ -263,7 +263,10 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
         throw new Error(data.error ?? "Failed to create upload link");
       }
 
-      const phoneUrl = `${window.location.origin}/receipt-upload/${data.token}`;
+      // Use phoneOrigin from server: LAN IP on localhost so the phone can
+      // reach it over Wi-Fi; real domain in production.
+      const baseUrl  = data.phoneOrigin ?? window.location.origin;
+      const phoneUrl = `${baseUrl}/receipt-upload/${data.token}`;
       setQrUrl(phoneUrl);
       setTokenId(data.tokenId);
       setCountdown(Math.floor(TOKEN_TTL_MS / 1000));

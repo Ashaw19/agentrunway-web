@@ -4,11 +4,51 @@
  * Creates a one-time upload token for the desktop → phone QR handoff mode.
  * - Requires an authenticated session.
  * - Token is a 64-char hex string, valid for 5 minutes, single-use.
- * - Returns { ok: true, tokenId, token, expiresAt } or { ok: false, error }.
+ * - Returns { ok: true, tokenId, token, expiresAt, phoneOrigin } or { ok: false, error }.
+ *
+ * phoneOrigin: when the request comes from localhost, we return the machine's
+ * LAN IP so the QR code encodes a URL the phone can actually reach.
+ * On a real deployment (Vercel etc.) we just echo back the request origin.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
+import os                            from "os";
+
+/**
+ * Returns the first non-internal IPv4 address on this machine, or null.
+ * Used so the QR code URL points to an address reachable by the phone.
+ */
+function getLocalNetworkIP(): string | null {
+  for (const iface of Object.values(os.networkInterfaces())) {
+    if (!iface) continue;
+    for (const addr of iface) {
+      if (addr.family === "IPv4" && !addr.internal) return addr.address;
+    }
+  }
+  return null;
+}
+
+/**
+ * Build the base URL the phone should use to open the receipt-upload page.
+ * - localhost → swap in the LAN IP so phones on the same Wi-Fi can reach it.
+ * - Any other host (production domain) → use as-is.
+ */
+function resolvePhoneOrigin(req: NextRequest): string {
+  const host  = req.headers.get("host") ?? "localhost:3000";
+  const proto = req.headers.get("x-forwarded-proto") ?? "http";
+
+  const isLocal =
+    host.startsWith("localhost") || host.startsWith("127.0.0.1");
+
+  if (isLocal) {
+    const ip   = getLocalNetworkIP();
+    const port = host.includes(":") ? host.split(":")[1] : "3000";
+    return ip ? `http://${ip}:${port}` : `${proto}://${host}`;
+  }
+
+  return `${proto}://${host}`;
+}
 
 /** Generate a 64-character hex token using two UUIDs */
 function generateToken(): string {
@@ -18,9 +58,13 @@ function generateToken(): string {
 }
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
 ): Promise<NextResponse> {
   try {
+    // ── 0. Resolve the origin the phone should use ─────────────────────────
+    const phoneOrigin = resolvePhoneOrigin(req);
+    console.log("[create-token] phoneOrigin →", phoneOrigin);
+
     // ── 1. Authenticate ────────────────────────────────────────────────────
     console.log("[create-token] 1: getting SSR client");
     const supabase = await createClient();
@@ -68,10 +112,11 @@ export async function POST(
     console.log("[create-token] 6: row created ok →", (data as Record<string, unknown>).id);
 
     return NextResponse.json({
-      ok:        true,
-      tokenId:   (data as Record<string, unknown>).id,
-      token:     (data as Record<string, unknown>).token,
-      expiresAt: (data as Record<string, unknown>).expires_at,
+      ok:          true,
+      tokenId:     (data as Record<string, unknown>).id,
+      token:       (data as Record<string, unknown>).token,
+      expiresAt:   (data as Record<string, unknown>).expires_at,
+      phoneOrigin, // LAN IP on localhost, real domain in production
     });
 
   } catch (err) {
