@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, TrendingUp } from "lucide-react";
+import { ArrowRight, TrendingUp, Building2, CreditCard, Receipt, Wrench, Landmark } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 
@@ -20,12 +20,11 @@ export const metadata: Metadata = {
 export default function NetIncomeMetricPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
-
       <MarketingNav />
-
       <main>
 
-        <section className="bg-slate-950 px-6 py-20 text-center sm:px-10 sm:py-24">
+        {/* Hero */}
+        <section className="bg-slate-950 px-6 py-16 text-center sm:px-10 sm:py-20">
           <div className="mx-auto max-w-3xl">
             <Link
               href="/real-estate-metrics"
@@ -43,105 +42,260 @@ export default function NetIncomeMetricPage() {
               What actually lands in your pocket after every deduction — the
               number that GCI alone will never tell you.
             </p>
+
+            {/* Key stat pills */}
+            <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+              {[
+                { value: "~37%", label: "of GCI after all deductions (typical Ontario agent)" },
+                { value: "5 layers", label: "of deductions between GCI and take-home" },
+                { value: "$0", label: "tax owed on money you don't realise you earned" },
+              ].map((s) => (
+                <div
+                  key={s.label}
+                  className="w-full rounded-2xl border border-slate-700 bg-slate-800/50 px-6 py-4 text-center sm:w-auto sm:min-w-[160px]"
+                >
+                  <div className="text-xl font-bold text-white">{s.value}</div>
+                  <div className="mt-1 text-xs text-slate-400">{s.label}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
+        {/* Content */}
         <section className="bg-white px-6 py-16 sm:px-10">
-          <div className="mx-auto max-w-3xl">
-            <article className="prose prose-slate max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-h2:text-2xl prose-h2:text-slate-900 prose-h3:text-lg prose-h3:text-slate-800 prose-p:leading-relaxed prose-p:text-slate-600 prose-li:text-slate-600 prose-strong:text-slate-800">
+          <div className="mx-auto max-w-3xl space-y-14">
 
-              <h2>What is net income for a real estate agent?</h2>
-              <p>
-                Net income is the amount of money remaining after all business-related
-                deductions have been applied to your gross commission income. It
-                represents your true business profit before personal income tax.
+            {/* 1. What is net income */}
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900">What is net income for a real estate agent?</h2>
+              <p className="mt-4 leading-relaxed text-slate-600">
+                Net income is the amount remaining after all business-related deductions have been
+                applied to your gross commission income. It represents your true business profit
+                before personal income tax.
               </p>
-              <p>
+              <p className="mt-3 leading-relaxed text-slate-600">
                 Many agents focus on{" "}
-                <Link href="/metrics/gci">GCI</Link> as the headline number —
-                but GCI tells only part of the story. A $180,000 GCI year and a
-                $120,000 GCI year can result in very similar net income if the first
-                agent runs a significantly higher cost structure. Net income is the
-                only number that accurately reflects the financial outcome of a year
-                of work.
+                <Link href="/metrics/gci" className="text-blue-600 underline underline-offset-2">
+                  GCI
+                </Link>{" "}
+                as the headline number — but a $180,000 GCI year and a $120,000 GCI year can
+                result in very similar net income if the first agent runs a significantly higher
+                cost structure. Net income is the only number that accurately reflects the
+                financial outcome of a year of work.
               </p>
 
-              <h2>How to calculate net income</h2>
-              <p>
-                Net income for a real estate agent is calculated by working down
-                through each layer of deduction:
-              </p>
-              <p>
-                <strong>GCI</strong><br />
-                − Brokerage commission split<br />
-                − Per-transaction fees<br />
-                − Monthly desk or franchise fees (annualised)<br />
-                − Business expenses (marketing, MLS, E&O, technology, vehicle, etc.)<br />
-                <strong>= Pre-tax net income</strong>
-              </p>
-              <p>
-                Pre-tax net income is then subject to federal and provincial income
-                tax, CPP (or QPP in Quebec), and any other personal tax obligations.
-                After these, you arrive at after-tax net income — what you actually
-                deposit into your personal accounts.
+              {/* GCI vs Net comparison */}
+              <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
+                <div className="grid grid-cols-2 divide-x divide-slate-200">
+                  <div className="bg-slate-50 px-5 py-4 text-center">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Agent A — GCI</div>
+                    <div className="mt-2 text-2xl font-bold text-slate-900">$180,000</div>
+                    <div className="mt-1 text-xs text-slate-400">High expense structure</div>
+                  </div>
+                  <div className="bg-slate-50 px-5 py-4 text-center">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Agent B — GCI</div>
+                    <div className="mt-2 text-2xl font-bold text-slate-900">$120,000</div>
+                    <div className="mt-1 text-xs text-slate-400">Lean expense structure</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 divide-x divide-slate-200 border-t border-slate-200">
+                  <div className="bg-white px-5 py-4 text-center">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-amber-600">Net Income</div>
+                    <div className="mt-2 text-xl font-bold text-amber-700">$68,000</div>
+                    <div className="mt-1 text-xs text-slate-400">After 38% net cost ratio</div>
+                  </div>
+                  <div className="bg-white px-5 py-4 text-center">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-emerald-600">Net Income</div>
+                    <div className="mt-2 text-xl font-bold text-emerald-700">$72,000</div>
+                    <div className="mt-1 text-xs text-slate-400">After 40% net cost ratio</div>
+                  </div>
+                </div>
+                <div className="border-t border-slate-200 bg-blue-50 px-5 py-3 text-center">
+                  <p className="text-xs text-blue-800">
+                    <strong>Agent B earns more net income despite $60,000 less GCI.</strong>{" "}
+                    GCI alone is misleading.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. How to calculate net income — step-by-step waterfall */}
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900">How to calculate net income — step by step</h2>
+              <p className="mt-4 leading-relaxed text-slate-600">
+                Net income is calculated by working down through each layer of deduction from GCI.
+                Here is the full waterfall for an Ontario agent earning $210,000 GCI:
               </p>
 
-              <h3>Example</h3>
-              <p>
-                An Ontario agent earns $210,000 GCI. After a 20% brokerage split
-                ($42,000), $4,200 in transaction fees, $3,600 in desk fees, and
-                $48,000 in business expenses, their pre-tax net income is $112,200.
-                After approximately $34,000 in income tax and CPP, their after-tax
-                net is roughly $78,200 — about 37% of the original GCI figure.
+              {/* Waterfall */}
+              <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
+                <div className="flex items-center justify-between bg-emerald-50 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-emerald-200" />
+                    <span className="font-semibold text-slate-900">Gross Commission Income</span>
+                  </div>
+                  <span className="font-bold text-emerald-700">$210,000</span>
+                </div>
+                {[
+                  { icon: Building2, label: "Brokerage split (20%)", amount: "−$42,000", sub: "paid to brokerage" },
+                  { icon: CreditCard, label: "Per-transaction fees", amount: "−$4,200", sub: "~$233/deal × 18 deals" },
+                  { icon: Receipt, label: "Monthly desk fees", amount: "−$3,600", sub: "$300/mo × 12 months" },
+                  { icon: Wrench, label: "Business expenses", amount: "−$48,000", sub: "marketing, MLS, E&O, tech, vehicle" },
+                ].map(({ icon: Icon, label, amount, sub }) => (
+                  <div
+                    key={label}
+                    className="flex items-center justify-between border-t border-slate-100 bg-white px-5 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className="h-4 w-4 shrink-0 text-slate-400" />
+                      <div>
+                        <div className="text-sm text-slate-700">{label}</div>
+                        <div className="text-xs text-slate-400">{sub}</div>
+                      </div>
+                    </div>
+                    <span className="text-sm font-medium text-red-600">{amount}</span>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between border-t-2 border-blue-200 bg-blue-50 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-3 w-3 rounded-full bg-blue-500 ring-2 ring-blue-200" />
+                    <span className="font-semibold text-slate-900">Pre-Tax Net Income</span>
+                  </div>
+                  <span className="font-bold text-blue-700">$112,200</span>
+                </div>
+                <div className="flex items-center justify-between border-t border-slate-200 bg-white px-5 py-3">
+                  <div className="flex items-center gap-3">
+                    <Landmark className="h-4 w-4 shrink-0 text-slate-400" />
+                    <div>
+                      <div className="text-sm text-slate-700">Federal + provincial tax + CPP</div>
+                      <div className="text-xs text-slate-400">Ontario rates, 2025</div>
+                    </div>
+                  </div>
+                  <span className="text-sm font-medium text-red-600">−$34,000</span>
+                </div>
+                <div className="flex items-center justify-between border-t-2 border-emerald-200 bg-emerald-50 px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-3 w-3 rounded-full bg-emerald-500 ring-2 ring-emerald-200" />
+                    <span className="font-semibold text-slate-900">After-Tax Net Income</span>
+                  </div>
+                  <span className="font-bold text-emerald-700">~$78,200</span>
+                </div>
+                <div className="border-t border-slate-200 bg-slate-50 px-5 py-2 text-center">
+                  <span className="text-xs text-slate-500">37% of original GCI — the true bottom line.</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Why net income matters more */}
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900">Why net income matters more than GCI</h2>
+              <p className="mt-4 leading-relaxed text-slate-600">
+                GCI is useful for comparing production across agents and markets. But for personal
+                financial planning — saving for retirement, building an emergency fund, investing
+                in the business — only net income is actionable.
+              </p>
+              <p className="mt-3 leading-relaxed text-slate-600">
+                Tracking pre-tax net income throughout the year also enables accurate tax planning.
+                Rather than discovering a large tax obligation at filing time, agents who monitor
+                net income can calculate their quarterly instalment obligations and set aside the
+                right amount from each commission cheque.
               </p>
 
-              <h2>Why net income matters more than GCI</h2>
-              <p>
-                GCI is useful for comparing production across agents and markets.
-                But for personal financial planning — saving for retirement,
-                building an emergency fund, investing in the business — only net
-                income is actionable. Setting financial goals based on GCI alone
-                routinely leads agents to overestimate their available cash.
-              </p>
-              <p>
-                Tracking pre-tax net income throughout the year also enables
-                accurate tax planning. Rather than discovering a large tax
-                obligation at filing time, agents who monitor net income can
-                calculate their quarterly instalment obligations and set aside
-                the right amount from each commission cheque.
-              </p>
+              {/* Key insight */}
+              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                <div className="flex items-start gap-3">
+                  <span className="text-lg leading-none">💡</span>
+                  <p className="text-sm leading-relaxed text-amber-900">
+                    <strong>Key insight:</strong> Setting financial goals based on GCI alone
+                    routinely leads agents to overestimate their available cash. Always plan
+                    from net — not gross.
+                  </p>
+                </div>
+              </div>
+            </div>
 
-              <h2>The difference between net income and financial runway</h2>
-              <p>
-                Net income is a backward-looking measure of what you earned.{" "}
-                <Link href="/metrics/financial-runway">Financial runway</Link> is
-                a forward-looking measure of how long you can sustain your business
-                without new income. Both are essential, and they answer different
-                questions: net income tells you how the year went; runway tells
-                you how vulnerable you are to a slow stretch.
+            {/* 4. Net income vs financial runway */}
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900">Net income vs. financial runway</h2>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-5">
+                  <div className="text-sm font-semibold text-blue-800">Net Income</div>
+                  <p className="mt-2 text-sm text-blue-700 leading-relaxed">
+                    A <strong>backward-looking</strong> measure of what you earned after costs
+                    and tax this period.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-purple-200 bg-purple-50 p-5">
+                  <div className="text-sm font-semibold text-purple-800">
+                    <Link href="/metrics/financial-runway" className="hover:underline underline-offset-2">
+                      Financial Runway →
+                    </Link>
+                  </div>
+                  <p className="mt-2 text-sm text-purple-700 leading-relaxed">
+                    A <strong>forward-looking</strong> measure of how long you can sustain the
+                    business without new income.
+                  </p>
+                </div>
+              </div>
+              <p className="mt-4 text-sm leading-relaxed text-slate-500">
+                Both are essential. Net income tells you how the year went. Runway tells you how
+                vulnerable you are to a slow stretch ahead.
               </p>
+            </div>
 
-            </article>
+            {/* Related metrics */}
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900">Related metrics</h2>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {[
+                  { href: "/metrics/gci", label: "GCI", desc: "Your gross commission income — before deductions" },
+                  { href: "/metrics/expense-ratio", label: "Expense Ratio", desc: "Expenses as a % of GCI" },
+                  { href: "/metrics/financial-runway", label: "Financial Runway", desc: "Months of coverage at current burn rate" },
+                  { href: "/metrics/average-commission", label: "Average Commission", desc: "GCI divided by closed deal count" },
+                ].map((m) => (
+                  <Link
+                    key={m.href}
+                    href={m.href}
+                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm transition-colors hover:border-blue-300 hover:bg-blue-50"
+                  >
+                    <div>
+                      <div className="font-medium text-slate-900">{m.label}</div>
+                      <div className="text-xs text-slate-500">{m.desc}</div>
+                    </div>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+
           </div>
         </section>
 
+        {/* Agent Runway callout */}
         <section className="bg-slate-50 px-6 py-16 sm:px-10">
-          <div className="mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white p-8 sm:p-10">
-            <h2 className="text-xl font-bold text-slate-900">
-              How Agent Runway calculates net income
-            </h2>
-            <p className="mt-3 text-sm leading-relaxed text-slate-600">
-              Agent Runway shows your net agent income alongside GCI at every
-              level — per deal, month-to-date, and year-to-date. Your brokerage
-              split percentage, transaction fee rate, and monthly desk fee are
-              configured once during onboarding and applied automatically to every
-              transaction. The platform also calculates your estimated tax
-              obligation using current federal and provincial rates for all
-              13 Canadian provinces and territories.
-            </p>
+          <div className="mx-auto max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="bg-blue-600 px-8 py-5 sm:px-10">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/20">
+                  <TrendingUp className="h-5 w-5 text-white" />
+                </div>
+                <h2 className="text-lg font-bold text-white">How Agent Runway calculates net income</h2>
+              </div>
+            </div>
+            <div className="px-8 py-6 sm:px-10">
+              <p className="text-sm leading-relaxed text-slate-600">
+                Agent Runway shows your net agent income alongside GCI at every level — per deal,
+                month-to-date, and year-to-date. Your brokerage split percentage, transaction fee
+                rate, and monthly desk fee are configured once and applied automatically to every
+                transaction. The platform also calculates your estimated tax obligation using
+                current federal and provincial rates for all 13 Canadian provinces and territories.
+              </p>
+            </div>
           </div>
         </section>
 
+        {/* CTA */}
         <section className="bg-slate-950 px-6 py-20 text-center sm:px-10">
           <div className="mx-auto max-w-2xl">
             <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
@@ -170,7 +324,6 @@ export default function NetIncomeMetricPage() {
         </section>
 
       </main>
-
       <MarketingFooter />
     </div>
   );
