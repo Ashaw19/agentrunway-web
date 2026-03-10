@@ -10,8 +10,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 
-const IS_DEV = process.env.NODE_ENV === "development";
-
 /** Generate a 64-character hex token using two UUIDs */
 function generateToken(): string {
   return [crypto.randomUUID(), crypto.randomUUID()]
@@ -38,7 +36,15 @@ export async function POST(
 
     // ── 2. Create token row via admin client (bypasses RLS) ────────────────
     console.log("[create-token] 4: creating admin client");
-    const admin = createAdminClient();
+    let admin;
+    try {
+      admin = createAdminClient();
+    } catch (adminErr) {
+      const msg = adminErr instanceof Error ? adminErr.message : String(adminErr);
+      console.error("[create-token] createAdminClient failed:", msg);
+      return NextResponse.json({ ok: false, error: `Admin client error: ${msg}` }, { status: 500 });
+    }
+
     const token = generateToken();
 
     console.log("[create-token] 5: inserting token row");
@@ -52,9 +58,10 @@ export async function POST(
       .single();
 
     if (error || !data) {
-      console.error("[create-token] insert failed:", error?.message, error?.details);
+      const msg = error?.message ?? "no data returned";
+      console.error("[create-token] insert failed:", msg, error?.details, error?.hint);
       return NextResponse.json(
-        { ok: false, error: IS_DEV ? `DB error: ${error?.message ?? "no data returned"}` : "Failed to create upload token" },
+        { ok: false, error: `DB insert failed: ${msg}` },
         { status: 500 },
       );
     }
@@ -70,9 +77,8 @@ export async function POST(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[create-token] unhandled exception:", msg);
-    // Expose real error in dev so it shows in the dialog — helps diagnose
     return NextResponse.json(
-      { ok: false, error: IS_DEV ? msg : "Internal server error" },
+      { ok: false, error: `Unexpected error: ${msg}` },
       { status: 500 },
     );
   }
