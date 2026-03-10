@@ -122,6 +122,18 @@ function qrCodeUrl(text: string, size = 240): string {
   return `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(text)}&size=${size}x${size}&margin=8&format=png`;
 }
 
+/**
+ * Parse a fetch Response body as JSON safely.
+ * Returns null (instead of throwing) if the body is empty or not valid JSON.
+ * Prevents "Unexpected end of JSON input" crashes when the server returns
+ * an empty 500 body due to an unhandled exception.
+ */
+async function safeJson<T>(res: Response): Promise<T | null> {
+  const text = await res.text();
+  if (!text.trim()) return null;
+  try { return JSON.parse(text) as T; } catch { return null; }
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
@@ -241,7 +253,11 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
 
     try {
       const res  = await fetch("/api/receipts/create-token", { method: "POST" });
-      const data = await res.json() as { ok: boolean; tokenId?: string; token?: string; error?: string };
+      const data = await safeJson<{ ok: boolean; tokenId?: string; token?: string; error?: string }>(res);
+
+      if (!data) {
+        throw new Error(`Server error (${res.status}) — check server logs`);
+      }
 
       if (!data.ok || !data.tokenId || !data.token) {
         throw new Error(data.error ?? "Failed to create upload link");
@@ -270,15 +286,15 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
       pollTimerRef.current = setInterval(async () => {
         try {
           const pollRes  = await fetch(`/api/receipts/token-status/${data.tokenId}`);
-          const pollData = await pollRes.json() as {
+          const pollData = await safeJson<{
             ok: boolean;
             status: string;
             receiptPath?: string;
             extraction?: OcrExtraction;
             errorMessage?: string;
-          };
+          }>(pollRes);
 
-          if (!pollData.ok) return; // network hiccup — keep polling
+          if (!pollData || !pollData.ok) return; // network hiccup — keep polling
 
           if (pollData.status === "complete" && pollData.receiptPath && pollData.extraction) {
             stopPolling();

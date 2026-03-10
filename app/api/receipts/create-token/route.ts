@@ -20,39 +20,49 @@ function generateToken(): string {
 export async function POST(
   _req: NextRequest,
 ): Promise<NextResponse> {
-  // ── 1. Authenticate ──────────────────────────────────────────────────────
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  try {
+    // ── 1. Authenticate ────────────────────────────────────────────────────
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-  if (authError || !user) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-  }
+    if (authError || !user) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
 
-  // ── 2. Create token row (admin client to bypass RLS INSERT check edge-cases)
-  const admin = createAdminClient();
-  const token = generateToken();
+    // ── 2. Create token row via admin client (bypasses RLS) ────────────────
+    const admin = createAdminClient();
+    const token = generateToken();
 
-  const { data, error } = await admin
-    .from("receipt_upload_tokens")
-    .insert({
-      user_id: user.id,
-      token,
-    })
-    .select("id, token, expires_at")
-    .single();
+    const { data, error } = await admin
+      .from("receipt_upload_tokens")
+      .insert({
+        user_id: user.id,
+        token,
+      })
+      .select("id, token, expires_at")
+      .single();
 
-  if (error || !data) {
-    console.error("[create-token] Insert failed:", error?.message);
+    if (error || !data) {
+      console.error("[create-token] Insert failed:", error?.message);
+      return NextResponse.json(
+        { ok: false, error: "Failed to create upload token" },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({
+      ok:        true,
+      tokenId:   (data as Record<string, unknown>).id,
+      token:     (data as Record<string, unknown>).token,
+      expiresAt: (data as Record<string, unknown>).expires_at,
+    });
+
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("[create-token] Unhandled error:", msg);
     return NextResponse.json(
-      { ok: false, error: "Failed to create upload token" },
+      { ok: false, error: "Internal server error" },
       { status: 500 },
     );
   }
-
-  return NextResponse.json({
-    ok:        true,
-    tokenId:   data.id,
-    token:     data.token,
-    expiresAt: data.expires_at,
-  });
 }
