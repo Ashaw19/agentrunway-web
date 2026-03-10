@@ -17,18 +17,34 @@ Required JSON structure:
   "tax_amount":         <GST/HST/QST/PST combined tax as a plain number, or null>,
   "subtotal":           <pre-tax subtotal as a plain number, or null>,
   "currency":           "<3-letter ISO code — default CAD for Canadian receipts>",
-  "suggested_category": "<one of: vehicle, marketing, office_tech, professional, education, meals, entertainment, other — or null if uncertain>",
+  "suggested_category": "<one of the keys listed below — or null if uncertain>",
   "confidence":         <your extraction confidence 0.0–1.0>
 }
 
-Category guide:
-- vehicle:       Gas stations (Shell, Esso, Petro-Canada, Irving), parking, car wash, auto parts, oil change
-- marketing:     Facebook/Instagram/Google Ads, print shops, photography, signage, Vistaprint
-- office_tech:   Staples, Best Buy, software subscriptions, phone/internet bills, hardware
-- professional:  Board dues, MLS fees, licensing, E&O insurance, accounting, legal
-- education:     Courses, conferences, coaching, books, seminars
-- meals:         Restaurants, coffee shops (Starbucks, Tim Hortons), food delivery
-- entertainment: Event tickets, concerts, sporting events, golf
+Category keys (pick the most specific match):
+- vehicle_fuel:     Gas stations (Shell, Esso, Petro-Canada, Circle K, Irving, Husky), fuel, car wash
+- vehicle_service:  Oil change, tire shop, auto repair, parking, Midas, Mr Lube, Canadian Tire service
+- vehicle_insurance: Car insurance premiums
+- vehicle_payment:  Car loan or lease payments
+- marketing_ads:    Facebook/Instagram/Google/LinkedIn Ads, Mailchimp, photography, signage
+- marketing_print:  Print shops, Vistaprint, Minuteman Press, flyers, signs
+- marketing_gifts:  Client gifts, gift cards
+- office_supplies:  Staples, paper, toner, office supplies, Walmart, Amazon (non-device)
+- office_software:  Adobe, Microsoft 365, Slack, Zoom, Canva, app/software subscriptions
+- office_phone:     Phone bills, internet service bills
+- office_hardware:  Best Buy, computers, monitors, tablets, phones, devices
+- prof_board_mls:   Board dues, MLS fees, CREA, OREA, TRREB, real estate board
+- prof_licensing:   License renewal, real estate council fees
+- prof_eo:          E&O insurance, errors & omissions insurance
+- prof_accounting:  Accounting, bookkeeping, CPA, legal fees, notary
+- edu_courses:      Udemy, courses, coaching, masterminds, workshops, webinars
+- edu_conferences:  Conferences, summits, conventions
+- edu_books:        Books, Chapters, Indigo, Kobo, Audible
+- meals_client:     Restaurants, coffee shops (Starbucks, Tim Hortons), food delivery, client meals
+- meals_team:       Team lunch or dinner
+- ent_client:       Client entertainment, golf, spa
+- ent_events:       Event tickets, concerts, sports events, Ticketmaster
+- other_misc:       Anything that doesn't fit the above
 
 Rules:
 - Amounts must be plain numbers (e.g. 25.99, not "$25.99")

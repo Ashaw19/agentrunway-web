@@ -21,7 +21,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { toast }                                     from "sonner";
 import { createClient }                              from "@/lib/supabase/client";
 import { normalizeExtraction }                       from "@/lib/receipts/normalize";
-import { RECEIPT_CATEGORIES }                        from "@/lib/types/receipt";
+import { RECEIPT_CATEGORY_GROUPS }                   from "@/lib/types/receipt";
 import type { OcrExtraction, ReceiptDraft, ProcessReceiptResponse, ProcessReceiptError } from "@/lib/types/receipt";
 
 import {
@@ -37,7 +37,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -377,6 +379,25 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
       return;
     }
 
+    // ── Increment the matching expense_item's ytd_amount ───────────────────
+    // category_key matches expense_items.key (e.g. "vehicle_fuel" → Fuel row).
+    // Silently skip if no match — the receipt is still saved.
+    if (draft.category_key && totalAmt && !isNaN(totalAmt)) {
+      const { data: expItem } = await supabase
+        .from("expense_items")
+        .select("id, ytd_amount")
+        .eq("user_id", user.id)
+        .eq("key", draft.category_key)
+        .maybeSingle();
+
+      if (expItem) {
+        await supabase
+          .from("expense_items")
+          .update({ ytd_amount: (expItem.ytd_amount ?? 0) + totalAmt })
+          .eq("id", expItem.id);
+      }
+    }
+
     setState("done");
     toast.success("Receipt saved!");
     onSaved?.();
@@ -698,10 +719,17 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
                       <SelectValue placeholder="Select…" />
                     </SelectTrigger>
                     <SelectContent>
-                      {RECEIPT_CATEGORIES.map((cat) => (
-                        <SelectItem key={cat.key} value={cat.key}>
-                          {cat.label}
-                        </SelectItem>
+                      {RECEIPT_CATEGORY_GROUPS.map((group) => (
+                        <SelectGroup key={group.group}>
+                          <SelectLabel className="text-xs font-semibold text-muted-foreground">
+                            {group.group}
+                          </SelectLabel>
+                          {group.items.map((item) => (
+                            <SelectItem key={item.key} value={item.key}>
+                              {item.label}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       ))}
                     </SelectContent>
                   </Select>

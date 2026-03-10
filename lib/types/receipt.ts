@@ -2,17 +2,79 @@
  * Types for the receipt capture feature.
  */
 
-/** Category keys that match expense_categories.key in the DB */
-export const RECEIPT_CATEGORIES = [
-  { key: "vehicle",       label: "Vehicle" },
-  { key: "marketing",     label: "Marketing" },
-  { key: "office_tech",   label: "Office & Tech" },
-  { key: "professional",  label: "Professional Fees" },
-  { key: "education",     label: "Education" },
-  { key: "meals",         label: "Meals" },
-  { key: "entertainment", label: "Entertainment" },
-  { key: "other",         label: "Other" },
+/**
+ * Hierarchical category groups — each item key matches an expense_items.key
+ * in the DB so that saving a receipt can directly increment ytd_amount.
+ */
+export const RECEIPT_CATEGORY_GROUPS = [
+  {
+    group: "Vehicle",
+    items: [
+      { key: "vehicle_fuel",      label: "Fuel / Gas" },
+      { key: "vehicle_service",   label: "Service & Repairs" },
+      { key: "vehicle_insurance", label: "Insurance" },
+      { key: "vehicle_payment",   label: "Vehicle Payment" },
+    ],
+  },
+  {
+    group: "Marketing",
+    items: [
+      { key: "marketing_ads",         label: "Ads (Meta/Google)" },
+      { key: "marketing_photography", label: "Photography & Video" },
+      { key: "marketing_print",       label: "Print (Signs, Flyers)" },
+      { key: "marketing_gifts",       label: "Client Gifts" },
+    ],
+  },
+  {
+    group: "Office & Tech",
+    items: [
+      { key: "office_supplies", label: "Office Supplies" },
+      { key: "office_software", label: "Software Subscriptions" },
+      { key: "office_phone",    label: "Phone & Internet" },
+      { key: "office_hardware", label: "Hardware & Equipment" },
+    ],
+  },
+  {
+    group: "Professional Fees",
+    items: [
+      { key: "prof_board_mls",  label: "Board / MLS Dues" },
+      { key: "prof_licensing",  label: "Licensing & Renewals" },
+      { key: "prof_eo",         label: "E&O Insurance" },
+      { key: "prof_accounting", label: "Accounting & Bookkeeping" },
+    ],
+  },
+  {
+    group: "Education",
+    items: [
+      { key: "edu_courses",     label: "Courses & Coaching" },
+      { key: "edu_conferences", label: "Conferences" },
+      { key: "edu_books",       label: "Books & Materials" },
+    ],
+  },
+  {
+    group: "Meals",
+    items: [
+      { key: "meals_client", label: "Client Meals" },
+      { key: "meals_team",   label: "Team Meals" },
+    ],
+  },
+  {
+    group: "Entertainment",
+    items: [
+      { key: "ent_client", label: "Client Entertainment" },
+      { key: "ent_events", label: "Events & Tickets" },
+    ],
+  },
+  {
+    group: "Other",
+    items: [
+      { key: "other_misc", label: "Miscellaneous" },
+    ],
+  },
 ] as const;
+
+/** Flat list of all sub-categories (for selects, validation, etc.) */
+export const RECEIPT_CATEGORIES = RECEIPT_CATEGORY_GROUPS.flatMap((g) => g.items);
 
 export type CategoryKey = (typeof RECEIPT_CATEGORIES)[number]["key"];
 
