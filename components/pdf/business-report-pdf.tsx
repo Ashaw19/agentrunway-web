@@ -189,6 +189,13 @@ const s = StyleSheet.create({
     borderWidth: 2,
     borderColor: C.navyMid,
   },
+  coverAvatarLarge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 3,
+    borderColor: C.blue,
+  },
   coverMiddle: {
     flex: 1,
     justifyContent: "center",
@@ -262,7 +269,32 @@ const s = StyleSheet.create({
     paddingVertical: 9,
     paddingHorizontal: 40,
   },
-  pageHeaderLeft: {},
+  pageHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  pageHeaderLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  pageHeaderInitials: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: C.navyMid,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: C.blue,
+  },
+  pageHeaderInitialsText: {
+    fontSize: 13,
+    fontFamily: "Helvetica-Bold",
+    color: C.white,
+  },
+  pageHeaderTextBlock: {},
   pageHeaderAgent: {
     fontSize: 9,
     fontFamily: "Helvetica-Bold",
@@ -973,16 +1005,39 @@ function PageHeaderComp({
   agentName,
   brokerage,
   year,
+  logoUrl,
+  avatarUrl,
 }: {
   agentName: string;
   brokerage: string;
   year: number;
+  logoUrl?: string;
+  avatarUrl?: string;
 }) {
+  const initial = (brokerage || agentName || "A").charAt(0).toUpperCase();
+  // Primary display name = business/brokerage name; secondary = agent name
+  const primaryName = brokerage || agentName || "Agent";
+  const secondaryName = brokerage ? agentName : null;
+
   return (
     <View style={s.pageHeader} fixed>
       <View style={s.pageHeaderLeft}>
-        <Text style={s.pageHeaderAgent}>{agentName || "Agent"}</Text>
-        {!!brokerage && <Text style={s.pageHeaderSub}>{brokerage}</Text>}
+        {/* Logo → avatar → initials fallback */}
+        {logoUrl ? (
+          <Image src={logoUrl} style={s.pageHeaderLogo} />
+        ) : avatarUrl ? (
+          <Image src={avatarUrl} style={s.pageHeaderLogo} />
+        ) : (
+          <View style={s.pageHeaderInitials}>
+            <Text style={s.pageHeaderInitialsText}>{initial}</Text>
+          </View>
+        )}
+        <View style={s.pageHeaderTextBlock}>
+          <Text style={s.pageHeaderAgent}>{primaryName}</Text>
+          {!!secondaryName && (
+            <Text style={s.pageHeaderSub}>{secondaryName}</Text>
+          )}
+        </View>
       </View>
       <View style={s.pageHeaderRight}>
         <Text style={s.pageHeaderTitle}>THE RUNWAY BRIEFING</Text>
@@ -1209,15 +1264,12 @@ export function BusinessReportPDF({
     <Page key="cover" size="LETTER" style={s.coverPage}>
       <View style={s.coverInner}>
 
-        {/* Top brand row */}
+        {/* Top brand row — no avatar here */}
         <View style={s.coverTop}>
           <View>
             <Text style={s.coverBrand}>AGENT RUNWAY</Text>
             <Text style={s.coverBrandSub}>agentrunway.ca</Text>
           </View>
-          {!!avatarUrl && (
-            <Image src={avatarUrl} style={s.coverAvatar} />
-          )}
         </View>
 
         {/* Center — title */}
@@ -1228,14 +1280,29 @@ export function BusinessReportPDF({
 
           <View style={s.coverDivider} />
 
-          <Text style={s.coverAgentName}>{agentName || "Your Business"}</Text>
-          {!!headerBrokerage && (
-            <Text style={s.coverAgentSub}>{headerBrokerage}</Text>
-          )}
-          {!!brokerageName && !!businessName && (
-            <Text style={s.coverAgentSub}>{brokerageName}</Text>
-          )}
-          <Text style={s.coverAgentSub}>{provinceLabel}</Text>
+          {/* Agent identity row: avatar on left, name/brokerage on right */}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 18, marginBottom: 6 }}>
+            {!!avatarUrl ? (
+              <Image src={avatarUrl} style={s.coverAvatarLarge} />
+            ) : (
+              <View style={[s.coverAvatarLarge, { backgroundColor: C.navyMid, alignItems: "center", justifyContent: "center" }]}>
+                <Text style={{ fontSize: 30, fontFamily: "Helvetica-Bold", color: C.white }}>
+                  {(agentName || "A").charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <View>
+              <Text style={s.coverAgentName}>{agentName || "Your Business"}</Text>
+              {!!headerBrokerage && (
+                <Text style={s.coverAgentSub}>{headerBrokerage}</Text>
+              )}
+              {!!brokerageName && !!businessName && (
+                <Text style={s.coverAgentSub}>{brokerageName}</Text>
+              )}
+              <Text style={s.coverAgentSub}>{provinceLabel}</Text>
+            </View>
+          </View>
+
           <Text style={s.coverMeta}>Generated on {generatedDate}</Text>
         </View>
 
@@ -1255,7 +1322,7 @@ export function BusinessReportPDF({
 
   const execSummaryPage = (
     <Page key="exec" size="LETTER" style={s.contentPage}>
-      <PageHeaderComp agentName={agentName} brokerage={headerBrokerage} year={year} />
+      <PageHeaderComp agentName={agentName} brokerage={headerBrokerage} year={year} logoUrl={logoUrl} avatarUrl={avatarUrl} />
       <View style={s.content}>
 
         {/* Section: YTD Snapshot */}
@@ -1425,7 +1492,7 @@ export function BusinessReportPDF({
 
   const incomePage = (
     <Page key="income" size="LETTER" style={s.contentPage}>
-      <PageHeaderComp agentName={agentName} brokerage={headerBrokerage} year={year} />
+      <PageHeaderComp agentName={agentName} brokerage={headerBrokerage} year={year} logoUrl={logoUrl} avatarUrl={avatarUrl} />
       <View style={s.content}>
 
         {/* Monthly GCI Bar Chart */}
@@ -1548,7 +1615,7 @@ export function BusinessReportPDF({
 
   const expensePage = (
     <Page key="expenses" size="LETTER" style={s.contentPage}>
-      <PageHeaderComp agentName={agentName} brokerage={headerBrokerage} year={year} />
+      <PageHeaderComp agentName={agentName} brokerage={headerBrokerage} year={year} logoUrl={logoUrl} avatarUrl={avatarUrl} />
       <View style={s.content}>
 
         <Text style={[s.sectionTitle, s.sectionTitleFirst]}>Expense Analysis — YTD {year}</Text>
@@ -1688,7 +1755,7 @@ export function BusinessReportPDF({
             Based on your cash reserve of {fmtCurrency(survival.cashReserve)} and a monthly burn
             rate of {fmtCurrency(survival.monthlyBurn)}.
             {survival.riskLevel === "critical"
-              ? " ⚠️ Immediate action required — build at minimum 2 months of reserves."
+              ? " Immediate action required — build at minimum 2 months of reserves."
               : survival.riskLevel === "warning"
               ? " Consider increasing your reserve to 4+ months for professional security."
               : " You are within the recommended 4–6+ month safety buffer."}
@@ -1704,7 +1771,7 @@ export function BusinessReportPDF({
 
   const txPage = transactions.length > 0 ? (
     <Page key="transactions" size="LETTER" style={s.contentPage}>
-      <PageHeaderComp agentName={agentName} brokerage={headerBrokerage} year={year} />
+      <PageHeaderComp agentName={agentName} brokerage={headerBrokerage} year={year} logoUrl={logoUrl} avatarUrl={avatarUrl} />
       <View style={s.content}>
 
         <Text style={[s.sectionTitle, s.sectionTitleFirst]}>
@@ -1764,7 +1831,7 @@ export function BusinessReportPDF({
 
   const healthPage = (
     <Page key="health" size="LETTER" style={s.contentPage}>
-      <PageHeaderComp agentName={agentName} brokerage={headerBrokerage} year={year} />
+      <PageHeaderComp agentName={agentName} brokerage={headerBrokerage} year={year} logoUrl={logoUrl} avatarUrl={avatarUrl} />
       <View style={s.content}>
 
         <Text style={[s.sectionTitle, s.sectionTitleFirst]}>Business Health Assessment</Text>
@@ -1834,7 +1901,7 @@ export function BusinessReportPDF({
                   <Text style={s.advisorAction}>{card.action}</Text>
                   {card.evidence.length > 0 && (
                     <Text style={s.advisorImpactNote}>
-                      📊 {card.evidence[0]}
+                      {"> "}{card.evidence[0]}
                     </Text>
                   )}
                 </View>
