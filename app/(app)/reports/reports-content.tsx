@@ -20,7 +20,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FileDown, Loader2, Lock, History } from "lucide-react";
+import {
+  FileDown,
+  Loader2,
+  Lock,
+  History,
+  TrendingUp,
+  TrendingDown,
+  Target,
+  Zap,
+  BarChart2,
+  DollarSign,
+  Layers,
+  CheckCircle,
+  AlertTriangle,
+} from "lucide-react";
 import Link from "next/link";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
@@ -38,14 +52,29 @@ import {
 } from "@/lib/types/database";
 import { ProductionReportDialog } from "@/components/production-report-dialog";
 import { YearOverYearChart, type YoYDataPoint } from "@/components/year-over-year-chart";
+import { ProbabilityChart, type ProbabilityDataPoint } from "@/components/probability-chart";
+import { ExpenseDonut, type DonutDataPoint } from "@/components/expense-donut";
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
   projectedYearEndTransactions,
+  paceVsGoalPercent,
 } from "@/lib/engines/projection-engine";
-import { calculate as calculateTax, gstHstRate, gstHstLabel } from "@/lib/engines/canadian-tax-engine";
+import {
+  calculate as calculateTax,
+  gstHstRate,
+  gstHstLabel,
+} from "@/lib/engines/canadian-tax-engine";
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
+import {
+  compute as computeRunwayScore,
+  type BusinessHealthReport,
+} from "@/lib/engines/runway-score-engine";
+import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
+import { generateAdvisory, ADVISOR_CATEGORY_LABELS } from "@/lib/engines/advisor-engine";
+
+// ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
   settings: UserSettings | null;
@@ -56,6 +85,147 @@ interface Props {
   historyItems?: HistoryItem[];
   receiptTotalsByKey?: Record<string, number>;
 }
+
+// ── Local helpers (mirrors dashboard-content.tsx) ─────────────────────────────
+
+function buildHealthReport(
+  ytdGCI: number,
+  goalGCI: number,
+  fraction: number,
+  pipelineWeightedGCI: number,
+  expensesYTD: number,
+  projectedGCI: number,
+  settings: UserSettings | null,
+): BusinessHealthReport {
+  let paceScore = 50;
+  if (goalGCI > 0 && fraction > 0) {
+    const expected = goalGCI * fraction;
+    const ratio = ytdGCI / expected;
+    paceScore = Math.min(100, Math.round(ratio * 100));
+  }
+
+  let pipelineScore = 30;
+  const remaining = Math.max(0, goalGCI - ytdGCI);
+  if (remaining > 0 && pipelineWeightedGCI > 0) {
+    pipelineScore = Math.min(100, Math.round((pipelineWeightedGCI / remaining) * 100));
+  } else if (goalGCI > 0 && ytdGCI >= goalGCI) {
+    pipelineScore = 90;
+  }
+
+  let expenseScore = 80;
+  if (ytdGCI > 0) {
+    const ratio = expensesYTD / ytdGCI;
+    if (ratio > 0.5) expenseScore = 30;
+    else if (ratio > 0.35) expenseScore = 55;
+    else if (ratio > 0.25) expenseScore = 75;
+    else expenseScore = 90;
+  }
+
+  let readinessScore = 25;
+  if (settings) {
+    let points = 0;
+    if (settings.goal_gci > 0) points += 30;
+    if (settings.goal_transactions > 0) points += 20;
+    const growthRates = settings.growth_goal_year_pcts as number[] | null;
+    if (growthRates && growthRates.some((r) => r > 0)) points += 25;
+    if (settings.cash_reserve > 0) points += 15;
+    if (settings.experience_years != null) points += 10;
+    readinessScore = points;
+  }
+
+  const components = [paceScore, pipelineScore, expenseScore, readinessScore];
+  const avg = components.reduce((a, b) => a + b, 0) / 4;
+  const weakestIdx = components.indexOf(Math.min(...components));
+  const weakestLabels = ["Pace", "Pipeline", "Expenses", "Setup"];
+
+  return {
+    score: Math.round(avg),
+    grade: avg >= 85 ? "A" : avg >= 75 ? "B" : avg >= 62 ? "C" : avg >= 50 ? "D" : "F",
+    paceScore,
+    pipelineScore,
+    expenseScore,
+    readinessScore,
+    weakestLabel: weakestLabels[weakestIdx],
+    hasEnoughData: ytdGCI > 0,
+  };
+}
+
+function computeProjectedNet(projectedGCI: number, settings: UserSettings | null): number {
+  if (!settings) return projectedGCI;
+  const { agentGross } = computeAgentGross(
+    projectedGCI,
+    settings.split_preset,
+    settings.post_cap_threshold_gci,
+    settings.post_cap_agent_pct,
+    settings.post_cap_brokerage_pct,
+  );
+  const txFees = computeTxFees(
+    projectedGCI,
+    settings.tx_fee_rate_pct,
+    settings.tx_fee_annual_cap,
+  );
+  const brokerageFeeAnnual = settings.monthly_brokerage_fee * 12;
+  return agentGross - txFees - brokerageFeeAnnual;
+}
+
+function gradeStyle(grade: string) {
+  if (grade === "A+") return { ring: "ring-emerald-400", text: "text-white", pill: "bg-emerald-100 text-emerald-800 border-emerald-200", bar: "bg-emerald-500", label: "Exceptional" };
+  if (grade === "A")  return { ring: "ring-emerald-300", text: "text-white", pill: "bg-emerald-100 text-emerald-800 border-emerald-200", bar: "bg-emerald-400", label: "Excellent" };
+  if (grade === "B")  return { ring: "ring-blue-400",    text: "text-white", pill: "bg-blue-100 text-blue-800 border-blue-200",         bar: "bg-blue-500",    label: "Strong" };
+  if (grade === "C")  return { ring: "ring-amber-400",   text: "text-white", pill: "bg-amber-100 text-amber-800 border-amber-200",       bar: "bg-amber-400",   label: "Developing" };
+  if (grade === "D")  return { ring: "ring-orange-400",  text: "text-white", pill: "bg-orange-100 text-orange-800 border-orange-200",    bar: "bg-orange-400",  label: "Needs Work" };
+  return { ring: "ring-red-500", text: "text-white", pill: "bg-red-100 text-red-800 border-red-200", bar: "bg-red-500", label: "Critical" };
+}
+
+function riskStyle(level: string) {
+  if (level === "strong")  return { cardBorder: "border-emerald-200", badgeCls: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500", labelColor: "text-emerald-700", label: "Strong" };
+  if (level === "healthy") return { cardBorder: "border-blue-200",    badgeCls: "bg-blue-100 text-blue-800",       dot: "bg-blue-500",    labelColor: "text-blue-700",   label: "Healthy" };
+  if (level === "warning") return { cardBorder: "border-amber-200",   badgeCls: "bg-amber-100 text-amber-800",     dot: "bg-amber-500",   labelColor: "text-amber-700",  label: "Warning" };
+  return { cardBorder: "border-red-200", badgeCls: "bg-red-100 text-red-800", dot: "bg-red-500", labelColor: "text-red-700", label: "Critical" };
+}
+
+// ── Waterfall row ─────────────────────────────────────────────────────────────
+
+function WaterfallRow({
+  label,
+  sublabel,
+  amount,
+  pctOfGCI,
+  isDeduction = true,
+}: {
+  label: string;
+  sublabel?: string;
+  amount: number;
+  pctOfGCI: number;
+  isDeduction?: boolean;
+}) {
+  const barColor = isDeduction ? "bg-red-400/70" : "bg-emerald-500";
+  const amtColor = isDeduction ? "text-red-600" : "text-emerald-700";
+  const pct = Math.min(100, Math.abs(pctOfGCI));
+  return (
+    <div className="px-5 py-3 border-t border-slate-100 first:border-t-0">
+      <div className="flex items-baseline justify-between mb-1.5 gap-3">
+        <div className="min-w-0 flex-1">
+          <span className="text-sm text-slate-700">{label}</span>
+          {sublabel && <span className="ml-2 text-xs text-slate-400">{sublabel}</span>}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-slate-400">{Math.round(pct)}%</span>
+          <span className={`text-sm font-bold ${amtColor}`}>
+            {isDeduction ? "-" : ""}{fmtCurrency(amount)}
+          </span>
+        </div>
+      </div>
+      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
+
+const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 export function ReportsContent({
   settings,
@@ -79,21 +249,19 @@ export function ReportsContent({
   }
 
   const currentYear = new Date().getFullYear();
+  const now = new Date();
 
-  // ── YTD ───────────────────────────────────────────────────────────────
-  const ytdTx = transactions.filter(
-    (tx) => tx.date.startsWith(String(currentYear)),
-  );
+  // ── YTD ──────────────────────────────────────────────────────────────────────
+  const ytdTx = transactions.filter((tx) => tx.date.startsWith(String(currentYear)));
   const ytdGCI = ytdTx.reduce((sum, tx) => sum + computeGCI(tx), 0);
   const avgDealSize = ytdTx.length > 0 ? ytdGCI / ytdTx.length : 0;
+  const buyerDeals = ytdTx.filter((tx) => tx.side === "buyer" || tx.side === "both").length;
+  const sellerDeals = ytdTx.filter((tx) => tx.side === "seller" || tx.side === "both").length;
 
-  // ── Pipeline ──────────────────────────────────────────────────────────
-  const pipelineWeighted = pipelineDeals.reduce(
-    (sum, d) => sum + computeWeightedGCI(d),
-    0,
-  );
+  // ── Pipeline ──────────────────────────────────────────────────────────────────
+  const pipelineWeighted = pipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
 
-  // ── Projections ─────────────────────────────────────────────────────
+  // ── Seasonality & Projections ─────────────────────────────────────────────────
   const seasonalWeights = settings.use_national_seasonality
     ? (settings.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
     : [0.25, 0.25, 0.25, 0.25];
@@ -101,7 +269,19 @@ export function ReportsContent({
   const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeighted, fraction);
   const projectedDeals = projectedYearEndTransactions(ytdTx.length, pipelineDeals.length, fraction);
 
-  // ── Financial ─────────────────────────────────────────────────────────
+  // ── Goal ──────────────────────────────────────────────────────────────────────
+  const goalGCI = settings.goal_gci ?? 0;
+  const gciProgress = goalGCI > 0 ? Math.min((ytdGCI / goalGCI) * 100, 100) : 0;
+  const pacePercent = goalGCI > 0 ? paceVsGoalPercent(goalGCI, ytdGCI, fraction) : 0;
+  const paceStatus: "ahead" | "behind" | "no-goal" = goalGCI <= 0 ? "no-goal" : pacePercent >= 0 ? "ahead" : "behind";
+
+  // ── Vs last year ──────────────────────────────────────────────────────────────
+  const lastYearItem = historyItems.find((h) => h.year === currentYear - 1) ?? null;
+  const vsLastYearGCI = lastYearItem && fraction > 0
+    ? ytdGCI - lastYearItem.annual_gci * fraction
+    : null;
+
+  // ── Financial waterfall ───────────────────────────────────────────────────────
   const { agentGross, brokerageTake } = computeAgentGross(
     ytdGCI,
     settings.split_preset,
@@ -109,70 +289,112 @@ export function ReportsContent({
     settings.post_cap_agent_pct,
     settings.post_cap_brokerage_pct,
   );
-  const txFees = computeTxFees(
-    ytdGCI,
-    settings.tx_fee_rate_pct,
-    settings.tx_fee_annual_cap,
-  );
-  // getMonth() is 0-based (Jan=0, Feb=1, …) — add 1 to include the current month
-  const brokerageFeeYTD =
-    settings.monthly_brokerage_fee * (new Date().getMonth() + 1);
+  const txFees = computeTxFees(ytdGCI, settings.tx_fee_rate_pct, settings.tx_fee_annual_cap);
+  const brokerageFeeYTD = settings.monthly_brokerage_fee * (now.getMonth() + 1);
+  const agentNet = agentGross - txFees - brokerageFeeYTD;
 
-  // ── Expenses ──────────────────────────────────────────────────────────
-  // YTD derived from actual receipts, not manually-entered ytd_amount fields
+  // ── Expenses ──────────────────────────────────────────────────────────────────
   const expensesYTD = Object.values(receiptTotalsByKey).reduce((s, v) => s + v, 0);
   const monthlyRecurring = expenseCategories.reduce(
-    (sum, cat) =>
-      sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
+    (sum, cat) => sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
     0,
   );
-  const netPreTax = agentGross - txFees - brokerageFeeYTD - expensesYTD;
+  const netPreTax = agentNet - expensesYTD;
+  const expenseRatio = ytdGCI > 0 ? (expensesYTD / ytdGCI) * 100 : 0;
 
-  // ── Tax estimate (on projected net) ───────────────────────────────────
-  const projectedNet = (() => {
-    const { agentGross: ag } = computeAgentGross(
-      projectedGCI,
-      settings.split_preset,
-      settings.post_cap_threshold_gci,
-      settings.post_cap_agent_pct,
-      settings.post_cap_brokerage_pct,
-    );
-    const tf = computeTxFees(projectedGCI, settings.tx_fee_rate_pct, settings.tx_fee_annual_cap);
-    const bf = settings.monthly_brokerage_fee * 12;
-    // Project full-year expenses: actual YTD + remaining months of recurring.
-    // Using remainingMonths avoids double-counting recurring costs already in expensesYTD.
-    const _rNow = new Date();
-    const _rRemainingMonths = Math.max(0, 12 - (_rNow.getMonth() + 1));
-    const annualExp = expensesYTD + monthlyRecurring * _rRemainingMonths;
-    return Math.max(0, ag - tf - bf - annualExp);
-  })();
-  const taxResult = calculateTax(projectedNet, settings.province, Math.max(projectedDeals, 1));
-
-  // ── GST/HST collected on commissions ──────────────────────────────────
+  // ── Tax ───────────────────────────────────────────────────────────────────────
+  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
+  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
+  const projectedNet = computeProjectedNet(projectedGCI, settings);
+  const netForTax = Math.max(0, projectedNet - annualExpenses);
+  const taxResult = calculateTax(netForTax, settings.province, Math.max(projectedDeals, 1));
   const taxLabel = gstHstLabel(settings.province);
   const taxRate = gstHstRate(settings.province);
   const gstHstCollectedYTD = ytdGCI * taxRate;
+  const afterTaxNet = Math.max(0, netForTax - taxResult.totalBurden);
 
-  // ── Benchmark ─────────────────────────────────────────────────────────
+  // ── Benchmark ─────────────────────────────────────────────────────────────────
   const benchmark = compare(projectedGCI, settings.experience_years);
 
-  // ── Survival ──────────────────────────────────────────────────────────
+  // ── Survival ──────────────────────────────────────────────────────────────────
   const survival = survivalResult(
     settings.monthly_brokerage_fee,
     monthlyRecurring,
     settings.cash_reserve,
   );
 
-  // ── Buyer/Seller split ────────────────────────────────────────────────
-  const buyerDeals = ytdTx.filter(
-    (tx) => tx.side === "buyer" || tx.side === "both",
-  ).length;
-  const sellerDeals = ytdTx.filter(
-    (tx) => tx.side === "seller" || tx.side === "both",
-  ).length;
+  // ── Runway Score ──────────────────────────────────────────────────────────────
+  const healthReport = buildHealthReport(
+    ytdGCI, goalGCI, fraction, pipelineWeighted, expensesYTD, projectedGCI, settings,
+  );
+  const runwayScore = computeRunwayScore(healthReport, benchmark.percentile, survival.months);
+  const gs = gradeStyle(runwayScore.grade);
+  const rs = riskStyle(survival.riskLevel);
 
-  // ── Monthly breakdown ─────────────────────────────────────────────────
-  const MONTH_LABELS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  // ── Probability Bands ─────────────────────────────────────────────────────────
+  const bands = probabilityBands(ytdTx, projectedGCI, fraction);
+  const probChartData: ProbabilityDataPoint[] = MONTH_LABELS.map((label, i) => {
+    const frac = (i + 1) / 12;
+    return {
+      label,
+      p10: bands.p10 * frac,
+      p25: bands.p25 * frac,
+      p50: bands.p50 * frac,
+      p75: bands.p75 * frac,
+      p90: bands.p90 * frac,
+    };
+  });
+
+  // ── Expense Donut ─────────────────────────────────────────────────────────────
+  const donutData: DonutDataPoint[] = expenseCategories
+    .map((cat) => ({
+      name: cat.title,
+      value: cat.items.reduce((s, i) => s + (receiptTotalsByKey[i.key] ?? 0), 0),
+    }))
+    .filter((d) => d.value > 0);
+
+  // ── Advisor Cards ─────────────────────────────────────────────────────────────
+  const capIsConfigured = (settings.post_cap_threshold_gci ?? 0) > 0;
+  const hasHitCap = capIsConfigured && ytdGCI >= (settings.post_cap_threshold_gci ?? 0);
+  const gciRemainingToCap = capIsConfigured
+    ? Math.max(0, (settings.post_cap_threshold_gci ?? 0) - ytdGCI)
+    : 0;
+  const advisorCards = generateAdvisory({
+    transactions: ytdTx,
+    pipelineDeals,
+    goalGCI,
+    splitPreset: settings.split_preset,
+    seasonalWeights,
+    expensesYTD,
+    monthlyRecurringExpenses: monthlyRecurring,
+    projectedYearEndGCI: projectedGCI,
+    marketYoYGrowth: 0.05,
+    benchmarkPercentile: benchmark.percentile,
+    survivalMonths: survival.months,
+    capIsConfigured,
+    hasHitCap,
+    gciRemainingToCap,
+    postCapAgentPct: settings.post_cap_agent_pct ?? 1.0,
+  }, 3);
+
+  // ── Year-over-year ────────────────────────────────────────────────────────────
+  const yoyData: YoYDataPoint[] = [
+    ...[...historyItems]
+      .sort((a, b) => a.year - b.year)
+      .map((it) => ({
+        year: it.year,
+        gci: it.annual_gci,
+        deals: it.annual_tx,
+        isCurrentYear: it.year === currentYear,
+      })),
+    ...(historyItems.some((it) => it.year === currentYear)
+      ? []
+      : ytdTx.length > 0
+        ? [{ year: currentYear, gci: ytdGCI, deals: ytdTx.length, isCurrentYear: true }]
+        : []),
+  ];
+
+  // ── Monthly breakdown ─────────────────────────────────────────────────────────
   const monthlyData = Array.from({ length: 12 }, (_, i) => {
     const mm = String(i + 1).padStart(2, "0");
     const monthTx = ytdTx.filter((tx) => tx.date.slice(5, 7) === mm);
@@ -183,32 +405,7 @@ export function ReportsContent({
     };
   }).filter((m) => m.gci > 0 || m.deals > 0);
 
-  const riskColors: Record<string, string> = {
-    critical: "text-red-600",
-    warning: "text-amber-600",
-    healthy: "text-emerald-600",
-    strong: "text-emerald-600",
-  };
-
-  // ── Year-over-year chart data ─────────────────────────────────────────────
-  const yoyData: YoYDataPoint[] = [
-    ...[...historyItems]
-      .sort((a, b) => a.year - b.year)
-      .map((it) => ({
-        year: it.year,
-        gci: it.annual_gci,
-        deals: it.annual_tx,
-        isCurrentYear: it.year === currentYear,
-      })),
-    // Append current year from live transactions if not already in history
-    ...(historyItems.some((it) => it.year === currentYear)
-      ? []
-      : ytdTx.length > 0
-      ? [{ year: currentYear, gci: ytdGCI, deals: ytdTx.length, isCurrentYear: true }]
-      : []),
-  ];
-
-  // ── PDF download ───────────────────────────────────────────────────────────
+  // ── PDF download ──────────────────────────────────────────────────────────────
   const handleDownload = async () => {
     setDownloading(true);
     try {
@@ -216,7 +413,6 @@ export function ReportsContent({
         import("@react-pdf/renderer"),
         import("@/components/pdf/business-report-pdf"),
       ]);
-
       const pdfProps = {
         agentName: settings.display_name ?? "",
         brokerageName: settings.brokerage_name ?? "",
@@ -244,11 +440,8 @@ export function ReportsContent({
         monthlyData,
         transactions: ytdTx,
       };
-
-      // createElement avoids JSX typing issues with the dynamic import
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const blob = await pdf(createElement(BusinessReportPDF, pdfProps) as any).toBlob();
-
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -266,104 +459,565 @@ export function ReportsContent({
 
   return (
     <div className="space-y-8">
+
+      {/* ── Header ────────────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4 border-b border-border/60 pb-5">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Reports</h1>
           <p className="text-sm text-muted-foreground">
-            {currentYear} P&amp;L &middot; benchmarks &middot; tax snapshot &mdash; {PROVINCE_LABELS[settings.province]}
+            {settings.display_name && <>{settings.display_name} &middot; </>}
+            {currentYear} &middot; {PROVINCE_LABELS[settings.province]}
           </p>
         </div>
-        {isPro ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownload}
-            disabled={downloading}
-            className="shrink-0"
-          >
-            {downloading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <FileDown className="mr-2 h-4 w-4" />
-            )}
-            {downloading ? "Generating…" : "Download PDF"}
-          </Button>
-        ) : (
-          <Link
-            href="/pricing"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-          >
-            <Lock className="h-3.5 w-3.5" />
-            Download PDF
-          </Link>
+        <div className="flex items-center gap-2 shrink-0">
+          {historyItems.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setHistReportOpen(true)}>
+              <History className="mr-1.5 h-3.5 w-3.5" />
+              History
+            </Button>
+          )}
+          {isPro ? (
+            <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloading}>
+              {downloading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileDown className="mr-2 h-4 w-4" />
+              )}
+              {downloading ? "Generating…" : "Download PDF"}
+            </Button>
+          ) : (
+            <Link
+              href="/pricing"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+            >
+              <Lock className="h-3.5 w-3.5" />
+              Download PDF
+            </Link>
+          )}
+        </div>
+      </div>
+
+      {/* ── 1. Business Health Score (Hero) ───────────────────────────────────── */}
+      <div className="rounded-2xl overflow-hidden border border-slate-700 shadow-lg bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="px-6 py-4 border-b border-white/10 flex items-center gap-2">
+          <Zap className="h-4 w-4 text-amber-400" />
+          <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">Business Health Score</span>
+        </div>
+        <div className="px-6 py-6 flex flex-col sm:flex-row gap-8 items-center sm:items-start">
+          {/* Grade circle */}
+          <div className="flex flex-col items-center gap-3 shrink-0">
+            <div className={`relative flex h-28 w-28 items-center justify-center rounded-full ring-4 ${gs.ring} bg-slate-700/50`}>
+              <div className="text-center">
+                <div className="text-4xl font-black text-white leading-none">{runwayScore.grade}</div>
+                <div className="text-xs text-slate-400 mt-1">{runwayScore.score}/100</div>
+              </div>
+            </div>
+            <span className={`rounded-full px-3 py-0.5 text-xs font-semibold border ${gs.pill}`}>
+              {gs.label}
+            </span>
+          </div>
+          {/* Components */}
+          <div className="flex-1 grid sm:grid-cols-2 gap-x-8 gap-y-4 w-full">
+            {runwayScore.components.map((comp) => (
+              <div key={comp.label}>
+                <div className="flex justify-between mb-1.5 text-xs">
+                  <span className="text-slate-300 font-medium">{comp.label}</span>
+                  <span className="text-slate-400">
+                    {comp.weight} &middot; <span className="text-white font-semibold">{Math.round(comp.score)}</span>
+                  </span>
+                </div>
+                <div className="h-1.5 rounded-full bg-slate-700 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      comp.score >= 80 ? "bg-emerald-500" :
+                      comp.score >= 60 ? "bg-blue-500" :
+                      comp.score >= 40 ? "bg-amber-400" : "bg-red-500"
+                    }`}
+                    style={{ width: `${comp.score}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {!runwayScore.hasEnoughData && (
+          <div className="px-6 pb-4">
+            <p className="text-xs text-slate-500">Add closed transactions to get a fully personalised score.</p>
+          </div>
         )}
       </div>
 
-      {/* KPI Summary */}
+      {/* ── 2. YTD Snapshot ───────────────────────────────────────────────────── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-emerald-700">YTD GCI</CardDescription>
+          <CardHeader className="pb-1">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-emerald-700 flex items-center gap-1">
+              <DollarSign className="h-3.5 w-3.5" /> YTD GCI
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold text-slate-800">{fmtCurrency(ytdGCI)}</div>
+          <CardContent className="pt-0">
+            <div className="text-2xl font-bold text-slate-800">{fmtCurrency(ytdGCI)}</div>
+            {vsLastYearGCI !== null ? (
+              <p className={`text-xs mt-0.5 flex items-center gap-0.5 ${vsLastYearGCI >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                {vsLastYearGCI >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                {vsLastYearGCI >= 0 ? "+" : ""}{fmtCurrency(Math.abs(vsLastYearGCI))} vs last yr
+              </p>
+            ) : (
+              <p className="text-xs mt-0.5 text-emerald-600/70">{ytdTx.length} deals closed</p>
+            )}
           </CardContent>
         </Card>
+
         <Card className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-100 to-blue-50 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-blue-700">Closed Deals</CardDescription>
+          <CardHeader className="pb-1">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-blue-700 flex items-center gap-1">
+              <BarChart2 className="h-3.5 w-3.5" /> Avg Deal
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold text-slate-800">{ytdTx.length}</div>
-            <p className="text-xs text-blue-600/80">
-              {buyerDeals}B / {sellerDeals}S
-            </p>
+          <CardContent className="pt-0">
+            <div className="text-2xl font-bold text-slate-800">{fmtCurrency(avgDealSize)}</div>
+            <p className="text-xs mt-0.5 text-blue-600/80">{buyerDeals}B / {sellerDeals}S side</p>
           </CardContent>
         </Card>
+
         <Card className="rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-100 to-purple-50 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-purple-700">Avg Deal Size</CardDescription>
+          <CardHeader className="pb-1">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-purple-700 flex items-center gap-1">
+              <Layers className="h-3.5 w-3.5" /> Pipeline
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold text-slate-800">{fmtCurrency(avgDealSize)}</div>
+          <CardContent className="pt-0">
+            <div className="text-2xl font-bold text-slate-800">{fmtCurrency(pipelineWeighted)}</div>
+            <p className="text-xs mt-0.5 text-purple-600/80">{pipelineDeals.length} active deals</p>
           </CardContent>
         </Card>
+
         <Card className="rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-100 to-teal-50 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-teal-700">Pipeline (Weighted)</CardDescription>
+          <CardHeader className="pb-1">
+            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-teal-700 flex items-center gap-1">
+              <Target className="h-3.5 w-3.5" /> Projected Year-End
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold text-slate-800">
-              {fmtCurrency(pipelineWeighted)}
-            </div>
-            <p className="text-xs text-teal-600/80">
-              {pipelineDeals.length} deals
-            </p>
+          <CardContent className="pt-0">
+            <div className="text-2xl font-bold text-slate-800">{fmtCurrency(projectedGCI)}</div>
+            <p className="text-xs mt-0.5 text-teal-600/80">~{Math.round(projectedDeals)} deals</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Historical Production Report card */}
-      {historyItems.length > 0 && (
-        <Card className="rounded-2xl border-dashed border-slate-300 shadow-sm">
-          <CardContent className="flex items-center justify-between py-4">
-            <div className="flex items-center gap-3">
-              <div className="rounded-md bg-primary/10 p-2">
-                <History className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Historical Production Report</p>
-                <p className="text-xs text-muted-foreground">Export your full career history as PDF or Excel</p>
+      {/* ── Goal Progress ──────────────────────────────────────────────────────── */}
+      {goalGCI > 0 && (
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <CardTitle className="text-base">Goal Progress</CardTitle>
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className={
+                    paceStatus === "ahead"
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                      : paceStatus === "behind"
+                      ? "border-red-300 bg-red-50 text-red-700"
+                      : ""
+                  }
+                >
+                  {paceStatus === "ahead"
+                    ? `+${Math.round(pacePercent)}% ahead of pace`
+                    : paceStatus === "behind"
+                    ? `${Math.round(Math.abs(pacePercent))}% behind pace`
+                    : "On pace"}
+                </Badge>
+                <span className="text-sm text-slate-500">
+                  {fmtCurrency(ytdGCI)} / {fmtCurrency(goalGCI)}
+                </span>
               </div>
             </div>
-            <Button size="sm" variant="outline" onClick={() => setHistReportOpen(true)}>
-              Generate &rarr;
-            </Button>
+          </CardHeader>
+          <CardContent>
+            <Progress value={gciProgress} className="h-3" />
+            <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+              <span>{Math.round(gciProgress)}% of annual goal</span>
+              <span>{fmtCurrency(Math.max(0, goalGCI - ytdGCI))} remaining</span>
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* ── Career Trend chart ────────────────────────────────────────────── */}
+      {/* ── 3. Income Probability Forecast ────────────────────────────────────── */}
+      <Card className="rounded-2xl border-slate-200 shadow-sm">
+        <CardHeader className="pb-2">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <CardTitle className="text-base">Income Probability Forecast</CardTitle>
+              <CardDescription>Year-end GCI range based on your historical variance</CardDescription>
+            </div>
+            <Badge
+              variant="outline"
+              className={
+                bands.confidence === "high"
+                  ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                  : bands.confidence === "medium"
+                  ? "border-blue-300 bg-blue-50 text-blue-700"
+                  : "border-amber-300 bg-amber-50 text-amber-700"
+              }
+            >
+              {bands.confidence === "high"
+                ? "High confidence"
+                : bands.confidence === "medium"
+                ? "Med confidence"
+                : "Low confidence"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[200px]">
+            <ProbabilityChart data={probChartData} />
+          </div>
+          <div className="mt-4 grid grid-cols-5 gap-2">
+            {[
+              { label: "P90", value: bands.p90, color: "text-emerald-600", desc: "Best case" },
+              { label: "P75", value: bands.p75, color: "text-blue-600", desc: "Optimistic" },
+              { label: "P50", value: bands.p50, color: "text-slate-800", desc: "Most likely" },
+              { label: "P25", value: bands.p25, color: "text-amber-600", desc: "Conservative" },
+              { label: "P10", value: bands.p10, color: "text-red-600", desc: "Downside" },
+            ].map((p) => (
+              <div key={p.label} className="rounded-xl border border-slate-100 bg-slate-50 p-2 sm:p-3 text-center">
+                <div className="text-xs font-semibold text-slate-400">{p.label}</div>
+                <div className={`text-xs sm:text-sm font-bold ${p.color} mt-0.5`}>{fmtCurrency(p.value)}</div>
+                <div className="text-[10px] text-slate-400 hidden sm:block">{p.desc}</div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── 4. Financial Waterfall ────────────────────────────────────────────── */}
+      {ytdGCI > 0 && (
+        <Card className="rounded-2xl border-slate-200 shadow-sm overflow-hidden">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Financial Waterfall — YTD {currentYear}</CardTitle>
+            <CardDescription>Where every commission dollar goes</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            {/* GCI header */}
+            <div className="px-5 py-4 bg-gradient-to-r from-emerald-50 to-emerald-100/50 border-b border-emerald-200">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-emerald-900">Gross Commission Income</span>
+                <span className="text-xl font-bold text-emerald-800">{fmtCurrency(ytdGCI)}</span>
+              </div>
+              <div className="mt-1.5 h-2 bg-emerald-200 rounded-full">
+                <div className="h-full rounded-full bg-emerald-500 w-full" />
+              </div>
+            </div>
+
+            <WaterfallRow
+              label="Brokerage split"
+              sublabel={`${Math.round((1 - getAgentPct(settings.split_preset)) * 100)}% brokerage`}
+              amount={brokerageTake}
+              pctOfGCI={ytdGCI > 0 ? (brokerageTake / ytdGCI) * 100 : 0}
+            />
+            <WaterfallRow
+              label="Transaction fees"
+              amount={txFees}
+              pctOfGCI={ytdGCI > 0 ? (txFees / ytdGCI) * 100 : 0}
+            />
+            <WaterfallRow
+              label="Desk / office fees"
+              amount={brokerageFeeYTD}
+              pctOfGCI={ytdGCI > 0 ? (brokerageFeeYTD / ytdGCI) * 100 : 0}
+            />
+
+            {/* Agent net subtotal */}
+            <div className="px-5 py-3 bg-blue-50 border-t border-blue-200">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-blue-900">Agent Net (after splits &amp; fees)</span>
+                <span className="text-base font-bold text-blue-800">{fmtCurrency(agentNet)}</span>
+              </div>
+            </div>
+
+            <WaterfallRow
+              label="Business expenses"
+              amount={expensesYTD}
+              pctOfGCI={ytdGCI > 0 ? (expensesYTD / ytdGCI) * 100 : 0}
+            />
+
+            {/* Net pre-tax */}
+            <div className="px-5 py-3 bg-amber-50 border-t border-amber-200">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-amber-900">Net Pre-Tax</span>
+                <span className="text-base font-bold text-amber-800">{fmtCurrency(netPreTax)}</span>
+              </div>
+            </div>
+
+            {/* Summary footer */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-slate-100 border-t border-slate-200">
+              {[
+                { label: "You keep", value: fmtPct(ytdGCI > 0 ? agentNet / ytdGCI : 0), sub: "of gross GCI" },
+                { label: "Expense ratio", value: `${expenseRatio.toFixed(1)}%`, sub: expenseRatio <= 30 ? "✓ Healthy" : "⚠ Review" },
+                { label: "Net pre-tax", value: fmtCurrency(netPreTax), sub: "after all costs" },
+                { label: "Effective take", value: fmtPct(ytdGCI > 0 ? netPreTax / ytdGCI : 0), sub: "of every $1" },
+              ].map((s) => (
+                <div key={s.label} className="px-4 py-4 text-center">
+                  <div className="text-sm font-bold text-slate-900">{s.value}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">{s.label}</div>
+                  <div className="text-[10px] text-slate-400">{s.sub}</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── 5. Tax Snapshot ───────────────────────────────────────────────────── */}
+      <Card className="rounded-2xl border border-amber-200 bg-amber-50/40 shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <CardTitle className="text-base">Tax Snapshot</CardTitle>
+              <CardDescription>
+                {taxResult.taxYear} estimate &middot; {PROVINCE_LABELS[settings.province]}
+              </CardDescription>
+            </div>
+            <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-800">
+              {fmtPct(taxResult.effectiveRate)} effective rate
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Stacked proportion bar */}
+          {netForTax > 0 && taxResult.totalBurden > 0 && (
+            <div className="mb-5">
+              <div className="flex h-5 w-full rounded-full overflow-hidden gap-px">
+                <div
+                  className="bg-blue-500 h-full transition-all"
+                  style={{ width: `${Math.min(99, (taxResult.federalTax / netForTax) * 100)}%` }}
+                />
+                <div
+                  className="bg-violet-500 h-full transition-all"
+                  style={{ width: `${Math.min(99, (taxResult.provincialTax / netForTax) * 100)}%` }}
+                />
+                <div
+                  className="bg-amber-500 h-full transition-all"
+                  style={{ width: `${Math.min(99, (taxResult.totalCPP / netForTax) * 100)}%` }}
+                />
+                <div className="bg-slate-200 h-full flex-1" />
+              </div>
+              <div className="mt-2 flex flex-wrap gap-4 text-xs text-slate-500">
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-blue-500 inline-block" />
+                  Federal {fmtCurrency(taxResult.federalTax)}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-violet-500 inline-block" />
+                  Provincial {fmtCurrency(taxResult.provincialTax)}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-amber-500 inline-block" />
+                  CPP/QPP {fmtCurrency(taxResult.totalCPP)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+            <div className="rounded-xl border border-amber-200 bg-white px-4 py-3 text-center">
+              <div className="text-lg font-bold text-slate-900">{fmtCurrency(taxResult.quarterlyEstimate)}</div>
+              <div className="text-xs text-slate-500 mt-0.5">Quarterly instalment</div>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-white px-4 py-3 text-center">
+              <div className="text-lg font-bold text-slate-900">{fmtCurrency(taxResult.perDealSetAside)}</div>
+              <div className="text-xs text-slate-500 mt-0.5">Per-deal set-aside</div>
+            </div>
+            <div className="rounded-xl border border-amber-200 bg-white px-4 py-3 text-center">
+              <div className="text-lg font-bold text-slate-900">{fmtCurrency(gstHstCollectedYTD)}</div>
+              <div className="text-xs text-slate-500 mt-0.5">{taxLabel} collected YTD</div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-600">Projected net income</span>
+              <span className="font-medium">{fmtCurrency(netForTax)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>CPP/QPP contributions</span>
+              <span>-{fmtCurrency(taxResult.totalCPP)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Federal income tax</span>
+              <span>-{fmtCurrency(taxResult.federalTax)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Provincial income tax</span>
+              <span>-{fmtCurrency(taxResult.provincialTax)}</span>
+            </div>
+            <Separator />
+            <div className="flex justify-between font-semibold">
+              <span>Estimated after-tax net</span>
+              <span className="text-emerald-700">{fmtCurrency(afterTaxNet)}</span>
+            </div>
+          </div>
+
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            {taxLabel} of {fmtCurrency(gstHstCollectedYTD)} was charged to clients and must be remitted to CRA.
+            Net of input tax credits (ITCs) on business expenses may reduce your remittance.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* ── 6. Expense Analysis ───────────────────────────────────────────────── */}
+      {expensesYTD > 0 && (
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Expense Analysis</CardTitle>
+            <CardDescription>Spend breakdown vs. your commission income</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row gap-6 items-center">
+              {/* Donut */}
+              {donutData.length > 0 && (
+                <div className="h-[180px] w-[180px] shrink-0">
+                  <ExpenseDonut data={donutData} />
+                </div>
+              )}
+              {/* Ratio gauge + category bars */}
+              <div className="flex-1 w-full space-y-4">
+                <div>
+                  <div className="flex justify-between text-sm mb-1.5">
+                    <span className="font-medium text-slate-800">Expense ratio</span>
+                    <span className={`font-bold ${expenseRatio <= 30 ? "text-emerald-600" : expenseRatio <= 40 ? "text-amber-600" : "text-red-600"}`}>
+                      {expenseRatio.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="relative h-3 rounded-full bg-slate-100 overflow-hidden">
+                    {/* benchmark zone markers (25–30%) */}
+                    <div className="absolute inset-y-0 bg-emerald-200/60" style={{ left: "50%", width: "10%" }} />
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        expenseRatio <= 30 ? "bg-emerald-500" : expenseRatio <= 40 ? "bg-amber-500" : "bg-red-500"
+                      }`}
+                      style={{ width: `${Math.min(100, expenseRatio * 2)}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-400 mt-1">
+                    <span>0%</span>
+                    <span className="text-emerald-600 font-medium">Target: 25–30%</span>
+                    <span>50%+</span>
+                  </div>
+                </div>
+                {/* Top categories */}
+                <div className="space-y-2">
+                  {donutData.slice(0, 5).map((d) => (
+                    <div key={d.name} className="flex items-center gap-3 text-sm">
+                      <span className="text-slate-600 flex-1 truncate">{d.name}</span>
+                      <div className="h-1.5 w-24 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-amber-400 rounded-full"
+                          style={{ width: `${expensesYTD > 0 ? (d.value / expensesYTD) * 100 : 0}%` }}
+                        />
+                      </div>
+                      <span className="font-medium text-slate-800 w-20 text-right shrink-0">{fmtCurrency(d.value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── 7. Benchmark + Cash Runway ────────────────────────────────────────── */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {/* Benchmark */}
+        <Card className="rounded-2xl border border-purple-200 bg-purple-50/40 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Benchmark Standing</CardTitle>
+            <CardDescription>vs. {COHORT_LABELS[benchmark.cohort]} cohort (CREA 2023)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {/* Percentile gradient track */}
+              <div>
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-slate-600">Cohort percentile</span>
+                  <span className="font-bold text-purple-800">P{benchmark.percentile}</span>
+                </div>
+                <div className="relative h-4 rounded-full bg-gradient-to-r from-slate-200 via-blue-300 to-purple-500 overflow-visible">
+                  <div
+                    className="absolute top-0 h-full w-1 bg-white rounded-full shadow-sm"
+                    style={{ left: `calc(${benchmark.percentile}% - 2px)` }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-400 mt-1">
+                  <span>P0</span>
+                  <span>P50</span>
+                  <span>P100</span>
+                </div>
+              </div>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Cohort median</span>
+                  <span className="font-medium">{fmtCurrency(benchmark.cohortMedianGCI)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">National percentile</span>
+                  <span className="font-medium">P{benchmark.nationalPercentile}</span>
+                </div>
+                {benchmark.distanceToNextTier != null && benchmark.distanceToNextTier > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">To {benchmark.nextTierLabel}</span>
+                    <span className="font-medium text-purple-700">{fmtCurrency(benchmark.distanceToNextTier)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Cash Runway */}
+        <Card className={`rounded-2xl shadow-sm border ${rs.cardBorder}`}>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Cash Runway</CardTitle>
+              <Badge className={`${rs.badgeCls} border-0`}>{rs.label}</Badge>
+            </div>
+            <CardDescription>Estimated months without commission income</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4 flex items-center gap-3">
+              <div className={`h-3 w-3 rounded-full ${rs.dot}`} />
+              <span className={`text-lg font-bold ${rs.labelColor}`}>{survival.label}</span>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Cash reserve</span>
+                <span className="font-medium">{fmtCurrency(survival.cashReserve)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Monthly burn</span>
+                <span className="font-medium">{fmtCurrency(survival.monthlyBurn)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-slate-400">
+                <span>Brokerage fee</span>
+                <span>{fmtCurrency(settings.monthly_brokerage_fee)}/mo</span>
+              </div>
+              <div className="flex justify-between text-xs text-slate-400">
+                <span>Recurring expenses</span>
+                <span>{fmtCurrency(monthlyRecurring)}/mo</span>
+              </div>
+            </div>
+            {survival.months < 4 && (
+              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 flex items-start gap-2">
+                <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>Consider building your reserve to at least 4 months of operating costs.</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── 8. Career Trend ───────────────────────────────────────────────────── */}
       {yoyData.length >= 2 && (
         <Card className="rounded-2xl border-slate-200 shadow-sm">
           <CardHeader className="pb-2">
@@ -386,75 +1040,54 @@ export function ReportsContent({
         </Card>
       )}
 
-      {/* Benchmark + Survival row */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card className="rounded-2xl border border-purple-200 bg-purple-50/40 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Benchmark</CardTitle>
-              <CardDescription>
-                vs. {COHORT_LABELS[benchmark.cohort]} cohort (CREA 2023)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div>
-                  <div className="mb-1 flex justify-between text-sm">
-                    <span>Cohort percentile</span>
-                    <span className="font-medium">P{benchmark.percentile}</span>
+      {/* ── 9. AI Advisor Intelligence ────────────────────────────────────────── */}
+      {advisorCards.length > 0 && (
+        <div>
+          <div className="mb-3 flex items-center gap-2">
+            <Zap className="h-4 w-4 text-amber-500" />
+            <h2 className="text-base font-semibold">Advisor Intelligence</h2>
+            <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 text-xs">
+              AI-powered
+            </Badge>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {advisorCards.map((card) => (
+              <div
+                key={card.id}
+                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col gap-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 mb-1">
+                      {ADVISOR_CATEGORY_LABELS[card.category]}
+                    </div>
+                    <div className="text-sm font-bold text-slate-900 leading-snug">{card.title}</div>
                   </div>
-                  <Progress value={benchmark.percentile} className="h-2" />
+                  <Badge className="shrink-0 bg-emerald-100 text-emerald-800 border-0 text-xs whitespace-nowrap">
+                    {card.estimatedImpact}
+                  </Badge>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Cohort median</span>
-                  <span>{fmtCurrency(benchmark.cohortMedianGCI)}</span>
+                <div className="space-y-1.5">
+                  {card.evidence.map((e, idx) => (
+                    <div key={idx} className="flex items-start gap-1.5 text-xs text-slate-500">
+                      <CheckCircle className="h-3 w-3 mt-0.5 shrink-0 text-slate-400" />
+                      <span>{e}</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">National percentile</span>
-                  <span>P{benchmark.nationalPercentile}</span>
-                </div>
-                {benchmark.distanceToNextTier != null && benchmark.distanceToNextTier > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      Gap to {benchmark.nextTierLabel}
-                    </span>
-                    <span>{fmtCurrency(benchmark.distanceToNextTier)}</span>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl border border-emerald-200 bg-emerald-50/40 shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Cash Runway</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>Runway</span>
-                  <span className={`font-medium ${riskColors[survival.riskLevel]}`}>
-                    {survival.label}
-                  </span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Monthly burn</span>
-                  <span>{fmtCurrency(survival.monthlyBurn)}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Cash reserve</span>
-                  <span>{fmtCurrency(survival.cashReserve)}</span>
+                <div className="rounded-lg bg-slate-50 border border-slate-100 px-3 py-2 text-xs text-slate-600 leading-relaxed">
+                  <span className="font-semibold text-slate-700">Action: </span>{card.action}
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            ))}
+          </div>
         </div>
+      )}
 
-      {/* P&L */}
+      {/* ── 10. P&L Table ─────────────────────────────────────────────────────── */}
       <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base">
-            Profit & Loss \u2014 YTD {currentYear}
-          </CardTitle>
+          <CardTitle className="text-base">Profit &amp; Loss — YTD {currentYear}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-2 text-sm">
@@ -464,8 +1097,7 @@ export function ReportsContent({
             </div>
             <div className="flex justify-between text-muted-foreground">
               <span>
-                Brokerage split ({fmtPct(1 - getAgentPct(settings.split_preset))}
-                )
+                Brokerage split ({fmtPct(1 - getAgentPct(settings.split_preset))})
               </span>
               <span>-{fmtCurrency(brokerageTake)}</span>
             </div>
@@ -495,150 +1127,52 @@ export function ReportsContent({
         </CardContent>
       </Card>
 
-      {/* Tax estimate */}
-        <Card className="rounded-2xl border border-amber-200 bg-amber-50/40 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Projected Tax Breakdown</CardTitle>
-            <CardDescription>
-              {taxResult.taxYear} estimate &middot; {PROVINCE_LABELS[settings.province]}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Projected net income</span>
-                <span className="font-medium">{fmtCurrency(projectedNet)}</span>
-              </div>
-              <div className="flex justify-between text-muted-foreground">
-                <span>CPP/QPP contributions</span>
-                <span>-{fmtCurrency(taxResult.totalCPP)}</span>
-              </div>
-              <div className="flex justify-between text-muted-foreground">
-                <span>Federal income tax</span>
-                <span>-{fmtCurrency(taxResult.federalTax)}</span>
-              </div>
-              <div className="flex justify-between text-muted-foreground">
-                <span>Provincial income tax</span>
-                <span>-{fmtCurrency(taxResult.provincialTax)}</span>
-              </div>
-              <Separator />
-              <div className="flex justify-between font-medium">
-                <span>Total tax burden</span>
-                <span>{fmtCurrency(taxResult.totalBurden)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Effective rate</span>
-                <span className="font-medium">{fmtPct(taxResult.effectiveRate)}</span>
-              </div>
-              <Separator />
-              <div className="flex justify-between text-sm py-1.5 border-b border-border/40">
-                <span className="text-muted-foreground">{taxLabel} collected on commissions</span>
-                <span className="font-medium">{fmtCurrency(gstHstCollectedYTD)}</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground mt-1 mb-3">
-                This amount was charged to clients and must be remitted to CRA. Net of input tax credits (ITCs) on your business expenses may reduce your actual remittance.
-              </p>
-              <div className="grid grid-cols-2 gap-4 pt-2">
-                <div className="text-center">
-                  <p className="text-lg font-bold">{fmtCurrency(taxResult.quarterlyEstimate)}</p>
-                  <p className="text-xs text-muted-foreground">Quarterly instalment</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg font-bold">{fmtCurrency(taxResult.perDealSetAside)}</p>
-                  <p className="text-xs text-muted-foreground">Per-deal set-aside</p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-      {/* Expense breakdown */}
+      {/* ── 11. Expenses by Category ──────────────────────────────────────────── */}
       <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base">Expenses by Category</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Category</TableHead>
-                <TableHead className="text-right">YTD</TableHead>
-                <TableHead className="text-right">Monthly</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {expenseCategories.map((cat) => {
-                const catYTD = cat.items.reduce(
-                  (s, i) => s + (receiptTotalsByKey[i.key] ?? 0),
-                  0,
-                );
-                const catMonthly = cat.items.reduce(
-                  (s, i) => s + Number(i.monthly_recurring),
-                  0,
-                );
-                if (catYTD === 0 && catMonthly === 0) return null;
-                return (
-                  <TableRow key={cat.id}>
-                    <TableCell>{cat.title}</TableCell>
-                    <TableCell className="text-right">
-                      {fmtCurrency(catYTD)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {fmtCurrency(catMonthly)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              <TableRow className="font-semibold">
-                <TableCell>Total</TableCell>
-                <TableCell className="text-right">
-                  {fmtCurrency(expensesYTD)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {fmtCurrency(monthlyRecurring)}
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Category</TableHead>
+                  <TableHead className="text-right">YTD</TableHead>
+                  <TableHead className="text-right">Monthly</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {expenseCategories.map((cat) => {
+                  const catYTD = cat.items.reduce(
+                    (s, i) => s + (receiptTotalsByKey[i.key] ?? 0),
+                    0,
+                  );
+                  const catMonthly = cat.items.reduce(
+                    (s, i) => s + Number(i.monthly_recurring),
+                    0,
+                  );
+                  if (catYTD === 0 && catMonthly === 0) return null;
+                  return (
+                    <TableRow key={cat.id}>
+                      <TableCell>{cat.title}</TableCell>
+                      <TableCell className="text-right">{fmtCurrency(catYTD)}</TableCell>
+                      <TableCell className="text-right">{fmtCurrency(catMonthly)}</TableCell>
+                    </TableRow>
+                  );
+                })}
+                <TableRow className="font-semibold">
+                  <TableCell>Total</TableCell>
+                  <TableCell className="text-right">{fmtCurrency(expensesYTD)}</TableCell>
+                  <TableCell className="text-right">{fmtCurrency(monthlyRecurring)}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
 
-      {/* Monthly breakdown */}
-      {monthlyData.length > 0 && (
-        <Card className="rounded-2xl border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-base">Monthly Breakdown</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Month</TableHead>
-                  <TableHead className="text-right">GCI</TableHead>
-                  <TableHead className="text-right">Deals</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {monthlyData.map((m) => (
-                  <TableRow key={m.month}>
-                    <TableCell>{m.month}</TableCell>
-                    <TableCell className="text-right">
-                      {fmtCurrency(m.gci)}
-                    </TableCell>
-                    <TableCell className="text-right">{m.deals}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Deal log */}
+      {/* ── 12. Transaction Log ───────────────────────────────────────────────── */}
       <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base">
@@ -652,42 +1186,40 @@ export function ReportsContent({
             </p>
           ) : (
             <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Address</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Side</TableHead>
-                  <TableHead className="text-right">GCI</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ytdTx.map((tx) => (
-                  <TableRow key={tx.id}>
-                    <TableCell className="whitespace-nowrap">
-                      {tx.date}
-                    </TableCell>
-                    <TableCell>{tx.address || "\u2014"}</TableCell>
-                    <TableCell>{tx.client_name || "\u2014"}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">
-                        {tx.side}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {fmtCurrency(computeGCI(tx))}
-                    </TableCell>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Address</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Side</TableHead>
+                    <TableHead className="text-right">GCI</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {ytdTx.map((tx) => (
+                    <TableRow key={tx.id}>
+                      <TableCell className="whitespace-nowrap">{tx.date}</TableCell>
+                      <TableCell>{tx.address || "\u2014"}</TableCell>
+                      <TableCell>{tx.client_name || "\u2014"}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize">
+                          {tx.side}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {fmtCurrency(computeGCI(tx))}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Disclaimer */}
+      {/* ── Disclaimer ────────────────────────────────────────────────────────── */}
       <p className="text-center text-xs leading-relaxed text-muted-foreground/60 pb-2">
         All projections, tax estimates, and benchmark comparisons are approximations
         for planning purposes only — not financial, tax, or professional advice.
