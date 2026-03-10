@@ -17,6 +17,7 @@ import {
   Users,
   Moon,
   Sun,
+  Share2,
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -90,6 +91,14 @@ const navItems = [
     iconActive: "text-slate-200",
     iconInactive: "text-slate-400/60",
     borderActive: "border-l-slate-400",
+  },
+  {
+    label: "Social",
+    href: "/social",
+    icon: Share2,
+    iconActive: "text-rose-300",
+    iconInactive: "text-rose-400/60",
+    borderActive: "border-l-rose-400",
   },
   {
     label: "Settings",
