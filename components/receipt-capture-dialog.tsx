@@ -459,16 +459,6 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
               )}
             </div>
 
-            {/* Secondary option — shown as a small text link */}
-            {!isMobile && (
-              <button
-                onClick={() => cameraInputRef.current?.click()}
-                className="w-full text-center text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
-              >
-                or take a photo directly (uses device camera)
-              </button>
-            )}
-
             {/* Hidden inputs */}
             <input
               ref={cameraInputRef}
