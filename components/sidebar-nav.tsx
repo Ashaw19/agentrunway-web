@@ -99,14 +99,6 @@ const navItems = [
     iconInactive: "text-slate-400/60",
     borderActive: "border-l-slate-400",
   },
-  {
-    label: "Profile",
-    href: "/profile",
-    icon: CircleUser,
-    iconActive: "text-pink-300",
-    iconInactive: "text-pink-400/60",
-    borderActive: "border-l-pink-400",
-  },
 ];
 
 
@@ -211,6 +203,27 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
 
       {/* Bottom separator */}
       <div className="mx-4 h-px bg-gradient-to-r from-transparent via-sidebar-border/70 to-transparent" />
+
+      {/* Profile link — always visible above sign-out */}
+      <div className="px-2 pt-1">
+        <Link
+          href="/profile"
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] transition-all duration-150 border-l-[3px]",
+            pathname === "/profile"
+              ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-sm border-l-pink-400"
+              : "border-l-transparent font-medium text-sidebar-foreground/65 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground hover:border-l-sidebar-border",
+          )}
+        >
+          <CircleUser
+            className={cn(
+              "h-[17px] w-[17px] shrink-0 transition-colors duration-150",
+              pathname === "/profile" ? "text-pink-300" : "text-pink-400/60",
+            )}
+          />
+          <span className="tracking-[0.015em]">Profile</span>
+        </Link>
+      </div>
 
       {/* Dark mode toggle */}
       <div className="px-3 pb-1">
