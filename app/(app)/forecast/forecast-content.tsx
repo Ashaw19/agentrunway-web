@@ -515,7 +515,7 @@ export function ForecastContent({
               <div>
                 <CardTitle className="text-base">5-Year Growth Plan</CardTitle>
                 <CardDescription>
-                  Projections with widening probability bands
+                  Compound projections using your annual growth rates
                 </CardDescription>
               </div>
               <Link
@@ -523,7 +523,7 @@ export function ForecastContent({
                 className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 transition-colors shrink-0"
               >
                 <Settings className="h-3 w-3" />
-                Edit targets
+                Edit rates
               </Link>
             </CardHeader>
             <CardContent>

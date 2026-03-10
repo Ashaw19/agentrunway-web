@@ -404,43 +404,57 @@ export function SettingsContent({ settings }: Props) {
         <CardHeader>
           <CardTitle>5-Year Growth Plan</CardTitle>
           <CardDescription>
-            Your GCI targets for the next five years — used to plot your growth trajectory on the Forecast page.
+            Your target GCI growth rate for each of the next five years. Enter a percentage — e.g. <strong>10</strong> for 10% growth. Each year compounds from the previous one. Used to plot your trajectory on the Forecast page.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="grid grid-cols-2 gap-4">
             {[0, 1, 2, 3].map((i) => (
               <div key={i} className="grid gap-1.5">
-                <Label>{currentYear + 1 + i} Target ($)</Label>
-                <Input
-                  type="number"
-                  placeholder="$0"
-                  value={growthGoals[i] === 0 ? "" : growthGoals[i]}
-                  onChange={(e) =>
-                    setGrowthGoals((prev) => {
-                      const next = [...prev];
-                      next[i] = parseFloat(e.target.value) || 0;
-                      return next;
-                    })
-                  }
-                />
+                <Label>{currentYear + 1 + i} growth rate</Label>
+                <div className="relative">
+                  <Input
+                    type="number"
+                    step="0.5"
+                    min="-50"
+                    max="200"
+                    placeholder="0"
+                    className="pr-8"
+                    value={growthGoals[i] === 0 ? "" : growthGoals[i]}
+                    onChange={(e) =>
+                      setGrowthGoals((prev) => {
+                        const next = [...prev];
+                        next[i] = parseFloat(e.target.value) || 0;
+                        return next;
+                      })
+                    }
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+                </div>
               </div>
             ))}
           </div>
           <div className="grid gap-1.5 max-w-xs">
-            <Label>{currentYear + 5} Target ($)</Label>
-            <Input
-              type="number"
-              placeholder="$0"
-              value={growthGoals[4] === 0 ? "" : growthGoals[4]}
-              onChange={(e) =>
-                setGrowthGoals((prev) => {
-                  const next = [...prev];
-                  next[4] = parseFloat(e.target.value) || 0;
-                  return next;
-                })
-              }
-            />
+            <Label>{currentYear + 5} growth rate</Label>
+            <div className="relative">
+              <Input
+                type="number"
+                step="0.5"
+                min="-50"
+                max="200"
+                placeholder="0"
+                className="pr-8"
+                value={growthGoals[4] === 0 ? "" : growthGoals[4]}
+                onChange={(e) =>
+                  setGrowthGoals((prev) => {
+                    const next = [...prev];
+                    next[4] = parseFloat(e.target.value) || 0;
+                    return next;
+                  })
+                }
+              />
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+            </div>
           </div>
           <SaveRow
             saving={savingGoals}
