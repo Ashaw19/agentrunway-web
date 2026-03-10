@@ -31,10 +31,19 @@ function getLocalNetworkIP(): string | null {
 
 /**
  * Build the base URL the phone should use to open the receipt-upload page.
- * - localhost → swap in the LAN IP so phones on the same Wi-Fi can reach it.
- * - Any other host (production domain) → use as-is.
+ *
+ * Priority order:
+ *  1. PHONE_BASE_URL env var — set this to an ngrok / tunnel URL in .env.local
+ *     when your router uses AP isolation (phones can't reach the Mac directly).
+ *     e.g. PHONE_BASE_URL=https://abc123.ngrok-free.app
+ *  2. localhost → swap in the LAN IP so phones on the same Wi-Fi can reach it.
+ *  3. Any other host (production domain) → use as-is.
  */
 function resolvePhoneOrigin(req: NextRequest): string {
+  // 1. Explicit tunnel override (ngrok, cloudflared, localtunnel, etc.)
+  const override = process.env.PHONE_BASE_URL;
+  if (override) return override.replace(/\/$/, "");
+
   const host  = req.headers.get("host") ?? "localhost:3000";
   const proto = req.headers.get("x-forwarded-proto") ?? "http";
 
