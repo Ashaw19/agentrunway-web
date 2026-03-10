@@ -2,24 +2,37 @@
  * /api/social/slide
  *
  * Generates a 1080×1080 PNG carousel slide for the Social Media Studio.
- * Uses next/og (satori) for edge-compatible image rendering.
+ * Uses next/og (Satori) on the Edge runtime.
  *
- * Query params:
- *   type        'cover' | 'property' | 'closer'
- *   style       'classic' | 'bold' | 'minimal'
- *   agentName   agent display name
- *   brokerage   brokerage / business name
- *   month       e.g. "June"
- *   year        e.g. "2025"
- *   count       number of closings (cover slide)
- *   totalGci    formatted total GCI string (cover slide)
- *   address     property address (property slide)
- *   role        'buyer' | 'seller' | 'both' (property slide)
- *   gci         formatted GCI string (property slide)
- *   price       formatted sale price string (property slide)
- *   slideNum    current slide number
- *   slideTotal  total slide count
- *   photoUrl    optional property photo URL
+ * Slide types:
+ *   cover    — "N Homes Sold" hero + month/year + optional branding
+ *   property — Address → SOLD wording → large image → brand signature
+ *   closer   — Gratitude + CTA + agent/logo
+ *
+ * Key params:
+ *   type           'cover' | 'property' | 'closer'
+ *   templateFamily 'classic-luxury' | 'bold-modern' | 'minimal-clean'
+ *   agentName      agent display name
+ *   businessName   team/brokerage name
+ *   month          e.g. "March"
+ *   year           e.g. "2026"
+ *   slideNum       current slide index
+ *   slideTotal     total slide count
+ *   showLogo       "1" | "0"
+ *   showHeadshot   "1" | "0"
+ *   logoUrl        optional — public URL to business logo
+ *   headshotUrl    optional — public URL to agent headshot
+ *   count          number of properties (cover only)
+ *   address        property address (property only)
+ *   soldWording    "SOLD" | "JUST SOLD" | "CLOSED" (property only)
+ *   showSalePrice  "1" | "0" (property only)
+ *   price          formatted sale price string (property only)
+ *   ctaLine        custom CTA text (closer only)
+ *
+ * Satori constraints enforced throughout:
+ *   - Every div with multiple children has display: "flex"
+ *   - No inline-flex or fit-content
+ *   - All interpolated text wrapped in template literals (single child)
  */
 
 import { ImageResponse } from "next/og";
@@ -28,204 +41,181 @@ import { NextRequest } from "next/server";
 export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
-type Style = "classic" | "bold" | "minimal";
+// ── Types ──────────────────────────────────────────────────────────────────────
 
-const P: Record<Style, { bg: string; text: string; accent: string; muted: string; highlight: string; softBg: string }> = {
-  classic: {
+type TemplateFamily = "classic-luxury" | "bold-modern" | "minimal-clean";
+
+// ── Palette ───────────────────────────────────────────────────────────────────
+
+interface Palette {
+  bg:        string;
+  text:      string;
+  accent:    string;
+  muted:     string;
+  softBg:    string;
+  brandBg:   string;
+  darkBg:    string;    // for closer slides
+  darkText:  string;    // text on darkBg
+  darkMuted: string;    // muted text on darkBg
+}
+
+const PALETTES: Record<TemplateFamily, Palette> = {
+  "classic-luxury": {
     bg:        "#FFFFFF",
     text:      "#0B1728",
     accent:    "#1E72F2",
     muted:     "#64748B",
-    highlight: "#10B981",
     softBg:    "#EFF6FF",
+    brandBg:   "#F8FAFF",
+    darkBg:    "#0B1728",
+    darkText:  "#FFFFFF",
+    darkMuted: "#94A3B8",
   },
-  bold: {
+  "bold-modern": {
     bg:        "#0B1728",
     text:      "#FFFFFF",
     accent:    "#F0A800",
     muted:     "#94A3B8",
-    highlight: "#10B981",
     softBg:    "#1E3A5F",
+    brandBg:   "#0F1F38",
+    darkBg:    "linear-gradient(145deg, #0B1728 0%, #1E3A5F 50%, #0B1728 100%)",
+    darkText:  "#FFFFFF",
+    darkMuted: "#94A3B8",
   },
-  minimal: {
+  "minimal-clean": {
     bg:        "#F8FAFC",
     text:      "#1E293B",
-    accent:    "#1E293B",
-    muted:     "#64748B",
-    highlight: "#0B1728",
+    accent:    "#475569",
+    muted:     "#94A3B8",
     softBg:    "#E2E8F0",
+    brandBg:   "#F1F5F9",
+    darkBg:    "#1E293B",
+    darkText:  "#FFFFFF",
+    darkMuted: "#94A3B8",
   },
+};
+
+// ── Backward-compat mapping for old ?style= param ─────────────────────────────
+const STYLE_COMPAT: Record<string, TemplateFamily> = {
+  classic: "classic-luxury",
+  bold:    "bold-modern",
+  minimal: "minimal-clean",
 };
 
 const SIZE = 1080;
 
+// ── Route handler ─────────────────────────────────────────────────────────────
+
 export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
 
-  const type      = (sp.get("type")      ?? "cover")   as "cover" | "property" | "closer";
-  const style     = (sp.get("style")     ?? "classic") as Style;
-  const agentName = sp.get("agentName")  ?? "Your Agent";
-  const brokerage = sp.get("brokerage")  ?? "";
-  const month     = sp.get("month")      ?? "January";
-  const year      = sp.get("year")       ?? String(new Date().getFullYear());
-  const count     = sp.get("count")      ?? "1";
-  const totalGci  = sp.get("totalGci")   ?? "";
-  const address   = sp.get("address")    ?? "";
-  const role      = sp.get("role")       ?? "seller";
-  const gci       = sp.get("gci")        ?? "";
-  const price     = sp.get("price")      ?? "";
-  const slideNum  = sp.get("slideNum")   ?? "1";
-  const slideTotal = sp.get("slideTotal") ?? "1";
-  const photoUrl  = sp.get("photoUrl")   ?? "";
+  // Resolve template family (new param or legacy style param)
+  const rawFamily  = sp.get("templateFamily") ?? sp.get("style") ?? "classic-luxury";
+  const family     = (STYLE_COMPAT[rawFamily] ?? rawFamily) as TemplateFamily;
+  const p          = PALETTES[family] ?? PALETTES["classic-luxury"];
 
-  const p = P[style] ?? P.classic;
+  const type         = (sp.get("type") ?? "cover") as "cover" | "property" | "closer";
+  const agentName    = sp.get("agentName")   ?? "Your Agent";
+  const businessName = sp.get("businessName") ?? sp.get("brokerage") ?? "";
+  const month        = sp.get("month")       ?? "January";
+  const year         = sp.get("year")        ?? String(new Date().getFullYear());
+  const slideNum     = sp.get("slideNum")    ?? "1";
+  const slideTotal   = sp.get("slideTotal")  ?? "1";
+  const showLogo     = sp.get("showLogo")    === "1";
+  const showHeadshot = sp.get("showHeadshot") === "1";
+  const logoUrl      = sp.get("logoUrl")     ?? "";
+  const headshotUrl  = sp.get("headshotUrl") ?? "";
 
-  // ── Shared fragment helpers ─────────────────────────────────────────────────
+  // Property-specific
+  const address      = sp.get("address")     ?? "";
+  const soldWording  = sp.get("soldWording") ?? "SOLD";
+  const showSalePrice = sp.get("showSalePrice") === "1";
+  const price        = sp.get("price")       ?? "";
 
-  const brandBadge = (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-      }}
-    >
-      <div
-        style={{
-          width: 8,
-          height: 8,
-          borderRadius: 4,
-          background: p.accent,
-        }}
-      />
-      <span
-        style={{
-          fontSize: 16,
-          color: p.accent,
-          fontWeight: 700,
-          letterSpacing: "0.22em",
-          fontFamily: "sans-serif",
-        }}
-      >
+  // Closer-specific
+  const ctaLine = sp.get("ctaLine") || "Ready to make your move?";
+
+  // Cover-specific
+  const count = sp.get("count") ?? "1";
+
+  // ── Shared elements ──────────────────────────────────────────────────────────
+
+  // AGENT RUNWAY wordmark — used on all slides
+  const wordmark = (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ width: 8, height: 8, borderRadius: 4, background: p.accent }} />
+      <span style={{ fontSize: 16, color: p.accent, fontWeight: 700, letterSpacing: "0.22em", fontFamily: "sans-serif" }}>
         AGENT RUNWAY
       </span>
     </div>
   );
 
-  // ── Cover slide ─────────────────────────────────────────────────────────────
+  // Headshot circle — used on cover + closer
+  const headshotCircle = showHeadshot && headshotUrl ? (
+    <div style={{ width: 72, height: 72, borderRadius: 36, overflow: "hidden", display: "flex", flexShrink: 0, background: p.softBg }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={headshotUrl} alt="" style={{ width: 72, height: 72, objectFit: "cover" }} />
+    </div>
+  ) : null;
+
+  // Logo image — used on cover + closer + property bottom
+  const logoImg = showLogo && logoUrl ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={logoUrl} alt="" style={{ height: 56, maxWidth: 160, objectFit: "contain" }} />
+  ) : null;
+
+  // ── Cover slide ──────────────────────────────────────────────────────────────
 
   if (type === "cover") {
-    const coverBg =
-      style === "bold"
-        ? "linear-gradient(145deg, #0B1728 0%, #1E3A5F 55%, #0B1728 100%)"
-        : p.bg;
+    const coverBg = family === "bold-modern"
+      ? "linear-gradient(145deg, #0B1728 0%, #1E3A5F 55%, #0B1728 100%)"
+      : p.bg;
+
+    const countNum  = Number(count);
+    const homesText = countNum === 1 ? "Home Sold" : "Homes Sold";
 
     return new ImageResponse(
       (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            width: "100%",
-            height: "100%",
-            background: coverBg,
-            padding: "80px",
-            justifyContent: "space-between",
-            fontFamily: "sans-serif",
-          }}
-        >
-          {/* Top — brand */}
-          {brandBadge}
+        <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", background: coverBg, padding: "80px", justifyContent: "space-between", fontFamily: "sans-serif" }}>
 
-          {/* Center — headline */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <div
-              style={{
-                width: 64,
-                height: 5,
-                borderRadius: 3,
-                background: style === "minimal" ? p.text : p.accent,
-              }}
-            />
-            <div
-              style={{
-                fontSize: 100,
-                fontWeight: 900,
-                color: p.text,
-                lineHeight: 1,
-                letterSpacing: "-0.02em",
-              }}
-            >
-              {count}
+          {/* Top row: wordmark + month/year */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            {wordmark}
+            <div style={{ fontSize: 22, color: p.muted, fontWeight: 600 }}>
+              {`${month} ${year}`}
             </div>
-            <div
-              style={{
-                fontSize: 52,
-                fontWeight: 800,
-                color: p.text,
-                lineHeight: 1,
-                marginTop: -8,
-              }}
-            >
-              {Number(count) === 1 ? "Closing" : "Closings"}
-            </div>
-            <div
-              style={{
-                fontSize: 30,
-                color: p.muted,
-                fontWeight: 600,
-                marginTop: 4,
-              }}
-            >
-              {`${month} · ${year}`}
-            </div>
-            {Number(count) > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  alignSelf: "flex-start",
-                  background: p.highlight,
-                  color: "#fff",
-                  borderRadius: 999,
-                  padding: "10px 28px",
-                  fontSize: 22,
-                  fontWeight: 700,
-                  marginTop: 8,
-                }}
-              >
-                {`${month} ${year} Recap`}
-              </div>
-            )}
           </div>
 
-          {/* Bottom — agent identity + swipe hint */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-end",
-            }}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: p.text }}>
-                {agentName}
+          {/* Center: count hero + label */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            <div style={{ width: 64, height: 5, borderRadius: 3, background: family === "minimal-clean" ? p.text : p.accent, marginBottom: 20 }} />
+            <div style={{ fontSize: 160, fontWeight: 900, color: family === "bold-modern" ? p.accent : p.text, lineHeight: 0.85, letterSpacing: "-0.03em" }}>
+              {count}
+            </div>
+            <div style={{ fontSize: 58, fontWeight: 800, color: family === "bold-modern" ? "#FFFFFF" : p.text, lineHeight: 1, marginTop: 8 }}>
+              {homesText}
+            </div>
+            <div style={{ fontSize: 24, color: p.muted, fontWeight: 500, marginTop: 20 }}>
+              {`${month} ${year} Monthly Recap`}
+            </div>
+          </div>
+
+          {/* Bottom row: headshot + name stack + logo */}
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+              {headshotCircle}
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <div style={{ fontSize: 26, fontWeight: 800, color: family === "bold-modern" ? "#FFFFFF" : p.text }}>
+                  {agentName}
+                </div>
+                {!!businessName && (
+                  <div style={{ fontSize: 18, color: p.muted }}>
+                    {businessName}
+                  </div>
+                )}
               </div>
-              {!!brokerage && (
-                <div style={{ fontSize: 17, color: p.muted }}>{brokerage}</div>
-              )}
             </div>
-            <div
-              style={{
-                fontSize: 15,
-                color: p.muted,
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              swipe for details →
-            </div>
+            {logoImg ?? <div style={{ width: 1, height: 1 }} />}
           </div>
         </div>
       ),
@@ -233,223 +223,80 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // ── Property slide ──────────────────────────────────────────────────────────
+  // ── Property slide ────────────────────────────────────────────────────────────
+  //
+  // Layout (top → bottom):
+  //   Info zone   220px — address + sold wording
+  //   Image zone  flex 1 (~700px) — photo or placeholder + slide counter pill
+  //   Brand zone  160px — business name, agent name, logo
 
   if (type === "property") {
-    const roleColor =
-      role === "buyer" ? "#1E72F2" : role === "seller" ? "#10B981" : "#8B5CF6";
-    const roleLabel =
-      role === "buyer" ? "Buyer Side" : role === "seller" ? "Seller Side" : "Both Sides";
+    const photoUrl   = sp.get("photoUrl") ?? "";
+    const propertyBg = family === "bold-modern" ? "#0B1728" : p.bg;
 
-    const photoH = 560; // top 52% of 1080
+    const addressFontSize = address.length > 50 ? 34 : address.length > 35 ? 42 : 50;
 
     return new ImageResponse(
       (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            width: "100%",
-            height: "100%",
-            fontFamily: "sans-serif",
-            background: style === "bold" ? "#0B1728" : p.bg,
-            overflow: "hidden",
-          }}
-        >
-          {/* Photo / hero area */}
-          <div
-            style={{
-              display: "flex",
-              position: "relative",
-              width: "100%",
-              height: photoH,
-              background:
-                style === "bold"
-                  ? "linear-gradient(135deg, #1E3A5F 0%, #0B1728 100%)"
-                  : p.softBg,
-              alignItems: "center",
-              justifyContent: "center",
-              overflow: "hidden",
-              flexShrink: 0,
-            }}
-          >
+        <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", fontFamily: "sans-serif", background: propertyBg }}>
+
+          {/* ── Info zone ─────────────────────────────────────────────────────── */}
+          <div style={{ display: "flex", flexDirection: "column", height: 220, padding: "40px 64px 28px", justifyContent: "center", gap: 16 }}>
+            {/* Address */}
+            <div style={{ fontSize: addressFontSize, fontWeight: 900, color: family === "bold-modern" ? "#FFFFFF" : p.text, lineHeight: 1.1 }}>
+              {address || "123 Main Street"}
+            </div>
+            {/* Sold wording row */}
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 36, height: 4, background: p.accent, borderRadius: 2 }} />
+              <div style={{ fontSize: 20, fontWeight: 800, color: p.accent, letterSpacing: "0.18em" }}>
+                {soldWording}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Image zone ────────────────────────────────────────────────────── */}
+          <div style={{ display: "flex", position: "relative", flex: 1, background: family === "bold-modern" ? "linear-gradient(135deg, #1E3A5F 0%, #0B1728 100%)" : p.softBg, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+
             {photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={photoUrl}
-                alt=""
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                }}
-              />
+              <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             ) : (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-              >
-                <div style={{ fontSize: 96 }}>🏡</div>
-                <div
-                  style={{
-                    fontSize: 20,
-                    color: p.muted,
-                    fontWeight: 600,
-                    letterSpacing: "0.05em",
-                  }}
-                >
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+                <div style={{ fontSize: 80 }}>🏡</div>
+                <div style={{ fontSize: 18, color: p.muted, fontWeight: 600, letterSpacing: "0.06em" }}>
                   ADD PROPERTY PHOTO
                 </div>
               </div>
             )}
 
-            {/* Gradient overlay at bottom of photo */}
-            <div
-              style={{
-                position: "absolute",
-                bottom: 0,
-                left: 0,
-                right: 0,
-                height: 120,
-                background:
-                  style === "bold"
-                    ? "linear-gradient(to bottom, transparent, #0B1728)"
-                    : "linear-gradient(to bottom, transparent, rgba(0,0,0,0.35))",
-              }}
-            />
+            {/* Gradient overlay at bottom of image */}
+            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 80, background: family === "bold-modern" ? "linear-gradient(to bottom, transparent, #0B1728)" : "linear-gradient(to bottom, transparent, rgba(0,0,0,0.25))" }} />
 
-            {/* Slide counter pill */}
-            <div
-              style={{
-                position: "absolute",
-                top: 24,
-                right: 24,
-                background: "rgba(0,0,0,0.55)",
-                color: "#fff",
-                borderRadius: 999,
-                padding: "8px 20px",
-                fontSize: 18,
-                fontWeight: 700,
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
+            {/* Slide counter pill — top right */}
+            <div style={{ position: "absolute", top: 20, right: 20, background: "rgba(0,0,0,0.58)", color: "#fff", borderRadius: 999, padding: "8px 20px", fontSize: 18, fontWeight: 700, display: "flex", alignItems: "center" }}>
               {`${slideNum} / ${slideTotal}`}
-            </div>
-
-            {/* Role badge */}
-            <div
-              style={{
-                position: "absolute",
-                bottom: 24,
-                left: 24,
-                background: roleColor,
-                color: "#fff",
-                borderRadius: 8,
-                padding: "10px 24px",
-                fontSize: 18,
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
-              {roleLabel.toUpperCase()}
             </div>
           </div>
 
-          {/* Info area */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              flex: 1,
-              padding: "36px 64px",
-              justifyContent: "center",
-              gap: 10,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 15,
-                color: p.accent,
-                fontWeight: 700,
-                letterSpacing: "0.18em",
-              }}
-            >
-              JUST CLOSED
-            </div>
-            <div
-              style={{
-                fontSize: address.length > 45 ? 28 : 36,
-                fontWeight: 800,
-                color: style === "bold" ? "#fff" : p.text,
-                lineHeight: 1.2,
-              }}
-            >
-              {address || "123 Main Street"}
-            </div>
-            <div
-              style={{
-                display: "flex",
-                gap: 40,
-                marginTop: 6,
-              }}
-            >
-              {!!price && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: p.muted,
-                      fontWeight: 600,
-                      letterSpacing: "0.1em",
-                    }}
-                  >
-                    SALE PRICE
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 26,
-                      fontWeight: 700,
-                      color: style === "bold" ? "#fff" : p.text,
-                    }}
-                  >
-                    {price}
-                  </div>
+          {/* ── Brand zone ────────────────────────────────────────────────────── */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 160, padding: "0 64px", background: family === "bold-modern" ? "#0F1F38" : p.brandBg }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div style={{ fontSize: 28, fontWeight: 800, color: family === "bold-modern" ? "#FFFFFF" : p.text }}>
+                {businessName || agentName}
+              </div>
+              {!!businessName && (
+                <div style={{ fontSize: 18, color: p.muted }}>
+                  {agentName}
                 </div>
               )}
-              {!!role && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: p.muted,
-                      fontWeight: 600,
-                      letterSpacing: "0.1em",
-                    }}
-                  >
-                    REPRESENTED
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 26,
-                      fontWeight: 700,
-                      color: p.highlight,
-                    }}
-                  >
-                    {role === "buyer" ? "Buyer" : role === "seller" ? "Seller" : "Both Sides"}
-                  </div>
+              {showSalePrice && !!price && (
+                <div style={{ fontSize: 16, color: p.muted, marginTop: 2 }}>
+                  {`Listed at ${price}`}
                 </div>
               )}
             </div>
-            <div style={{ fontSize: 15, color: p.muted, marginTop: 4 }}>
-              {brokerage ? `${agentName} · ${brokerage}` : agentName}
-            </div>
+            {logoImg ?? <div style={{ width: 1, height: 1 }} />}
           </div>
         </div>
       ),
@@ -457,104 +304,54 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // ── Closer / CTA slide ──────────────────────────────────────────────────────
+  // ── Closer / End card ─────────────────────────────────────────────────────────
+  //
+  // Always dark — strong visual close to the carousel.
 
-  const closerBg =
-    style === "bold"
-      ? "linear-gradient(145deg, #0B1728 0%, #1E3A5F 50%, #0B1728 100%)"
-      : "#0B1728";
+  const closerBg = family === "bold-modern"
+    ? "linear-gradient(145deg, #0B1728 0%, #1E3A5F 50%, #0B1728 100%)"
+    : "#0B1728";
 
   return new ImageResponse(
     (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          width: "100%",
-          height: "100%",
-          background: closerBg,
-          padding: "80px",
-          justifyContent: "space-between",
-          fontFamily: "sans-serif",
-        }}
-      >
-        {/* Top */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          {brandBadge}
-          <div
-            style={{
-              width: 64,
-              height: 3,
-              background: p.accent,
-              borderRadius: 2,
-            }}
-          />
+      <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", background: closerBg, padding: "80px", justifyContent: "space-between", fontFamily: "sans-serif" }}>
+
+        {/* Top: logo or wordmark */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          {logoImg ?? wordmark}
+          <div style={{ width: 60, height: 3, background: p.accent, borderRadius: 2 }} />
         </div>
 
-        {/* Center CTA */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 18,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 20,
-              color: p.accent,
-              fontWeight: 700,
-              letterSpacing: "0.15em",
-            }}
-          >
-            YOUR NEXT MOVE STARTS HERE
+        {/* Center: gratitude + CTA */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div style={{ fontSize: 18, color: p.accent, fontWeight: 700, letterSpacing: "0.15em" }}>
+            THANK YOU
           </div>
-          <div
-            style={{
-              fontSize: 62,
-              fontWeight: 900,
-              color: "#FFFFFF",
-              lineHeight: 1.1,
-              letterSpacing: "-0.01em",
-            }}
-          >
-            Let&apos;s find your perfect home.
+          <div style={{ fontSize: 58, fontWeight: 900, color: "#FFFFFF", lineHeight: 1.1, letterSpacing: "-0.01em" }}>
+            {ctaLine}
           </div>
           <div style={{ fontSize: 24, color: "#94A3B8", marginTop: 4 }}>
-            Reach out today — I&apos;d love to help.
+            {"Let's connect — I'd love to help."}
           </div>
         </div>
 
-        {/* Bottom — agent info */}
+        {/* Bottom: headshot + agent info */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div
-            style={{
-              width: 48,
-              height: 4,
-              background: p.accent,
-              borderRadius: 2,
-              marginBottom: 8,
-            }}
-          />
-          <div style={{ fontSize: 34, fontWeight: 900, color: "#FFFFFF" }}>
-            {agentName}
+          <div style={{ width: 48, height: 4, background: p.accent, borderRadius: 2, marginBottom: 8 }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+            {headshotCircle}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ fontSize: 32, fontWeight: 900, color: "#FFFFFF" }}>
+                {agentName}
+              </div>
+              {!!businessName && (
+                <div style={{ fontSize: 20, color: "#94A3B8" }}>
+                  {businessName}
+                </div>
+              )}
+            </div>
           </div>
-          {!!brokerage && (
-            <div style={{ fontSize: 20, color: "#94A3B8" }}>{brokerage}</div>
-          )}
-          <div
-            style={{
-              fontSize: 14,
-              color: "#475569",
-              marginTop: 10,
-            }}
-          >
+          <div style={{ fontSize: 14, color: "#475569", marginTop: 8 }}>
             Powered by Agent Runway · agentrunway.ca
           </div>
         </div>

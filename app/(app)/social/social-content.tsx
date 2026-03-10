@@ -2,13 +2,11 @@
 
 /**
  * Social Media Studio — Agent Runway
+ * Month in Review carousel builder.
  *
- * Lets agents select a month's closed deals, pick a carousel template,
- * preview all slides, auto-generate a caption, and download a ZIP of
- * 1080×1080 PNG slides ready for Instagram / Facebook.
- *
- * Phase 1: Template builder + download.
- * Phase 2 (post Meta App Review): direct posting via Meta Graph API.
+ * Two output paths from one shared PostConfig:
+ *   1. Quick Post — preview → Post to Instagram
+ *   2. Canva Export — download ZIP package for finishing in Canva
  */
 
 import { useState, useCallback, useEffect } from "react";
@@ -19,9 +17,11 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Button }   from "@/components/ui/button";
+import { Badge }    from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Input }    from "@/components/ui/input";
+import { Label }    from "@/components/ui/label";
 import {
   Download,
   ChevronLeft,
@@ -37,236 +37,161 @@ import {
   Loader2,
   Send,
   AlertCircle,
+  Package,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
-import { fmtCurrency } from "@/lib/formatters";
 import {
   computeGCI,
   type Transaction,
   type UserSettings,
 } from "@/lib/types/database";
+import {
+  type TemplateFamily,
+  type SoldWording,
+  type PostConfig,
+  type SlideSpec,
+  TEMPLATE_FAMILIES,
+  SOLD_WORDING_OPTIONS,
+  MONTH_NAMES,
+  buildSlides,
+  buildSlideApiUrl,
+  generateCaption,
+  buildCanvaContentJson,
+  buildCanvaInstructions,
+} from "@/lib/social/post-engine";
+import { fmtCurrency } from "@/lib/formatters";
 import JSZip from "jszip";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Connection {
-  platform: string;
-  account_name: string | null;
-  account_id: string | null;
+  platform:         string;
+  account_name:     string | null;
+  account_id:       string | null;
   token_expires_at: string | null;
 }
 
 interface Props {
-  settings: UserSettings | null;
+  settings:     UserSettings | null;
   transactions: Transaction[];
-  connections: Connection[];
+  connections:  Connection[];
 }
 
-type TemplateStyle = "classic" | "bold" | "minimal";
-
-interface SlideSpec {
-  type: "cover" | "property" | "closer";
-  label: string;
-  tx?: Transaction;
-  slideNum?: number;
-  slideTotal?: number;
-}
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-const STYLE_META: Record<TemplateStyle, { label: string; desc: string; preview: string }> = {
-  classic: {
-    label:   "Classic",
-    desc:    "White background, navy & blue",
-    preview: "bg-white border-blue-200",
-  },
-  bold: {
-    label:   "Bold",
-    desc:    "Dark navy with gold accents",
-    preview: "bg-slate-900 border-amber-400",
-  },
-  minimal: {
-    label:   "Minimal",
-    desc:    "Light grey, clean & modern",
-    preview: "bg-slate-50 border-slate-300",
-  },
-};
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function buildSlideUrl(
-  spec: SlideSpec,
-  style: TemplateStyle,
-  agentName: string,
-  brokerage: string,
-  month: string,
-  year: number,
-  totalCount: number,
-): string {
-  const base = "/api/social/slide";
-  const common = new URLSearchParams({
-    style,
-    agentName,
-    brokerage,
-    month,
-    year: String(year),
-    slideNum:   String(spec.slideNum ?? 1),
-    slideTotal: String(spec.slideTotal ?? 1),
-  });
-
-  if (spec.type === "cover") {
-    common.set("type", "cover");
-    common.set("count", String(totalCount));
-    return `${base}?${common.toString()}`;
-  }
-
-  if (spec.type === "property" && spec.tx) {
-    const tx = spec.tx;
-    common.set("type", "property");
-    common.set("address", tx.address ?? "");
-    common.set("role", tx.side);
-    common.set("price", fmtCurrency(tx.sale_price));
-    return `${base}?${common.toString()}`;
-  }
-
-  // closer
-  common.set("type", "closer");
-  return `${base}?${common.toString()}`;
-}
-
-function generateCaption(
-  agentName: string,
-  brokerage: string,
-  month: string,
-  year: number,
-  txList: Transaction[],
-): string {
-  const count = txList.length;
-  const plural = count === 1 ? "deal" : "deals";
-
-  const lines: string[] = [
-    `🏡 ${count} ${plural} closed in ${month} ${year}!`,
-    "",
-  ];
-
-  if (count <= 5) {
-    txList.forEach((tx) => {
-      const side = tx.side === "buyer" ? "👤 Buyer" : tx.side === "seller" ? "🤝 Seller" : "⭐ Both";
-      lines.push(`${side} · ${tx.address || "Property"}`);
-    });
-    lines.push("");
-  }
-
-  lines.push(
-    "Whether you're buying, selling, or just exploring your options — I'm here to guide you every step of the way.",
-    "",
-    "📲 DM me to get started!",
-    "",
-    "#JustClosed #RealEstate #HomeOwnership #CanadianRealEstate #RealtorLife",
-  );
-
-  if (brokerage) lines.push(`#${brokerage.replace(/\s+/g, "")}`);
-
-  return lines.join("\n");
-}
-
-// ── Main Component ────────────────────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────
 
 export function SocialContent({ settings, transactions, connections }: Props) {
   const now = new Date();
-  const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth());
-  const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
-  const [templateStyle, setTemplateStyle] = useState<TemplateStyle>("classic");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [caption, setCaption] = useState<string>("");
-  const [currentSlide, setCurrentSlide] = useState<number>(0);
-  const [copied, setCopied] = useState<boolean>(false);
-  const [downloading, setDownloading] = useState<boolean>(false);
-  const [publishing, setPublishing] = useState<boolean>(false);
-  const [publishResult, setPublishResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [slideLoadErrors, setSlideLoadErrors] = useState<Set<number>>(new Set());
 
-  // ── Derived values (computed before hooks — safe with null settings) ────────
-  const agentName  = settings?.display_name  ?? "Your Agent";
-  const brokerage  = settings?.business_name || settings?.brokerage_name || "";
-  const monthLabel = MONTH_NAMES[selectedMonth];
+  // ── Post setup state ───────────────────────────────────────────────────────
+  const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1); // 1-12
+  const [selectedYear,  setSelectedYear]  = useState<number>(now.getFullYear());
+  const [selectedIds,   setSelectedIds]   = useState<Set<string>>(new Set());
 
-  // ── Filter transactions for selected month ─────────────────────────────────
+  // ── Template ───────────────────────────────────────────────────────────────
+  const [templateFamily, setTemplateFamily] = useState<TemplateFamily>("classic-luxury");
+
+  // ── Branding (default from settings, user can override) ───────────────────
+  const [logoUrl,     setLogoUrl]     = useState<string>(settings?.business_logo_url ?? "");
+  const [headshotUrl, setHeadshotUrl] = useState<string>(settings?.avatar_url        ?? "");
+
+  // ── Slide options ──────────────────────────────────────────────────────────
+  const [soldWording,    setSoldWording]    = useState<SoldWording>("SOLD");
+  const [showLogo,       setShowLogo]       = useState<boolean>(!!(settings?.business_logo_url));
+  const [showHeadshot,   setShowHeadshot]   = useState<boolean>(false);
+  const [showSalePrice,  setShowSalePrice]  = useState<boolean>(false);
+  const [includeEndCard, setIncludeEndCard] = useState<boolean>(true);
+
+  // ── Caption ────────────────────────────────────────────────────────────────
+  const [caption,       setCaption]       = useState<string>("");
+  const [ctaLine,       setCtaLine]       = useState<string>("Ready to make your move? Let's connect.");
+  const [extraHashtags, setExtraHashtags] = useState<string>("");
+
+  // ── UI state ───────────────────────────────────────────────────────────────
+  const [currentSlide,   setCurrentSlide]   = useState<number>(0);
+  const [copied,         setCopied]         = useState<boolean>(false);
+  const [downloading,    setDownloading]    = useState<boolean>(false);
+  const [exporting,      setExporting]      = useState<boolean>(false);
+  const [publishing,     setPublishing]     = useState<boolean>(false);
+  const [publishResult,  setPublishResult]  = useState<{ success: boolean; message: string } | null>(null);
+  const [slideLoadError, setSlideLoadError] = useState<number | null>(null);
+
+  // ── Derived values ─────────────────────────────────────────────────────────
+  const agentName    = settings?.display_name                              ?? "Your Agent";
+  const businessName = settings?.business_name || settings?.brokerage_name || "";
+  const monthLabel   = MONTH_NAMES[selectedMonth - 1];
+
+  // Filter closed transactions for the selected month
   const monthTx = transactions.filter((tx) => {
     const d = new Date(tx.date);
-    return d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+    return (d.getMonth() + 1) === selectedMonth && d.getFullYear() === selectedYear;
   });
 
   const selectedTx = monthTx.filter((tx) => selectedIds.has(tx.id));
 
-  // ── Build slide list ───────────────────────────────────────────────────────
-  const slides: SlideSpec[] = [
-    { type: "cover", label: "Cover", slideNum: 1, slideTotal: selectedTx.length + 2 },
-    ...selectedTx.map((tx, idx) => ({
-      type: "property" as const,
-      label: tx.address || `Deal ${idx + 1}`,
-      tx,
-      slideNum: idx + 2,
-      slideTotal: selectedTx.length + 2,
-    })),
-    { type: "closer", label: "Call to Action", slideNum: selectedTx.length + 2, slideTotal: selectedTx.length + 2 },
-  ];
+  // ── Build PostConfig ───────────────────────────────────────────────────────
+  const config: PostConfig = {
+    postType:       "month-in-review",
+    month:          selectedMonth,
+    year:           selectedYear,
+    templateFamily,
+    agentName,
+    businessName,
+    logoUrl,
+    headshotUrl,
+    soldWording,
+    showLogo,
+    showHeadshot,
+    showSalePrice,
+    includeEndCard,
+    ctaLine,
+    extraHashtags,
+  };
 
-  const safeSlide = Math.min(currentSlide, slides.length - 1);
+  // ── Build slides ───────────────────────────────────────────────────────────
+  const slides = buildSlides(config, selectedTx);
+  const safeSlide = Math.min(currentSlide, Math.max(0, slides.length - 1));
   const currentSlideSpec = slides[safeSlide];
 
-  // ── Auto-select all transactions in the month on month change ──────────────
+  // ── Slide URL builder ──────────────────────────────────────────────────────
+  const slideUrl = useCallback(
+    (spec: SlideSpec) => buildSlideApiUrl(spec, config),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [templateFamily, agentName, businessName, logoUrl, headshotUrl,
+     selectedMonth, selectedYear, soldWording, showLogo, showHeadshot,
+     showSalePrice, includeEndCard, ctaLine, selectedTx.length],
+  );
+
+  // ── Auto-select all transactions when month changes ────────────────────────
   useEffect(() => {
-    const newIds = new Set(monthTx.map((tx) => tx.id));
-    setSelectedIds(newIds);
+    setSelectedIds(new Set(monthTx.map((tx) => tx.id)));
     setCurrentSlide(0);
+    setSlideLoadError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth, selectedYear]);
 
-  // ── Auto-generate caption when selection changes ───────────────────────────
+  // ── Auto-generate caption ──────────────────────────────────────────────────
   useEffect(() => {
     if (selectedTx.length > 0) {
-      setCaption(generateCaption(agentName, brokerage, monthLabel, selectedYear, selectedTx));
+      setCaption(generateCaption(config, selectedTx));
     } else {
       setCaption("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedIds, selectedMonth, selectedYear]);
+  }, [selectedIds, selectedMonth, selectedYear, ctaLine, extraHashtags]);
 
-  // ── Slide URL builder ──────────────────────────────────────────────────────
-  const slideUrl = useCallback(
-    (spec: SlideSpec) =>
-      buildSlideUrl(
-        spec,
-        templateStyle,
-        agentName,
-        brokerage,
-        monthLabel,
-        selectedYear,
-        selectedTx.length,
-      ),
-    [templateStyle, agentName, brokerage, monthLabel, selectedYear, selectedTx.length],
-  );
-
-  // ── Early return AFTER all hooks ───────────────────────────────────────────
+  // ── Guards ─────────────────────────────────────────────────────────────────
   if (!settings) {
     return (
-      <div className="py-20 text-center text-muted-foreground">
-        Settings not found.
-      </div>
+      <div className="py-20 text-center text-muted-foreground">Settings not found.</div>
     );
   }
 
-  // ── Toggle selection ───────────────────────────────────────────────────────
+  // ── Toggle transaction ─────────────────────────────────────────────────────
   function toggleTx(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
     setCurrentSlide(0);
@@ -279,104 +204,108 @@ export function SocialContent({ settings, transactions, connections }: Props) {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  // ── Regenerate caption ─────────────────────────────────────────────────────
-  function handleRegenerateCaption() {
-    setCaption(generateCaption(agentName, brokerage, monthLabel, selectedYear, selectedTx));
-  }
-
-  // ── Download all slides as ZIP ────────────────────────────────────────────
+  // ── Download ZIP (Quick Post) ──────────────────────────────────────────────
   async function handleDownload() {
-    if (slides.length === 0 || selectedTx.length === 0) return;
+    if (!selectedTx.length) return;
     setDownloading(true);
     try {
-      const zip = new JSZip();
-      const folder = zip.folder(`${monthLabel}-${selectedYear}-closings`);
-
+      const zip    = new JSZip();
+      const folder = zip.folder(`${monthLabel}-${selectedYear}-slides`);
       for (let i = 0; i < slides.length; i++) {
         const spec = slides[i];
-        const url = slideUrl(spec);
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Slide ${i + 1} failed: ${response.status}`);
-        const blob = await response.blob();
-        const fileName = `slide-${String(i + 1).padStart(2, "0")}-${spec.type}.png`;
-        folder?.file(fileName, blob);
+        const res  = await fetch(slideUrl(spec));
+        if (!res.ok) throw new Error(`Slide ${i + 1} failed`);
+        folder?.file(`slide-${String(i + 1).padStart(2, "0")}-${spec.type}.png`, await res.blob());
       }
-
-      const zipBlob = await zip.generateAsync({ type: "blob" });
-      const objUrl = URL.createObjectURL(zipBlob);
-      const a = document.createElement("a");
-      a.href = objUrl;
-      a.download = `agent-runway-${monthLabel.toLowerCase()}-${selectedYear}-carousel.zip`;
+      const blob   = await zip.generateAsync({ type: "blob" });
+      const objUrl = URL.createObjectURL(blob);
+      const a      = Object.assign(document.createElement("a"), { href: objUrl, download: `agent-runway-${monthLabel.toLowerCase()}-${selectedYear}.zip` });
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(objUrl);
-    } catch (err) {
-      console.error("Download failed:", err);
-    } finally {
-      setDownloading(false);
-    }
+    } catch (err) { console.error("Download failed:", err); }
+    finally { setDownloading(false); }
   }
 
-  // ── Publish to Instagram ──────────────────────────────────────────────────
+  // ── Canva Export ZIP ───────────────────────────────────────────────────────
+  async function handleCanvaExport() {
+    if (!selectedTx.length) return;
+    setExporting(true);
+    try {
+      const zip    = new JSZip();
+      const folder = zip.folder(`agent-runway-canva-${monthLabel.toLowerCase()}-${selectedYear}`);
+      // Slide PNGs
+      for (let i = 0; i < slides.length; i++) {
+        const spec = slides[i];
+        const res  = await fetch(slideUrl(spec));
+        if (!res.ok) throw new Error(`Slide ${i + 1} failed`);
+        folder?.file(`slide-${String(i + 1).padStart(2, "0")}-${spec.type}.png`, await res.blob());
+      }
+      // Caption text
+      folder?.file("caption.txt", caption);
+      // Structured content JSON
+      folder?.file("content.json", buildCanvaContentJson(config, selectedTx));
+      // Instructions
+      folder?.file("canva-instructions.md", buildCanvaInstructions(config));
+
+      const blob   = await zip.generateAsync({ type: "blob" });
+      const objUrl = URL.createObjectURL(blob);
+      const a      = Object.assign(document.createElement("a"), { href: objUrl, download: `agent-runway-canva-${monthLabel.toLowerCase()}-${selectedYear}.zip` });
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objUrl);
+    } catch (err) { console.error("Canva export failed:", err); }
+    finally { setExporting(false); }
+  }
+
+  // ── Post to Instagram ──────────────────────────────────────────────────────
   async function handlePublish() {
-    if (slides.length === 0 || selectedTx.length === 0) return;
+    if (!selectedTx.length) return;
     setPublishing(true);
     setPublishResult(null);
     try {
-      // Build absolute public URLs for each slide
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
-      const slideAbsoluteUrls = slides.map((spec) => `${siteUrl}${slideUrl(spec)}`);
-
-      const res = await fetch("/api/social/publish", {
-        method: "POST",
+      const siteBase       = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
+      const slideAbsUrls   = slides.map((spec) => `${siteBase}${slideUrl(spec)}`);
+      const res            = await fetch("/api/social/publish", {
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slideUrls: slideAbsoluteUrls,
+        body:    JSON.stringify({
+          slideUrls:      slideAbsUrls,
           caption,
-          month: selectedMonth + 1,
-          year: selectedYear,
-          templateStyle,
+          month:          selectedMonth,
+          year:           selectedYear,
+          templateStyle:  templateFamily,
           transactionIds: Array.from(selectedIds),
         }),
       });
-
       const json = await res.json();
-
-      if (!res.ok) {
-        throw new Error(json.error ?? "Publishing failed");
-      }
-
+      if (!res.ok) throw new Error(json.error ?? "Publishing failed");
       setPublishResult({ success: true, message: "Posted to Instagram!" });
     } catch (err) {
-      setPublishResult({
-        success: false,
-        message: err instanceof Error ? err.message : "Publishing failed",
-      });
-    } finally {
-      setPublishing(false);
-    }
+      setPublishResult({ success: false, message: err instanceof Error ? err.message : "Publishing failed" });
+    } finally { setPublishing(false); }
   }
 
-  // ── Available years (current year ± 2) ────────────────────────────────────
+  // ── Misc derived ───────────────────────────────────────────────────────────
   const currentYear = now.getFullYear();
-  const years = [currentYear - 1, currentYear, currentYear + 1];
+  const years       = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
 
-  // ── Connected accounts ─────────────────────────────────────────────────────
-  const igConn = connections.find((c) => c.platform === "instagram");
-  const fbConn = connections.find((c) => c.platform === "facebook");
-
-  const metaAppId = process.env.NEXT_PUBLIC_META_APP_ID; // optional public var
-  const siteUrl   = process.env.NEXT_PUBLIC_SITE_URL ?? "https://agentrunway.ca";
-  const igAuthUrl = metaAppId
+  const igConn     = connections.find((c) => c.platform === "instagram");
+  const fbConn     = connections.find((c) => c.platform === "facebook");
+  const metaAppId  = process.env.NEXT_PUBLIC_META_APP_ID;
+  const siteUrl    = process.env.NEXT_PUBLIC_SITE_URL ?? "https://agentrunway.ca";
+  const igAuthUrl  = metaAppId
     ? `https://www.instagram.com/oauth/authorize?client_id=${metaAppId}&redirect_uri=${encodeURIComponent(`${siteUrl}/api/auth/meta/callback`)}&scope=instagram_business_basic,instagram_business_content_publish&response_type=code`
     : null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-8">
 
-      {/* ── Header ────────────────────────────────────────────────────────── */}
+      {/* ── Page header ───────────────────────────────────────────────────── */}
       <div className="border-b border-border/60 pb-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -388,44 +317,45 @@ export function SocialContent({ settings, transactions, connections }: Props) {
               </Badge>
             </h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Build branded carousel posts from your closed deals — ready for Instagram &amp; Facebook
+              Generate polished Month in Review carousels from your closed deals
             </p>
           </div>
-          {/* Connected account badges */}
+          {/* Connection badges */}
           <div className="flex items-center gap-2">
             {igConn ? (
               <Badge variant="outline" className="border-pink-300 bg-pink-50 text-pink-700">
-                <Instagram className="h-3 w-3 mr-1" /> @{igConn.account_name ?? "Connected"}
+                <Instagram className="h-3 w-3 mr-1" />@{igConn.account_name ?? "Connected"}
               </Badge>
             ) : (
               <Badge variant="outline" className="text-muted-foreground border-dashed">
-                <Instagram className="h-3 w-3 mr-1" /> Not connected
+                <Instagram className="h-3 w-3 mr-1" />Not connected
               </Badge>
             )}
             {fbConn ? (
               <Badge variant="outline" className="border-blue-300 bg-blue-50 text-blue-700">
-                <Facebook className="h-3 w-3 mr-1" /> {fbConn.account_name ?? "Connected"}
+                <Facebook className="h-3 w-3 mr-1" />{fbConn.account_name ?? "Connected"}
               </Badge>
             ) : (
               <Badge variant="outline" className="text-muted-foreground border-dashed">
-                <Facebook className="h-3 w-3 mr-1" /> Not connected
+                <Facebook className="h-3 w-3 mr-1" />Not connected
               </Badge>
             )}
           </div>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
 
-        {/* ── Left Panel — Controls ────────────────────────────────────────── */}
-        <div className="space-y-5">
+        {/* ══ LEFT PANEL ════════════════════════════════════════════════════ */}
+        <div className="space-y-4">
 
-          {/* Month selector */}
+          {/* 1 ── Post Setup: month + deals ─────────────────────────────── */}
           <Card className="rounded-2xl border-slate-200 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Select Month</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">1 — Post Setup</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
+              {/* Month / Year pickers */}
               <div className="flex gap-2">
                 <select
                   className="flex-1 rounded-lg border border-slate-200 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -433,122 +363,196 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                   onChange={(e) => setSelectedMonth(Number(e.target.value))}
                 >
                   {MONTH_NAMES.map((m, i) => (
-                    <option key={m} value={i}>{m}</option>
+                    <option key={m} value={i + 1}>{m}</option>
                   ))}
                 </select>
                 <select
-                  className="w-[90px] rounded-lg border border-slate-200 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-[96px] rounded-lg border border-slate-200 bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(Number(e.target.value))}
                 >
-                  {years.map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
+                  {years.map((y) => <option key={y} value={y}>{y}</option>)}
                 </select>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {monthTx.length} closed deal{monthTx.length !== 1 ? "s" : ""} in {monthLabel} {selectedYear}
-              </p>
+
+              {/* Deal picker */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-slate-700">
+                    {monthTx.length} closed deal{monthTx.length !== 1 ? "s" : ""} in {monthLabel}
+                  </p>
+                  {monthTx.length > 0 && (
+                    <button
+                      className="text-xs text-blue-600 hover:underline"
+                      onClick={() => {
+                        setSelectedIds(
+                          selectedIds.size === monthTx.length
+                            ? new Set()
+                            : new Set(monthTx.map((t) => t.id)),
+                        );
+                        setCurrentSlide(0);
+                      }}
+                    >
+                      {selectedIds.size === monthTx.length ? "Deselect all" : "Select all"}
+                    </button>
+                  )}
+                </div>
+
+                {monthTx.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-muted-foreground">
+                    No closed deals in {monthLabel} {selectedYear}. Try a different month.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {monthTx.map((tx) => {
+                      const gci        = computeGCI(tx);
+                      const isSelected = selectedIds.has(tx.id);
+                      return (
+                        <button
+                          key={tx.id}
+                          onClick={() => toggleTx(tx.id)}
+                          className={`w-full flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left text-xs transition-all ${
+                            isSelected ? "border-blue-400 bg-blue-50" : "border-slate-200 hover:border-slate-300 bg-white"
+                          }`}
+                        >
+                          <div className={`mt-0.5 h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? "bg-blue-600 border-blue-600" : "border-slate-300"}`}>
+                            {isSelected && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-slate-900 truncate">{tx.address || "Address TBD"}</div>
+                            <div className="text-slate-500 mt-0.5 flex items-center gap-1.5">
+                              <span className="capitalize">{tx.side}</span>
+                              <span>·</span>
+                              <span className="font-medium text-emerald-700">{fmtCurrency(gci)}</span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
-          {/* Template style */}
+          {/* 2 ── Template Style ─────────────────────────────────────────── */}
           <Card className="rounded-2xl border-slate-200 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Template Style</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">2 — Template Style</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {(Object.entries(STYLE_META) as [TemplateStyle, typeof STYLE_META[TemplateStyle]][]).map(([key, meta]) => (
+              {(Object.entries(TEMPLATE_FAMILIES) as [TemplateFamily, typeof TEMPLATE_FAMILIES[TemplateFamily]][]).map(([key, meta]) => (
                 <button
                   key={key}
-                  onClick={() => setTemplateStyle(key)}
+                  onClick={() => setTemplateFamily(key)}
                   className={`w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-all ${
-                    templateStyle === key
+                    templateFamily === key
                       ? "border-blue-500 bg-blue-50 ring-1 ring-blue-300"
                       : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                   }`}
                 >
-                  <div className={`h-8 w-8 rounded-lg border-2 shrink-0 ${meta.preview}`} />
+                  <div className={`h-8 w-8 rounded-lg border-2 shrink-0 ${meta.previewBg} ${meta.previewBorder}`} />
                   <div>
                     <div className="text-sm font-semibold text-slate-900">{meta.label}</div>
-                    <div className="text-xs text-slate-500">{meta.desc}</div>
+                    <div className="text-xs text-slate-500">{meta.description}</div>
                   </div>
                 </button>
               ))}
             </CardContent>
           </Card>
 
-          {/* Transaction picker */}
+          {/* 3 ── Branding ───────────────────────────────────────────────── */}
           <Card className="rounded-2xl border-slate-200 shadow-sm">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm">Select Deals</CardTitle>
-                {monthTx.length > 0 && (
-                  <button
-                    className="text-xs text-blue-600 hover:underline"
-                    onClick={() => {
-                      if (selectedIds.size === monthTx.length) {
-                        setSelectedIds(new Set());
-                      } else {
-                        setSelectedIds(new Set(monthTx.map((t) => t.id)));
-                      }
-                      setCurrentSlide(0);
-                    }}
-                  >
-                    {selectedIds.size === monthTx.length ? "Deselect all" : "Select all"}
-                  </button>
-                )}
-              </div>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">3 — Branding</CardTitle>
+              <CardDescription className="text-xs">
+                Pulled from your profile — override per post if needed
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              {monthTx.length === 0 ? (
-                <p className="py-4 text-center text-xs text-muted-foreground">
-                  No closed deals in {monthLabel} {selectedYear}.
-                  <br />Try a different month.
-                </p>
-              ) : (
-                <div className="space-y-1.5">
-                  {monthTx.map((tx) => {
-                    const gci = computeGCI(tx);
-                    const isSelected = selectedIds.has(tx.id);
-                    return (
-                      <button
-                        key={tx.id}
-                        onClick={() => toggleTx(tx.id)}
-                        className={`w-full flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left text-xs transition-all ${
-                          isSelected
-                            ? "border-blue-400 bg-blue-50"
-                            : "border-slate-200 hover:border-slate-300 bg-white"
-                        }`}
-                      >
-                        <div
-                          className={`mt-0.5 h-4 w-4 rounded border flex items-center justify-center shrink-0 ${
-                            isSelected ? "bg-blue-600 border-blue-600" : "border-slate-300"
-                          }`}
-                        >
-                          {isSelected && (
-                            <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-slate-900 truncate">
-                            {tx.address || "Address TBD"}
-                          </div>
-                          <div className="text-slate-500 mt-0.5 flex items-center gap-1.5">
-                            <span className="capitalize">{tx.side}</span>
-                            <span>·</span>
-                            <span className="font-medium text-emerald-700">{fmtCurrency(gci)}</span>
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
+            <CardContent className="space-y-3">
+              {/* Logo */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-slate-600">Business Logo URL</Label>
+                <div className="flex gap-2 items-center">
+                  {logoUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logoUrl} alt="logo" className="h-8 w-8 rounded border border-slate-200 object-contain bg-white shrink-0" />
+                  )}
+                  <Input
+                    value={logoUrl}
+                    onChange={(e) => setLogoUrl(e.target.value)}
+                    placeholder="https://… (from your profile settings)"
+                    className="text-xs h-8"
+                  />
                 </div>
+                <div className="flex items-center gap-2">
+                  <ToggleButton enabled={showLogo} onToggle={setShowLogo} label="Show logo on slides" disabled={!logoUrl} />
+                </div>
+              </div>
+
+              {/* Headshot */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-slate-600">Agent Headshot URL</Label>
+                <div className="flex gap-2 items-center">
+                  {headshotUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={headshotUrl} alt="headshot" className="h-8 w-8 rounded-full border border-slate-200 object-cover shrink-0" />
+                  )}
+                  <Input
+                    value={headshotUrl}
+                    onChange={(e) => setHeadshotUrl(e.target.value)}
+                    placeholder="https://… (from your profile settings)"
+                    className="text-xs h-8"
+                  />
+                </div>
+                <ToggleButton enabled={showHeadshot} onToggle={setShowHeadshot} label="Show headshot on cover + end card" disabled={!headshotUrl} />
+              </div>
+
+              {!settings.business_logo_url && !settings.avatar_url && (
+                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Add a logo and headshot in your{" "}
+                  <a href="/settings" className="underline font-medium">Profile Settings</a>{" "}
+                  to have them auto-fill here.
+                </p>
               )}
             </CardContent>
           </Card>
 
-          {/* Connect accounts */}
+          {/* 4 ── Slide Options ───────────────────────────────────────────── */}
+          <Card className="rounded-2xl border-slate-200 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">4 — Slide Options</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Sold wording */}
+              <div className="space-y-2">
+                <Label className="text-xs text-slate-600">Sold Label</Label>
+                <div className="flex gap-1.5">
+                  {SOLD_WORDING_OPTIONS.map((w) => (
+                    <button
+                      key={w}
+                      onClick={() => setSoldWording(w)}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
+                        soldWording === w
+                          ? "border-blue-500 bg-blue-600 text-white"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                      }`}
+                    >
+                      {w}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Toggles */}
+              <div className="space-y-2">
+                <ToggleButton enabled={showSalePrice}  onToggle={setShowSalePrice}  label="Show sale price on property slides" />
+                <ToggleButton enabled={includeEndCard} onToggle={setIncludeEndCard} label="Include end card" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Connect accounts ────────────────────────────────────────────── */}
           <Card className="rounded-2xl border-dashed border-slate-200 bg-slate-50/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -571,13 +575,8 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                 >
                   <Instagram className="h-3.5 w-3.5" />
                   {igConn ? (
-                    <>
-                      <CheckCircle className="h-3 w-3" />
-                      @{igConn.account_name} connected
-                    </>
-                  ) : (
-                    "Connect Instagram"
-                  )}
+                    <><CheckCircle className="h-3 w-3" />@{igConn.account_name} connected</>
+                  ) : "Connect Instagram"}
                 </a>
               ) : (
                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-muted-foreground">
@@ -596,10 +595,10 @@ export function SocialContent({ settings, transactions, connections }: Props) {
           </Card>
         </div>
 
-        {/* ── Right Panel — Preview + Actions ──────────────────────────────── */}
+        {/* ══ RIGHT PANEL ═══════════════════════════════════════════════════ */}
         <div className="space-y-5">
 
-          {/* Carousel preview */}
+          {/* Carousel preview ─────────────────────────────────────────────── */}
           <Card className="rounded-2xl border-slate-200 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -610,9 +609,9 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                   </CardDescription>
                 </div>
                 {selectedTx.length > 0 && (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span>Slide {safeSlide + 1} of {slides.length}</span>
-                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    Slide {safeSlide + 1} of {slides.length}
+                  </span>
                 )}
               </div>
             </CardHeader>
@@ -622,12 +621,12 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                   <div className="text-4xl">📱</div>
                   <p className="text-sm font-medium text-slate-600">No deals selected</p>
                   <p className="text-xs text-muted-foreground">
-                    Select at least one deal from the left panel to preview your carousel.
+                    Select deals in Post Setup to preview your carousel.
                   </p>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-4">
-                  {/* Main slide preview */}
+                  {/* Main slide */}
                   <div className="relative w-full max-w-[440px] mx-auto">
                     <div className="aspect-square w-full rounded-xl overflow-hidden border border-slate-200 shadow-md bg-slate-100">
                       {currentSlideSpec && (
@@ -636,19 +635,15 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                           src={slideUrl(currentSlideSpec)}
                           alt={currentSlideSpec.label}
                           className="w-full h-full object-cover"
-                          onError={() => {
-                            setSlideLoadErrors((prev) => new Set([...prev, safeSlide]));
-                          }}
+                          onError={() => setSlideLoadError(safeSlide)}
                         />
                       )}
-                      {slideLoadErrors.has(safeSlide) && (
+                      {slideLoadError === safeSlide && (
                         <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-xs text-muted-foreground">
-                          Slide preview unavailable
+                          Preview unavailable
                         </div>
                       )}
                     </div>
-
-                    {/* Nav arrows */}
                     {slides.length > 1 && (
                       <>
                         <button
@@ -669,41 +664,28 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                     )}
                   </div>
 
-                  {/* Slide dot nav */}
+                  {/* Dot nav */}
                   <div className="flex gap-1.5 items-center">
-                    {slides.map((spec, idx) => (
+                    {slides.map((_, idx) => (
                       <button
                         key={idx}
                         onClick={() => setCurrentSlide(idx)}
-                        title={spec.label}
-                        className={`transition-all rounded-full ${
-                          idx === safeSlide
-                            ? "w-5 h-2 bg-blue-600"
-                            : "w-2 h-2 bg-slate-300 hover:bg-slate-400"
-                        }`}
+                        className={`transition-all rounded-full ${idx === safeSlide ? "w-5 h-2 bg-blue-600" : "w-2 h-2 bg-slate-300 hover:bg-slate-400"}`}
                       />
                     ))}
                   </div>
 
-                  {/* Slide thumbnail strip */}
+                  {/* Thumbnail strip */}
                   <div className="w-full overflow-x-auto">
                     <div className="flex gap-2 pb-2" style={{ minWidth: "max-content" }}>
                       {slides.map((spec, idx) => (
                         <button
                           key={idx}
                           onClick={() => setCurrentSlide(idx)}
-                          className={`shrink-0 rounded-lg overflow-hidden border-2 transition-all ${
-                            idx === safeSlide
-                              ? "border-blue-500 shadow-md"
-                              : "border-transparent hover:border-slate-300"
-                          }`}
+                          className={`shrink-0 rounded-lg overflow-hidden border-2 transition-all ${idx === safeSlide ? "border-blue-500 shadow-md" : "border-transparent hover:border-slate-300"}`}
                           style={{ width: 64, height: 64 }}
                         >
-                          <img
-                            src={slideUrl(spec)}
-                            alt={spec.label}
-                            className="w-full h-full object-cover"
-                          />
+                          <img src={slideUrl(spec)} alt={spec.label} className="w-full h-full object-cover" />
                         </button>
                       ))}
                     </div>
@@ -713,7 +695,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
             </CardContent>
           </Card>
 
-          {/* Caption generator */}
+          {/* Caption ─────────────────────────────────────────────────────── */}
           <Card className="rounded-2xl border-slate-200 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -723,15 +705,14 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                     Caption
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Auto-generated — edit freely before copying
+                    Auto-generated — edit freely before posting
                   </CardDescription>
                 </div>
                 <button
-                  onClick={handleRegenerateCaption}
+                  onClick={() => setCaption(generateCaption(config, selectedTx))}
                   className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-slate-700 transition-colors"
                 >
-                  <RefreshCw className="h-3 w-3" />
-                  Regenerate
+                  <RefreshCw className="h-3 w-3" />Regenerate
                 </button>
               </div>
             </CardHeader>
@@ -741,53 +722,73 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                 onChange={(e) => setCaption(e.target.value)}
                 rows={9}
                 className="resize-none text-sm font-mono leading-relaxed"
-                placeholder="Select deals above to auto-generate a caption…"
+                placeholder="Select deals above to generate a caption…"
               />
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCopy}
-                  disabled={!caption}
-                  className="gap-1.5"
-                >
-                  {copied ? (
-                    <><Check className="h-3.5 w-3.5 text-emerald-600" /> Copied!</>
-                  ) : (
-                    <><Copy className="h-3.5 w-3.5" /> Copy Caption</>
-                  )}
-                </Button>
+              {/* CTA override */}
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-500">Custom CTA line (updates caption)</Label>
+                <Input
+                  value={ctaLine}
+                  onChange={(e) => setCtaLine(e.target.value)}
+                  placeholder="Ready to make your move? Let's connect."
+                  className="text-xs h-8"
+                />
               </div>
+              {/* Hashtag override */}
+              <div className="space-y-1">
+                <Label className="text-xs text-slate-500">Extra hashtags (optional)</Label>
+                <Input
+                  value={extraHashtags}
+                  onChange={(e) => setExtraHashtags(e.target.value)}
+                  placeholder="#YourCity #YourNeighbourhood"
+                  className="text-xs h-8"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopy}
+                disabled={!caption}
+                className="gap-1.5"
+              >
+                {copied ? (
+                  <><Check className="h-3.5 w-3.5 text-emerald-600" />Copied!</>
+                ) : (
+                  <><Copy className="h-3.5 w-3.5" />Copy Caption</>
+                )}
+              </Button>
             </CardContent>
           </Card>
 
-          {/* Publish & Download */}
+          {/* Quick Post ──────────────────────────────────────────────────── */}
           <Card className="rounded-2xl border-blue-200 bg-blue-50/40 shadow-sm">
             <CardContent className="pt-5 space-y-4">
+              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Quick Post</div>
+
               {/* Post to Instagram */}
               {igConn?.account_id ? (
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-xl border border-pink-200 bg-white p-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-pink-200 bg-white p-4">
                   <div>
-                    <div className="font-semibold text-slate-900 mb-1 flex items-center gap-2">
+                    <div className="font-semibold text-slate-900 mb-0.5 flex items-center gap-2">
                       <Instagram className="h-4 w-4 text-pink-500" />
                       Post to Instagram
                     </div>
-                    <div className="text-sm text-slate-600">
-                      Publish this carousel directly to @{igConn.account_name} with your caption
+                    <div className="text-sm text-slate-500">
+                      Publish directly to @{igConn.account_name} with your caption
                     </div>
                   </div>
                   <Button
                     size="lg"
                     onClick={handlePublish}
-                    disabled={selectedTx.length === 0 || publishing || publishResult?.success === true}
+                    disabled={!selectedTx.length || publishing || publishResult?.success === true}
                     className="shrink-0 gap-2 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white"
                   >
                     {publishing ? (
-                      <><Loader2 className="h-4 w-4 animate-spin" /> Publishing…</>
+                      <><Loader2 className="h-4 w-4 animate-spin" />Publishing…</>
                     ) : publishResult?.success ? (
-                      <><CheckCircle className="h-4 w-4" /> Posted!</>
+                      <><CheckCircle className="h-4 w-4" />Posted!</>
                     ) : (
-                      <><Send className="h-4 w-4" /> Post to Instagram</>
+                      <><Send className="h-4 w-4" />Post to Instagram</>
                     )}
                   </Button>
                 </div>
@@ -796,71 +797,117 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                   <Instagram className="h-5 w-5 text-pink-400 shrink-0" />
                   <div>
                     <span className="font-medium text-slate-900">Connect Instagram to post directly.</span>
-                    {" "}Use the Connect Accounts panel below to link your Instagram Business account.
+                    {" "}Use the Connect Accounts panel to link your account.
                   </div>
                 </div>
               )}
 
-              {/* Publish result feedback */}
+              {/* Publish feedback */}
               {publishResult && (
-                <div
-                  className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm ${
-                    publishResult.success
-                      ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
-                      : "bg-red-50 border border-red-200 text-red-800"
-                  }`}
-                >
-                  {publishResult.success ? (
-                    <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
-                  )}
+                <div className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm ${publishResult.success ? "bg-emerald-50 border border-emerald-200 text-emerald-800" : "bg-red-50 border border-red-200 text-red-800"}`}>
+                  {publishResult.success
+                    ? <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+                    : <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />}
                   {publishResult.message}
                 </div>
               )}
 
-              {/* Download ZIP */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              {/* Download slides ZIP */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
-                  <div className="font-semibold text-slate-900 mb-1">
-                    Download Carousel Slides
-                  </div>
-                  <div className="text-sm text-slate-600">
-                    {selectedTx.length === 0
-                      ? "Select deals to generate slides"
-                      : `${slides.length} slides ready · ZIP archive · 1080×1080 PNG`}
+                  <div className="font-medium text-slate-900 text-sm">Download Slides</div>
+                  <div className="text-xs text-slate-500">
+                    {selectedTx.length === 0 ? "Select deals to generate slides" : `${slides.length} slides · ZIP · 1080×1080 PNG`}
                   </div>
                 </div>
                 <Button
-                  size="lg"
                   variant="outline"
+                  size="sm"
                   onClick={handleDownload}
-                  disabled={selectedTx.length === 0 || downloading}
-                  className="shrink-0 gap-2"
+                  disabled={!selectedTx.length || downloading}
+                  className="gap-2 shrink-0"
                 >
-                  {downloading ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
-                  ) : (
-                    <><Download className="h-4 w-4" /> Download ZIP</>
-                  )}
+                  {downloading ? <><Loader2 className="h-4 w-4 animate-spin" />Generating…</> : <><Download className="h-4 w-4" />Download ZIP</>}
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Tips */}
+          {/* Canva Export ────────────────────────────────────────────────── */}
+          <Card className="rounded-2xl border-violet-200 bg-violet-50/30 shadow-sm">
+            <CardContent className="pt-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Canva Finishing Mode</div>
+                  <div className="font-medium text-slate-900 text-sm flex items-center gap-2">
+                    <Package className="h-4 w-4 text-violet-500" />
+                    Export for Canva
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    {selectedTx.length === 0
+                      ? "Select deals first"
+                      : "Slides + caption + content file + setup guide"}
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCanvaExport}
+                  disabled={!selectedTx.length || exporting}
+                  className="gap-2 shrink-0 border-violet-300 text-violet-700 hover:bg-violet-50"
+                >
+                  {exporting ? <><Loader2 className="h-4 w-4 animate-spin" />Exporting…</> : <><Package className="h-4 w-4" />Export for Canva</>}
+                </Button>
+              </div>
+              <p className="text-xs text-slate-400 mt-3 border-t border-violet-100 pt-3">
+                Package includes all slide PNGs, your caption, structured content data, and a Canva finishing guide — for when you want full design control.
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Tips ────────────────────────────────────────────────────────── */}
           <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 px-5 py-4 text-xs text-muted-foreground space-y-2">
             <p className="font-semibold text-slate-700">📸 Tips for best results</p>
             <ul className="space-y-1 list-disc list-inside">
-              <li>Post on Tuesday–Thursday, 9–11am or 6–8pm for highest reach</li>
-              <li>Add property photos: upload after downloading, replace the placeholder slides</li>
-              <li>Tag your brokerage and city accounts for amplification</li>
+              <li>Post Tuesday–Thursday, 9–11am or 6–8pm for highest reach</li>
+              <li>Property photo placeholders: download the ZIP and swap in real photos in Canva</li>
+              <li>Tag your brokerage and city accounts for wider amplification</li>
               <li>Reply to comments within the first hour — it signals the algorithm</li>
-              <li>Reuse the caption across platforms (edit hashtags for LinkedIn)</li>
+              <li>Add location to your post to appear in local explore feeds</li>
             </ul>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+// ── Toggle button helper ──────────────────────────────────────────────────────
+
+function ToggleButton({
+  enabled,
+  onToggle,
+  label,
+  disabled = false,
+}: {
+  enabled:  boolean;
+  onToggle: (v: boolean) => void;
+  label:    string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={() => !disabled && onToggle(!enabled)}
+      className={`flex items-center gap-2 text-xs transition-colors ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+    >
+      {enabled && !disabled ? (
+        <ToggleRight className="h-4 w-4 text-blue-600" />
+      ) : (
+        <ToggleLeft className="h-4 w-4 text-slate-400" />
+      )}
+      <span className={enabled && !disabled ? "text-slate-800 font-medium" : "text-slate-500"}>
+        {label}
+      </span>
+    </button>
   );
 }
