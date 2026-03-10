@@ -54,6 +54,7 @@ import { ProductionReportDialog } from "@/components/production-report-dialog";
 import { YearOverYearChart, type YoYDataPoint } from "@/components/year-over-year-chart";
 import { ProbabilityChart, type ProbabilityDataPoint } from "@/components/probability-chart";
 import { ExpenseDonut, type DonutDataPoint } from "@/components/expense-donut";
+import { MonthlyChart, type MonthlyDataPoint } from "@/components/monthly-chart";
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
@@ -395,6 +396,7 @@ export function ReportsContent({
   ];
 
   // ── Monthly breakdown ─────────────────────────────────────────────────────────
+  // Raw month-by-month data (used for PDF + chart)
   const monthlyData = Array.from({ length: 12 }, (_, i) => {
     const mm = String(i + 1).padStart(2, "0");
     const monthTx = ytdTx.filter((tx) => tx.date.slice(5, 7) === mm);
@@ -404,6 +406,11 @@ export function ReportsContent({
       deals: monthTx.length,
     };
   }).filter((m) => m.gci > 0 || m.deals > 0);
+
+  // Chart-shaped version for MonthlyChart (only months with GCI)
+  const monthlyChartData: MonthlyDataPoint[] = monthlyData
+    .filter((m) => m.gci > 0)
+    .map((m) => ({ month: m.month, gci: m.gci, projected: false }));
 
   // ── PDF download ──────────────────────────────────────────────────────────────
   const handleDownload = async () => {
@@ -769,6 +776,45 @@ export function ReportsContent({
         </Card>
       )}
 
+      {/* ── 4b. Monthly GCI Breakdown ─────────────────────────────────────────── */}
+      {monthlyChartData.length > 0 && (
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Monthly GCI Breakdown</CardTitle>
+                <CardDescription>Commission earned each month — spot your peak season</CardDescription>
+              </div>
+              <div className="text-right text-xs text-muted-foreground">
+                <div className="font-medium text-slate-700">{monthlyChartData.length} active months</div>
+                <div>Avg {fmtCurrency(ytdGCI / monthlyChartData.length)}/mo</div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[200px]">
+              <MonthlyChart data={monthlyChartData} />
+            </div>
+            {monthlyChartData.length > 1 && (() => {
+              const peak = monthlyChartData.reduce((a, b) => a.gci > b.gci ? a : b);
+              const low = monthlyChartData.reduce((a, b) => a.gci < b.gci ? a : b);
+              return (
+                <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block" />
+                    Peak: <strong className="text-slate-700">{peak.month} — {fmtCurrency(peak.gci)}</strong>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-slate-300 inline-block" />
+                    Low: <strong className="text-slate-700">{low.month} — {fmtCurrency(low.gci)}</strong>
+                  </span>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── 5. Tax Snapshot ───────────────────────────────────────────────────── */}
       <Card className="rounded-2xl border border-amber-200 bg-amber-50/40 shadow-sm">
         <CardHeader className="pb-3">
@@ -867,12 +913,12 @@ export function ReportsContent({
       </Card>
 
       {/* ── 6. Expense Analysis ───────────────────────────────────────────────── */}
-      {expensesYTD > 0 && (
-        <Card className="rounded-2xl border-slate-200 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Expense Analysis</CardTitle>
-            <CardDescription>Spend breakdown vs. your commission income</CardDescription>
-          </CardHeader>
+      <Card className="rounded-2xl border-slate-200 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Expense Analysis</CardTitle>
+          <CardDescription>Spend breakdown vs. your commission income</CardDescription>
+        </CardHeader>
+        {expensesYTD > 0 ? (
           <CardContent>
             <div className="flex flex-col sm:flex-row gap-6 items-center">
               {/* Donut */}
@@ -924,8 +970,20 @@ export function ReportsContent({
               </div>
             </div>
           </CardContent>
-        </Card>
-      )}
+        ) : (
+          <CardContent>
+            <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
+              <DollarSign className="h-8 w-8 text-slate-300" />
+              <p className="text-sm font-medium text-slate-500">No expenses tracked yet</p>
+              <p className="text-xs text-muted-foreground max-w-xs">
+                Upload receipts on the{" "}
+                <Link href="/expenses" className="underline hover:text-primary">Expenses</Link>{" "}
+                page to see your spend breakdown and expense ratio.
+              </p>
+            </div>
+          </CardContent>
+        )}
+      </Card>
 
       {/* ── 7. Benchmark + Cash Runway ────────────────────────────────────────── */}
       <div className="grid gap-4 sm:grid-cols-2">
@@ -1018,38 +1076,50 @@ export function ReportsContent({
       </div>
 
       {/* ── 8. Career Trend ───────────────────────────────────────────────────── */}
-      {yoyData.length >= 2 && (
-        <Card className="rounded-2xl border-slate-200 shadow-sm">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base">Career Trend</CardTitle>
-                <CardDescription>Year-over-year GCI &amp; deal volume</CardDescription>
-              </div>
-              <span className="text-xs text-muted-foreground">GCI (bars) &middot; Deals (line)</span>
+      <Card className="rounded-2xl border-slate-200 shadow-sm">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Career Trend</CardTitle>
+              <CardDescription>Year-over-year GCI &amp; deal volume</CardDescription>
             </div>
-          </CardHeader>
-          <CardContent className="pb-4">
-            <YearOverYearChart data={yoyData} height={240} />
-            {yoyData.some((d) => d.isCurrentYear) && (
-              <p className="mt-1.5 text-center text-[11px] text-muted-foreground/70">
-                Light bar = current year (partial)
-              </p>
+            {yoyData.length >= 2 && (
+              <span className="text-xs text-muted-foreground">GCI (bars) &middot; Deals (line)</span>
             )}
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        </CardHeader>
+        <CardContent className="pb-4">
+          {yoyData.length >= 2 ? (
+            <>
+              <YearOverYearChart data={yoyData} height={240} />
+              {yoyData.some((d) => d.isCurrentYear) && (
+                <p className="mt-1.5 text-center text-[11px] text-muted-foreground/70">
+                  Light bar = current year (partial)
+                </p>
+              )}
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
+              <BarChart2 className="h-8 w-8 text-slate-300" />
+              <p className="text-sm font-medium text-slate-500">Multi-year trend not yet available</p>
+              <p className="text-xs text-muted-foreground max-w-xs">
+                Add prior-year data in <Link href="/settings" className="underline hover:text-primary">Settings → History</Link> to unlock year-over-year GCI and deal trends.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ── 9. AI Advisor Intelligence ────────────────────────────────────────── */}
-      {advisorCards.length > 0 && (
-        <div>
-          <div className="mb-3 flex items-center gap-2">
-            <Zap className="h-4 w-4 text-amber-500" />
-            <h2 className="text-base font-semibold">Advisor Intelligence</h2>
-            <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 text-xs">
-              AI-powered
-            </Badge>
-          </div>
+      <div>
+        <div className="mb-3 flex items-center gap-2">
+          <Zap className="h-4 w-4 text-amber-500" />
+          <h2 className="text-base font-semibold">Advisor Intelligence</h2>
+          <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 text-xs">
+            AI-powered
+          </Badge>
+        </div>
+        {advisorCards.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-3">
             {advisorCards.map((card) => (
               <div
@@ -1081,94 +1151,67 @@ export function ReportsContent({
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* ── 10. P&L Table ─────────────────────────────────────────────────────── */}
-      <Card className="rounded-2xl border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Profit &amp; Loss — YTD {currentYear}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span>Gross Commission Income</span>
-              <span className="font-medium">{fmtCurrency(ytdGCI)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>
-                Brokerage split ({fmtPct(1 - getAgentPct(settings.split_preset))})
-              </span>
-              <span>-{fmtCurrency(brokerageTake)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Transaction fees</span>
-              <span>-{fmtCurrency(txFees)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Brokerage desk fees</span>
-              <span>-{fmtCurrency(brokerageFeeYTD)}</span>
-            </div>
-            <Separator />
-            <div className="flex justify-between font-medium">
-              <span>Agent Gross</span>
-              <span>{fmtCurrency(agentGross - txFees - brokerageFeeYTD)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Business expenses</span>
-              <span>-{fmtCurrency(expensesYTD)}</span>
-            </div>
-            <Separator />
-            <div className="flex justify-between text-base font-semibold">
-              <span>Net Pre-Tax</span>
-              <span>{fmtCurrency(netPreTax)}</span>
-            </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center">
+            <Zap className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+            <p className="text-sm font-medium text-slate-500">No recommendations right now</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Add more transaction data and set an annual goal to unlock personalised advisor cards.
+            </p>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
 
-      {/* ── 11. Expenses by Category ──────────────────────────────────────────── */}
+      {/* ── 10. Expenses by Category ──────────────────────────────────────────── */}
       <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base">Expenses by Category</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-right">YTD</TableHead>
-                  <TableHead className="text-right">Monthly</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {expenseCategories.map((cat) => {
-                  const catYTD = cat.items.reduce(
-                    (s, i) => s + (receiptTotalsByKey[i.key] ?? 0),
-                    0,
-                  );
-                  const catMonthly = cat.items.reduce(
-                    (s, i) => s + Number(i.monthly_recurring),
-                    0,
-                  );
-                  if (catYTD === 0 && catMonthly === 0) return null;
-                  return (
-                    <TableRow key={cat.id}>
-                      <TableCell>{cat.title}</TableCell>
-                      <TableCell className="text-right">{fmtCurrency(catYTD)}</TableCell>
-                      <TableCell className="text-right">{fmtCurrency(catMonthly)}</TableCell>
-                    </TableRow>
-                  );
-                })}
-                <TableRow className="font-semibold">
-                  <TableCell>Total</TableCell>
-                  <TableCell className="text-right">{fmtCurrency(expensesYTD)}</TableCell>
-                  <TableCell className="text-right">{fmtCurrency(monthlyRecurring)}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
+          {expensesYTD === 0 && monthlyRecurring === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              No expenses recorded yet. Add receipts on the{" "}
+              <Link href="/expenses" className="underline hover:text-primary">Expenses</Link>{" "}
+              page to see a breakdown here.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Category</TableHead>
+                    <TableHead className="text-right">YTD</TableHead>
+                    <TableHead className="text-right">Monthly</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {expenseCategories.map((cat) => {
+                    const catYTD = cat.items.reduce(
+                      (s, i) => s + (receiptTotalsByKey[i.key] ?? 0),
+                      0,
+                    );
+                    const catMonthly = cat.items.reduce(
+                      (s, i) => s + Number(i.monthly_recurring),
+                      0,
+                    );
+                    if (catYTD === 0 && catMonthly === 0) return null;
+                    return (
+                      <TableRow key={cat.id}>
+                        <TableCell>{cat.title}</TableCell>
+                        <TableCell className="text-right">{fmtCurrency(catYTD)}</TableCell>
+                        <TableCell className="text-right">{fmtCurrency(catMonthly)}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  <TableRow className="font-semibold">
+                    <TableCell>Total</TableCell>
+                    <TableCell className="text-right">{fmtCurrency(expensesYTD)}</TableCell>
+                    <TableCell className="text-right">{fmtCurrency(monthlyRecurring)}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
