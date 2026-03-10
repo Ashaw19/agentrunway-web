@@ -54,6 +54,7 @@ interface Props {
   expenseCategories: ExpenseCategoryWithItems[];
   subscriptionTier?: string;
   historyItems?: HistoryItem[];
+  receiptTotalsByKey?: Record<string, number>;
 }
 
 export function ReportsContent({
@@ -63,6 +64,7 @@ export function ReportsContent({
   expenseCategories,
   subscriptionTier = "starter",
   historyItems = [],
+  receiptTotalsByKey = {},
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const [downloading, setDownloading] = useState(false);
@@ -117,11 +119,8 @@ export function ReportsContent({
     settings.monthly_brokerage_fee * (new Date().getMonth() + 1);
 
   // ── Expenses ──────────────────────────────────────────────────────────
-  const expensesYTD = expenseCategories.reduce(
-    (sum, cat) =>
-      sum + cat.items.reduce((s, i) => s + Number(i.ytd_amount), 0),
-    0,
-  );
+  // YTD derived from actual receipts, not manually-entered ytd_amount fields
+  const expensesYTD = Object.values(receiptTotalsByKey).reduce((s, v) => s + v, 0);
   const monthlyRecurring = expenseCategories.reduce(
     (sum, cat) =>
       sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
@@ -571,7 +570,7 @@ export function ReportsContent({
             <TableBody>
               {expenseCategories.map((cat) => {
                 const catYTD = cat.items.reduce(
-                  (s, i) => s + Number(i.ytd_amount),
+                  (s, i) => s + (receiptTotalsByKey[i.key] ?? 0),
                   0,
                 );
                 const catMonthly = cat.items.reduce(

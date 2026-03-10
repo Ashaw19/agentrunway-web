@@ -7,7 +7,9 @@ export default async function ReportsPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [settingsResult, txResult, pipelineResult, expCatResult, expItemResult, historyResult] =
+  const year = new Date().getFullYear();
+
+  const [settingsResult, txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult] =
     await Promise.all([
       supabase
         .from("user_settings")
@@ -38,12 +40,27 @@ export default async function ReportsPage() {
         .select("*")
         .eq("user_id", user.id)
         .order("year", { ascending: false }),
+      // Current-year receipt totals per sub-category key
+      supabase
+        .from("receipt_expenses")
+        .select("category_key, total_amount")
+        .eq("user_id", user.id)
+        .gte("expense_date", `${year}-01-01`),
     ]);
 
   const categories = (expCatResult.data ?? []).map((cat) => ({
     ...cat,
     items: (expItemResult.data ?? []).filter((i) => i.category_id === cat.id),
   }));
+
+  // Aggregate receipt totals per sub-category key for the current year
+  const receiptTotalsByKey: Record<string, number> = {};
+  for (const r of receiptTotalsResult.data ?? []) {
+    if (r.category_key && r.total_amount != null) {
+      receiptTotalsByKey[r.category_key] =
+        (receiptTotalsByKey[r.category_key] ?? 0) + Number(r.total_amount);
+    }
+  }
 
   return (
     <ReportsContent
@@ -53,6 +70,7 @@ export default async function ReportsPage() {
       expenseCategories={categories}
       subscriptionTier={settingsResult.data?.subscription_tier ?? "starter"}
       historyItems={historyResult.data ?? []}
+      receiptTotalsByKey={receiptTotalsByKey}
     />
   );
 }

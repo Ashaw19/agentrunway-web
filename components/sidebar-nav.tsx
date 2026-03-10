@@ -154,7 +154,7 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
       {/* Separator with subtle fade */}
       <div className="mx-4 h-px bg-gradient-to-r from-transparent via-sidebar-border/70 to-transparent" />
 
-      {/* Nav links — Unlock Pro card lives inside here so it never overlaps items */}
+      {/* Nav links */}
       <nav className="flex-1 px-2 py-4 overflow-y-auto">
         <div className="space-y-0.5">
           {navItems.map((item) => {
@@ -184,35 +184,28 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
             );
           })}
         </div>
-
-        {/* Upgrade nudge — inside the scroll area so it never covers nav items */}
-        {!isPro && (
-          <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-white/[0.06] p-3.5">
-            <div className="mb-1 flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5" style={{ color: "#F0A800" }} />
-              <span className="text-[12px] font-semibold text-sidebar-foreground/85">
-                Unlock Pro
-              </span>
-            </div>
-            <p className="mb-3 text-[11px] leading-relaxed text-sidebar-foreground/45">
-              Runway score, tax planning, AI advisor &amp; more. Pays for itself.
-            </p>
-            <Link
-              href="/pricing"
-              className="block rounded-md px-3 py-1.5 text-center text-[11.5px] font-semibold transition-opacity hover:opacity-90"
-              style={{
-                background: "linear-gradient(135deg, #F0A800 0%, #D97706 100%)",
-                color: "#15110A",
-              }}
-            >
-              Unlock Everything →
-            </Link>
-          </div>
-        )}
       </nav>
 
       {/* Bottom separator */}
       <div className="mx-4 h-px bg-gradient-to-r from-transparent via-sidebar-border/70 to-transparent" />
+
+      {/* Upgrade nudge — compact, always-visible, never covers nav items */}
+      {!isPro && (
+        <div className="px-3 pt-2 pb-1">
+          <Link
+            href="/pricing"
+            className="flex items-center gap-2 w-full rounded-lg px-3 py-2 text-[12px] font-semibold transition-opacity hover:opacity-90"
+            style={{
+              background: "linear-gradient(135deg, #F0A800 0%, #D97706 100%)",
+              color: "#15110A",
+            }}
+          >
+            <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: "#15110A" }} />
+            <span className="flex-1">Unlock Pro</span>
+            <span>→</span>
+          </Link>
+        </div>
+      )}
 
       {/* Dark mode toggle */}
       <div className="px-3 pb-1">
