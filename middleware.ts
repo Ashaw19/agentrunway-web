@@ -13,7 +13,9 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public files (svg, png, jpg, etc.)
+     * - r/* (phone receipt-upload raw HTML — unauthenticated, must be instant)
+     * - api/receipts/mobile-upload/* (phone file POST — unauthenticated)
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|r/|api/receipts/mobile-upload/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
