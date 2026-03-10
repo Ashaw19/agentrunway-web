@@ -335,7 +335,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   const metaAppId = process.env.NEXT_PUBLIC_META_APP_ID; // optional public var
   const siteUrl   = process.env.NEXT_PUBLIC_SITE_URL ?? "https://agentrunway.ca";
   const igAuthUrl = metaAppId
-    ? `https://www.facebook.com/v19.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${encodeURIComponent(`${siteUrl}/api/auth/meta/callback`)}&scope=instagram_basic,instagram_content_publish,pages_show_list,pages_manage_posts&state=instagram`
+    ? `https://www.instagram.com/oauth/authorize?client_id=${metaAppId}&redirect_uri=${encodeURIComponent(`${siteUrl}/api/auth/meta/callback`)}&scope=instagram_business_basic,instagram_business_content_publish&response_type=code`
     : null;
 
   // ── Render ─────────────────────────────────────────────────────────────────
