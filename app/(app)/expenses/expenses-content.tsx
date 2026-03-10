@@ -44,6 +44,8 @@ interface Props {
   settings: UserSettings | null;
   transactions: Transaction[];
   initialReceipts?: ReceiptExpense[];
+  /** Current-year receipt totals keyed by expense_items.key — computed server-side */
+  receiptTotalsByKey: Record<string, number>;
 }
 
 // Per-category colour accent (left border + header icon tint)
@@ -65,32 +67,51 @@ const CAT_LABEL: Record<string, string> = Object.fromEntries(
   RECEIPT_CATEGORIES.map((c) => [c.key, c.label]),
 );
 
-export function ExpensesContent({ initialCategories, settings, transactions, initialReceipts = [] }: Props) {
+export function ExpensesContent({ initialCategories, settings, transactions, initialReceipts = [], receiptTotalsByKey }: Props) {
   const [categories, setCategories] = useState(initialCategories);
+
+  // ── Receipt YTD totals (keyed by expense_items.key, refreshed after each save) ──
+  const [receiptTotals, setReceiptTotals] = useState<Record<string, number>>(receiptTotalsByKey);
 
   // ── Receipt capture ────────────────────────────────────────────────────────
   const [captureOpen, setCaptureOpen] = useState(false);
   const [receipts,    setReceipts]    = useState<ReceiptExpense[]>(initialReceipts);
 
   const handleReceiptSaved = async () => {
-    // Refresh receipt list from Supabase after save
-    const { createClient: cc } = await import("@/lib/supabase/client");
-    const supabase = cc();
-    const { data } = await supabase
+    const supabase = createClient();
+    const year = new Date().getFullYear();
+
+    // Refresh receipt display log
+    const { data: logData } = await supabase
       .from("receipt_expenses")
       .select("*")
       .order("expense_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(50);
-    if (data) setReceipts(data as ReceiptExpense[]);
+    if (logData) setReceipts(logData as ReceiptExpense[]);
+
+    // Refresh YTD totals — re-aggregate from all current-year receipts
+    const { data: totalsData } = await supabase
+      .from("receipt_expenses")
+      .select("category_key, total_amount")
+      .gte("expense_date", `${year}-01-01`);
+    if (totalsData) {
+      const newTotals: Record<string, number> = {};
+      for (const r of totalsData) {
+        if (r.category_key && r.total_amount != null) {
+          newTotals[r.category_key] = (newTotals[r.category_key] ?? 0) + Number(r.total_amount);
+        }
+      }
+      setReceiptTotals(newTotals);
+    }
   };
 
-  // Auto-expand all categories on first visit (when no data has been entered yet)
-  const isFirstVisit = initialCategories.every(
-    (cat) => cat.items.every(
-      (i) => Number(i.ytd_amount) === 0 && Number(i.monthly_recurring) === 0,
-    ),
-  );
+  // Auto-expand all categories on first visit (no receipts yet and no monthly recurring)
+  const isFirstVisit =
+    Object.keys(receiptTotalsByKey).length === 0 &&
+    initialCategories.every(
+      (cat) => cat.items.every((i) => Number(i.monthly_recurring) === 0),
+    );
   const [expanded, setExpanded] = useState<Set<string>>(
     isFirstVisit
       ? new Set(initialCategories.map((c) => c.id))
@@ -101,10 +122,8 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
   const [newItemTitle, setNewItemTitle] = useState("");
 
   // ── Totals ────────────────────────────────────────────────────────────
-  const ytdTotal = categories.reduce(
-    (sum, cat) => sum + cat.items.reduce((s, item) => s + Number(item.ytd_amount), 0),
-    0,
-  );
+  // ytdTotal is now computed from receipt_expenses (not the manual ytd_amount field)
+  const ytdTotal = Object.values(receiptTotals).reduce((sum, v) => sum + v, 0);
   const monthlyTotal = categories.reduce(
     (sum, cat) => sum + cat.items.reduce((s, item) => s + Number(item.monthly_recurring), 0),
     0,
@@ -134,11 +153,11 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
     strong: "text-emerald-600",
   };
 
-  // ── Donut chart data ──────────────────────────────────────────────────
+  // ── Donut chart data — per-category receipt totals ────────────────────
   const donutData: DonutDataPoint[] = categories
     .map((cat) => ({
       name: cat.title,
-      value: cat.items.reduce((s, i) => s + Number(i.ytd_amount), 0),
+      value: cat.items.reduce((s, i) => s + (receiptTotals[i.key] ?? 0), 0),
     }))
     .filter((d) => d.value > 0);
 
@@ -153,7 +172,7 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
 
   async function updateItem(
     itemId: string,
-    field: "ytd_amount" | "monthly_recurring",
+    field: "monthly_recurring",
     value: string,
   ) {
     const numValue = parseFloat(value) || 0;
@@ -383,16 +402,16 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
             <div>
               <p className="text-sm font-semibold text-blue-900">
-                Start simple: your monthly bills first.
+                Two ways to track your spending — start with monthly bills.
               </p>
               <p className="mt-0.5 text-xs text-blue-700">
-                Each category below has two fields: <strong>Monthly Recurring</strong> (e.g.
-                MLS dues, insurance, vehicle payment) and <strong>YTD Amount</strong> (what
-                you&apos;ve actually spent so far this year). Monthly costs feed directly into
-                your Cash Runway calculation. Enter what you know — you can always update later.
+                Set <strong>Monthly Recurring</strong> for fixed costs (MLS dues, insurance,
+                vehicle payment) — these feed your Cash Runway calculation.{" "}
+                <strong>YTD totals</strong> are automatically tallied each time you capture a
+                receipt photo, so there&apos;s nothing extra to type.
               </p>
               <p className="mt-2 text-xs text-blue-600">
-                Rather let the numbers import themselves?{" "}
+                Tap <strong>Capture Receipt</strong> above to snap your first expense in seconds.{" "}
                 <span className="font-medium">QuickBooks sync is coming soon.</span>
               </p>
             </div>
@@ -430,7 +449,7 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
         <div className="space-y-2">
           {categories.map((cat) => {
             const isOpen = expanded.has(cat.id);
-            const catYtd = cat.items.reduce((s, i) => s + Number(i.ytd_amount), 0);
+            const catYtd = cat.items.reduce((s, i) => s + (receiptTotals[i.key] ?? 0), 0);
             const catMonthly = cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0);
             const colors = CAT_COLORS[cat.key] ?? DEFAULT_CAT;
 
@@ -479,7 +498,7 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
                         {/* Column headers */}
                         <div className="grid grid-cols-[1fr_148px_148px_32px] gap-2 pb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           <span className="pl-1">Item</span>
-                          <span className="text-center">YTD Amount</span>
+                          <span className="text-center">YTD (Receipts)</span>
                           <span className="text-center">Monthly Recurring</span>
                           <span />
                         </div>
@@ -491,13 +510,12 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
                             className="group grid grid-cols-[1fr_148px_148px_32px] items-center gap-2 rounded-md px-1 py-1 hover:bg-muted/40"
                           >
                             <span className="truncate text-sm font-medium">{item.title}</span>
-                            <Input
-                              type="number"
-                              placeholder="0"
-                              defaultValue={Number(item.ytd_amount) || ""}
-                              onBlur={(e) => updateItem(item.id, "ytd_amount", e.target.value)}
-                              className="h-8 text-sm text-right"
-                            />
+                            {/* YTD is now computed from receipts — read-only */}
+                            <div className="h-8 flex items-center justify-end px-3 text-sm tabular-nums rounded-md border border-border/40 bg-muted/40 text-muted-foreground">
+                              {receiptTotals[item.key]
+                                ? fmtCurrency(receiptTotals[item.key])
+                                : <span className="text-muted-foreground/50">—</span>}
+                            </div>
                             <Input
                               type="number"
                               placeholder="0"

@@ -379,25 +379,6 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
       return;
     }
 
-    // ── Increment the matching expense_item's ytd_amount ───────────────────
-    // category_key matches expense_items.key (e.g. "vehicle_fuel" → Fuel row).
-    // Silently skip if no match — the receipt is still saved.
-    if (draft.category_key && totalAmt && !isNaN(totalAmt)) {
-      const { data: expItem } = await supabase
-        .from("expense_items")
-        .select("id, ytd_amount")
-        .eq("user_id", user.id)
-        .eq("key", draft.category_key)
-        .maybeSingle();
-
-      if (expItem) {
-        await supabase
-          .from("expense_items")
-          .update({ ytd_amount: (expItem.ytd_amount ?? 0) + totalAmt })
-          .eq("id", expItem.id);
-      }
-    }
-
     setState("done");
     toast.success("Receipt saved!");
     onSaved?.();

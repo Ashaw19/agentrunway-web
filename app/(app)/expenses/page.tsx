@@ -128,7 +128,9 @@ export default async function ExpensesPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [categoriesResult, itemsResult, settingsResult, txResult, receiptsResult] = await Promise.all([
+  const year = new Date().getFullYear();
+
+  const [categoriesResult, itemsResult, settingsResult, txResult, receiptTotalsResult, receiptsResult] = await Promise.all([
     supabase
       .from("expense_categories")
       .select("*")
@@ -150,6 +152,13 @@ export default async function ExpensesPage() {
       .eq("user_id", user.id)
       .eq("status", "closed")
       .gte("date", `${new Date().getFullYear()}-01-01`),
+    // All current-year receipts for YTD totals (lightweight — just the two fields we need)
+    supabase
+      .from("receipt_expenses")
+      .select("category_key, total_amount")
+      .eq("user_id", user.id)
+      .gte("expense_date", `${year}-01-01`),
+    // Last 50 receipts for the display log (full row)
     supabase
       .from("receipt_expenses")
       .select("*")
@@ -158,6 +167,15 @@ export default async function ExpensesPage() {
       .order("created_at", { ascending: false })
       .limit(50),
   ]);
+
+  // Aggregate receipt totals per sub-category key for the current year
+  const receiptTotalsByKey: Record<string, number> = {};
+  for (const r of receiptTotalsResult.data ?? []) {
+    if (r.category_key && r.total_amount != null) {
+      receiptTotalsByKey[r.category_key] =
+        (receiptTotalsByKey[r.category_key] ?? 0) + Number(r.total_amount);
+    }
+  }
 
   let cats = categoriesResult.data ?? [];
   let items = itemsResult.data ?? [];
@@ -195,6 +213,7 @@ export default async function ExpensesPage() {
       settings={settingsResult.data}
       transactions={txResult.data ?? []}
       initialReceipts={receiptsResult.data ?? []}
+      receiptTotalsByKey={receiptTotalsByKey}
     />
   );
 }

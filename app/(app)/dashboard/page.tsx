@@ -26,15 +26,17 @@ export default async function DashboardPage({
     redirect("/onboarding");
   }
 
+  const dashYear = new Date().getFullYear();
+
   // Fetch dashboard data in parallel
-  const [txResult, pipelineResult, settingsResult, expCatResult, expItemResult, historyResult] =
+  const [txResult, pipelineResult, settingsResult, expCatResult, expItemResult, historyResult, receiptTotalsResult] =
     await Promise.all([
       supabase
         .from("transactions")
         .select("*")
         .eq("user_id", user.id)
         .eq("status", "closed")
-        .gte("date", `${new Date().getFullYear()}-01-01`)
+        .gte("date", `${dashYear}-01-01`)
         .order("date", { ascending: false }),
       supabase
         .from("pipeline_deals")
@@ -60,12 +62,24 @@ export default async function DashboardPage({
         .select("*")
         .eq("user_id", user.id)
         .order("year", { ascending: false }),
+      // Current-year receipt totals for accurate YTD expense calculation
+      supabase
+        .from("receipt_expenses")
+        .select("total_amount")
+        .eq("user_id", user.id)
+        .gte("expense_date", `${dashYear}-01-01`),
     ]);
 
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
     ...cat,
     items: (expItemResult.data ?? []).filter((i) => i.category_id === cat.id),
   }));
+
+  // Sum all current-year receipt totals for the dashboard's expense YTD figure
+  const receiptYTD = (receiptTotalsResult.data ?? []).reduce(
+    (sum, r) => sum + Number(r.total_amount ?? 0),
+    0,
+  );
 
   const params = await searchParams;
   const isAdmin = settingsResult.data?.is_admin ?? false;
@@ -79,6 +93,7 @@ export default async function DashboardPage({
       pipelineDeals={pipelineResult.data ?? []}
       settings={settingsResult.data}
       expenseCategories={expenseCategories}
+      receiptYTD={receiptYTD}
       historyItems={(historyResult.data ?? []) as HistoryItem[]}
       initialDashboardView={settingsResult.data?.dashboard_view ?? "standard"}
       subscriptionTier={settingsResult.data?.subscription_tier ?? "starter"}

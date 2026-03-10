@@ -110,6 +110,8 @@ interface Props {
   pipelineDeals: PipelineDeal[];
   settings: UserSettings | null;
   expenseCategories: ExpenseCategoryWithItems[];
+  /** Current-year YTD total from receipt_expenses (replaces ytd_amount sum) */
+  receiptYTD?: number;
   historyItems?: HistoryItem[];
   initialDashboardView?: string;
   subscriptionTier?: string;
@@ -175,6 +177,7 @@ export function DashboardContent({
   pipelineDeals,
   settings,
   expenseCategories,
+  receiptYTD = 0,
   historyItems = [],
   initialDashboardView,
   subscriptionTier: _subscriptionTier = "starter",
@@ -274,11 +277,8 @@ export function DashboardContent({
   const benchmark = compare(projectedGCI, settings?.experience_years ?? null);
 
   // ── Expenses ──────────────────────────────────────────────────────────
-  const expensesYTD = expenseCategories.reduce(
-    (sum, cat) =>
-      sum + cat.items.reduce((s, i) => s + Number(i.ytd_amount), 0),
-    0,
-  );
+  // expensesYTD is now sourced from receipt_expenses (not the manual ytd_amount field)
+  const expensesYTD = receiptYTD;
   const monthlyRecurring = expenseCategories.reduce(
     (sum, cat) =>
       sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),

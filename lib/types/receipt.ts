@@ -74,9 +74,10 @@ export const RECEIPT_CATEGORY_GROUPS = [
 ] as const;
 
 /** Flat list of all sub-categories (for selects, validation, etc.) */
-export const RECEIPT_CATEGORIES = RECEIPT_CATEGORY_GROUPS.flatMap((g) => g.items);
+export const RECEIPT_CATEGORIES: Array<{ key: string; label: string }> =
+  RECEIPT_CATEGORY_GROUPS.flatMap((g) => [...g.items]);
 
-export type CategoryKey = (typeof RECEIPT_CATEGORIES)[number]["key"];
+export type CategoryKey = string;
 
 /** Raw fields returned by the Groq OCR extraction */
 export interface OcrExtraction {
