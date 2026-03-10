@@ -177,13 +177,14 @@ export async function GET(req: NextRequest) {
                 marginTop: 4,
               }}
             >
-              {month} · {year}
+              {`${month} · ${year}`}
             </div>
-            {!!totalGci && (
+            {Number(count) > 0 && (
               <div
                 style={{
-                  display: "inline-flex",
+                  display: "flex",
                   alignItems: "center",
+                  alignSelf: "flex-start",
                   background: p.highlight,
                   color: "#fff",
                   borderRadius: 999,
@@ -191,10 +192,9 @@ export async function GET(req: NextRequest) {
                   fontSize: 22,
                   fontWeight: 700,
                   marginTop: 8,
-                  width: "fit-content",
                 }}
               >
-                {totalGci} total GCI
+                {`${month} ${year} Recap`}
               </div>
             )}
           </div>
@@ -338,7 +338,7 @@ export async function GET(req: NextRequest) {
                 alignItems: "center",
               }}
             >
-              {slideNum} / {slideTotal}
+              {`${slideNum} / ${slideTotal}`}
             </div>
 
             {/* Role badge */}
@@ -423,7 +423,7 @@ export async function GET(req: NextRequest) {
                   </div>
                 </div>
               )}
-              {!!gci && (
+              {!!role && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <div
                     style={{
@@ -433,7 +433,7 @@ export async function GET(req: NextRequest) {
                       letterSpacing: "0.1em",
                     }}
                   >
-                    COMMISSION
+                    REPRESENTED
                   </div>
                   <div
                     style={{
@@ -442,14 +442,13 @@ export async function GET(req: NextRequest) {
                       color: p.highlight,
                     }}
                   >
-                    {gci}
+                    {role === "buyer" ? "Buyer" : role === "seller" ? "Seller" : "Both Sides"}
                   </div>
                 </div>
               )}
             </div>
             <div style={{ fontSize: 15, color: p.muted, marginTop: 4 }}>
-              {agentName}
-              {brokerage ? ` · ${brokerage}` : ""}
+              {brokerage ? `${agentName} · ${brokerage}` : agentName}
             </div>
           </div>
         </div>

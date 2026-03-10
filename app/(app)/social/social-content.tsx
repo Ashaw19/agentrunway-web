@@ -29,11 +29,14 @@ import {
   Instagram,
   Copy,
   Check,
+  CheckCircle,
   Sparkles,
   Facebook,
   Link2,
   RefreshCw,
   Loader2,
+  Send,
+  AlertCircle,
 } from "lucide-react";
 import { fmtCurrency } from "@/lib/formatters";
 import {
@@ -48,6 +51,7 @@ import JSZip from "jszip";
 interface Connection {
   platform: string;
   account_name: string | null;
+  account_id: string | null;
   token_expires_at: string | null;
 }
 
@@ -102,7 +106,6 @@ function buildSlideUrl(
   month: string,
   year: number,
   totalCount: number,
-  totalGci: string,
 ): string {
   const base = "/api/social/slide";
   const common = new URLSearchParams({
@@ -118,17 +121,14 @@ function buildSlideUrl(
   if (spec.type === "cover") {
     common.set("type", "cover");
     common.set("count", String(totalCount));
-    common.set("totalGci", totalGci);
     return `${base}?${common.toString()}`;
   }
 
   if (spec.type === "property" && spec.tx) {
     const tx = spec.tx;
-    const gci = computeGCI(tx);
     common.set("type", "property");
     common.set("address", tx.address ?? "");
     common.set("role", tx.side);
-    common.set("gci", fmtCurrency(gci));
     common.set("price", fmtCurrency(tx.sale_price));
     return `${base}?${common.toString()}`;
   }
@@ -146,7 +146,6 @@ function generateCaption(
   txList: Transaction[],
 ): string {
   const count = txList.length;
-  const totalGci = txList.reduce((s, tx) => s + computeGCI(tx), 0);
   const plural = count === 1 ? "deal" : "deals";
 
   const lines: string[] = [
@@ -159,11 +158,6 @@ function generateCaption(
       const side = tx.side === "buyer" ? "👤 Buyer" : tx.side === "seller" ? "🤝 Seller" : "⭐ Both";
       lines.push(`${side} · ${tx.address || "Property"}`);
     });
-    lines.push("");
-  }
-
-  if (totalGci > 0) {
-    lines.push(`Total GCI: ${fmtCurrency(totalGci)} 🎯`);
     lines.push("");
   }
 
@@ -192,6 +186,8 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   const [currentSlide, setCurrentSlide] = useState<number>(0);
   const [copied, setCopied] = useState<boolean>(false);
   const [downloading, setDownloading] = useState<boolean>(false);
+  const [publishing, setPublishing] = useState<boolean>(false);
+  const [publishResult, setPublishResult] = useState<{ success: boolean; message: string } | null>(null);
   const [slideLoadErrors, setSlideLoadErrors] = useState<Set<number>>(new Set());
 
   // ── Derived values (computed before hooks — safe with null settings) ────────
@@ -206,7 +202,6 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   });
 
   const selectedTx = monthTx.filter((tx) => selectedIds.has(tx.id));
-  const totalGci   = selectedTx.reduce((s, tx) => s + computeGCI(tx), 0);
 
   // ── Build slide list ───────────────────────────────────────────────────────
   const slides: SlideSpec[] = [
@@ -253,9 +248,8 @@ export function SocialContent({ settings, transactions, connections }: Props) {
         monthLabel,
         selectedYear,
         selectedTx.length,
-        totalGci > 0 ? fmtCurrency(totalGci) : "",
       ),
-    [templateStyle, agentName, brokerage, monthLabel, selectedYear, selectedTx.length, totalGci],
+    [templateStyle, agentName, brokerage, monthLabel, selectedYear, selectedTx.length],
   );
 
   // ── Early return AFTER all hooks ───────────────────────────────────────────
@@ -321,6 +315,46 @@ export function SocialContent({ settings, transactions, connections }: Props) {
       console.error("Download failed:", err);
     } finally {
       setDownloading(false);
+    }
+  }
+
+  // ── Publish to Instagram ──────────────────────────────────────────────────
+  async function handlePublish() {
+    if (slides.length === 0 || selectedTx.length === 0) return;
+    setPublishing(true);
+    setPublishResult(null);
+    try {
+      // Build absolute public URLs for each slide
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
+      const slideAbsoluteUrls = slides.map((spec) => `${siteUrl}${slideUrl(spec)}`);
+
+      const res = await fetch("/api/social/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slideUrls: slideAbsoluteUrls,
+          caption,
+          month: selectedMonth + 1,
+          year: selectedYear,
+          templateStyle,
+          transactionIds: Array.from(selectedIds),
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json.error ?? "Publishing failed");
+      }
+
+      setPublishResult({ success: true, message: "Posted to Instagram!" });
+    } catch (err) {
+      setPublishResult({
+        success: false,
+        message: err instanceof Error ? err.message : "Publishing failed",
+      });
+    } finally {
+      setPublishing(false);
     }
   }
 
@@ -514,7 +548,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
             </CardContent>
           </Card>
 
-          {/* Connect accounts (coming soon) */}
+          {/* Connect accounts */}
           <Card className="rounded-2xl border-dashed border-slate-200 bg-slate-50/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
@@ -522,30 +556,41 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                 Connect Accounts
               </CardTitle>
               <CardDescription className="text-xs">
-                Post directly from Agent Runway once Meta reviews your app.
+                Link your Instagram to post carousels directly from Agent Runway.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
               {igAuthUrl ? (
                 <a
                   href={igAuthUrl}
-                  className="flex items-center gap-2 w-full rounded-lg border border-pink-200 bg-white px-3 py-2 text-xs font-medium text-pink-700 hover:bg-pink-50 transition-colors"
+                  className={`flex items-center gap-2 w-full rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                    igConn
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-pink-200 bg-white text-pink-700 hover:bg-pink-50"
+                  }`}
                 >
                   <Instagram className="h-3.5 w-3.5" />
-                  {igConn ? `Connected: @${igConn.account_name}` : "Connect Instagram"}
+                  {igConn ? (
+                    <>
+                      <CheckCircle className="h-3 w-3" />
+                      @{igConn.account_name} connected
+                    </>
+                  ) : (
+                    "Connect Instagram"
+                  )}
                 </a>
               ) : (
                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-muted-foreground">
                   <div className="flex items-center gap-2 mb-1">
                     <Instagram className="h-3.5 w-3.5" />
-                    <span className="font-medium">Instagram (pending Meta review)</span>
+                    <span className="font-medium">Instagram</span>
                   </div>
                   <span>Add NEXT_PUBLIC_META_APP_ID to enable.</span>
                 </div>
               )}
               <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-muted-foreground flex items-center gap-2">
                 <Facebook className="h-3.5 w-3.5" />
-                <span>Facebook (pending Meta review)</span>
+                <span>Facebook (coming soon)</span>
               </div>
             </CardContent>
           </Card>
@@ -716,9 +761,65 @@ export function SocialContent({ settings, transactions, connections }: Props) {
             </CardContent>
           </Card>
 
-          {/* Download */}
+          {/* Publish & Download */}
           <Card className="rounded-2xl border-blue-200 bg-blue-50/40 shadow-sm">
-            <CardContent className="pt-5">
+            <CardContent className="pt-5 space-y-4">
+              {/* Post to Instagram */}
+              {igConn?.account_id ? (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-xl border border-pink-200 bg-white p-4">
+                  <div>
+                    <div className="font-semibold text-slate-900 mb-1 flex items-center gap-2">
+                      <Instagram className="h-4 w-4 text-pink-500" />
+                      Post to Instagram
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      Publish this carousel directly to @{igConn.account_name} with your caption
+                    </div>
+                  </div>
+                  <Button
+                    size="lg"
+                    onClick={handlePublish}
+                    disabled={selectedTx.length === 0 || publishing || publishResult?.success === true}
+                    className="shrink-0 gap-2 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white"
+                  >
+                    {publishing ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" /> Publishing…</>
+                    ) : publishResult?.success ? (
+                      <><CheckCircle className="h-4 w-4" /> Posted!</>
+                    ) : (
+                      <><Send className="h-4 w-4" /> Post to Instagram</>
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 rounded-xl border border-dashed border-pink-200 bg-white p-4 text-sm text-slate-600">
+                  <Instagram className="h-5 w-5 text-pink-400 shrink-0" />
+                  <div>
+                    <span className="font-medium text-slate-900">Connect Instagram to post directly.</span>
+                    {" "}Use the Connect Accounts panel below to link your Instagram Business account.
+                  </div>
+                </div>
+              )}
+
+              {/* Publish result feedback */}
+              {publishResult && (
+                <div
+                  className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm ${
+                    publishResult.success
+                      ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
+                      : "bg-red-50 border border-red-200 text-red-800"
+                  }`}
+                >
+                  {publishResult.success ? (
+                    <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+                  )}
+                  {publishResult.message}
+                </div>
+              )}
+
+              {/* Download ZIP */}
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                   <div className="font-semibold text-slate-900 mb-1">
@@ -729,15 +830,13 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                       ? "Select deals to generate slides"
                       : `${slides.length} slides ready · ZIP archive · 1080×1080 PNG`}
                   </div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Upload directly to Instagram, Facebook, or your scheduler
-                  </div>
                 </div>
                 <Button
                   size="lg"
+                  variant="outline"
                   onClick={handleDownload}
                   disabled={selectedTx.length === 0 || downloading}
-                  className="shrink-0 gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                  className="shrink-0 gap-2"
                 >
                   {downloading ? (
                     <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
@@ -745,24 +844,6 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                     <><Download className="h-4 w-4" /> Download ZIP</>
                   )}
                 </Button>
-              </div>
-
-              {/* Platform note */}
-              <div className="mt-4 grid sm:grid-cols-2 gap-3">
-                <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
-                  <div className="flex items-center gap-2 font-semibold text-slate-900 mb-1">
-                    <Instagram className="h-3.5 w-3.5 text-pink-500" /> Instagram
-                  </div>
-                  Upload slides in order. Add caption + hashtags in the IG app.
-                  Use Carousel format (up to 10 slides).
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
-                  <div className="flex items-center gap-2 font-semibold text-slate-900 mb-1">
-                    <Facebook className="h-3.5 w-3.5 text-blue-500" /> Facebook
-                  </div>
-                  Create a post, add multiple photos, or use Business Suite
-                  to schedule for the best engagement time.
-                </div>
               </div>
             </CardContent>
           </Card>

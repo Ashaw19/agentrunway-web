@@ -23,7 +23,7 @@ export default async function SocialPage() {
       .order("date", { ascending: false }),
     supabase
       .from("social_connections")
-      .select("platform, account_name, token_expires_at")
+      .select("platform, account_name, token_expires_at, account_id")
       .eq("user_id", user.id),
   ]);
 
