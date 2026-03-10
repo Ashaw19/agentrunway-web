@@ -124,7 +124,11 @@ export function buildSlides(config: PostConfig, selectedTx: Transaction[]): Slid
 
 // ── Build slide API URL ───────────────────────────────────────────────────────
 
-export function buildSlideApiUrl(spec: SlideSpec, config: PostConfig): string {
+export function buildSlideApiUrl(
+  spec: SlideSpec,
+  config: PostConfig,
+  photoUrls?: Record<string, string>,
+): string {
   const p = new URLSearchParams({
     templateFamily: config.templateFamily,
     agentName:      config.agentName,
@@ -155,6 +159,9 @@ export function buildSlideApiUrl(spec: SlideSpec, config: PostConfig): string {
     p.set("address", spec.tx.address ?? "");
     if (config.showSalePrice && spec.tx.sale_price) {
       p.set("price", fmtCurrency(spec.tx.sale_price));
+    }
+    if (photoUrls?.[spec.tx.id]) {
+      p.set("photoUrl", photoUrls[spec.tx.id]);
     }
     return `/api/social/slide?${p}`;
   }

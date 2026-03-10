@@ -9,7 +9,7 @@
  *   2. Canva Export — download ZIP package for finishing in Canva
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -40,6 +40,8 @@ import {
   Package,
   ToggleLeft,
   ToggleRight,
+  ImagePlus,
+  X as XIcon,
 } from "lucide-react";
 import {
   computeGCI,
@@ -61,6 +63,9 @@ import {
   buildCanvaInstructions,
 } from "@/lib/social/post-engine";
 import { fmtCurrency } from "@/lib/formatters";
+import { createClient } from "@/lib/supabase/client";
+import { useUser } from "@/hooks/use-user";
+import { PhotoCropDialog } from "@/components/photo-crop-dialog";
 import JSZip from "jszip";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -82,6 +87,7 @@ interface Props {
 
 export function SocialContent({ settings, transactions, connections }: Props) {
   const now = new Date();
+  const { user } = useUser();
 
   // ── Post setup state ───────────────────────────────────────────────────────
   const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1); // 1-12
@@ -106,6 +112,14 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   const [caption,       setCaption]       = useState<string>("");
   const [ctaLine,       setCtaLine]       = useState<string>("Ready to make your move? Let's connect.");
   const [extraHashtags, setExtraHashtags] = useState<string>("");
+
+  // ── Property photos ────────────────────────────────────────────────────────
+  const [photoUrls,      setPhotoUrls]      = useState<Record<string, string>>({});
+  const [cropFile,       setCropFile]       = useState<File | null>(null);
+  const [cropTxId,       setCropTxId]       = useState<string | null>(null);
+  const [cropOpen,       setCropOpen]       = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   // ── UI state ───────────────────────────────────────────────────────────────
   const [currentSlide,   setCurrentSlide]   = useState<number>(0);
@@ -155,11 +169,11 @@ export function SocialContent({ settings, transactions, connections }: Props) {
 
   // ── Slide URL builder ──────────────────────────────────────────────────────
   const slideUrl = useCallback(
-    (spec: SlideSpec) => buildSlideApiUrl(spec, config),
+    (spec: SlideSpec) => buildSlideApiUrl(spec, config, photoUrls),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [templateFamily, agentName, businessName, logoUrl, headshotUrl,
      selectedMonth, selectedYear, soldWording, showLogo, showHeadshot,
-     showSalePrice, includeEndCard, ctaLine, selectedTx.length],
+     showSalePrice, includeEndCard, ctaLine, selectedTx.length, photoUrls],
   );
 
   // ── Auto-select all transactions when month changes ────────────────────────
@@ -195,6 +209,57 @@ export function SocialContent({ settings, transactions, connections }: Props) {
       return next;
     });
     setCurrentSlide(0);
+  }
+
+  // ── Photo upload handlers ──────────────────────────────────────────────────
+  function handlePhotoFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !cropTxId) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Photo must be under 5 MB");
+      e.target.value = "";
+      return;
+    }
+    setCropFile(file);
+    setCropOpen(true);
+    e.target.value = ""; // reset so same file can be re-selected
+  }
+
+  async function handlePhotoCropped(blob: Blob) {
+    if (!cropTxId || !user) return;
+    const txId = cropTxId;
+    setCropOpen(false);
+    setCropFile(null);
+    setCropTxId(null);
+    setUploadingPhoto(txId);
+
+    try {
+      const supabase = createClient();
+      const ext = blob.type === "image/png" ? "png" : "webp";
+      const path = `${user.id}/social/${txId}.${ext}`;
+      const { error } = await supabase.storage
+        .from("profile-media")
+        .upload(path, blob, { upsert: true, contentType: blob.type });
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage
+        .from("profile-media")
+        .getPublicUrl(path);
+      // Cache-bust so the preview img tag refetches
+      setPhotoUrls((prev) => ({ ...prev, [txId]: `${publicUrl}?t=${Date.now()}` }));
+    } catch (err) {
+      console.error("Photo upload failed:", err);
+      alert("Photo upload failed — please try again.");
+    } finally {
+      setUploadingPhoto(null);
+    }
+  }
+
+  function removePhoto(txId: string) {
+    setPhotoUrls((prev) => {
+      const next = { ...prev };
+      delete next[txId];
+      return next;
+    });
   }
 
   // ── Copy caption ───────────────────────────────────────────────────────────
@@ -407,26 +472,77 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                     {monthTx.map((tx) => {
                       const gci        = computeGCI(tx);
                       const isSelected = selectedIds.has(tx.id);
+                      const hasPhoto   = !!photoUrls[tx.id];
+                      const isUploading = uploadingPhoto === tx.id;
                       return (
-                        <button
-                          key={tx.id}
-                          onClick={() => toggleTx(tx.id)}
-                          className={`w-full flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left text-xs transition-all ${
-                            isSelected ? "border-blue-400 bg-blue-50" : "border-slate-200 hover:border-slate-300 bg-white"
-                          }`}
-                        >
-                          <div className={`mt-0.5 h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? "bg-blue-600 border-blue-600" : "border-slate-300"}`}>
-                            {isSelected && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-slate-900 truncate">{tx.address || "Address TBD"}</div>
-                            <div className="text-slate-500 mt-0.5 flex items-center gap-1.5">
-                              <span className="capitalize">{tx.side}</span>
-                              <span>·</span>
-                              <span className="font-medium text-emerald-700">{fmtCurrency(gci)}</span>
+                        <div key={tx.id} className="space-y-1">
+                          <button
+                            onClick={() => toggleTx(tx.id)}
+                            className={`w-full flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left text-xs transition-all ${
+                              isSelected ? "border-blue-400 bg-blue-50" : "border-slate-200 hover:border-slate-300 bg-white"
+                            }`}
+                          >
+                            <div className={`mt-0.5 h-4 w-4 rounded border flex items-center justify-center shrink-0 ${isSelected ? "bg-blue-600 border-blue-600" : "border-slate-300"}`}>
+                              {isSelected && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
                             </div>
-                          </div>
-                        </button>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-slate-900 truncate">{tx.address || "Address TBD"}</div>
+                              <div className="text-slate-500 mt-0.5 flex items-center gap-1.5">
+                                <span className="capitalize">{tx.side}</span>
+                                <span>·</span>
+                                <span className="font-medium text-emerald-700">{fmtCurrency(gci)}</span>
+                              </div>
+                            </div>
+                          </button>
+
+                          {/* Photo upload row — visible when deal is selected */}
+                          {isSelected && (
+                            <div className="ml-6 flex items-center gap-2">
+                              {hasPhoto ? (
+                                <>
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={photoUrls[tx.id]}
+                                    alt="Property"
+                                    className="h-10 w-10 rounded border border-slate-200 object-cover"
+                                  />
+                                  <span className="text-[11px] text-emerald-600 font-medium">Photo added</span>
+                                  <button
+                                    onClick={() => removePhoto(tx.id)}
+                                    className="text-[11px] text-slate-400 hover:text-red-500 transition-colors"
+                                    title="Remove photo"
+                                  >
+                                    <XIcon className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setCropTxId(tx.id);
+                                      photoInputRef.current?.click();
+                                    }}
+                                    className="text-[11px] text-blue-500 hover:text-blue-700 transition-colors"
+                                  >
+                                    Replace
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setCropTxId(tx.id);
+                                    photoInputRef.current?.click();
+                                  }}
+                                  disabled={isUploading}
+                                  className="flex items-center gap-1.5 text-[11px] text-blue-600 hover:text-blue-700 transition-colors disabled:opacity-50"
+                                >
+                                  {isUploading ? (
+                                    <><Loader2 className="h-3 w-3 animate-spin" /> Uploading…</>
+                                  ) : (
+                                    <><ImagePlus className="h-3 w-3" /> Add photo</>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -870,7 +986,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
             <p className="font-semibold text-slate-700">📸 Tips for best results</p>
             <ul className="space-y-1 list-disc list-inside">
               <li>Post Tuesday–Thursday, 9–11am or 6–8pm for highest reach</li>
-              <li>Property photo placeholders: download the ZIP and swap in real photos in Canva</li>
+              <li>Add a property photo to each deal — click "Add photo" next to each listing</li>
               <li>Tag your brokerage and city accounts for wider amplification</li>
               <li>Reply to comments within the first hour — it signals the algorithm</li>
               <li>Add location to your post to appear in local explore feeds</li>
@@ -878,6 +994,26 @@ export function SocialContent({ settings, transactions, connections }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Hidden file input for property photos */}
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={handlePhotoFileSelected}
+      />
+
+      {/* Crop modal */}
+      <PhotoCropDialog
+        open={cropOpen}
+        onOpenChange={(open) => {
+          setCropOpen(open);
+          if (!open) { setCropFile(null); setCropTxId(null); }
+        }}
+        imageFile={cropFile}
+        onCropComplete={handlePhotoCropped}
+      />
     </div>
   );
 }
