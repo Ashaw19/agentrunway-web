@@ -61,15 +61,32 @@ export function UploadForm({ token }: Props) {
     setUploadState("uploading");
     setErrorMsg(null);
 
-    // Show preview immediately
-    const reader = new FileReader();
-    reader.onload = (e) => setPreview(e.target?.result as string);
-    reader.readAsDataURL(file);
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+
+    // Show preview for images immediately; PDFs render after conversion
+    if (!isPdf) {
+      const reader = new FileReader();
+      reader.onload = (e) => setPreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    }
 
     try {
-      const compressed = await compressImage(file);
+      let imageFile: File;
+
+      if (isPdf) {
+        const { pdfToImageBlob } = await import("@/lib/receipts/pdf-to-image");
+        const blob = await pdfToImageBlob(file);
+        imageFile  = new File([blob], "receipt.jpg", { type: "image/jpeg" });
+        const reader = new FileReader();
+        reader.onload = (e) => setPreview(e.target?.result as string);
+        reader.readAsDataURL(imageFile);
+      } else {
+        const compressed = await compressImage(file);
+        imageFile = new File([compressed], "receipt.jpg", { type: "image/jpeg" });
+      }
+
       const form = new FormData();
-      form.append("file", new File([compressed], "receipt.jpg", { type: "image/jpeg" }));
+      form.append("file", imageFile);
 
       const res = await fetch(`/api/receipts/mobile-upload/${token}`, {
         method: "POST",
@@ -184,7 +201,7 @@ export function UploadForm({ token }: Props) {
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
           <span className="text-sm font-medium text-foreground">Choose Photo</span>
-          <span className="text-[11px] text-muted-foreground text-center">From gallery</span>
+          <span className="text-[11px] text-muted-foreground text-center">Image or PDF</span>
         </button>
       </div>
 
@@ -209,7 +226,7 @@ export function UploadForm({ token }: Props) {
       <input
         ref={fileRef}
         type="file"
-        accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+        accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,application/pdf"
         className="hidden"
         onChange={(e) => handleFile(e.target.files?.[0])}
       />

@@ -187,14 +187,35 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
     setState("processing");
     setErrorMsg(null);
 
-    const reader = new FileReader();
-    reader.onload = (e) => setPreview(e.target?.result as string);
-    reader.readAsDataURL(file);
+    // Detect PDF — convert first page to JPEG before the standard pipeline
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+
+    // Show a preview for images immediately; PDFs show the spinner only
+    if (!isPdf) {
+      const reader = new FileReader();
+      reader.onload = (e) => setPreview(e.target?.result as string);
+      reader.readAsDataURL(file);
+    }
 
     try {
-      const compressed = await compressImage(file);
-      const form       = new FormData();
-      form.append("file", new File([compressed], "receipt.jpg", { type: "image/jpeg" }));
+      let imageFile: File;
+
+      if (isPdf) {
+        // Convert PDF page 1 → JPEG client-side (pdfjs-dist, already installed)
+        const { pdfToImageBlob } = await import("@/lib/receipts/pdf-to-image");
+        const blob = await pdfToImageBlob(file);
+        imageFile  = new File([blob], "receipt.jpg", { type: "image/jpeg" });
+        // Show preview of the rendered page
+        const reader = new FileReader();
+        reader.onload = (e) => setPreview(e.target?.result as string);
+        reader.readAsDataURL(imageFile);
+      } else {
+        const compressed = await compressImage(file);
+        imageFile = new File([compressed], "receipt.jpg", { type: "image/jpeg" });
+      }
+
+      const form = new FormData();
+      form.append("file", imageFile);
 
       const res  = await fetch("/api/receipts/process", { method: "POST", body: form });
       const data = (await res.json()) as ProcessReceiptResponse | ProcessReceiptError;
@@ -364,8 +385,8 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
 
             <p className="text-sm text-muted-foreground">
               {isMobile
-                ? "Take a photo of your receipt or choose one from your gallery."
-                : "Upload a receipt image or send a QR link to your phone to capture it there."}
+                ? "Take a photo of your receipt or choose an image or PDF from your gallery."
+                : "Upload a receipt image or PDF, or send a QR link to your phone to capture it there."}
             </p>
 
             {/*
@@ -394,7 +415,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
                   >
                     <Upload className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
                     <span className="text-sm font-medium text-foreground">Upload File</span>
-                    <span className="text-[11px] text-muted-foreground text-center">JPEG · PNG · WEBP</span>
+                    <span className="text-[11px] text-muted-foreground text-center">JPEG · PNG · PDF</span>
                   </button>
                 </>
               ) : (
@@ -406,7 +427,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
                   >
                     <Upload className="h-8 w-8 text-muted-foreground group-hover:text-primary transition-colors" />
                     <span className="text-sm font-medium text-foreground">Upload File</span>
-                    <span className="text-[11px] text-muted-foreground text-center">JPEG · PNG · WEBP</span>
+                    <span className="text-[11px] text-muted-foreground text-center">JPEG · PNG · PDF</span>
                   </button>
 
                   {/* Desktop primary 2 — QR handoff */}
@@ -444,7 +465,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif"
+              accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,application/pdf"
               className="hidden"
               onChange={(e) => handleFile(e.target.files?.[0])}
             />
