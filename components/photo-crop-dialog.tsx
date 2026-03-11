@@ -1,18 +1,24 @@
 "use client";
 
 /**
- * PhotoCropDialog — modal for cropping a property photo to a 1:1 square.
+ * PhotoCropDialog — modal for optionally cropping a property photo.
  *
  * Flow:
  *   1. Caller sets `imageFile` (from <input type="file">)
- *   2. Dialog shows the image inside a ReactCrop with locked 1:1 aspect
- *   3. User adjusts the crop → clicks "Save Crop"
- *   4. We draw the cropped region onto a 1080×1080 canvas → WebP blob
- *   5. `onCropComplete(blob)` returns the cropped blob to the caller
+ *   2. Dialog shows the image inside a free-form ReactCrop (no forced aspect ratio)
+ *      with the full image pre-selected — user can adjust or leave as-is
+ *   3a. "Save Crop"    — draws the selected region onto a canvas at 1080px wide
+ *       (height is proportional, preserving the crop's native aspect ratio) → JPEG blob
+ *   3b. "Use Full Image" — skips the crop and uploads the original image at its
+ *       native aspect ratio (scaled to max 1080px wide) → JPEG blob
+ *   4. `onCropComplete(blob)` returns the blob to the caller
+ *
+ * The slide API renders photos with objectFit: "contain", so any aspect ratio
+ * is displayed in full with template-coloured letterbox bars where needed.
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import ReactCrop, { type Crop, type PixelCrop, centerCrop, makeAspectCrop } from "react-image-crop";
+import ReactCrop, { type Crop, type PixelCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import {
   Dialog,
@@ -36,7 +42,26 @@ interface PhotoCropDialogProps {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const OUTPUT_SIZE = 1080; // match Instagram slide resolution
+const MAX_OUTPUT_WIDTH = 1080; // slide width; height is proportional
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function canvasToJpegBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (b) => {
+        if (b) return resolve(b);
+        // PNG fallback for browsers that don't support JPEG canvas export
+        canvas.toBlob(
+          (pngBlob) => (pngBlob ? resolve(pngBlob) : reject(new Error("Canvas toBlob failed"))),
+          "image/png",
+        );
+      },
+      "image/jpeg",
+      0.92,
+    );
+  });
+}
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -69,20 +94,15 @@ export function PhotoCropDialog({ open, onOpenChange, imageFile, onCropComplete 
     }
   }, [open]);
 
-  // ── Set initial crop when image loads (centered 80% square) ─────────────
+  // ── Pre-select the full image when it loads ──────────────────────────────
 
   const onImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     imgRef.current = e.currentTarget;
-    const { width, height } = e.currentTarget;
-    const initial = centerCrop(
-      makeAspectCrop({ unit: "%", width: 80 }, 1, width, height),
-      width,
-      height,
-    );
-    setCrop(initial);
+    // Select the entire image by default — user can adjust if needed
+    setCrop({ unit: "%", x: 0, y: 0, width: 100, height: 100 });
   }, []);
 
-  // ── Save: draw crop onto canvas → blob ─────────────────────────────────
+  // ── Save cropped region ──────────────────────────────────────────────────
 
   async function handleSave() {
     const image = imgRef.current;
@@ -90,46 +110,59 @@ export function PhotoCropDialog({ open, onOpenChange, imageFile, onCropComplete 
     setSaving(true);
 
     try {
-      const canvas = document.createElement("canvas");
-      canvas.width = OUTPUT_SIZE;
-      canvas.height = OUTPUT_SIZE;
-      const ctx = canvas.getContext("2d")!;
-
       // Scale from displayed coords to natural image coords
-      const scaleX = image.naturalWidth / image.width;
+      const scaleX = image.naturalWidth  / image.width;
       const scaleY = image.naturalHeight / image.height;
+
+      const naturalCropW = completedCrop.width  * scaleX;
+      const naturalCropH = completedCrop.height * scaleY;
+
+      // Preserve the crop's aspect ratio; scale so width ≤ 1080px
+      const outWidth  = Math.min(Math.round(naturalCropW), MAX_OUTPUT_WIDTH);
+      const outHeight = Math.round(outWidth * (naturalCropH / naturalCropW));
+
+      const canvas = document.createElement("canvas");
+      canvas.width  = outWidth;
+      canvas.height = outHeight;
+      const ctx = canvas.getContext("2d")!;
 
       ctx.drawImage(
         image,
         completedCrop.x * scaleX,
         completedCrop.y * scaleY,
-        completedCrop.width * scaleX,
-        completedCrop.height * scaleY,
-        0,
-        0,
-        OUTPUT_SIZE,
-        OUTPUT_SIZE,
+        naturalCropW,
+        naturalCropH,
+        0, 0,
+        outWidth, outHeight,
       );
 
-      // Convert canvas → blob as JPEG (universally supported by Satori/next-og edge runtime)
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(
-          (b) => {
-            if (b) return resolve(b);
-            // Fallback: try PNG if JPEG not supported
-            canvas.toBlob(
-              (pngBlob) => (pngBlob ? resolve(pngBlob) : reject(new Error("Canvas toBlob failed"))),
-              "image/png",
-            );
-          },
-          "image/jpeg",
-          0.92,
-        );
-      });
-
-      onCropComplete(blob);
+      onCropComplete(await canvasToJpegBlob(canvas));
     } catch (err) {
       console.error("Crop failed:", err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // ── Use full image without any crop ─────────────────────────────────────
+
+  async function handleUseFullImage() {
+    const image = imgRef.current;
+    if (!image) return;
+    setSaving(true);
+
+    try {
+      const outWidth  = Math.min(image.naturalWidth, MAX_OUTPUT_WIDTH);
+      const outHeight = Math.round(outWidth * (image.naturalHeight / image.naturalWidth));
+
+      const canvas = document.createElement("canvas");
+      canvas.width  = outWidth;
+      canvas.height = outHeight;
+      canvas.getContext("2d")!.drawImage(image, 0, 0, outWidth, outHeight);
+
+      onCropComplete(await canvasToJpegBlob(canvas));
+    } catch (err) {
+      console.error("Full image export failed:", err);
     } finally {
       setSaving(false);
     }
@@ -139,48 +172,60 @@ export function PhotoCropDialog({ open, onOpenChange, imageFile, onCropComplete 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Crop Property Photo</DialogTitle>
+          <DialogTitle>Adjust Property Photo</DialogTitle>
           <DialogDescription>
-            Drag to adjust the crop area. Photos are cropped to a square for Instagram slides.
+            Drag the handles to trim, or click <strong>Use Full Image</strong> to keep the original dimensions.
+            Landscape, portrait, and square photos all display correctly on the slide.
           </DialogDescription>
         </DialogHeader>
 
         {imgSrc && (
-          <div className="flex justify-center max-h-[60vh] overflow-hidden">
+          <div className="flex justify-center max-h-[62vh] overflow-auto">
             <ReactCrop
               crop={crop}
               onChange={(c) => setCrop(c)}
               onComplete={(c) => setCompletedCrop(c)}
-              aspect={1}
-              className="max-h-[60vh]"
+              // No aspect prop — free-form crop
+              className="max-h-[62vh]"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={imgSrc}
-                alt="Crop preview"
+                alt="Photo preview"
                 onLoad={onImageLoad}
-                className="max-h-[60vh] w-auto"
+                className="max-h-[62vh] w-auto"
               />
             </ReactCrop>
           </div>
         )}
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
+        <DialogFooter className="flex-row gap-2 sm:justify-between">
+          {/* Left side: Use Full Image */}
+          <Button
+            variant="outline"
+            onClick={handleUseFullImage}
+            disabled={saving || !imgSrc}
+            className="sm:mr-auto"
+          >
+            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Use Full Image
           </Button>
-          <Button onClick={handleSave} disabled={saving || !completedCrop}>
-            {saving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving…
-              </>
-            ) : (
-              "Save Crop"
-            )}
-          </Button>
+
+          {/* Right side: Cancel + Save Crop */}
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving || !completedCrop}>
+              {saving ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving…</>
+              ) : (
+                "Save Crop"
+              )}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

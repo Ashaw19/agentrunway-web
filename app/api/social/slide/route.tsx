@@ -260,7 +260,7 @@ export async function GET(req: NextRequest) {
 
             {photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
             ) : (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
                 <div style={{ fontSize: 80 }}>🏡</div>
