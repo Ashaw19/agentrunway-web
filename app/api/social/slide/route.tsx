@@ -161,7 +161,7 @@ export async function GET(req: NextRequest) {
   // Logo image — used on cover + closer + property bottom
   const logoImg = showLogo && logoUrl ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={logoUrl} alt="" style={{ height: 56, maxWidth: 160, objectFit: "contain" }} />
+    <img src={logoUrl} alt="" style={{ height: 80, maxWidth: 240, objectFit: "contain" }} />
   ) : null;
 
   // ── Cover slide ──────────────────────────────────────────────────────────────
@@ -181,7 +181,7 @@ export async function GET(req: NextRequest) {
           {/* Top row: wordmark + month/year */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             {wordmark}
-            <div style={{ fontSize: 22, color: p.muted, fontWeight: 600 }}>
+            <div style={{ fontSize: 28, color: p.muted, fontWeight: 600 }}>
               {`${month} ${year}`}
             </div>
           </div>
@@ -189,13 +189,13 @@ export async function GET(req: NextRequest) {
           {/* Center: count hero + label */}
           <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
             <div style={{ width: 64, height: 5, borderRadius: 3, background: family === "minimal-clean" ? p.text : p.accent, marginBottom: 20 }} />
-            <div style={{ fontSize: 160, fontWeight: 900, color: family === "bold-modern" ? p.accent : p.text, lineHeight: 0.85, letterSpacing: "-0.03em" }}>
+            <div style={{ fontSize: 180, fontWeight: 900, color: family === "bold-modern" ? p.accent : p.text, lineHeight: 0.85, letterSpacing: "-0.03em" }}>
               {count}
             </div>
-            <div style={{ fontSize: 58, fontWeight: 800, color: family === "bold-modern" ? "#FFFFFF" : p.text, lineHeight: 1, marginTop: 8 }}>
+            <div style={{ fontSize: 72, fontWeight: 800, color: family === "bold-modern" ? "#FFFFFF" : p.text, lineHeight: 1, marginTop: 8 }}>
               {homesText}
             </div>
-            <div style={{ fontSize: 24, color: p.muted, fontWeight: 500, marginTop: 20 }}>
+            <div style={{ fontSize: 30, color: p.muted, fontWeight: 500, marginTop: 20 }}>
               {`${month} ${year} Monthly Recap`}
             </div>
           </div>
@@ -205,11 +205,11 @@ export async function GET(req: NextRequest) {
             <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
               {headshotCircle}
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <div style={{ fontSize: 26, fontWeight: 800, color: family === "bold-modern" ? "#FFFFFF" : p.text }}>
+                <div style={{ fontSize: 36, fontWeight: 800, color: family === "bold-modern" ? "#FFFFFF" : p.text }}>
                   {agentName}
                 </div>
                 {!!businessName && (
-                  <div style={{ fontSize: 18, color: p.muted }}>
+                  <div style={{ fontSize: 24, color: p.muted }}>
                     {businessName}
                   </div>
                 )}
@@ -234,7 +234,7 @@ export async function GET(req: NextRequest) {
     const photoUrl   = sp.get("photoUrl") ?? "";
     const propertyBg = family === "bold-modern" ? "#0B1728" : p.bg;
 
-    const addressFontSize = address.length > 50 ? 34 : address.length > 35 ? 42 : 50;
+    const addressFontSize = address.length > 50 ? 44 : address.length > 35 ? 56 : 66;
 
     return new ImageResponse(
       (
@@ -249,7 +249,7 @@ export async function GET(req: NextRequest) {
             {/* Sold wording row */}
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
               <div style={{ width: 36, height: 4, background: p.accent, borderRadius: 2 }} />
-              <div style={{ fontSize: 20, fontWeight: 800, color: p.accent, letterSpacing: "0.18em" }}>
+              <div style={{ fontSize: 28, fontWeight: 800, color: p.accent, letterSpacing: "0.18em" }}>
                 {soldWording}
               </div>
             </div>
@@ -274,7 +274,7 @@ export async function GET(req: NextRequest) {
             <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 80, background: family === "bold-modern" ? "linear-gradient(to bottom, transparent, #0B1728)" : "linear-gradient(to bottom, transparent, rgba(0,0,0,0.25))" }} />
 
             {/* Slide counter pill — top right */}
-            <div style={{ position: "absolute", top: 20, right: 20, background: "rgba(0,0,0,0.58)", color: "#fff", borderRadius: 999, padding: "8px 20px", fontSize: 18, fontWeight: 700, display: "flex", alignItems: "center" }}>
+            <div style={{ position: "absolute", top: 20, right: 20, background: "rgba(0,0,0,0.58)", color: "#fff", borderRadius: 999, padding: "8px 20px", fontSize: 22, fontWeight: 700, display: "flex", alignItems: "center" }}>
               {`${slideNum} / ${slideTotal}`}
             </div>
           </div>
@@ -282,16 +282,16 @@ export async function GET(req: NextRequest) {
           {/* ── Brand zone ────────────────────────────────────────────────────── */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 160, padding: "0 64px", background: family === "bold-modern" ? "#0F1F38" : p.brandBg }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <div style={{ fontSize: 28, fontWeight: 800, color: family === "bold-modern" ? "#FFFFFF" : p.text }}>
+              <div style={{ fontSize: 38, fontWeight: 800, color: family === "bold-modern" ? "#FFFFFF" : p.text }}>
                 {businessName || agentName}
               </div>
               {!!businessName && (
-                <div style={{ fontSize: 18, color: p.muted }}>
+                <div style={{ fontSize: 26, color: p.muted }}>
                   {agentName}
                 </div>
               )}
               {showSalePrice && !!price && (
-                <div style={{ fontSize: 16, color: p.muted, marginTop: 2 }}>
+                <div style={{ fontSize: 22, color: p.muted, marginTop: 2 }}>
                   {`Listed at ${price}`}
                 </div>
               )}
@@ -324,13 +324,13 @@ export async function GET(req: NextRequest) {
 
         {/* Center: gratitude + CTA */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <div style={{ fontSize: 18, color: p.accent, fontWeight: 700, letterSpacing: "0.15em" }}>
+          <div style={{ fontSize: 24, color: p.accent, fontWeight: 700, letterSpacing: "0.15em" }}>
             THANK YOU
           </div>
-          <div style={{ fontSize: 58, fontWeight: 900, color: "#FFFFFF", lineHeight: 1.1, letterSpacing: "-0.01em" }}>
+          <div style={{ fontSize: 68, fontWeight: 900, color: "#FFFFFF", lineHeight: 1.1, letterSpacing: "-0.01em" }}>
             {ctaLine}
           </div>
-          <div style={{ fontSize: 24, color: "#94A3B8", marginTop: 4 }}>
+          <div style={{ fontSize: 32, color: "#94A3B8", marginTop: 4 }}>
             {"Let's connect — I'd love to help."}
           </div>
         </div>
@@ -341,17 +341,17 @@ export async function GET(req: NextRequest) {
           <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
             {headshotCircle}
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <div style={{ fontSize: 32, fontWeight: 900, color: "#FFFFFF" }}>
+              <div style={{ fontSize: 42, fontWeight: 900, color: "#FFFFFF" }}>
                 {agentName}
               </div>
               {!!businessName && (
-                <div style={{ fontSize: 20, color: "#94A3B8" }}>
+                <div style={{ fontSize: 28, color: "#94A3B8" }}>
                   {businessName}
                 </div>
               )}
             </div>
           </div>
-          <div style={{ fontSize: 14, color: "#475569", marginTop: 8 }}>
+          <div style={{ fontSize: 18, color: "#475569", marginTop: 8 }}>
             Powered by Agent Runway · agentrunway.ca
           </div>
         </div>
