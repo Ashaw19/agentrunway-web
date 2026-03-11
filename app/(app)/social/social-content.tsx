@@ -986,7 +986,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
             <p className="font-semibold text-slate-700">📸 Tips for best results</p>
             <ul className="space-y-1 list-disc list-inside">
               <li>Post Tuesday–Thursday, 9–11am or 6–8pm for highest reach</li>
-              <li>Add a property photo to each deal — click "Add photo" next to each listing</li>
+              <li>Add a property photo to each deal — click &ldquo;Add photo&rdquo; next to each listing</li>
               <li>Tag your brokerage and city accounts for wider amplification</li>
               <li>Reply to comments within the first hour — it signals the algorithm</li>
               <li>Add location to your post to appear in local explore feeds</li>
