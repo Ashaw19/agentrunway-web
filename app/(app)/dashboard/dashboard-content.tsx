@@ -1166,6 +1166,9 @@ export function DashboardContent({
                     <span>{fmtCurrency(taxResult.perDealSetAside)}</span>
                   </div>
                 </div>
+                <p className="mt-3 text-[10px] text-amber-700/70 leading-relaxed">
+                  Estimates only · Not tax advice · Consult a qualified accountant
+                </p>
               </CardContent>
             </Card>
           )}
@@ -1241,6 +1244,17 @@ export function DashboardContent({
           )}
         </CardContent>
       </Card>
+
+      {/* Disclaimer */}
+      <p className="text-center text-xs leading-relaxed text-muted-foreground/60 pb-2">
+        All projections, tax estimates, and advisor recommendations are approximations
+        for planning purposes only — not financial, tax, or professional advice. Actual
+        results will differ. Always consult a qualified accountant or tax professional.{" "}
+        <a href="/terms" className="underline underline-offset-2 hover:text-muted-foreground">
+          Terms of Service
+        </a>
+        .
+      </p>
     </div>
   );
 }

@@ -177,6 +177,34 @@ export interface UserSettings {
   home_office_business_use_pct: number;
   vehicle_business_use_pct: number;
 
+  // T2125 — Home office
+  home_office_method: string;            // 'simplified' | 'detailed'
+  home_office_sq_footage: number | null; // for simplified method ($5/sq ft)
+  home_office_rent_monthly: number;
+  home_office_utilities_monthly: number;
+  home_office_property_tax_annual: number;
+  home_office_insurance_monthly: number;
+  home_office_maintenance_annual: number;
+  home_office_condo_fees_monthly: number;
+
+  // T2125 — GST/HST remittance tracking
+  gst_hst_registered: boolean;
+  gst_hst_remitted_q1: number;
+  gst_hst_remitted_q2: number;
+  gst_hst_remitted_q3: number;
+  gst_hst_remitted_q4: number;
+  gst_hst_paid_on_expenses: number;     // ITCs claimable
+
+  // T2125 — Vehicle
+  vehicle_type: string;                  // 'own' | 'lease' | 'none'
+
+  // T2125 — CRA tax instalments actually paid
+  cpp_instalment_paid_ytd: number;
+  tax_instalment_paid_q1: number;
+  tax_instalment_paid_q2: number;
+  tax_instalment_paid_q3: number;
+  tax_instalment_paid_q4: number;
+
   // Defensibility
   cash_reserve: number;
   experience_years: number | null;
@@ -211,6 +239,38 @@ export interface UserSettings {
   created_at: string;
   updated_at: string;
 }
+
+// ── CCA Asset (T2125 Capital Cost Allowance tracking) ────────────────────────
+
+export interface CcaAsset {
+  id: string;
+  user_id: string;
+  cca_class: number;                // 8, 10, 12, 50, etc.
+  class_rate: number;               // 0.20 = 20%
+  class_half_year: boolean;         // half-year rule
+  description: string;
+  acquisition_date: string;
+  original_cost: number;
+  business_use_pct: number;         // 0.0–1.0
+  opening_ucc: number;
+  additions_this_year: number;
+  disposals_this_year: number;
+  cca_claimed_prior: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Common CCA class definitions for the UI picker
+export const CCA_CLASSES: { class: number; rate: number; halfYear: boolean; label: string }[] = [
+  { class: 8,   rate: 0.20, halfYear: true,  label: "Class 8 — Office furniture & equipment (20%)" },
+  { class: 10,  rate: 0.30, halfYear: true,  label: "Class 10 — Motor vehicles (30%)" },
+  { class: 10.1, rate: 0.30, halfYear: true, label: "Class 10.1 — Passenger vehicles > $37,000 (30%)" },
+  { class: 12,  rate: 1.00, halfYear: true,  label: "Class 12 — Computer software & tools < $500 (100%)" },
+  { class: 50,  rate: 0.55, halfYear: true,  label: "Class 50 — Computers & data handling (55%)" },
+  { class: 14,  rate: 0,    halfYear: false, label: "Class 14 — Franchise or patent (straight-line)" },
+  { class: 43,  rate: 0.30, halfYear: true,  label: "Class 43 — Manufacturing & processing equipment (30%)" },
+];
 
 export interface Transaction {
   id: string;

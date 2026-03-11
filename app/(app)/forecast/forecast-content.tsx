@@ -387,6 +387,9 @@ export function ForecastContent({
                 <p className="text-xs text-muted-foreground">Effective rate (all-in)</p>
               </div>
             </div>
+            <p className="mt-3 text-[10px] text-amber-700/70 leading-relaxed">
+              Estimates only · Not tax advice · Consult a qualified accountant
+            </p>
           </CardContent>
         </Card>
 
