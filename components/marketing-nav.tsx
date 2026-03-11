@@ -2,8 +2,24 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
-import { Menu, X, LayoutDashboard, ArrowRight } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import {
+  Menu,
+  X,
+  LayoutDashboard,
+  ArrowRight,
+  CircleUser,
+  Settings,
+  ArrowLeftRight,
+  Receipt,
+  TrendingUp,
+  LogOut,
+  ChevronDown,
+  History,
+  FileText,
+} from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
 
 // ── Nav links ─────────────────────────────────────────────────────────────────
 
@@ -12,6 +28,19 @@ const NAV_LINKS = [
   { label: "Pricing", href: "/pricing" },
   { label: "Demo", href: "/demo" },
   { label: "About", href: "/about" },
+] as const;
+
+// ── Avatar dropdown items ─────────────────────────────────────────────────────
+
+const DROPDOWN_ITEMS = [
+  { label: "Dashboard",    href: "/dashboard",    icon: LayoutDashboard },
+  { label: "Transactions", href: "/transactions", icon: ArrowLeftRight  },
+  { label: "History",      href: "/history",      icon: History          },
+  { label: "Forecast",     href: "/forecast",     icon: TrendingUp      },
+  { label: "Expenses",     href: "/expenses",     icon: Receipt          },
+  { label: "Reports",      href: "/reports",      icon: FileText         },
+  { label: "Profile",      href: "/profile",      icon: CircleUser       },
+  { label: "Settings",     href: "/settings",     icon: Settings         },
 ] as const;
 
 // ── Avatar helper ─────────────────────────────────────────────────────────────
@@ -48,6 +77,7 @@ function Avatar({ src, name, size }: { src?: string; name?: string; size: number
         fontSize: size < 36 ? "11px" : "13px",
         fontWeight: 700,
         color: "#fff",
+        flexShrink: 0,
       }}
     >
       {initials}
@@ -68,8 +98,29 @@ export function MarketingNav({
   avatarUrl,
   displayName,
 }: MarketingNavProps) {
-  const [open, setOpen] = useState(false);
-  const firstName = displayName?.trim().split(/\s+/)[0];
+  const [open, setOpen]             = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const avatarRef                   = useRef<HTMLDivElement>(null);
+  const router                      = useRouter();
+  const firstName                   = displayName?.trim().split(/\s+/)[0];
+
+  // Close avatar dropdown on outside click
+  useEffect(() => {
+    if (!avatarOpen) return;
+    function handleOutside(e: MouseEvent) {
+      if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) {
+        setAvatarOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [avatarOpen]);
+
+  async function handleSignOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-800 bg-slate-950/85 backdrop-blur-md">
@@ -105,31 +156,92 @@ export function MarketingNav({
             ))}
           </nav>
 
-          {/* Right side: auth CTA + hamburger */}
+          {/* Right side */}
           <div className="flex items-center gap-3">
             {isLoggedIn ? (
               <>
-                {/* Avatar with online ring — desktop only */}
-                <div className="relative hidden md:block">
-                  <div
-                    className="rounded-full overflow-hidden"
-                    style={{
-                      width: 34,
-                      height: 34,
-                      outline: "2px solid #34d399",
-                      outlineOffset: 2,
-                    }}
+                {/* ── Avatar button + dropdown — desktop only ── */}
+                <div ref={avatarRef} className="relative hidden md:block">
+                  <button
+                    onClick={() => setAvatarOpen((v) => !v)}
+                    className="flex items-center gap-1.5 rounded-full transition-opacity hover:opacity-90 focus:outline-none"
+                    aria-label="Open account menu"
+                    aria-expanded={avatarOpen}
                   >
-                    <Avatar src={avatarUrl} name={displayName} size={34} />
-                  </div>
-                  {/* Green "signed in" dot */}
-                  <span
-                    className="absolute -bottom-0.5 -right-0.5 rounded-full bg-emerald-400"
-                    style={{ width: 10, height: 10, outline: "2px solid #020b18" }}
-                  />
+                    {/* Avatar ring */}
+                    <div
+                      className="relative rounded-full overflow-hidden"
+                      style={{
+                        width: 34,
+                        height: 34,
+                        outline: "2px solid #34d399",
+                        outlineOffset: 2,
+                      }}
+                    >
+                      <Avatar src={avatarUrl} name={displayName} size={34} />
+                    </div>
+                    {/* Online dot */}
+                    <span
+                      className="absolute -bottom-0.5 -right-0.5 rounded-full bg-emerald-400"
+                      style={{ width: 10, height: 10, outline: "2px solid #020b18" }}
+                    />
+                    <ChevronDown
+                      className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${avatarOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+
+                  {/* ── Dropdown panel ── */}
+                  {avatarOpen && (
+                    <div
+                      className="absolute right-0 top-full mt-3 w-56 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/60"
+                      style={{ zIndex: 60 }}
+                    >
+                      {/* User identity header */}
+                      <div className="flex items-center gap-3 border-b border-slate-700/60 px-4 py-3">
+                        <div
+                          className="shrink-0 rounded-full overflow-hidden"
+                          style={{ outline: "2px solid #34d399", outlineOffset: 1 }}
+                        >
+                          <Avatar src={avatarUrl} name={displayName} size={32} />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-white">
+                            {displayName ?? "My Account"}
+                          </p>
+                          <p className="text-[11px] text-emerald-400">● Signed in</p>
+                        </div>
+                      </div>
+
+                      {/* Nav items */}
+                      <div className="py-1.5">
+                        {DROPDOWN_ITEMS.map(({ label, href, icon: Icon }) => (
+                          <Link
+                            key={href}
+                            href={href}
+                            onClick={() => setAvatarOpen(false)}
+                            className="flex items-center gap-3 px-4 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
+                          >
+                            <Icon className="h-4 w-4 shrink-0 text-slate-500" />
+                            {label}
+                          </Link>
+                        ))}
+                      </div>
+
+                      {/* Sign out */}
+                      <div className="border-t border-slate-700/60 py-1.5">
+                        <button
+                          onClick={() => { setAvatarOpen(false); handleSignOut(); }}
+                          className="flex w-full items-center gap-3 px-4 py-2 text-sm text-slate-400 transition-colors hover:bg-slate-800 hover:text-red-400"
+                        >
+                          <LogOut className="h-4 w-4 shrink-0" />
+                          Sign Out
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                {/* Dashboard CTA */}
+                {/* Dashboard CTA button */}
                 <Link
                   href="/dashboard"
                   className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
@@ -171,9 +283,8 @@ export function MarketingNav({
           }}
         >
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 py-2">
-            {/* Left: signed-in indicator */}
             <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0" />
+              <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
               <span className="text-xs text-slate-400">
                 {firstName ? (
                   <>
@@ -186,8 +297,6 @@ export function MarketingNav({
                 )}
               </span>
             </div>
-
-            {/* Right: dashboard link with arrow */}
             <Link
               href="/dashboard"
               className="flex items-center gap-1 whitespace-nowrap text-xs font-semibold text-blue-400 transition-colors hover:text-blue-300"
@@ -203,11 +312,11 @@ export function MarketingNav({
       {open && (
         <div className="mx-auto max-w-6xl border-t border-slate-800 px-6 pb-3 pt-3 sm:px-10 md:hidden">
 
-          {/* Profile card at top of mobile menu when logged in */}
+          {/* Profile card */}
           {isLoggedIn && (
             <div className="mb-3 flex items-center gap-3 rounded-xl border border-blue-400/25 bg-blue-500/10 px-3 py-2.5">
               <div
-                className="shrink-0 rounded-full overflow-hidden"
+                className="shrink-0 overflow-hidden rounded-full"
                 style={{ outline: "2px solid #34d399", outlineOffset: 1 }}
               >
                 <Avatar src={avatarUrl} name={displayName} size={36} />
@@ -221,7 +330,7 @@ export function MarketingNav({
               <Link
                 href="/dashboard"
                 onClick={() => setOpen(false)}
-                className="shrink-0 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-500 transition-colors"
+                className="shrink-0 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-blue-500"
               >
                 Dashboard →
               </Link>
@@ -229,6 +338,7 @@ export function MarketingNav({
           )}
 
           <nav className="flex flex-col gap-0.5">
+            {/* Marketing links */}
             {NAV_LINKS.map(({ label, href }) => (
               <Link
                 key={href}
@@ -239,15 +349,31 @@ export function MarketingNav({
                 {label}
               </Link>
             ))}
+
+            {/* App links when signed in */}
             {isLoggedIn && (
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-blue-400 transition-colors hover:bg-slate-800 hover:text-blue-300"
-                onClick={() => setOpen(false)}
-              >
-                <LayoutDashboard className="h-4 w-4" />
-                Go to Dashboard
-              </Link>
+              <>
+                <div className="my-1.5 h-px bg-slate-800" />
+                {DROPDOWN_ITEMS.map(({ label, href, icon: Icon }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
+                  >
+                    <Icon className="h-4 w-4 shrink-0 text-slate-500" />
+                    {label}
+                  </Link>
+                ))}
+                <div className="my-1.5 h-px bg-slate-800" />
+                <button
+                  onClick={() => { setOpen(false); handleSignOut(); }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-slate-800 hover:text-red-400"
+                >
+                  <LogOut className="h-4 w-4 shrink-0" />
+                  Sign Out
+                </button>
+              </>
             )}
           </nav>
 
