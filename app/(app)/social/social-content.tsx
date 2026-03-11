@@ -235,7 +235,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
 
     try {
       const supabase = createClient();
-      const ext = blob.type === "image/png" ? "png" : "webp";
+      const ext = blob.type === "image/png" ? "png" : "jpg";
       const path = `${user.id}/social/${txId}.${ext}`;
       const { error } = await supabase.storage
         .from("profile-media")

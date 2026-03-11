@@ -111,19 +111,19 @@ export function PhotoCropDialog({ open, onOpenChange, imageFile, onCropComplete 
         OUTPUT_SIZE,
       );
 
-      // Convert canvas → blob (WebP with PNG fallback for Safari)
+      // Convert canvas → blob as JPEG (universally supported by Satori/next-og edge runtime)
       const blob = await new Promise<Blob>((resolve, reject) => {
         canvas.toBlob(
           (b) => {
             if (b) return resolve(b);
-            // Fallback: try PNG if WebP not supported
+            // Fallback: try PNG if JPEG not supported
             canvas.toBlob(
               (pngBlob) => (pngBlob ? resolve(pngBlob) : reject(new Error("Canvas toBlob failed"))),
               "image/png",
             );
           },
-          "image/webp",
-          0.85,
+          "image/jpeg",
+          0.92,
         );
       });
 
