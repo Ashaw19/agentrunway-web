@@ -129,6 +129,31 @@ async function loadGoogleFont(family: string, weight: number): Promise<ArrayBuff
   return fetch(match[1]).then((r) => r.arrayBuffer());
 }
 
+// ── Property photo loader ─────────────────────────────────────────────────────
+// Fetches the photo server-side and returns a base64 data URL.
+// Satori's internal image fetcher can silently fail for remote URLs on the edge
+// runtime — embedding the image directly guarantees it renders every time.
+
+async function fetchAsDataUrl(url: string): Promise<string> {
+  if (!url) return "";
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return "";
+    const buf   = await res.arrayBuffer();
+    const mime  = res.headers.get("content-type") ?? "image/jpeg";
+    const bytes = new Uint8Array(buf);
+    // Convert binary to base64 in 32 KB chunks to avoid call-stack limits
+    let binary = "";
+    const chunk = 32768;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode(...Array.from(bytes.subarray(i, i + chunk)));
+    }
+    return `data:${mime};base64,${btoa(binary)}`;
+  } catch {
+    return "";
+  }
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
@@ -155,33 +180,46 @@ export async function GET(req: NextRequest) {
   const showSalePrice = sp.get("showSalePrice") === "1";
   const price        = sp.get("price")        ?? "";
 
-  const ctaLine = sp.get("ctaLine") || "Ready to make your move?";
-  const count   = sp.get("count")   ?? "1";
+  const ctaLine     = sp.get("ctaLine") || "Ready to make your move?";
+  const count       = sp.get("count")   ?? "1";
+  // Parse photoUrl here so we can prefetch it in parallel with font loading
+  const rawPhotoUrl = type === "property" ? (sp.get("photoUrl") ?? "") : "";
 
-  // ── Load display font for the selected template family ────────────────────
-  // Silent fallback to sans-serif if the font CDN is unreachable.
+  // ── Load display font + prefetch property photo in parallel ───────────────
+  // Font loading and image fetching are both network-bound; running them in
+  // parallel keeps total latency ≈ max(fontTime, photoTime) instead of the sum.
+  // fetchAsDataUrl embeds the image as a data URL so Satori never makes its own
+  // outbound fetch (which can fail silently on the edge runtime).
 
-  const fontConfigs: FontEntry[] = [];
-  try {
-    if (family === "classic-luxury") {
-      const [d700, d900] = await Promise.all([
-        loadGoogleFont("Playfair Display", 700),
-        loadGoogleFont("Playfair Display", 900),
-      ]);
-      fontConfigs.push(
-        { name: "Display", data: d700, weight: 700, style: "normal" },
-        { name: "Display", data: d900, weight: 900, style: "normal" },
-      );
-    } else if (family === "bold-modern") {
-      const d700 = await loadGoogleFont("Oswald", 700);
-      fontConfigs.push({ name: "Display", data: d700, weight: 700, style: "normal" });
-    } else {
-      const d700 = await loadGoogleFont("DM Sans", 700);
-      fontConfigs.push({ name: "Display", data: d700, weight: 700, style: "normal" });
+  const fontLoader = (async (): Promise<FontEntry[]> => {
+    const configs: FontEntry[] = [];
+    try {
+      if (family === "classic-luxury") {
+        const [d700, d900] = await Promise.all([
+          loadGoogleFont("Playfair Display", 700),
+          loadGoogleFont("Playfair Display", 900),
+        ]);
+        configs.push(
+          { name: "Display", data: d700, weight: 700, style: "normal" },
+          { name: "Display", data: d900, weight: 900, style: "normal" },
+        );
+      } else if (family === "bold-modern") {
+        const d700 = await loadGoogleFont("Oswald", 700);
+        configs.push({ name: "Display", data: d700, weight: 700, style: "normal" });
+      } else {
+        const d700 = await loadGoogleFont("DM Sans", 700);
+        configs.push({ name: "Display", data: d700, weight: 700, style: "normal" });
+      }
+    } catch {
+      // Fallback: system sans-serif used automatically
     }
-  } catch {
-    // Fallback: system sans-serif used automatically
-  }
+    return configs;
+  })();
+
+  const [fontConfigs, embeddedPhotoSrc] = await Promise.all([
+    fontLoader,
+    fetchAsDataUrl(rawPhotoUrl),
+  ]);
 
   const imgOptions = { width: SIZE, height: SIZE, fonts: fontConfigs };
   // df = display font reference string; applied to all hero / heading elements
@@ -416,7 +454,8 @@ export async function GET(req: NextRequest) {
   // ═══════════════════════════════════════════════════════════════════════════
 
   if (type === "property") {
-    const photoUrl        = sp.get("photoUrl") ?? "";
+    // embeddedPhotoSrc is either a base64 data URL (pre-fetched above) or ""
+    const photoUrl        = embeddedPhotoSrc;
     const addressFontSize = address.length > 50 ? 44 : address.length > 35 ? 56 : 66;
 
     // ── Classic Luxury: left bar wrapper ───────────────────────────────────
