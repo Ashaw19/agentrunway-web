@@ -161,7 +161,8 @@ export function buildSlideApiUrl(
       p.set("price", fmtCurrency(spec.tx.sale_price));
     }
     if (photoUrls?.[spec.tx.id]) {
-      p.set("photoUrl", photoUrls[spec.tx.id]);
+      // Strip cache-buster (?t=...) — only needed for the browser preview <img>, not for Satori
+      p.set("photoUrl", photoUrls[spec.tx.id].split("?")[0]);
     }
     return `/api/social/slide?${p}`;
   }

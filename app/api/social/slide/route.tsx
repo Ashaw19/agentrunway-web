@@ -416,31 +416,8 @@ export async function GET(req: NextRequest) {
   // ═══════════════════════════════════════════════════════════════════════════
 
   if (type === "property") {
-    const photoUrl   = sp.get("photoUrl") ?? "";
+    const photoUrl        = sp.get("photoUrl") ?? "";
     const addressFontSize = address.length > 50 ? 44 : address.length > 35 ? 56 : 66;
-
-    // Shared image zone (identical across families)
-    const imageZone = (
-      <div style={{ display: "flex", position: "relative", flex: 1, background: family === "bold-modern" ? "linear-gradient(135deg, #1E3A5F 0%, #0B1728 100%)" : p.softBg, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-        {photoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-            <div style={{ fontSize: 80 }}>🏡</div>
-            <div style={{ fontSize: 20, color: p.muted, fontWeight: 600, letterSpacing: "0.08em", fontFamily: "sans-serif" }}>
-              ADD PROPERTY PHOTO
-            </div>
-          </div>
-        )}
-        {/* Gradient overlay */}
-        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 80, background: family === "bold-modern" ? "linear-gradient(to bottom, transparent, #0B1728)" : "linear-gradient(to bottom, transparent, rgba(0,0,0,0.25))" }} />
-        {/* Slide counter pill */}
-        <div style={{ position: "absolute", top: 20, right: 20, background: "rgba(0,0,0,0.58)", color: "#fff", borderRadius: 999, padding: "8px 20px", fontSize: 22, fontWeight: 700, display: "flex", alignItems: "center", fontFamily: "sans-serif" }}>
-          {`${slideNum} / ${slideTotal}`}
-        </div>
-      </div>
-    );
 
     // ── Classic Luxury: left bar wrapper ───────────────────────────────────
     if (family === "classic-luxury") {
@@ -465,7 +442,22 @@ export async function GET(req: NextRequest) {
                 </div>
               </div>
 
-              {imageZone}
+              {/* Image zone */}
+              <div style={{ display: "flex", position: "relative", flex: 1, background: p.softBg, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                {photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+                    <div style={{ fontSize: 80 }}>🏡</div>
+                    <div style={{ fontSize: 20, color: p.muted, fontWeight: 600, letterSpacing: "0.08em", fontFamily: "sans-serif" }}>ADD PROPERTY PHOTO</div>
+                  </div>
+                )}
+                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 80, background: "linear-gradient(to bottom, transparent, rgba(0,0,0,0.25))" }} />
+                <div style={{ position: "absolute", top: 20, right: 20, background: "rgba(0,0,0,0.58)", color: "#fff", borderRadius: 999, padding: "8px 20px", fontSize: 22, fontWeight: 700, display: "flex", alignItems: "center", fontFamily: "sans-serif" }}>
+                  {`${slideNum} / ${slideTotal}`}
+                </div>
+              </div>
 
               {/* Brand zone */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 160, padding: "0 60px", background: p.brandBg }}>
@@ -514,7 +506,22 @@ export async function GET(req: NextRequest) {
               </div>
             </div>
 
-            {imageZone}
+            {/* Image zone */}
+            <div style={{ display: "flex", position: "relative", flex: 1, background: "linear-gradient(135deg, #1E3A5F 0%, #0B1728 100%)", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+              {photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+                  <div style={{ fontSize: 80 }}>🏡</div>
+                  <div style={{ fontSize: 20, color: p.muted, fontWeight: 600, letterSpacing: "0.08em", fontFamily: "sans-serif" }}>ADD PROPERTY PHOTO</div>
+                </div>
+              )}
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 80, background: "linear-gradient(to bottom, transparent, #0B1728)" }} />
+              <div style={{ position: "absolute", top: 20, right: 20, background: "rgba(0,0,0,0.58)", color: "#fff", borderRadius: 999, padding: "8px 20px", fontSize: 22, fontWeight: 700, display: "flex", alignItems: "center", fontFamily: "sans-serif" }}>
+                {`${slideNum} / ${slideTotal}`}
+              </div>
+            </div>
 
             {/* Brand zone */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 160, padding: "0 64px", background: "#0F1F38" }}>
@@ -561,7 +568,22 @@ export async function GET(req: NextRequest) {
             </div>
           </div>
 
-          {imageZone}
+          {/* Image zone */}
+          <div style={{ display: "flex", position: "relative", flex: 1, background: p.softBg, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+            {photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+                <div style={{ fontSize: 80 }}>🏡</div>
+                <div style={{ fontSize: 20, color: p.muted, fontWeight: 600, letterSpacing: "0.08em", fontFamily: "sans-serif" }}>ADD PROPERTY PHOTO</div>
+              </div>
+            )}
+            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 80, background: "linear-gradient(to bottom, transparent, rgba(0,0,0,0.25))" }} />
+            <div style={{ position: "absolute", top: 20, right: 20, background: "rgba(0,0,0,0.58)", color: "#fff", borderRadius: 999, padding: "8px 20px", fontSize: 22, fontWeight: 700, display: "flex", alignItems: "center", fontFamily: "sans-serif" }}>
+              {`${slideNum} / ${slideTotal}`}
+            </div>
+          </div>
 
           {/* Brand zone */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 160, padding: "0 64px", background: p.brandBg }}>
