@@ -314,6 +314,19 @@ export default async function Home() {
   // Don't redirect logged-in users — let them see the marketing site.
   // The nav shows a "Dashboard →" button so they can get back easily.
 
+  // Fetch profile data for logged-in users so the nav can show their avatar
+  let avatarUrl: string | undefined;
+  let displayName: string | undefined;
+  if (user) {
+    const { data: settings } = await supabase
+      .from("user_settings")
+      .select("avatar_url, display_name")
+      .eq("user_id", user.id)
+      .single();
+    avatarUrl = settings?.avatar_url ?? undefined;
+    displayName = settings?.display_name || user.email?.split("@")[0] || undefined;
+  }
+
   return (
     <div className="flex min-h-screen flex-col" style={{ background: "#010D1F" }}>
 
@@ -322,7 +335,7 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
       />
 
-      <MarketingNav isLoggedIn={!!user} />
+      <MarketingNav isLoggedIn={!!user} avatarUrl={avatarUrl} displayName={displayName} />
 
       <main>
 
