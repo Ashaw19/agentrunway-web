@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -312,7 +311,8 @@ export default async function Home() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (user) redirect("/dashboard");
+  // Don't redirect logged-in users — let them see the marketing site.
+  // The nav shows a "Dashboard →" button so they can get back easily.
 
   return (
     <div className="flex min-h-screen flex-col" style={{ background: "#010D1F" }}>
@@ -322,7 +322,7 @@ export default async function Home() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
       />
 
-      <MarketingNav />
+      <MarketingNav isLoggedIn={!!user} />
 
       <main>
 

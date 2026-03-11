@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LayoutDashboard } from "lucide-react";
 
 // ── Nav links ─────────────────────────────────────────────────────────────────
 
@@ -16,7 +16,7 @@ const NAV_LINKS = [
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function MarketingNav() {
+export function MarketingNav({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -50,14 +50,24 @@ export function MarketingNav() {
           ))}
         </nav>
 
-        {/* Right side: Sign In + hamburger */}
+        {/* Right side: auth CTA + hamburger */}
         <div className="flex items-center gap-3">
-          <Link
-            href="/login"
-            className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800"
-          >
-            Sign In
-          </Link>
+          {isLoggedIn ? (
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
+            >
+              <LayoutDashboard className="h-3.5 w-3.5" />
+              Dashboard
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800"
+            >
+              Sign In
+            </Link>
+          )}
           <button
             className="flex items-center justify-center rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white md:hidden"
             onClick={() => setOpen((v) => !v)}
@@ -84,6 +94,16 @@ export function MarketingNav() {
                 {label}
               </Link>
             ))}
+            {isLoggedIn && (
+              <Link
+                href="/dashboard"
+                className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold text-blue-400 transition-colors hover:bg-slate-800 hover:text-blue-300"
+                onClick={() => setOpen(false)}
+              >
+                <LayoutDashboard className="h-4 w-4" />
+                Go to Dashboard
+              </Link>
+            )}
           </nav>
         </div>
       )}

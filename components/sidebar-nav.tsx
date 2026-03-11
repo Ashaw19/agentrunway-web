@@ -18,6 +18,7 @@ import {
   Moon,
   Sun,
   Share2,
+  Globe,
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -230,6 +231,17 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
             {theme === "dark" ? "Light mode" : "Dark mode"}
           </button>
         )}
+      </div>
+
+      {/* Visit marketing site */}
+      <div className="px-3 pb-1">
+        <Link
+          href="/"
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-colors"
+        >
+          <Globe className="h-3.5 w-3.5 shrink-0" />
+          Visit Website
+        </Link>
       </div>
 
       {/* Sign out */}
