@@ -527,7 +527,7 @@ export async function GET(req: NextRequest) {
             <div style={{ display: "flex", position: "relative", flex: 1, background: p.softBg, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
               {photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
                   <div style={{ fontSize: 80 }}>🏡</div>
@@ -583,7 +583,7 @@ export async function GET(req: NextRequest) {
             <div style={{ display: "flex", position: "relative", flex: 1, background: p.softBg, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
               {photoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
                   <div style={{ fontSize: 80 }}>🏡</div>
@@ -659,7 +659,7 @@ export async function GET(req: NextRequest) {
           <div style={{ display: "flex", position: "relative", flex: 1, margin: "0 24px", border: "1px solid #E5E7EB", background: p.softBg, alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
             {photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <img src={photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
             ) : (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
                 <div style={{ fontSize: 80 }}>🏡</div>
