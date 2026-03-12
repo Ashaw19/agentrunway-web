@@ -1,7 +1,26 @@
 import OpenAI from "openai";
 import { NextRequest } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
+  // ── 1. Auth guard ────────────────────────────────────────────────────────
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
+  // ── 2. Rate limit: 30 AI messages per 60-minute window ──────────────────
+  const rl = await checkRateLimit(user.id, "chat", 30, 60);
+  if (!rl.allowed) {
+    return new Response("Too many requests. Please wait before sending more messages.", {
+      status: 429,
+      headers: rateLimitHeaders(rl),
+    });
+  }
+
+  // ── 3. Config guard ──────────────────────────────────────────────────────
   if (!process.env.GROQ_API_KEY) {
     return new Response(
       "AI advisor is not configured yet. Please add your GROQ_API_KEY to Vercel environment variables.",
@@ -70,9 +89,7 @@ Guidelines:
       },
     });
   } catch (error) {
-    console.error("Groq error:", error);
-    const message =
-      error instanceof Error ? error.message : "Unknown error from Groq";
-    return new Response(message, { status: 500 });
+    console.error("[chat] Groq error:", error);
+    return new Response("AI service temporarily unavailable. Please try again.", { status: 500 });
   }
 }

@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 // ── Exported types shared with the client component ──────────────────────────
 
@@ -308,10 +309,20 @@ function computeAggregates(deals: GroqRawResponse["deals"], year: number): Impor
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  // Auth guard
+  // ── Auth guard ───────────────────────────────────────────────────────────
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // ── Rate limit: 10 document imports per 60-minute window ─────────────────
+  // Each import makes a vision/LLM call that is both expensive and slow.
+  const rl = await checkRateLimit(user.id, "import-history", 10, 60);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many imports. Please wait before uploading another document." },
+      { status: 429, headers: rateLimitHeaders(rl) },
+    );
+  }
 
   if (!process.env.GROQ_API_KEY) {
     return NextResponse.json({ error: "GROQ_API_KEY is not configured" }, { status: 503 });

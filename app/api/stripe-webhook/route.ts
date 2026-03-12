@@ -75,6 +75,26 @@ export async function POST(request: Request) {
 
   const db = serviceClient();
 
+  // ── Idempotency guard ──────────────────────────────────────────────────────
+  // Stripe guarantees at-least-once delivery: the same event can fire twice.
+  // Insert the event ID into stripe_events; a unique-constraint violation
+  // means we've already handled it — return 200 immediately so Stripe stops
+  // retrying without us double-processing (double-granting, double-emailing).
+  const { error: idempotencyError } = await db
+    .from("stripe_events")
+    .insert({ event_id: event.id });
+
+  if (idempotencyError) {
+    if (idempotencyError.code === "23505") {
+      // Duplicate event — already processed
+      console.log("[stripe] duplicate event ignored:", event.id);
+      return NextResponse.json({ received: true });
+    }
+    // Unexpected DB error — log but continue processing rather than
+    // silently dropping a real event.
+    console.error("[stripe] failed to record event id:", idempotencyError.message);
+  }
+
   switch (event.type) {
 
     // ── New subscription activated via Checkout ─────────────────────────────

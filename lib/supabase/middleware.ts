@@ -51,13 +51,22 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // ── Step 2: Resolve the current user ────────────────────────────────────
+  // Wrapped in try/catch: if Supabase Auth is temporarily unavailable, we
+  // fail open (treat as unauthenticated) rather than crashing the middleware
+  // and returning a 500 to every visitor.
+  let user: { id: string } | null = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch (err) {
+    console.error("[middleware] supabase.auth.getUser() threw:", err);
+    // user stays null — protected routes will redirect to /login below
+  }
 
   const pathname = request.nextUrl.pathname;
 
-  // ── Step 2: Auth guard ──────────────────────────────────────────────────
+  // ── Step 3: Auth guard ──────────────────────────────────────────────────
   // Use an explicit denylist (not an allowlist) so new public pages are
   // automatically public without requiring an allowlist update.
   const isProtectedRoute = PROTECTED_PREFIXES.some(
