@@ -619,67 +619,6 @@ export function DashboardContent({
         </div>
       )}
 
-      {/* ── You Are Here strip ── */}
-      <YouAreHereStrip
-        fraction={fraction}
-        pacePercent={pacePercent}
-        paceStatus={paceStatus}
-        goalGCI={goalGCI}
-      />
-
-      {/* ── Status strip ── */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2.5">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 mr-1">
-          Status
-        </span>
-        <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold", paceStripColor)}>
-          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
-          Pace: {paceLabel}
-        </span>
-        <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold", runwayStripColor)}>
-          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
-          Runway: {runwayLabel}
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
-          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-          Scenario: {scenario === "conservative" ? "Conservative −15%" : scenario === "optimistic" ? "Optimistic +15%" : "Base"}
-        </span>
-        <span className="ml-auto text-[11px] text-slate-400 hidden sm:block">
-          {runwayScore.grade} · Score {runwayScore.score}/100
-        </span>
-      </div>
-
-      {/* ── Period recap (month boundary) ── */}
-      {periodRecap && (
-        <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-violet-800">
-              {periodRecap.monthName} recap — {fmtCurrency(periodRecap.monthGCI)} · {periodRecap.monthTx} deal{periodRecap.monthTx !== 1 ? "s" : ""}
-            </p>
-            <p className="text-xs text-violet-600 mt-0.5">
-              {periodRecap.vsAvg >= 1.2
-                ? `↑ ${Math.round((periodRecap.vsAvg - 1) * 100)}% above your monthly average`
-                : periodRecap.vsAvg <= 0.8 && periodRecap.vsAvg > 0
-                ? `↓ ${Math.round((1 - periodRecap.vsAvg) * 100)}% below your monthly average`
-                : "Right in line with your monthly average"}
-            </p>
-          </div>
-          <CalendarCheck className="h-5 w-5 text-violet-400 shrink-0" />
-        </div>
-      )}
-
-      {/* ── Weekly Business Brief (elevated, always visible) ── */}
-      {narrative && (
-        <BusinessHealthNarrativeCard
-          narrative={narrative}
-          isOpen={narrativeOpen}
-          onToggle={() => setNarrativeOpen((o) => !o)}
-        />
-      )}
-
-      {/* ── Section: Business Health ── */}
-      <SectionHeader label="Business Health" />
-
       {/* Runway Score Hero */}
       <Card className="rounded-2xl border-amber-200/60 bg-gradient-to-br from-amber-50/80 via-slate-50 to-blue-50/60 shadow-lg shadow-amber-100/50">
         <CardContent className="pt-6 pb-6">
@@ -774,6 +713,64 @@ export function DashboardContent({
           </div>
         </CardContent>
       </Card>
+
+      {/* ── You Are Here strip ── */}
+      <YouAreHereStrip
+        fraction={fraction}
+        pacePercent={pacePercent}
+        paceStatus={paceStatus}
+        goalGCI={goalGCI}
+      />
+
+      {/* ── Status strip ── */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2.5">
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 mr-1">
+          Status
+        </span>
+        <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold", paceStripColor)}>
+          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+          Pace: {paceLabel}
+        </span>
+        <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold", runwayStripColor)}>
+          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+          Runway: {runwayLabel}
+        </span>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+          Scenario: {scenario === "conservative" ? "Conservative −15%" : scenario === "optimistic" ? "Optimistic +15%" : "Base"}
+        </span>
+        <span className="ml-auto text-[11px] text-slate-400 hidden sm:block">
+          {runwayScore.grade} · Score {runwayScore.score}/100
+        </span>
+      </div>
+
+      {/* ── Period recap (month boundary) ── */}
+      {periodRecap && (
+        <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-violet-800">
+              {periodRecap.monthName} recap — {fmtCurrency(periodRecap.monthGCI)} · {periodRecap.monthTx} deal{periodRecap.monthTx !== 1 ? "s" : ""}
+            </p>
+            <p className="text-xs text-violet-600 mt-0.5">
+              {periodRecap.vsAvg >= 1.2
+                ? `↑ ${Math.round((periodRecap.vsAvg - 1) * 100)}% above your monthly average`
+                : periodRecap.vsAvg <= 0.8 && periodRecap.vsAvg > 0
+                ? `↓ ${Math.round((1 - periodRecap.vsAvg) * 100)}% below your monthly average`
+                : "Right in line with your monthly average"}
+            </p>
+          </div>
+          <CalendarCheck className="h-5 w-5 text-violet-400 shrink-0" />
+        </div>
+      )}
+
+      {/* ── Weekly Business Brief (elevated, always visible) ── */}
+      {narrative && (
+        <BusinessHealthNarrativeCard
+          narrative={narrative}
+          isOpen={narrativeOpen}
+          onToggle={() => setNarrativeOpen((o) => !o)}
+        />
+      )}
 
       {/* ── Section: Performance Metrics ── */}
       <SectionHeader label="Performance Metrics" />
