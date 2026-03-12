@@ -1,6 +1,7 @@
 // Barrel export for all calculation engines
 export * from "./projection-engine";
 export * from "./canadian-tax-engine";
+export * from "./corporate-tax-engine";
 export * from "./survival-engine";
 export * from "./benchmark-engine";
 export * from "./probabilistic-forecast-engine";

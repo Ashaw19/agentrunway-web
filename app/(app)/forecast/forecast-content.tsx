@@ -33,13 +33,14 @@ import {
   dailyPaceRequired,
 } from "@/lib/engines/projection-engine";
 import { calculate as calculateTax, gstHstRate, gstHstLabel } from "@/lib/engines/canadian-tax-engine";
+import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { probabilityBands, fiveYearBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
 import { compare } from "@/lib/engines/benchmark-engine";
 import { generateAdvisory, type AdvisorCard } from "@/lib/engines/advisor-engine";
 import { ProbabilityChart, type ProbabilityDataPoint } from "@/components/probability-chart";
 import Link from "next/link";
-import { Settings, CalendarCheck } from "lucide-react";
+import { Settings, CalendarCheck, Building2, TrendingDown, TrendingUp } from "lucide-react";
 
 // ── CRA quarterly remittance helper ─────────────────────────────────────────
 function nextRemittanceDate(from: Date): { date: Date; label: string; quarter: string } {
@@ -155,6 +156,17 @@ export function ForecastContent({
   const netForTax = Math.max(0, projectedNet - annualExpenses);
   const taxResult = calculateTax(netForTax, settings.province, Math.max(projectedDeals, 1));
 
+  // ── Corporate tax estimate (incorporated users only) ──────────────────
+  const corpTaxResult = settings.is_incorporated
+    ? calculateCorporateTax({
+        corporateIncome: netForTax,
+        province: settings.province,
+        compensationMethod:
+          (settings.compensation_method as "salary" | "dividends" | "mixed") ?? "salary",
+        dealCount: Math.max(projectedDeals, 1),
+      })
+    : null;
+
   // ── GST/HST collected on commissions ──────────────────────────────────
   const taxLabel = gstHstLabel(settings.province);
   const taxRate = gstHstRate(settings.province);
@@ -261,10 +273,14 @@ export function ForecastContent({
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-slate-800">
-              {fmtCurrency(Math.max(0, netForTax - taxResult.totalBurden))}
+              {corpTaxResult
+                ? fmtCurrency(Math.max(0, corpTaxResult.netPersonalIncome))
+                : fmtCurrency(Math.max(0, netForTax - taxResult.totalBurden))}
             </div>
             <p className="text-xs text-emerald-600/80">
-              {fmtPct(taxResult.effectiveRate)} effective rate
+              {corpTaxResult
+                ? `${fmtPct(corpTaxResult.combinedEffectiveRate)} combined rate`
+                : `${fmtPct(taxResult.effectiveRate)} effective rate`}
             </p>
           </CardContent>
         </Card>
@@ -323,26 +339,67 @@ export function ForecastContent({
             </div>
             <Separator />
             <div className="flex justify-between font-medium">
-              <span>Net Self-Employment Income</span>
+              <span>{corpTaxResult ? "Net Corporate Income" : "Net Self-Employment Income"}</span>
               <span>{fmtCurrency(netForTax)}</span>
             </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>CPP/QPP contributions</span>
-              <span>-{fmtCurrency(taxResult.totalCPP)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Federal income tax</span>
-              <span>-{fmtCurrency(taxResult.federalTax)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Provincial income tax</span>
-              <span>-{fmtCurrency(taxResult.provincialTax)}</span>
-            </div>
-            <Separator />
-            <div className="flex justify-between text-base font-semibold">
-              <span>Estimated After-Tax Net</span>
-              <span>{fmtCurrency(Math.max(0, netForTax - taxResult.totalBurden))}</span>
-            </div>
+            {corpTaxResult ? (
+              // ── Incorporated waterfall ──
+              <>
+                {corpTaxResult.salaryTaken > 0 && (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Salary to owner</span>
+                    <span>-{fmtCurrency(corpTaxResult.salaryTaken)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Corporate tax ({fmtPct(corpTaxResult.totalCorpRate)})</span>
+                  <span>-{fmtCurrency(corpTaxResult.corporateTax)}</span>
+                </div>
+                <Separator />
+                <div className="flex justify-between font-medium">
+                  <span>After-Tax Corp Income</span>
+                  <span>{fmtCurrency(corpTaxResult.afterTaxCorporateIncome)}</span>
+                </div>
+                {corpTaxResult.personalTaxOnSalary > 0 && (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Personal tax on salary (incl. CPP)</span>
+                    <span>-{fmtCurrency(corpTaxResult.personalTaxOnSalary)}</span>
+                  </div>
+                )}
+                {corpTaxResult.personalTaxOnDividend > 0 && (
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Personal tax on dividends</span>
+                    <span>-{fmtCurrency(corpTaxResult.personalTaxOnDividend)}</span>
+                  </div>
+                )}
+                <Separator />
+                <div className="flex justify-between text-base font-semibold">
+                  <span>Estimated After-Tax Personal Net</span>
+                  <span>{fmtCurrency(Math.max(0, corpTaxResult.netPersonalIncome))}</span>
+                </div>
+              </>
+            ) : (
+              // ── Sole-proprietor waterfall ──
+              <>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>CPP/QPP contributions</span>
+                  <span>-{fmtCurrency(taxResult.totalCPP)}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Federal income tax</span>
+                  <span>-{fmtCurrency(taxResult.federalTax)}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Provincial income tax</span>
+                  <span>-{fmtCurrency(taxResult.provincialTax)}</span>
+                </div>
+                <Separator />
+                <div className="flex justify-between text-base font-semibold">
+                  <span>Estimated After-Tax Net</span>
+                  <span>{fmtCurrency(Math.max(0, netForTax - taxResult.totalBurden))}</span>
+                </div>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -392,6 +449,105 @@ export function ForecastContent({
             </p>
           </CardContent>
         </Card>
+
+      {/* Compensation Optimizer — incorporated users only */}
+      {corpTaxResult && (
+        <Card className="rounded-2xl border border-violet-200 bg-violet-50/40 shadow-sm">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-violet-600" />
+              <div>
+                <CardTitle className="text-base">Compensation Optimizer</CardTitle>
+                <CardDescription>
+                  {settings.corp_type === "prec" ? "PREC" : "Corporation"} &middot; {PROVINCE_LABELS[settings.province]} &middot; projected corporate income {fmtCurrency(netForTax)}
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Salary vs Dividends comparison */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className={`rounded-xl border p-4 ${corpTaxResult.optimalMethod === "salary" ? "border-violet-300 bg-violet-100" : "border-border bg-muted/30"}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-semibold">All Salary</p>
+                  {corpTaxResult.optimalMethod === "salary" && (
+                    <Badge className="bg-violet-600 text-white text-xs">Optimal</Badge>
+                  )}
+                </div>
+                <p className="text-2xl font-bold">{fmtCurrency(corpTaxResult.allSalaryTotalTax)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Total tax burden</p>
+                <p className="text-xs text-muted-foreground">Generates CPP + RRSP room</p>
+              </div>
+              <div className={`rounded-xl border p-4 ${corpTaxResult.optimalMethod === "dividends" ? "border-violet-300 bg-violet-100" : "border-border bg-muted/30"}`}>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-semibold">All Dividends</p>
+                  {corpTaxResult.optimalMethod === "dividends" && (
+                    <Badge className="bg-violet-600 text-white text-xs">Optimal</Badge>
+                  )}
+                </div>
+                <p className="text-2xl font-bold">{fmtCurrency(corpTaxResult.allDividendsTotalTax)}</p>
+                <p className="text-xs text-muted-foreground mt-1">Total tax burden</p>
+                <p className="text-xs text-muted-foreground">No CPP — no RRSP contribution room</p>
+              </div>
+            </div>
+
+            {/* Net-to-owner summary */}
+            <div className="space-y-2 text-sm">
+              <Separator />
+              <div className="flex justify-between">
+                <span>Sole-proprietor equivalent tax</span>
+                <span className="text-muted-foreground">{fmtCurrency(corpTaxResult.soleProprietorTax)}</span>
+              </div>
+              <div className="flex justify-between font-medium">
+                <span>Your current method tax ({settings.compensation_method ?? "salary"})</span>
+                <span>{fmtCurrency(corpTaxResult.totalCombinedTax)}</span>
+              </div>
+              <div className={`flex justify-between font-semibold ${corpTaxResult.taxSavingVsSoleProp >= 0 ? "text-emerald-700" : "text-red-600"}`}>
+                <span>vs. sole proprietor</span>
+                <span className="flex items-center gap-1">
+                  {corpTaxResult.taxSavingVsSoleProp >= 0
+                    ? <TrendingDown className="h-3.5 w-3.5" />
+                    : <TrendingUp className="h-3.5 w-3.5" />}
+                  {corpTaxResult.taxSavingVsSoleProp >= 0
+                    ? `Saves ${fmtCurrency(corpTaxResult.taxSavingVsSoleProp)}`
+                    : `Costs ${fmtCurrency(Math.abs(corpTaxResult.taxSavingVsSoleProp))} more`}
+                </span>
+              </div>
+            </div>
+
+            {/* Optimizer recommendation */}
+            {corpTaxResult.optimalSaving > 500 &&
+              corpTaxResult.optimalMethod !== settings.compensation_method && (
+              <div className="rounded-lg border border-violet-200 bg-violet-100 p-3">
+                <p className="text-sm font-medium text-violet-900">
+                  💡 Switch to {corpTaxResult.optimalMethod === "salary" ? "salary" : "dividends"} and save ~{fmtCurrency(corpTaxResult.optimalSaving)}/yr
+                </p>
+                <p className="text-xs text-violet-700/80 mt-1">
+                  At {fmtCurrency(netForTax)} corporate income in {PROVINCE_LABELS[settings.province]}, {corpTaxResult.optimalMethod === "salary" ? "salary avoids non-eligible dividend tax drag" : "dividends avoids CPP above the YMPE threshold"}.
+                  Talk to your accountant before changing compensation structure.
+                </p>
+              </div>
+            )}
+
+            {/* SBD passive income warning */}
+            {corpTaxResult.passiveIncomeWarning && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm font-medium text-amber-900">
+                  ⚠️ Passive income threshold exceeded
+                </p>
+                <p className="text-xs text-amber-700/80 mt-1">
+                  Investment income over $50K reduces your Small Business Deduction limit by $5 per dollar.
+                  SBD limit reduced by {fmtCurrency(corpTaxResult.sbdReductionAmount)} — consider consulting your accountant about holding company structure.
+                </p>
+              </div>
+            )}
+
+            <p className="text-[10px] text-violet-700/60 leading-relaxed">
+              Estimates only · Not tax advice · Salary vs dividend optimization depends on many factors including RRSP room, CPP entitlement, and future income expectations. Consult a qualified accountant.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* CRA Remittance Calendar */}
       <Card className={isUrgent ? "border-orange-200" : ""}>

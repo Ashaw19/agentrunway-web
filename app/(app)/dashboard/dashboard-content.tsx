@@ -49,6 +49,7 @@ import {
   Zap,
   CheckSquare,
   Square,
+  Building2,
 } from "lucide-react";
 import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
@@ -84,6 +85,7 @@ import { survivalResult, type SurvivalResult } from "@/lib/engines/survival-engi
 import { compute as computeRunwayScore, type BusinessHealthReport, type RunwayScoreResult } from "@/lib/engines/runway-score-engine";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { calculate as calculateTax } from "@/lib/engines/canadian-tax-engine";
+import { calculateCorporateTax, type CorporateTaxResult } from "@/lib/engines/corporate-tax-engine";
 import {
   Tooltip,
   TooltipContent,
@@ -323,6 +325,18 @@ export function DashboardContent({
   const taxResult = settings
     ? calculateTax(netForTax, settings.province, Math.max(projectedDealCount, 1))
     : null;
+
+  // ── Corporate tax estimate (incorporated users only) ──────────────────
+  const corpTaxResult: CorporateTaxResult | null =
+    settings?.is_incorporated
+      ? calculateCorporateTax({
+          corporateIncome: netForTax,
+          province: settings.province,
+          compensationMethod:
+            (settings.compensation_method as "salary" | "dividends" | "mixed") ?? "salary",
+          dealCount: Math.max(projectedDealCount, 1),
+        })
+      : null;
 
   // ── Trend ─────────────────────────────────────────────────────────────
   const trend = trendDirection(transactions);
@@ -1272,6 +1286,80 @@ export function DashboardContent({
             </Card>
           )}
         </div>
+      )}
+
+      {/* Corporate tax estimate — incorporated users only */}
+      {dashboardView === "full" && corpTaxResult && settings && (
+        <Card className="rounded-2xl border-violet-200 bg-violet-50/60 shadow-sm">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-violet-600" />
+                <div>
+                  <CardTitle className="text-base">Corporate Tax Estimate</CardTitle>
+                  <CardDescription>
+                    {settings.corp_type === "prec" ? "PREC" : "Corporation"} &middot; {PROVINCE_LABELS[settings.province]} &middot; {fmtPct(corpTaxResult.totalCorpRate)} corp rate
+                  </CardDescription>
+                </div>
+              </div>
+              <span className={cn(
+                "rounded-full px-2.5 py-0.5 text-xs font-semibold border",
+                corpTaxResult.taxSavingVsSoleProp >= 0
+                  ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                  : "bg-red-100 text-red-800 border-red-200"
+              )}>
+                {corpTaxResult.taxSavingVsSoleProp >= 0
+                  ? `Saves ${fmtCompact(corpTaxResult.taxSavingVsSoleProp)} vs solo`
+                  : `Costs ${fmtCompact(Math.abs(corpTaxResult.taxSavingVsSoleProp))} vs solo`}
+              </span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-3">
+              <p className="text-2xl font-bold text-slate-800">{fmtCurrency(corpTaxResult.totalCombinedTax)}</p>
+              <p className="text-xs text-slate-500">combined corp + personal tax at year-end</p>
+            </div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between items-center rounded-md bg-violet-100/80 px-3 py-1.5">
+                <span className="text-violet-900 font-medium">Corporate tax ({fmtPct(corpTaxResult.totalCorpRate)})</span>
+                <span className="font-bold text-violet-900">{fmtCurrency(corpTaxResult.corporateTax)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">After-tax corp income</span>
+                <span className="font-medium">{fmtCurrency(corpTaxResult.afterTaxCorporateIncome)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground capitalize">
+                  Personal tax ({settings.compensation_method ?? "salary"})
+                </span>
+                <span>{fmtCurrency(corpTaxResult.totalPersonalTax)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Combined effective rate</span>
+                <span>{fmtPct(corpTaxResult.combinedEffectiveRate)}</span>
+              </div>
+            </div>
+            {/* Optimizer tip */}
+            {corpTaxResult.optimalSaving > 500 &&
+              corpTaxResult.optimalMethod !== settings.compensation_method && (
+              <div className="mt-3 rounded-md bg-violet-100 border border-violet-200 px-3 py-2">
+                <p className="text-xs text-violet-800 font-medium">
+                  💡 Switching to {corpTaxResult.optimalMethod === "salary" ? "salary" : "dividends"} could save ~{fmtCurrency(corpTaxResult.optimalSaving)}/yr at your income level
+                </p>
+              </div>
+            )}
+            {corpTaxResult.passiveIncomeWarning && (
+              <div className="mt-2 rounded-md bg-amber-100 border border-amber-200 px-3 py-2">
+                <p className="text-xs text-amber-800 font-medium">
+                  ⚠️ Passive income exceeds $50K — SBD limit reduced by {fmtCurrency(corpTaxResult.sbdReductionAmount)}
+                </p>
+              </div>
+            )}
+            <p className="mt-3 text-[10px] text-violet-700/70 leading-relaxed">
+              Estimates only · Not tax advice · Consult a qualified accountant
+            </p>
+          </CardContent>
+        </Card>
       )}
 
       {/* ── Section: Recent Activity ── */}
