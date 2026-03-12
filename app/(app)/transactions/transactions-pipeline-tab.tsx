@@ -55,6 +55,7 @@ function MetricInfo({ tip }: { tip: string }) {
     </TooltipProvider>
   );
 }
+
 import {
   computeEstimatedGCI,
   computeWeightedGCI,
@@ -65,7 +66,7 @@ import {
 import { cn } from "@/lib/utils";
 
 interface Props {
-  initialDeals: PipelineDeal[];
+  pipelineDeals: PipelineDeal[];
 }
 
 type FormState = {
@@ -122,8 +123,8 @@ type CloseForm = {
   date: string;
 };
 
-export function PipelineContent({ initialDeals }: Props) {
-  const [deals, setDeals] = useState(initialDeals);
+export function TransactionsPipelineTab({ pipelineDeals }: Props) {
+  const [deals, setDeals] = useState(pipelineDeals);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
@@ -252,11 +253,6 @@ export function PipelineContent({ initialDeals }: Props) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const gci =
-      (parseFloat(closeForm.sale_price) || 0) *
-      ((parseFloat(closeForm.commission_pct) || 0) / 100);
-    void gci; // computed for preview only; not stored separately
-
     const { error: txErr } = await supabase.from("transactions").insert({
       user_id: user.id,
       address: closeTarget.address,
@@ -300,17 +296,14 @@ export function PipelineContent({ initialDeals }: Props) {
   const previewWeighted = previewEstGCI * previewProb;
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border/60 pb-5">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Pipeline</h1>
-          <p className="text-sm text-muted-foreground">
-            {deals.length > 0
-              ? <>{deals.length} active deal{deals.length !== 1 ? "s" : ""} &middot; {fmtCurrency(totalWeighted)} weighted GCI</>
-              : "Track deals before they close. Probability is just math with ambition."}
-          </p>
-        </div>
+    <div className="space-y-6">
+      {/* Pipeline sub-header + Add button */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {deals.length > 0
+            ? <>{deals.length} active deal{deals.length !== 1 ? "s" : ""} &middot; {fmtCurrency(totalWeighted)} weighted GCI</>
+            : "Track deals before they close. Probability is just math with ambition."}
+        </p>
         <Button onClick={openAdd}>
           <Plus className="mr-1 h-4 w-4" />
           Add Deal
@@ -359,6 +352,7 @@ export function PipelineContent({ initialDeals }: Props) {
               Empty pipeline. Even Gretzky skated to where the puck was going. 🎯
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -460,6 +454,7 @@ export function PipelineContent({ initialDeals }: Props) {
                 ))}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

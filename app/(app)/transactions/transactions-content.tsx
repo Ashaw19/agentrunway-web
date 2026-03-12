@@ -32,14 +32,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, DollarSign, Briefcase, TrendingUp, AlertTriangle, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, DollarSign, Briefcase, TrendingUp, AlertTriangle, Users, Layers } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { fmtCurrency } from "@/lib/formatters";
-import { computeGCI, type Transaction } from "@/lib/types/database";
+import { computeGCI, type Transaction, type PipelineDeal } from "@/lib/types/database";
+import { TransactionsPipelineTab } from "./transactions-pipeline-tab";
 
 interface Props {
   initialTransactions: Transaction[];
+  initialPipelineDeals: PipelineDeal[];
 }
 
 type FormState = {
@@ -83,7 +85,8 @@ const SIDE_CHIP: Record<string, string> = {
   both:   "bg-teal-100 text-teal-800 border border-teal-200",
 };
 
-export function TransactionsContent({ initialTransactions }: Props) {
+export function TransactionsContent({ initialTransactions, initialPipelineDeals }: Props) {
+  const [tab, setTab] = useState<"deals" | "pipeline">("deals");
   const [transactions, setTransactions] = useState(initialTransactions);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -235,16 +238,56 @@ export function TransactionsContent({ initialTransactions }: Props) {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
           <p className="text-sm text-muted-foreground">
-            {ytdCount > 0
-              ? <>{ytdCount} closed deal{ytdCount !== 1 ? "s" : ""} this year &middot; {fmtCurrency(ytdGCI)} GCI</>
-              : "Log your first deal. Your GCI won't track itself."}
+            {tab === "deals"
+              ? ytdCount > 0
+                ? <>{ytdCount} closed deal{ytdCount !== 1 ? "s" : ""} this year &middot; {fmtCurrency(ytdGCI)} GCI</>
+                : "Log your first deal. Your GCI won't track itself."
+              : "Track deals in progress before they close."}
           </p>
         </div>
-        <Button onClick={openAdd}>
-          <Plus className="mr-1 h-4 w-4" />
-          Add Deal
-        </Button>
+        {tab === "deals" && (
+          <Button onClick={openAdd}>
+            <Plus className="mr-1 h-4 w-4" />
+            Add Deal
+          </Button>
+        )}
       </div>
+
+      {/* Tab bar */}
+      <div className="flex rounded-lg border border-border p-0.5 text-sm w-fit">
+        <button
+          onClick={() => setTab("deals")}
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-4 py-1.5 font-medium transition-colors",
+            tab === "deals"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Briefcase className="h-3.5 w-3.5" />
+          Deals
+        </button>
+        <button
+          onClick={() => setTab("pipeline")}
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-4 py-1.5 font-medium transition-colors",
+            tab === "pipeline"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <Layers className="h-3.5 w-3.5" />
+          Pipeline
+        </button>
+      </div>
+
+      {/* Pipeline tab */}
+      {tab === "pipeline" && (
+        <TransactionsPipelineTab pipelineDeals={initialPipelineDeals} />
+      )}
+
+      {/* Deals tab content — hidden when pipeline is active */}
+      {tab === "deals" && <>
 
       {/* KPI strip */}
       <div className="grid gap-4 sm:grid-cols-3">
@@ -657,6 +700,7 @@ export function TransactionsContent({ initialTransactions }: Props) {
           </div>
         </DialogContent>
       </Dialog>
+      </>}
     </div>
   );
 }

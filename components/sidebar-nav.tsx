@@ -8,25 +8,14 @@ import {
   TrendingUp,
   Receipt,
   FileText,
-  LogOut,
   ArrowLeftRight,
-  Layers,
-  Settings,
-  CircleUser,
   Sparkles,
   Users,
-  Moon,
-  Sun,
   Share2,
   Globe,
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
 
 const navItems = [
   {
@@ -44,14 +33,6 @@ const navItems = [
     iconActive: "text-emerald-300",
     iconInactive: "text-emerald-400/60",
     borderActive: "border-l-emerald-400",
-  },
-  {
-    label: "Pipeline",
-    href: "/pipeline",
-    icon: Layers,
-    iconActive: "text-violet-300",
-    iconInactive: "text-violet-400/60",
-    borderActive: "border-l-violet-400",
   },
   {
     label: "History",
@@ -101,37 +82,11 @@ const navItems = [
     iconInactive: "text-rose-400/60",
     borderActive: "border-l-rose-400",
   },
-  {
-    label: "Settings",
-    href: "/settings",
-    icon: Settings,
-    iconActive: "text-slate-200",
-    iconInactive: "text-slate-400/60",
-    borderActive: "border-l-slate-400",
-  },
-  {
-    label: "Profile",
-    href: "/profile",
-    icon: CircleUser,
-    iconActive: "text-pink-300",
-    iconInactive: "text-pink-400/60",
-    borderActive: "border-l-pink-400",
-  },
 ];
 
 
 export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-
-  async function handleSignOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/login");
-  }
 
   return (
     <aside
@@ -217,24 +172,8 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
         </div>
       )}
 
-      {/* Dark mode toggle */}
-      <div className="px-3 pb-1">
-        {mounted && (
-          <button
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {theme === "dark"
-              ? <Sun className="h-3.5 w-3.5" />
-              : <Moon className="h-3.5 w-3.5" />}
-            {theme === "dark" ? "Light mode" : "Dark mode"}
-          </button>
-        )}
-      </div>
-
       {/* Visit marketing site */}
-      <div className="px-3 pb-1">
+      <div className="px-3 pb-3">
         <Link
           href="/"
           className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-colors"
@@ -242,18 +181,6 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
           <Globe className="h-3.5 w-3.5 shrink-0" />
           Visit Website
         </Link>
-      </div>
-
-      {/* Sign out */}
-      <div className="p-3">
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 text-[13px] font-medium text-sidebar-foreground/50 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
-          onClick={handleSignOut}
-        >
-          <LogOut className="h-[17px] w-[17px]" />
-          Sign Out
-        </Button>
       </div>
     </aside>
   );

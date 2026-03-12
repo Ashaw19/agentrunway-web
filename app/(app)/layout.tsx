@@ -1,5 +1,6 @@
 import { SidebarNav } from "@/components/sidebar-nav";
 import { MobileNav } from "@/components/mobile-nav";
+import { TopBar } from "@/components/top-bar";
 import { AiChat } from "@/components/ai-chat";
 import { QuickAddFab } from "@/components/quick-add-fab";
 import { Toaster } from "sonner";
@@ -171,6 +172,7 @@ export default async function AppLayout({
       <SidebarNav isPro={isPro} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <MobileNav isPro={isPro} />
+        <TopBar />
         <main className="flex-1 overflow-y-auto bg-muted/30 p-4 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-screen-xl page-enter">
             {children}
