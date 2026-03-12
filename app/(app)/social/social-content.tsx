@@ -122,6 +122,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   const [cropOpen,       setCropOpen]       = useState(false);
   const [uploadingPhoto,   setUploadingPhoto]   = useState<string | null>(null);
   const [uploadingCutout,  setUploadingCutout]  = useState(false);
+  const [removingBg,       setRemovingBg]       = useState(false);
   const photoInputRef  = useRef<HTMLInputElement>(null);
   const cutoutInputRef = useRef<HTMLInputElement>(null);
 
@@ -312,6 +313,46 @@ export function SocialContent({ settings, transactions, connections }: Props) {
     } finally {
       setUploadingCutout(false);
       if (e.target) e.target.value = "";
+    }
+  }
+
+  // ── Remove background from cutout ────────────────────────────────────────
+  async function handleRemoveBackground() {
+    if (!cutoutUrl || !user) return;
+    setRemovingBg(true);
+    try {
+      // Dynamic import — only load the ~50KB library + ONNX model on demand
+      const { removeBackground } = await import("@imgly/background-removal");
+
+      // Fetch the current cutout image as a blob
+      const imgRes = await fetch(cutoutUrl);
+      const imgBlob = await imgRes.blob();
+
+      // Process: runs in-browser via WASM/WebGPU (model cached after first use)
+      const resultBlob = await removeBackground(imgBlob, {
+        output: { format: "image/png" },
+      });
+
+      // Re-upload the processed PNG to Supabase (overwrite existing)
+      const supabase = createClient();
+      const path = `${user.id}/cutout.png`;
+      const { error } = await supabase.storage
+        .from("profile-media")
+        .upload(path, resultBlob, { upsert: true, contentType: "image/png" });
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage
+        .from("profile-media")
+        .getPublicUrl(path);
+      setCutoutUrl(`${publicUrl}?t=${Date.now()}`);
+      await supabase
+        .from("user_settings")
+        .update({ agent_cutout_url: publicUrl })
+        .eq("user_id", user.id);
+    } catch (err) {
+      console.error("Background removal failed:", err);
+      alert("Background removal failed — please try again.");
+    } finally {
+      setRemovingBg(false);
     }
   }
 
@@ -683,33 +724,42 @@ export function SocialContent({ settings, transactions, connections }: Props) {
               {/* Agent Cutout Photo */}
               <div className="space-y-1.5">
                 <Label className="text-xs text-slate-600">Agent Cutout Photo</Label>
-                <div className="flex gap-2 items-center">
+                <div className="flex gap-2 items-center flex-wrap">
                   {cutoutUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={cutoutUrl} alt="cutout" className="h-10 w-8 rounded border border-slate-200 object-contain bg-slate-50 shrink-0" />
+                    <img src={cutoutUrl} alt="cutout" className="h-10 w-8 rounded border border-slate-200 object-contain bg-[repeating-conic-gradient(#e5e7eb_0%_25%,transparent_0%_50%)_0_0/16px_16px] shrink-0" />
                   )}
                   <Button
                     variant="outline"
                     size="sm"
                     className="text-xs h-8 shrink-0"
-                    disabled={uploadingCutout}
+                    disabled={uploadingCutout || removingBg}
                     onClick={() => cutoutInputRef.current?.click()}
                   >
                     {uploadingCutout ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <ImagePlus className="h-3 w-3 mr-1" />}
-                    {uploadingCutout ? "Uploading…" : "Upload PNG"}
+                    {uploadingCutout ? "Uploading…" : "Upload Photo"}
                   </Button>
-                  <Input
-                    value={cutoutUrl}
-                    onChange={(e) => setCutoutUrl(e.target.value)}
-                    placeholder="Upload a PNG with background removed"
-                    className="text-xs h-8"
-                  />
+                  {cutoutUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-8 shrink-0"
+                      disabled={removingBg || uploadingCutout}
+                      onClick={handleRemoveBackground}
+                    >
+                      {removingBg ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />}
+                      {removingBg ? "Removing…" : "Remove Background"}
+                    </Button>
+                  )}
                 </div>
+                {removingBg && (
+                  <p className="text-xs text-blue-600">Processing in your browser — first time may take a moment to load the AI model…</p>
+                )}
                 <ToggleButton enabled={showCutout} onToggle={setShowCutout} label="Show cutout on property slides" disabled={!cutoutUrl} />
                 <input
                   ref={cutoutInputRef}
                   type="file"
-                  accept="image/png"
+                  accept="image/png,image/jpeg,image/webp"
                   className="hidden"
                   onChange={handleCutoutUpload}
                 />
