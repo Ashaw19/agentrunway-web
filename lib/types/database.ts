@@ -371,9 +371,55 @@ export interface ExpenseCategoryWithItems extends ExpenseCategory {
   items: ExpenseItem[];
 }
 
+// ── Activity / CRM types (migration 00018) ───────────────────────────────────
+export type ActivityType = "call" | "email" | "text" | "showing" | "meeting" | "offer" | "note";
+export type TaskPriority  = "low" | "normal" | "high";
+export type LeadSource    = "SOI" | "Referral" | "Zillow" | "Realtor.ca" | "Open House" | "Social" | "Cold Call" | "Other";
+
+export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
+  call:    "Phone Call",
+  email:   "Email",
+  text:    "Text",
+  showing: "Showing",
+  meeting: "Meeting",
+  offer:   "Offer",
+  note:    "Note",
+};
+
+export const ACTIVITY_TYPE_ICONS: Record<ActivityType, string> = {
+  call:    "📞",
+  email:   "✉️",
+  text:    "💬",
+  showing: "🏠",
+  meeting: "🤝",
+  offer:   "📋",
+  note:    "📝",
+};
+
+export interface ContactActivity {
+  id:            string;
+  user_id:       string;
+  client_id:     string;
+  type:          ActivityType;
+  description:   string;
+  activity_date: string;   // ISO timestamptz
+  created_at:    string;
+}
+
+export interface ContactTask {
+  id:           string;
+  user_id:      string;
+  client_id:    string | null;
+  title:        string;
+  due_date:     string;   // ISO date
+  priority:     TaskPriority;
+  notes:        string | null;
+  completed_at: string | null;  // null = pending
+  created_at:   string;
+  updated_at:   string;
+}
+
 // ── Client identity (master record, one per unique client per agent) ──────────
-// Analytics-only — no CRM fields (no notes, activity log, reminders).
-// All metrics (lifetime GCI, deal count, etc.) are derived from client_records.
 export interface Client {
   id: string;
   user_id: string;
@@ -381,9 +427,16 @@ export interface Client {
   name: string;
   name_search: string;   // lower(trim(name)) — for dedup matching
 
-  // Optional contact info for identification only (not exposed in send/email UI)
-  email: string | null;
-  phone: string | null;
+  // Contact info
+  email:    string | null;
+  phone:    string | null;
+
+  // CRM fields (migration 00018)
+  birthdate:       string | null;  // ISO date — for anniversary alerts
+  tags:            string[];       // e.g. ["VIP", "Investor", "First-time buyer"]
+  lead_source:     string | null;  // LeadSource enum value
+  last_contact_at: string | null;  // auto-updated when activity logged
+  notes:           string | null;
 
   created_at: string;
   updated_at: string;
