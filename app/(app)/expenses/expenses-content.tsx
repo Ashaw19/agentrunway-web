@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   computeGCI,
@@ -23,6 +23,7 @@ import {
   type Transaction,
 } from "@/lib/types/database";
 import { survivalResult } from "@/lib/engines/survival-engine";
+import { EXPENSE_KEY_TO_T2125 } from "@/lib/engines/t2125-engine";
 import { ExpenseDonut, type DonutDataPoint } from "@/components/expense-donut";
 import { cn } from "@/lib/utils";
 import { ReceiptCaptureDialog } from "@/components/receipt-capture-dialog";
@@ -72,6 +73,11 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
 
   // ── Receipt YTD totals (keyed by expense_items.key, refreshed after each save) ──
   const [receiptTotals, setReceiptTotals] = useState<Record<string, number>>(receiptTotalsByKey);
+
+  // ── Vehicle business use % (editable, persisted to user_settings) ────────
+  const [vehiclePct, setVehiclePct] = useState<number>(
+    settings?.vehicle_business_use_pct != null ? settings.vehicle_business_use_pct : 0.80,
+  );
 
   // ── Receipt capture ────────────────────────────────────────────────────────
   const [captureOpen, setCaptureOpen] = useState(false);
@@ -139,6 +145,29 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
     warning: "text-amber-600",
     healthy: "text-emerald-600",
   };
+
+  // ── Tax deductibility breakdown ───────────────────────────────────────
+  const deductBreakdown = categories.reduce(
+    (acc, cat) => {
+      for (const item of cat.items) {
+        const ytd = receiptTotals[item.key] ?? 0;
+        if (ytd === 0) continue;
+        const map = EXPENSE_KEY_TO_T2125[item.key];
+        if (!map) {
+          acc.full += ytd; // custom items default to 100%
+        } else if (map.applyVehicleUse) {
+          acc.vehicle += ytd * vehiclePct;
+        } else if (map.deductiblePct < 1.0) {
+          acc.meals += ytd * map.deductiblePct;
+        } else {
+          acc.full += ytd;
+        }
+      }
+      return acc;
+    },
+    { full: 0, meals: 0, vehicle: 0 },
+  );
+  const totalDeductible = deductBreakdown.full + deductBreakdown.meals + deductBreakdown.vehicle;
 
   // ── Survival ──────────────────────────────────────────────────────────
   const survival = survivalResult(
@@ -239,6 +268,20 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
       ),
     );
     toast("Expense item removed");
+  }
+
+  async function saveVehiclePct(raw: string) {
+    const pct = Math.min(1, Math.max(0, parseFloat(raw) / 100));
+    if (isNaN(pct)) return;
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase
+      .from("user_settings")
+      .update({ vehicle_business_use_pct: pct })
+      .eq("user_id", user.id);
+    setVehiclePct(pct);
+    toast.success("Vehicle business use % saved ✓");
   }
 
   return (
@@ -352,6 +395,86 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
         </Card>
       </div>
 
+      {/* ── Tax Deductibility Summary ────────────────────────────────────── */}
+      {ytdTotal > 0 && (
+        <Card className="border-l-4 border-l-emerald-500">
+          <CardHeader className="pb-2">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-base">Est. Tax Deductible YTD</CardTitle>
+                <CardDescription className="mt-0.5 text-xs">
+                  Based on CRA rules · Meals & entertainment at 50% · Vehicle at{" "}
+                  {Math.round(vehiclePct * 100)}% business use
+                </CardDescription>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold tabular-nums text-emerald-700">
+                  {fmtCurrency(totalDeductible)}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  of {fmtCurrency(ytdTotal)} spent ({Math.round((totalDeductible / ytdTotal) * 100)}% deductible)
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {/* Breakdown pills */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+              {deductBreakdown.full > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                  <span className="text-muted-foreground">100% items:</span>
+                  <span className="font-semibold text-emerald-700 tabular-nums">{fmtCurrency(deductBreakdown.full)}</span>
+                </span>
+              )}
+              {deductBreakdown.meals > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-amber-400" />
+                  <span className="text-muted-foreground">Meals & ent. (50%):</span>
+                  <span className="font-semibold text-amber-600 tabular-nums">{fmtCurrency(deductBreakdown.meals)}</span>
+                </span>
+              )}
+              {deductBreakdown.vehicle > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                  <span className="text-muted-foreground">Vehicle ({Math.round(vehiclePct * 100)}% biz):</span>
+                  <span className="font-semibold text-blue-600 tabular-nums">{fmtCurrency(deductBreakdown.vehicle)}</span>
+                </span>
+              )}
+
+              {/* Vehicle % editor */}
+              <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span>Vehicle biz use:</span>
+                <div className="relative flex items-center">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    defaultValue={Math.round(vehiclePct * 100)}
+                    onBlur={(e) => saveVehiclePct(e.target.value)}
+                    className="h-6 w-16 pr-5 text-right text-xs"
+                  />
+                  <span className="pointer-events-none absolute right-1.5 text-[10px] text-muted-foreground">%</span>
+                </div>
+              </span>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between">
+              <p className="text-[10px] leading-relaxed text-muted-foreground/60">
+                Estimates only · Not tax advice · Consult a qualified accountant
+              </p>
+              <a
+                href="/tax"
+                className="flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700"
+              >
+                Generate T2125
+                <ArrowRight className="h-3 w-3" />
+              </a>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Expense ratio bar */}
       {ytdGCI > 0 && (
         <Card className="border-l-4 border-l-amber-400">
@@ -451,6 +574,13 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
             const isOpen = expanded.has(cat.id);
             const catYtd = cat.items.reduce((s, i) => s + (receiptTotals[i.key] ?? 0), 0);
             const catMonthly = cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0);
+            const catDeductible = cat.items.reduce((s, i) => {
+              const ytd = receiptTotals[i.key] ?? 0;
+              const map = EXPENSE_KEY_TO_T2125[i.key];
+              if (!map) return s + ytd;
+              if (map.applyVehicleUse) return s + ytd * vehiclePct;
+              return s + ytd * map.deductiblePct;
+            }, 0);
             const colors = CAT_COLORS[cat.key] ?? DEFAULT_CAT;
 
             return (
@@ -475,11 +605,22 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
                         {cat.items.length} item{cat.items.length !== 1 && "s"}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-6 text-sm">
+                    <div className="flex items-center gap-4 text-sm">
                       <span className="hidden sm:block">
                         <span className="text-muted-foreground">YTD </span>
                         <span className="font-semibold">{fmtCurrency(catYtd)}</span>
                       </span>
+                      {catYtd > 0 && (
+                        <span className="hidden md:block">
+                          <span className="text-muted-foreground">Deduct. </span>
+                          <span className={cn(
+                            "font-semibold",
+                            catDeductible < catYtd ? "text-amber-600" : "text-emerald-600",
+                          )}>
+                            {fmtCurrency(catDeductible)}
+                          </span>
+                        </span>
+                      )}
                       <span className="hidden sm:block">
                         <span className="text-muted-foreground">/mo </span>
                         <span className="font-semibold">{fmtCurrency(catMonthly)}</span>
@@ -494,28 +635,71 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
                 {isOpen && (
                   <CardContent className="pb-4 pt-0">
                     <div className="overflow-x-auto">
-                      <div className="min-w-[440px] space-y-1">
+                      <div className="min-w-[560px] space-y-1">
                         {/* Column headers */}
-                        <div className="grid grid-cols-[1fr_148px_148px_32px] gap-2 pb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        <div className="grid grid-cols-[1fr_100px_108px_130px_32px] gap-2 pb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
                           <span className="pl-1">Item</span>
-                          <span className="text-center">YTD (Receipts)</span>
+                          <span className="text-right">YTD</span>
+                          <span className="text-right">Deductible</span>
                           <span className="text-center">Monthly Recurring</span>
                           <span />
                         </div>
 
                         {/* Items */}
-                        {cat.items.map((item) => (
+                        {cat.items.map((item) => {
+                          const ytd = receiptTotals[item.key] ?? 0;
+                          const map = EXPENSE_KEY_TO_T2125[item.key];
+                          let deductAmt = ytd;
+                          let deductLabel: string | null = null;
+                          let deductColor = "text-emerald-600";
+                          if (map) {
+                            if (map.applyVehicleUse) {
+                              deductAmt = ytd * vehiclePct;
+                              deductLabel = `${Math.round(vehiclePct * 100)}% biz`;
+                              deductColor = "text-blue-600";
+                            } else if (map.deductiblePct < 1.0) {
+                              deductAmt = ytd * map.deductiblePct;
+                              deductLabel = "50% rule";
+                              deductColor = "text-amber-600";
+                            }
+                          }
+
+                          return (
                           <div
                             key={item.id}
-                            className="group grid grid-cols-[1fr_148px_148px_32px] items-center gap-2 rounded-md px-1 py-1 hover:bg-muted/40"
+                            className="group grid grid-cols-[1fr_100px_108px_130px_32px] items-center gap-2 rounded-md px-1 py-1 hover:bg-muted/40"
                           >
                             <span className="truncate text-sm font-medium">{item.title}</span>
-                            {/* YTD is now computed from receipts — read-only */}
-                            <div className="h-8 flex items-center justify-end px-3 text-sm tabular-nums rounded-md border border-border/40 bg-muted/40 text-muted-foreground">
-                              {receiptTotals[item.key]
-                                ? fmtCurrency(receiptTotals[item.key])
-                                : <span className="text-muted-foreground/50">—</span>}
+
+                            {/* YTD — read-only, from receipts */}
+                            <div className="h-8 flex items-center justify-end px-2 text-sm tabular-nums rounded-md border border-border/40 bg-muted/40 text-muted-foreground">
+                              {ytd > 0
+                                ? fmtCurrency(ytd)
+                                : <span className="text-muted-foreground/40">—</span>}
                             </div>
+
+                            {/* Deductible — computed */}
+                            <div className="h-8 flex flex-col items-end justify-center px-2 rounded-md">
+                              {ytd > 0 ? (
+                                <>
+                                  <span className={cn("text-xs font-semibold tabular-nums leading-tight", deductColor)}>
+                                    {fmtCurrency(deductAmt)}
+                                  </span>
+                                  {deductLabel && (
+                                    <span className={cn(
+                                      "text-[9px] font-bold leading-tight",
+                                      deductColor === "text-blue-600" ? "text-blue-500" : "text-amber-500",
+                                    )}>
+                                      {deductLabel}
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="text-xs text-muted-foreground/40">—</span>
+                              )}
+                            </div>
+
+                            {/* Monthly Recurring — editable */}
                             <Input
                               type="number"
                               placeholder="0"
@@ -531,7 +715,8 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
-                        ))}
+                          );
+                        })}
 
                         {/* Divider + Add item row */}
                         <div className="pt-1 border-t border-dashed border-border mt-1">
