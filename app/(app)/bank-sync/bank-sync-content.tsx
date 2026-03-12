@@ -55,6 +55,7 @@ interface Props {
   transactions:      PlaidTransaction[];
   expenseItems:      ExpenseItem[];
   expenseCategories: ExpenseCategory[];
+  plaidConfigured:   boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -85,7 +86,7 @@ const STATUS_CONFIG: Record<PlaidReviewStatus, { label: string; color: string }>
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function BankSyncContent({ items, transactions, expenseItems, expenseCategories }: Props) {
+export function BankSyncContent({ items, transactions, expenseItems, expenseCategories, plaidConfigured }: Props) {
   const router   = useRouter();
   const supabase = createClient();
 
@@ -102,8 +103,7 @@ export function BankSyncContent({ items, transactions, expenseItems, expenseCate
   const [filterStatus, setFilterStatus]   = useState<"all" | PlaidReviewStatus>("pending");
   const [filterItemId, setFilterItemId]   = useState<string>("all");
 
-  // ── Plaid credentials configured? ────────────────────────────────────────
-  const plaidConfigured = true; // server-side check is done in the API; optimistic here
+  // plaidConfigured comes from the server — true when all 3 env vars are present
 
   // ── Category map for dropdowns ───────────────────────────────────────────
   // Group expense items by category for the <Select> groups
@@ -291,8 +291,6 @@ export function BankSyncContent({ items, transactions, expenseItems, expenseCate
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  const isPlaidSetup = plaidConfigured;
-
   return (
     <div className="flex-1 overflow-auto p-6 space-y-8">
 
@@ -322,7 +320,7 @@ export function BankSyncContent({ items, transactions, expenseItems, expenseCate
         </div>
       )}
 
-      {/* ── Setup notice (Plaid not yet configured) ──────────────────────── */}
+      {/* ── Empty state ──────────────────────────────────────────────────── */}
       {localItems.length === 0 && (
         <div className="rounded-xl border border-dashed border-border p-8 text-center space-y-4">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-muted">
@@ -336,25 +334,28 @@ export function BankSyncContent({ items, transactions, expenseItems, expenseCate
             </p>
           </div>
 
-          <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-4 text-left text-sm text-amber-800 dark:text-amber-300 max-w-lg mx-auto">
-            <div className="flex items-center gap-2 font-semibold mb-2">
-              <Info className="h-4 w-4" />
-              First-time setup — Plaid credentials required
-            </div>
-            <ol className="list-decimal list-inside space-y-1 text-amber-700 dark:text-amber-400">
-              <li>Create a free account at <strong>dashboard.plaid.com</strong></li>
-              <li>Go to <strong>Team → Keys</strong> and copy your Client ID &amp; Secret</li>
-              <li>
-                Add to <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded text-xs">.env.local</code>:
-                <pre className="mt-1 text-xs bg-amber-100 dark:bg-amber-900 rounded p-2 overflow-x-auto">
+          {/* Only show credentials setup instructions when Plaid env vars are missing */}
+          {!plaidConfigured && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-4 text-left text-sm text-amber-800 dark:text-amber-300 max-w-lg mx-auto">
+              <div className="flex items-center gap-2 font-semibold mb-2">
+                <Info className="h-4 w-4" />
+                First-time setup — Plaid credentials required
+              </div>
+              <ol className="list-decimal list-inside space-y-1 text-amber-700 dark:text-amber-400">
+                <li>Create a free account at <strong>dashboard.plaid.com</strong></li>
+                <li>Go to <strong>Team → Keys</strong> and copy your Client ID &amp; Secret</li>
+                <li>
+                  Add to <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded text-xs">.env.local</code>:
+                  <pre className="mt-1 text-xs bg-amber-100 dark:bg-amber-900 rounded p-2 overflow-x-auto">
 {`PLAID_CLIENT_ID=your_id_here
 PLAID_SECRET=your_secret_here
 PLAID_ENV=sandbox`}
-                </pre>
-              </li>
-              <li>Restart the dev server, then also add these vars to Vercel → Environment Variables</li>
-            </ol>
-          </div>
+                  </pre>
+                </li>
+                <li>Restart the dev server, then also add these vars to Vercel → Environment Variables</li>
+              </ol>
+            </div>
+          )}
 
           <PlaidLinkButton
             onSuccess={handlePlaidSuccess}

@@ -8,6 +8,13 @@ export default async function BankSyncPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // Server-side credential check — tells the UI whether to show setup instructions
+  const plaidConfigured = !!(
+    process.env.PLAID_CLIENT_ID &&
+    process.env.PLAID_SECRET &&
+    process.env.PLAID_ENV
+  );
+
   const [itemsResult, txResult, expItemsResult, expCatResult] = await Promise.all([
     // Connected bank accounts
     supabase
@@ -45,6 +52,7 @@ export default async function BankSyncPage() {
       transactions={(txResult.data ?? []) as PlaidTransaction[]}
       expenseItems={expItemsResult.data ?? []}
       expenseCategories={expCatResult.data ?? []}
+      plaidConfigured={plaidConfigured}
     />
   );
 }
