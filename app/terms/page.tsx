@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "March 8, 2026";
+const LAST_UPDATED = "March 12, 2026";
 
 export default function TermsPage() {
   return (
@@ -70,10 +70,90 @@ export default function TermsPage() {
               </p>
             </section>
 
-            {/* 3 */}
+            {/* 3 — NEW: Bank Account Connection */}
+            <section className="rounded-xl border border-blue-800/40 bg-blue-950/30 p-6">
+              <h2 className="mb-4 text-xl font-semibold text-white">
+                3. Bank Account Connection
+              </h2>
+              <p className="mb-4 leading-relaxed text-blue-100/80">
+                Agent Runway offers an optional feature that allows you to
+                connect your bank or financial institution account to the
+                service using{" "}
+                <strong className="text-white">Plaid Technologies, Inc.</strong>{" "}
+                (&ldquo;Plaid&rdquo;), a third-party financial data service.
+                Use of this feature is entirely optional. By connecting a bank
+                account, you agree to the following:
+              </p>
+              <ul className="list-disc space-y-3 pl-6 text-blue-100/80">
+                <li>
+                  <strong className="text-white">Authorization.</strong>{" "}
+                  You authorize Agent Runway to retrieve your financial
+                  transaction data through Plaid for the purpose of populating
+                  your expense records in the app.
+                </li>
+                <li>
+                  <strong className="text-white">Account ownership.</strong>{" "}
+                  You represent that you are the authorized account holder (or
+                  an authorized representative) for any bank or financial
+                  institution account you connect. You agree not to connect
+                  accounts belonging to others without their explicit
+                  authorization.
+                </li>
+                <li>
+                  <strong className="text-white">Plaid&apos;s terms apply.</strong>{" "}
+                  Your use of the bank connection feature is also subject to
+                  Plaid&apos;s End User Privacy Policy, available at:{" "}
+                  <a
+                    href="https://plaid.com/legal/#consumers"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 underline"
+                  >
+                    plaid.com/legal/#consumers
+                  </a>
+                  . Plaid&apos;s processing of your banking information is
+                  governed by Plaid&apos;s own terms and privacy practices,
+                  which are independent of these Terms.
+                </li>
+                <li>
+                  <strong className="text-white">No credential storage.</strong>{" "}
+                  Agent Runway never receives, transmits, or stores your
+                  banking login credentials (username or password). Your
+                  credentials are entered directly with Plaid&apos;s secure
+                  interface and never pass through Agent Runway&apos;s systems.
+                </li>
+                <li>
+                  <strong className="text-white">Revocation.</strong>{" "}
+                  You may revoke the bank connection at any time from{" "}
+                  <strong className="text-white">
+                    Settings &rarr; Bank Connections
+                  </strong>
+                  . Upon revocation, Agent Runway will terminate Plaid&apos;s
+                  access to your financial institution account and delete your
+                  Plaid access tokens from our systems.
+                </li>
+                <li>
+                  <strong className="text-white">Limited use.</strong>{" "}
+                  Agent Runway uses bank transaction data solely to help you
+                  categorize expenses within the app. We do not sell,
+                  aggregate for commercial purposes, use for advertising, or
+                  use to train AI or machine-learning models your financial
+                  transaction data.
+                </li>
+                <li>
+                  <strong className="text-white">No liability for financial institution actions.</strong>{" "}
+                  Agent Runway is not responsible for any actions taken by
+                  your financial institution in connection with the Plaid
+                  integration, including account restrictions, notifications,
+                  or changes to third-party access policies.
+                </li>
+              </ul>
+            </section>
+
+            {/* 4 — was §3 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                3. Accounts
+                4. Accounts
               </h2>
               <p className="leading-relaxed">
                 You must provide accurate information when creating your
@@ -90,10 +170,10 @@ export default function TermsPage() {
               </p>
             </section>
 
-            {/* 4 */}
+            {/* 5 — was §4 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                4. Subscription Plans and Billing
+                5. Subscription Plans and Billing
               </h2>
               <p className="mb-4 leading-relaxed">
                 Agent Runway offers a free Starter plan and a paid Professional
@@ -118,10 +198,10 @@ export default function TermsPage() {
               </ul>
             </section>
 
-            {/* 5 — CRITICAL DISCLAIMER */}
+            {/* 6 — was §5 — CRITICAL DISCLAIMER */}
             <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-6">
               <h2 className="mb-4 text-xl font-semibold text-amber-400">
-                5. Not Financial, Tax, or Professional Advice
+                6. Not Financial, Tax, or Professional Advice
               </h2>
               <div className="space-y-4 text-amber-200/80 leading-relaxed">
                 <p>
@@ -178,10 +258,10 @@ export default function TermsPage() {
               </div>
             </section>
 
-            {/* 6 */}
+            {/* 7 — was §6 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                6. Acceptable Use
+                7. Acceptable Use
               </h2>
               <p className="mb-4 leading-relaxed">
                 You agree not to:
@@ -204,13 +284,17 @@ export default function TermsPage() {
                   Resell, sublicense, or redistribute access to the service
                   without our written consent
                 </li>
+                <li>
+                  Connect bank accounts belonging to others without their
+                  explicit authorization
+                </li>
               </ul>
             </section>
 
-            {/* 7 */}
+            {/* 8 — was §7 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                7. Your Data and Data Accuracy
+                8. Your Data and Data Accuracy
               </h2>
               <p className="mb-4 leading-relaxed">
                 You retain ownership of all business data you enter into Agent
@@ -235,10 +319,10 @@ export default function TermsPage() {
               </p>
             </section>
 
-            {/* 8 — Forward-looking statements */}
+            {/* 9 — was §8 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                8. Forward-Looking Statements and Projection Disclaimer
+                9. Forward-Looking Statements and Projection Disclaimer
               </h2>
               <p className="mb-4 leading-relaxed">
                 Agent Runway produces income projections, forecasts, probability
@@ -262,10 +346,10 @@ export default function TermsPage() {
               </p>
             </section>
 
-            {/* 9 — Tax calculation disclaimer */}
+            {/* 10 — was §9 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                9. Tax Calculation Disclaimer
+                10. Tax Calculation Disclaimer
               </h2>
               <p className="mb-4 leading-relaxed">
                 Tax estimates in Agent Runway are approximations calculated
@@ -295,10 +379,10 @@ export default function TermsPage() {
               </p>
             </section>
 
-            {/* 10 */}
+            {/* 11 — was §10 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                10. Intellectual Property
+                11. Intellectual Property
               </h2>
               <p className="leading-relaxed">
                 The Agent Runway software, design, logos, and all original
@@ -309,10 +393,10 @@ export default function TermsPage() {
               </p>
             </section>
 
-            {/* 11 — Limitation of Liability */}
+            {/* 12 — was §11 — Limitation of Liability */}
             <section className="rounded-xl border border-slate-700 bg-slate-800/40 p-6">
               <h2 className="mb-4 text-xl font-semibold text-white">
-                11. Disclaimer of Warranties and Limitation of Liability
+                12. Disclaimer of Warranties and Limitation of Liability
               </h2>
               <div className="space-y-4 leading-relaxed">
                 <p>
@@ -345,15 +429,16 @@ export default function TermsPage() {
                 <p>
                   Our total aggregate liability to you shall not exceed the
                   greater of (a) the amount you paid us in the three months
-                  preceding the claim, or (b) CAD $50.00.
+                  preceding the claim, or (b) CAD $50.00. This cap does not
+                  limit your indemnification obligations to us under §13.
                 </p>
               </div>
             </section>
 
-            {/* 12 — Indemnification */}
+            {/* 13 — was §12 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                12. Indemnification
+                13. Indemnification
               </h2>
               <p className="leading-relaxed">
                 You agree to indemnify, defend, and hold harmless Agent Runway
@@ -362,16 +447,19 @@ export default function TermsPage() {
                 (including reasonable legal fees) arising out of or relating
                 to: (a) your use of or reliance on the service; (b) your
                 violation of these Terms; (c) any data you submit to the
-                service; or (d) any decision you make based on outputs
-                produced by the service, including but not limited to tax
-                estimates, income projections, and AI-generated content.
+                service; (d) any decision you make based on outputs produced
+                by the service, including but not limited to tax estimates,
+                income projections, and AI-generated content; or (e) your
+                use of the bank account connection feature, including any
+                actions taken by your financial institution in connection
+                with that feature.
               </p>
             </section>
 
-            {/* 13 */}
+            {/* 14 — was §13 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                13. Termination
+                14. Termination
               </h2>
               <p className="leading-relaxed">
                 You may terminate your account at any time by deleting it from
@@ -382,10 +470,10 @@ export default function TermsPage() {
               </p>
             </section>
 
-            {/* 14 */}
+            {/* 15 — was §14 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                14. Governing Law
+                15. Governing Law
               </h2>
               <p className="leading-relaxed">
                 These Terms are governed by the laws of the Province of New
@@ -397,10 +485,10 @@ export default function TermsPage() {
               </p>
             </section>
 
-            {/* 15 */}
+            {/* 16 — was §15 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                15. Contact
+                16. Contact
               </h2>
               <p className="leading-relaxed">
                 Questions about these Terms may be directed to:

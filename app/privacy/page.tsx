@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "March 7, 2026";
+const LAST_UPDATED = "March 12, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -37,7 +37,7 @@ export default function PrivacyPage() {
               users. This policy explains what information we collect, how we
               use it, and what rights you have under Canada&apos;s{" "}
               <em>Personal Information Protection and Electronic Documents Act</em>{" "}
-              (PIPEDA).
+              (PIPEDA) and applicable provincial privacy laws.
             </p>
           </div>
 
@@ -90,6 +90,20 @@ export default function PrivacyPage() {
                   goal, and other configuration preferences.
                 </li>
                 <li>
+                  <strong className="text-slate-300">
+                    Financial account and transaction data (Bank Sync, optional)
+                  </strong>
+                  {" "}— if you choose to connect a bank or financial institution
+                  account using our bank sync feature, we receive from Plaid
+                  Technologies, Inc. (&ldquo;Plaid&rdquo;) on your behalf: account
+                  names, account numbers (last four digits only), and transaction
+                  details (date, merchant name, amount). We do{" "}
+                  <strong className="text-slate-300">not</strong> receive, transmit,
+                  or store your online banking login credentials at any time &mdash;
+                  those are entered directly with Plaid&apos;s secure interface and
+                  never pass through Agent Runway&apos;s systems.
+                </li>
+                <li>
                   <strong className="text-slate-300">Usage data</strong>
                   {" "}— page views, feature usage, and interaction events collected
                   via analytics software to help us improve the product. This
@@ -115,10 +129,15 @@ export default function PrivacyPage() {
                 <li>To respond to support requests</li>
                 <li>To improve and develop the product based on aggregated usage patterns</li>
                 <li>To send important service notifications (security updates, policy changes)</li>
+                <li>
+                  To populate your expense records with imported bank transactions,
+                  when you use the optional Bank Sync feature
+                </li>
               </ul>
               <p className="mt-4 leading-relaxed">
-                We do not use your business data to train AI models or sell
-                insights to third parties.
+                We do not use your business data or bank transaction data to
+                train AI models, build advertising profiles, or sell insights
+                to third parties.
               </p>
             </section>
 
@@ -131,17 +150,108 @@ export default function PrivacyPage() {
                 Your data is stored using Supabase, a managed database platform.
                 Data may be stored on servers located in the United States. By
                 using Agent Runway, you consent to this cross-border transfer.
-                We use TLS encryption for all data in transit and implement
-                row-level security (RLS) policies so your data is never
-                accessible to other users. We maintain regular backups and
-                monitor for unauthorized access.
+                We use TLS encryption for all data in transit and AES-256
+                encryption for data at rest. We implement row-level security
+                (RLS) policies so your data is never accessible to other users.
+                We maintain regular backups and monitor for unauthorized access.
+              </p>
+              <p className="mt-4 leading-relaxed">
+                Plaid access tokens (which authorize Plaid to retrieve your bank
+                data) are stored exclusively in our secured database and are
+                never transmitted to or accessible from your browser or any
+                client-side environment.
+              </p>
+              <p className="mt-4 leading-relaxed">
+                <strong className="text-slate-300">Data breach notification:</strong>{" "}
+                In the event of a data breach that creates a real risk of
+                significant harm to any user, we will notify affected users and,
+                where required, the Office of the Privacy Commissioner of Canada,
+                as soon as feasible following discovery of the breach.
+                Notifications will include the nature of the breach, what
+                information was involved, the steps we have taken to address it,
+                and recommendations for what you can do to protect yourself.
               </p>
             </section>
 
-            {/* 5 */}
+            {/* 5 — NEW: Plaid / Bank Account Connectivity */}
+            <section className="rounded-xl border border-blue-800/40 bg-blue-950/30 p-6">
+              <h2 className="mb-4 text-xl font-semibold text-white">
+                5. Bank Account Connectivity (Plaid)
+              </h2>
+              <p className="mb-4 leading-relaxed text-blue-100/80">
+                Agent Runway offers an optional bank sync feature that allows
+                you to connect your bank or financial institution account to
+                automatically import transactions for expense categorization.
+                This feature is powered by{" "}
+                <strong className="text-white">Plaid Technologies, Inc.</strong>{" "}
+                (&ldquo;Plaid&rdquo;), a third-party financial data service.
+                Use of this feature is entirely optional.
+              </p>
+              <p className="mb-3 font-semibold text-white">
+                When you choose to connect a bank account:
+              </p>
+              <ul className="list-disc space-y-3 pl-6 text-blue-100/80">
+                <li>
+                  <strong className="text-white">No credentials stored by us.</strong>{" "}
+                  Agent Runway passes you to Plaid&apos;s secure connection
+                  interface (Plaid Link). Your banking username and password are
+                  entered directly with Plaid and are{" "}
+                  <strong className="text-white">never transmitted to or stored by Agent Runway</strong>.
+                </li>
+                <li>
+                  <strong className="text-white">Minimal data scope.</strong>{" "}
+                  Plaid retrieves your account and transaction data on our
+                  behalf using only the access necessary to power the bank sync
+                  feature. We do not request or receive identity documents,
+                  income verification data, investment account data, asset
+                  information, or any other data beyond what is needed for
+                  expense categorization.
+                </li>
+                <li>
+                  <strong className="text-white">Data security.</strong>{" "}
+                  Transaction data retrieved through Plaid is stored in your
+                  Agent Runway account and is subject to the same security
+                  measures described in §4 above.
+                </li>
+                <li>
+                  <strong className="text-white">Plaid&apos;s own privacy policy applies.</strong>{" "}
+                  By connecting a bank account, you acknowledge that your use
+                  of Plaid&apos;s services is also governed by Plaid&apos;s End
+                  User Privacy Policy, available at:{" "}
+                  <a
+                    href="https://plaid.com/legal/#consumers"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 underline"
+                  >
+                    plaid.com/legal/#consumers
+                  </a>
+                </li>
+                <li>
+                  <strong className="text-white">You can disconnect at any time.</strong>{" "}
+                  You may disconnect your bank account from{" "}
+                  <strong className="text-white">Settings &rarr; Bank Connections</strong>{" "}
+                  at any time. When you disconnect, we will revoke Plaid&apos;s
+                  access to your financial institution account and permanently
+                  delete your Plaid access tokens from our systems. Transaction
+                  data you have already approved and categorized in your expense
+                  records will remain in your account until you delete your
+                  account entirely.
+                </li>
+                <li>
+                  <strong className="text-white">Your data is not sold.</strong>{" "}
+                  We use bank transaction data solely to help you categorize
+                  expenses within Agent Runway. We do not sell, share with
+                  third parties for commercial purposes, use for advertising,
+                  or use to train AI or machine-learning models.
+                </li>
+              </ul>
+            </section>
+
+            {/* 6 — was §5 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                5. Sharing Your Information
+                6. Sharing Your Information
               </h2>
               <p className="mb-4 leading-relaxed">
                 We do not sell your personal information. We may share data
@@ -150,23 +260,36 @@ export default function PrivacyPage() {
               </p>
               <ul className="list-disc space-y-2 pl-6 text-slate-400">
                 <li>Database infrastructure (Supabase)</li>
-                <li>Payment processing (Stripe or equivalent)</li>
+                <li>Payment processing (Stripe or equivalent, PCI-DSS compliant)</li>
+                <li>
+                  Plaid Technologies, Inc. (for bank account data retrieval,
+                  only when you use the optional Bank Sync feature)
+                </li>
                 <li>Web analytics (aggregated, non-personal data only)</li>
                 <li>Email delivery for transactional messages</li>
               </ul>
               <p className="mt-4 leading-relaxed">
-                We may also disclose information if required by law or to
-                protect the rights and safety of our users.
+                We may also disclose information if required by law, court
+                order, or to protect the rights and safety of our users or
+                the public.
               </p>
             </section>
 
-            {/* 6 */}
+            {/* 7 — was §6 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                6. Your Rights Under PIPEDA
+                7. Your Rights
               </h2>
               <p className="mb-4 leading-relaxed">
-                As a Canadian resident, you have the right to:
+                As a Canadian resident, you have the following rights under
+                PIPEDA. Residents of Quebec have additional rights under{" "}
+                <em>Loi 25</em> (Quebec&apos;s{" "}
+                <em>
+                  Act respecting the protection of personal information in the
+                  private sector
+                </em>
+                ), including the right to data portability and the right to
+                object to certain automated decision-making.
               </p>
               <ul className="list-disc space-y-2 pl-6 text-slate-400">
                 <li>
@@ -180,11 +303,18 @@ export default function PrivacyPage() {
                 <li>
                   <strong className="text-slate-300">Withdrawal of consent</strong>
                   {" "}— withdraw your consent for non-essential uses of your data
-                  at any time.
+                  at any time, including disconnecting your bank account.
                 </li>
                 <li>
                   <strong className="text-slate-300">Deletion</strong> — request
-                  deletion of your account and associated data by contacting us.
+                  deletion of your account and associated data (including any
+                  Plaid access tokens and imported bank data) by contacting us.
+                </li>
+                <li>
+                  <strong className="text-slate-300">Portability (Quebec)</strong>
+                  {" "}— Quebec residents may request that their personal information
+                  be communicated to them or transferred to another organization
+                  in a structured, commonly used technological format.
                 </li>
               </ul>
               <p className="mt-4 leading-relaxed">
@@ -199,10 +329,10 @@ export default function PrivacyPage() {
               </p>
             </section>
 
-            {/* 7 */}
+            {/* 8 — was §7 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                7. Data Retention
+                8. Data Retention
               </h2>
               <p className="leading-relaxed">
                 We retain your account data for as long as your account is
@@ -211,12 +341,22 @@ export default function PrivacyPage() {
                 where retention is required by law (e.g., billing records
                 retained for 7 years per Canadian tax requirements).
               </p>
+              <p className="mt-4 leading-relaxed">
+                If you disconnect a bank account via{" "}
+                <strong className="text-white">Settings &rarr; Bank Connections</strong>,
+                your Plaid access tokens are permanently deleted from our
+                systems immediately upon disconnection, and Plaid&apos;s access
+                to your financial institution is simultaneously revoked.
+                Transaction data already imported and categorized in your
+                expense records is retained as part of your account until you
+                delete your account.
+              </p>
             </section>
 
-            {/* 8 */}
+            {/* 9 — was §8 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                8. Cookies and Tracking
+                9. Cookies and Tracking
               </h2>
               <p className="leading-relaxed">
                 Agent Runway uses essential cookies for authentication (session
@@ -227,10 +367,10 @@ export default function PrivacyPage() {
               </p>
             </section>
 
-            {/* 9 */}
+            {/* 10 — was §9 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                9. Changes to This Policy
+                10. Changes to This Policy
               </h2>
               <p className="leading-relaxed">
                 We may update this privacy policy from time to time. Material
@@ -240,10 +380,10 @@ export default function PrivacyPage() {
               </p>
             </section>
 
-            {/* 10 */}
+            {/* 11 — was §10 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                10. Contact Us
+                11. Contact Us
               </h2>
               <p className="leading-relaxed">
                 For questions about this policy or to exercise your privacy
@@ -263,6 +403,28 @@ export default function PrivacyPage() {
                   privacy@agentrunway.ca
                 </a>
               </address>
+              <p className="mt-4 leading-relaxed text-slate-500 text-sm">
+                You may also contact the{" "}
+                <a
+                  href="https://www.priv.gc.ca"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300"
+                >
+                  Office of the Privacy Commissioner of Canada
+                </a>{" "}
+                if you believe your privacy rights have been violated. Quebec
+                residents may contact the{" "}
+                <a
+                  href="https://www.cai.gouv.qc.ca/en/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400 hover:text-blue-300"
+                >
+                  Commission d&apos;acc&egrave;s &agrave; l&apos;information (CAI)
+                </a>
+                .
+              </p>
             </section>
 
           </div>
