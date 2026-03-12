@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight, Download, FileText } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   computeGCI,
@@ -28,6 +28,8 @@ import { ExpenseDonut, type DonutDataPoint } from "@/components/expense-donut";
 import { cn } from "@/lib/utils";
 import { ReceiptCaptureDialog }     from "@/components/receipt-capture-dialog";
 import { ReceiptViewEditDialog }    from "@/components/receipt-view-edit-dialog";
+import { pdf }                      from "@react-pdf/renderer";
+import { ExpenseExportPdf }         from "@/components/pdf/expense-export-pdf";
 import {
   RECEIPT_CATEGORIES,
   type ReceiptExpense,
@@ -334,6 +336,76 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
       });
   }
 
+  // ── Export helpers ────────────────────────────────────────────────────────
+  const [exporting, setExporting] = useState<"csv" | "pdf" | null>(null);
+  const year = new Date().getFullYear();
+
+  function downloadCsv() {
+    setExporting("csv");
+    const rows = [
+      ["Vendor", "Date", "Category", "Total (CAD)", "Tax / HST (CAD)", "Notes"],
+      ...receipts
+        .slice()
+        .sort((a, b) => (b.expense_date ?? "").localeCompare(a.expense_date ?? ""))
+        .map((r) => [
+          r.vendor ?? "",
+          r.expense_date ?? "",
+          r.category_key
+            ? (Object.fromEntries(
+                (RECEIPT_CATEGORIES as { key: string; label: string }[]).map((c) => [c.key, c.label])
+              )[r.category_key] ?? r.category_key)
+            : "Uncategorized",
+          r.total_amount != null ? r.total_amount.toFixed(2) : "",
+          r.tax_amount   != null ? r.tax_amount.toFixed(2)   : "",
+          r.notes ?? "",
+        ]),
+    ];
+    const csv = rows
+      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `agent-runway-expenses-${year}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setExporting(null);
+    toast.success("CSV downloaded ✓");
+  }
+
+  async function downloadPdf() {
+    setExporting("pdf");
+    try {
+      const doc = (
+        <ExpenseExportPdf
+          year={year}
+          settings={settings}
+          categories={categories}
+          receiptTotals={receiptTotals}
+          vehiclePct={vehiclePct}
+          receipts={receipts}
+          totalDeductible={totalDeductible}
+          deductFull={deductBreakdown.full}
+          deductMeals={deductBreakdown.meals}
+          deductVehicle={deductBreakdown.vehicle}
+        />
+      );
+      const blob = await pdf(doc).toBlob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `agent-runway-expenses-${year}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("PDF downloaded ✓");
+    } catch {
+      toast.error("PDF generation failed — please try again.");
+    } finally {
+      setExporting(null);
+    }
+  }
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -344,7 +416,7 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
             Every dollar out counts. Know your burn, protect your runway.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Capture Receipt */}
           <Button
             size="sm"
@@ -355,13 +427,43 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
             Capture Receipt
           </Button>
 
+          {/* Export CSV */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={downloadCsv}
+            disabled={exporting !== null || receipts.length === 0}
+            className="gap-1.5"
+            title={receipts.length === 0 ? "No receipts to export" : "Download CSV for spreadsheet / accountant"}
+          >
+            {exporting === "csv"
+              ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              : <Download className="h-3.5 w-3.5" />}
+            Export CSV
+          </Button>
+
+          {/* Export PDF */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={downloadPdf}
+            disabled={exporting !== null || receipts.length === 0}
+            className="gap-1.5"
+            title={receipts.length === 0 ? "No receipts to export" : "Download accountant-ready PDF expense report"}
+          >
+            {exporting === "pdf"
+              ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              : <FileText className="h-3.5 w-3.5" />}
+            Accountant PDF
+          </Button>
+
           {/* QuickBooks coming-soon CTA */}
           <Button
             variant="outline"
             size="sm"
             disabled
             title="QuickBooks integration — coming soon"
-            className="opacity-60"
+            className="opacity-50"
           >
             <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
             Connect QuickBooks
