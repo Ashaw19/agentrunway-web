@@ -123,6 +123,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   const [uploadingPhoto,   setUploadingPhoto]   = useState<string | null>(null);
   const [uploadingCutout,  setUploadingCutout]  = useState(false);
   const [removingBg,       setRemovingBg]       = useState(false);
+  const [bgError,          setBgError]          = useState<string | null>(null);
   const photoInputRef  = useRef<HTMLInputElement>(null);
   const cutoutInputRef = useRef<HTMLInputElement>(null);
 
@@ -320,9 +321,11 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   async function handleRemoveBackground() {
     if (!cutoutUrl || !user) return;
     setRemovingBg(true);
+    setBgError(null);
     try {
       const { removeBackground } = await import("@imgly/background-removal");
       const imgRes  = await fetch(cutoutUrl);
+      if (!imgRes.ok) throw new Error(`Failed to fetch image (${imgRes.status})`);
       const imgBlob = await imgRes.blob();
       const resultBlob = await removeBackground(imgBlob, {
         output: { format: "image/png" },
@@ -342,8 +345,9 @@ export function SocialContent({ settings, transactions, connections }: Props) {
         .update({ agent_cutout_url: publicUrl })
         .eq("user_id", user.id);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error("Background removal failed:", err);
-      alert("Background removal failed — please try again.");
+      setBgError(msg);
     } finally {
       setRemovingBg(false);
     }
@@ -750,6 +754,11 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                 {removingBg && (
                   <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
                     Removing background in your browser — first run downloads the AI model (~45 MB, cached after that)…
+                  </p>
+                )}
+                {bgError && (
+                  <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    Background removal failed: {bgError}
                   </p>
                 )}
                 <ToggleButton enabled={showCutout} onToggle={setShowCutout} label="Show cutout on property slides" disabled={!cutoutUrl} />

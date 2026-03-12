@@ -12,6 +12,9 @@ import type { NextConfig } from "next";
 //     and @imgly/background-removal for AI background removal).
 //     This is intentionally narrower than 'unsafe-eval' — it only enables WASM
 //     compilation, not eval() or new Function() attacks.
+//   - blob: in script-src — required for @imgly/background-removal: ORT v1.21 creates
+//     a type:"module" Worker whose script URL is a blob:. Chrome checks script-src
+//     (not just worker-src) for module worker scripts, so blob: must be present here.
 //   - cdn.plaid.com  — Plaid Link SDK (loaded client-side)
 //   - js.stripe.com  — Stripe.js (loaded client-side for billing)
 //   - *.supabase.co  — Supabase REST, Auth, Realtime, and Storage
@@ -21,13 +24,15 @@ import type { NextConfig } from "next";
 //   - frame-src      — Stripe Checkout iframe + Plaid Link iframe
 //   - frame-ancestors 'none' — equivalent to X-Frame-Options: DENY (belt+suspenders)
 //   - worker-src blob: — @imgly/background-removal spawns a Web Worker via blob URL
+//   - child-src blob:  — Safari fallback (Safari ignores worker-src, uses child-src)
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.plaid.com https://js.stripe.com",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://cdn.plaid.com https://js.stripe.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.supabase.co https://graph.facebook.com https://*.cdninstagram.com https://*.fbcdn.net",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.plaid.com https://api.stripe.com https://api.groq.com https://staticimgly.com",
   "worker-src blob: 'self'",
+  "child-src blob: 'self'",
   "frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://cdn.plaid.com",
   "font-src 'self' data:",
   "object-src 'none'",
