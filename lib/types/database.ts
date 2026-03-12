@@ -553,7 +553,11 @@ export interface PlaidItem {
   id:               string;
   user_id:          string;
   plaid_item_id:    string;
-  access_token:     string;   // encrypted at rest
+  // NOTE: access_token is intentionally absent from this client-facing type.
+  // It is stored server-side only and accessed exclusively via the service-role
+  // admin client in API routes (/api/plaid/sync, /api/plaid/disconnect).
+  // A Postgres REVOKE SELECT (access_token) prevents the authenticated role
+  // from reading it via the Supabase REST/PostgREST API.
   institution_id:   string | null;
   institution_name: string | null;
   sync_cursor:      string | null;

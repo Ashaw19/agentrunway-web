@@ -197,7 +197,8 @@ export default async function ExpensesPage() {
     // Connected bank accounts for the Bank Imports tab
     supabase
       .from("plaid_items")
-      .select("*")
+      // access_token is intentionally excluded — server-only credential
+      .select("id, user_id, plaid_item_id, institution_id, institution_name, sync_cursor, last_synced_at, created_at, updated_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false }),
     // Plaid transactions (last 500) for the Bank Imports tab

@@ -224,7 +224,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
     setConnectErr(null);
     setPlaidItems((prev) => [
       {
-        id: item_id, user_id: "", plaid_item_id: "", access_token: "",
+        id: item_id, user_id: "", plaid_item_id: "",
         institution_id: null, institution_name, sync_cursor: null,
         last_synced_at: new Date().toISOString(),
         created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
