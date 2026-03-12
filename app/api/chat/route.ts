@@ -2,8 +2,11 @@ import OpenAI from "openai";
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { log } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
+  const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
+
   // ── 1. Auth guard ────────────────────────────────────────────────────────
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -89,7 +92,7 @@ Guidelines:
       },
     });
   } catch (error) {
-    console.error("[chat] Groq error:", error);
+    log.error({ err: error, requestId }, "[chat] Groq error");
     return new Response("AI service temporarily unavailable. Please try again.", { status: 500 });
   }
 }

@@ -15,6 +15,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Configuration, PlaidApi, PlaidEnvironments } from "plaid";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { withRetry } from "@/lib/retry";
+import { log } from "@/lib/logger";
 import crypto from "crypto";
 
 // ── Plaid client factory ──────────────────────────────────────────────────────
@@ -170,7 +172,7 @@ async function verifyPlaidWebhook(
 
     return claimedBodyHash === actualBodyHash;
   } catch (err) {
-    console.error("[plaid/webhook] Verification error:", err);
+    log.error({ err }, "[plaid/webhook] Verification error");
     return false;
   }
 }
@@ -178,6 +180,8 @@ async function verifyPlaidWebhook(
 // ── Webhook handler ───────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
+
   // ── 1. Guard: Plaid not configured ─────────────────────────────────────────
   if (!process.env.PLAID_CLIENT_ID || process.env.PLAID_CLIENT_ID === "your_plaid_client_id_here") {
     return NextResponse.json({ error: "Plaid not configured" }, { status: 503 });
@@ -189,13 +193,13 @@ export async function POST(req: NextRequest) {
   // ── 3. Verify webhook signature ────────────────────────────────────────────
   const verificationHeader = req.headers.get("Plaid-Verification");
   if (!verificationHeader) {
-    console.warn("[plaid/webhook] Missing Plaid-Verification header — rejecting");
+    log.warn({ requestId }, "[plaid/webhook] Missing Plaid-Verification header — rejecting");
     return NextResponse.json({ error: "Missing verification header" }, { status: 401 });
   }
 
   const isAuthentic = await verifyPlaidWebhook(verificationHeader, rawBody);
   if (!isAuthentic) {
-    console.warn("[plaid/webhook] Signature verification FAILED — rejecting");
+    log.warn({ requestId }, "[plaid/webhook] Signature verification FAILED — rejecting");
     return NextResponse.json({ error: "Invalid webhook signature" }, { status: 401 });
   }
 
@@ -213,7 +217,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { webhook_type, webhook_code, item_id: plaid_item_id } = payload;
-  console.info(`[plaid/webhook] ${webhook_type}/${webhook_code} for item ${plaid_item_id}`);
+  log.info({ webhook_type, webhook_code, plaid_item_id, requestId }, "[plaid/webhook] event received");
 
   const admin = createAdminClient();
 
@@ -231,11 +235,11 @@ export async function POST(req: NextRequest) {
   if (idempotencyError) {
     if (idempotencyError.code === "23505") {
       // Duplicate webhook — already processed
-      console.info("[plaid/webhook] duplicate event ignored:", idempotencyKey.slice(0, 20));
+      log.info({ key: idempotencyKey.slice(0, 20), requestId }, "[plaid/webhook] duplicate event ignored");
       return NextResponse.json({ received: true });
     }
     // Unexpected DB error — log but continue rather than silently dropping the event
-    console.error("[plaid/webhook] failed to record idempotency key:", idempotencyError.message);
+    log.error({ error: idempotencyError.message, requestId }, "[plaid/webhook] failed to record idempotency key");
   }
 
   // ── 5. Handle TRANSACTIONS webhooks ────────────────────────────────────────
@@ -260,11 +264,10 @@ export async function POST(req: NextRequest) {
 
           // Paginated incremental sync
           while (true) {
-            const syncResp = await plaid.transactionsSync({
-              access_token: item.access_token,
-              cursor,
-              count: 500,
-            });
+            const syncResp = await withRetry(
+              () => plaid.transactionsSync({ access_token: item.access_token, cursor, count: 500 }),
+              { label: "plaid/webhook/transactionsSync", attempts: 3 },
+            );
             const { added, modified, removed, next_cursor, has_more } = syncResp.data;
 
             if (added.length > 0) {
@@ -321,11 +324,9 @@ export async function POST(req: NextRequest) {
             .update({ sync_cursor: cursor, last_synced_at: new Date().toISOString() })
             .eq("id", item.id);
 
-          console.info(
-            `[plaid/webhook] Sync complete — added:${addedCount} modified:${modifiedCount} removed:${removedCount}`,
-          );
+          log.info({ addedCount, modifiedCount, removedCount, requestId }, "[plaid/webhook] sync complete");
         } catch (err) {
-          console.error("[plaid/webhook] Sync error:", err);
+          log.error({ err, plaid_item_id, requestId }, "[plaid/webhook] sync error");
           // Return 200 so Plaid doesn't retry — we'll resync on next user action
         }
       }
@@ -334,7 +335,7 @@ export async function POST(req: NextRequest) {
 
   // ── 6. Handle ITEM webhooks ────────────────────────────────────────────────
   if (webhook_type === "ITEM" && webhook_code === "ERROR") {
-    console.error(`[plaid/webhook] ITEM ERROR for plaid_item_id ${plaid_item_id}:`, payload.error);
+    log.error({ plaid_item_id, error: payload.error, requestId }, "[plaid/webhook] ITEM ERROR");
     // Could update a status flag in plaid_items here for UX display
   }
 

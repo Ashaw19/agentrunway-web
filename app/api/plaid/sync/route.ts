@@ -12,6 +12,9 @@ import { NextRequest, NextResponse }                  from "next/server";
 import { Configuration, PlaidApi, PlaidEnvironments } from "plaid";
 import { createClient }                               from "@/lib/supabase/server";
 import { createAdminClient }                          from "@/lib/supabase/admin";
+import { withRetry }                                  from "@/lib/retry";
+import { log }                                        from "@/lib/logger";
+import crypto                                         from "crypto";
 
 function buildPlaidClient() {
   const env    = (process.env.PLAID_ENV ?? "sandbox") as keyof typeof PlaidEnvironments;
@@ -58,6 +61,8 @@ function suggestCategory(merchant: string | null, description: string): { key: s
 }
 
 export async function POST(req: NextRequest) {
+  const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
+
   // ── 1. Guard: Plaid not configured ────────────────────────────────────────
   if (!process.env.PLAID_CLIENT_ID || process.env.PLAID_CLIENT_ID === "your_plaid_client_id_here") {
     return NextResponse.json({ error: "Plaid credentials not configured." }, { status: 503 });
@@ -106,11 +111,10 @@ export async function POST(req: NextRequest) {
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      const syncResp = await plaid.transactionsSync({
-        access_token: item.access_token,
-        cursor,
-        count: 500,
-      });
+      const syncResp = await withRetry(
+        () => plaid.transactionsSync({ access_token: item.access_token, cursor, count: 500 }),
+        { label: "plaid/transactionsSync", attempts: 3 },
+      );
 
       const { added, modified, removed, next_cursor, has_more } = syncResp.data;
 
@@ -185,7 +189,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ added: addedCount, modified: modifiedCount, removed: removedCount });
   } catch (err) {
-    console.error("[plaid/sync]", err);
+    log.error({ err, requestId }, "[plaid/sync] Plaid sync error");
     const message = err instanceof Error ? err.message : "Plaid sync error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

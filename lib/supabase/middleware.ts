@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { log } from "@/lib/logger";
 
 /**
  * Explicit list of route prefixes that require a valid Supabase session.
@@ -26,9 +27,19 @@ const PROTECTED_PREFIXES = [
 ];
 
 export async function updateSession(request: NextRequest) {
+  // ── Step 0: Request ID ───────────────────────────────────────────────────
+  // Generate a unique ID for this request. Attach it to:
+  //   • The forwarded request headers → API routes read it via req.headers
+  //   • The response headers → clients and Vercel logs can correlate requests
+  const requestId = globalThis.crypto.randomUUID();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-request-id", requestId);
+
   // ── Step 1: Supabase session refresh ────────────────────────────────────
   // Required on every request so the SSR auth cookie stays fresh.
-  let supabaseResponse = NextResponse.next({ request });
+  // Use requestHeaders (with X-Request-Id) for both NextResponse.next() calls
+  // so the ID is preserved even when setAll() recreates supabaseResponse.
+  let supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -42,7 +53,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           );
-          supabaseResponse = NextResponse.next({ request });
+          supabaseResponse = NextResponse.next({ request: { headers: requestHeaders } });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options),
           );
@@ -60,7 +71,7 @@ export async function updateSession(request: NextRequest) {
     const { data } = await supabase.auth.getUser();
     user = data.user;
   } catch (err) {
-    console.error("[middleware] supabase.auth.getUser() threw:", err);
+    log.error({ err, requestId }, "[middleware] supabase.auth.getUser() threw");
     // user stays null — protected routes will redirect to /login below
   }
 
@@ -86,6 +97,10 @@ export async function updateSession(request: NextRequest) {
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
+
+  // Attach the request ID to the outgoing response so clients and Vercel
+  // logs can correlate it with server-side log lines.
+  supabaseResponse.headers.set("x-request-id", requestId);
 
   return supabaseResponse;
 }

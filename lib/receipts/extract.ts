@@ -4,6 +4,7 @@
  */
 import OpenAI from "openai";
 import type { OcrExtraction } from "@/lib/types/receipt";
+import { withRetry } from "@/lib/retry";
 
 const VISION_PROMPT = `You are a receipt data extraction assistant for Canadian real estate agents.
 Extract structured data from this receipt image.
@@ -74,28 +75,31 @@ export async function extractReceiptData(
 ): Promise<OcrExtraction> {
   const groq = groqClient();
 
-  const response = await groq.chat.completions.create({
-    model: "meta-llama/llama-4-scout-17b-16e-instruct",
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "image_url",
-            image_url: {
-              url: `data:${mimeType};base64,${imageBase64}`,
+  const response = await withRetry(
+    () => groq.chat.completions.create({
+      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${mimeType};base64,${imageBase64}`,
+              },
             },
-          },
-          {
-            type: "text",
-            text: VISION_PROMPT,
-          },
-        ],
-      },
-    ],
-    temperature: 0.05,
-    max_tokens:  512,
-  });
+            {
+              type: "text",
+              text: VISION_PROMPT,
+            },
+          ],
+        },
+      ],
+      temperature: 0.05,
+      max_tokens:  512,
+    }),
+    { label: "groq/receipt-ocr", attempts: 3 },
+  );
 
   const raw = response.choices[0]?.message?.content ?? "";
 
