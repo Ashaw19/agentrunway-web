@@ -8,7 +8,8 @@ import type { NextConfig } from "next";
 // CSP notes:
 //   - 'unsafe-inline' for scripts is required by Next.js App Router hydration.
 //   - 'wasm-unsafe-eval' allows WebAssembly compilation client-side (required by
-//     yoga-layout/WASM used internally by @react-pdf/renderer for PDF layout).
+//     yoga-layout/WASM used internally by @react-pdf/renderer for PDF layout,
+//     and @imgly/background-removal for AI background removal).
 //     This is intentionally narrower than 'unsafe-eval' — it only enables WASM
 //     compilation, not eval() or new Function() attacks.
 //   - cdn.plaid.com  — Plaid Link SDK (loaded client-side)
@@ -16,14 +17,17 @@ import type { NextConfig } from "next";
 //   - *.supabase.co  — Supabase REST, Auth, Realtime, and Storage
 //   - api.groq.com   — server-side only, but listed in connect-src to allow
 //                      any future client-side streaming fetch
+//   - staticimgly.com — @imgly/background-removal AI model files (fetched on demand)
 //   - frame-src      — Stripe Checkout iframe + Plaid Link iframe
 //   - frame-ancestors 'none' — equivalent to X-Frame-Options: DENY (belt+suspenders)
+//   - worker-src blob: — @imgly/background-removal spawns a Web Worker via blob URL
 const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.plaid.com https://js.stripe.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.supabase.co https://graph.facebook.com https://*.cdninstagram.com https://*.fbcdn.net",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.plaid.com https://api.stripe.com https://api.groq.com",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.plaid.com https://api.stripe.com https://api.groq.com https://staticimgly.com",
+  "worker-src blob: 'self'",
   "frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://cdn.plaid.com",
   "font-src 'self' data:",
   "object-src 'none'",
