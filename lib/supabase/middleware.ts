@@ -18,6 +18,7 @@ const PROTECTED_PREFIXES = [
   "/history",
   "/forecast",
   "/expenses",
+  "/mileage",
   "/reports",
   "/settings",
   "/profile",

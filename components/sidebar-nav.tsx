@@ -20,6 +20,7 @@ import {
   Share2,
   Globe,
   ClipboardList,
+  Car,
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -85,6 +86,14 @@ const navItems = [
     iconActive: "text-amber-300",
     iconInactive: "text-amber-400/60",
     borderActive: "border-l-amber-400",
+  },
+  {
+    label: "Mileage",
+    href: "/mileage",
+    icon: Car,
+    iconActive: "text-blue-300",
+    iconInactive: "text-blue-400/60",
+    borderActive: "border-l-blue-400",
   },
   {
     label: "Tax / T2125",

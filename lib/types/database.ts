@@ -488,6 +488,34 @@ export interface MarketDataPoint {
   created_at: string;
 }
 
+// ── Mileage Log ───────────────────────────────────────────────────────────────
+
+/** CRA automobile allowance rates for 2025 */
+export const CRA_MILEAGE_RATES = {
+  /** $/km for first 5,000 km of business travel */
+  first5000:   0.72,
+  /** $/km beyond 5,000 km */
+  beyond5000:  0.66,
+  /** Annual km threshold separating the two rates */
+  threshold:   5000,
+} as const;
+
+export interface MileageLog {
+  id:              string;
+  user_id:         string;
+  trip_date:       string;       // ISO date YYYY-MM-DD
+  description:     string;
+  from_location:   string | null;
+  to_location:     string | null;
+  km:              number;
+  cra_rate_per_km: number;
+  deduction:       number;       // generated column: km × cra_rate_per_km
+  purpose:         string | null;
+  notes:           string | null;
+  created_at:      string;
+  updated_at:      string;
+}
+
 // ── Computed Helpers (mirror iOS computed properties) ────────────────────────
 
 /** Compute GCI for a transaction (mirrors iOS Transaction.gci)
