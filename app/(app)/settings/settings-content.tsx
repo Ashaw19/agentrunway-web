@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check, Sparkles, ExternalLink, Loader2, Car, Landmark, RefreshCw, Trash2, Clock, Info, AlertCircle, XCircle } from "lucide-react";
+import { Check, Sparkles, ExternalLink, Loader2, Car, Landmark, RefreshCw, Trash2, Clock, Info, AlertCircle, XCircle, Building2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -86,6 +86,37 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
     setSavingProvince(false);
     provinceSaved.flash();
     toast.success("Province updated ✓");
+  }
+
+  // ── Section 1b: Business Structure ──────────────────────────────────────
+  const [isIncorporated, setIsIncorporated] = useState(settings.is_incorporated ?? false);
+  const [corpType, setCorpType] = useState<"prec" | "general">(
+    (settings.corp_type as "prec" | "general") ?? "prec",
+  );
+  const [compensationMethod, setCompMethod] = useState<"salary" | "dividends" | "mixed">(
+    (settings.compensation_method as "salary" | "dividends" | "mixed") ?? "salary",
+  );
+  const [hasEmployees, setHasEmployees] = useState(settings.has_employees ?? false);
+  const [numEmployees, setNumEmployees] = useState(String(settings.num_employees ?? 0));
+  const [savingBiz, setSavingBiz] = useState(false);
+  const bizSaved = useSaved();
+
+  async function saveBiz() {
+    setSavingBiz(true);
+    const supabase = createClient();
+    await supabase
+      .from("user_settings")
+      .update({
+        is_incorporated: isIncorporated,
+        corp_type: isIncorporated ? corpType : null,
+        compensation_method: isIncorporated ? compensationMethod : "salary",
+        has_employees: hasEmployees,
+        num_employees: hasEmployees ? parseInt(numEmployees) || 0 : 0,
+      })
+      .eq("user_id", settings.user_id);
+    setSavingBiz(false);
+    bizSaved.flash();
+    toast.success("Business structure saved ✓");
   }
 
   // ── Section 2: Commission Structure ─────────────────────────────────────
@@ -340,6 +371,130 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
             saved={provinceSaved.saved}
             onSave={saveProvince}
           />
+        </CardContent>
+      </Card>
+
+      {/* Card 1b — Business Structure */}
+      <Card className="rounded-2xl border-l-4 border-l-emerald-500 shadow-sm">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-emerald-500" />
+            <CardTitle>Business Structure</CardTitle>
+          </div>
+          <CardDescription>
+            Determines which expense categories are visible and how your tax estimates are calculated.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-5">
+
+          {/* Business type */}
+          <div className="grid gap-2">
+            <Label>Business type</Label>
+            <div className="grid grid-cols-3 gap-2 max-w-sm">
+              {[
+                { value: "no",      label: "Sole Proprietor" },
+                { value: "prec",    label: "PREC" },
+                { value: "general", label: "Corporation" },
+              ].map(({ value, label }) => {
+                const active =
+                  value === "no"
+                    ? !isIncorporated
+                    : isIncorporated && corpType === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      if (value === "no") {
+                        setIsIncorporated(false);
+                      } else {
+                        setIsIncorporated(true);
+                        setCorpType(value as "prec" | "general");
+                      }
+                    }}
+                    className={`rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
+                      active
+                        ? "border-emerald-500/60 bg-emerald-500/10 text-foreground"
+                        : "border-border bg-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {isIncorporated && (
+              <p className="text-xs text-muted-foreground">
+                PREC = Personal Real Estate Corporation, available in most provinces.
+                Corporation = general or numbered company.
+              </p>
+            )}
+          </div>
+
+          {/* Compensation method — only when incorporated */}
+          {isIncorporated && (
+            <div className="grid gap-2">
+              <Label>Compensation method</Label>
+              <div className="grid grid-cols-3 gap-2 max-w-sm">
+                {[
+                  { value: "salary",    label: "Salary" },
+                  { value: "dividends", label: "Dividends" },
+                  { value: "mixed",     label: "Both" },
+                ].map(({ value, label }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setCompMethod(value as "salary" | "dividends" | "mixed")}
+                    className={`rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
+                      compensationMethod === value
+                        ? "border-emerald-500/60 bg-emerald-500/10 text-foreground"
+                        : "border-border bg-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Salary generates CPP + RRSP room; dividends don&apos;t. Mixed (both) is common.
+              </p>
+            </div>
+          )}
+
+          {/* Has employees */}
+          <div className="grid gap-2">
+            <Label>Staff on payroll</Label>
+            <div className="grid grid-cols-2 gap-2 max-w-[200px]">
+              {([false, true] as const).map((val) => (
+                <button
+                  key={String(val)}
+                  type="button"
+                  onClick={() => setHasEmployees(val)}
+                  className={`rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
+                    hasEmployees === val
+                      ? "border-emerald-500/60 bg-emerald-500/10 text-foreground"
+                      : "border-border bg-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {val ? "Yes" : "No"}
+                </button>
+              ))}
+            </div>
+            {hasEmployees && (
+              <div className="grid gap-1.5 max-w-xs">
+                <Label className="text-muted-foreground text-xs">Number of employees</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={numEmployees}
+                  onChange={(e) => setNumEmployees(e.target.value)}
+                  className="max-w-[120px]"
+                />
+              </div>
+            )}
+          </div>
+
+          <SaveRow saving={savingBiz} saved={bizSaved.saved} onSave={saveBiz} />
         </CardContent>
       </Card>
 

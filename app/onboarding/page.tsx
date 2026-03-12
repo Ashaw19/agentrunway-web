@@ -20,6 +20,7 @@ import {
   Check,
   MapPin,
   User,
+  Building2,
   DollarSign,
   Clock,
   Palette,
@@ -113,8 +114,8 @@ const COLOR_THEMES = [
   },
 ];
 
-// Step indices: 0=welcome, 1=province, 2=about, 3=money, 4=experience, 5=theme, 6=goals, 7=done
-const TOTAL_STEPS = 8;
+// Step indices: 0=welcome, 1=province, 2=about, 3=structure, 4=money, 5=experience, 6=theme, 7=goals, 8=done
+const TOTAL_STEPS = 9;
 const NAMED_STEPS = TOTAL_STEPS - 2; // excludes welcome and done
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -141,13 +142,20 @@ export default function OnboardingPage() {
   const [goalTx, setGoalTx] = useState("");
   const [goalVolume, setGoalVolume] = useState("");
 
+  // Business structure
+  const [isIncorporated, setIsIncorporated] = useState(false);
+  const [corpType, setCorpType] = useState<"prec" | "general">("prec");
+  const [compensationMethod, setCompensationMethod] = useState<"salary" | "dividends" | "mixed">("salary");
+  const [hasEmployees, setHasEmployees] = useState(false);
+  const [numEmployees, setNumEmployees] = useState("");
+
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Pre-fill a suggested GCI goal when the user reaches step 6, based on experience
+  // Pre-fill a suggested GCI goal when the user reaches step 7, based on experience
   useEffect(() => {
-    if (step === 6 && !goalGCI) {
+    if (step === 7 && !goalGCI) {
       const suggested =
         experienceYears <= 2 ? "75000" :
         experienceYears <= 5 ? "100000" :
@@ -197,6 +205,11 @@ export default function OnboardingPage() {
           goal_gci: parseFloat(goalGCI) || suggestedGoal,
           goal_transactions: parseInt(goalTx) || 0,
           goal_volume: parseFloat(goalVolume) || 0,
+          is_incorporated: isIncorporated,
+          corp_type: isIncorporated ? corpType : null,
+          compensation_method: isIncorporated ? compensationMethod : "salary",
+          has_employees: hasEmployees,
+          num_employees: hasEmployees ? parseInt(numEmployees) || 1 : 0,
         })
         .eq("user_id", user.id);
 
@@ -330,8 +343,128 @@ export default function OnboardingPage() {
             </StepFrame>
           )}
 
-          {/* Step 3: The Money Math */}
+          {/* Step 3: Business Structure */}
           {step === 3 && (
+            <StepFrame
+              icon={<Building2 className="h-5 w-5" />}
+              title="How's your business set up?"
+              subtitle="This shapes your tax picture and which expense categories you see. You can change this any time in Settings."
+            >
+              <div className="grid gap-5">
+                {/* Business structure */}
+                <div className="grid gap-2">
+                  <Label className="text-white/80">Business structure</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { value: "no",      label: "Sole Proprietor" },
+                      { value: "prec",    label: "PREC" },
+                      { value: "general", label: "Corporation" },
+                    ].map(({ value, label }) => {
+                      const active =
+                        value === "no"
+                          ? !isIncorporated
+                          : isIncorporated && corpType === value;
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => {
+                            if (value === "no") {
+                              setIsIncorporated(false);
+                            } else {
+                              setIsIncorporated(true);
+                              setCorpType(value as "prec" | "general");
+                            }
+                          }}
+                          className={cn(
+                            "rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors",
+                            active
+                              ? "border-white/40 bg-white/15 text-white"
+                              : "border-white/10 bg-white/5 text-white/50 hover:text-white/80",
+                          )}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {isIncorporated && (
+                    <p className="text-xs text-white/35">
+                      PREC = Personal Real Estate Corporation, available in most provinces.
+                      Choose &ldquo;Corporation&rdquo; for a general or numbered company.
+                    </p>
+                  )}
+                </div>
+
+                {/* Compensation method — only when incorporated */}
+                {isIncorporated && (
+                  <div className="grid gap-2">
+                    <Label className="text-white/80">How do you pay yourself?</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { value: "salary",    label: "Salary" },
+                        { value: "dividends", label: "Dividends" },
+                        { value: "mixed",     label: "Both" },
+                      ].map(({ value, label }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setCompensationMethod(value as "salary" | "dividends" | "mixed")}
+                          className={cn(
+                            "rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors",
+                            compensationMethod === value
+                              ? "border-white/40 bg-white/15 text-white"
+                              : "border-white/10 bg-white/5 text-white/50 hover:text-white/80",
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-white/35">
+                      Salary generates CPP + RRSP room; dividends don&apos;t.
+                      Mixed is common for PREC owners.
+                    </p>
+                  </div>
+                )}
+
+                {/* Staff on payroll */}
+                <div className="grid gap-2">
+                  <Label className="text-white/80">Do you have staff on payroll?</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([false, true] as const).map((val) => (
+                      <button
+                        key={String(val)}
+                        type="button"
+                        onClick={() => setHasEmployees(val)}
+                        className={cn(
+                          "rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors",
+                          hasEmployees === val
+                            ? "border-white/40 bg-white/15 text-white"
+                            : "border-white/10 bg-white/5 text-white/50 hover:text-white/80",
+                        )}
+                      >
+                        {val ? "Yes" : "No"}
+                      </button>
+                    ))}
+                  </div>
+                  {hasEmployees && (
+                    <Input
+                      type="number"
+                      min="1"
+                      placeholder="Number of employees (optional)"
+                      value={numEmployees}
+                      onChange={(e) => setNumEmployees(e.target.value)}
+                      className="border-white/20 bg-white/5 text-white placeholder:text-white/30 focus-visible:ring-white/30"
+                    />
+                  )}
+                </div>
+              </div>
+            </StepFrame>
+          )}
+
+          {/* Step 4: The Money Math */}
+          {step === 4 && (
             <StepFrame
               icon={<DollarSign className="h-5 w-5" />}
               title="Let's talk about how you get paid."
@@ -452,8 +585,8 @@ export default function OnboardingPage() {
             </StepFrame>
           )}
 
-          {/* Step 4: Experience */}
-          {step === 4 && (
+          {/* Step 5: Experience */}
+          {step === 5 && (
             <StepFrame
               icon={<Clock className="h-5 w-5" />}
               title="How long have you been in the game?"
@@ -499,8 +632,8 @@ export default function OnboardingPage() {
             </StepFrame>
           )}
 
-          {/* Step 5: Color Theme */}
-          {step === 5 && (
+          {/* Step 6: Color Theme */}
+          {step === 6 && (
             <StepFrame
               icon={<Palette className="h-5 w-5" />}
               title="Choose your battle colour."
@@ -548,8 +681,8 @@ export default function OnboardingPage() {
             </StepFrame>
           )}
 
-          {/* Step 6: Goals (optional) */}
-          {step === 6 && (
+          {/* Step 7: Goals (optional) */}
+          {step === 7 && (
             <StepFrame
               icon={<Target className="h-5 w-5" />}
               title="Set your targets for this year."
@@ -606,7 +739,7 @@ export default function OnboardingPage() {
             </StepFrame>
           )}
 
-          {/* Step 7: Done */}
+          {/* Step 8: Done */}
           {step === TOTAL_STEPS - 1 && (
             <DoneStep
               displayName={displayName}
@@ -631,7 +764,7 @@ export default function OnboardingPage() {
               </Button>
 
               <div className="flex items-center gap-2">
-                {step === 6 && (
+                {step === 7 && (
                   <Button
                     variant="ghost"
                     onClick={() => setStep(TOTAL_STEPS - 1)}
@@ -641,11 +774,11 @@ export default function OnboardingPage() {
                   </Button>
                 )}
                 <Button
-                  onClick={step === 6 ? () => setStep(TOTAL_STEPS - 1) : advance}
+                  onClick={step === 7 ? () => setStep(TOTAL_STEPS - 1) : advance}
                   style={{ background: selectedTheme.bg }}
                   className="gap-2 text-white shadow-lg hover:opacity-90 transition-opacity"
                 >
-                  {step === 6 ? "Lock in Goals" : "Continue"}
+                  {step === 7 ? "Lock in Goals" : "Continue"}
                   <ArrowRight className="h-4 w-4" />
                 </Button>
               </div>

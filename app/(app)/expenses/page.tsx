@@ -86,6 +86,34 @@ const DEFAULT_CATEGORIES = [
       { key: "other_misc", title: "Miscellaneous", sort_order: 0 },
     ],
   },
+  // Seeded for all users; shown only when has_employees = true
+  {
+    key: "payroll",
+    title: "Payroll & HR",
+    sort_order: 8,
+    items: [
+      { key: "payroll_wages",        title: "Admin wages",          sort_order: 0 },
+      { key: "payroll_employer_cpp", title: "Employer CPP",         sort_order: 1 },
+      { key: "payroll_employer_ei",  title: "Employer EI",          sort_order: 2 },
+      { key: "payroll_wsib",         title: "WSIB / WCB",           sort_order: 3 },
+      { key: "payroll_benefits",     title: "Group benefits",       sort_order: 4 },
+      { key: "payroll_service_fees", title: "Payroll service fees", sort_order: 5 },
+    ],
+  },
+  // Seeded for all users; shown only when is_incorporated = true
+  {
+    key: "corp_admin",
+    title: "Corporate Admin",
+    sort_order: 9,
+    items: [
+      { key: "corp_accounting",    title: "Corporate accounting",   sort_order: 0 },
+      { key: "corp_legal",         title: "Legal & corporate",      sort_order: 1 },
+      { key: "corp_annual_filing", title: "Annual registry filing", sort_order: 2 },
+      { key: "corp_bank_fees",     title: "Business banking fees",  sort_order: 3 },
+      { key: "corp_insurance_gl",  title: "Commercial liability",   sort_order: 4 },
+      { key: "corp_insurance_do",  title: "D&O insurance",          sort_order: 5 },
+    ],
+  },
 ];
 
 // ── Seed helper — inserts all 8 categories + 24 items for a user ──────────────
@@ -255,16 +283,24 @@ export default async function ExpensesPage() {
     items = newItems.data ?? [];
   }
 
-  // Join items into their categories
-  const categories = cats.map((cat) => ({
-    ...cat,
-    items: items.filter((item) => item.category_id === cat.id),
-  }));
+  // Join items into their categories, filtering out conditional categories
+  // based on user's business structure flags so they don't appear until enabled.
+  const settings = settingsResult.data;
+  const categories = cats
+    .map((cat) => ({
+      ...cat,
+      items: items.filter((item) => item.category_id === cat.id),
+    }))
+    .filter((cat) => {
+      if (cat.key === "payroll"    && !settings?.has_employees)   return false;
+      if (cat.key === "corp_admin" && !settings?.is_incorporated) return false;
+      return true;
+    });
 
   return (
     <ExpensesContent
       initialCategories={categories}
-      settings={settingsResult.data}
+      settings={settings}
       transactions={txResult.data ?? []}
       initialReceipts={receiptsResult.data ?? []}
       receiptTotalsByKey={receiptTotalsByKey}

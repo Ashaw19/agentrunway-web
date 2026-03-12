@@ -235,6 +235,13 @@ export interface UserSettings {
   // Admin override
   is_admin: boolean; // founder/admin flag — bypasses all subscription checks
 
+  // Business structure
+  is_incorporated:     boolean;      // true = PREC or general corp
+  corp_type:           string | null; // 'prec' | 'general' | null
+  compensation_method: string;        // 'salary' | 'dividends' | 'mixed'
+  has_employees:       boolean;       // unlocks Payroll & HR expense category
+  num_employees:       number;        // approximate headcount
+
   // Timestamps
   created_at: string;
   updated_at: string;
