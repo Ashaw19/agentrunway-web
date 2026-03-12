@@ -26,7 +26,8 @@ import { survivalResult } from "@/lib/engines/survival-engine";
 import { EXPENSE_KEY_TO_T2125 } from "@/lib/engines/t2125-engine";
 import { ExpenseDonut, type DonutDataPoint } from "@/components/expense-donut";
 import { cn } from "@/lib/utils";
-import { ReceiptCaptureDialog } from "@/components/receipt-capture-dialog";
+import { ReceiptCaptureDialog }     from "@/components/receipt-capture-dialog";
+import { ReceiptViewEditDialog }    from "@/components/receipt-view-edit-dialog";
 import {
   RECEIPT_CATEGORIES,
   type ReceiptExpense,
@@ -82,6 +83,10 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
   // ── Receipt capture ────────────────────────────────────────────────────────
   const [captureOpen, setCaptureOpen] = useState(false);
   const [receipts,    setReceipts]    = useState<ReceiptExpense[]>(initialReceipts);
+
+  // ── Receipt view / edit ────────────────────────────────────────────────────
+  const [viewReceipt,  setViewReceipt]  = useState<ReceiptExpense | null>(null);
+  const [viewOpen,     setViewOpen]     = useState(false);
 
   const handleReceiptSaved = async () => {
     const supabase = createClient();
@@ -282,6 +287,51 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
       .eq("user_id", user.id);
     setVehiclePct(pct);
     toast.success("Vehicle business use % saved ✓");
+  }
+
+  function openReceipt(r: ReceiptExpense) {
+    setViewReceipt(r);
+    setViewOpen(true);
+  }
+
+  function handleReceiptUpdated(updated: ReceiptExpense) {
+    setReceipts((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+    // Refresh YTD totals by re-querying
+    const supabase = createClient();
+    const year = new Date().getFullYear();
+    supabase
+      .from("receipt_expenses")
+      .select("category_key, total_amount")
+      .gte("expense_date", `${year}-01-01`)
+      .then(({ data }) => {
+        if (!data) return;
+        const newTotals: Record<string, number> = {};
+        for (const row of data) {
+          if (row.category_key && row.total_amount != null)
+            newTotals[row.category_key] = (newTotals[row.category_key] ?? 0) + Number(row.total_amount);
+        }
+        setReceiptTotals(newTotals);
+      });
+  }
+
+  function handleReceiptDeleted(id: string) {
+    setReceipts((prev) => prev.filter((r) => r.id !== id));
+    // Refresh YTD totals
+    const supabase = createClient();
+    const year = new Date().getFullYear();
+    supabase
+      .from("receipt_expenses")
+      .select("category_key, total_amount")
+      .gte("expense_date", `${year}-01-01`)
+      .then(({ data }) => {
+        if (!data) return;
+        const newTotals: Record<string, number> = {};
+        for (const row of data) {
+          if (row.category_key && row.total_amount != null)
+            newTotals[row.category_key] = (newTotals[row.category_key] ?? 0) + Number(row.total_amount);
+        }
+        setReceiptTotals(newTotals);
+      });
   }
 
   return (
@@ -824,13 +874,31 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
                     <TableHead>Category</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead className="text-right">Tax</TableHead>
+                    <TableHead className="w-[60px]" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {receipts.map((r) => (
-                    <TableRow key={r.id}>
+                    <TableRow
+                      key={r.id}
+                      className="cursor-pointer hover:bg-muted/60 group"
+                      onClick={() => openReceipt(r)}
+                    >
                       <TableCell className="font-medium">
-                        {r.vendor ?? <span className="text-muted-foreground italic">Unknown</span>}
+                        <div className="flex items-center gap-1.5">
+                          {/* OCR confidence dot */}
+                          {r.ocr_confidence != null && (
+                            <span
+                              className={cn(
+                                "inline-block h-1.5 w-1.5 shrink-0 rounded-full",
+                                r.ocr_confidence >= 0.85 ? "bg-emerald-400" :
+                                r.ocr_confidence >= 0.60 ? "bg-amber-400"  : "bg-red-400",
+                              )}
+                              title={`OCR confidence: ${Math.round(r.ocr_confidence * 100)}%`}
+                            />
+                          )}
+                          {r.vendor ?? <span className="text-muted-foreground italic">Unknown</span>}
+                        </div>
                         {r.notes && (
                           <p className="text-[11px] text-muted-foreground truncate max-w-[160px]">
                             {r.notes}
@@ -849,17 +917,22 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
                           <Badge variant="outline" className="text-xs font-normal">
                             {CAT_LABEL[r.category_key] ?? r.category_key}
                           </Badge>
-                        ) : "—"}
+                        ) : (
+                          <Badge variant="outline" className="text-xs font-normal border-amber-300 text-amber-600">
+                            Uncategorized
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-right font-medium tabular-nums">
-                        {r.total_amount != null
-                          ? fmtCurrency(r.total_amount)
-                          : "—"}
+                        {r.total_amount != null ? fmtCurrency(r.total_amount) : "—"}
                       </TableCell>
                       <TableCell className="text-right text-sm text-muted-foreground tabular-nums">
-                        {r.tax_amount != null
-                          ? fmtCurrency(r.tax_amount)
-                          : "—"}
+                        {r.tax_amount != null ? fmtCurrency(r.tax_amount) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className="text-[10px] font-medium text-muted-foreground/50 group-hover:text-primary/60 transition-colors">
+                          Edit →
+                        </span>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -875,6 +948,15 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
         open={captureOpen}
         onClose={() => setCaptureOpen(false)}
         onSaved={handleReceiptSaved}
+      />
+
+      {/* ── View / Edit receipt dialog ───────────────────────────────────────── */}
+      <ReceiptViewEditDialog
+        receipt={viewReceipt}
+        open={viewOpen}
+        onClose={() => setViewOpen(false)}
+        onSaved={handleReceiptUpdated}
+        onDeleted={handleReceiptDeleted}
       />
     </div>
   );
