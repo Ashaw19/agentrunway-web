@@ -50,6 +50,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { PlaidItem, PlaidTransaction, MileageLog } from "@/lib/types/database";
+import { ExpensesMileageTab }     from "./expenses-mileage-tab";
+import { ExpensesBankImportsTab } from "./expenses-bank-imports-tab";
+
+interface ExpenseItemForPlaid {
+  id: string; key: string; title: string; category_id: string;
+}
+interface ExpenseCategoryForPlaid {
+  id: string; key: string; title: string; sort_order: number;
+}
 
 interface Props {
   initialCategories: ExpenseCategoryWithItems[];
@@ -61,6 +71,14 @@ interface Props {
   /** Prior year history for YoY comparison (up to 4 years) */
   priorYearHistory?: PriorYearRow[];
   currentYear?: number;
+  /** Mileage tab data */
+  mileageLogs?: MileageLog[];
+  /** Bank Imports tab data */
+  plaidItems?: PlaidItem[];
+  plaidTransactions?: PlaidTransaction[];
+  plaidExpenseItems?: ExpenseItemForPlaid[];
+  plaidExpenseCategories?: ExpenseCategoryForPlaid[];
+  plaidConfigured?: boolean;
 }
 
 // Per-category colour accent (left border + header icon tint)
@@ -82,9 +100,20 @@ const CAT_LABEL: Record<string, string> = Object.fromEntries(
   RECEIPT_CATEGORIES.map((c) => [c.key, c.label]),
 );
 
-export function ExpensesContent({ initialCategories, settings, transactions, initialReceipts = [], receiptTotalsByKey, priorYearHistory = [], currentYear }: Props) {
+export function ExpensesContent({
+  initialCategories, settings, transactions, initialReceipts = [],
+  receiptTotalsByKey, priorYearHistory = [], currentYear,
+  mileageLogs = [], plaidItems = [], plaidTransactions = [],
+  plaidExpenseItems = [], plaidExpenseCategories = [], plaidConfigured = false,
+}: Props) {
   const thisYear = currentYear ?? new Date().getFullYear();
   const [categories, setCategories] = useState(initialCategories);
+
+  // ── Tab state ─────────────────────────────────────────────────────────────
+  const [tab, setTab] = useState<"receipts" | "mileage" | "imports">("receipts");
+  const pendingImportsCount = plaidTransactions.filter(
+    (t) => t.amount > 0 && t.review_status === "pending",
+  ).length;
 
   // ── Receipt YTD totals (keyed by expense_items.key, refreshed after each save) ──
   const [receiptTotals, setReceiptTotals] = useState<Record<string, number>>(receiptTotalsByKey);
@@ -583,6 +612,57 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
         </Card>
       </div>
 
+      {/* ── Tab bar ──────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-1 border-b border-border/60">
+        {(["receipts", "mileage", "imports"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`relative px-4 py-2 text-sm font-medium transition-colors ${
+              tab === t
+                ? "text-foreground border-b-2 border-foreground -mb-px"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t === "receipts" && "Receipts"}
+            {t === "mileage"  && "Mileage"}
+            {t === "imports"  && (
+              <span className="flex items-center gap-1.5">
+                Bank Imports
+                {pendingImportsCount > 0 && (
+                  <span className="inline-flex items-center justify-center h-4 min-w-4 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 text-[10px] font-bold px-1">
+                    {pendingImportsCount}
+                  </span>
+                )}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tab: Mileage ─────────────────────────────────────────────────── */}
+      {tab === "mileage" && (
+        <ExpensesMileageTab
+          mileageLogs={mileageLogs}
+          year={thisYear}
+          settings={settings}
+        />
+      )}
+
+      {/* ── Tab: Bank Imports ─────────────────────────────────────────────── */}
+      {tab === "imports" && (
+        <ExpensesBankImportsTab
+          items={plaidItems}
+          transactions={plaidTransactions}
+          expenseItems={plaidExpenseItems}
+          expenseCategories={plaidExpenseCategories}
+          plaidConfigured={plaidConfigured}
+        />
+      )}
+
+      {/* ── Tab: Receipts ─────────────────────────────────────────────────── */}
+      {tab === "receipts" && (<>
+
       {/* ── Tax Deductibility Summary ────────────────────────────────────── */}
       {ytdTotal > 0 && (
         <Card className="border-l-4 border-l-emerald-500">
@@ -652,7 +732,7 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
                 Estimates only · Not tax advice · Consult a qualified accountant
               </p>
               <a
-                href="/tax"
+                href="/reports"
                 className="flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700"
               >
                 Generate T2125
@@ -1203,6 +1283,8 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
           )}
         </CardContent>
       </Card>
+
+      </>)}
 
       {/* ── Capture dialog ───────────────────────────────────────────────────── */}
       <ReceiptCaptureDialog

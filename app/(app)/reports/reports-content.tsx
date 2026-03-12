@@ -74,6 +74,8 @@ import {
 } from "@/lib/engines/runway-score-engine";
 import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { generateAdvisory, ADVISOR_CATEGORY_LABELS } from "@/lib/engines/advisor-engine";
+import type { CcaAsset } from "@/lib/types/database";
+import { ReportsT2125Tab } from "./reports-t2125-tab";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -85,6 +87,11 @@ interface Props {
   subscriptionTier?: string;
   historyItems?: HistoryItem[];
   receiptTotalsByKey?: Record<string, number>;
+  /** T2125 tab data */
+  ccaAssets?: CcaAsset[];
+  expenseAmounts?: Record<string, number>;
+  taxYear?: number;
+  userId?: string;
 }
 
 // ── Local helpers (mirrors dashboard-content.tsx) ─────────────────────────────
@@ -236,10 +243,17 @@ export function ReportsContent({
   subscriptionTier = "starter",
   historyItems = [],
   receiptTotalsByKey = {},
+  ccaAssets = [],
+  expenseAmounts = {},
+  taxYear,
+  userId = "",
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const [downloading, setDownloading] = useState(false);
   const [histReportOpen, setHistReportOpen] = useState(false);
+
+  // ── Tab state ────────────────────────────────────────────────────────────
+  const [tab, setTab] = useState<"overview" | "t2125">("overview");
 
   if (!settings) {
     return (
@@ -548,6 +562,38 @@ export function ReportsContent({
           )}
         </div>
       </div>
+
+      {/* ── Tab bar ──────────────────────────────────────────────────────────── */}
+      <div className="flex items-center gap-1 border-b border-border/60">
+        {(["overview", "t2125"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              tab === t
+                ? "text-foreground border-b-2 border-foreground -mb-px"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t === "overview" ? "Overview" : "T2125 / Tax Form"}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tab: T2125 ───────────────────────────────────────────────────────── */}
+      {tab === "t2125" && settings && (
+        <ReportsT2125Tab
+          settings={settings}
+          transactions={transactions.filter((tx) => tx.date.startsWith(String(taxYear ?? new Date().getFullYear())))}
+          expenseAmounts={expenseAmounts}
+          ccaAssets={ccaAssets}
+          taxYear={taxYear ?? new Date().getFullYear()}
+          userId={userId}
+        />
+      )}
+
+      {/* ── Tab: Overview ────────────────────────────────────────────────────── */}
+      {tab === "overview" && (<>
 
       {/* ── 1. Business Health Score (Hero) ───────────────────────────────────── */}
       <div className="rounded-2xl overflow-hidden border border-slate-700 shadow-lg bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -1328,6 +1374,8 @@ export function ReportsContent({
           settings={settings}
         />
       )}
+
+      </>)}
     </div>
   );
 }

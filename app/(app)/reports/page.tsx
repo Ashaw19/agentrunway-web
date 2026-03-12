@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ReportsContent } from "./reports-content";
+import type { CcaAsset } from "@/lib/types/database";
 
 export default async function ReportsPage() {
   const supabase = await createClient();
@@ -9,7 +10,7 @@ export default async function ReportsPage() {
 
   const year = new Date().getFullYear();
 
-  const [settingsResult, txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult] =
+  const [settingsResult, txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, ccaAssetsResult] =
     await Promise.all([
       supabase
         .from("user_settings")
@@ -46,6 +47,12 @@ export default async function ReportsPage() {
         .select("category_key, total_amount")
         .eq("user_id", user.id)
         .gte("expense_date", `${year}-01-01`),
+      // CCA assets for the T2125 tab
+      supabase
+        .from("t2125_cca_assets")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("acquisition_date", { ascending: false }),
     ]);
 
   const categories = (expCatResult.data ?? []).map((cat) => ({
@@ -62,6 +69,18 @@ export default async function ReportsPage() {
     }
   }
 
+  // Build expenseAmounts for T2125 tab: receipts YTD + projected recurring
+  const now = new Date();
+  const monthsElapsed   = now.getMonth() + (now.getDate() / 30);
+  const monthsRemaining = Math.max(0, 12 - monthsElapsed);
+  const expenseAmounts: Record<string, number> = { ...receiptTotalsByKey };
+  for (const item of expItemResult.data ?? []) {
+    if (item.monthly_recurring > 0) {
+      expenseAmounts[item.key] =
+        (expenseAmounts[item.key] ?? 0) + item.monthly_recurring * monthsRemaining;
+    }
+  }
+
   return (
     <ReportsContent
       settings={settingsResult.data}
@@ -71,6 +90,10 @@ export default async function ReportsPage() {
       subscriptionTier={settingsResult.data?.subscription_tier ?? "starter"}
       historyItems={historyResult.data ?? []}
       receiptTotalsByKey={receiptTotalsByKey}
+      ccaAssets={(ccaAssetsResult.data ?? []) as CcaAsset[]}
+      expenseAmounts={expenseAmounts}
+      taxYear={year}
+      userId={user.id}
     />
   );
 }

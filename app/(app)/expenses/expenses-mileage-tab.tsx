@@ -20,6 +20,7 @@ import { fmtCurrency }         from "@/lib/formatters";
 import { cn }                  from "@/lib/utils";
 import { CRA_MILEAGE_RATES }   from "@/lib/types/database";
 import type { MileageLog }     from "@/lib/types/database";
+import Link                    from "next/link";
 
 // ── CRA 2025 rates ────────────────────────────────────────────────────────────
 const RATE_FIRST  = CRA_MILEAGE_RATES.first5000;    // $0.72/km
@@ -41,15 +42,15 @@ const PURPOSES = [
 ];
 
 interface Props {
-  initialLogs: MileageLog[];
+  mileageLogs: MileageLog[];
   year: number;
   settings: { display_name?: string; province?: string } | null;
 }
 
-export function MileageContent({ initialLogs, year, settings: _settings }: Props) {
-  const [logs,    setLogs]    = useState<MileageLog[]>(initialLogs);
-  const [adding,  setAdding]  = useState(false);
-  const [saving,  setSaving]  = useState(false);
+export function ExpensesMileageTab({ mileageLogs, year, settings: _settings }: Props) {
+  const [logs,     setLogs]     = useState<MileageLog[]>(mileageLogs);
+  const [adding,   setAdding]   = useState(false);
+  const [saving,   setSaving]   = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
   // ── New trip form state ────────────────────────────────────────────────────
@@ -73,16 +74,11 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
     } else {
       deduction = THRESHOLD * RATE_FIRST + (km - THRESHOLD) * RATE_BEYOND;
     }
-    const firstKm   = Math.min(km, THRESHOLD);
-    const beyondKm  = Math.max(0, km - THRESHOLD);
-    return {
-      totalKm: km,
-      totalDeduction: deduction,
-      rateBreakdown: { firstKm, beyondKm },
-    };
+    const firstKm  = Math.min(km, THRESHOLD);
+    const beyondKm = Math.max(0, km - THRESHOLD);
+    return { totalKm: km, totalDeduction: deduction, rateBreakdown: { firstKm, beyondKm } };
   }, [logs]);
 
-  const ytdITD = year;     // for the "pace" note
   const currentMonth = new Date().getMonth() + 1; // 1–12
   const projectedKm  = currentMonth > 0 ? (totalKm / currentMonth) * 12 : 0;
 
@@ -103,7 +99,6 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSaving(false); return; }
 
-    // Determine CRA rate based on YTD km (first 5,000 at $0.72, rest at $0.66)
     const ratePerKm = totalKm < THRESHOLD ? RATE_FIRST : RATE_BEYOND;
 
     const { data, error } = await supabase
@@ -169,21 +164,15 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-5">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Mileage Log</h1>
-          <p className="text-sm text-muted-foreground">
-            Track business drives · CRA {year} rates: ${RATE_FIRST}/km (first {THRESHOLD.toLocaleString()} km) · ${RATE_BEYOND}/km thereafter
-          </p>
-        </div>
+    <div className="space-y-6">
+
+      {/* Sub-header + actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          CRA {year} rates: ${RATE_FIRST}/km (first {THRESHOLD.toLocaleString()} km) · ${RATE_BEYOND}/km thereafter
+        </p>
         <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={() => setAdding(true)}
-            className="gap-1.5"
-          >
+          <Button size="sm" onClick={() => setAdding(true)} className="gap-1.5">
             <Plus className="h-3.5 w-3.5" />
             Log Trip
           </Button>
@@ -202,7 +191,6 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Total KM */}
         <Card className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-100 to-blue-50 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-blue-700">
@@ -221,7 +209,6 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
           </CardContent>
         </Card>
 
-        {/* Est. Deduction */}
         <Card className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
@@ -232,13 +219,10 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
             <div className="text-3xl font-bold tracking-tight text-emerald-700">
               {fmtCurrency(totalDeduction)}
             </div>
-            <p className="mt-1 text-xs text-emerald-600/80">
-              At CRA {year} approved rates
-            </p>
+            <p className="mt-1 text-xs text-emerald-600/80">At CRA {year} approved rates</p>
           </CardContent>
         </Card>
 
-        {/* Trips logged */}
         <Card className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-100 to-slate-50 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -246,9 +230,7 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-slate-800">
-              {logs.length}
-            </div>
+            <div className="text-3xl font-bold tracking-tight text-slate-800">{logs.length}</div>
             <p className="mt-1 text-xs text-muted-foreground">
               {logs.length > 0
                 ? `${(totalKm / logs.length).toFixed(1)} km avg per trip`
@@ -257,7 +239,6 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
           </CardContent>
         </Card>
 
-        {/* Projected annual */}
         <Card className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-100 to-violet-50 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-violet-700">
@@ -268,14 +249,12 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
             <div className="text-3xl font-bold tracking-tight text-slate-800">
               {Math.round(projectedKm).toLocaleString()} km
             </div>
-            <p className="mt-1 text-xs text-violet-600/80">
-              At current pace · {ytdITD}
-            </p>
+            <p className="mt-1 text-xs text-violet-600/80">At current pace · {year}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Rate info card */}
+      {/* Rate breakdown card */}
       {rateBreakdown.firstKm > 0 && (
         <Card className="border-l-4 border-l-blue-400">
           <CardContent className="flex flex-wrap items-center gap-6 py-3">
@@ -321,7 +300,6 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {/* Date */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Date</Label>
                 <Input
@@ -331,8 +309,6 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
                   className="h-8 text-sm"
                 />
               </div>
-
-              {/* KM */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Distance (km)</Label>
                 <Input
@@ -345,8 +321,6 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
                   className="h-8 text-sm"
                 />
               </div>
-
-              {/* Purpose */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Purpose</Label>
                 <select
@@ -358,10 +332,10 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
                   {PURPOSES.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
-
-              {/* Description */}
               <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
-                <Label className="text-xs font-semibold">Description <span className="font-normal text-muted-foreground">(required for CRA records)</span></Label>
+                <Label className="text-xs font-semibold">
+                  Description <span className="font-normal text-muted-foreground">(required for CRA records)</span>
+                </Label>
                 <Input
                   placeholder="e.g. Client showing — 123 Oak St, Toronto"
                   value={form.description}
@@ -369,8 +343,6 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
                   className="h-8 text-sm"
                 />
               </div>
-
-              {/* From / To */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">From <span className="font-normal text-muted-foreground">(optional)</span></Label>
                 <Input
@@ -400,7 +372,6 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
               </div>
             </div>
 
-            {/* Rate preview */}
             {parseFloat(form.km) > 0 && (
               <div className="mt-3 flex items-center gap-2 rounded-md bg-emerald-100/60 px-3 py-2 text-sm">
                 <Check className="h-3.5 w-3.5 text-emerald-600" />
@@ -434,13 +405,27 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
               <p className="mt-0.5 text-xs text-blue-700">
                 Record each business drive with date, destination, km, and purpose. The CRA {year} deductible rates are{" "}
                 <strong>${RATE_FIRST}/km</strong> for the first {THRESHOLD.toLocaleString()} km and{" "}
-                <strong>${RATE_BEYOND}/km</strong> thereafter. Log trips regularly — the CRA can deny claims
-                without records.
+                <strong>${RATE_BEYOND}/km</strong> thereafter. Log trips regularly — the CRA can deny claims without records.
               </p>
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Vehicle business use % note */}
+      <Card className="border-amber-200 bg-amber-50/40">
+        <CardContent className="flex items-start gap-3 py-3">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <p className="text-xs text-amber-800">
+            <strong>Per-km mileage vs. actual vehicle expenses:</strong> This log tracks the CRA per-km method.
+            If you claim actual vehicle costs (insurance, fuel, depreciation), set your{" "}
+            <Link href="/settings" className="underline underline-offset-2 font-medium">
+              vehicle business use %
+            </Link>{" "}
+            in Settings instead. The CRA allows only one method per year.
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Trip log table */}
       {logs.length > 0 && (
@@ -490,16 +475,12 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
                           </p>
                         )}
                         {log.notes && (
-                          <p className="text-[11px] text-muted-foreground truncate max-w-[200px]">
-                            {log.notes}
-                          </p>
+                          <p className="text-[11px] text-muted-foreground truncate max-w-[200px]">{log.notes}</p>
                         )}
                       </TableCell>
                       <TableCell className="text-sm">
                         {log.purpose ? (
-                          <Badge variant="outline" className="text-xs font-normal">
-                            {log.purpose}
-                          </Badge>
+                          <Badge variant="outline" className="text-xs font-normal">{log.purpose}</Badge>
                         ) : "—"}
                       </TableCell>
                       <TableCell className="text-right font-medium tabular-nums">
@@ -549,7 +530,7 @@ export function MileageContent({ initialLogs, year, settings: _settings }: Props
         </Card>
       )}
 
-      {/* Disclaimer */}
+      {/* CRA disclaimer */}
       <p className="text-center text-xs leading-relaxed text-muted-foreground/60 pb-2">
         CRA rates shown are for {year}. Always verify current rates at{" "}
         <a

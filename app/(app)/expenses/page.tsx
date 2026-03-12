@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ExpensesContent } from "./expenses-content";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PlaidItem, PlaidTransaction } from "@/lib/types/database";
 
 // ── Default categories mirroring the iOS app exactly ─────────────────────────
 const DEFAULT_CATEGORIES = [
@@ -130,7 +131,19 @@ export default async function ExpensesPage() {
 
   const year = new Date().getFullYear();
 
-  const [categoriesResult, itemsResult, settingsResult, txResult, receiptTotalsResult, receiptsResult, historyResult] = await Promise.all([
+  // Server-side Plaid credential check
+  const plaidConfigured = !!(
+    process.env.PLAID_CLIENT_ID &&
+    process.env.PLAID_SECRET &&
+    process.env.PLAID_ENV
+  );
+
+  const [
+    categoriesResult, itemsResult, settingsResult, txResult,
+    receiptTotalsResult, receiptsResult, historyResult,
+    mileageResult, plaidItemsResult, plaidTxResult,
+    expItemsResult, expCatResult,
+  ] = await Promise.all([
     supabase
       .from("expense_categories")
       .select("*")
@@ -174,6 +187,38 @@ export default async function ExpensesPage() {
       .lt("year", year)
       .order("year", { ascending: false })
       .limit(4),
+    // Current-year mileage logs for the Mileage tab
+    supabase
+      .from("mileage_logs")
+      .select("*")
+      .eq("user_id", user.id)
+      .gte("trip_date", `${year}-01-01`)
+      .order("trip_date", { ascending: false }),
+    // Connected bank accounts for the Bank Imports tab
+    supabase
+      .from("plaid_items")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
+    // Plaid transactions (last 500) for the Bank Imports tab
+    supabase
+      .from("plaid_transactions")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("transaction_date", { ascending: false })
+      .limit(500),
+    // Expense sub-categories for the Bank Imports category dropdown
+    supabase
+      .from("expense_items")
+      .select("id, key, title, category_id")
+      .eq("user_id", user.id)
+      .order("sort_order"),
+    // Expense categories for grouping the dropdown
+    supabase
+      .from("expense_categories")
+      .select("id, key, title, sort_order")
+      .eq("user_id", user.id)
+      .order("sort_order"),
   ]);
 
   // Aggregate receipt totals per sub-category key for the current year
@@ -224,6 +269,12 @@ export default async function ExpensesPage() {
       receiptTotalsByKey={receiptTotalsByKey}
       priorYearHistory={historyResult.data ?? []}
       currentYear={year}
+      mileageLogs={mileageResult.data ?? []}
+      plaidItems={(plaidItemsResult.data ?? []) as PlaidItem[]}
+      plaidTransactions={(plaidTxResult.data ?? []) as PlaidTransaction[]}
+      plaidExpenseItems={expItemsResult.data ?? []}
+      plaidExpenseCategories={expCatResult.data ?? []}
+      plaidConfigured={plaidConfigured}
     />
   );
 }

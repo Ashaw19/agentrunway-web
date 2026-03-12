@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SettingsContent } from "./settings-content";
-import { type UserSettings } from "@/lib/types/database";
+import { type UserSettings, type PlaidItem } from "@/lib/types/database";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -15,13 +15,32 @@ export default async function SettingsPage() {
     .from("user_settings")
     .upsert({ user_id: user.id }, { onConflict: "user_id", ignoreDuplicates: true });
 
-  const { data: settings } = await supabase
-    .from("user_settings")
-    .select("*")
-    .eq("user_id", user.id)
-    .single();
+  const plaidConfigured = !!(
+    process.env.PLAID_CLIENT_ID &&
+    process.env.PLAID_SECRET &&
+    process.env.PLAID_ENV
+  );
+
+  const [{ data: settings }, { data: plaidItems }] = await Promise.all([
+    supabase
+      .from("user_settings")
+      .select("*")
+      .eq("user_id", user.id)
+      .single(),
+    supabase
+      .from("plaid_items")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false }),
+  ]);
 
   if (!settings) redirect("/dashboard");
 
-  return <SettingsContent settings={settings as UserSettings} />;
+  return (
+    <SettingsContent
+      settings={settings as UserSettings}
+      plaidItems={(plaidItems ?? []) as PlaidItem[]}
+      plaidConfigured={plaidConfigured}
+    />
+  );
 }

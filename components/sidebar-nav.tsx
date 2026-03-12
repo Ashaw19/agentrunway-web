@@ -19,9 +19,6 @@ import {
   Sun,
   Share2,
   Globe,
-  ClipboardList,
-  Car,
-  Landmark,
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -87,30 +84,6 @@ const navItems = [
     iconActive: "text-amber-300",
     iconInactive: "text-amber-400/60",
     borderActive: "border-l-amber-400",
-  },
-  {
-    label: "Mileage",
-    href: "/mileage",
-    icon: Car,
-    iconActive: "text-blue-300",
-    iconInactive: "text-blue-400/60",
-    borderActive: "border-l-blue-400",
-  },
-  {
-    label: "Bank Sync",
-    href: "/bank-sync",
-    icon: Landmark,
-    iconActive: "text-cyan-300",
-    iconInactive: "text-cyan-400/60",
-    borderActive: "border-l-cyan-400",
-  },
-  {
-    label: "Tax / T2125",
-    href: "/tax",
-    icon: ClipboardList,
-    iconActive: "text-emerald-300",
-    iconInactive: "text-emerald-400/60",
-    borderActive: "border-l-emerald-400",
   },
   {
     label: "Reports",

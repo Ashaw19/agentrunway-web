@@ -137,7 +137,7 @@ function EditableAmount({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function TaxContent({
+export function ReportsT2125Tab({
   settings,
   transactions,
   expenseAmounts,
