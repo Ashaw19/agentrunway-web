@@ -128,9 +128,9 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   const [exporting,      setExporting]      = useState<boolean>(false);
   const [publishing,     setPublishing]     = useState<boolean>(false);
   const [publishResult,  setPublishResult]  = useState<{ success: boolean; message: string } | null>(null);
-  // Per-slide status keyed by slide URL.  A URL-keyed map means status is
-  // automatically abandoned when URLs regenerate (config/template change).
-  const [slideStatus, setSlideStatus] = useState<Record<string, "ok" | "error">>({});
+  // Track slide URLs that have failed to load. A URL-keyed Set means stale
+  // errors are automatically abandoned when URLs regenerate on config changes.
+  const [slideErrors, setSlideErrors] = useState<Set<string>>(new Set());
 
   // ── Derived values ─────────────────────────────────────────────────────────
   const agentName    = settings?.display_name                              ?? "Your Agent";
@@ -182,7 +182,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   useEffect(() => {
     setSelectedIds(new Set(monthTx.map((tx) => tx.id)));
     setCurrentSlide(0);
-    setSlideStatus({});
+    setSlideErrors(new Set());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth, selectedYear]);
 
@@ -750,32 +750,31 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                   {/* Main slide */}
                   <div className="relative w-full max-w-[440px] mx-auto">
                     <div className="relative aspect-square w-full rounded-xl overflow-hidden border border-slate-200 shadow-md bg-slate-100">
+                      {/* Spinner — rendered first (behind), naturally covered once the PNG paints.
+                          We rely on DOM stacking order rather than onLoad so cached images
+                          always display without the event-timing race condition. */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                        <Loader2 className="h-6 w-6 text-slate-400 animate-spin" />
+                        <p className="text-xs text-muted-foreground">Generating…</p>
+                      </div>
+
                       {currentSlideSpec && currentSlideUrl && (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img
-                          key={currentSlideUrl}
-                          src={currentSlideUrl}
-                          alt={currentSlideSpec.label}
-                          className={`w-full h-full object-cover transition-opacity duration-300 ${slideStatus[currentSlideUrl] === "ok" ? "opacity-100" : "opacity-0"}`}
-                          onLoad={() => setSlideStatus((prev) => ({ ...prev, [currentSlideUrl]: "ok" }))}
-                          onError={() => setSlideStatus((prev) => ({ ...prev, [currentSlideUrl]: "error" }))}
-                        />
-                      )}
-                      {/* Loading skeleton / error overlay — shown until image confirms "ok" */}
-                      {currentSlideUrl && slideStatus[currentSlideUrl] !== "ok" && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-100">
-                          {slideStatus[currentSlideUrl] === "error" ? (
-                            <>
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            key={currentSlideUrl}
+                            src={currentSlideUrl}
+                            alt={currentSlideSpec.label}
+                            className="absolute inset-0 w-full h-full object-cover"
+                            onError={() => setSlideErrors((prev) => new Set([...prev, currentSlideUrl!]))}
+                          />
+                          {slideErrors.has(currentSlideUrl) && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-100">
                               <AlertCircle className="h-6 w-6 text-slate-400" />
                               <p className="text-xs text-muted-foreground">Preview unavailable</p>
-                            </>
-                          ) : (
-                            <>
-                              <Loader2 className="h-6 w-6 text-slate-400 animate-spin" />
-                              <p className="text-xs text-muted-foreground">Generating…</p>
-                            </>
+                            </div>
                           )}
-                        </div>
+                        </>
                       )}
                     </div>
                     {slides.length > 1 && (
@@ -814,7 +813,6 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                     <div className="flex gap-2 pb-2" style={{ minWidth: "max-content" }}>
                       {slides.map((spec, idx) => {
                         const thumbUrl = slideUrl(spec);
-                        const thumbSt  = slideStatus[thumbUrl];
                         return (
                           <button
                             key={idx}
@@ -823,20 +821,20 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                             style={{ width: 64, height: 64 }}
                           >
                             <div className="relative w-full h-full bg-slate-100">
+                              {/* Spinner behind — covered once image paints */}
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <Loader2 className="h-3 w-3 text-slate-400 animate-spin" />
+                              </div>
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={thumbUrl}
                                 alt={spec.label}
-                                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${thumbSt === "ok" ? "opacity-100" : "opacity-0"}`}
-                                onLoad={() => setSlideStatus((prev) => ({ ...prev, [thumbUrl]: "ok" }))}
-                                onError={() => setSlideStatus((prev) => ({ ...prev, [thumbUrl]: "error" }))}
+                                className="absolute inset-0 w-full h-full object-cover"
+                                onError={() => setSlideErrors((prev) => new Set([...prev, thumbUrl]))}
                               />
-                              {thumbSt !== "ok" && (
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                  {thumbSt === "error"
-                                    ? <AlertCircle className="h-4 w-4 text-slate-400" />
-                                    : <Loader2 className="h-3 w-3 text-slate-400 animate-spin" />
-                                  }
+                              {slideErrors.has(thumbUrl) && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-slate-100">
+                                  <AlertCircle className="h-4 w-4 text-slate-400" />
                                 </div>
                               )}
                             </div>

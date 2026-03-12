@@ -134,10 +134,13 @@ async function loadGoogleFont(family: string, weight: number): Promise<ArrayBuff
 // Satori's internal image fetcher can silently fail for remote URLs on the edge
 // runtime — embedding the image directly guarantees it renders every time.
 
-async function fetchAsDataUrl(url: string): Promise<string> {
+async function fetchAsDataUrl(url: string, timeoutMs = 5000): Promise<string> {
   if (!url) return "";
   try {
-    const res = await fetch(url);
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    const res   = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(timer);
     if (!res.ok) return "";
     const buf   = await res.arrayBuffer();
     const mime  = res.headers.get("content-type") ?? "image/jpeg";
