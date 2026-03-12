@@ -207,7 +207,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   function toggleTx(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
       return next;
     });
     setCurrentSlide(0);
@@ -751,6 +751,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                   <div className="relative w-full max-w-[440px] mx-auto">
                     <div className="relative aspect-square w-full rounded-xl overflow-hidden border border-slate-200 shadow-md bg-slate-100">
                       {currentSlideSpec && currentSlideUrl && (
+                        /* eslint-disable-next-line @next/next/no-img-element */
                         <img
                           key={currentSlideUrl}
                           src={currentSlideUrl}
@@ -822,6 +823,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                             style={{ width: 64, height: 64 }}
                           >
                             <div className="relative w-full h-full bg-slate-100">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={thumbUrl}
                                 alt={spec.label}

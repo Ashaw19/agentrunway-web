@@ -22,7 +22,7 @@ import {
 } from "@/lib/engines/projection-engine";
 import { calculate } from "@/lib/engines/canadian-tax-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
-import { compare, percentileRank } from "@/lib/engines/benchmark-engine";
+import { compare } from "@/lib/engines/benchmark-engine";
 import { probabilityBands, fiveYearBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { compute as computeRunwayScore } from "@/lib/engines/runway-score-engine";
 import type { BusinessHealthReport } from "@/lib/engines/runway-score-engine";

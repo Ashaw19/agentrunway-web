@@ -67,7 +67,7 @@ export function ExpensesBankImportsTab({
   const router   = useRouter();
   const supabase = createClient();
 
-  const [localItems, setLocalItems] = useState<PlaidItem[]>(items);
+  const [localItems] = useState<PlaidItem[]>(items);
   const [localTxs,   setLocalTxs]   = useState<PlaidTransaction[]>(transactions);
 
   // Per-row category selection

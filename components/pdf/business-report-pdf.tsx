@@ -1024,8 +1024,10 @@ function PageHeaderComp({
       <View style={s.pageHeaderLeft}>
         {/* Logo → avatar → initials fallback */}
         {logoUrl ? (
+          /* eslint-disable-next-line jsx-a11y/alt-text */
           <Image src={logoUrl} style={s.pageHeaderLogo} />
         ) : avatarUrl ? (
+          /* eslint-disable-next-line jsx-a11y/alt-text */
           <Image src={avatarUrl} style={s.pageHeaderLogo} />
         ) : (
           <View style={s.pageHeaderInitials}>
@@ -1283,6 +1285,7 @@ export function BusinessReportPDF({
           {/* Agent identity row: avatar on left, name/brokerage on right */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 18, marginBottom: 6 }}>
             {!!avatarUrl ? (
+              /* eslint-disable-next-line jsx-a11y/alt-text */
               <Image src={avatarUrl} style={s.coverAvatarLarge} />
             ) : (
               <View style={[s.coverAvatarLarge, { backgroundColor: C.navyMid, alignItems: "center", justifyContent: "center" }]}>

@@ -109,7 +109,6 @@ export async function POST(req: NextRequest) {
     let modifiedCount = 0;
     let removedCount  = 0;
 
-    // eslint-disable-next-line no-constant-condition
     while (true) {
       const syncResp = await withRetry(
         () => plaid.transactionsSync({ access_token: item.access_token, cursor, count: 500 }),

@@ -212,6 +212,7 @@ export function ReceiptViewEditDialog({
               {imageLoading ? (
                 <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
               ) : imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={imageUrl}
                   alt="Receipt"

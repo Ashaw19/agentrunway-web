@@ -146,7 +146,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
 
   // QR mode state
   const [qrUrl,      setQrUrl]      = useState<string | null>(null);   // full phone URL
-  const [tokenId,    setTokenId]    = useState<string | null>(null);   // for polling
+  const [_tokenId,   setTokenId]    = useState<string | null>(null);   // for polling
   const [countdown,  setCountdown]  = useState<number>(300);           // seconds remaining
 
   // Device detection — starts false (SSR-safe), updates after mount

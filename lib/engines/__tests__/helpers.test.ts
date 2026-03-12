@@ -17,7 +17,6 @@ import {
   computeWeightedGCI,
   getAgentPct,
   getBrokeragePct,
-  SPLIT_PRESET_AGENT_PCT,
   PIPELINE_STAGE_DEFAULTS,
 } from "@/lib/types/database";
 import type { Transaction, PipelineDeal, SplitPreset } from "@/lib/types/database";

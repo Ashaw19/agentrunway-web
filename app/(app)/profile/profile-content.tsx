@@ -39,7 +39,7 @@ import {
   type UserSettings,
   type HistoryItem,
 } from "@/lib/types/database";
-import { fmtCurrency, fmtCompact } from "@/lib/formatters";
+import { fmtCurrency } from "@/lib/formatters";
 
 // ── Theme config ──────────────────────────────────────────────────────────────
 
