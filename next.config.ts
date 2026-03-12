@@ -7,6 +7,10 @@ import type { NextConfig } from "next";
 //
 // CSP notes:
 //   - 'unsafe-inline' for scripts is required by Next.js App Router hydration.
+//   - 'wasm-unsafe-eval' allows WebAssembly compilation client-side (required by
+//     yoga-layout/WASM used internally by @react-pdf/renderer for PDF layout).
+//     This is intentionally narrower than 'unsafe-eval' — it only enables WASM
+//     compilation, not eval() or new Function() attacks.
 //   - cdn.plaid.com  — Plaid Link SDK (loaded client-side)
 //   - js.stripe.com  — Stripe.js (loaded client-side for billing)
 //   - *.supabase.co  — Supabase REST, Auth, Realtime, and Storage
@@ -16,7 +20,7 @@ import type { NextConfig } from "next";
 //   - frame-ancestors 'none' — equivalent to X-Frame-Options: DENY (belt+suspenders)
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://cdn.plaid.com https://js.stripe.com",
+  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.plaid.com https://js.stripe.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.supabase.co https://graph.facebook.com https://*.cdninstagram.com https://*.fbcdn.net",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.plaid.com https://api.stripe.com https://api.groq.com",

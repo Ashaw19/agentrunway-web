@@ -111,21 +111,21 @@ const STYLE_COMPAT: Record<string, TemplateFamily> = {
 const SIZE = 1080;
 
 // ── Google Fonts loader ───────────────────────────────────────────────────────
-// Fetches the CSS from Google Fonts API → extracts woff2 URL → returns the font binary.
-// The UA header is required to receive woff2 (the modern format Satori needs).
+// Fetches the CSS from Google Fonts API → extracts TTF URL → returns the font binary.
+//
+// IMPORTANT: Satori (via @vercel/og) uses OpenType.js which does NOT support
+// WOFF2 decompression — "Unsupported OpenType signature wOF2". We must request
+// TTF format. Google Fonts returns TTF when no User-Agent is sent (or when a
+// non-browser UA is used). The bundled Noto Sans fallback is also .ttf.
 
 async function loadGoogleFont(family: string, weight: number): Promise<ArrayBuffer> {
   const cssUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:wght@${weight}&display=swap`;
-  const css = await fetch(cssUrl, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-    },
-  }).then((r) => r.text());
+  // No User-Agent → Google Fonts returns .ttf (TrueType) instead of .woff2
+  const css = await fetch(cssUrl).then((r) => r.text());
 
-  // Each @font-face block has: src: url(https://fonts.gstatic.com/....woff2) format(...)
-  const match = css.match(/src:\s*url\(([^)]+\.woff2)\)/);
-  if (!match?.[1]) throw new Error(`woff2 URL not found for ${family} ${weight}`);
+  // Extract the .ttf URL from the @font-face src
+  const match = css.match(/src:\s*url\(([^)]+\.ttf)\)/);
+  if (!match?.[1]) throw new Error(`TTF URL not found for ${family} ${weight}`);
   return fetch(match[1]).then((r) => r.arrayBuffer());
 }
 
@@ -160,6 +160,7 @@ async function fetchAsDataUrl(url: string, timeoutMs = 5000): Promise<string> {
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
+  try {
   const sp = new URL(req.url).searchParams;
 
   const rawFamily  = sp.get("templateFamily") ?? sp.get("style") ?? "classic-luxury";
@@ -232,7 +233,17 @@ export async function GET(req: NextRequest) {
     fetchAsDataUrl(rawHeadshotUrl),
   ]);
 
-  const imgOptions = { width: SIZE, height: SIZE, fonts: fontConfigs };
+  // IMPORTANT: Only set `fonts` when we loaded custom display fonts.
+  // @vercel/og bundles Noto Sans as a fallback, but its render() logic is:
+  //   fonts: options.fonts || defaultFonts
+  // An empty array [] is truthy, so passing `fonts: []` overrides the fallback
+  // and leaves Satori with zero fonts → crash on every text node.
+  const imgOptions = {
+    width: SIZE,
+    height: SIZE,
+    ...(fontConfigs.length > 0 ? { fonts: fontConfigs } : {}),
+  };
+
   // df = display font reference string; applied to all hero / heading elements
   const df = fontConfigs.length > 0 ? "Display, sans-serif" : "sans-serif";
 
@@ -843,4 +854,12 @@ export async function GET(req: NextRequest) {
     ),
     imgOptions,
   );
+
+  } catch (err: unknown) {
+    console.error("[social/slide] generation failed:", err);
+    return new Response(
+      JSON.stringify({ error: err instanceof Error ? err.message : "Unknown slide error" }),
+      { status: 500, headers: { "content-type": "application/json" } },
+    );
+  }
 }

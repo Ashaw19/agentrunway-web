@@ -464,7 +464,8 @@ export function ExpensesContent({
       a.click();
       URL.revokeObjectURL(url);
       toast.success("PDF downloaded ✓");
-    } catch {
+    } catch (err) {
+      console.error("[ExpensePDF] generation failed:", err);
       toast.error("PDF generation failed — please try again.");
     } finally {
       setExporting(null);
