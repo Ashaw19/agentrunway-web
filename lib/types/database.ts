@@ -330,6 +330,11 @@ export interface HistoryItem {
   is_locked: boolean;
   split_pct: number | null; // agent's brokerage split this year (e.g. 0.75 = 75/25)
 
+  // Expense + mileage history (migration 00017)
+  annual_expenses:       number;  // total annual business expenses
+  annual_mileage_km:     number;  // total business km driven
+  annual_mileage_deduct: number;  // total mileage deduction claimed
+
   created_at: string;
   updated_at: string;
 }

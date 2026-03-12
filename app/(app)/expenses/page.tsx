@@ -130,7 +130,7 @@ export default async function ExpensesPage() {
 
   const year = new Date().getFullYear();
 
-  const [categoriesResult, itemsResult, settingsResult, txResult, receiptTotalsResult, receiptsResult] = await Promise.all([
+  const [categoriesResult, itemsResult, settingsResult, txResult, receiptTotalsResult, receiptsResult, historyResult] = await Promise.all([
     supabase
       .from("expense_categories")
       .select("*")
@@ -166,6 +166,14 @@ export default async function ExpensesPage() {
       .order("expense_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(50),
+    // Prior year history for YoY comparison (last 4 years excluding current)
+    supabase
+      .from("history_items")
+      .select("year, annual_gci, annual_expenses, annual_mileage_km, annual_mileage_deduct")
+      .eq("user_id", user.id)
+      .lt("year", year)
+      .order("year", { ascending: false })
+      .limit(4),
   ]);
 
   // Aggregate receipt totals per sub-category key for the current year
@@ -214,6 +222,8 @@ export default async function ExpensesPage() {
       transactions={txResult.data ?? []}
       initialReceipts={receiptsResult.data ?? []}
       receiptTotalsByKey={receiptTotalsByKey}
+      priorYearHistory={historyResult.data ?? []}
+      currentYear={year}
     />
   );
 }

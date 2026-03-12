@@ -22,6 +22,14 @@ import {
   type UserSettings,
   type Transaction,
 } from "@/lib/types/database";
+
+interface PriorYearRow {
+  year: number;
+  annual_gci: number;
+  annual_expenses: number;
+  annual_mileage_km: number;
+  annual_mileage_deduct: number;
+}
 import { survivalResult } from "@/lib/engines/survival-engine";
 import { EXPENSE_KEY_TO_T2125 } from "@/lib/engines/t2125-engine";
 import { ExpenseDonut, type DonutDataPoint } from "@/components/expense-donut";
@@ -50,6 +58,9 @@ interface Props {
   initialReceipts?: ReceiptExpense[];
   /** Current-year receipt totals keyed by expense_items.key — computed server-side */
   receiptTotalsByKey: Record<string, number>;
+  /** Prior year history for YoY comparison (up to 4 years) */
+  priorYearHistory?: PriorYearRow[];
+  currentYear?: number;
 }
 
 // Per-category colour accent (left border + header icon tint)
@@ -71,7 +82,8 @@ const CAT_LABEL: Record<string, string> = Object.fromEntries(
   RECEIPT_CATEGORIES.map((c) => [c.key, c.label]),
 );
 
-export function ExpensesContent({ initialCategories, settings, transactions, initialReceipts = [], receiptTotalsByKey }: Props) {
+export function ExpensesContent({ initialCategories, settings, transactions, initialReceipts = [], receiptTotalsByKey, priorYearHistory = [], currentYear }: Props) {
+  const thisYear = currentYear ?? new Date().getFullYear();
   const [categories, setCategories] = useState(initialCategories);
 
   // ── Receipt YTD totals (keyed by expense_items.key, refreshed after each save) ──
@@ -334,6 +346,30 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
         }
         setReceiptTotals(newTotals);
       });
+  }
+
+  // ── Year-over-year prior year editable rows ───────────────────────────────
+  const [priorRows, setPriorRows] = useState<PriorYearRow[]>(priorYearHistory);
+  const [savingYoy, setSavingYoy] = useState<number | null>(null); // year being saved
+
+  async function saveYoyExpenses(yr: number, field: "annual_expenses" | "annual_mileage_km" | "annual_mileage_deduct", rawValue: string) {
+    const val = parseFloat(rawValue) || 0;
+    setPriorRows((prev) => prev.map((r) => r.year === yr ? { ...r, [field]: val } : r));
+    setSavingYoy(yr);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSavingYoy(null); return; }
+    // Upsert: create history_item for this year if it doesn't exist
+    const existing = priorRows.find((r) => r.year === yr);
+    if (existing) {
+      await supabase.from("history_items").update({ [field]: val }).eq("user_id", user.id).eq("year", yr);
+    } else {
+      await supabase.from("history_items").upsert({
+        user_id: user.id, year: yr, annual_gci: 0, annual_tx: 0,
+        quarter_gci: [0,0,0,0], quarter_tx: [0,0,0,0], [field]: val,
+      }, { onConflict: "user_id,year" });
+    }
+    setSavingYoy(null);
   }
 
   // ── Export helpers ────────────────────────────────────────────────────────
@@ -623,6 +659,129 @@ export function ExpensesContent({ initialCategories, settings, transactions, ini
                 <ArrowRight className="h-3 w-3" />
               </a>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Year-over-Year Expense History ──────────────────────────────── */}
+      {(priorRows.length > 0 || ytdTotal > 0) && (
+        <Card className="rounded-2xl shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Year-over-Year Expenses</CardTitle>
+                <CardDescription className="mt-0.5 text-xs">
+                  Enter prior year totals to track your expense trend · Edits save automatically
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Year</TableHead>
+                    <TableHead className="text-right">Total Expenses</TableHead>
+                    <TableHead className="text-right">Mileage (km)</TableHead>
+                    <TableHead className="text-right">Mileage Deduction</TableHead>
+                    <TableHead className="text-right hidden md:table-cell">GCI</TableHead>
+                    <TableHead className="text-right hidden md:table-cell">Exp. Ratio</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {/* Current year row — read-only from live data */}
+                  <TableRow className="bg-emerald-50/40">
+                    <TableCell className="font-semibold">
+                      {thisYear}
+                      <span className="ml-1.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                        Live
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums text-emerald-700">
+                      {fmtCurrency(ytdTotal)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">—</TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">—</TableCell>
+                    <TableCell className="text-right tabular-nums hidden md:table-cell">
+                      {ytdGCI > 0 ? fmtCurrency(ytdGCI) : "—"}
+                    </TableCell>
+                    <TableCell className={cn(
+                      "text-right font-semibold hidden md:table-cell",
+                      ytdGCI > 0 ? (expenseRatio > 0.35 ? "text-amber-600" : "text-emerald-600") : "text-muted-foreground",
+                    )}>
+                      {ytdGCI > 0 ? fmtPct(expenseRatio) : "—"}
+                    </TableCell>
+                  </TableRow>
+
+                  {/* Prior year rows — editable */}
+                  {priorRows.map((row) => {
+                    const ratio = row.annual_gci > 0 ? row.annual_expenses / row.annual_gci : null;
+                    const isSaving = savingYoy === row.year;
+                    return (
+                      <TableRow key={row.year} className="group">
+                        <TableCell className="font-medium text-muted-foreground">
+                          {row.year}
+                          {isSaving && (
+                            <span className="ml-1.5 text-[10px] text-blue-500">saving…</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            step="100"
+                            min="0"
+                            defaultValue={row.annual_expenses > 0 ? row.annual_expenses : ""}
+                            placeholder="0"
+                            onBlur={(e) => saveYoyExpenses(row.year, "annual_expenses", e.target.value)}
+                            className="ml-auto h-7 w-28 text-right text-sm"
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            step="10"
+                            min="0"
+                            defaultValue={row.annual_mileage_km > 0 ? row.annual_mileage_km : ""}
+                            placeholder="km"
+                            onBlur={(e) => saveYoyExpenses(row.year, "annual_mileage_km", e.target.value)}
+                            className="ml-auto h-7 w-24 text-right text-sm"
+                          />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            step="50"
+                            min="0"
+                            defaultValue={row.annual_mileage_deduct > 0 ? row.annual_mileage_deduct : ""}
+                            placeholder="$0"
+                            onBlur={(e) => saveYoyExpenses(row.year, "annual_mileage_deduct", e.target.value)}
+                            className="ml-auto h-7 w-24 text-right text-sm"
+                          />
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground hidden md:table-cell">
+                          {row.annual_gci > 0 ? fmtCurrency(row.annual_gci) : "—"}
+                        </TableCell>
+                        <TableCell className={cn(
+                          "text-right font-medium hidden md:table-cell",
+                          ratio == null ? "text-muted-foreground" :
+                          ratio > 0.35 ? "text-amber-600" : "text-emerald-600",
+                        )}>
+                          {ratio != null ? fmtPct(ratio) : "—"}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+            {priorRows.length === 0 && (
+              <p className="px-4 py-3 text-xs text-muted-foreground">
+                No prior year history yet. Add years in the{" "}
+                <a href="/history" className="underline underline-offset-2 hover:text-foreground">History</a>{" "}
+                page and they&apos;ll appear here for comparison.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
