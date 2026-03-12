@@ -217,6 +217,27 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
+  // ── 5. Idempotency guard ───────────────────────────────────────────────────
+  // Plaid guarantees at-least-once delivery. Deduplicate using a SHA-256 hash
+  // of the raw body as the event key (duplicate webhooks are byte-identical).
+  // Reuses the stripe_events table with a "plaid:" prefix to avoid a new migration.
+  const bodyHash = crypto.createHash("sha256").update(rawBody, "utf8").digest("hex");
+  const idempotencyKey = `plaid:${bodyHash}`;
+
+  const { error: idempotencyError } = await admin
+    .from("stripe_events")
+    .insert({ event_id: idempotencyKey });
+
+  if (idempotencyError) {
+    if (idempotencyError.code === "23505") {
+      // Duplicate webhook — already processed
+      console.info("[plaid/webhook] duplicate event ignored:", idempotencyKey.slice(0, 20));
+      return NextResponse.json({ received: true });
+    }
+    // Unexpected DB error — log but continue rather than silently dropping the event
+    console.error("[plaid/webhook] failed to record idempotency key:", idempotencyError.message);
+  }
+
   // ── 5. Handle TRANSACTIONS webhooks ────────────────────────────────────────
   if (webhook_type === "TRANSACTIONS") {
     if (

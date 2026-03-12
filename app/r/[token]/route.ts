@@ -326,11 +326,28 @@ export async function GET(
 </body>
 </html>`;
 
+  // Tight per-page CSP — this page uses only inline CSS/JS and a single
+  // same-origin fetch. No Plaid, Stripe, Supabase, or external assets needed.
+  // This overrides the broader global CSP from next.config.ts for this route.
+  const pageCsp = [
+    "default-src 'none'",
+    "script-src 'unsafe-inline'",
+    "style-src 'unsafe-inline'",
+    "connect-src 'self'",     // fetch to /api/receipts/mobile-upload/[token]
+    "img-src blob: data:",    // canvas toBlob() URL for image compression
+    "frame-ancestors 'none'",
+    "form-action 'none'",
+    "base-uri 'none'",
+  ].join("; ");
+
   return new NextResponse(html, {
     status: 200,
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store",
+      "Content-Security-Policy": pageCsp,
+      "X-Content-Type-Options": "nosniff",
+      "X-Frame-Options": "DENY",
     },
   });
 }

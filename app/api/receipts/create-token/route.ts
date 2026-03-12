@@ -72,23 +72,17 @@ export async function POST(
   try {
     // ── 0. Resolve the origin the phone should use ─────────────────────────
     const phoneOrigin = resolvePhoneOrigin(req);
-    console.log("[create-token] phoneOrigin →", phoneOrigin);
 
     // ── 1. Authenticate ────────────────────────────────────────────────────
-    console.log("[create-token] 1: getting SSR client");
     const supabase = await createClient();
-
-    console.log("[create-token] 2: getUser()");
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
       console.error("[create-token] auth failed:", authError?.message);
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
-    console.log("[create-token] 3: user ok →", user.id);
 
     // ── 2. Create token row via admin client (bypasses RLS) ────────────────
-    console.log("[create-token] 4: creating admin client");
     let admin;
     try {
       admin = createAdminClient();
@@ -100,7 +94,6 @@ export async function POST(
 
     const token = generateToken();
 
-    console.log("[create-token] 5: inserting token row");
     const { data, error } = await admin
       .from("receipt_upload_tokens")
       .insert({
@@ -118,7 +111,6 @@ export async function POST(
         { status: 500 },
       );
     }
-    console.log("[create-token] 6: row created ok →", (data as Record<string, unknown>).id);
 
     return NextResponse.json({
       ok:          true,
