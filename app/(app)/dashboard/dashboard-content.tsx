@@ -47,6 +47,8 @@ import {
   Trophy,
   CalendarCheck,
   Zap,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
@@ -63,6 +65,7 @@ import {
   type UserSettings,
   type ExpenseCategoryWithItems,
   type HistoryItem,
+  type ContactTask,
 } from "@/lib/types/database";
 import {
   seasonalFractionElapsed,
@@ -117,6 +120,7 @@ interface Props {
   subscriptionTier?: string;
   showUpgradeBanner?: boolean;
   userName?: string;
+  openTasks?: ContactTask[];
 }
 
 function getTimeGreeting(): { greeting: string; emoji: string } {
@@ -183,9 +187,17 @@ export function DashboardContent({
   subscriptionTier: _subscriptionTier = "starter",
   showUpgradeBanner = false,
   userName,
+  openTasks = [],
 }: Props) {
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [showAnnualReview, setShowAnnualReview] = useState(false);
+  // ── CRM task widget state ───────────────────────────────────────────────
+  const [localTasks, setLocalTasks] = useState<ContactTask[]>(openTasks);
+  async function completeTaskFromDashboard(taskId: string) {
+    setLocalTasks((prev) => prev.filter((t) => t.id !== taskId));
+    const supabase = createClient();
+    await supabase.from("contact_tasks").update({ completed_at: new Date().toISOString() }).eq("id", taskId);
+  }
   const { fire: fireConfetti } = useConfetti();
   const confettiFiredRef = useRef(false);
   const now = new Date();
@@ -975,6 +987,75 @@ export function DashboardContent({
           </CardContent>
         </Card>
       )}
+
+      {/* ── Section: Follow-up Tasks ── */}
+      {localTasks.length > 0 && (() => {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const overdue  = localTasks.filter((t) => t.due_date < todayStr);
+        const dueToday = localTasks.filter((t) => t.due_date === todayStr);
+        const upcoming = localTasks.filter((t) => t.due_date > todayStr).slice(0, 3);
+        const shown    = [...overdue, ...dueToday, ...upcoming].slice(0, 5);
+        return (
+          <Card className="rounded-2xl border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-sm">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                  <CheckSquare className="h-4 w-4 text-blue-500" />
+                  Follow-up Tasks
+                  {overdue.length > 0 && (
+                    <span className="ml-1 rounded-full bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 leading-none">
+                      {overdue.length} overdue
+                    </span>
+                  )}
+                </CardTitle>
+                <Link href="/clients" className="text-xs text-blue-600 hover:underline font-medium">
+                  View all →
+                </Link>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-1.5">
+              {shown.map((task) => {
+                const isOverdue = task.due_date < todayStr;
+                const isToday   = task.due_date === todayStr;
+                const dateLabel = isOverdue ? `Overdue · ${task.due_date}`
+                                : isToday   ? "Due today"
+                                : task.due_date;
+                return (
+                  <div key={task.id} className="flex items-center gap-2.5 rounded-lg bg-white/60 px-3 py-2">
+                    <button
+                      onClick={() => completeTaskFromDashboard(task.id)}
+                      className="text-muted-foreground hover:text-emerald-600 transition-colors shrink-0"
+                      title="Mark complete"
+                    >
+                      <Square className="h-4 w-4" />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
+                      <p className={cn("text-[11px]", isOverdue ? "text-red-600 font-semibold" : isToday ? "text-amber-700 font-medium" : "text-muted-foreground")}>
+                        {dateLabel}
+                      </p>
+                    </div>
+                    <span className={cn(
+                      "text-[10px] font-semibold border rounded px-1.5 py-0.5 shrink-0",
+                      task.priority === "high"   ? "bg-red-50 text-red-700 border-red-200"
+                      : task.priority === "low"  ? "bg-gray-50 text-gray-600 border-gray-200"
+                      : "bg-blue-50 text-blue-700 border-blue-200",
+                    )}>
+                      {task.priority}
+                    </span>
+                  </div>
+                );
+              })}
+              {localTasks.length > 5 && (
+                <p className="text-xs text-blue-700 text-center pt-1">
+                  +{localTasks.length - 5} more tasks —{" "}
+                  <Link href="/clients" className="underline font-medium">view all in CRM</Link>
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* ── Section: Insights & Actions ── */}
       {insights.length > 0 && <SectionHeader label="Insights & Actions" />}

@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardContent } from "./dashboard-content";
-import type { HistoryItem } from "@/lib/types/database";
+import type { HistoryItem, ContactTask } from "@/lib/types/database";
 
 export default async function DashboardPage({
   searchParams,
@@ -29,7 +29,7 @@ export default async function DashboardPage({
   const dashYear = new Date().getFullYear();
 
   // Fetch dashboard data in parallel
-  const [txResult, pipelineResult, settingsResult, expCatResult, expItemResult, historyResult, receiptTotalsResult] =
+  const [txResult, pipelineResult, settingsResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -68,6 +68,14 @@ export default async function DashboardPage({
         .select("total_amount")
         .eq("user_id", user.id)
         .gte("expense_date", `${dashYear}-01-01`),
+      // Open follow-up tasks (for dashboard widget)
+      supabase
+        .from("contact_tasks")
+        .select("*")
+        .eq("user_id", user.id)
+        .is("completed_at", null)
+        .order("due_date", { ascending: true })
+        .limit(10),
     ]);
 
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
@@ -99,6 +107,7 @@ export default async function DashboardPage({
       subscriptionTier={settingsResult.data?.subscription_tier ?? "starter"}
       showUpgradeBanner={showUpgradeBanner}
       userName={userName}
+      openTasks={(tasksResult.data ?? []) as ContactTask[]}
     />
   );
 }
