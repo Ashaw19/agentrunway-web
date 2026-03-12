@@ -6,28 +6,31 @@ import type { NextConfig } from "next";
 // inherits them without per-route boilerplate.
 //
 // CSP notes:
-//   - 'unsafe-inline' for scripts is required by Next.js App Router hydration.
-//   - 'wasm-unsafe-eval' allows WebAssembly compilation client-side (required by
-//     yoga-layout/WASM used internally by @react-pdf/renderer for PDF layout,
-//     and @imgly/background-removal for AI background removal).
-//     This is intentionally narrower than 'unsafe-eval' — it only enables WASM
-//     compilation, not eval() or new Function() attacks.
-//   - blob: in script-src — required for @imgly/background-removal: ORT v1.21 creates
-//     a type:"module" Worker whose script URL is a blob:. Chrome checks script-src
-//     (not just worker-src) for module worker scripts, so blob: must be present here.
-//   - cdn.plaid.com  — Plaid Link SDK (loaded client-side)
-//   - js.stripe.com  — Stripe.js (loaded client-side for billing)
-//   - *.supabase.co  — Supabase REST, Auth, Realtime, and Storage
-//   - api.groq.com   — server-side only, but listed in connect-src to allow
-//                      any future client-side streaming fetch
-//   - staticimgly.com — @imgly/background-removal AI model files (fetched on demand)
-//   - frame-src      — Stripe Checkout iframe + Plaid Link iframe
-//   - frame-ancestors 'none' — equivalent to X-Frame-Options: DENY (belt+suspenders)
-//   - worker-src blob: — @imgly/background-removal spawns a Web Worker via blob URL
-//   - child-src blob:  — Safari fallback (Safari ignores worker-src, uses child-src)
+//   - 'unsafe-inline'    — Required by Next.js App Router hydration.
+//   - 'unsafe-eval'      — Required by onnxruntime-web (ORT v1.21) used inside
+//                          @imgly/background-removal. ORT generates optimised WASM
+//                          bindings via new Function() at runtime. 'wasm-unsafe-eval'
+//                          alone is NOT enough — it only covers WebAssembly.compile(),
+//                          not eval()/new Function().
+//   - 'wasm-unsafe-eval' — Allows WebAssembly compilation for ORT & yoga-layout
+//                          (@react-pdf/renderer). Kept alongside 'unsafe-eval' for
+//                          older browsers that treat them independently.
+//   - blob: (script-src) — ORT v1.21 creates a type:"module" Worker whose script URL
+//                          is a blob:. Chrome checks script-src for module workers.
+//   - blob: (connect-src)— The ORT worker calls fetch(blobUrl) to load the WASM binary.
+//                          'self' does NOT cover the blob: scheme.
+//   - blob: (worker-src) — @imgly spawns a Web Worker via blob URL.
+//   - blob: (child-src)  — Safari fallback (Safari ignores worker-src, uses child-src).
+//   - cdn.plaid.com      — Plaid Link SDK (loaded client-side)
+//   - js.stripe.com      — Stripe.js (loaded client-side for billing)
+//   - *.supabase.co      — Supabase REST, Auth, Realtime, and Storage
+//   - api.groq.com       — server-side only, listed for future client-side streaming
+//   - staticimgly.com    — @imgly model + ORT WASM files (~45 MB, fetched on demand)
+//   - frame-src          — Stripe Checkout iframe + Plaid Link iframe
+//   - frame-ancestors    — 'none' = X-Frame-Options: DENY (belt+suspenders)
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://cdn.plaid.com https://js.stripe.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://cdn.plaid.com https://js.stripe.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.supabase.co https://graph.facebook.com https://*.cdninstagram.com https://*.fbcdn.net",
   "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://*.plaid.com https://api.stripe.com https://api.groq.com https://staticimgly.com",
