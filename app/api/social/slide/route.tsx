@@ -216,9 +216,17 @@ export async function GET(req: NextRequest) {
     return configs;
   })();
 
-  const [fontConfigs, embeddedPhotoSrc] = await Promise.all([
+  // Pre-resolve logo and headshot as data URLs alongside the font/photo fetch.
+  // Satori's internal fetcher silently drops remote image URLs on the Edge runtime —
+  // embedding every asset as a base64 data URL guarantees reliable rendering.
+  const rawLogoUrl     = showLogo     && logoUrl     ? logoUrl     : "";
+  const rawHeadshotUrl = showHeadshot && headshotUrl ? headshotUrl : "";
+
+  const [fontConfigs, embeddedPhotoSrc, embeddedLogoSrc, embeddedHeadshotSrc] = await Promise.all([
     fontLoader,
     fetchAsDataUrl(rawPhotoUrl),
+    fetchAsDataUrl(rawLogoUrl),
+    fetchAsDataUrl(rawHeadshotUrl),
   ]);
 
   const imgOptions = { width: SIZE, height: SIZE, fonts: fontConfigs };
@@ -237,18 +245,18 @@ export async function GET(req: NextRequest) {
     </div>
   );
 
-  // Headshot circle
-  const headshotCircle = showHeadshot && headshotUrl ? (
+  // Headshot circle — use the pre-fetched data URL; raw remote URLs can silently fail in Satori
+  const headshotCircle = showHeadshot && embeddedHeadshotSrc ? (
     <div style={{ width: 72, height: 72, borderRadius: 36, overflow: "hidden", display: "flex", flexShrink: 0, background: p.softBg }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={headshotUrl} alt="" style={{ width: 72, height: 72, objectFit: "cover" }} />
+      <img src={embeddedHeadshotSrc} alt="" style={{ width: 72, height: 72, objectFit: "cover" }} />
     </div>
   ) : null;
 
-  // Logo
-  const logoImg = showLogo && logoUrl ? (
+  // Logo — use the pre-fetched data URL
+  const logoImg = showLogo && embeddedLogoSrc ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={logoUrl} alt="" style={{ height: 80, maxWidth: 240, objectFit: "contain" }} />
+    <img src={embeddedLogoSrc} alt="" style={{ height: 80, maxWidth: 240, objectFit: "contain" }} />
   ) : null;
 
   // ═══════════════════════════════════════════════════════════════════════════

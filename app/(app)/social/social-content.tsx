@@ -128,7 +128,9 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   const [exporting,      setExporting]      = useState<boolean>(false);
   const [publishing,     setPublishing]     = useState<boolean>(false);
   const [publishResult,  setPublishResult]  = useState<{ success: boolean; message: string } | null>(null);
-  const [slideLoadError, setSlideLoadError] = useState<number | null>(null);
+  // Per-slide status keyed by slide URL.  A URL-keyed map means status is
+  // automatically abandoned when URLs regenerate (config/template change).
+  const [slideStatus, setSlideStatus] = useState<Record<string, "ok" | "error">>({});
 
   // ── Derived values ─────────────────────────────────────────────────────────
   const agentName    = settings?.display_name                              ?? "Your Agent";
@@ -180,7 +182,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   useEffect(() => {
     setSelectedIds(new Set(monthTx.map((tx) => tx.id)));
     setCurrentSlide(0);
-    setSlideLoadError(null);
+    setSlideStatus({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth, selectedYear]);
 
@@ -354,8 +356,11 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   }
 
   // ── Misc derived ───────────────────────────────────────────────────────────
-  const currentYear = now.getFullYear();
-  const years       = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
+  const currentYear    = now.getFullYear();
+  const years          = [currentYear - 2, currentYear - 1, currentYear, currentYear + 1];
+
+  // Pre-compute the current slide URL so it's consistent across key, src, and status lookup
+  const currentSlideUrl = currentSlideSpec ? slideUrl(currentSlideSpec) : null;
 
   const igConn     = connections.find((c) => c.platform === "instagram");
   const fbConn     = connections.find((c) => c.platform === "facebook");
@@ -744,19 +749,31 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                 <div className="flex flex-col items-center gap-4">
                   {/* Main slide */}
                   <div className="relative w-full max-w-[440px] mx-auto">
-                    <div className="aspect-square w-full rounded-xl overflow-hidden border border-slate-200 shadow-md bg-slate-100">
-                      {currentSlideSpec && (
+                    <div className="relative aspect-square w-full rounded-xl overflow-hidden border border-slate-200 shadow-md bg-slate-100">
+                      {currentSlideSpec && currentSlideUrl && (
                         <img
-                          key={slideUrl(currentSlideSpec)}
-                          src={slideUrl(currentSlideSpec)}
+                          key={currentSlideUrl}
+                          src={currentSlideUrl}
                           alt={currentSlideSpec.label}
-                          className="w-full h-full object-cover"
-                          onError={() => setSlideLoadError(safeSlide)}
+                          className={`w-full h-full object-cover transition-opacity duration-300 ${slideStatus[currentSlideUrl] === "ok" ? "opacity-100" : "opacity-0"}`}
+                          onLoad={() => setSlideStatus((prev) => ({ ...prev, [currentSlideUrl]: "ok" }))}
+                          onError={() => setSlideStatus((prev) => ({ ...prev, [currentSlideUrl]: "error" }))}
                         />
                       )}
-                      {slideLoadError === safeSlide && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-slate-100 text-xs text-muted-foreground">
-                          Preview unavailable
+                      {/* Loading skeleton / error overlay — shown until image confirms "ok" */}
+                      {currentSlideUrl && slideStatus[currentSlideUrl] !== "ok" && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-100">
+                          {slideStatus[currentSlideUrl] === "error" ? (
+                            <>
+                              <AlertCircle className="h-6 w-6 text-slate-400" />
+                              <p className="text-xs text-muted-foreground">Preview unavailable</p>
+                            </>
+                          ) : (
+                            <>
+                              <Loader2 className="h-6 w-6 text-slate-400 animate-spin" />
+                              <p className="text-xs text-muted-foreground">Generating…</p>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>
@@ -794,16 +811,36 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                   {/* Thumbnail strip */}
                   <div className="w-full overflow-x-auto">
                     <div className="flex gap-2 pb-2" style={{ minWidth: "max-content" }}>
-                      {slides.map((spec, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => setCurrentSlide(idx)}
-                          className={`shrink-0 rounded-lg overflow-hidden border-2 transition-all ${idx === safeSlide ? "border-blue-500 shadow-md" : "border-transparent hover:border-slate-300"}`}
-                          style={{ width: 64, height: 64 }}
-                        >
-                          <img src={slideUrl(spec)} alt={spec.label} className="w-full h-full object-cover" />
-                        </button>
-                      ))}
+                      {slides.map((spec, idx) => {
+                        const thumbUrl = slideUrl(spec);
+                        const thumbSt  = slideStatus[thumbUrl];
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => setCurrentSlide(idx)}
+                            className={`shrink-0 rounded-lg overflow-hidden border-2 transition-all ${idx === safeSlide ? "border-blue-500 shadow-md" : "border-transparent hover:border-slate-300"}`}
+                            style={{ width: 64, height: 64 }}
+                          >
+                            <div className="relative w-full h-full bg-slate-100">
+                              <img
+                                src={thumbUrl}
+                                alt={spec.label}
+                                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-200 ${thumbSt === "ok" ? "opacity-100" : "opacity-0"}`}
+                                onLoad={() => setSlideStatus((prev) => ({ ...prev, [thumbUrl]: "ok" }))}
+                                onError={() => setSlideStatus((prev) => ({ ...prev, [thumbUrl]: "error" }))}
+                              />
+                              {thumbSt !== "ok" && (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  {thumbSt === "error"
+                                    ? <AlertCircle className="h-4 w-4 text-slate-400" />
+                                    : <Loader2 className="h-3 w-3 text-slate-400 animate-spin" />
+                                  }
+                                </div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
