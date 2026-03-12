@@ -217,6 +217,7 @@ export interface UserSettings {
   // Profile media (Supabase Storage — profile-media bucket)
   avatar_url: string;        // public URL of the agent profile photo
   business_logo_url: string; // public URL of the business / brokerage logo
+  agent_cutout_url: string;  // public URL of transparent PNG cutout for social slides
 
   // Business identity
   business_name: string;   // trade name or team name (e.g. "The Smith Group")

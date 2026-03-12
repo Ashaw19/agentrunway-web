@@ -201,8 +201,10 @@ export async function GET(req: NextRequest) {
   const slideTotal   = sp.get("slideTotal")   ?? "1";
   const showLogo     = sp.get("showLogo")     === "1";
   const showHeadshot = sp.get("showHeadshot") === "1";
+  const showCutout   = sp.get("showCutout")   === "1";
   const logoUrl      = sp.get("logoUrl")      ?? "";
   const headshotUrl  = sp.get("headshotUrl")  ?? "";
+  const cutoutUrl    = sp.get("cutoutUrl")    ?? "";
 
   const address      = sp.get("address")      ?? "";
   const soldWording  = sp.get("soldWording")  ?? "SOLD";
@@ -242,12 +244,14 @@ export async function GET(req: NextRequest) {
 
   const rawLogoUrl     = showLogo     && logoUrl     ? logoUrl     : "";
   const rawHeadshotUrl = showHeadshot && headshotUrl ? headshotUrl : "";
+  const rawCutoutUrl   = showCutout   && cutoutUrl   ? cutoutUrl   : "";
 
-  const [fontConfigs, embeddedPhotoSrc, embeddedLogoSrc, embeddedHeadshotSrc] = await Promise.all([
+  const [fontConfigs, embeddedPhotoSrc, embeddedLogoSrc, embeddedHeadshotSrc, embeddedCutoutSrc] = await Promise.all([
     fontLoader,
     fetchAsDataUrl(rawPhotoUrl),
     fetchAsDataUrl(rawLogoUrl),
     fetchAsDataUrl(rawHeadshotUrl),
+    fetchAsDataUrl(rawCutoutUrl),
   ]);
 
   // IMPORTANT: Only set `fonts` when we loaded custom display fonts.
@@ -548,6 +552,11 @@ export async function GET(req: NextRequest) {
               <div style={{ position: "absolute", top: 16, right: 16, background: p.accent, color: p.brandBg, borderRadius: 999, padding: "6px 18px", fontSize: 20, fontWeight: 700, display: "flex", alignItems: "center", fontFamily: "sans-serif" }}>
                 {`${slideNum} / ${slideTotal}`}
               </div>
+              {/* Agent cutout overlay */}
+              {showCutout && embeddedCutoutSrc && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={embeddedCutoutSrc} alt="" style={{ position: "absolute", bottom: 0, left: 24, height: 380, objectFit: "contain", objectPosition: "bottom left" }} />
+              )}
             </div>
 
             {/* Navy brand footer */}
@@ -612,6 +621,11 @@ export async function GET(req: NextRequest) {
                   </div>
                 )}
               </div>
+              {/* Agent cutout overlay */}
+              {showCutout && embeddedCutoutSrc && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={embeddedCutoutSrc} alt="" style={{ position: "absolute", bottom: 0, left: 40, height: 420, objectFit: "contain", objectPosition: "bottom left" }} />
+              )}
             </div>
 
             {/* Thin gold divider */}
@@ -670,6 +684,11 @@ export async function GET(req: NextRequest) {
             <div style={{ position: "absolute", top: 16, right: 16, background: "#FFFFFF", color: p.muted, borderRadius: 999, padding: "6px 16px", fontSize: 18, fontWeight: 700, display: "flex", alignItems: "center", fontFamily: "sans-serif", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
               {`${slideNum} / ${slideTotal}`}
             </div>
+            {/* Agent cutout overlay */}
+            {showCutout && embeddedCutoutSrc && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={embeddedCutoutSrc} alt="" style={{ position: "absolute", bottom: 0, left: 24, height: 360, objectFit: "contain", objectPosition: "bottom left" }} />
+            )}
           </div>
 
           {/* Brand footer */}

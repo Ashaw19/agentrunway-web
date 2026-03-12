@@ -250,6 +250,7 @@ const DEMO_SETTINGS: UserSettings = {
   color_theme: "blue",
   avatar_url: "",
   business_logo_url: "",
+  agent_cutout_url: "",
   business_name: "Mitchell Real Estate Group",
   business_number: "",
   dashboard_view: "standard",

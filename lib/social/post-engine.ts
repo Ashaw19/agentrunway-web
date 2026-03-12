@@ -64,11 +64,13 @@ export interface PostConfig {
   businessName: string;
   logoUrl:      string; // empty string = no logo
   headshotUrl:  string; // empty string = no headshot
+  cutoutUrl:    string; // empty string = no cutout overlay
 
   // Slide options
   soldWording:    SoldWording;
   showLogo:       boolean;
   showHeadshot:   boolean;
+  showCutout:     boolean;
   showSalePrice:  boolean;
   includeEndCard: boolean;
 
@@ -140,11 +142,13 @@ export function buildSlideApiUrl(
     soldWording:    config.soldWording,
     showLogo:       (config.showLogo && !!config.logoUrl)     ? "1" : "0",
     showHeadshot:   (config.showHeadshot && !!config.headshotUrl) ? "1" : "0",
+    showCutout:     (config.showCutout && !!config.cutoutUrl)   ? "1" : "0",
     showSalePrice:  config.showSalePrice ? "1" : "0",
   });
 
   if (config.logoUrl    && config.showLogo)     p.set("logoUrl",     config.logoUrl);
   if (config.headshotUrl && config.showHeadshot) p.set("headshotUrl", config.headshotUrl);
+  if (config.cutoutUrl  && config.showCutout)   p.set("cutoutUrl",   config.cutoutUrl);
 
   if (spec.type === "cover") {
     p.set("type", "cover");

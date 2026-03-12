@@ -100,11 +100,13 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   // ── Branding (default from settings, user can override) ───────────────────
   const [logoUrl,     setLogoUrl]     = useState<string>(settings?.business_logo_url ?? "");
   const [headshotUrl, setHeadshotUrl] = useState<string>(settings?.avatar_url        ?? "");
+  const [cutoutUrl,   setCutoutUrl]   = useState<string>(settings?.agent_cutout_url  ?? "");
 
   // ── Slide options ──────────────────────────────────────────────────────────
   const [soldWording,    setSoldWording]    = useState<SoldWording>("SOLD");
   const [showLogo,       setShowLogo]       = useState<boolean>(!!(settings?.business_logo_url));
   const [showHeadshot,   setShowHeadshot]   = useState<boolean>(false);
+  const [showCutout,     setShowCutout]     = useState<boolean>(!!(settings?.agent_cutout_url));
   const [showSalePrice,  setShowSalePrice]  = useState<boolean>(false);
   const [includeEndCard, setIncludeEndCard] = useState<boolean>(true);
 
@@ -118,8 +120,10 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   const [cropFile,       setCropFile]       = useState<File | null>(null);
   const [cropTxId,       setCropTxId]       = useState<string | null>(null);
   const [cropOpen,       setCropOpen]       = useState(false);
-  const [uploadingPhoto, setUploadingPhoto] = useState<string | null>(null);
-  const photoInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingPhoto,   setUploadingPhoto]   = useState<string | null>(null);
+  const [uploadingCutout,  setUploadingCutout]  = useState(false);
+  const photoInputRef  = useRef<HTMLInputElement>(null);
+  const cutoutInputRef = useRef<HTMLInputElement>(null);
 
   // ── UI state ───────────────────────────────────────────────────────────────
   const [currentSlide,   setCurrentSlide]   = useState<number>(0);
@@ -155,9 +159,11 @@ export function SocialContent({ settings, transactions, connections }: Props) {
     businessName,
     logoUrl,
     headshotUrl,
+    cutoutUrl,
     soldWording,
     showLogo,
     showHeadshot,
+    showCutout,
     showSalePrice,
     includeEndCard,
     ctaLine,
@@ -177,8 +183,8 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   const slideUrl = useCallback(
     (spec: SlideSpec) => buildSlideApiUrl(spec, config, photoUrls) + `&_v=${sessionCb}`,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [templateFamily, agentName, businessName, logoUrl, headshotUrl,
-     selectedMonth, selectedYear, soldWording, showLogo, showHeadshot,
+    [templateFamily, agentName, businessName, logoUrl, headshotUrl, cutoutUrl,
+     selectedMonth, selectedYear, soldWording, showLogo, showHeadshot, showCutout,
      showSalePrice, includeEndCard, ctaLine, selectedTx.length, photoUrls, sessionCb],
   );
 
@@ -272,6 +278,41 @@ export function SocialContent({ settings, transactions, connections }: Props) {
       delete next[txId];
       return next;
     });
+  }
+
+  // ── Cutout upload handler ────────────────────────────────────────────────
+  async function handleCutoutUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Cutout photo must be under 5 MB");
+      e.target.value = "";
+      return;
+    }
+    setUploadingCutout(true);
+    try {
+      const supabase = createClient();
+      const path = `${user.id}/cutout.png`;
+      const { error } = await supabase.storage
+        .from("profile-media")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage
+        .from("profile-media")
+        .getPublicUrl(path);
+      setCutoutUrl(`${publicUrl}?t=${Date.now()}`);
+      // Persist clean URL to DB so it auto-fills next session
+      await supabase
+        .from("user_settings")
+        .update({ agent_cutout_url: publicUrl })
+        .eq("user_id", user.id);
+    } catch (err) {
+      console.error("Cutout upload failed:", err);
+      alert("Cutout upload failed — please try again.");
+    } finally {
+      setUploadingCutout(false);
+      if (e.target) e.target.value = "";
+    }
   }
 
   // ── Copy caption ───────────────────────────────────────────────────────────
@@ -637,6 +678,41 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                   />
                 </div>
                 <ToggleButton enabled={showHeadshot} onToggle={setShowHeadshot} label="Show headshot on cover + end card" disabled={!headshotUrl} />
+              </div>
+
+              {/* Agent Cutout Photo */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-slate-600">Agent Cutout Photo</Label>
+                <div className="flex gap-2 items-center">
+                  {cutoutUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={cutoutUrl} alt="cutout" className="h-10 w-8 rounded border border-slate-200 object-contain bg-slate-50 shrink-0" />
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-8 shrink-0"
+                    disabled={uploadingCutout}
+                    onClick={() => cutoutInputRef.current?.click()}
+                  >
+                    {uploadingCutout ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <ImagePlus className="h-3 w-3 mr-1" />}
+                    {uploadingCutout ? "Uploading…" : "Upload PNG"}
+                  </Button>
+                  <Input
+                    value={cutoutUrl}
+                    onChange={(e) => setCutoutUrl(e.target.value)}
+                    placeholder="Upload a PNG with background removed"
+                    className="text-xs h-8"
+                  />
+                </div>
+                <ToggleButton enabled={showCutout} onToggle={setShowCutout} label="Show cutout on property slides" disabled={!cutoutUrl} />
+                <input
+                  ref={cutoutInputRef}
+                  type="file"
+                  accept="image/png"
+                  className="hidden"
+                  onChange={handleCutoutUpload}
+                />
               </div>
 
               {!settings.business_logo_url && !settings.avatar_url && (
