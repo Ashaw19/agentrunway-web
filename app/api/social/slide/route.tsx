@@ -255,6 +255,10 @@ export async function GET(req: NextRequest) {
   const imgOptions = {
     width: SIZE,
     height: SIZE,
+    // Prevent browsers from caching incomplete/empty responses that cause
+    // <img> onError to fire on subsequent visits. Edge functions can return
+    // 200 with an empty body on timeout — the browser caches that permanently.
+    headers: { "Cache-Control": "no-store, must-revalidate" },
     ...(fontConfigs.length > 0 ? { fonts: fontConfigs } : {}),
   };
 
@@ -882,7 +886,7 @@ export async function GET(req: NextRequest) {
     console.error("[social/slide] generation failed:", err);
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : "Unknown slide error" }),
-      { status: 500, headers: { "content-type": "application/json" } },
+      { status: 500, headers: { "content-type": "application/json", "cache-control": "no-store" } },
     );
   }
 }

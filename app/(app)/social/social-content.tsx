@@ -170,12 +170,16 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   const currentSlideSpec = slides[safeSlide];
 
   // ── Slide URL builder ──────────────────────────────────────────────────────
+  // Session-unique cache buster: prevents browsers from serving stale cached
+  // empty responses from previous Edge function timeouts. Stable within the
+  // session so subsequent renders reuse the same URLs for img caching.
+  const sessionCb = useRef(Date.now()).current;
   const slideUrl = useCallback(
-    (spec: SlideSpec) => buildSlideApiUrl(spec, config, photoUrls),
+    (spec: SlideSpec) => buildSlideApiUrl(spec, config, photoUrls) + `&_v=${sessionCb}`,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [templateFamily, agentName, businessName, logoUrl, headshotUrl,
      selectedMonth, selectedYear, soldWording, showLogo, showHeadshot,
-     showSalePrice, includeEndCard, ctaLine, selectedTx.length, photoUrls],
+     showSalePrice, includeEndCard, ctaLine, selectedTx.length, photoUrls, sessionCb],
   );
 
   // ── Auto-select all transactions when month changes ────────────────────────
