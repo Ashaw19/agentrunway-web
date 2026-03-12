@@ -186,6 +186,12 @@ export function SocialContent({ settings, transactions, connections }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth, selectedYear]);
 
+  // ── Clear slide errors when template family changes ──────────────────────
+  // Without this, cached/stale error states from a previous template persist.
+  useEffect(() => {
+    setSlideErrors(new Set());
+  }, [templateFamily]);
+
   // ── Auto-generate caption ──────────────────────────────────────────────────
   useEffect(() => {
     if (selectedTx.length > 0) {
@@ -766,6 +772,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                             src={currentSlideUrl}
                             alt={currentSlideSpec.label}
                             className="absolute inset-0 w-full h-full object-cover"
+                            onLoad={() => setSlideErrors((prev) => { const next = new Set(prev); next.delete(currentSlideUrl!); return next; })}
                             onError={() => setSlideErrors((prev) => new Set([...prev, currentSlideUrl!]))}
                           />
                           {slideErrors.has(currentSlideUrl) && (
@@ -815,7 +822,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                         const thumbUrl = slideUrl(spec);
                         return (
                           <button
-                            key={idx}
+                            key={`${templateFamily}-${idx}`}
                             onClick={() => setCurrentSlide(idx)}
                             className={`shrink-0 rounded-lg overflow-hidden border-2 transition-all ${idx === safeSlide ? "border-blue-500 shadow-md" : "border-transparent hover:border-slate-300"}`}
                             style={{ width: 64, height: 64 }}
@@ -830,6 +837,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                                 src={thumbUrl}
                                 alt={spec.label}
                                 className="absolute inset-0 w-full h-full object-cover"
+                                onLoad={() => setSlideErrors((prev) => { const next = new Set(prev); next.delete(thumbUrl); return next; })}
                                 onError={() => setSlideErrors((prev) => new Set([...prev, thumbUrl]))}
                               />
                               {slideErrors.has(thumbUrl) && (
