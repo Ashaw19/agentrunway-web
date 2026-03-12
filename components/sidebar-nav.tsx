@@ -21,6 +21,7 @@ import {
   Globe,
   ClipboardList,
   Car,
+  Landmark,
 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -94,6 +95,14 @@ const navItems = [
     iconActive: "text-blue-300",
     iconInactive: "text-blue-400/60",
     borderActive: "border-l-blue-400",
+  },
+  {
+    label: "Bank Sync",
+    href: "/bank-sync",
+    icon: Landmark,
+    iconActive: "text-cyan-300",
+    iconInactive: "text-cyan-400/60",
+    borderActive: "border-l-cyan-400",
   },
   {
     label: "Tax / T2125",

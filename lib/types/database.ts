@@ -546,6 +546,43 @@ export interface MarketDataPoint {
   created_at: string;
 }
 
+// ── Plaid bank sync (migration 00019) ─────────────────────────────────────────
+
+/** One connected bank/card account per row */
+export interface PlaidItem {
+  id:               string;
+  user_id:          string;
+  plaid_item_id:    string;
+  access_token:     string;   // encrypted at rest
+  institution_id:   string | null;
+  institution_name: string | null;
+  sync_cursor:      string | null;
+  last_synced_at:   string | null;
+  created_at:       string;
+  updated_at:       string;
+}
+
+export type PlaidReviewStatus = "pending" | "approved" | "ignored";
+
+/** One imported bank/card transaction per row */
+export interface PlaidTransaction {
+  id:                    string;
+  user_id:               string;
+  plaid_item_id:         string;  // FK → plaid_items.id
+  plaid_transaction_id:  string;
+  plaid_account_id:      string | null;
+  transaction_date:      string;  // ISO date
+  merchant_name:         string | null;
+  description:           string;
+  amount:                number;  // positive = expense (debit)
+  category_key:          string | null;  // maps to expense_items.key
+  review_status:         PlaidReviewStatus;
+  suggested_category:    string | null;
+  suggestion_confidence: number | null;  // 0.0–1.0
+  created_at:            string;
+  updated_at:            string;
+}
+
 // ── Mileage Log ───────────────────────────────────────────────────────────────
 
 /** CRA automobile allowance rates for 2025 */
