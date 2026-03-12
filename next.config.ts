@@ -30,7 +30,7 @@ const CSP = [
   "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://cdn.plaid.com https://js.stripe.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.supabase.co https://graph.facebook.com https://*.cdninstagram.com https://*.fbcdn.net",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.plaid.com https://api.stripe.com https://api.groq.com https://staticimgly.com",
+  "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://*.plaid.com https://api.stripe.com https://api.groq.com https://staticimgly.com",
   "worker-src blob: 'self'",
   "child-src blob: 'self'",
   "frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://cdn.plaid.com",
