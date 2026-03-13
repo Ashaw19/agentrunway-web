@@ -10,3 +10,4 @@ export * from "./insights-engine";
 export * from "./advisor-engine";
 export * from "./tax-optimization-engine";
 export * from "./client-valuation-engine";
+export * from "./crm-analytics-engine";

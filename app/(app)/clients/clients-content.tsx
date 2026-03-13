@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -41,9 +41,6 @@ import {
   TrendingUp,
   RepeatIcon,
   Home,
-  Trophy,
-  Star,
-  BarChart3,
   PieChart,
   ArrowUp,
   ArrowDown,
@@ -85,6 +82,8 @@ import type {
   PreferredContact,
   ClientTimeframe,
   RelationshipType,
+  FlightPlan,
+  FlightPlanStep,
 } from "@/lib/types/database";
 import {
   ACTIVITY_TYPE_LABELS,
@@ -104,6 +103,9 @@ import {
 } from "@/lib/engines/client-valuation-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
 import { createClient } from "@/lib/supabase/client";
+import { CrmDashboardTab } from "./tabs/crm-dashboard-tab";
+import { InsightsTab } from "./tabs/insights-tab";
+import { FlightPlansTab } from "./tabs/flight-plans-tab";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -115,6 +117,8 @@ interface Props {
   settings: UserSettings | null;
   expenseItems: ExpenseItem[];
   relationships: ClientRelationship[];
+  flightPlans: FlightPlan[];
+  flightPlanSteps: FlightPlanStep[];
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -132,7 +136,7 @@ type ClientGroup = {
 
 type SortCol = "name" | "deals" | "gci" | "avg" | "last" | "years" | "side";
 type SortDir = "asc" | "desc";
-type TabId = "clients" | "crm" | "insights" | "portfolio";
+type TabId = "clients" | "crm" | "insights" | "portfolio" | "flight_plans";
 type SourceStat = { source: string; deals: number; totalGCI: number; avgGCI: number };
 
 // CSV import state
@@ -367,6 +371,8 @@ export function ClientsContent({
   settings,
   expenseItems,
   relationships: initialRelationships,
+  flightPlans: initialFlightPlans,
+  flightPlanSteps: initialFlightPlanSteps,
 }: Props) {
   // ── Local state ─────────────────────────────────────────────────────────────
   const [localActivities, setLocalActivities] =
@@ -375,6 +381,10 @@ export function ClientsContent({
   const [localClients, setLocalClients] = useState<Client[]>(initialClients);
   const [localRelationships, setLocalRelationships] =
     useState<ClientRelationship[]>(initialRelationships);
+  const [localFlightPlans, setLocalFlightPlans] =
+    useState<FlightPlan[]>(initialFlightPlans);
+  const [localFlightPlanSteps, setLocalFlightPlanSteps] =
+    useState<FlightPlanStep[]>(initialFlightPlanSteps);
 
   const [search, setSearch] = useState("");
   const [filterSide, setFilterSide] = useState<"all" | "buyer" | "seller" | "both">("all");
@@ -424,16 +434,6 @@ export function ClientsContent({
   const [taskNotes, setTaskNotes] = useState("");
   const [taskSaving, setTaskSaving] = useState(false);
 
-  // CRM tab global "Add Task" form
-  const [showGlobalAddTask, setShowGlobalAddTask] = useState(false);
-  const [globalTaskClientId, setGlobalTaskClientId] = useState<string | null>(null);
-  const [globalTaskTitle, setGlobalTaskTitle] = useState("");
-  const [globalTaskDueDate, setGlobalTaskDueDate] = useState(todayIso());
-  const [globalTaskPriority, setGlobalTaskPriority] = useState<TaskPriority>("normal");
-  const [globalTaskNotes, setGlobalTaskNotes] = useState("");
-  const [globalTaskSaving, setGlobalTaskSaving] = useState(false);
-  const [globalClientSearch, setGlobalClientSearch] = useState("");
-
   // CSV Import modal
   const [importOpen, setImportOpen] = useState(false);
   const [importStep, setImportStep] = useState<ImportStep>("upload");
@@ -472,26 +472,8 @@ export function ClientsContent({
       : 0;
   const totalDeals = grouped.reduce((s, g) => s + g.dealCount, 0);
 
-  const topClients = useMemo(
-    () => [...grouped].sort((a, b) => b.totalGCI - a.totalGCI).slice(0, 5),
-    [grouped],
-  );
   const sourceStats = useMemo(() => computeSourceStats(records), [records]);
   const topSource = sourceStats[0] ?? null;
-  const sortedByGCI = useMemo(
-    () => [...grouped].sort((a, b) => b.totalGCI - a.totalGCI),
-    [grouped],
-  );
-  const concentrationPct =
-    totalGCI > 0
-      ? Math.round(
-          (sortedByGCI
-            .slice(0, 5)
-            .reduce((s, g) => s + g.totalGCI, 0) /
-            totalGCI) *
-            100,
-        )
-      : 0;
 
   // ── Client Valuation Engine ───────────────────────────────────────────────
   const valuationResult: ClientValuationResult | null = useMemo(() => {
@@ -589,15 +571,6 @@ export function ClientsContent({
   const openTasks = useMemo(
     () => [...localTasks].sort((a, b) => a.due_date.localeCompare(b.due_date)),
     [localTasks],
-  );
-
-  // Recent activities sorted by activity_date DESC, limited to 20
-  const recentActivities = useMemo(
-    () =>
-      [...localActivities]
-        .sort((a, b) => b.activity_date.localeCompare(a.activity_date))
-        .slice(0, 20),
-    [localActivities],
   );
 
   // Client lookup map
@@ -737,8 +710,39 @@ export function ClientsContent({
       );
       const supabase = createClient();
       await supabase.from("clients").update({ [field]: value }).eq("id", clientId);
+
+      // Flight Plan execution: fire matching plans on status change
+      if (field === "status" && typeof value === "string") {
+        const matchingPlans = localFlightPlans.filter(
+          (fp) => fp.is_active && fp.trigger_status === value,
+        );
+        for (const plan of matchingPlans) {
+          const planSteps = localFlightPlanSteps.filter(
+            (s) => s.flight_plan_id === plan.id,
+          );
+          for (const step of planSteps) {
+            if (step.action_type === "task" && step.template) {
+              const client = localClients.find((c) => c.id === clientId);
+              const taskTitle = step.template.replace(
+                /\{name\}/g,
+                client?.name ?? "Client",
+              );
+              const dueDate = new Date();
+              dueDate.setDate(dueDate.getDate() + step.delay_days);
+              const dueDateStr = dueDate.toISOString().slice(0, 10);
+              await addTask(
+                clientId,
+                taskTitle,
+                dueDateStr,
+                "normal",
+                `Auto-created by Flight Plan: ${plan.name}`,
+              );
+            }
+          }
+        }
+      }
     },
-    [],
+    [localFlightPlans, localFlightPlanSteps, localClients, addTask],
   );
 
   // Add a new client manually
@@ -810,6 +814,111 @@ export function ClientsContent({
     [],
   );
 
+  // ── Flight Plan CRUD ─────────────────────────────────────────────────────────
+
+  const handleSaveFlightPlan = useCallback(
+    async (
+      plan: { id?: string; name: string; description: string; trigger_status: ClientStatus | null; is_active: boolean },
+      steps: { step_order: number; delay_days: number; action_type: "task" | "email" | "text"; template: string }[],
+    ) => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      let planId = plan.id;
+
+      if (planId) {
+        // Update existing plan
+        await supabase
+          .from("flight_plans")
+          .update({
+            name: plan.name,
+            description: plan.description || null,
+            trigger_status: plan.trigger_status,
+            is_active: plan.is_active,
+          })
+          .eq("id", planId);
+
+        // Delete existing steps and re-insert
+        await supabase.from("flight_plan_steps").delete().eq("flight_plan_id", planId);
+      } else {
+        // Insert new plan
+        const { data, error } = await supabase
+          .from("flight_plans")
+          .insert({
+            user_id: user.id,
+            name: plan.name,
+            description: plan.description || null,
+            trigger_status: plan.trigger_status,
+            is_active: plan.is_active,
+          })
+          .select()
+          .single();
+
+        if (error || !data) return;
+        planId = data.id;
+      }
+
+      // Insert steps
+      if (steps.length > 0 && planId) {
+        const { data: stepsData } = await supabase
+          .from("flight_plan_steps")
+          .insert(
+            steps.map((s) => ({
+              flight_plan_id: planId!,
+              step_order: s.step_order,
+              delay_days: s.delay_days,
+              action_type: s.action_type,
+              template: s.template || null,
+            })),
+          )
+          .select();
+
+        if (stepsData) {
+          setLocalFlightPlanSteps((prev) => [
+            ...prev.filter((s) => s.flight_plan_id !== planId),
+            ...(stepsData as FlightPlanStep[]),
+          ]);
+        }
+      }
+
+      // Refresh plan in local state
+      const { data: refreshed } = await supabase
+        .from("flight_plans")
+        .select("*")
+        .eq("id", planId)
+        .single();
+
+      if (refreshed) {
+        setLocalFlightPlans((prev) => {
+          const idx = prev.findIndex((p) => p.id === planId);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = refreshed as FlightPlan;
+            return next;
+          }
+          return [refreshed as FlightPlan, ...prev];
+        });
+      }
+    },
+    [],
+  );
+
+  const handleDeleteFlightPlan = useCallback(async (planId: string) => {
+    setLocalFlightPlans((prev) => prev.filter((p) => p.id !== planId));
+    setLocalFlightPlanSteps((prev) => prev.filter((s) => s.flight_plan_id !== planId));
+    const supabase = createClient();
+    await supabase.from("flight_plans").delete().eq("id", planId);
+  }, []);
+
+  const handleToggleFlightPlan = useCallback(async (planId: string, isActive: boolean) => {
+    setLocalFlightPlans((prev) =>
+      prev.map((p) => (p.id === planId ? { ...p, is_active: isActive } : p)),
+    );
+    const supabase = createClient();
+    await supabase.from("flight_plans").update({ is_active: isActive }).eq("id", planId);
+  }, []);
+
   // ── Form handlers ────────────────────────────────────────────────────────────
 
   function openDetailPanel(clientId: string) {
@@ -846,26 +955,6 @@ export function ClientsContent({
     setTaskDueDate(todayIso());
     setTaskPriority("normal");
     setTaskNotes("");
-  }
-
-  async function handleGlobalAddTask() {
-    if (!globalTaskTitle.trim()) return;
-    setGlobalTaskSaving(true);
-    await addTask(
-      globalTaskClientId,
-      globalTaskTitle.trim(),
-      globalTaskDueDate,
-      globalTaskPriority,
-      globalTaskNotes.trim(),
-    );
-    setGlobalTaskSaving(false);
-    setShowGlobalAddTask(false);
-    setGlobalTaskTitle("");
-    setGlobalTaskDueDate(todayIso());
-    setGlobalTaskPriority("normal");
-    setGlobalTaskNotes("");
-    setGlobalTaskClientId(null);
-    setGlobalClientSearch("");
   }
 
   // ── CSV Import ────────────────────────────────────────────────────────────
@@ -959,13 +1048,6 @@ export function ClientsContent({
   }
 
   // ── Filtered clients for global task form ───────────────────────────────────
-  const filteredClientsForTask = useMemo(() => {
-    const q = globalClientSearch.toLowerCase();
-    return q
-      ? localClients.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 8)
-      : localClients.slice(0, 8);
-  }, [localClients, globalClientSearch]);
-
   // ─────────────────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────────
@@ -1038,20 +1120,23 @@ export function ClientsContent({
 
       {/* ── Tabs ─────────────────────────────────────────────────────────── */}
       <div className="flex gap-1 border-b border-border/60">
-        {(["clients", "crm", "insights", "portfolio"] as TabId[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={cn(
-              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-              tab === t
-                ? "border-primary text-foreground"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t === "clients" ? "Clients" : t === "crm" ? "CRM" : t === "insights" ? "Insights" : "Portfolio"}
-          </button>
-        ))}
+        {(["clients", "crm", "insights", "portfolio", "flight_plans"] as TabId[]).map((t) => {
+          const label = t === "clients" ? "Clients" : t === "crm" ? "CRM" : t === "insights" ? "Insights" : t === "portfolio" ? "Portfolio" : "Flight Plans";
+          return (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={cn(
+                "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                tab === t
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════ */}
@@ -1340,520 +1425,32 @@ export function ClientsContent({
       {/* CRM TAB                                                            */}
       {/* ══════════════════════════════════════════════════════════════════ */}
       {tab === "crm" && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-
-            {/* Tasks panel */}
-            <Card className="rounded-2xl shadow-sm">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <ListTodo className="h-4 w-4 text-blue-500" />
-                    Follow-up Tasks
-                  </CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setShowGlobalAddTask((v) => !v);
-                    }}
-                    className="gap-1 h-7 text-xs"
-                  >
-                    <Plus className="h-3 w-3" />
-                    Add Task
-                  </Button>
-                </div>
-              </CardHeader>
-
-              {/* Global add task inline form */}
-              {showGlobalAddTask && (
-                <CardContent className="pt-0 pb-3">
-                  <div className="rounded-xl border border-border/60 bg-muted/30 p-3 space-y-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Task title</Label>
-                      <Input
-                        placeholder="e.g. Follow up with Sarah"
-                        value={globalTaskTitle}
-                        onChange={(e) => setGlobalTaskTitle(e.target.value)}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Client (optional)</Label>
-                      <Input
-                        placeholder="Search clients…"
-                        value={globalClientSearch}
-                        onChange={(e) => setGlobalClientSearch(e.target.value)}
-                        className="h-8 text-sm"
-                      />
-                      {globalClientSearch && filteredClientsForTask.length > 0 && (
-                        <div className="border border-border rounded-lg bg-background shadow-sm overflow-hidden mt-1">
-                          {filteredClientsForTask.map((c) => (
-                            <button
-                              key={c.id}
-                              className={cn(
-                                "w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors",
-                                globalTaskClientId === c.id && "bg-primary/10 text-primary",
-                              )}
-                              onClick={() => {
-                                setGlobalTaskClientId(c.id);
-                                setGlobalClientSearch(c.name);
-                              }}
-                            >
-                              {c.name}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Due date</Label>
-                        <Input
-                          type="date"
-                          value={globalTaskDueDate}
-                          onChange={(e) => setGlobalTaskDueDate(e.target.value)}
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Priority</Label>
-                        <Select
-                          value={globalTaskPriority}
-                          onValueChange={(v) => setGlobalTaskPriority(v as TaskPriority)}
-                        >
-                          <SelectTrigger className="h-8 text-sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="low">Low</SelectItem>
-                            <SelectItem value="normal">Normal</SelectItem>
-                            <SelectItem value="high">High</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Notes (optional)</Label>
-                      <Textarea
-                        placeholder="Any notes…"
-                        value={globalTaskNotes}
-                        onChange={(e) => setGlobalTaskNotes(e.target.value)}
-                        rows={2}
-                        className="text-sm resize-none"
-                      />
-                    </div>
-                    <div className="flex gap-2 pt-1">
-                      <Button
-                        size="sm"
-                        disabled={!globalTaskTitle.trim() || globalTaskSaving}
-                        onClick={handleGlobalAddTask}
-                        className="h-7 text-xs"
-                      >
-                        {globalTaskSaving ? "Saving…" : "Save Task"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setShowGlobalAddTask(false)}
-                        className="h-7 text-xs"
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              )}
-
-              <CardContent className={cn("pt-0", showGlobalAddTask ? "" : "")}>
-                {openTasks.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-6">
-                    No open tasks. Add one to stay on top of follow-ups.
-                  </p>
-                ) : (
-                  <div className="space-y-1">
-                    {openTasks.map((task) => {
-                      const client = task.client_id
-                        ? clientById.get(task.client_id)
-                        : null;
-                      const isOverdue =
-                        task.due_date < todayIso();
-                      return (
-                        <div
-                          key={task.id}
-                          className="flex items-start gap-2.5 py-2 px-1 rounded-lg hover:bg-muted/30 transition-colors group"
-                        >
-                          <button
-                            onClick={() => completeTask(task.id)}
-                            className="mt-0.5 text-muted-foreground hover:text-emerald-600 transition-colors shrink-0"
-                            title="Mark complete"
-                          >
-                            <Square className="h-4 w-4" />
-                          </button>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span
-                                className={cn(
-                                  "text-[10px] font-semibold border rounded px-1.5 py-0.5 shrink-0",
-                                  PRIORITY_STYLES[task.priority],
-                                )}
-                              >
-                                {task.priority}
-                              </span>
-                              <span className="text-sm font-medium text-foreground truncate">
-                                {task.title}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              {client && (
-                                <span className="text-xs text-muted-foreground truncate">
-                                  {client.name}
-                                </span>
-                              )}
-                              <span
-                                className={cn(
-                                  "text-xs shrink-0",
-                                  isOverdue
-                                    ? "text-red-600 font-medium"
-                                    : "text-muted-foreground",
-                                )}
-                              >
-                                {isOverdue ? "Overdue · " : ""}
-                                {fmtDate(task.due_date)}
-                              </span>
-                            </div>
-                            {task.notes && (
-                              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                                {task.notes}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Recent Activity feed */}
-            <Card className="rounded-2xl shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-emerald-500" />
-                  Recent Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {recentActivities.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-6">
-                    No activity logged yet.
-                  </p>
-                ) : (
-                  <div className="relative border-l-2 border-muted-foreground/20 ml-2 space-y-0">
-                    {recentActivities.map((act) => {
-                      const client = clientById.get(act.client_id);
-                      return (
-                        <div key={act.id} className="relative pl-5 pb-4 last:pb-0">
-                          <div className="absolute -left-1.5 top-0.5 h-3 w-3 rounded-full bg-emerald-400 border-2 border-background" />
-                          <div className="flex items-start gap-2">
-                            <span className="text-base leading-none mt-0.5 shrink-0">
-                              {ACTIVITY_TYPE_ICONS[act.type]}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-xs font-semibold text-foreground">
-                                  {ACTIVITY_TYPE_LABELS[act.type]}
-                                </span>
-                                {client && (
-                                  <span className="text-xs text-muted-foreground">
-                                    · {client.name}
-                                  </span>
-                                )}
-                                <span className="text-xs text-muted-foreground ml-auto shrink-0">
-                                  {relativeDate(act.activity_date)}
-                                </span>
-                              </div>
-                              {act.description && (
-                                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                                  {act.description}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        <CrmDashboardTab
+          clients={localClients}
+          activities={localActivities}
+          tasks={localTasks}
+          records={records}
+          clientById={clientById}
+          onLogActivity={logActivity}
+          onAddTask={addTask}
+          onCompleteTask={completeTask}
+          onOpenDetailPanel={openDetailPanel}
+        />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════ */}
       {/* INSIGHTS TAB                                                       */}
       {/* ══════════════════════════════════════════════════════════════════ */}
       {tab === "insights" && hasAnyData && (
-        <div className="space-y-6">
-          {/* Top 5 clients by lifetime GCI */}
-          <Card className="rounded-2xl border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold text-amber-800 flex items-center gap-2">
-                <Trophy className="h-4 w-4 text-amber-500" />
-                Top Clients by Lifetime GCI
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0 space-y-2">
-              {topClients.map((c, i) => {
-                const pct =
-                  totalGCI > 0
-                    ? Math.round((c.totalGCI / totalGCI) * 100)
-                    : 0;
-                return (
-                  <div key={c.name} className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className={cn(
-                            "text-[11px] font-bold w-5 text-center shrink-0",
-                            i === 0 ? "text-amber-600" : "text-slate-400",
-                          )}
-                        >
-                          #{i + 1}
-                        </span>
-                        <span className="text-sm font-medium text-foreground truncate">
-                          {c.name}
-                        </span>
-                        {c.dealCount > 1 && (
-                          <Badge
-                            variant="outline"
-                            className="text-[9px] bg-violet-50 text-violet-700 border-violet-200 shrink-0 py-0"
-                          >
-                            ×{c.dealCount}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-xs text-muted-foreground">
-                          {pct}%
-                        </span>
-                        <span className="text-sm font-bold text-foreground tabular-nums">
-                          {fmtCurrency(c.totalGCI)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="ml-7 h-1.5 rounded-full bg-amber-100 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-amber-400"
-                        style={{ width: `${Math.max(pct, 2)}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-
-          {/* Client concentration */}
-          {grouped.length >= 3 && (
-            <Card className="rounded-2xl shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <PieChart className="h-4 w-4 text-slate-500" />
-                  Client Concentration
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0 space-y-2.5">
-                {([1, 3, 5] as const).map((n) => {
-                  const topN = sortedByGCI.slice(0, n);
-                  const topNGCI = topN.reduce((s, g) => s + g.totalGCI, 0);
-                  const pct =
-                    totalGCI > 0
-                      ? Math.round((topNGCI / totalGCI) * 100)
-                      : 0;
-                  const color =
-                    pct > 60
-                      ? "bg-amber-400"
-                      : pct > 40
-                      ? "bg-blue-400"
-                      : "bg-emerald-400";
-                  return (
-                    <div key={n} className="flex items-center gap-3">
-                      <span className="text-xs text-muted-foreground w-20 shrink-0">
-                        Top {n} client{n !== 1 ? "s" : ""}
-                      </span>
-                      <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className={cn(
-                            "h-full rounded-full transition-all",
-                            color,
-                          )}
-                          style={{ width: `${Math.max(pct, 2)}%` }}
-                        />
-                      </div>
-                      <span className="text-xs font-semibold tabular-nums w-8 text-right">
-                        {pct}%
-                      </span>
-                    </div>
-                  );
-                })}
-                <p className="text-xs text-muted-foreground pt-1 border-t border-border/40">
-                  {concentrationPct > 60
-                    ? `Your top 5 clients generate ${concentrationPct}% of your GCI. Solid loyalists. Just don't put all your eggs in three baskets.`
-                    : concentrationPct > 40
-                    ? `Your top 5 clients generate ${concentrationPct}% of your GCI — decent spread. Room to diversify.`
-                    : `Nicely spread. Your top 5 clients account for ${concentrationPct}% of GCI — no single client can make or break your year.`}
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Lead source performance */}
-          {sourceStats.length > 0 && (
-            <Card className="rounded-2xl shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-blue-500" />
-                  Lead Source Performance
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-border/60">
-                        <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground pb-2 pr-4">
-                          Source
-                        </th>
-                        <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground pb-2 px-3">
-                          Deals
-                        </th>
-                        <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground pb-2 px-3">
-                          Total GCI
-                        </th>
-                        <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground pb-2 pl-3">
-                          Avg / Deal
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/40">
-                      {sourceStats.map((s) => (
-                        <tr
-                          key={s.source}
-                          className="group hover:bg-muted/30 transition-colors"
-                        >
-                          <td className="py-2 pr-4 font-medium text-foreground">
-                            {s.source}
-                          </td>
-                          <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">
-                            {s.deals}
-                          </td>
-                          <td className="py-2 px-3 text-right tabular-nums font-semibold text-foreground">
-                            {fmtCurrency(s.totalGCI)}
-                          </td>
-                          <td className="py-2 pl-3 text-right tabular-nums text-muted-foreground">
-                            {fmtCurrency(s.avgGCI)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {topSource && (
-                  <p className="mt-3 text-xs text-muted-foreground border-t border-border/40 pt-3">
-                    <span className="font-semibold text-foreground">
-                      {topSource.source}
-                    </span>{" "}
-                    is your top source —{" "}
-                    {topSource.deals} deal{topSource.deals !== 1 ? "s" : ""}{" "}
-                    generating {fmtCurrency(topSource.totalGCI)}.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Repeat client insight */}
-          {grouped.length >= 3 && (
-            <Card
-              className={cn(
-                "rounded-2xl shadow-sm",
-                repeatRate >= 20
-                  ? "border-violet-200 bg-gradient-to-br from-violet-50 to-indigo-50"
-                  : "border-border",
-              )}
-            >
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Star
-                    className={cn(
-                      "h-4 w-4",
-                      repeatRate >= 20 ? "text-violet-500" : "text-muted-foreground",
-                    )}
-                  />
-                  Repeat Client Rate
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0 space-y-3">
-                <div className="flex items-end gap-3">
-                  <p className="text-4xl font-bold tabular-nums text-foreground">
-                    {repeatRate}%
-                  </p>
-                  <p className="text-sm text-muted-foreground pb-1">
-                    {repeatCount} of {grouped.length} clients returned for
-                    another deal
-                  </p>
-                </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className={cn(
-                      "h-full rounded-full transition-all",
-                      repeatRate >= 30
-                        ? "bg-violet-500"
-                        : repeatRate >= 15
-                        ? "bg-violet-400"
-                        : "bg-slate-300",
-                    )}
-                    style={{ width: `${Math.min(repeatRate, 100)}%` }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {repeatRate >= 30
-                    ? "Excellent loyalty — your clients keep coming back."
-                    : repeatRate >= 15
-                    ? "Good repeat rate. Nurturing past clients could grow this further."
-                    : "Opportunity to build more repeat business."}
-                </p>
-                {repeatCount > 0 && (
-                  <div className="pt-1 space-y-1">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Repeat Clients
-                    </p>
-                    {grouped
-                      .filter((g) => g.dealCount > 1)
-                      .sort((a, b) => b.dealCount - a.dealCount)
-                      .slice(0, 8)
-                      .map((g) => (
-                        <div
-                          key={g.name}
-                          className="flex items-center justify-between text-xs"
-                        >
-                          <span className="text-foreground font-medium truncate mr-2">
-                            {g.name}
-                          </span>
-                          <span className="text-muted-foreground shrink-0">
-                            {g.dealCount} deals · {g.years.join(", ")}
-                          </span>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </div>
+        <InsightsTab
+          clients={localClients}
+          records={records}
+          activities={localActivities}
+          grouped={grouped}
+          totalGCI={totalGCI}
+          sourceStats={sourceStats}
+          topSource={topSource}
+        />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════ */}
@@ -1950,6 +1547,19 @@ export function ClientsContent({
             </div>
           )}
         </>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* FLIGHT PLANS TAB                                                    */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {tab === "flight_plans" && (
+        <FlightPlansTab
+          flightPlans={localFlightPlans}
+          flightPlanSteps={localFlightPlanSteps}
+          onSaveFlightPlan={handleSaveFlightPlan}
+          onDeleteFlightPlan={handleDeleteFlightPlan}
+          onToggleFlightPlan={handleToggleFlightPlan}
+        />
       )}
 
       {/* ══════════════════════════════════════════════════════════════════ */}

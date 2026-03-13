@@ -540,6 +540,9 @@ export interface Client {
   timeframe:              string | null;   // ClientTimeframe value
   preferred_contact:      PreferredContact;
 
+  // Speed to Lead (migration 00028)
+  first_contacted_at: string | null;
+
   created_at: string;
   updated_at: string;
 }
