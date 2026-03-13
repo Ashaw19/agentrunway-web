@@ -318,6 +318,9 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   }
 
   // ── Remove background from cutout (client-side WASM) ─────────────────────
+  // The cutout is rendered at ≤380 px tall on 1080×1080 slides, so we cap at
+  // 1024 px on the longest side. This keeps the PNG well under the 5 MB
+  // Supabase bucket limit while staying sharp on Retina displays.
   async function handleRemoveBackground() {
     if (!cutoutUrl || !user) return;
     setRemovingBg(true);
@@ -330,11 +333,28 @@ export function SocialContent({ settings, transactions, connections }: Props) {
       const resultBlob = await removeBackground(imgBlob, {
         output: { format: "image/png" },
       });
+
+      // ── Resize to max 1024 px on longest side ──────────────────────────
+      const bmp = await createImageBitmap(resultBlob);
+      const MAX = 1024;
+      let w = bmp.width;
+      let h = bmp.height;
+      if (w > MAX || h > MAX) {
+        const scale = MAX / Math.max(w, h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      const canvas = new OffscreenCanvas(w, h);
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(bmp, 0, 0, w, h);
+      bmp.close();
+      const resizedBlob = await canvas.convertToBlob({ type: "image/png" });
+
       const supabase = createClient();
       const path = `${user.id}/cutout.png`;
       const { error } = await supabase.storage
         .from("profile-media")
-        .upload(path, resultBlob, { upsert: true, contentType: "image/png" });
+        .upload(path, resizedBlob, { upsert: true, contentType: "image/png" });
       if (error) throw error;
       const { data: { publicUrl } } = supabase.storage
         .from("profile-media")
