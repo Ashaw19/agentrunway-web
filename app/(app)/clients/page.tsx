@@ -1,14 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ClientsContent } from "./clients-content";
-import type { Client, ClientRecord, ContactActivity, ContactTask } from "@/lib/types/database";
+import type { Client, ClientRecord, ContactActivity, ContactTask, UserSettings, ExpenseItem } from "@/lib/types/database";
 
 export default async function ClientsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [clientsResult, recordsResult, activitiesResult, tasksResult] = await Promise.all([
+  const [clientsResult, recordsResult, activitiesResult, tasksResult, settingsResult, expensesResult] = await Promise.all([
     supabase
       .from("clients")
       .select("*")
@@ -34,6 +34,15 @@ export default async function ClientsPage() {
       .eq("user_id", user.id)
       .is("completed_at", null)
       .order("due_date", { ascending: true }),
+    supabase
+      .from("user_settings")
+      .select("*")
+      .eq("user_id", user.id)
+      .single(),
+    supabase
+      .from("expense_items")
+      .select("*")
+      .eq("user_id", user.id),
   ]);
 
   return (
@@ -42,6 +51,8 @@ export default async function ClientsPage() {
       records={(recordsResult.data ?? []) as ClientRecord[]}
       activities={(activitiesResult.data ?? []) as ContactActivity[]}
       tasks={(tasksResult.data ?? []) as ContactTask[]}
+      settings={(settingsResult.data as UserSettings) ?? null}
+      expenseItems={(expensesResult.data ?? []) as ExpenseItem[]}
     />
   );
 }

@@ -48,6 +48,13 @@ import {
   CheckCheck,
   Activity,
   ListTodo,
+  Gem,
+  Shield,
+  Timer,
+  Heart,
+  Zap,
+  AlertTriangle,
+  Briefcase,
 } from "lucide-react";
 import { fmtCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -58,7 +65,16 @@ import type {
   ContactTask,
   ActivityType,
   TaskPriority,
+  UserSettings,
+  ExpenseItem,
 } from "@/lib/types/database";
+import {
+  computeClientValuations,
+  TIER_CONFIG,
+  type ClientValuation,
+  type ClientValuationResult,
+} from "@/lib/engines/client-valuation-engine";
+import { survivalResult } from "@/lib/engines/survival-engine";
 import {
   ACTIVITY_TYPE_LABELS,
   ACTIVITY_TYPE_ICONS,
@@ -72,6 +88,8 @@ interface Props {
   records: ClientRecord[];
   activities: ContactActivity[];
   tasks: ContactTask[];
+  settings: UserSettings | null;
+  expenseItems: ExpenseItem[];
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -89,7 +107,7 @@ type ClientGroup = {
 
 type SortCol = "name" | "deals" | "gci" | "avg" | "last" | "years" | "side";
 type SortDir = "asc" | "desc";
-type TabId = "clients" | "crm" | "insights";
+type TabId = "clients" | "crm" | "insights" | "portfolio";
 type SourceStat = { source: string; deals: number; totalGCI: number; avgGCI: number };
 
 // CSV import state
@@ -321,6 +339,8 @@ export function ClientsContent({
   records,
   activities: initialActivities,
   tasks: initialTasks,
+  settings,
+  expenseItems,
 }: Props) {
   // ── Local state ─────────────────────────────────────────────────────────────
   const [localActivities, setLocalActivities] =
@@ -424,6 +444,56 @@ export function ClientsContent({
             100,
         )
       : 0;
+
+  // ── Client Valuation Engine ───────────────────────────────────────────────
+  const valuationResult: ClientValuationResult | null = useMemo(() => {
+    if (!settings || grouped.length === 0 || totalGCI <= 0) return null;
+
+    const monthlyRecurring = expenseItems
+      .reduce((s, e) => s + (e.monthly_recurring ?? 0), 0);
+    const survival = survivalResult(
+      settings.monthly_brokerage_fee,
+      monthlyRecurring,
+      0, // cash reserve not needed for burn rate
+    );
+
+    // Build metadata map for contact-based insights
+    const metaMap = new Map<string, { lastContactAt: string | null }>();
+    for (const c of localClients) {
+      metaMap.set(c.id, { lastContactAt: c.last_contact_at });
+    }
+
+    return computeClientValuations(
+      {
+        clients: grouped.map((g) => ({
+          clientId: g.clientId,
+          name: g.name,
+          totalGCI: g.totalGCI,
+          dealCount: g.dealCount,
+          avgDeal: g.avgDeal,
+          lastDeal: g.lastDeal,
+          years: g.years,
+        })),
+        totalGCI,
+        monthlyBurn: survival.monthlyBurn,
+        province: settings.province,
+        netIncome: settings.ytd_gci,
+        agentExperienceYears: null,
+      },
+      metaMap,
+    );
+  }, [grouped, totalGCI, settings, expenseItems, localClients]);
+
+  // Quick lookup: clientId/name → valuation
+  const valuationMap = useMemo(() => {
+    const map = new Map<string, ClientValuation>();
+    if (valuationResult) {
+      for (const v of valuationResult.valuations) {
+        map.set(v.clientId ?? v.name, v);
+      }
+    }
+    return map;
+  }, [valuationResult]);
 
   const sources = useMemo(
     () =>
@@ -801,7 +871,7 @@ export function ClientsContent({
 
       {/* ── Tabs ─────────────────────────────────────────────────────────── */}
       <div className="flex gap-1 border-b border-border/60">
-        {(["clients", "crm", "insights"] as TabId[]).map((t) => (
+        {(["clients", "crm", "insights", "portfolio"] as TabId[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -812,7 +882,7 @@ export function ClientsContent({
                 : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
-            {t === "clients" ? "Clients" : t === "crm" ? "CRM" : "Insights"}
+            {t === "clients" ? "Clients" : t === "crm" ? "CRM" : t === "insights" ? "Insights" : "Portfolio"}
           </button>
         ))}
       </div>
@@ -987,6 +1057,19 @@ export function ClientsContent({
                                     ×{group.dealCount}
                                   </Badge>
                                 )}
+                                {(() => {
+                                  const v = valuationMap.get(group.clientId ?? group.name);
+                                  if (!v) return null;
+                                  const tc = TIER_CONFIG[v.tier];
+                                  return (
+                                    <Badge
+                                      variant="outline"
+                                      className={cn("text-[9px] shrink-0 py-0", tc.bg, tc.color, tc.border)}
+                                    >
+                                      {fmtCurrency(v.lgv)}
+                                    </Badge>
+                                  );
+                                })()}
                               </div>
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-sm text-muted-foreground py-3">
@@ -1555,6 +1638,102 @@ export function ClientsContent({
             </Card>
           )}
         </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* PORTFOLIO TAB                                                        */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {tab === "portfolio" && (
+        <>
+          {!valuationResult || valuationResult.valuations.length === 0 ? (
+            <div className="py-16 text-center">
+              <Briefcase className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+              <p className="text-sm font-medium text-muted-foreground">
+                {!settings
+                  ? "Complete onboarding to unlock portfolio valuations."
+                  : "Import client records to see portfolio analysis."}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {/* Hero KPI row */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <Card className="rounded-2xl border-emerald-200 bg-gradient-to-br from-emerald-50 to-card shadow-sm">
+                  <CardContent className="pt-4 pb-3 px-4">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Gem className="h-4 w-4 text-emerald-500" />
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Total Portfolio LGV
+                      </span>
+                    </div>
+                    <p className="text-2xl font-bold text-foreground tabular-nums">
+                      {fmtCurrency(valuationResult.totalLGV)}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      forward-looking lifetime value
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl border-blue-200 bg-gradient-to-br from-blue-50 to-card shadow-sm">
+                  <CardContent className="pt-4 pb-3 px-4">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <PieChart className="h-4 w-4 text-blue-500" />
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Top 12% → GCI
+                      </span>
+                    </div>
+                    <p className="text-2xl font-bold text-foreground tabular-nums">
+                      {valuationResult.top12PctGCI}%
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      of total GCI from top clients
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl shadow-sm" style={{
+                  borderColor: valuationResult.portfolioHealth === "Concentrated"
+                    ? "rgb(251 191 36)" : valuationResult.portfolioHealth === "Balanced"
+                    ? "rgb(96 165 250)" : "rgb(52 211 153)",
+                }}>
+                  <CardContent className="pt-4 pb-3 px-4">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Shield className="h-4 w-4" style={{
+                        color: valuationResult.portfolioHealth === "Concentrated"
+                          ? "rgb(245 158 11)" : valuationResult.portfolioHealth === "Balanced"
+                          ? "rgb(59 130 246)" : "rgb(16 185 129)",
+                      }} />
+                      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Portfolio Health
+                      </span>
+                    </div>
+                    <p className="text-2xl font-bold text-foreground">
+                      {valuationResult.portfolioHealth}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {valuationResult.portfolioHealth === "Concentrated"
+                        ? "high dependency on few clients"
+                        : valuationResult.portfolioHealth === "Balanced"
+                        ? "moderate client spread"
+                        : "well-distributed revenue"}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Client valuation cards */}
+              <div className="space-y-3">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Client Valuations — sorted by composite score
+                </p>
+                {valuationResult.valuations.map((v) => (
+                  <ValuationCard key={v.clientId ?? v.name} valuation={v} />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* ══════════════════════════════════════════════════════════════════ */}
@@ -2252,5 +2431,128 @@ function SummaryCard({
         <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>
       </CardContent>
     </Card>
+  );
+}
+
+// ── Valuation Card ──────────────────────────────────────────────────────────
+
+function ValuationCard({ valuation: v }: { valuation: ClientValuation }) {
+  const tc = TIER_CONFIG[v.tier];
+  return (
+    <Card className="rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+      <CardContent className="pt-4 pb-3 px-4 space-y-3">
+        {/* Header: name + tier + score */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="h-9 w-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold shrink-0">
+            {v.name.charAt(0).toUpperCase()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-foreground truncate">
+                {v.name}
+              </span>
+              <Badge
+                variant="outline"
+                className={cn("text-[10px] shrink-0 py-0 font-bold", tc.bg, tc.color, tc.border)}
+              >
+                {tc.label}
+              </Badge>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Score {v.compositeScore}/100 · Lifetime {fmtCurrency(v.lifetimeGCI)}
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className="text-lg font-bold tabular-nums text-foreground">
+              {fmtCurrency(v.lgv)}
+            </p>
+            <p className="text-[10px] text-muted-foreground">LGV</p>
+          </div>
+        </div>
+
+        {/* Metric pills */}
+        <div className="flex flex-wrap gap-1.5">
+          <MetricPill
+            icon={<Gem className="h-3 w-3" />}
+            label="LGV"
+            value={fmtCurrency(v.lgv)}
+            color="emerald"
+          />
+          <MetricPill
+            icon={<Shield className="h-3 w-3" />}
+            label="Runway"
+            value={`${v.runwayImpactMonths.toFixed(1)}mo`}
+            color="blue"
+          />
+          <MetricPill
+            icon={<Zap className="h-3 w-3" />}
+            label="After Tax"
+            value={`${v.taxEfficiencyCents}¢`}
+            color="violet"
+          />
+          <MetricPill
+            icon={<Timer className="h-3 w-3" />}
+            label="Velocity"
+            value={v.velocityDays !== null ? `${v.velocityDays}d` : "—"}
+            color="amber"
+          />
+          <MetricPill
+            icon={<Heart className="h-3 w-3" />}
+            label="Health"
+            value={`${v.healthContributionPct}%`}
+            color="rose"
+          />
+        </div>
+
+        {/* Insight badges */}
+        {v.insights.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {v.insights.map((insight) => (
+              <span
+                key={insight}
+                className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-medium text-amber-700"
+              >
+                <AlertTriangle className="h-2.5 w-2.5" />
+                {insight}
+              </span>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Metric Pill ─────────────────────────────────────────────────────────────
+
+function MetricPill({
+  icon,
+  label,
+  value,
+  color,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  color: "emerald" | "blue" | "violet" | "amber" | "rose";
+}) {
+  const styles: Record<string, string> = {
+    emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    blue:    "bg-blue-50 text-blue-700 border-blue-200",
+    violet:  "bg-violet-50 text-violet-700 border-violet-200",
+    amber:   "bg-amber-50 text-amber-700 border-amber-200",
+    rose:    "bg-rose-50 text-rose-700 border-rose-200",
+  };
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+        styles[color],
+      )}
+    >
+      {icon}
+      <span className="opacity-70">{label}</span>
+      <span className="font-bold tabular-nums">{value}</span>
+    </span>
   );
 }

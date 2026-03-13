@@ -9,3 +9,4 @@ export * from "./runway-score-engine";
 export * from "./insights-engine";
 export * from "./advisor-engine";
 export * from "./tax-optimization-engine";
+export * from "./client-valuation-engine";
