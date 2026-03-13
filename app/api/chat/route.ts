@@ -38,16 +38,21 @@ export async function POST(req: NextRequest) {
     baseURL: "https://api.groq.com/openai/v1",
   });
 
-  const { messages, financialContext } = await req.json();
+  const { messages, financialContext, currentPage } = await req.json();
 
   if (!Array.isArray(messages)) {
     return new Response("Invalid request body", { status: 400 });
   }
 
+  const pageContext = currentPage
+    ? `\nThe user is currently viewing the "${currentPage.replace(/^\//, "")}" page. Prioritize answers relevant to what they're looking at.`
+    : "";
+
   const systemPrompt = `You are an expert AI business advisor for a Canadian real estate agent using Agent Runway — a financial analytics platform.
 
 You have access to the following live business data for this agent:
 ${financialContext}
+${pageContext}
 
 You also have comprehensive knowledge of the Agent Runway platform. Use the following reference to answer ANY question about features, metrics, computations, terms, tax rules, or how things work:
 ${KNOWLEDGE_BASE}

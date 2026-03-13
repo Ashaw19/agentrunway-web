@@ -12,6 +12,7 @@ import {
   Users,
   Share2,
   Globe,
+  BookOpen,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
@@ -19,7 +20,7 @@ import { cn } from "@/lib/utils";
 
 type SidebarEntry =
   | { type: "header"; label: string }
-  | { type: "item"; label: string; href: string; icon: LucideIcon; iconActive: string; iconInactive: string; borderActive: string };
+  | { type: "item"; label: string; href: string; icon: LucideIcon; iconActive: string; iconInactive: string; borderActive: string; dataTour?: string };
 
 const sidebarEntries: SidebarEntry[] = [
   // ── FINANCIALS ─────────────────────────────────────────────────
@@ -56,6 +57,11 @@ const sidebarEntries: SidebarEntry[] = [
     type: "item", label: "Social", href: "/social", icon: Share2,
     iconActive: "text-rose-300", iconInactive: "text-rose-400/60", borderActive: "border-l-rose-400",
   },
+  {
+    type: "item", label: "Guide", href: "/guide", icon: BookOpen,
+    iconActive: "text-cyan-300", iconInactive: "text-cyan-400/60", borderActive: "border-l-cyan-400",
+    dataTour: "guide-link",
+  },
 ];
 
 
@@ -64,6 +70,7 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
 
   return (
     <aside
+      data-tour="sidebar"
       className="hidden md:flex h-screen w-64 flex-col border-r border-sidebar-border text-sidebar-foreground sidebar-gradient"
       style={{
         background: "linear-gradient(180deg, oklch(0.15 0.065 265) 0%, oklch(0.12 0.060 265) 55%, oklch(0.10 0.055 265) 100%)",
@@ -111,6 +118,7 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
               <Link
                 key={entry.href}
                 href={entry.href}
+                data-tour={entry.dataTour}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] transition-all duration-150 border-l-[3px]",
                   isActive

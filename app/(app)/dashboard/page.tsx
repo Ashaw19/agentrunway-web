@@ -148,6 +148,7 @@ export default async function DashboardPage({
       ccaAssetCount={ccaAssetCount}
       activeClientCount={activeClientCount}
       staleLeadCount={staleLeadCount}
+      hasSeenTour={settingsResult.data?.has_seen_tour ?? true}
     />
   );
 }

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { ExplainButton } from "@/components/explain-button";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight, Download, FileText } from "lucide-react";
@@ -127,6 +128,7 @@ export function ExpensesContent({
   plaidExpenseItems = [], plaidExpenseCategories = [], plaidConfigured = false,
 }: Props) {
   const thisYear = currentYear ?? new Date().getFullYear();
+  const isPro = settings?.subscription_tier === "professional" || settings?.subscription_tier === "team";
   const [categories, setCategories] = useState(initialCategories);
 
   // ── Tab state ─────────────────────────────────────────────────────────────
@@ -968,7 +970,10 @@ export function ExpensesContent({
         <Card className="border-l-4 border-l-amber-400">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Expense Ratio vs. Benchmark</CardTitle>
+              <CardTitle className="text-base flex items-center gap-1.5">
+                Expense Ratio vs. Benchmark
+                {isPro && <ExplainButton question="What is a healthy expense ratio for a real estate agent and how can I improve mine?" />}
+              </CardTitle>
               <Badge
                 variant="secondary"
                 className={cn(

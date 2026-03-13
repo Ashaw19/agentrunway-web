@@ -87,4 +87,66 @@ Lead (10%), Showing (20%), Offer (40%), Conditional (60%), Firm (90%).
 
 ### EXPENSE CATEGORIES (T2125 MAPPING)
 8210: Advertising/photography/print. 8211: Vehicle lease. 8212: Vehicle insurance/repairs. 8213: Fuel. 8215: Office supplies/software. 8216: Meals & entertainment (50% deductible). 8220: Professional fees/phone/licensing. 8226: Client gifts ($25 CRA limit). 8228: Other.
+
+### FREQUENTLY ASKED QUESTIONS
+
+Q: How is my GCI calculated?
+A: GCI = Sale Price × Commission %. If you override GCI in the deal form, that value is used instead.
+
+Q: What does the Runway Score measure?
+A: A composite 0–100 score across 6 factors: pace vs goal (30%), pipeline health (20%), expense ratio (15%), survival runway (15%), benchmark rank (10%), and setup completeness (10%). Grades range from A+ (92+) to F (0–49).
+
+Q: How much should I set aside for taxes per deal?
+A: Check the Forecast page's Tax Planning card — it shows a per-deal set-aside amount based on your projected annual tax divided by expected deal count.
+
+Q: What are probability bands (P10–P90)?
+A: Statistical confidence intervals for your year-end GCI. P50 is the median projection. P10 means there's only a 10% chance you'll earn below that amount. P90 means 90% confidence you'll earn at least that much.
+
+Q: How does the expense ratio work?
+A: Expense Ratio = Total YTD Expenses ÷ YTD GCI. Under 25% is excellent, 25–30% is healthy, 30–40% needs attention, over 40% is concerning.
+
+Q: What is the survival runway?
+A: Cash Reserve ÷ Net Monthly Burn. It tells you how many months you could survive with zero new income. Under 2 months is critical, 2–4 is a warning, 4–6 is healthy, 6+ is strong.
+
+Q: How do pipeline deal probabilities work?
+A: Each stage has a default probability: Lead 10%, Showing 20%, Offer 40%, Conditional 60%, Firm 90%. Weighted GCI = Deal GCI × probability.
+
+Q: What's the difference between the Deals tab and Pipeline tab?
+A: Deals are completed (closed/pending/fallen). Pipeline deals are in-progress opportunities at various stages. Convert a pipeline deal to a closed deal when it closes.
+
+Q: How are my taxes estimated?
+A: The engine applies 2025 CRA federal brackets + your province's brackets + CPP/QPP self-employment contributions. It's an estimate — consult a qualified accountant for filing.
+
+Q: What is the benchmark comparison?
+A: Your GCI is compared against CREA 2023 cohort data for agents with similar experience. Cohorts: Rookie (0–2yr), Growth (3–5yr), Established (6–10yr), Top Producer (10+yr).
+
+Q: How does voice input work?
+A: Tap the microphone in the Quick Actions menu, speak naturally. The system transcribes your audio, classifies your intent (new client, expense, transaction, or note), and routes you to the correct page with fields pre-filled.
+
+Q: What CRA mileage rates are used?
+A: 2025 CRA rates: $0.72/km for the first 5,000 km, $0.66/km thereafter.
+
+Q: What does "stale lead" mean?
+A: An active client (Boarding/Taxiing/In-Flight status) with no recorded contact activity in 14+ days.
+
+Q: Can I change my province or business structure after onboarding?
+A: Yes — go to Settings to change province, business structure, commission split, fees, goals, and all other configuration.
+
+Q: What is CCA (Capital Cost Allowance)?
+A: CRA's depreciation method for business assets. Items like laptops or cameras are deducted over multiple years using prescribed rates with a half-year rule in the first year.
+
+Q: How does the home office deduction work?
+A: Two methods: Simplified ($5/sqft, max 300 sqft = $1,500) or Detailed (actual costs × business-use percentage). Choose in Settings.
+
+Q: What's the difference between Conservative, Base, and Optimistic scenarios?
+A: Dashboard scenario modes adjust projections: Conservative applies −15% to projected figures, Base uses actual projections, Optimistic applies +15%.
+
+Q: What are client tiers (Platinum, Gold, Silver, Bronze)?
+A: Ranked by composite value score: Platinum (top 10%), Gold (10–25%), Silver (25–50%), Bronze (bottom 50%).
+
+Q: How does the Social page work?
+A: Generates Instagram-ready month-in-review carousels. Select deals, choose a template, customize branding (logo, headshot), add captions with hashtags, and export directly or as a Canva ZIP.
+
+Q: Is Agent Runway available outside Canada?
+A: Currently optimized for Canadian real estate agents with CRA tax rules, provincial brackets, and CREA benchmarks. The core financial tracking works anywhere, but tax calculations are Canada-specific.
 `;

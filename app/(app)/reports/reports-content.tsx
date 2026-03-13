@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
+import { ExplainButton } from "@/components/explain-button";
 import {
   computeGCI,
   computeWeightedGCI,
@@ -1081,7 +1082,10 @@ export function ReportsContent({
         {/* Benchmark */}
         <Card className="rounded-2xl border border-purple-200 bg-purple-50/40 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Benchmark Standing</CardTitle>
+            <CardTitle className="text-base flex items-center gap-1.5">
+              Benchmark Standing
+              {isPro && <ExplainButton question="How does my benchmark standing work and what does my percentile rank mean?" />}
+            </CardTitle>
             <CardDescription>vs. {COHORT_LABELS[benchmark.cohort]} cohort (CREA 2023)</CardDescription>
           </CardHeader>
           <CardContent>

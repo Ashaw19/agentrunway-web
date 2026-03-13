@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { ExplainButton } from "@/components/explain-button";
 import { Separator } from "@/components/ui/separator";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import {
@@ -75,10 +76,12 @@ export function ForecastContent({
   pipelineDeals,
   expenseCategories,
   historyItems,
-  subscriptionTier: _subscriptionTier = "starter",
+  subscriptionTier = "starter",
   mileageKmTotal = 0,
   ccaAssetCount = 0,
 }: Props) {
+  const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
+
   if (!settings) {
     return (
       <div className="py-20 text-center text-muted-foreground">
@@ -364,7 +367,10 @@ export function ForecastContent({
       {/* Financial waterfall with tax */}
       <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base">Financial Waterfall</CardTitle>
+          <CardTitle className="text-base flex items-center gap-1.5">
+            Financial Waterfall
+            {isPro && <ExplainButton question="Walk me through my financial waterfall — where does every dollar of my GCI go?" />}
+          </CardTitle>
           <CardDescription>
             Projected income breakdown for {currentYear}
           </CardDescription>
@@ -468,7 +474,10 @@ export function ForecastContent({
       {/* Tax details */}
         <Card className="rounded-2xl border border-amber-200 bg-amber-50/50 shadow-sm">
           <CardHeader>
-            <CardTitle className="text-base">Tax Planning</CardTitle>
+            <CardTitle className="text-base flex items-center gap-1.5">
+              Tax Planning
+              {isPro && <ExplainButton question="How are my tax estimates calculated and how much should I set aside per deal?" />}
+            </CardTitle>
             <CardDescription>
               {taxResult.taxYear} estimates &middot; {PROVINCE_LABELS[settings.province]}
             </CardDescription>
@@ -718,7 +727,10 @@ export function ForecastContent({
       {/* Probability bands — chart + text summary */}
       <Card className="rounded-2xl border border-blue-200 bg-blue-50/40 shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base">Projection Range</CardTitle>
+          <CardTitle className="text-base flex items-center gap-1.5">
+            Projection Range
+            {isPro && <ExplainButton question="How are my probability bands (P10–P90) calculated and what does my range mean?" />}
+          </CardTitle>
           <CardDescription>
             {bands.confidence} confidence &middot; {bands.monthsOfData} months of data
           </CardDescription>

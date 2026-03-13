@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { Sparkles, X, Send, Bot, User, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useAiChat } from "@/lib/ai-chat-context";
 
 interface Message {
   role: "user" | "assistant";
@@ -15,15 +17,61 @@ interface Props {
   financialContext: string;
 }
 
-const SUGGESTED_QUESTIONS = [
+/* ── Page-specific suggested questions ──────────────────────────── */
+
+const DEFAULT_SUGGESTIONS = [
   "Am I on pace to hit my annual goal?",
   "How much should I set aside for taxes?",
   "What's my biggest business risk right now?",
   "How does my performance compare to other agents?",
 ];
 
+const PAGE_SUGGESTIONS: Record<string, string[]> = {
+  "/dashboard": [
+    "Am I on pace to hit my annual goal?",
+    "How is my Runway Score calculated?",
+    "What's my biggest business risk right now?",
+    "How much should I set aside for taxes?",
+  ],
+  "/transactions": [
+    "What's my average deal size this year?",
+    "How is GCI calculated?",
+    "Am I on pace for my annual goal?",
+    "How do pending vs closed deals differ?",
+  ],
+  "/expenses": [
+    "What's a healthy expense ratio?",
+    "How do CRA mileage deductions work?",
+    "What expenses are tax-deductible?",
+    "What is the meals deduction limit?",
+  ],
+  "/forecast": [
+    "How are probability bands calculated?",
+    "What should I set aside for taxes per deal?",
+    "How does the 5-year projection work?",
+    "What is my effective tax rate?",
+  ],
+  "/crm": [
+    "What does each client status mean?",
+    "How do client tiers work?",
+    "What's a stale lead?",
+    "How does speed-to-lead work?",
+  ],
+  "/reports": [
+    "What is the T2125 form?",
+    "How does CCA depreciation work?",
+    "How is the home office deduction calculated?",
+    "What does my benchmark percentile mean?",
+  ],
+  "/guide": [
+    "Give me a quick overview of Agent Runway",
+    "How do I add a new transaction?",
+    "How does the tax engine work?",
+    "What are the keyboard shortcuts?",
+  ],
+};
+
 function buildInitialMessage(context: string): string {
-  // Try to extract first name from context if available
   const gciMatch = context.match(/YTD GCI:\s*\$?([\d,]+)/);
   const goalMatch = context.match(/Annual GCI Goal:\s*\$?([\d,]+)/);
   const dealsMatch = context.match(/Closed Deals YTD:\s*(\d+)/);
@@ -40,7 +88,9 @@ function buildInitialMessage(context: string): string {
 }
 
 export function AiChat({ financialContext }: Props) {
-  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const { isOpen, setOpen, pendingQuestion, consumeQuestion } = useAiChat();
+
   const [initialMessage] = useState<Message>({
     role: "assistant",
     content: buildInitialMessage(financialContext),
@@ -52,85 +102,103 @@ export function AiChat({ financialContext }: Props) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Pick page-specific suggestions
+  const suggestions = PAGE_SUGGESTIONS[pathname] ?? DEFAULT_SUGGESTIONS;
+
   // Scroll to bottom on new messages
   useEffect(() => {
-    if (open) {
+    if (isOpen) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       setUnread(0);
     }
-  }, [messages, open]);
+  }, [messages, isOpen]);
 
   // Focus textarea when opened
   useEffect(() => {
-    if (open) {
+    if (isOpen) {
       setTimeout(() => textareaRef.current?.focus(), 100);
       setUnread(0);
     }
-  }, [open]);
+  }, [isOpen]);
 
-  async function handleSend(overrideText?: string) {
-    const trimmed = (overrideText ?? input).trim();
-    if (!trimmed || loading) return;
+  const handleSend = useCallback(
+    async (overrideText?: string) => {
+      const trimmed = (overrideText ?? input).trim();
+      if (!trimmed || loading) return;
 
-    const userMessage: Message = { role: "user", content: trimmed };
-    const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
-    setInput("");
-    setLoading(true);
+      const userMessage: Message = { role: "user", content: trimmed };
+      const newMessages = [...messages, userMessage];
+      setMessages(newMessages);
+      setInput("");
+      setLoading(true);
 
-    // Add placeholder for streaming
-    const assistantPlaceholder: Message = { role: "assistant", content: "" };
-    setMessages([...newMessages, assistantPlaceholder]);
+      // Add placeholder for streaming
+      const assistantPlaceholder: Message = { role: "assistant", content: "" };
+      setMessages([...newMessages, assistantPlaceholder]);
 
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: newMessages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-          financialContext,
-        }),
-      });
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: newMessages.map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+            financialContext,
+            currentPage: pathname,
+          }),
+        });
 
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        throw new Error(errText || `HTTP ${res.status}`);
-      }
-
-      const reader = res.body?.getReader();
-      const decoder = new TextDecoder();
-      let assistantText = "";
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          assistantText += decoder.decode(value, { stream: true });
-          const captured = assistantText;
-          setMessages([
-            ...newMessages,
-            { role: "assistant", content: captured },
-          ]);
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "");
+          throw new Error(errText || `HTTP ${res.status}`);
         }
+
+        const reader = res.body?.getReader();
+        const decoder = new TextDecoder();
+        let assistantText = "";
+
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            assistantText += decoder.decode(value, { stream: true });
+            const captured = assistantText;
+            setMessages([
+              ...newMessages,
+              { role: "assistant", content: captured },
+            ]);
+          }
+        }
+        if (!isOpen) setUnread((n) => n + 1);
+      } catch (err) {
+        console.error("Chat error:", err);
+        const errMsg =
+          err instanceof Error && err.message && !err.message.startsWith("HTTP ")
+            ? err.message
+            : "Sorry, I couldn't connect right now. Try again in a moment.";
+        setMessages([
+          ...newMessages,
+          { role: "assistant", content: errMsg },
+        ]);
+      } finally {
+        setLoading(false);
       }
-      if (!open) setUnread((n) => n + 1);
-    } catch (err) {
-      console.error("Chat error:", err);
-      const errMsg =
-        err instanceof Error && err.message && !err.message.startsWith("HTTP ")
-          ? err.message
-          : "Sorry, I couldn't connect right now. Try again in a moment.";
-      setMessages([
-        ...newMessages,
-        { role: "assistant", content: errMsg },
-      ]);
-    } finally {
-      setLoading(false);
+    },
+    [input, loading, messages, financialContext, pathname, isOpen],
+  );
+
+  // Handle pending questions from ExplainButton / Guide
+  useEffect(() => {
+    if (isOpen && pendingQuestion && !loading) {
+      const question = consumeQuestion();
+      if (question) {
+        // Small delay to let the panel render first
+        setTimeout(() => handleSend(question), 150);
+      }
     }
-  }
+  }, [isOpen, pendingQuestion, loading, consumeQuestion, handleSend]);
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -143,15 +211,16 @@ export function AiChat({ financialContext }: Props) {
     <>
       {/* Floating chat button */}
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(!isOpen)}
+        data-tour="ai-chat"
         className={cn(
           "fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full shadow-xl transition-all duration-200",
-          open
+          isOpen
             ? "bg-slate-700 text-white scale-95"
             : "text-white",
         )}
         style={
-          open
+          isOpen
             ? {}
             : {
                 background: "linear-gradient(135deg, #1d4ed8, #7c3aed)",
@@ -160,7 +229,7 @@ export function AiChat({ financialContext }: Props) {
         }
         aria-label="Open AI advisor"
       >
-        {open ? (
+        {isOpen ? (
           <ChevronDown className="h-5 w-5" />
         ) : (
           <>
@@ -175,7 +244,7 @@ export function AiChat({ financialContext }: Props) {
       </button>
 
       {/* Chat panel */}
-      {open && (
+      {isOpen && (
         <div className="fixed bottom-24 right-6 z-40 flex w-[calc(100vw-3rem)] max-w-sm flex-col overflow-hidden rounded-2xl shadow-2xl sm:w-96"
           style={{
             border: "1px solid rgba(255,255,255,0.08)",
@@ -267,7 +336,7 @@ export function AiChat({ financialContext }: Props) {
                 Quick questions
               </p>
               <div className="flex flex-wrap gap-1.5">
-                {SUGGESTED_QUESTIONS.map((q) => (
+                {suggestions.map((q) => (
                   <button
                     key={q}
                     onClick={() => handleSend(q)}

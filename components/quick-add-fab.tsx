@@ -248,6 +248,7 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
 
         {/* Main FAB */}
         <button
+          data-tour="fab"
           onClick={() => {
             if (voiceActive && !voiceBusy) {
               setVoiceActive(false);

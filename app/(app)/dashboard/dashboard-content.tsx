@@ -93,6 +93,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ExplainButton } from "@/components/explain-button";
+import { WelcomeTour } from "@/components/welcome-tour";
 
 function MetricInfo({ tip }: { tip: string }) {
   return (
@@ -128,6 +130,7 @@ interface Props {
   ccaAssetCount?: number;
   activeClientCount?: number;
   staleLeadCount?: number;
+  hasSeenTour?: boolean;
 }
 
 function getTimeGreeting(): { greeting: string; emoji: string } {
@@ -191,7 +194,7 @@ export function DashboardContent({
   receiptYTD = 0,
   historyItems = [],
   initialDashboardView,
-  subscriptionTier: _subscriptionTier = "starter",
+  subscriptionTier = "starter",
   showUpgradeBanner = false,
   userName,
   openTasks = [],
@@ -199,7 +202,10 @@ export function DashboardContent({
   ccaAssetCount = 0,
   activeClientCount: _activeClientCount = 0,
   staleLeadCount = 0,
+  hasSeenTour = true,
 }: Props) {
+  const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
+  const [tourComplete, setTourComplete] = useState(hasSeenTour);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [showAnnualReview, setShowAnnualReview] = useState(false);
   // ── CRM task widget state ───────────────────────────────────────────────
@@ -698,7 +704,7 @@ export function DashboardContent({
       )}
 
       {/* Runway Score Hero */}
-      <Card className="rounded-2xl border-amber-200/60 bg-gradient-to-br from-amber-50/80 via-slate-50 to-blue-50/60 shadow-lg shadow-amber-100/50">
+      <Card data-tour="dashboard-score" className="rounded-2xl border-amber-200/60 bg-gradient-to-br from-amber-50/80 via-slate-50 to-blue-50/60 shadow-lg shadow-amber-100/50">
         <CardContent className="pt-6 pb-6">
           <div className="flex flex-wrap items-center justify-between gap-6">
             {/* Left: grade circle + score */}
@@ -720,6 +726,7 @@ export function DashboardContent({
                   <span className="flex items-center gap-1">
                     <p className="text-sm font-semibold text-slate-500">Runway Score</p>
                     <MetricInfo tip="A composite score across 6 factors: pace vs goal, expense ratio, pipeline health, cash runway, trend direction, and deal consistency." />
+                    {isPro && <ExplainButton question="How is my Runway Score calculated and what can I do to improve it?" />}
                   </span>
                   <RunwayScoreInfoDialog />
                 </div>
@@ -736,6 +743,7 @@ export function DashboardContent({
                 <span className="flex items-center gap-1">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Cash Runway</p>
                   <MetricInfo tip="How many months you could sustain current expenses using only your cash reserve, with zero new income." />
+                  {isPro && <ExplainButton question="What is my current cash runway and how can I extend it?" />}
                 </span>
                 <p className={cn("text-xl font-bold mt-0.5", riskColors[survival.riskLevel])}>
                   {formatSurvivalDisplay(survival)}
@@ -746,6 +754,7 @@ export function DashboardContent({
                 <span className="flex items-center gap-1">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Cohort Rank</p>
                   <MetricInfo tip="How you rank vs Canadian agents with similar experience, based on CREA 2023 benchmarks. P75 means you out-earned 75% of your peers." />
+                  {isPro && <ExplainButton question="How does my cohort benchmark ranking work and what does my percentile mean?" />}
                 </span>
                 {/* Gold for top-half performers — commission gold as achievement signal */}
                 <p
@@ -1540,6 +1549,14 @@ export function DashboardContent({
         </a>
         .
       </p>
+
+      {/* Welcome Tour — shown only on first visit after onboarding */}
+      {!tourComplete && (
+        <WelcomeTour
+          hasAiChat={isPro}
+          onComplete={() => setTourComplete(true)}
+        />
+      )}
     </div>
   );
 }
