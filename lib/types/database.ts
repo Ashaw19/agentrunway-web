@@ -531,6 +531,11 @@ export interface Client {
   status:                 ClientStatus;
   city:                   string | null;
   province_region:        string | null;
+  // Full address (migration 00029)
+  street_address:         string | null;
+  unit_number:            string | null;
+  postal_code:            string | null;
+  country:                string;          // defaults to "Canada"
   phone_type:             PhoneType;
   secondary_email:        string | null;
   secondary_phone:        string | null;
@@ -578,6 +583,36 @@ export interface FlightPlanStep {
   template: string | null;
   created_at: string;
 }
+
+// ── Tag System ───────────────────────────────────────────────────────────────
+
+export interface TagCategory {
+  category: string;
+  tags: string[];
+}
+
+export const PREDEFINED_TAGS: TagCategory[] = [
+  {
+    category: "Lead Type / Motivation",
+    tags: ["Buyer", "Seller", "Investor", "First-Time Buyer", "Relocation", "Renter", "Cash Buyer", "Luxury"],
+  },
+  {
+    category: "Property Interest",
+    tags: ["Pool", "Waterfront", "Fixer-Upper", "New Construction"],
+  },
+  {
+    category: "Lead Source & Marketing",
+    tags: ["Open House", "Sign Call", "Referral", "Facebook Lead", "Podcast Listener"],
+  },
+  {
+    category: "Status & Priority",
+    tags: ["VIP", "High Value", "Nurture", "Closed 2025", "Out of Area"],
+  },
+  {
+    category: "Action / Restriction",
+    tags: ["Do Not Call", "Do Not Text", "Attorney", "Lender"],
+  },
+];
 
 export interface ClientRecord {
   id: string;

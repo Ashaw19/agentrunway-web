@@ -79,6 +79,7 @@ import type {
   ExpenseItem,
   ClientRelationship,
   ClientStatus,
+  PhoneType,
   PreferredContact,
   ClientTimeframe,
   RelationshipType,
@@ -106,6 +107,7 @@ import { createClient } from "@/lib/supabase/client";
 import { CrmDashboardTab } from "./tabs/crm-dashboard-tab";
 import { InsightsTab } from "./tabs/insights-tab";
 import { FlightPlansTab } from "./tabs/flight-plans-tab";
+import { TagPicker } from "./shared";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -318,6 +320,14 @@ function sortTableGroups(
 
 // ── CSV Parsing ───────────────────────────────────────────────────────────────
 
+function normalizePhoneType(raw: string): PhoneType {
+  const s = raw.toLowerCase().trim();
+  if (s === "iphone" || s === "mobile" || s === "cell") return "mobile";
+  if (s === "home") return "home";
+  if (s === "work" || s === "office") return "work";
+  return "mobile";
+}
+
 function parseCsv(text: string): { headers: string[]; rows: CsvRow[] } {
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length < 2) return { headers: [], rows: [] };
@@ -405,7 +415,7 @@ export function ClientsContent({
   const [newClientPhone, setNewClientPhone] = useState("");
   const [newClientStatus, setNewClientStatus] = useState<ClientStatus>("boarding");
   const [newClientSource, setNewClientSource] = useState("");
-  const [newClientTags, setNewClientTags] = useState("");
+  const [newClientTags, setNewClientTags] = useState<string[]>([]);
   const [addClientSaving, setAddClientSaving] = useState(false);
 
   // Inline editing
@@ -443,6 +453,12 @@ export function ClientsContent({
   const [mapEmail, setMapEmail] = useState("__none__");
   const [mapPhone, setMapPhone] = useState("__none__");
   const [mapSource, setMapSource] = useState("__none__");
+  const [mapCity, setMapCity] = useState("__none__");
+  const [mapProvince, setMapProvince] = useState("__none__");
+  const [mapStreet, setMapStreet] = useState("__none__");
+  const [mapPostal, setMapPostal] = useState("__none__");
+  const [mapCountry, setMapCountry] = useState("__none__");
+  const [mapPhoneType, setMapPhoneType] = useState("__none__");
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -753,11 +769,6 @@ export function ClientsContent({
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setAddClientSaving(false); return; }
 
-    const tags = newClientTags
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-
     const { data, error } = await supabase
       .from("clients")
       .insert({
@@ -768,7 +779,7 @@ export function ClientsContent({
         phone: newClientPhone.trim() || null,
         status: newClientStatus,
         lead_source: newClientSource || null,
-        tags: tags.length > 0 ? tags : [],
+        tags: newClientTags,
       })
       .select()
       .single();
@@ -781,7 +792,7 @@ export function ClientsContent({
       setNewClientPhone("");
       setNewClientStatus("boarding");
       setNewClientSource("");
-      setNewClientTags("");
+      setNewClientTags([]);
     }
     setAddClientSaving(false);
   }, [newClientName, newClientEmail, newClientPhone, newClientStatus, newClientSource, newClientTags]);
@@ -968,10 +979,36 @@ export function ClientsContent({
       const { headers, rows } = parseCsv(text);
       setCsvHeaders(headers);
       setCsvRows(rows);
+
+      // Reset all mappings to defaults
       setMapName(headers[0] ?? "");
       setMapEmail("__none__");
       setMapPhone("__none__");
       setMapSource("__none__");
+      setMapCity("__none__");
+      setMapProvince("__none__");
+      setMapStreet("__none__");
+      setMapPostal("__none__");
+      setMapCountry("__none__");
+      setMapPhoneType("__none__");
+
+      // Auto-detect Follow Up Boss column names (case-insensitive)
+      const FUB_AUTOMAP: Record<string, (v: string) => void> = {
+        "name":                 setMapName,
+        "email 1":              setMapEmail,
+        "phone 1":              setMapPhone,
+        "phone 1 - type":       setMapPhoneType,
+        "address 1 - street":   setMapStreet,
+        "address 1 - city":     setMapCity,
+        "address 1 - state":    setMapProvince,
+        "address 1 - zip":      setMapPostal,
+        "address 1 - country":  setMapCountry,
+      };
+      headers.forEach((h) => {
+        const fn = FUB_AUTOMAP[h.toLowerCase().trim()];
+        if (fn) fn(h);
+      });
+
       setImportStep("map");
     };
     reader.readAsText(file);
@@ -1005,6 +1042,10 @@ export function ClientsContent({
       const email = mapEmail !== "__none__" ? (row[mapEmail] ?? "").trim() || null : null;
       const phone = mapPhone !== "__none__" ? (row[mapPhone] ?? "").trim() || null : null;
       const leadSource = mapSource !== "__none__" ? (row[mapSource] ?? "").trim() || null : null;
+      // Province: strip trailing commas (FUB exports "ON," sometimes)
+      const province = mapProvince !== "__none__"
+        ? (row[mapProvince] ?? "").trim().replace(/,+$/, "") || null
+        : null;
 
       const { data, error } = await supabase
         .from("clients")
@@ -1016,6 +1057,12 @@ export function ClientsContent({
           phone,
           lead_source: leadSource,
           tags: [],
+          city:           mapCity      !== "__none__" ? (row[mapCity]      ?? "").trim() || null : null,
+          province_region: province,
+          street_address: mapStreet    !== "__none__" ? (row[mapStreet]    ?? "").trim() || null : null,
+          postal_code:    mapPostal    !== "__none__" ? (row[mapPostal]    ?? "").trim() || null : null,
+          country:        mapCountry   !== "__none__" ? (row[mapCountry]   ?? "").trim() || "Canada" : "Canada",
+          phone_type:     mapPhoneType !== "__none__" ? normalizePhoneType(row[mapPhoneType] ?? "") : "mobile",
         })
         .select()
         .single();
@@ -1043,6 +1090,12 @@ export function ClientsContent({
     setMapEmail("__none__");
     setMapPhone("__none__");
     setMapSource("__none__");
+    setMapCity("__none__");
+    setMapProvince("__none__");
+    setMapStreet("__none__");
+    setMapPostal("__none__");
+    setMapCountry("__none__");
+    setMapPhoneType("__none__");
     setImportResult(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -1356,6 +1409,34 @@ export function ClientsContent({
                                     >
                                       {fmtCurrency(v.lgv)}
                                     </Badge>
+                                  );
+                                })()}
+                                {/* Tag chips (up to 2) */}
+                                {(() => {
+                                  const client = group.clientId ? clientById.get(group.clientId) : null;
+                                  if (!client?.tags?.length) return null;
+                                  const visible = client.tags.slice(0, 2);
+                                  const overflow = client.tags.length - 2;
+                                  return (
+                                    <>
+                                      {visible.map((tag) => (
+                                        <Badge
+                                          key={tag}
+                                          variant="outline"
+                                          className="text-[9px] bg-violet-50 text-violet-700 border-violet-200 shrink-0 py-0"
+                                        >
+                                          {tag}
+                                        </Badge>
+                                      ))}
+                                      {overflow > 0 && (
+                                        <Badge
+                                          variant="outline"
+                                          className="text-[9px] bg-muted text-muted-foreground shrink-0 py-0"
+                                        >
+                                          +{overflow}
+                                        </Badge>
+                                      )}
+                                    </>
                                   );
                                 })()}
                               </div>
@@ -1697,12 +1778,26 @@ export function ClientsContent({
 
                 <Separator />
 
-                {/* Location + Details */}
+                {/* Address */}
                 <div className="space-y-3">
                   <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                     <MapPin className="h-3.5 w-3.5" />
-                    Details
+                    Address
                   </h3>
+                  <div className="grid grid-cols-1 gap-2">
+                    <InlineEdit
+                      label="Street Address"
+                      value={selectedClient.street_address ?? ""}
+                      onSave={(v) => updateClientField(selectedClient.id, "street_address", v || null)}
+                      placeholder="Add street address…"
+                    />
+                    <InlineEdit
+                      label="Unit / Suite"
+                      value={selectedClient.unit_number ?? ""}
+                      onSave={(v) => updateClientField(selectedClient.id, "unit_number", v || null)}
+                      placeholder="Apt, Suite, Unit…"
+                    />
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <InlineEdit
                       label="City"
@@ -1716,6 +1811,30 @@ export function ClientsContent({
                       onSave={(v) => updateClientField(selectedClient.id, "province_region", v || null)}
                       placeholder="Add province…"
                     />
+                    <InlineEdit
+                      label="Postal Code"
+                      value={selectedClient.postal_code ?? ""}
+                      onSave={(v) => updateClientField(selectedClient.id, "postal_code", v || null)}
+                      placeholder="A1A 1A1"
+                    />
+                    <InlineEdit
+                      label="Country"
+                      value={selectedClient.country ?? "Canada"}
+                      onSave={(v) => updateClientField(selectedClient.id, "country", v || "Canada")}
+                      placeholder="Canada"
+                    />
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Details */}
+                <div className="space-y-3">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <FileText className="h-3.5 w-3.5" />
+                    Details
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <span className="text-[10px] text-muted-foreground block mb-1">Property Interest</span>
                       <div className="flex items-center gap-1.5">
@@ -1773,22 +1892,12 @@ export function ClientsContent({
                     </div>
                   </div>
                   {/* Tags */}
-                  <div>
-                    <span className="text-[10px] text-muted-foreground block mb-1">Tags</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedClient.tags && selectedClient.tags.map((tag) => (
-                        <Badge
-                          key={tag}
-                          variant="outline"
-                          className="text-[10px] bg-violet-50 text-violet-700 border-violet-200"
-                        >
-                          {tag}
-                        </Badge>
-                      ))}
-                      {(!selectedClient.tags || selectedClient.tags.length === 0) && (
-                        <span className="text-[10px] text-muted-foreground">No tags</span>
-                      )}
-                    </div>
+                  <div className="col-span-2">
+                    <span className="text-[10px] text-muted-foreground block mb-1.5">Tags</span>
+                    <TagPicker
+                      value={selectedClient.tags ?? []}
+                      onChange={(tags) => updateClientField(selectedClient.id, "tags", tags)}
+                    />
                   </div>
                 </div>
 
@@ -2169,13 +2278,8 @@ export function ClientsContent({
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Tags (comma-separated)</Label>
-              <Input
-                placeholder="e.g. VIP, buyer, downtown"
-                value={newClientTags}
-                onChange={(e) => setNewClientTags(e.target.value)}
-                className="h-8 text-sm"
-              />
+              <Label className="text-xs">Tags</Label>
+              <TagPicker value={newClientTags} onChange={setNewClientTags} />
             </div>
             <div className="flex gap-2 pt-2">
               <Button
@@ -2356,10 +2460,62 @@ export function ClientsContent({
                     <SelectContent>
                       <SelectItem value="__none__">— Skip —</SelectItem>
                       {csvHeaders.map((h) => (
-                        <SelectItem key={h} value={h}>
-                          {h}
-                        </SelectItem>
+                        <SelectItem key={h} value={h}>{h}</SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Label className="text-xs">Street Address</Label>
+                  <Select value={mapStreet} onValueChange={setMapStreet}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Skip —</SelectItem>
+                      {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Label className="text-xs">City</Label>
+                  <Select value={mapCity} onValueChange={setMapCity}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Skip —</SelectItem>
+                      {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Label className="text-xs">Province / Region</Label>
+                  <Select value={mapProvince} onValueChange={setMapProvince}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Skip —</SelectItem>
+                      {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Label className="text-xs">Postal Code</Label>
+                  <Select value={mapPostal} onValueChange={setMapPostal}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Skip —</SelectItem>
+                      {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Label className="text-xs">Country</Label>
+                  <Select value={mapCountry} onValueChange={setMapCountry}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Skip —</SelectItem>
+                      {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Label className="text-xs">Phone Type</Label>
+                  <Select value={mapPhoneType} onValueChange={setMapPhoneType}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Skip —</SelectItem>
+                      {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -2411,6 +2567,42 @@ export function ClientsContent({
                   <div className="flex gap-2">
                     <CheckCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
                     <span>Lead source column: <strong className="text-foreground">{mapSource}</strong></span>
+                  </div>
+                )}
+                {mapStreet !== "__none__" && (
+                  <div className="flex gap-2">
+                    <CheckCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>Street address column: <strong className="text-foreground">{mapStreet}</strong></span>
+                  </div>
+                )}
+                {mapCity !== "__none__" && (
+                  <div className="flex gap-2">
+                    <CheckCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>City column: <strong className="text-foreground">{mapCity}</strong></span>
+                  </div>
+                )}
+                {mapProvince !== "__none__" && (
+                  <div className="flex gap-2">
+                    <CheckCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>Province column: <strong className="text-foreground">{mapProvince}</strong></span>
+                  </div>
+                )}
+                {mapPostal !== "__none__" && (
+                  <div className="flex gap-2">
+                    <CheckCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>Postal code column: <strong className="text-foreground">{mapPostal}</strong></span>
+                  </div>
+                )}
+                {mapCountry !== "__none__" && (
+                  <div className="flex gap-2">
+                    <CheckCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>Country column: <strong className="text-foreground">{mapCountry}</strong></span>
+                  </div>
+                )}
+                {mapPhoneType !== "__none__" && (
+                  <div className="flex gap-2">
+                    <CheckCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>Phone type column: <strong className="text-foreground">{mapPhoneType}</strong></span>
                   </div>
                 )}
               </div>
