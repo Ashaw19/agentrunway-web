@@ -37,7 +37,7 @@ export function TopBar() {
         .single();
       if (settings) {
         setDisplayName(settings.display_name ?? null);
-        setAvatarUrl(settings.avatar_url ?? null);
+        setAvatarUrl(settings.avatar_url || null); // treat "" as no photo
       }
     }
     loadUser();
@@ -76,10 +76,11 @@ export function TopBar() {
             {avatarUrl ? (
               <Image
                 src={avatarUrl}
-                alt={displayName ?? "Profile"}
+                alt=""
                 width={32}
                 height={32}
-                className="object-cover"
+                className="h-8 w-8 rounded-full object-cover"
+                onError={() => setAvatarUrl(null)}
               />
             ) : (
               <span

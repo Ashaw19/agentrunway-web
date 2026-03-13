@@ -63,6 +63,16 @@ const nextConfig: NextConfig = {
   // bundle — they are only ever used client-side via dynamic imports.
   serverExternalPackages: ["@react-pdf/renderer", "pdfjs-dist"],
 
+  // Allow Next.js <Image> to load from Supabase Storage and social CDNs
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "*.supabase.co" },
+      { protocol: "https", hostname: "graph.facebook.com" },
+      { protocol: "https", hostname: "*.cdninstagram.com" },
+      { protocol: "https", hostname: "*.fbcdn.net" },
+    ],
+  },
+
   async headers() {
     return [
       {
