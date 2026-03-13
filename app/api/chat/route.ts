@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
+import { KNOWLEDGE_BASE } from "@/lib/knowledge-base";
 
 export async function POST(req: NextRequest) {
   const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
@@ -48,10 +49,14 @@ export async function POST(req: NextRequest) {
 You have access to the following live business data for this agent:
 ${financialContext}
 
+You also have comprehensive knowledge of the Agent Runway platform. Use the following reference to answer ANY question about features, metrics, computations, terms, tax rules, or how things work:
+${KNOWLEDGE_BASE}
+
 Guidelines:
 - Answer questions clearly and concisely (3-5 sentences unless a breakdown is requested)
 - Cite specific numbers from the business data when relevant
 - Give actionable, specific advice tailored to Canadian real estate agents
+- When users ask about platform features, metrics, or terms, explain them accurately using the knowledge base
 - When discussing taxes, always remind the user that these are estimates only — NOT professional tax advice. Recommend consulting a qualified Canadian accountant or tax professional for tax decisions. Never tell users to claim specific deductions or file specific forms.
 - Speak in a supportive, expert tone — like a knowledgeable business coach
 - If you don't have enough data to answer precisely, say so and suggest what data to add`;
