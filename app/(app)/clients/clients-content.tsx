@@ -23,6 +23,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -55,6 +61,13 @@ import {
   Zap,
   AlertTriangle,
   Briefcase,
+  MapPin,
+  Phone,
+  Link2,
+  DollarSign,
+  UserPlus,
+  Pencil,
+  FileText,
 } from "lucide-react";
 import { fmtCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -67,6 +80,21 @@ import type {
   TaskPriority,
   UserSettings,
   ExpenseItem,
+  ClientRelationship,
+  ClientStatus,
+  PreferredContact,
+  ClientTimeframe,
+  RelationshipType,
+} from "@/lib/types/database";
+import {
+  ACTIVITY_TYPE_LABELS,
+  ACTIVITY_TYPE_ICONS,
+  CLIENT_STATUS_LABELS,
+  CLIENT_STATUS_COLORS,
+  PHONE_TYPE_LABELS,
+  PREFERRED_CONTACT_LABELS,
+  CLIENT_TIMEFRAME_LABELS,
+  RELATIONSHIP_TYPE_LABELS,
 } from "@/lib/types/database";
 import {
   computeClientValuations,
@@ -75,10 +103,6 @@ import {
   type ClientValuationResult,
 } from "@/lib/engines/client-valuation-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
-import {
-  ACTIVITY_TYPE_LABELS,
-  ACTIVITY_TYPE_ICONS,
-} from "@/lib/types/database";
 import { createClient } from "@/lib/supabase/client";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -90,6 +114,7 @@ interface Props {
   tasks: ContactTask[];
   settings: UserSettings | null;
   expenseItems: ExpenseItem[];
+  relationships: ClientRelationship[];
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -341,16 +366,20 @@ export function ClientsContent({
   tasks: initialTasks,
   settings,
   expenseItems,
+  relationships: initialRelationships,
 }: Props) {
   // ── Local state ─────────────────────────────────────────────────────────────
   const [localActivities, setLocalActivities] =
     useState<ContactActivity[]>(initialActivities);
   const [localTasks, setLocalTasks] = useState<ContactTask[]>(initialTasks);
   const [localClients, setLocalClients] = useState<Client[]>(initialClients);
+  const [localRelationships, setLocalRelationships] =
+    useState<ClientRelationship[]>(initialRelationships);
 
   const [search, setSearch] = useState("");
   const [filterSide, setFilterSide] = useState<"all" | "buyer" | "seller" | "both">("all");
   const [filterSource, setFilterSource] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<"all" | ClientStatus>("all");
   const [sortCol, setSortCol] = useState<SortCol>("gci");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [tab, setTab] = useState<TabId>("clients");
@@ -358,6 +387,25 @@ export function ClientsContent({
   // Detail panel state
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
+
+  // Add Client dialog
+  const [addClientOpen, setAddClientOpen] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientEmail, setNewClientEmail] = useState("");
+  const [newClientPhone, setNewClientPhone] = useState("");
+  const [newClientStatus, setNewClientStatus] = useState<ClientStatus>("boarding");
+  const [newClientSource, setNewClientSource] = useState("");
+  const [newClientTags, setNewClientTags] = useState("");
+  const [addClientSaving, setAddClientSaving] = useState(false);
+
+  // Inline editing
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+
+  // Relationship linking
+  const [linkRelOpen, setLinkRelOpen] = useState(false);
+  const [linkRelSearch, setLinkRelSearch] = useState("");
+  const [linkRelType, setLinkRelType] = useState<RelationshipType>("spouse");
 
   // Log activity form (in detail panel)
   const [showLogActivity, setShowLogActivity] = useState(false);
@@ -525,10 +573,15 @@ export function ClientsContent({
         !g.deals.some((d) => d.source === filterSource)
       )
         return false;
+      // Flight Status filter — match client status from localClients
+      if (filterStatus !== "all" && g.clientId) {
+        const client = localClients.find((c) => c.id === g.clientId);
+        if (client && client.status !== filterStatus) return false;
+      }
       return true;
     });
     return sortTableGroups(f, sortCol, sortDir);
-  }, [grouped, search, filterSide, filterSource, sortCol, sortDir]);
+  }, [grouped, search, filterSide, filterSource, filterStatus, sortCol, sortDir, localClients]);
 
   const hasAnyData = records.length > 0;
 
@@ -575,6 +628,29 @@ export function ClientsContent({
         : [],
     [openTasks, selectedClientId],
   );
+
+  // Relationships for the selected client
+  const clientRelationships = useMemo(() => {
+    if (!selectedClientId) return [];
+    return localRelationships.filter(
+      (r) => r.client_id_a === selectedClientId || r.client_id_b === selectedClientId,
+    );
+  }, [localRelationships, selectedClientId]);
+
+  // Deal history for the selected client
+  const clientDeals = useMemo(() => {
+    if (!selectedClientId) return [];
+    return records.filter((r) => r.client_id === selectedClientId);
+  }, [records, selectedClientId]);
+
+  // Clients for relationship linking search
+  const linkCandidates = useMemo(() => {
+    if (!selectedClientId || !linkRelSearch) return [];
+    const q = linkRelSearch.toLowerCase();
+    return localClients
+      .filter((c) => c.id !== selectedClientId && c.name.toLowerCase().includes(q))
+      .slice(0, 6);
+  }, [localClients, selectedClientId, linkRelSearch]);
 
   // ── Mutations ───────────────────────────────────────────────────────────────
 
@@ -652,6 +728,87 @@ export function ClientsContent({
       .update({ completed_at: new Date().toISOString() })
       .eq("id", taskId);
   }, []);
+
+  // Update a single field on a client record
+  const updateClientField = useCallback(
+    async (clientId: string, field: string, value: unknown) => {
+      setLocalClients((prev) =>
+        prev.map((c) => (c.id === clientId ? { ...c, [field]: value } : c)),
+      );
+      const supabase = createClient();
+      await supabase.from("clients").update({ [field]: value }).eq("id", clientId);
+    },
+    [],
+  );
+
+  // Add a new client manually
+  const handleAddClient = useCallback(async () => {
+    if (!newClientName.trim()) return;
+    setAddClientSaving(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setAddClientSaving(false); return; }
+
+    const tags = newClientTags
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const { data, error } = await supabase
+      .from("clients")
+      .insert({
+        user_id: user.id,
+        name: newClientName.trim(),
+        name_search: newClientName.trim().toLowerCase(),
+        email: newClientEmail.trim() || null,
+        phone: newClientPhone.trim() || null,
+        status: newClientStatus,
+        lead_source: newClientSource || null,
+        tags: tags.length > 0 ? tags : [],
+      })
+      .select()
+      .single();
+
+    if (!error && data) {
+      setLocalClients((prev) => [...prev, data as Client]);
+      setAddClientOpen(false);
+      setNewClientName("");
+      setNewClientEmail("");
+      setNewClientPhone("");
+      setNewClientStatus("boarding");
+      setNewClientSource("");
+      setNewClientTags("");
+    }
+    setAddClientSaving(false);
+  }, [newClientName, newClientEmail, newClientPhone, newClientStatus, newClientSource, newClientTags]);
+
+  // Add a relationship between two clients
+  const addRelationship = useCallback(
+    async (clientIdA: string, clientIdB: string, type: RelationshipType) => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Enforce ordered constraint
+      const [a, b] = clientIdA < clientIdB ? [clientIdA, clientIdB] : [clientIdB, clientIdA];
+
+      const { data, error } = await supabase
+        .from("client_relationships")
+        .insert({
+          user_id: user.id,
+          client_id_a: a,
+          client_id_b: b,
+          relationship_type: type,
+        })
+        .select()
+        .single();
+
+      if (!error && data) {
+        setLocalRelationships((prev) => [...prev, data as ClientRelationship]);
+      }
+    },
+    [],
+  );
 
   // ── Form handlers ────────────────────────────────────────────────────────────
 
@@ -823,18 +980,28 @@ export function ClientsContent({
             The people who made your year — quantified.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            resetImport();
-            setImportOpen(true);
-          }}
-          className="gap-1.5 shrink-0"
-        >
-          <Upload className="h-3.5 w-3.5" />
-          Import CSV
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            size="sm"
+            onClick={() => setAddClientOpen(true)}
+            className="gap-1.5"
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            Add Client
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              resetImport();
+              setImportOpen(true);
+            }}
+            className="gap-1.5"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            Import CSV
+          </Button>
+        </div>
       </div>
 
       {/* ── Summary KPI strip ────────────────────────────────────────────── */}
@@ -939,6 +1106,39 @@ export function ClientsContent({
             </div>
           </div>
 
+          {/* Flight Status filter pills */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={() => setFilterStatus("all")}
+              className={cn(
+                "rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
+                filterStatus === "all"
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card text-muted-foreground border-border hover:border-primary/40",
+              )}
+            >
+              All Statuses
+            </button>
+            {(Object.keys(CLIENT_STATUS_LABELS) as ClientStatus[]).map((s) => {
+              const colors = CLIENT_STATUS_COLORS[s];
+              return (
+                <button
+                  key={s}
+                  onClick={() => setFilterStatus(s)}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs font-semibold border transition-colors inline-flex items-center gap-1.5",
+                    filterStatus === s
+                      ? cn(colors.bg, colors.text, colors.border)
+                      : "bg-card text-muted-foreground border-border hover:border-primary/40",
+                  )}
+                >
+                  <span className={cn("h-2 w-2 rounded-full", filterStatus === s ? colors.dot : "bg-muted-foreground/30")} />
+                  {CLIENT_STATUS_LABELS[s]}
+                </button>
+              );
+            })}
+          </div>
+
           {/* Client table */}
           {!hasAnyData ? (
             <Card className="rounded-2xl border-slate-200 shadow-sm">
@@ -1000,6 +1200,9 @@ export function ClientsContent({
                         dir={sortDir}
                         onSort={handleSort}
                       />
+                      <TableHead className="text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                        Status
+                      </TableHead>
                       <SortableHead
                         col="side"
                         label="Side"
@@ -1014,7 +1217,7 @@ export function ClientsContent({
                     {filtered.length === 0 ? (
                       <TableRow>
                         <TableCell
-                          colSpan={7}
+                          colSpan={8}
                           className="py-12 text-center text-muted-foreground"
                         >
                           No clients match your search.
@@ -1095,6 +1298,19 @@ export function ClientsContent({
                                   </span>
                                 ))}
                               </div>
+                            </TableCell>
+                            <TableCell className="py-3">
+                              {(() => {
+                                const client = hasClientId ? clientById.get(group.clientId!) : null;
+                                if (!client) return null;
+                                const sc = CLIENT_STATUS_COLORS[client.status];
+                                return (
+                                  <span className={cn("text-[10px] font-semibold border rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1", sc.bg, sc.text, sc.border)}>
+                                    <span className={cn("h-1.5 w-1.5 rounded-full", sc.dot)} />
+                                    {CLIENT_STATUS_LABELS[client.status]}
+                                  </span>
+                                );
+                              })()}
                             </TableCell>
                             <TableCell className="pr-4 py-3">
                               {sideStyle && (
@@ -1737,340 +1953,633 @@ export function ClientsContent({
       )}
 
       {/* ══════════════════════════════════════════════════════════════════ */}
-      {/* CLIENT DETAIL DIALOG                                               */}
+      {/* CLIENT DETAIL SHEET                                                */}
       {/* ══════════════════════════════════════════════════════════════════ */}
-      <Dialog open={detailPanelOpen} onOpenChange={setDetailPanelOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <Sheet open={detailPanelOpen} onOpenChange={setDetailPanelOpen}>
+        <SheetContent side="right" className="sm:max-w-xl w-full overflow-y-auto p-0">
           {selectedClient && (
-            <>
-              <DialogHeader>
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-lg font-semibold shrink-0">
-                    {selectedClient.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <DialogTitle className="text-lg font-semibold leading-tight">
-                      {selectedClient.name}
-                    </DialogTitle>
-                    {selectedClient.last_contact_at && (
-                      <p className="text-xs text-muted-foreground">
-                        Last contact: {relativeDate(selectedClient.last_contact_at)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </DialogHeader>
-
-              {/* Contact info chips */}
-              {(selectedClient.email ||
-                selectedClient.phone ||
-                selectedClient.lead_source) && (
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {selectedClient.email && (
-                    <span className="text-xs bg-muted rounded-full px-2.5 py-1 text-foreground">
-                      {selectedClient.email}
-                    </span>
-                  )}
-                  {selectedClient.phone && (
-                    <span className="text-xs bg-muted rounded-full px-2.5 py-1 text-foreground">
-                      {selectedClient.phone}
-                    </span>
-                  )}
-                  {selectedClient.lead_source && (
-                    <span className="text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2.5 py-1">
-                      {selectedClient.lead_source}
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {selectedClient.tags && selectedClient.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedClient.tags.map((tag) => (
-                    <Badge
-                      key={tag}
-                      variant="outline"
-                      className="text-[10px] bg-violet-50 text-violet-700 border-violet-200"
-                    >
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-
-              <Separator className="my-1" />
-
-              {/* Activity section */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-foreground">Activity</h3>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1 h-7 text-xs"
-                    onClick={() => {
-                      setShowLogActivity((v) => !v);
-                      setLogActivityClientId(selectedClient.id);
-                      setShowAddTask(false);
-                    }}
-                  >
-                    <Plus className="h-3 w-3" />
-                    Log Activity
-                  </Button>
-                </div>
-
-                {/* Log activity inline form */}
-                {showLogActivity && (
-                  <div className="rounded-xl border border-border/60 bg-muted/30 p-3 space-y-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Type</Label>
-                      <Select
-                        value={logType}
-                        onValueChange={(v) => setLogType(v as ActivityType)}
-                      >
-                        <SelectTrigger className="h-8 text-sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(Object.keys(ACTIVITY_TYPE_LABELS) as ActivityType[]).map(
-                            (t) => (
-                              <SelectItem key={t} value={t}>
-                                {ACTIVITY_TYPE_ICONS[t]} {ACTIVITY_TYPE_LABELS[t]}
-                              </SelectItem>
-                            ),
-                          )}
-                        </SelectContent>
-                      </Select>
+            <div className="flex flex-col">
+              {/* ── Header ──────────────────────────────────────────────── */}
+              <div className="sticky top-0 z-10 bg-background border-b border-border/60 px-6 pt-6 pb-4">
+                <SheetHeader className="p-0">
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xl font-semibold shrink-0">
+                      {selectedClient.name.charAt(0).toUpperCase()}
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Description</Label>
-                      <Textarea
-                        placeholder="What happened?"
-                        value={logDescription}
-                        onChange={(e) => setLogDescription(e.target.value)}
-                        rows={2}
-                        className="text-sm resize-none"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Date & time</Label>
-                      <Input
-                        type="datetime-local"
-                        value={logDate}
-                        onChange={(e) => setLogDate(e.target.value)}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        disabled={!logDescription.trim() || logSaving}
-                        onClick={handleLogActivity}
-                        className="h-7 text-xs"
-                      >
-                        {logSaving ? "Saving…" : "Save"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setShowLogActivity(false)}
-                        className="h-7 text-xs"
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Activity timeline */}
-                {clientActivities.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-3 text-center">
-                    No activity logged yet. Log your first contact.
-                  </p>
-                ) : (
-                  <div className="relative border-l-2 border-muted-foreground/20 ml-2 space-y-0">
-                    {clientActivities.map((act) => (
-                      <div key={act.id} className="relative pl-4 pb-3 last:pb-0">
-                        <div className="absolute -left-1.5 top-0.5 h-3 w-3 rounded-full bg-blue-400 border-2 border-background" />
-                        <div className="flex items-start gap-1.5">
-                          <span className="text-sm leading-none mt-0.5 shrink-0">
-                            {ACTIVITY_TYPE_ICONS[act.type]}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-xs font-semibold text-foreground">
-                                {ACTIVITY_TYPE_LABELS[act.type]}
-                              </span>
-                              <span className="text-[11px] text-muted-foreground shrink-0">
-                                {relativeDate(act.activity_date)}
-                              </span>
-                            </div>
-                            {act.description && (
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {act.description}
-                              </p>
-                            )}
-                          </div>
-                        </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        {editingField === "name" ? (
+                          <Input
+                            autoFocus
+                            value={editingValue}
+                            onChange={(e) => setEditingValue(e.target.value)}
+                            onBlur={() => {
+                              if (editingValue.trim() && editingValue.trim() !== selectedClient.name) {
+                                updateClientField(selectedClient.id, "name", editingValue.trim());
+                                updateClientField(selectedClient.id, "name_search", editingValue.trim().toLowerCase());
+                              }
+                              setEditingField(null);
+                            }}
+                            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                            className="h-8 text-lg font-semibold"
+                          />
+                        ) : (
+                          <SheetTitle
+                            className="text-lg font-semibold leading-tight cursor-pointer hover:text-primary transition-colors"
+                            onClick={() => { setEditingField("name"); setEditingValue(selectedClient.name); }}
+                          >
+                            {selectedClient.name}
+                          </SheetTitle>
+                        )}
                       </div>
-                    ))}
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {selectedClient.last_contact_at && (
+                          <span className="text-xs text-muted-foreground">
+                            Last contact: {relativeDate(selectedClient.last_contact_at)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Flight Status dropdown */}
+                    <Select
+                      value={selectedClient.status}
+                      onValueChange={(v) => updateClientField(selectedClient.id, "status", v)}
+                    >
+                      <SelectTrigger className={cn("h-8 w-auto gap-1.5 rounded-full text-xs font-semibold border px-3", CLIENT_STATUS_COLORS[selectedClient.status].bg, CLIENT_STATUS_COLORS[selectedClient.status].text, CLIENT_STATUS_COLORS[selectedClient.status].border)}>
+                        <span className={cn("h-2 w-2 rounded-full", CLIENT_STATUS_COLORS[selectedClient.status].dot)} />
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Object.keys(CLIENT_STATUS_LABELS) as ClientStatus[]).map((s) => (
+                          <SelectItem key={s} value={s}>
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className={cn("h-2 w-2 rounded-full", CLIENT_STATUS_COLORS[s].dot)} />
+                              {CLIENT_STATUS_LABELS[s]}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                )}
+                </SheetHeader>
+
+                {/* Flight Status strip */}
+                <FlightStatusStrip current={selectedClient.status} />
               </div>
 
-              <Separator className="my-1" />
+              {/* ── Body ────────────────────────────────────────────────── */}
+              <div className="px-6 py-5 space-y-6">
 
-              {/* Tasks section */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-foreground">Tasks</h3>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1 h-7 text-xs"
-                    onClick={() => {
-                      setShowAddTask((v) => !v);
-                      setAddTaskClientId(selectedClient.id);
-                      setShowLogActivity(false);
-                    }}
-                  >
-                    <Plus className="h-3 w-3" />
-                    Add Task
-                  </Button>
+                {/* Contact info section */}
+                <div className="space-y-3">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Phone className="h-3.5 w-3.5" />
+                    Contact Information
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <InlineEdit
+                      label={`${PHONE_TYPE_LABELS[selectedClient.phone_type]} Phone`}
+                      value={selectedClient.phone ?? ""}
+                      onSave={(v) => updateClientField(selectedClient.id, "phone", v || null)}
+                      placeholder="Add phone…"
+                    />
+                    <InlineEdit
+                      label="Email"
+                      value={selectedClient.email ?? ""}
+                      onSave={(v) => updateClientField(selectedClient.id, "email", v || null)}
+                      placeholder="Add email…"
+                    />
+                    <InlineEdit
+                      label={`${PHONE_TYPE_LABELS[selectedClient.secondary_phone_type]} Phone`}
+                      value={selectedClient.secondary_phone ?? ""}
+                      onSave={(v) => updateClientField(selectedClient.id, "secondary_phone", v || null)}
+                      placeholder="Add secondary phone…"
+                    />
+                    <InlineEdit
+                      label="Secondary Email"
+                      value={selectedClient.secondary_email ?? ""}
+                      onSave={(v) => updateClientField(selectedClient.id, "secondary_email", v || null)}
+                      placeholder="Add secondary email…"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1">
+                      <span className="text-[10px] text-muted-foreground block mb-1">Preferred Contact</span>
+                      <div className="flex gap-1">
+                        {(["phone", "email", "text"] as PreferredContact[]).map((pc) => (
+                          <button
+                            key={pc}
+                            onClick={() => updateClientField(selectedClient.id, "preferred_contact", pc)}
+                            className={cn(
+                              "rounded-full px-2.5 py-0.5 text-[10px] font-semibold border transition-colors",
+                              selectedClient.preferred_contact === pc
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-card text-muted-foreground border-border hover:border-primary/40",
+                            )}
+                          >
+                            {PREFERRED_CONTACT_LABELS[pc]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Add task inline form */}
-                {showAddTask && (
-                  <div className="rounded-xl border border-border/60 bg-muted/30 p-3 space-y-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Title</Label>
-                      <Input
-                        placeholder="e.g. Send market update"
-                        value={taskTitle}
-                        onChange={(e) => setTaskTitle(e.target.value)}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Due date</Label>
-                        <Input
-                          type="date"
-                          value={taskDueDate}
-                          onChange={(e) => setTaskDueDate(e.target.value)}
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Priority</Label>
+                <Separator />
+
+                {/* Location + Details */}
+                <div className="space-y-3">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5" />
+                    Details
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <InlineEdit
+                      label="City"
+                      value={selectedClient.city ?? ""}
+                      onSave={(v) => updateClientField(selectedClient.id, "city", v || null)}
+                      placeholder="Add city…"
+                    />
+                    <InlineEdit
+                      label="Province / Region"
+                      value={selectedClient.province_region ?? ""}
+                      onSave={(v) => updateClientField(selectedClient.id, "province_region", v || null)}
+                      placeholder="Add province…"
+                    />
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block mb-1">Property Interest</span>
+                      <div className="flex items-center gap-1.5">
                         <Select
-                          value={taskPriority}
-                          onValueChange={(v) =>
-                            setTaskPriority(v as TaskPriority)
-                          }
+                          value={selectedClient.property_interest_type}
+                          onValueChange={(v) => updateClientField(selectedClient.id, "property_interest_type", v)}
                         >
-                          <SelectTrigger className="h-8 text-sm">
+                          <SelectTrigger className="h-7 w-20 text-[10px]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="low">Low</SelectItem>
-                            <SelectItem value="normal">Normal</SelectItem>
-                            <SelectItem value="high">High</SelectItem>
+                            <SelectItem value="budget">Budget</SelectItem>
+                            <SelectItem value="listing">Listing</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          placeholder="$"
+                          value={selectedClient.property_interest ?? ""}
+                          onChange={(e) => updateClientField(selectedClient.id, "property_interest", e.target.value ? Number(e.target.value) : null)}
+                          className="h-7 text-xs flex-1"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block mb-1">Timeframe</span>
+                      <Select
+                        value={selectedClient.timeframe ?? "unknown"}
+                        onValueChange={(v) => updateClientField(selectedClient.id, "timeframe", v === "unknown" ? null : v)}
+                      >
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(Object.entries(CLIENT_TIMEFRAME_LABELS) as [ClientTimeframe, string][]).map(([k, label]) => (
+                            <SelectItem key={k} value={k}>{label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <InlineEdit
+                      label="Birthday"
+                      value={selectedClient.birthdate ?? ""}
+                      type="date"
+                      onSave={(v) => updateClientField(selectedClient.id, "birthdate", v || null)}
+                      placeholder="Add birthday…"
+                    />
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block mb-1">Lead Source</span>
+                      <InlineEdit
+                        value={selectedClient.lead_source ?? ""}
+                        onSave={(v) => updateClientField(selectedClient.id, "lead_source", v || null)}
+                        placeholder="Add source…"
+                      />
+                    </div>
+                  </div>
+                  {/* Tags */}
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block mb-1">Tags</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedClient.tags && selectedClient.tags.map((tag) => (
+                        <Badge
+                          key={tag}
+                          variant="outline"
+                          className="text-[10px] bg-violet-50 text-violet-700 border-violet-200"
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
+                      {(!selectedClient.tags || selectedClient.tags.length === 0) && (
+                        <span className="text-[10px] text-muted-foreground">No tags</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Relationships */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Link2 className="h-3.5 w-3.5" />
+                      Relationships
+                    </h3>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 h-6 text-[10px]"
+                      onClick={() => { setLinkRelOpen((v) => !v); setLinkRelSearch(""); }}
+                    >
+                      <Plus className="h-3 w-3" />
+                      Link Client
+                    </Button>
+                  </div>
+
+                  {linkRelOpen && (
+                    <div className="rounded-xl border border-border/60 bg-muted/30 p-3 space-y-2">
+                      <Input
+                        autoFocus
+                        placeholder="Search clients…"
+                        value={linkRelSearch}
+                        onChange={(e) => setLinkRelSearch(e.target.value)}
+                        className="h-7 text-xs"
+                      />
+                      <Select value={linkRelType} onValueChange={(v) => setLinkRelType(v as RelationshipType)}>
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(Object.entries(RELATIONSHIP_TYPE_LABELS) as [RelationshipType, string][]).map(([k, label]) => (
+                            <SelectItem key={k} value={k}>{label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {linkCandidates.length > 0 && (
+                        <div className="border border-border rounded-lg bg-background overflow-hidden">
+                          {linkCandidates.map((c) => (
+                            <button
+                              key={c.id}
+                              className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+                              onClick={async () => {
+                                await addRelationship(selectedClient.id, c.id, linkRelType);
+                                setLinkRelOpen(false);
+                                setLinkRelSearch("");
+                              }}
+                            >
+                              {c.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {clientRelationships.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-2 text-center">No linked clients.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {clientRelationships.map((rel) => {
+                        const otherId = rel.client_id_a === selectedClient.id ? rel.client_id_b : rel.client_id_a;
+                        const other = clientById.get(otherId);
+                        if (!other) return null;
+                        return (
+                          <div
+                            key={rel.id}
+                            className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer"
+                            onClick={() => openDetailPanel(otherId)}
+                          >
+                            <div className="h-7 w-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold shrink-0">
+                              {other.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-sm font-medium text-foreground truncate flex-1">{other.name}</span>
+                            <Badge variant="outline" className="text-[9px] py-0">
+                              {RELATIONSHIP_TYPE_LABELS[rel.relationship_type as RelationshipType] ?? rel.relationship_type}
+                            </Badge>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Notes */}
+                <div className="space-y-2">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <FileText className="h-3.5 w-3.5" />
+                    Notes
+                  </h3>
+                  <Textarea
+                    placeholder="Add notes about this client…"
+                    value={selectedClient.notes ?? ""}
+                    onChange={(e) => updateClientField(selectedClient.id, "notes", e.target.value || null)}
+                    rows={3}
+                    className="text-sm resize-none"
+                  />
+                </div>
+
+                <Separator />
+
+                {/* Activity section */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Activity className="h-3.5 w-3.5" />
+                      Activity
+                    </h3>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 h-6 text-[10px]"
+                      onClick={() => {
+                        setShowLogActivity((v) => !v);
+                        setLogActivityClientId(selectedClient.id);
+                        setShowAddTask(false);
+                      }}
+                    >
+                      <Plus className="h-3 w-3" />
+                      Log Activity
+                    </Button>
+                  </div>
+
+                  {showLogActivity && (
+                    <div className="rounded-xl border border-border/60 bg-muted/30 p-3 space-y-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Type</Label>
+                        <Select value={logType} onValueChange={(v) => setLogType(v as ActivityType)}>
+                          <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {(Object.keys(ACTIVITY_TYPE_LABELS) as ActivityType[]).map((t) => (
+                              <SelectItem key={t} value={t}>{ACTIVITY_TYPE_ICONS[t]} {ACTIVITY_TYPE_LABELS[t]}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Description</Label>
+                        <Textarea placeholder="What happened?" value={logDescription} onChange={(e) => setLogDescription(e.target.value)} rows={2} className="text-sm resize-none" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Date & time</Label>
+                        <Input type="datetime-local" value={logDate} onChange={(e) => setLogDate(e.target.value)} className="h-8 text-sm" />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" disabled={!logDescription.trim() || logSaving} onClick={handleLogActivity} className="h-7 text-xs">{logSaving ? "Saving…" : "Save"}</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setShowLogActivity(false)} className="h-7 text-xs">Cancel</Button>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Notes (optional)</Label>
-                      <Textarea
-                        placeholder="Any notes…"
-                        value={taskNotes}
-                        onChange={(e) => setTaskNotes(e.target.value)}
-                        rows={2}
-                        className="text-sm resize-none"
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        disabled={!taskTitle.trim() || taskSaving}
-                        onClick={handleAddTask}
-                        className="h-7 text-xs"
-                      >
-                        {taskSaving ? "Saving…" : "Save"}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setShowAddTask(false)}
-                        className="h-7 text-xs"
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Task list for this client */}
-                {clientTasks.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-3 text-center">
-                    No tasks for this client.
-                  </p>
-                ) : (
-                  <div className="space-y-1">
-                    {clientTasks.map((task) => {
-                      const isOverdue = task.due_date < todayIso();
-                      return (
-                        <div
-                          key={task.id}
-                          className="flex items-start gap-2.5 py-2 px-1 rounded-lg hover:bg-muted/30 transition-colors"
-                        >
-                          <button
-                            onClick={() => completeTask(task.id)}
-                            className="mt-0.5 text-muted-foreground hover:text-emerald-600 transition-colors shrink-0"
-                            title="Mark complete"
-                          >
-                            <Square className="h-4 w-4" />
-                          </button>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span
-                                className={cn(
-                                  "text-[10px] font-semibold border rounded px-1.5 py-0.5 shrink-0",
-                                  PRIORITY_STYLES[task.priority],
-                                )}
-                              >
-                                {task.priority}
-                              </span>
-                              <span className="text-sm font-medium text-foreground truncate">
-                                {task.title}
-                              </span>
+                  {clientActivities.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-3 text-center">No activity logged yet.</p>
+                  ) : (
+                    <div className="relative border-l-2 border-muted-foreground/20 ml-2 space-y-0">
+                      {clientActivities.map((act) => (
+                        <div key={act.id} className="relative pl-4 pb-3 last:pb-0">
+                          <div className="absolute -left-1.5 top-0.5 h-3 w-3 rounded-full bg-blue-400 border-2 border-background" />
+                          <div className="flex items-start gap-1.5">
+                            <span className="text-sm leading-none mt-0.5 shrink-0">{ACTIVITY_TYPE_ICONS[act.type]}</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-semibold text-foreground">{ACTIVITY_TYPE_LABELS[act.type]}</span>
+                                <span className="text-[11px] text-muted-foreground shrink-0">{relativeDate(act.activity_date)}</span>
+                              </div>
+                              {act.description && <p className="text-xs text-muted-foreground mt-0.5">{act.description}</p>}
                             </div>
-                            <span
-                              className={cn(
-                                "text-xs mt-0.5",
-                                isOverdue
-                                  ? "text-red-600 font-medium"
-                                  : "text-muted-foreground",
-                              )}
-                            >
-                              {isOverdue ? "Overdue · " : ""}
-                              {fmtDate(task.due_date)}
-                            </span>
-                            {task.notes && (
-                              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-                                {task.notes}
-                              </p>
-                            )}
                           </div>
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                {/* Tasks section */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <ListTodo className="h-3.5 w-3.5" />
+                      Tasks
+                    </h3>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1 h-6 text-[10px]"
+                      onClick={() => {
+                        setShowAddTask((v) => !v);
+                        setAddTaskClientId(selectedClient.id);
+                        setShowLogActivity(false);
+                      }}
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add Task
+                    </Button>
                   </div>
+
+                  {showAddTask && (
+                    <div className="rounded-xl border border-border/60 bg-muted/30 p-3 space-y-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Title</Label>
+                        <Input placeholder="e.g. Send market update" value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} className="h-8 text-sm" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Due date</Label>
+                          <Input type="date" value={taskDueDate} onChange={(e) => setTaskDueDate(e.target.value)} className="h-8 text-sm" />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Priority</Label>
+                          <Select value={taskPriority} onValueChange={(v) => setTaskPriority(v as TaskPriority)}>
+                            <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="low">Low</SelectItem>
+                              <SelectItem value="normal">Normal</SelectItem>
+                              <SelectItem value="high">High</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Notes (optional)</Label>
+                        <Textarea placeholder="Any notes…" value={taskNotes} onChange={(e) => setTaskNotes(e.target.value)} rows={2} className="text-sm resize-none" />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" disabled={!taskTitle.trim() || taskSaving} onClick={handleAddTask} className="h-7 text-xs">{taskSaving ? "Saving…" : "Save"}</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setShowAddTask(false)} className="h-7 text-xs">Cancel</Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {clientTasks.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-3 text-center">No tasks for this client.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {clientTasks.map((task) => {
+                        const isOverdue = task.due_date < todayIso();
+                        return (
+                          <div key={task.id} className="flex items-start gap-2.5 py-2 px-1 rounded-lg hover:bg-muted/30 transition-colors">
+                            <button onClick={() => completeTask(task.id)} className="mt-0.5 text-muted-foreground hover:text-emerald-600 transition-colors shrink-0" title="Mark complete">
+                              <Square className="h-4 w-4" />
+                            </button>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={cn("text-[10px] font-semibold border rounded px-1.5 py-0.5 shrink-0", PRIORITY_STYLES[task.priority])}>{task.priority}</span>
+                                <span className="text-sm font-medium text-foreground truncate">{task.title}</span>
+                              </div>
+                              <span className={cn("text-xs mt-0.5", isOverdue ? "text-red-600 font-medium" : "text-muted-foreground")}>{isOverdue ? "Overdue · " : ""}{fmtDate(task.due_date)}</span>
+                              {task.notes && <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{task.notes}</p>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Deal History */}
+                {clientDeals.length > 0 && (
+                  <>
+                    <Separator />
+                    <div className="space-y-3">
+                      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <DollarSign className="h-3.5 w-3.5" />
+                        Deal History
+                      </h3>
+                      <div className="space-y-1.5">
+                        {clientDeals.map((deal) => (
+                          <div key={deal.id} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-muted/20">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-medium text-foreground truncate">
+                                {deal.address || "No address"}
+                              </p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                {deal.side && (
+                                  <span className={cn("text-[9px] font-semibold border rounded px-1.5 py-0 shrink-0", SIDE_STYLES[deal.side]?.cls)}>
+                                    {SIDE_STYLES[deal.side]?.label}
+                                  </span>
+                                )}
+                                {deal.close_date && <span className="text-[10px] text-muted-foreground">{fmtMonthYear(deal.close_date)}</span>}
+                              </div>
+                            </div>
+                            <span className="text-sm font-bold tabular-nums text-foreground shrink-0 ml-3">
+                              {fmtCurrency(deal.gci ?? 0)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
-            </>
+            </div>
           )}
+        </SheetContent>
+      </Sheet>
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* ADD CLIENT DIALOG                                                   */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      <Dialog open={addClientOpen} onOpenChange={setAddClientOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-4 w-4" />
+              Add Client
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Name <span className="text-red-500">*</span></Label>
+              <Input
+                autoFocus
+                placeholder="Full name"
+                value={newClientName}
+                onChange={(e) => setNewClientName(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Email</Label>
+                <Input
+                  type="email"
+                  placeholder="email@example.com"
+                  value={newClientEmail}
+                  onChange={(e) => setNewClientEmail(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Phone</Label>
+                <Input
+                  type="tel"
+                  placeholder="(555) 555-5555"
+                  value={newClientPhone}
+                  onChange={(e) => setNewClientPhone(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Flight Status</Label>
+                <Select value={newClientStatus} onValueChange={(v) => setNewClientStatus(v as ClientStatus)}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(CLIENT_STATUS_LABELS) as ClientStatus[]).map((s) => (
+                      <SelectItem key={s} value={s}>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className={cn("h-2 w-2 rounded-full", CLIENT_STATUS_COLORS[s].dot)} />
+                          {CLIENT_STATUS_LABELS[s]}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Lead Source</Label>
+                <Input
+                  placeholder="e.g. Referral, SOI"
+                  value={newClientSource}
+                  onChange={(e) => setNewClientSource(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Tags (comma-separated)</Label>
+              <Input
+                placeholder="e.g. VIP, buyer, downtown"
+                value={newClientTags}
+                onChange={(e) => setNewClientTags(e.target.value)}
+                className="h-8 text-sm"
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                disabled={!newClientName.trim() || addClientSaving}
+                onClick={handleAddClient}
+                className="flex-1"
+              >
+                {addClientSaving ? "Adding…" : "Add Client"}
+              </Button>
+              <Button variant="ghost" onClick={() => setAddClientOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -2554,5 +3063,102 @@ function MetricPill({
       <span className="opacity-70">{label}</span>
       <span className="font-bold tabular-nums">{value}</span>
     </span>
+  );
+}
+
+// ── Flight Status Strip ──────────────────────────────────────────────────────
+
+const FLIGHT_STAGES: ClientStatus[] = ["boarding", "taxiing", "in_flight", "landed", "cruising"];
+
+function FlightStatusStrip({ current }: { current: ClientStatus }) {
+  const currentIdx = FLIGHT_STAGES.indexOf(current);
+  return (
+    <div className="flex items-center gap-0 mt-4">
+      {FLIGHT_STAGES.map((stage, i) => {
+        const colors = CLIENT_STATUS_COLORS[stage];
+        const isActive = i === currentIdx;
+        const isPast = i < currentIdx;
+        return (
+          <div key={stage} className="flex items-center flex-1">
+            <div className="flex flex-col items-center flex-1">
+              <div
+                className={cn(
+                  "h-2 w-full rounded-full transition-colors",
+                  isActive ? colors.dot : isPast ? "bg-primary/30" : "bg-muted",
+                )}
+              />
+              <span
+                className={cn(
+                  "text-[9px] mt-1 font-medium transition-colors",
+                  isActive ? colors.text : isPast ? "text-muted-foreground" : "text-muted-foreground/50",
+                )}
+              >
+                {CLIENT_STATUS_LABELS[stage]}
+              </span>
+            </div>
+            {i < FLIGHT_STAGES.length - 1 && (
+              <div className={cn("h-0.5 w-2 shrink-0", isPast ? "bg-primary/30" : "bg-muted")} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Inline Edit ──────────────────────────────────────────────────────────────
+
+function InlineEdit({
+  label,
+  value,
+  onSave,
+  placeholder = "—",
+  type = "text",
+}: {
+  label?: string;
+  value: string;
+  onSave: (value: string) => void;
+  placeholder?: string;
+  type?: "text" | "date";
+}) {
+  const [editing, setEditing] = useState(false);
+  const [localVal, setLocalVal] = useState(value);
+
+  function commit() {
+    setEditing(false);
+    if (localVal !== value) onSave(localVal);
+  }
+
+  if (editing) {
+    return (
+      <div>
+        {label && <span className="text-[10px] text-muted-foreground block mb-0.5">{label}</span>}
+        <Input
+          autoFocus
+          type={type}
+          value={localVal}
+          onChange={(e) => setLocalVal(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setLocalVal(value); setEditing(false); } }}
+          className="h-7 text-xs"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="cursor-pointer group"
+      onClick={() => { setLocalVal(value); setEditing(true); }}
+    >
+      {label && <span className="text-[10px] text-muted-foreground block mb-0.5">{label}</span>}
+      <span className={cn(
+        "text-xs inline-flex items-center gap-1 group-hover:text-primary transition-colors",
+        value ? "text-foreground" : "text-muted-foreground/50",
+      )}>
+        {value || placeholder}
+        <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-50 transition-opacity" />
+      </span>
+    </div>
   );
 }

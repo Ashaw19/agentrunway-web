@@ -387,6 +387,84 @@ export type ActivityType = "call" | "email" | "text" | "showing" | "meeting" | "
 export type TaskPriority  = "low" | "normal" | "high";
 export type LeadSource    = "SOI" | "Referral" | "Zillow" | "Realtor.ca" | "Open House" | "Social" | "Cold Call" | "Other";
 
+// ── Client Flight Status (aviation-themed pipeline stages, migration 00027) ──
+export type ClientStatus = "boarding" | "taxiing" | "in_flight" | "landed" | "cruising";
+
+export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
+  boarding:  "Boarding",
+  taxiing:   "Taxiing",
+  in_flight: "In-Flight",
+  landed:    "Landed",
+  cruising:  "Cruising",
+};
+
+export const CLIENT_STATUS_DESCRIPTIONS: Record<ClientStatus, string> = {
+  boarding:  "New lead or prospect",
+  taxiing:   "Actively shopping or preparing",
+  in_flight: "Under contract",
+  landed:    "Deal closed",
+  cruising:  "Past client, nurturing",
+};
+
+export const CLIENT_STATUS_COLORS: Record<ClientStatus, { bg: string; text: string; border: string; dot: string }> = {
+  boarding:  { bg: "bg-sky-50",     text: "text-sky-700",     border: "border-sky-200",     dot: "bg-sky-400"     },
+  taxiing:   { bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200",   dot: "bg-amber-400"   },
+  in_flight: { bg: "bg-violet-50",  text: "text-violet-700",  border: "border-violet-200",  dot: "bg-violet-400"  },
+  landed:    { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", dot: "bg-emerald-400" },
+  cruising:  { bg: "bg-blue-50",    text: "text-blue-700",    border: "border-blue-200",    dot: "bg-blue-400"    },
+};
+
+// ── Phone Type ───────────────────────────────────────────────────────────────
+export type PhoneType = "mobile" | "home" | "work" | "other";
+
+export const PHONE_TYPE_LABELS: Record<PhoneType, string> = {
+  mobile: "Mobile",
+  home:   "Home",
+  work:   "Work",
+  other:  "Other",
+};
+
+// ── Preferred Contact Method ─────────────────────────────────────────────────
+export type PreferredContact = "phone" | "email" | "text";
+
+export const PREFERRED_CONTACT_LABELS: Record<PreferredContact, string> = {
+  phone: "Phone",
+  email: "Email",
+  text:  "Text",
+};
+
+// ── Property Interest Type ───────────────────────────────────────────────────
+export type PropertyInterestType = "budget" | "listing";
+
+export const PROPERTY_INTEREST_TYPE_LABELS: Record<PropertyInterestType, string> = {
+  budget:  "Buyer Budget",
+  listing: "Listing Price",
+};
+
+// ── Client Timeframe ─────────────────────────────────────────────────────────
+export type ClientTimeframe = "asap" | "1_3_months" | "3_6_months" | "6_12_months" | "12_plus" | "unknown";
+
+export const CLIENT_TIMEFRAME_LABELS: Record<ClientTimeframe, string> = {
+  asap:         "ASAP",
+  "1_3_months": "1–3 Months",
+  "3_6_months": "3–6 Months",
+  "6_12_months":"6–12 Months",
+  "12_plus":    "12+ Months",
+  unknown:      "Unknown",
+};
+
+// ── Relationship Type ────────────────────────────────────────────────────────
+export type RelationshipType = "spouse" | "partner" | "parent" | "child" | "referrer" | "referred";
+
+export const RELATIONSHIP_TYPE_LABELS: Record<RelationshipType, string> = {
+  spouse:   "Spouse",
+  partner:  "Partner",
+  parent:   "Parent",
+  child:    "Child",
+  referrer: "Referrer",
+  referred: "Referred By",
+};
+
 export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
   call:    "Phone Call",
   email:   "Email",
@@ -449,8 +527,53 @@ export interface Client {
   last_contact_at: string | null;  // auto-updated when activity logged
   notes:           string | null;
 
+  // Profile expansion (migration 00027)
+  status:                 ClientStatus;
+  city:                   string | null;
+  province_region:        string | null;
+  phone_type:             PhoneType;
+  secondary_email:        string | null;
+  secondary_phone:        string | null;
+  secondary_phone_type:   PhoneType;
+  property_interest:      number | null;
+  property_interest_type: PropertyInterestType;
+  timeframe:              string | null;   // ClientTimeframe value
+  preferred_contact:      PreferredContact;
+
   created_at: string;
   updated_at: string;
+}
+
+// ── Client Relationships (migration 00027) ───────────────────────────────────
+export interface ClientRelationship {
+  id: string;
+  user_id: string;
+  client_id_a: string;
+  client_id_b: string;
+  relationship_type: RelationshipType;
+  created_at: string;
+}
+
+// ── Flight Plans stub (migration 00027 — future automated contact sequences) ─
+export interface FlightPlan {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  trigger_status: ClientStatus | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FlightPlanStep {
+  id: string;
+  flight_plan_id: string;
+  step_order: number;
+  delay_days: number;
+  action_type: "task" | "email" | "text";
+  template: string | null;
+  created_at: string;
 }
 
 export interface ClientRecord {
