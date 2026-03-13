@@ -211,6 +211,33 @@ export const SIDE_STYLES: Record<string, { label: string; cls: string }> = {
   both:   { label: "Both",   cls: "bg-teal-50 text-teal-700 border-teal-200" },
 };
 
+// ── Country-Aware Address Labels ─────────────────────────────────────────────
+
+export interface CountryAddressLabels {
+  provinceLabel:     string;   // "Province / Region", "State", "County", "Region"
+  postalLabel:       string;   // "Postal Code", "ZIP Code", "Post Code"
+  postalPlaceholder: string;   // "A1A 1A1", "12345", "SW1A 1AA"
+}
+
+const EU_COUNTRIES = new Set([
+  "Austria", "Belgium", "Bulgaria", "Croatia", "Cyprus", "Czech Republic",
+  "Denmark", "Estonia", "Finland", "France", "Germany", "Greece", "Hungary",
+  "Ireland", "Italy", "Latvia", "Lithuania", "Luxembourg", "Malta", "Netherlands",
+  "Poland", "Portugal", "Romania", "Slovakia", "Slovenia", "Spain", "Sweden",
+]);
+
+export function getCountryLabels(country: string): CountryAddressLabels {
+  const c = (country ?? "").trim();
+  if (c === "United States" || c === "USA" || c === "US")
+    return { provinceLabel: "State", postalLabel: "ZIP Code", postalPlaceholder: "12345" };
+  if (c === "United Kingdom" || c === "UK" || c === "England" || c === "Scotland" || c === "Wales" || c === "Northern Ireland")
+    return { provinceLabel: "County", postalLabel: "Post Code", postalPlaceholder: "SW1A 1AA" };
+  if (EU_COUNTRIES.has(c))
+    return { provinceLabel: "Region", postalLabel: "Postal Code", postalPlaceholder: "" };
+  // Default: Canada
+  return { provinceLabel: "Province / Region", postalLabel: "Postal Code", postalPlaceholder: "A1A 1A1" };
+}
+
 // ── Format response time ────────────────────────────────────────────────────
 
 export function fmtResponseTime(hours: number | null): string {

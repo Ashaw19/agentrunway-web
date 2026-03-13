@@ -107,7 +107,8 @@ import { createClient } from "@/lib/supabase/client";
 import { CrmDashboardTab } from "./tabs/crm-dashboard-tab";
 import { InsightsTab } from "./tabs/insights-tab";
 import { FlightPlansTab } from "./tabs/flight-plans-tab";
-import { TagPicker } from "./shared";
+import { TagPicker, getCountryLabels } from "./shared";
+import { VoiceClientButton, type VoiceClientDraft } from "./components/voice-client-button";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -416,7 +417,17 @@ export function ClientsContent({
   const [newClientStatus, setNewClientStatus] = useState<ClientStatus>("boarding");
   const [newClientSource, setNewClientSource] = useState("");
   const [newClientTags, setNewClientTags] = useState<string[]>([]);
+  // Address fields in Add Client dialog
+  const [newClientStreet,   setNewClientStreet]   = useState("");
+  const [newClientUnit,     setNewClientUnit]      = useState("");
+  const [newClientCity,     setNewClientCity]      = useState("");
+  const [newClientProvince, setNewClientProvince]  = useState("");
+  const [newClientPostal,   setNewClientPostal]    = useState("");
+  const [newClientCountry,  setNewClientCountry]   = useState("Canada");
   const [addClientSaving, setAddClientSaving] = useState(false);
+  // Voice-to-client state
+  const [voiceDraft,  setVoiceDraft]  = useState<VoiceClientDraft | null>(null);
+  const [voiceBanner, setVoiceBanner] = useState(false);
 
   // Inline editing
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -780,6 +791,12 @@ export function ClientsContent({
         status: newClientStatus,
         lead_source: newClientSource || null,
         tags: newClientTags,
+        street_address:  newClientStreet.trim()   || null,
+        unit_number:     newClientUnit.trim()      || null,
+        city:            newClientCity.trim()      || null,
+        province_region: newClientProvince.trim()  || null,
+        postal_code:     newClientPostal.trim()    || null,
+        country:         newClientCountry.trim()   || "Canada",
       })
       .select()
       .single();
@@ -793,9 +810,36 @@ export function ClientsContent({
       setNewClientStatus("boarding");
       setNewClientSource("");
       setNewClientTags([]);
+      setNewClientStreet("");
+      setNewClientUnit("");
+      setNewClientCity("");
+      setNewClientProvince("");
+      setNewClientPostal("");
+      setNewClientCountry("Canada");
+      setVoiceDraft(null);
+      setVoiceBanner(false);
     }
     setAddClientSaving(false);
-  }, [newClientName, newClientEmail, newClientPhone, newClientStatus, newClientSource, newClientTags]);
+  }, [newClientName, newClientEmail, newClientPhone, newClientStatus, newClientSource, newClientTags,
+      newClientStreet, newClientUnit, newClientCity, newClientProvince, newClientPostal, newClientCountry]);
+
+  // Handle voice-to-client draft: pre-fill Add Client dialog
+  const handleVoiceDraft = useCallback((draft: VoiceClientDraft) => {
+    if (draft.client.fullName)   setNewClientName(draft.client.fullName);
+    if (draft.client.email)      setNewClientEmail(draft.client.email);
+    if (draft.client.phone)      setNewClientPhone(draft.client.phone);
+    if (draft.client.source)     setNewClientSource(draft.client.source);
+    if (draft.client.tags?.length) setNewClientTags(draft.client.tags);
+    if (draft.client.street1)    setNewClientStreet(draft.client.street1);
+    if (draft.client.street2)    setNewClientUnit(draft.client.street2);
+    if (draft.client.city)       setNewClientCity(draft.client.city);
+    if (draft.client.province)   setNewClientProvince(draft.client.province);
+    if (draft.client.postalCode) setNewClientPostal(draft.client.postalCode);
+    if (draft.client.country)    setNewClientCountry(draft.client.country);
+    setVoiceDraft(draft);
+    setVoiceBanner(true);
+    setAddClientOpen(true);
+  }, []);
 
   // Add a relationship between two clients
   const addRelationship = useCallback(
@@ -1136,6 +1180,7 @@ export function ClientsContent({
             <Upload className="h-3.5 w-3.5" />
             Import CSV
           </Button>
+          <VoiceClientButton onDraft={handleVoiceDraft} />
         </div>
       </div>
 
@@ -1779,52 +1824,57 @@ export function ClientsContent({
                 <Separator />
 
                 {/* Address */}
-                <div className="space-y-3">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5" />
-                    Address
-                  </h3>
-                  <div className="grid grid-cols-1 gap-2">
-                    <InlineEdit
-                      label="Street Address"
-                      value={selectedClient.street_address ?? ""}
-                      onSave={(v) => updateClientField(selectedClient.id, "street_address", v || null)}
-                      placeholder="Add street address…"
-                    />
-                    <InlineEdit
-                      label="Unit / Suite"
-                      value={selectedClient.unit_number ?? ""}
-                      onSave={(v) => updateClientField(selectedClient.id, "unit_number", v || null)}
-                      placeholder="Apt, Suite, Unit…"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <InlineEdit
-                      label="City"
-                      value={selectedClient.city ?? ""}
-                      onSave={(v) => updateClientField(selectedClient.id, "city", v || null)}
-                      placeholder="Add city…"
-                    />
-                    <InlineEdit
-                      label="Province / Region"
-                      value={selectedClient.province_region ?? ""}
-                      onSave={(v) => updateClientField(selectedClient.id, "province_region", v || null)}
-                      placeholder="Add province…"
-                    />
-                    <InlineEdit
-                      label="Postal Code"
-                      value={selectedClient.postal_code ?? ""}
-                      onSave={(v) => updateClientField(selectedClient.id, "postal_code", v || null)}
-                      placeholder="A1A 1A1"
-                    />
-                    <InlineEdit
-                      label="Country"
-                      value={selectedClient.country ?? "Canada"}
-                      onSave={(v) => updateClientField(selectedClient.id, "country", v || "Canada")}
-                      placeholder="Canada"
-                    />
-                  </div>
-                </div>
+                {(() => {
+                  const addrLabels = getCountryLabels(selectedClient.country ?? "Canada");
+                  return (
+                    <div className="space-y-3">
+                      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <MapPin className="h-3.5 w-3.5" />
+                        Address
+                      </h3>
+                      <div className="grid grid-cols-1 gap-2">
+                        <InlineEdit
+                          label="Street Address"
+                          value={selectedClient.street_address ?? ""}
+                          onSave={(v) => updateClientField(selectedClient.id, "street_address", v || null)}
+                          placeholder="Add street address…"
+                        />
+                        <InlineEdit
+                          label="Unit / Suite"
+                          value={selectedClient.unit_number ?? ""}
+                          onSave={(v) => updateClientField(selectedClient.id, "unit_number", v || null)}
+                          placeholder="Apt, Suite, Unit…"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <InlineEdit
+                          label="City"
+                          value={selectedClient.city ?? ""}
+                          onSave={(v) => updateClientField(selectedClient.id, "city", v || null)}
+                          placeholder="Add city…"
+                        />
+                        <InlineEdit
+                          label={addrLabels.provinceLabel}
+                          value={selectedClient.province_region ?? ""}
+                          onSave={(v) => updateClientField(selectedClient.id, "province_region", v || null)}
+                          placeholder={`Add ${addrLabels.provinceLabel.toLowerCase()}…`}
+                        />
+                        <InlineEdit
+                          label={addrLabels.postalLabel}
+                          value={selectedClient.postal_code ?? ""}
+                          onSave={(v) => updateClientField(selectedClient.id, "postal_code", v || null)}
+                          placeholder={addrLabels.postalPlaceholder || addrLabels.postalLabel}
+                        />
+                        <InlineEdit
+                          label="Country"
+                          value={selectedClient.country ?? "Canada"}
+                          onSave={(v) => updateClientField(selectedClient.id, "country", v || "Canada")}
+                          placeholder="Canada"
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <Separator />
 
@@ -2207,8 +2257,11 @@ export function ClientsContent({
       {/* ══════════════════════════════════════════════════════════════════ */}
       {/* ADD CLIENT DIALOG                                                   */}
       {/* ══════════════════════════════════════════════════════════════════ */}
-      <Dialog open={addClientOpen} onOpenChange={setAddClientOpen}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={addClientOpen} onOpenChange={(open) => {
+        setAddClientOpen(open);
+        if (!open) { setVoiceBanner(false); setVoiceDraft(null); }
+      }}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="h-4 w-4" />
@@ -2216,6 +2269,20 @@ export function ClientsContent({
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 pt-2">
+            {/* Voice pre-fill banner */}
+            {voiceBanner && (
+              <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                <span className="text-base leading-none mt-0.5">✨</span>
+                <p className="text-[11px] text-amber-800 leading-snug">
+                  Pre-filled from voice — please review and edit before saving.
+                  {voiceDraft?.missingFields && voiceDraft.missingFields.length > 0 && (
+                    <span className="block mt-0.5 text-amber-600">
+                      Still needed: {voiceDraft.missingFields.join(", ")}
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
             <div className="space-y-1">
               <Label className="text-xs">Name <span className="text-red-500">*</span></Label>
               <Input
@@ -2281,6 +2348,54 @@ export function ClientsContent({
               <Label className="text-xs">Tags</Label>
               <TagPicker value={newClientTags} onChange={setNewClientTags} />
             </div>
+
+            {/* Address (optional) */}
+            <div className="space-y-2 pt-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Address (optional)
+              </p>
+              <div className="space-y-2">
+                <Input
+                  placeholder="Street address"
+                  value={newClientStreet}
+                  onChange={(e) => setNewClientStreet(e.target.value)}
+                  className="h-8 text-sm"
+                />
+                <Input
+                  placeholder="Unit / Suite / Apt"
+                  value={newClientUnit}
+                  onChange={(e) => setNewClientUnit(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="City"
+                  value={newClientCity}
+                  onChange={(e) => setNewClientCity(e.target.value)}
+                  className="h-8 text-sm"
+                />
+                <Input
+                  placeholder={getCountryLabels(newClientCountry).provinceLabel}
+                  value={newClientProvince}
+                  onChange={(e) => setNewClientProvince(e.target.value)}
+                  className="h-8 text-sm"
+                />
+                <Input
+                  placeholder={getCountryLabels(newClientCountry).postalPlaceholder || getCountryLabels(newClientCountry).postalLabel}
+                  value={newClientPostal}
+                  onChange={(e) => setNewClientPostal(e.target.value)}
+                  className="h-8 text-sm"
+                />
+                <Input
+                  placeholder="Country"
+                  value={newClientCountry}
+                  onChange={(e) => setNewClientCountry(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+
             <div className="flex gap-2 pt-2">
               <Button
                 disabled={!newClientName.trim() || addClientSaving}
