@@ -86,6 +86,7 @@ import { compute as computeRunwayScore, type BusinessHealthReport, type RunwaySc
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { calculate as calculateTax } from "@/lib/engines/canadian-tax-engine";
 import { calculateCorporateTax, type CorporateTaxResult } from "@/lib/engines/corporate-tax-engine";
+import { generateTaxOptimizations, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
 import {
   Tooltip,
   TooltipContent,
@@ -123,6 +124,8 @@ interface Props {
   showUpgradeBanner?: boolean;
   userName?: string;
   openTasks?: ContactTask[];
+  mileageKmTotal?: number;
+  ccaAssetCount?: number;
 }
 
 function getTimeGreeting(): { greeting: string; emoji: string } {
@@ -190,6 +193,8 @@ export function DashboardContent({
   showUpgradeBanner = false,
   userName,
   openTasks = [],
+  mileageKmTotal = 0,
+  ccaAssetCount = 0,
 }: Props) {
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [showAnnualReview, setShowAnnualReview] = useState(false);
@@ -337,6 +342,61 @@ export function DashboardContent({
           dealCount: Math.max(projectedDealCount, 1),
         })
       : null;
+
+  // ── Tax Optimization Engine (top 3 for dashboard) ───────────────────
+  const hasExpensesInCategory = (key: string) =>
+    expenseCategories.some(
+      (cat) => cat.key === key && cat.items.some((i) => Number(i.ytd_amount) > 0 || Number(i.monthly_recurring) > 0),
+    );
+
+  const taxOptResult = settings
+    ? generateTaxOptimizations({
+        netIncome: netForTax,
+        projectedGCI,
+        annualExpenses,
+        dealCount: Math.max(projectedDealCount, 1),
+        province: settings.province,
+        experienceYears: settings.experience_years,
+        isIncorporated: settings.is_incorporated,
+        corpType: (settings.corp_type as "prec" | "general" | null) ?? null,
+        compensationMethod: (settings.compensation_method as "salary" | "dividends" | "mixed") ?? "salary",
+        homeOfficeMethod: (settings.home_office_method as "simplified" | "detailed") ?? "simplified",
+        homeOfficeSqFootage: settings.home_office_sq_footage,
+        homeOfficeBusinessUsePct: settings.home_office_business_use_pct,
+        homeOfficeRentMonthly: settings.home_office_rent_monthly,
+        homeOfficeUtilitiesMonthly: settings.home_office_utilities_monthly,
+        homeOfficePropertyTaxAnnual: settings.home_office_property_tax_annual,
+        homeOfficeInsuranceMonthly: settings.home_office_insurance_monthly,
+        homeOfficeMaintenanceAnnual: settings.home_office_maintenance_annual,
+        homeOfficeCondoFeesMonthly: settings.home_office_condo_fees_monthly,
+        vehicleType: (settings.vehicle_type as "own" | "lease" | "none") ?? "none",
+        vehicleBusinessUsePct: settings.vehicle_business_use_pct,
+        hasTrackedMileage: mileageKmTotal > 0,
+        annualMileageKm: mileageKmTotal,
+        gstHstRegistered: settings.gst_hst_registered,
+        gstHstPaidOnExpenses: settings.gst_hst_paid_on_expenses,
+        gstHstRemitted:
+          settings.gst_hst_remitted_q1 +
+          settings.gst_hst_remitted_q2 +
+          settings.gst_hst_remitted_q3 +
+          settings.gst_hst_remitted_q4,
+        taxInstalmentsPaid:
+          settings.tax_instalment_paid_q1 +
+          settings.tax_instalment_paid_q2 +
+          settings.tax_instalment_paid_q3 +
+          settings.tax_instalment_paid_q4,
+        cppInstalmentPaidYTD: settings.cpp_instalment_paid_ytd,
+        hasProfDevExpenses: hasExpensesInCategory("education"),
+        hasMarketingExpenses: hasExpensesInCategory("marketing"),
+        hasClientGiftExpenses: expenseCategories.some(
+          (cat) => cat.key === "marketing" && cat.items.some((i) => i.key === "marketing_gifts" && (Number(i.ytd_amount) > 0 || Number(i.monthly_recurring) > 0)),
+        ),
+        hasMealExpenses: hasExpensesInCategory("meals"),
+        hasLicensingExpenses: hasExpensesInCategory("professional"),
+        ccaAssetCount,
+        dismissed: (settings.tax_opt_dismissed as string[]) ?? [],
+      }, 3)
+    : null;
 
   // ── Trend ─────────────────────────────────────────────────────────────
   const trend = trendDirection(transactions);
@@ -1358,6 +1418,44 @@ export function DashboardContent({
             <p className="mt-3 text-[10px] text-violet-700/70 leading-relaxed">
               Estimates only · Not tax advice · Consult a qualified accountant
             </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tax Savings Opportunities — top 3 summary */}
+      {dashboardView === "full" && taxOptResult && taxOptResult.cardCount > 0 && (
+        <Card className="rounded-2xl border-amber-200 bg-amber-50/40 shadow-sm">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">💰 Tax Savings Opportunities</CardTitle>
+                <CardDescription>
+                  Estimated ~{fmtCurrency(taxOptResult.totalEstimatedSavings)}/yr in potential savings
+                </CardDescription>
+              </div>
+              <Link
+                href="/forecast"
+                className="text-xs text-amber-700 hover:text-amber-900 font-medium transition-colors shrink-0"
+              >
+                See all on Forecast →
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-[10px] text-amber-700/70 leading-relaxed italic">
+              For educational purposes only — not tax advice. Consult a qualified accountant.
+            </p>
+            {taxOptResult.cards.map((card: TaxOptimizationCard) => (
+              <div key={card.id} className="rounded-lg border border-amber-100 bg-white p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold truncate">{card.title}</p>
+                  <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs shrink-0 font-semibold">
+                    {card.estimatedSavingsLabel}
+                  </Badge>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{card.action}</p>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}

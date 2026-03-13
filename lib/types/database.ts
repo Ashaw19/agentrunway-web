@@ -243,6 +243,9 @@ export interface UserSettings {
   has_employees:       boolean;       // unlocks Payroll & HR expense category
   num_employees:       number;        // approximate headcount
 
+  // Tax optimization
+  tax_opt_dismissed: string[];       // IDs of dismissed/acted-on tax optimization cards
+
   // Timestamps
   created_at: string;
   updated_at: string;

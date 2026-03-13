@@ -29,7 +29,7 @@ export default async function DashboardPage({
   const dashYear = new Date().getFullYear();
 
   // Fetch dashboard data in parallel
-  const [txResult, pipelineResult, settingsResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult] =
+  const [txResult, pipelineResult, settingsResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -76,6 +76,16 @@ export default async function DashboardPage({
         .is("completed_at", null)
         .order("due_date", { ascending: true })
         .limit(10),
+      // Mileage log for tax optimization engine
+      supabase
+        .from("mileage_log")
+        .select("distance_km")
+        .eq("user_id", user.id),
+      // CCA assets count for tax optimization engine
+      supabase
+        .from("t2125_cca_assets")
+        .select("id")
+        .eq("user_id", user.id),
     ]);
 
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
@@ -88,6 +98,13 @@ export default async function DashboardPage({
     (sum, r) => sum + Number(r.total_amount ?? 0),
     0,
   );
+
+  // Mileage + CCA data for tax optimization engine
+  const mileageKmTotal = (mileageResult.data ?? []).reduce(
+    (sum, r) => sum + Number(r.distance_km ?? 0),
+    0,
+  );
+  const ccaAssetCount = (ccaResult.data ?? []).length;
 
   const params = await searchParams;
   const isAdmin = settingsResult.data?.is_admin ?? false;
@@ -108,6 +125,8 @@ export default async function DashboardPage({
       showUpgradeBanner={showUpgradeBanner}
       userName={userName}
       openTasks={(tasksResult.data ?? []) as ContactTask[]}
+      mileageKmTotal={mileageKmTotal}
+      ccaAssetCount={ccaAssetCount}
     />
   );
 }

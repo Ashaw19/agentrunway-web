@@ -8,3 +8,4 @@ export * from "./probabilistic-forecast-engine";
 export * from "./runway-score-engine";
 export * from "./insights-engine";
 export * from "./advisor-engine";
+export * from "./tax-optimization-engine";

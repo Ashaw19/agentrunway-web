@@ -38,9 +38,11 @@ import { probabilityBands, fiveYearBands } from "@/lib/engines/probabilistic-for
 import { survivalResult } from "@/lib/engines/survival-engine";
 import { compare } from "@/lib/engines/benchmark-engine";
 import { generateAdvisory, type AdvisorCard } from "@/lib/engines/advisor-engine";
+import { generateTaxOptimizations, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
 import { ProbabilityChart, type ProbabilityDataPoint } from "@/components/probability-chart";
 import Link from "next/link";
-import { Settings, CalendarCheck, Building2, TrendingDown, TrendingUp } from "lucide-react";
+import { Settings, CalendarCheck, Building2, TrendingDown, TrendingUp, AlertTriangle } from "lucide-react";
+import * as LucideIcons from "lucide-react";
 
 // ── CRA quarterly remittance helper ─────────────────────────────────────────
 function nextRemittanceDate(from: Date): { date: Date; label: string; quarter: string } {
@@ -63,6 +65,8 @@ interface Props {
   expenseCategories: ExpenseCategoryWithItems[];
   historyItems: HistoryItem[];
   subscriptionTier?: string;
+  mileageKmTotal?: number;
+  ccaAssetCount?: number;
 }
 
 export function ForecastContent({
@@ -72,6 +76,8 @@ export function ForecastContent({
   expenseCategories,
   historyItems,
   subscriptionTier: _subscriptionTier = "starter",
+  mileageKmTotal = 0,
+  ccaAssetCount = 0,
 }: Props) {
   if (!settings) {
     return (
@@ -224,6 +230,61 @@ export function ForecastContent({
     gciRemainingToCap: Math.max(0, settings.post_cap_threshold_gci - ytdGCI),
     postCapAgentPct: settings.post_cap_agent_pct,
   }, 3);
+
+  // ── Tax Optimization Engine ─────────────────────────────────────────────
+  const hasExpensesInCategory = (key: string) =>
+    expenseCategories.some(
+      (cat) => cat.key === key && cat.items.some((i) => Number(i.ytd_amount) > 0 || Number(i.monthly_recurring) > 0),
+    );
+
+  const taxOptInput = {
+    netIncome: netForTax,
+    projectedGCI,
+    annualExpenses,
+    dealCount: Math.max(projectedDeals, 1),
+    province: settings.province,
+    experienceYears: settings.experience_years,
+    isIncorporated: settings.is_incorporated,
+    corpType: (settings.corp_type as "prec" | "general" | null) ?? null,
+    compensationMethod: (settings.compensation_method as "salary" | "dividends" | "mixed") ?? "salary",
+    homeOfficeMethod: (settings.home_office_method as "simplified" | "detailed") ?? "simplified",
+    homeOfficeSqFootage: settings.home_office_sq_footage,
+    homeOfficeBusinessUsePct: settings.home_office_business_use_pct,
+    homeOfficeRentMonthly: settings.home_office_rent_monthly,
+    homeOfficeUtilitiesMonthly: settings.home_office_utilities_monthly,
+    homeOfficePropertyTaxAnnual: settings.home_office_property_tax_annual,
+    homeOfficeInsuranceMonthly: settings.home_office_insurance_monthly,
+    homeOfficeMaintenanceAnnual: settings.home_office_maintenance_annual,
+    homeOfficeCondoFeesMonthly: settings.home_office_condo_fees_monthly,
+    vehicleType: (settings.vehicle_type as "own" | "lease" | "none") ?? "none",
+    vehicleBusinessUsePct: settings.vehicle_business_use_pct,
+    hasTrackedMileage: mileageKmTotal > 0,
+    annualMileageKm: mileageKmTotal,
+    gstHstRegistered: settings.gst_hst_registered,
+    gstHstPaidOnExpenses: settings.gst_hst_paid_on_expenses,
+    gstHstRemitted:
+      settings.gst_hst_remitted_q1 +
+      settings.gst_hst_remitted_q2 +
+      settings.gst_hst_remitted_q3 +
+      settings.gst_hst_remitted_q4,
+    taxInstalmentsPaid:
+      settings.tax_instalment_paid_q1 +
+      settings.tax_instalment_paid_q2 +
+      settings.tax_instalment_paid_q3 +
+      settings.tax_instalment_paid_q4,
+    cppInstalmentPaidYTD: settings.cpp_instalment_paid_ytd,
+    hasProfDevExpenses: hasExpensesInCategory("education"),
+    hasMarketingExpenses: hasExpensesInCategory("marketing"),
+    hasClientGiftExpenses: expenseCategories.some(
+      (cat) => cat.key === "marketing" && cat.items.some((i) => i.key === "marketing_gifts" && (Number(i.ytd_amount) > 0 || Number(i.monthly_recurring) > 0)),
+    ),
+    hasMealExpenses: hasExpensesInCategory("meals"),
+    hasLicensingExpenses: hasExpensesInCategory("professional"),
+    ccaAssetCount,
+    dismissed: (settings.tax_opt_dismissed as string[]) ?? [],
+  };
+
+  const taxOptResult = generateTaxOptimizations(taxOptInput);
 
   const riskColors: Record<string, string> = {
     critical: "text-red-600",
@@ -449,6 +510,43 @@ export function ForecastContent({
             </p>
           </CardContent>
         </Card>
+
+      {/* Tax Savings Opportunities */}
+      {taxOptResult.cardCount > 0 && (
+        <Card className="rounded-2xl border border-amber-200 bg-amber-50/40 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              💰 Tax Savings Opportunities
+            </CardTitle>
+            <CardDescription>
+              Estimated ~{fmtCurrency(taxOptResult.totalEstimatedSavings)}/yr in potential savings &middot; {taxOptResult.cardCount} {taxOptResult.cardCount === 1 ? "opportunity" : "opportunities"} found
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Disclaimer banner */}
+            <div className="rounded-lg border border-amber-300 bg-amber-100 p-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-700 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  <span className="font-semibold">Tax Optimization Insights — For Educational Purposes Only.</span>{" "}
+                  These suggestions highlight common tax strategies for Canadian self-employed
+                  real estate agents. They are NOT personalized tax advice. Estimated savings are
+                  approximate and depend on your individual circumstances. Always consult a
+                  qualified Canadian accountant or tax professional before making tax decisions.
+                  Agent Runway is not a tax advisor and accepts no liability for tax filing outcomes.
+                </p>
+              </div>
+            </div>
+
+            {/* Savings cards */}
+            <div className="space-y-3">
+              {taxOptResult.cards.map((card) => (
+                <TaxOptCardRow key={card.id} card={card} />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Compensation Optimizer — incorporated users only */}
       {corpTaxResult && (
@@ -761,6 +859,58 @@ function AdvisorCardRow({ card }: { card: AdvisorCard }) {
         ))}
       </ul>
       <p className="mt-2 text-sm">{card.action}</p>
+    </div>
+  );
+}
+
+// ── Tax Optimization card component ───────────────────────────────────────
+
+const COMPLEXITY_STYLES: Record<string, string> = {
+  easy: "bg-emerald-100 text-emerald-700",
+  moderate: "bg-amber-100 text-amber-700",
+  complex: "bg-violet-100 text-violet-700",
+};
+
+function TaxOptCardRow({ card }: { card: TaxOptimizationCard }) {
+  // Convert kebab-case icon name to PascalCase for Lucide lookup
+  const iconKey = card.icon.replace(/(^|-)([a-z])/g, (_: string, __: string, c: string) => c.toUpperCase());
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const IconComponent = ((LucideIcons as any)[iconKey] ?? LucideIcons.Lightbulb) as React.ComponentType<{ className?: string }>;
+
+  return (
+    <div className="rounded-xl border border-amber-100 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2.5 min-w-0">
+          <div className="mt-0.5 shrink-0 rounded-lg bg-amber-100 p-1.5">
+            <IconComponent className="h-4 w-4 text-amber-700" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">{card.title}</p>
+            <Badge
+              variant="secondary"
+              className={`mt-1 text-xs ${COMPLEXITY_STYLES[card.complexity] ?? ""}`}
+            >
+              {card.complexity === "easy" ? "Easy" : card.complexity === "moderate" ? "Moderate" : "Complex"}
+            </Badge>
+          </div>
+        </div>
+        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs shrink-0 font-semibold">
+          {card.estimatedSavingsLabel}
+        </Badge>
+      </div>
+      <ul className="mt-2 space-y-1">
+        {card.evidence.map((e, i) => (
+          <li key={i} className="text-xs text-muted-foreground">
+            &middot; {e}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-sm">
+        <span className="font-medium text-amber-800">Research:</span> {card.action}
+      </p>
+      <p className="mt-1.5 text-[10px] text-muted-foreground/70 leading-relaxed italic">
+        {card.disclaimer}
+      </p>
     </div>
   );
 }
