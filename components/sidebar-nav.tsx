@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  History,
   TrendingUp,
   Receipt,
   FileText,
@@ -14,73 +13,48 @@ import {
   Share2,
   Globe,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+type SidebarEntry =
+  | { type: "header"; label: string }
+  | { type: "item"; label: string; href: string; icon: LucideIcon; iconActive: string; iconInactive: string; borderActive: string };
+
+const sidebarEntries: SidebarEntry[] = [
+  // ── FINANCIALS ─────────────────────────────────────────────────
+  { type: "header", label: "FINANCIALS" },
   {
-    label: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-    iconActive: "text-blue-300",
-    iconInactive: "text-blue-400/60",
-    borderActive: "border-l-blue-400",
+    type: "item", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard,
+    iconActive: "text-blue-300", iconInactive: "text-blue-400/60", borderActive: "border-l-blue-400",
   },
   {
-    label: "Transactions",
-    href: "/transactions",
-    icon: ArrowLeftRight,
-    iconActive: "text-emerald-300",
-    iconInactive: "text-emerald-400/60",
-    borderActive: "border-l-emerald-400",
+    type: "item", label: "Transactions", href: "/transactions", icon: ArrowLeftRight,
+    iconActive: "text-emerald-300", iconInactive: "text-emerald-400/60", borderActive: "border-l-emerald-400",
   },
   {
-    label: "History",
-    href: "/history",
-    icon: History,
-    iconActive: "text-sky-300",
-    iconInactive: "text-sky-400/60",
-    borderActive: "border-l-sky-400",
+    type: "item", label: "Expenses", href: "/expenses", icon: Receipt,
+    iconActive: "text-amber-300", iconInactive: "text-amber-400/60", borderActive: "border-l-amber-400",
   },
   {
-    label: "Clients",
-    href: "/clients",
-    icon: Users,
-    iconActive: "text-teal-300",
-    iconInactive: "text-teal-400/60",
-    borderActive: "border-l-teal-400",
+    type: "item", label: "Forecast", href: "/forecast", icon: TrendingUp,
+    iconActive: "text-violet-300", iconInactive: "text-violet-400/60", borderActive: "border-l-violet-400",
   },
   {
-    label: "Forecast",
-    href: "/forecast",
-    icon: TrendingUp,
-    iconActive: "text-violet-300",
-    iconInactive: "text-violet-400/60",
-    borderActive: "border-l-violet-400",
+    type: "item", label: "Reports", href: "/reports", icon: FileText,
+    iconActive: "text-slate-200", iconInactive: "text-slate-400/60", borderActive: "border-l-slate-400",
   },
+  // ── CRM ────────────────────────────────────────────────────────
+  { type: "header", label: "CRM" },
   {
-    label: "Expenses",
-    href: "/expenses",
-    icon: Receipt,
-    iconActive: "text-amber-300",
-    iconInactive: "text-amber-400/60",
-    borderActive: "border-l-amber-400",
+    type: "item", label: "CRM", href: "/crm", icon: Users,
+    iconActive: "text-teal-300", iconInactive: "text-teal-400/60", borderActive: "border-l-teal-400",
   },
+  // ── TOOLS ──────────────────────────────────────────────────────
+  { type: "header", label: "TOOLS" },
   {
-    label: "Reports",
-    href: "/reports",
-    icon: FileText,
-    iconActive: "text-slate-200",
-    iconInactive: "text-slate-400/60",
-    borderActive: "border-l-slate-400",
-  },
-  {
-    label: "Social",
-    href: "/social",
-    icon: Share2,
-    iconActive: "text-rose-300",
-    iconInactive: "text-rose-400/60",
-    borderActive: "border-l-rose-400",
+    type: "item", label: "Social", href: "/social", icon: Share2,
+    iconActive: "text-rose-300", iconInactive: "text-rose-400/60", borderActive: "border-l-rose-400",
   },
 ];
 
@@ -122,29 +96,38 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
       {/* Nav links */}
       <nav className="flex-1 px-2 py-4 overflow-y-auto">
         <div className="space-y-0.5">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
+          {sidebarEntries.map((entry, i) => {
+            if (entry.type === "header") {
+              return (
+                <div key={entry.label} className={cn("px-3 pb-1", i === 0 ? "pt-0" : "pt-4")}>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/35">
+                    {entry.label}
+                  </span>
+                </div>
+              );
+            }
+            const isActive = pathname === entry.href;
             return (
               <Link
-                key={item.href}
-                href={item.href}
+                key={entry.href}
+                href={entry.href}
                 className={cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13.5px] transition-all duration-150 border-l-[3px]",
                   isActive
                     ? cn(
                         "bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-sm",
-                        item.borderActive,
+                        entry.borderActive,
                       )
                     : "border-l-transparent font-medium text-sidebar-foreground/65 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground hover:border-l-sidebar-border",
                 )}
               >
-                <item.icon
+                <entry.icon
                   className={cn(
                     "h-[17px] w-[17px] shrink-0 transition-colors duration-150",
-                    isActive ? item.iconActive : item.iconInactive,
+                    isActive ? entry.iconActive : entry.iconInactive,
                   )}
                 />
-                <span className="tracking-[0.015em]">{item.label}</span>
+                <span className="tracking-[0.015em]">{entry.label}</span>
               </Link>
             );
           })}

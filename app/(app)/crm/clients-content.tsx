@@ -429,6 +429,29 @@ export function ClientsContent({
   const [voiceDraft,  setVoiceDraft]  = useState<VoiceClientDraft | null>(null);
   const [voiceBanner, setVoiceBanner] = useState(false);
 
+  // Derive which form fields were pre-filled by AI from voice input
+  const voiceFilledFields = useMemo(() => {
+    if (!voiceBanner || !voiceDraft?.client) return new Set<string>();
+    const s = new Set<string>();
+    const c = voiceDraft.client;
+    if (c.fullName)     s.add("name");
+    if (c.email)        s.add("email");
+    if (c.phone)        s.add("phone");
+    if (c.source)       s.add("source");
+    if (c.tags?.length) s.add("tags");
+    if (c.street1)      s.add("street");
+    if (c.street2)      s.add("unit");
+    if (c.city)         s.add("city");
+    if (c.province)     s.add("province");
+    if (c.postalCode)   s.add("postal");
+    if (c.country)      s.add("country");
+    return s;
+  }, [voiceBanner, voiceDraft]);
+
+  /** Returns amber tint classes if this field was AI-filled from voice */
+  const voiceTint = (field: string) =>
+    voiceFilledFields.has(field) ? "bg-amber-50/60 border-amber-200/80" : "";
+
   // Inline editing
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
@@ -2271,16 +2294,28 @@ export function ClientsContent({
           <div className="space-y-3 pt-2">
             {/* Voice pre-fill banner */}
             {voiceBanner && (
-              <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
-                <span className="text-base leading-none mt-0.5">✨</span>
-                <p className="text-[11px] text-amber-800 leading-snug">
-                  Pre-filled from voice — please review and edit before saving.
-                  {voiceDraft?.missingFields && voiceDraft.missingFields.length > 0 && (
-                    <span className="block mt-0.5 text-amber-600">
-                      Still needed: {voiceDraft.missingFields.join(", ")}
-                    </span>
-                  )}
-                </p>
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-base leading-none mt-0.5">✨</span>
+                  <p className="text-[11px] text-amber-800 leading-snug">
+                    Pre-filled from voice — please review and edit before saving.
+                    {voiceDraft?.missingFields && voiceDraft.missingFields.length > 0 && (
+                      <span className="block mt-0.5 text-amber-600">
+                        Still needed: {voiceDraft.missingFields.join(", ")}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                {voiceDraft?.transcript_cleaned && (
+                  <details className="mt-1.5">
+                    <summary className="text-[10px] text-amber-700 cursor-pointer hover:text-amber-900 font-medium select-none">
+                      View raw transcript
+                    </summary>
+                    <p className="mt-1 text-[10px] text-amber-700/80 leading-relaxed bg-amber-100/50 rounded px-2 py-1.5 italic">
+                      &ldquo;{voiceDraft.transcript_cleaned}&rdquo;
+                    </p>
+                  </details>
+                )}
               </div>
             )}
             <div className="space-y-1">
@@ -2290,7 +2325,7 @@ export function ClientsContent({
                 placeholder="Full name"
                 value={newClientName}
                 onChange={(e) => setNewClientName(e.target.value)}
-                className="h-8 text-sm"
+                className={cn("h-8 text-sm", voiceTint("name"))}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -2301,7 +2336,7 @@ export function ClientsContent({
                   placeholder="email@example.com"
                   value={newClientEmail}
                   onChange={(e) => setNewClientEmail(e.target.value)}
-                  className="h-8 text-sm"
+                  className={cn("h-8 text-sm", voiceTint("email"))}
                 />
               </div>
               <div className="space-y-1">
@@ -2311,7 +2346,7 @@ export function ClientsContent({
                   placeholder="(555) 555-5555"
                   value={newClientPhone}
                   onChange={(e) => setNewClientPhone(e.target.value)}
-                  className="h-8 text-sm"
+                  className={cn("h-8 text-sm", voiceTint("phone"))}
                 />
               </div>
             </div>
@@ -2319,7 +2354,7 @@ export function ClientsContent({
               <div className="space-y-1">
                 <Label className="text-xs">Flight Status</Label>
                 <Select value={newClientStatus} onValueChange={(v) => setNewClientStatus(v as ClientStatus)}>
-                  <SelectTrigger className="h-8 text-sm">
+                  <SelectTrigger className={cn("h-8 text-sm", voiceTint("status"))}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -2340,7 +2375,7 @@ export function ClientsContent({
                   placeholder="e.g. Referral, SOI"
                   value={newClientSource}
                   onChange={(e) => setNewClientSource(e.target.value)}
-                  className="h-8 text-sm"
+                  className={cn("h-8 text-sm", voiceTint("source"))}
                 />
               </div>
             </div>
@@ -2359,13 +2394,13 @@ export function ClientsContent({
                   placeholder="Street address"
                   value={newClientStreet}
                   onChange={(e) => setNewClientStreet(e.target.value)}
-                  className="h-8 text-sm"
+                  className={cn("h-8 text-sm", voiceTint("street"))}
                 />
                 <Input
                   placeholder="Unit / Suite / Apt"
                   value={newClientUnit}
                   onChange={(e) => setNewClientUnit(e.target.value)}
-                  className="h-8 text-sm"
+                  className={cn("h-8 text-sm", voiceTint("unit"))}
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
@@ -2373,25 +2408,25 @@ export function ClientsContent({
                   placeholder="City"
                   value={newClientCity}
                   onChange={(e) => setNewClientCity(e.target.value)}
-                  className="h-8 text-sm"
+                  className={cn("h-8 text-sm", voiceTint("city"))}
                 />
                 <Input
                   placeholder={getCountryLabels(newClientCountry).provinceLabel}
                   value={newClientProvince}
                   onChange={(e) => setNewClientProvince(e.target.value)}
-                  className="h-8 text-sm"
+                  className={cn("h-8 text-sm", voiceTint("province"))}
                 />
                 <Input
                   placeholder={getCountryLabels(newClientCountry).postalPlaceholder || getCountryLabels(newClientCountry).postalLabel}
                   value={newClientPostal}
                   onChange={(e) => setNewClientPostal(e.target.value)}
-                  className="h-8 text-sm"
+                  className={cn("h-8 text-sm", voiceTint("postal"))}
                 />
                 <Input
                   placeholder="Country"
                   value={newClientCountry}
                   onChange={(e) => setNewClientCountry(e.target.value)}
-                  className="h-8 text-sm"
+                  className={cn("h-8 text-sm", voiceTint("country"))}
                 />
               </div>
             </div>

@@ -35,7 +35,7 @@ const NAV_LINKS = [
 const DROPDOWN_ITEMS = [
   { label: "Dashboard",    href: "/dashboard",    icon: LayoutDashboard },
   { label: "Transactions", href: "/transactions", icon: ArrowLeftRight  },
-  { label: "History",      href: "/history",      icon: History          },
+  { label: "CRM",           href: "/crm",           icon: History          },
   { label: "Forecast",     href: "/forecast",     icon: TrendingUp      },
   { label: "Expenses",     href: "/expenses",     icon: Receipt          },
   { label: "Reports",      href: "/reports",      icon: FileText         },

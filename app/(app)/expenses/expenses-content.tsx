@@ -859,8 +859,8 @@ export function ExpensesContent({
             {priorRows.length === 0 && (
               <p className="px-4 py-3 text-xs text-muted-foreground">
                 No prior year history yet. Add years in the{" "}
-                <a href="/history" className="underline underline-offset-2 hover:text-foreground">History</a>{" "}
-                page and they&apos;ll appear here for comparison.
+                <a href="/transactions?tab=history" className="underline underline-offset-2 hover:text-foreground">History</a>{" "}
+                tab and they&apos;ll appear here for comparison.
               </p>
             )}
           </CardContent>

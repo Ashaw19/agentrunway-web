@@ -6,7 +6,6 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
-  History,
   TrendingUp,
   Receipt,
   FileText,
@@ -19,6 +18,7 @@ import {
   Users,
   Share2,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -37,86 +37,52 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 
-const navItems = [
+type MobileNavEntry =
+  | { type: "header"; label: string }
+  | { type: "item"; label: string; href: string; icon: LucideIcon; iconActive: string; iconInactive: string; borderActive: string };
+
+const mobileNavEntries: MobileNavEntry[] = [
+  // ── FINANCIALS ─────────────────────────────────────────────────
+  { type: "header", label: "FINANCIALS" },
   {
-    label: "Dashboard",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-    iconActive: "text-blue-300",
-    iconInactive: "text-blue-400/70",
-    borderActive: "border-l-blue-400",
+    type: "item", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard,
+    iconActive: "text-blue-300", iconInactive: "text-blue-400/70", borderActive: "border-l-blue-400",
   },
   {
-    label: "Transactions",
-    href: "/transactions",
-    icon: ArrowLeftRight,
-    iconActive: "text-emerald-300",
-    iconInactive: "text-emerald-400/70",
-    borderActive: "border-l-emerald-400",
+    type: "item", label: "Transactions", href: "/transactions", icon: ArrowLeftRight,
+    iconActive: "text-emerald-300", iconInactive: "text-emerald-400/70", borderActive: "border-l-emerald-400",
   },
   {
-    label: "History",
-    href: "/history",
-    icon: History,
-    iconActive: "text-sky-300",
-    iconInactive: "text-sky-400/70",
-    borderActive: "border-l-sky-400",
+    type: "item", label: "Expenses", href: "/expenses", icon: Receipt,
+    iconActive: "text-amber-300", iconInactive: "text-amber-400/70", borderActive: "border-l-amber-400",
   },
   {
-    label: "Clients",
-    href: "/clients",
-    icon: Users,
-    iconActive: "text-teal-300",
-    iconInactive: "text-teal-400/70",
-    borderActive: "border-l-teal-400",
+    type: "item", label: "Forecast", href: "/forecast", icon: TrendingUp,
+    iconActive: "text-violet-300", iconInactive: "text-violet-400/70", borderActive: "border-l-violet-400",
   },
   {
-    label: "Forecast",
-    href: "/forecast",
-    icon: TrendingUp,
-    iconActive: "text-violet-300",
-    iconInactive: "text-violet-400/70",
-    borderActive: "border-l-violet-400",
+    type: "item", label: "Reports", href: "/reports", icon: FileText,
+    iconActive: "text-slate-200", iconInactive: "text-slate-400/70", borderActive: "border-l-slate-400",
+  },
+  // ── CRM ────────────────────────────────────────────────────────
+  { type: "header", label: "CRM" },
+  {
+    type: "item", label: "CRM", href: "/crm", icon: Users,
+    iconActive: "text-teal-300", iconInactive: "text-teal-400/70", borderActive: "border-l-teal-400",
+  },
+  // ── TOOLS ──────────────────────────────────────────────────────
+  { type: "header", label: "TOOLS" },
+  {
+    type: "item", label: "Social", href: "/social", icon: Share2,
+    iconActive: "text-rose-300", iconInactive: "text-rose-400/70", borderActive: "border-l-rose-400",
   },
   {
-    label: "Expenses",
-    href: "/expenses",
-    icon: Receipt,
-    iconActive: "text-amber-300",
-    iconInactive: "text-amber-400/70",
-    borderActive: "border-l-amber-400",
+    type: "item", label: "Settings", href: "/settings", icon: Settings,
+    iconActive: "text-slate-200", iconInactive: "text-slate-400/70", borderActive: "border-l-slate-400",
   },
   {
-    label: "Reports",
-    href: "/reports",
-    icon: FileText,
-    iconActive: "text-slate-200",
-    iconInactive: "text-slate-400/70",
-    borderActive: "border-l-slate-400",
-  },
-  {
-    label: "Social",
-    href: "/social",
-    icon: Share2,
-    iconActive: "text-rose-300",
-    iconInactive: "text-rose-400/70",
-    borderActive: "border-l-rose-400",
-  },
-  {
-    label: "Settings",
-    href: "/settings",
-    icon: Settings,
-    iconActive: "text-slate-200",
-    iconInactive: "text-slate-400/70",
-    borderActive: "border-l-slate-400",
-  },
-  {
-    label: "Profile",
-    href: "/profile",
-    icon: CircleUser,
-    iconActive: "text-pink-300",
-    iconInactive: "text-pink-400/70",
-    borderActive: "border-l-pink-400",
+    type: "item", label: "Profile", href: "/profile", icon: CircleUser,
+    iconActive: "text-pink-300", iconInactive: "text-pink-400/70", borderActive: "border-l-pink-400",
   },
 ];
 
@@ -264,29 +230,38 @@ export function MobileNav({ isPro = false }: { isPro?: boolean }) {
           <div className="mx-4 mt-4 h-px bg-sidebar-border/60" />
 
           <nav className="flex-1 space-y-0.5 px-2 py-4 overflow-y-auto">
-            {navItems.map((item) => {
-              const isActive = pathname === item.href;
+            {mobileNavEntries.map((entry, i) => {
+              if (entry.type === "header") {
+                return (
+                  <div key={entry.label} className={cn("px-3 pb-1", i === 0 ? "pt-0" : "pt-4")}>
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/35">
+                      {entry.label}
+                    </span>
+                  </div>
+                );
+              }
+              const isActive = pathname === entry.href;
               return (
                 <Link
-                  key={item.href}
-                  href={item.href}
+                  key={entry.href}
+                  href={entry.href}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-150 border-l-[3px]",
                     isActive
                       ? cn(
                           "bg-sidebar-accent font-semibold text-sidebar-accent-foreground",
-                          item.borderActive,
+                          entry.borderActive,
                         )
                       : "border-l-transparent font-medium text-sidebar-foreground/75 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
                   )}
                 >
-                  <item.icon
+                  <entry.icon
                     className={cn(
                       "h-[18px] w-[18px] shrink-0 transition-colors duration-150",
-                      isActive ? item.iconActive : item.iconInactive,
+                      isActive ? entry.iconActive : entry.iconInactive,
                     )}
                   />
-                  <span className="tracking-[0.01em]">{item.label}</span>
+                  <span className="tracking-[0.01em]">{entry.label}</span>
                 </Link>
               );
             })}

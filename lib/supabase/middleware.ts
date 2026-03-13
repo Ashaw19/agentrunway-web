@@ -17,6 +17,8 @@ const PROTECTED_PREFIXES = [
   "/transactions",
   "/pipeline",
   "/history",
+  "/clients",
+  "/crm",
   "/forecast",
   "/expenses",
   "/mileage",

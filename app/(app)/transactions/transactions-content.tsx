@@ -32,16 +32,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, DollarSign, Briefcase, TrendingUp, AlertTriangle, Users, Layers } from "lucide-react";
+import { Plus, Pencil, Trash2, DollarSign, Briefcase, TrendingUp, AlertTriangle, Users, Layers, History } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { fmtCurrency } from "@/lib/formatters";
-import { computeGCI, type Transaction, type PipelineDeal } from "@/lib/types/database";
+import { computeGCI, type Transaction, type PipelineDeal, type HistoryItem, type UserSettings } from "@/lib/types/database";
 import { TransactionsPipelineTab } from "./transactions-pipeline-tab";
+import { TransactionsHistoryTab } from "./transactions-history-tab";
 
 interface Props {
   initialTransactions: Transaction[];
   initialPipelineDeals: PipelineDeal[];
+  historyItems: HistoryItem[];
+  settingsSplit: number | null;
+  settings: UserSettings | null;
+  initialTab?: string;
 }
 
 type FormState = {
@@ -85,8 +90,10 @@ const SIDE_CHIP: Record<string, string> = {
   both:   "bg-teal-100 text-teal-800 border border-teal-200",
 };
 
-export function TransactionsContent({ initialTransactions, initialPipelineDeals }: Props) {
-  const [tab, setTab] = useState<"deals" | "pipeline">("deals");
+export function TransactionsContent({ initialTransactions, initialPipelineDeals, historyItems, settingsSplit, settings, initialTab }: Props) {
+  const [tab, setTab] = useState<"deals" | "pipeline" | "history">(
+    initialTab === "history" ? "history" : initialTab === "pipeline" ? "pipeline" : "deals",
+  );
   const [transactions, setTransactions] = useState(initialTransactions);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -242,7 +249,9 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals 
               ? ytdCount > 0
                 ? <>{ytdCount} closed deal{ytdCount !== 1 ? "s" : ""} this year &middot; {fmtCurrency(ytdGCI)} GCI</>
                 : "Log your first deal. Your GCI won't track itself."
-              : "Track deals in progress before they close."}
+              : tab === "pipeline"
+                ? "Track deals in progress before they close."
+                : "Year-by-year production history and seasonal patterns."}
           </p>
         </div>
         {tab === "deals" && (
@@ -279,11 +288,33 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals 
           <Layers className="h-3.5 w-3.5" />
           Pipeline
         </button>
+        <button
+          onClick={() => setTab("history")}
+          className={cn(
+            "flex items-center gap-1.5 rounded-md px-4 py-1.5 font-medium transition-colors",
+            tab === "history"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          <History className="h-3.5 w-3.5" />
+          History
+        </button>
       </div>
 
       {/* Pipeline tab */}
       {tab === "pipeline" && (
         <TransactionsPipelineTab pipelineDeals={initialPipelineDeals} />
+      )}
+
+      {/* History tab */}
+      {tab === "history" && (
+        <TransactionsHistoryTab
+          historyItems={historyItems}
+          transactions={initialTransactions.filter((t) => t.status === "closed")}
+          settingsSplit={settingsSplit}
+          settings={settings}
+        />
       )}
 
       {/* Deals tab content — hidden when pipeline is active */}

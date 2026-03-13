@@ -1079,7 +1079,7 @@ export function DashboardContent({
                     </span>
                   )}
                 </CardTitle>
-                <Link href="/clients" className="text-xs text-blue-600 hover:underline font-medium">
+                <Link href="/crm" className="text-xs text-blue-600 hover:underline font-medium">
                   View all →
                 </Link>
               </div>
@@ -1120,7 +1120,7 @@ export function DashboardContent({
               {localTasks.length > 5 && (
                 <p className="text-xs text-blue-700 text-center pt-1">
                   +{localTasks.length - 5} more tasks —{" "}
-                  <Link href="/clients" className="underline font-medium">view all in CRM</Link>
+                  <Link href="/crm" className="underline font-medium">view all in CRM</Link>
                 </p>
               )}
             </CardContent>
