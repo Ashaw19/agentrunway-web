@@ -1,31 +1,44 @@
 "use client";
 
+/**
+ * VoiceRecordButton — global voice recording widget used inside QuickAddFab.
+ *
+ * State machine: idle → recording → transcribing → extracting → idle/error
+ *
+ * Records audio via MediaRecorder, transcribes via Groq Whisper,
+ * extracts structured data via Llama 3.3 (multi-intent), then
+ * passes the VoiceDraft to the onDraft callback.
+ */
+
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Mic, MicOff, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { VoiceClientDraft } from "@/app/api/voice-extract/route";
+import type { VoiceDraft } from "@/lib/voice/types";
 
-// Re-export the type so consumers can import it from here
-export type { VoiceClientDraft };
-
-type VoiceState = "idle" | "recording" | "transcribing" | "extracting" | "error";
+export type VoiceState = "idle" | "recording" | "transcribing" | "extracting" | "error";
 
 interface Props {
-  onDraft: (draft: VoiceClientDraft) => void;
+  onDraft: (draft: VoiceDraft) => void;
+  /** Called when state changes — allows parent to react to recording/processing */
+  onStateChange?: (state: VoiceState) => void;
 }
 
 const MAX_RECORDING_MS = 60_000; // 60 seconds
 
-export function VoiceClientButton({ onDraft }: Props) {
-  const [state, setState]           = useState<VoiceState>("idle");
-  const [errorMsg, setErrorMsg]     = useState<string>("");
+export function VoiceRecordButton({ onDraft, onStateChange }: Props) {
+  const [state, setState]       = useState<VoiceState>("idle");
+  const [errorMsg, setErrorMsg] = useState("");
 
-  const mediaRecorderRef  = useRef<MediaRecorder | null>(null);
-  const chunksRef         = useRef<Blob[]>([]);
-  const autoStopTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef        = useRef<Blob[]>([]);
+  const autoStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Clear error and reset to idle after 3 seconds
+  // Notify parent of state changes
+  useEffect(() => {
+    onStateChange?.(state);
+  }, [state, onStateChange]);
+
+  // Auto-clear errors after 3 seconds
   useEffect(() => {
     if (state !== "error") return;
     const t = setTimeout(() => {
@@ -53,7 +66,7 @@ export function VoiceClientButton({ onDraft }: Props) {
   }, []);
 
   const processAudio = useCallback(async (audioBlob: Blob) => {
-    // ── Step 1: Transcribe ─────────────────────────────────────────────────
+    // ── Step 1: Transcribe ───────────────────────────────────────────────
     setState("transcribing");
 
     let transcript: string;
@@ -73,13 +86,13 @@ export function VoiceClientButton({ onDraft }: Props) {
 
       const data = await res.json() as { transcript: string };
       transcript = data.transcript?.trim();
-      if (!transcript) throw new Error("No speech detected — please try again.");
+      if (!transcript) throw new Error("No speech detected — try again.");
     } catch (err) {
       handleError(err instanceof Error ? err.message : "Transcription failed");
       return;
     }
 
-    // ── Step 2: Extract client info ────────────────────────────────────────
+    // ── Step 2: Classify intent + extract ────────────────────────────────
     setState("extracting");
 
     try {
@@ -94,7 +107,7 @@ export function VoiceClientButton({ onDraft }: Props) {
         throw new Error(err.error ?? `Extraction failed (${res.status})`);
       }
 
-      const draft = await res.json() as VoiceClientDraft;
+      const draft = await res.json() as VoiceDraft;
       setState("idle");
       onDraft(draft);
     } catch (err) {
@@ -144,10 +157,9 @@ export function VoiceClientButton({ onDraft }: Props) {
       void processAudio(audioBlob);
     };
 
-    recorder.start(250); // collect chunks every 250ms
+    recorder.start(250);
     setState("recording");
 
-    // Auto-stop after max duration
     autoStopTimerRef.current = setTimeout(() => {
       stopRecording();
     }, MAX_RECORDING_MS);
@@ -161,50 +173,60 @@ export function VoiceClientButton({ onDraft }: Props) {
     }
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────────────────────────
 
-  const isLoading = state === "transcribing" || state === "extracting";
+  const isLoading   = state === "transcribing" || state === "extracting";
   const isRecording = state === "recording";
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <Button
+    <div className="flex flex-col items-center gap-1.5">
+      <button
         type="button"
-        size="sm"
-        variant={isRecording ? "destructive" : "outline"}
         onClick={handleClick}
         disabled={isLoading}
         className={cn(
-          "gap-1.5",
-          isRecording && "relative",
+          "relative flex h-10 w-10 items-center justify-center rounded-full shadow-lg transition-all duration-150 text-white",
+          isRecording
+            ? "bg-red-600 hover:bg-red-500"
+            : isLoading
+              ? "bg-slate-600 cursor-wait"
+              : "bg-rose-600 hover:bg-rose-500",
         )}
+        title={
+          isLoading
+            ? state === "transcribing" ? "Transcribing..." : "Extracting..."
+            : isRecording
+              ? "Stop recording"
+              : "Voice input"
+        }
       >
         {/* Pulsing ring while recording */}
         {isRecording && (
-          <span className="absolute inset-0 rounded-md animate-ping bg-destructive/30 pointer-events-none" />
+          <span className="absolute inset-0 rounded-full animate-ping bg-red-500/40 pointer-events-none" />
         )}
 
         {isLoading ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin" />
         ) : isRecording ? (
-          <MicOff className="h-3.5 w-3.5" />
+          <MicOff className="h-4 w-4" />
         ) : (
-          <Mic className="h-3.5 w-3.5" />
+          <Mic className="h-4 w-4" />
         )}
+      </button>
 
-        {isLoading
-          ? state === "transcribing" ? "Transcribing…" : "Extracting…"
-          : isRecording
-            ? "Stop"
-            : "Voice"}
-      </Button>
-
-      {/* Error message */}
-      {state === "error" && errorMsg && (
-        <p className="text-[11px] text-destructive max-w-[180px] text-right leading-tight">
-          {errorMsg}
-        </p>
-      )}
+      {/* Status label */}
+      <span className={cn(
+        "rounded-lg bg-slate-900/90 px-2.5 py-1 text-xs font-medium shadow-lg border border-white/10 backdrop-blur-sm whitespace-nowrap",
+        state === "error" ? "text-red-400" : "text-white",
+      )}>
+        {state === "error"
+          ? errorMsg || "Error"
+          : isLoading
+            ? state === "transcribing" ? "Transcribing..." : "Extracting..."
+            : isRecording
+              ? "Listening... tap to stop"
+              : "Voice Input"}
+      </span>
     </div>
   );
 }

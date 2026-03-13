@@ -1,10 +1,14 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Plus, X, ArrowLeftRight, Layers, Receipt, Keyboard } from "lucide-react";
+import { Plus, X, ArrowLeftRight, Layers, Receipt, Keyboard, Mic } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAppShortcuts } from "@/hooks/use-keyboard-shortcuts";
+import { VoiceRecordButton, type VoiceState } from "@/components/voice-record-button";
+import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
+import type { VoiceDraft } from "@/lib/voice/types";
+import { toast } from "sonner";
 
 interface QuickAddFabProps {
   /** Whether the AI chat bubble is present (shift position left) */
@@ -13,12 +17,16 @@ interface QuickAddFabProps {
 
 /**
  * Floating action button that expands into a quick-action ring.
+ * Now includes Voice Input as a 4th action item with smart intent routing.
  * Also registers global keyboard shortcuts.
  */
 export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
   const [open, setOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [voiceActive, setVoiceActive] = useState(false);
+  const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const router = useRouter();
+  const { setDraft } = useVoiceDraft();
 
   const goTo = useCallback(
     (path: string) => {
@@ -35,6 +43,41 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
 
   // Register global shortcuts
   useAppShortcuts(openQuickAdd);
+
+  /** Route a completed voice draft to the correct page */
+  const handleVoiceDraft = useCallback((draft: VoiceDraft) => {
+    setDraft(draft);
+    setVoiceActive(false);
+    setOpen(false);
+
+    switch (draft.intent) {
+      case "new_client":
+        router.push("/crm?voice=1");
+        break;
+      case "new_expense":
+        router.push("/expenses?voice=1");
+        break;
+      case "new_transaction":
+        router.push("/transactions?voice=1");
+        break;
+      case "note":
+        router.push("/crm?voice=note");
+        break;
+      case "unknown":
+        toast.info("Couldn't determine what to do", {
+          description: draft.transcript_cleaned
+            ? `"${draft.transcript_cleaned.slice(0, 120)}${draft.transcript_cleaned.length > 120 ? "..." : ""}"`
+            : "Try speaking more clearly.",
+        });
+        break;
+    }
+  }, [setDraft, router]);
+
+  const handleVoiceStateChange = useCallback((state: VoiceState) => {
+    setVoiceState(state);
+    // If voice errored or returned to idle without a draft, exit voice mode
+    // (successful draft exits via handleVoiceDraft)
+  }, []);
 
   const actions = [
     {
@@ -58,6 +101,9 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
   ];
 
   const rightOffset = hasAiChat ? "right-24" : "right-6";
+
+  // When voice is actively recording/processing, show a simplified UI
+  const voiceBusy = voiceActive && voiceState !== "idle" && voiceState !== "error";
 
   return (
     <>
@@ -110,16 +156,35 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
       )}
 
       {/* Backdrop */}
-      {open && (
+      {(open || voiceActive) && (
         <div
           className="fixed inset-0 z-30"
-          onClick={() => setOpen(false)}
+          onClick={() => {
+            if (!voiceBusy) {
+              setOpen(false);
+              setVoiceActive(false);
+            }
+          }}
         />
       )}
 
       {/* Action items — fan up from the FAB */}
       <div className={cn("fixed bottom-6 z-40 flex flex-col items-end gap-3", rightOffset)}>
-        {open && actions.map(({ label, icon: Icon, color, onClick }, i) => (
+        {/* Voice recording widget (replaces action list when active) */}
+        {voiceActive && (
+          <div
+            className="flex items-center gap-2"
+            style={{ animation: "fabItemIn 0.2s ease-out both" }}
+          >
+            <VoiceRecordButton
+              onDraft={handleVoiceDraft}
+              onStateChange={handleVoiceStateChange}
+            />
+          </div>
+        )}
+
+        {/* Standard action items (hidden when voice is active) */}
+        {open && !voiceActive && actions.map(({ label, icon: Icon, color, onClick }, i) => (
           <div
             key={label}
             className="flex items-center gap-2"
@@ -144,11 +209,30 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
           </div>
         ))}
 
-        {/* Keyboard shortcut hint */}
-        {open && (
+        {/* Voice Input action (4th item in the fan) */}
+        {open && !voiceActive && (
           <div
             className="flex items-center gap-2"
-            style={{ animation: "fabItemIn 0.2s ease-out 0.15s both" }}
+            style={{ animation: `fabItemIn 0.2s ease-out ${actions.length * 0.05}s both` }}
+          >
+            <span className="rounded-lg bg-slate-900/90 px-2.5 py-1 text-xs font-medium text-white shadow-lg border border-white/10 backdrop-blur-sm whitespace-nowrap">
+              Voice Input
+            </span>
+            <button
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-600 hover:bg-rose-500 shadow-lg text-white transition-all duration-150"
+              onClick={() => setVoiceActive(true)}
+              title="Voice Input"
+            >
+              <Mic className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Keyboard shortcut hint */}
+        {open && !voiceActive && (
+          <div
+            className="flex items-center gap-2"
+            style={{ animation: `fabItemIn 0.2s ease-out ${(actions.length + 1) * 0.05}s both` }}
           >
             <span className="rounded-lg bg-slate-900/90 px-2.5 py-1 text-xs font-medium text-slate-400 shadow-lg border border-white/10 backdrop-blur-sm whitespace-nowrap">
               Keyboard shortcuts
@@ -164,25 +248,32 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
 
         {/* Main FAB */}
         <button
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => {
+            if (voiceActive && !voiceBusy) {
+              setVoiceActive(false);
+            } else if (!voiceBusy) {
+              setOpen((v) => !v);
+              setVoiceActive(false);
+            }
+          }}
           className={cn(
             "flex h-14 w-14 items-center justify-center rounded-full shadow-xl transition-all duration-200",
             "text-white",
-            open
+            open || voiceActive
               ? "bg-slate-700 rotate-45"
               : "bg-gradient-to-br from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500",
           )}
           style={{
-            boxShadow: open
+            boxShadow: open || voiceActive
               ? "0 4px 20px rgba(0,0,0,0.4)"
               : "0 4px 24px rgba(99,102,241,0.5)",
           }}
-          aria-label={open ? "Close quick actions" : "Quick actions"}
+          aria-label={open || voiceActive ? "Close quick actions" : "Quick actions"}
         >
           <Plus
             className={cn(
               "h-6 w-6 transition-transform duration-200",
-              open && "rotate-45"
+              (open || voiceActive) && "rotate-45"
             )}
           />
         </button>

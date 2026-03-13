@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -39,6 +39,8 @@ import { fmtCurrency } from "@/lib/formatters";
 import { computeGCI, type Transaction, type PipelineDeal, type HistoryItem, type UserSettings } from "@/lib/types/database";
 import { TransactionsPipelineTab } from "./transactions-pipeline-tab";
 import { TransactionsHistoryTab } from "./transactions-history-tab";
+import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
+import type { VoiceDraft } from "@/lib/voice/types";
 
 interface Props {
   initialTransactions: Transaction[];
@@ -103,6 +105,56 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
   const [filter, setFilter] = useState<"all" | "closed" | "pending" | "fallen">("all");
   const [yearFilter, setYearFilter] = useState<"all" | number>("all");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "highest" | "lowest">("newest");
+
+  // ── Voice draft consumption ──────────────────────────────────────────────
+  const [voiceDraft, setVoiceDraftLocal] = useState<VoiceDraft | null>(null);
+  const [voiceBanner, setVoiceBanner] = useState(false);
+  const { consume } = useVoiceDraft();
+
+  useEffect(() => {
+    const draft = consume();
+    if (!draft || draft.intent !== "new_transaction") return;
+    const tx = draft.transaction;
+    setForm({
+      ...emptyForm(),
+      date: tx.date ?? emptyForm().date,
+      address: tx.address ?? "",
+      client_name: tx.client_name ?? "",
+      side: tx.side ?? "buyer",
+      status: tx.status ?? "closed",
+      sale_price: tx.sale_price ? String(tx.sale_price) : "",
+      commission_pct: tx.commission_pct ? String(tx.commission_pct * 100) : "2.5",
+      gci_override: tx.gci ? String(tx.gci) : "",
+      notes: tx.notes ?? "",
+      has_team_split: false,
+      team_split_pct: "60",
+    });
+    setVoiceDraftLocal(draft);
+    setVoiceBanner(true);
+    setTab("deals");
+    setEditingId(null);
+    setDialogOpen(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const voiceFilledFields = useMemo(() => {
+    if (!voiceBanner || !voiceDraft || voiceDraft.intent !== "new_transaction") return new Set<string>();
+    const s = new Set<string>();
+    const tx = voiceDraft.transaction;
+    if (tx.date)           s.add("date");
+    if (tx.address)        s.add("address");
+    if (tx.client_name)    s.add("client_name");
+    if (tx.side)           s.add("side");
+    if (tx.status)         s.add("status");
+    if (tx.sale_price)     s.add("sale_price");
+    if (tx.commission_pct) s.add("commission_pct");
+    if (tx.gci)            s.add("gci_override");
+    if (tx.notes)          s.add("notes");
+    return s;
+  }, [voiceBanner, voiceDraft]);
+
+  const voiceTint = (field: string) =>
+    voiceFilledFields.has(field) ? "bg-amber-50/60 border-amber-200/80" : "";
 
   function openAdd() {
     setEditingId(null);
@@ -532,6 +584,33 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
             <DialogTitle>{editingId ? "Edit Deal" : "Add Deal"}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-2">
+            {/* Voice pre-fill banner */}
+            {voiceBanner && !editingId && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-base leading-none mt-0.5">✨</span>
+                  <p className="text-[11px] text-amber-800 leading-snug">
+                    Pre-filled from voice — please review and edit before saving.
+                    {voiceDraft?.missingFields && voiceDraft.missingFields.length > 0 && (
+                      <span className="block mt-0.5 text-amber-600">
+                        Still needed: {voiceDraft.missingFields.join(", ")}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                {voiceDraft?.transcript_cleaned && (
+                  <details className="mt-1.5">
+                    <summary className="text-[10px] text-amber-700 cursor-pointer hover:text-amber-900 font-medium select-none">
+                      View raw transcript
+                    </summary>
+                    <p className="mt-1 text-[10px] text-amber-700/80 leading-relaxed bg-amber-100/50 rounded px-2 py-1.5 italic">
+                      &ldquo;{voiceDraft.transcript_cleaned}&rdquo;
+                    </p>
+                  </details>
+                )}
+              </div>
+            )}
+
             {/* Row: Date + Status */}
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
@@ -540,12 +619,13 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                   type="date"
                   value={form.date}
                   onChange={(e) => setField("date", e.target.value)}
+                  className={voiceTint("date")}
                 />
               </div>
               <div className="grid gap-1.5">
                 <Label>Status *</Label>
                 <Select value={form.status} onValueChange={(v) => setField("status", v as FormState["status"])}>
-                  <SelectTrigger>
+                  <SelectTrigger className={voiceTint("status")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -574,6 +654,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                 placeholder="123 Main St, Toronto"
                 value={form.address}
                 onChange={(e) => setField("address", e.target.value)}
+                className={voiceTint("address")}
               />
             </div>
 
@@ -585,12 +666,13 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                   placeholder="Jane Smith"
                   value={form.client_name}
                   onChange={(e) => setField("client_name", e.target.value)}
+                  className={voiceTint("client_name")}
                 />
               </div>
               <div className="grid gap-1.5">
                 <Label>Side *</Label>
                 <Select value={form.side} onValueChange={(v) => setField("side", v as FormState["side"])}>
-                  <SelectTrigger>
+                  <SelectTrigger className={voiceTint("side")}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -611,6 +693,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                   placeholder="500000"
                   value={form.sale_price}
                   onChange={(e) => setField("sale_price", e.target.value)}
+                  className={voiceTint("sale_price")}
                 />
               </div>
               <div className="grid gap-1.5">
@@ -621,6 +704,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                   placeholder="2.5"
                   value={form.commission_pct}
                   onChange={(e) => setField("commission_pct", e.target.value)}
+                  className={voiceTint("commission_pct")}
                 />
               </div>
             </div>
@@ -638,6 +722,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                 placeholder="e.g. 12500"
                 value={form.gci_override}
                 onChange={(e) => setField("gci_override", e.target.value)}
+                className={voiceTint("gci_override")}
               />
             </div>
 
@@ -694,6 +779,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                 rows={2}
                 value={form.notes}
                 onChange={(e) => setField("notes", e.target.value)}
+                className={voiceTint("notes")}
               />
             </div>
 

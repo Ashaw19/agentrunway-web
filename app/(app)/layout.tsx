@@ -3,6 +3,7 @@ import { MobileNav } from "@/components/mobile-nav";
 import { TopBar } from "@/components/top-bar";
 import { AiChat } from "@/components/ai-chat";
 import { QuickAddFab } from "@/components/quick-add-fab";
+import { VoiceDraftProvider } from "@/lib/voice/voice-draft-context";
 import { Toaster } from "sonner";
 import { createClient } from "@/lib/supabase/server";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
@@ -165,33 +166,35 @@ export default async function AppLayout({
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
 
   return (
-    <div
-      className="flex h-screen overflow-hidden"
-      data-color-theme={colorTheme}
-    >
-      <SidebarNav isPro={isPro} />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <MobileNav isPro={isPro} />
-        <TopBar />
-        <main className="flex-1 overflow-y-auto bg-muted/30 p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto max-w-screen-xl page-enter">
-            {children}
-          </div>
-        </main>
+    <VoiceDraftProvider>
+      <div
+        className="flex h-screen overflow-hidden"
+        data-color-theme={colorTheme}
+      >
+        <SidebarNav isPro={isPro} />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <MobileNav isPro={isPro} />
+          <TopBar />
+          <main className="flex-1 overflow-y-auto bg-muted/30 p-4 sm:p-6 lg:p-8">
+            <div className="mx-auto max-w-screen-xl page-enter">
+              {children}
+            </div>
+          </main>
+        </div>
+        {isPro && <AiChat financialContext={financialContext} />}
+        <QuickAddFab hasAiChat={isPro} />
+        <Toaster
+          position="bottom-right"
+          offset={isPro ? "88px" : "24px"}
+          toastOptions={{
+            style: {
+              background: "oklch(0.18 0.05 265)",
+              border: "1px solid oklch(0.28 0.05 265)",
+              color: "oklch(0.93 0.013 255)",
+            },
+          }}
+        />
       </div>
-      {isPro && <AiChat financialContext={financialContext} />}
-      <QuickAddFab hasAiChat={isPro} />
-      <Toaster
-        position="bottom-right"
-        offset={isPro ? "88px" : "24px"}
-        toastOptions={{
-          style: {
-            background: "oklch(0.18 0.05 265)",
-            border: "1px solid oklch(0.28 0.05 265)",
-            color: "oklch(0.93 0.013 255)",
-          },
-        }}
-      />
-    </div>
+    </VoiceDraftProvider>
   );
 }

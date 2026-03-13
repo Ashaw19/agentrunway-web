@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -40,8 +40,28 @@ import { pdf }                      from "@react-pdf/renderer";
 import { ExpenseExportPdf }         from "@/components/pdf/expense-export-pdf";
 import {
   RECEIPT_CATEGORIES,
+  RECEIPT_CATEGORY_GROUPS,
   type ReceiptExpense,
 } from "@/lib/types/receipt";
+import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
+import type { VoiceDraft } from "@/lib/voice/types";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -130,6 +150,82 @@ export function ExpensesContent({
   // ── Receipt view / edit ────────────────────────────────────────────────────
   const [viewReceipt,  setViewReceipt]  = useState<ReceiptExpense | null>(null);
   const [viewOpen,     setViewOpen]     = useState(false);
+
+  // ── Voice-to-expense ─────────────────────────────────────────────────────
+  const [quickExpenseOpen,  setQuickExpenseOpen]  = useState(false);
+  const [voiceDraft,        setVoiceDraftLocal]   = useState<VoiceDraft | null>(null);
+  const [voiceBanner,       setVoiceBanner]       = useState(false);
+  const [qeCategory,  setQeCategory]  = useState("");
+  const [qeAmount,    setQeAmount]    = useState("");
+  const [qeVendor,    setQeVendor]    = useState("");
+  const [qeDesc,      setQeDesc]     = useState("");
+  const [qeDate,      setQeDate]     = useState(new Date().toISOString().split("T")[0]);
+  const [qeSaving,    setQeSaving]   = useState(false);
+  const { consume } = useVoiceDraft();
+
+  useEffect(() => {
+    const draft = consume();
+    if (!draft || draft.intent !== "new_expense") return;
+    const exp = draft.expense;
+    if (exp.category_key) setQeCategory(exp.category_key);
+    if (exp.amount != null) setQeAmount(String(exp.amount));
+    if (exp.vendor) setQeVendor(exp.vendor);
+    if (exp.description) setQeDesc(exp.description);
+    if (exp.date) setQeDate(exp.date);
+    setVoiceDraftLocal(draft);
+    setVoiceBanner(true);
+    setQuickExpenseOpen(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const voiceFilledFields = useMemo(() => {
+    if (!voiceBanner || !voiceDraft || voiceDraft.intent !== "new_expense") return new Set<string>();
+    const s = new Set<string>();
+    const exp = voiceDraft.expense;
+    if (exp.category_key) s.add("category");
+    if (exp.amount != null) s.add("amount");
+    if (exp.vendor)       s.add("vendor");
+    if (exp.description)  s.add("description");
+    if (exp.date)         s.add("date");
+    return s;
+  }, [voiceBanner, voiceDraft]);
+
+  const voiceTint = (field: string) =>
+    voiceFilledFields.has(field) ? "bg-amber-50/60 border-amber-200/80" : "";
+
+  async function handleQuickExpenseSave() {
+    setQeSaving(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setQeSaving(false); return; }
+
+    const { error } = await supabase.from("receipt_expenses").insert({
+      user_id: user.id,
+      category_key: qeCategory || null,
+      total_amount: parseFloat(qeAmount) || 0,
+      vendor: qeVendor || null,
+      notes: qeDesc || null,
+      expense_date: qeDate || new Date().toISOString().split("T")[0],
+      currency: "CAD",
+    });
+
+    if (!error) {
+      toast.success("Expense logged", { description: qeVendor ? `${qeVendor} — $${qeAmount}` : `$${qeAmount}` });
+      setQuickExpenseOpen(false);
+      setVoiceBanner(false);
+      // Reset form
+      setQeCategory("");
+      setQeAmount("");
+      setQeVendor("");
+      setQeDesc("");
+      setQeDate(new Date().toISOString().split("T")[0]);
+      // Refresh receipt totals
+      await handleReceiptSaved();
+    } else {
+      toast.error("Couldn't save — try again");
+    }
+    setQeSaving(false);
+  }
 
   const handleReceiptSaved = async () => {
     const supabase = createClient();
@@ -1302,6 +1398,123 @@ export function ExpensesContent({
         onSaved={handleReceiptUpdated}
         onDeleted={handleReceiptDeleted}
       />
+
+      {/* ── Quick Add Expense dialog (voice-initiated) ─────────────────────── */}
+      <Dialog open={quickExpenseOpen} onOpenChange={setQuickExpenseOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="h-4 w-4" />
+              Quick Add Expense
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            {voiceBanner && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+                <div className="flex items-start gap-2">
+                  <span className="text-base leading-none mt-0.5">✨</span>
+                  <p className="text-[11px] text-amber-800 leading-snug">
+                    Pre-filled from voice — please review and edit before saving.
+                    {voiceDraft?.missingFields && voiceDraft.missingFields.length > 0 && (
+                      <span className="block mt-0.5 text-amber-600">
+                        Still needed: {voiceDraft.missingFields.join(", ")}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                {voiceDraft?.transcript_cleaned && (
+                  <details className="mt-1.5">
+                    <summary className="text-[10px] text-amber-700 cursor-pointer hover:text-amber-900 font-medium select-none">
+                      View raw transcript
+                    </summary>
+                    <p className="mt-1 text-[10px] text-amber-700/80 leading-relaxed bg-amber-100/50 rounded px-2 py-1.5 italic">
+                      &ldquo;{voiceDraft.transcript_cleaned}&rdquo;
+                    </p>
+                  </details>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-1">
+              <Label className="text-xs">Category</Label>
+              <Select value={qeCategory} onValueChange={setQeCategory}>
+                <SelectTrigger className={cn("text-sm", voiceTint("category"))}>
+                  <SelectValue placeholder="Select category..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {RECEIPT_CATEGORY_GROUPS.map((g) => (
+                    <SelectGroup key={g.group}>
+                      <SelectLabel>{g.group}</SelectLabel>
+                      {g.items.map((item) => (
+                        <SelectItem key={item.key} value={item.key}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Amount ($) <span className="text-red-500">*</span></Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={qeAmount}
+                  onChange={(e) => setQeAmount(e.target.value)}
+                  className={cn("text-sm", voiceTint("amount"))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Date</Label>
+                <Input
+                  type="date"
+                  value={qeDate}
+                  onChange={(e) => setQeDate(e.target.value)}
+                  className={cn("text-sm", voiceTint("date"))}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Vendor / Store</Label>
+              <Input
+                placeholder="e.g. Shell, Costco"
+                value={qeVendor}
+                onChange={(e) => setQeVendor(e.target.value)}
+                className={cn("text-sm", voiceTint("vendor"))}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Description</Label>
+              <Textarea
+                placeholder="What was this expense for?"
+                rows={2}
+                value={qeDesc}
+                onChange={(e) => setQeDesc(e.target.value)}
+                className={cn("text-sm", voiceTint("description"))}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                disabled={!qeAmount.trim() || qeSaving}
+                onClick={handleQuickExpenseSave}
+                className="flex-1"
+              >
+                {qeSaving ? "Saving..." : "Add Expense"}
+              </Button>
+              <Button variant="ghost" onClick={() => setQuickExpenseOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

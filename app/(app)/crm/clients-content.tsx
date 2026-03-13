@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -108,7 +108,9 @@ import { CrmDashboardTab } from "./tabs/crm-dashboard-tab";
 import { InsightsTab } from "./tabs/insights-tab";
 import { FlightPlansTab } from "./tabs/flight-plans-tab";
 import { TagPicker, getCountryLabels } from "./shared";
-import { VoiceClientButton, type VoiceClientDraft } from "./components/voice-client-button";
+import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
+import type { VoiceDraft } from "@/lib/voice/types";
+import { toast } from "sonner";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -426,12 +428,13 @@ export function ClientsContent({
   const [newClientCountry,  setNewClientCountry]   = useState("Canada");
   const [addClientSaving, setAddClientSaving] = useState(false);
   // Voice-to-client state
-  const [voiceDraft,  setVoiceDraft]  = useState<VoiceClientDraft | null>(null);
+  const [voiceDraft,  setVoiceDraft]  = useState<VoiceDraft | null>(null);
   const [voiceBanner, setVoiceBanner] = useState(false);
+  const { consume } = useVoiceDraft();
 
   // Derive which form fields were pre-filled by AI from voice input
   const voiceFilledFields = useMemo(() => {
-    if (!voiceBanner || !voiceDraft?.client) return new Set<string>();
+    if (!voiceBanner || !voiceDraft || voiceDraft.intent !== "new_client") return new Set<string>();
     const s = new Set<string>();
     const c = voiceDraft.client;
     if (c.fullName)     s.add("name");
@@ -846,22 +849,51 @@ export function ClientsContent({
   }, [newClientName, newClientEmail, newClientPhone, newClientStatus, newClientSource, newClientTags,
       newClientStreet, newClientUnit, newClientCity, newClientProvince, newClientPostal, newClientCountry]);
 
-  // Handle voice-to-client draft: pre-fill Add Client dialog
-  const handleVoiceDraft = useCallback((draft: VoiceClientDraft) => {
-    if (draft.client.fullName)   setNewClientName(draft.client.fullName);
-    if (draft.client.email)      setNewClientEmail(draft.client.email);
-    if (draft.client.phone)      setNewClientPhone(draft.client.phone);
-    if (draft.client.source)     setNewClientSource(draft.client.source);
-    if (draft.client.tags?.length) setNewClientTags(draft.client.tags);
-    if (draft.client.street1)    setNewClientStreet(draft.client.street1);
-    if (draft.client.street2)    setNewClientUnit(draft.client.street2);
-    if (draft.client.city)       setNewClientCity(draft.client.city);
-    if (draft.client.province)   setNewClientProvince(draft.client.province);
-    if (draft.client.postalCode) setNewClientPostal(draft.client.postalCode);
-    if (draft.client.country)    setNewClientCountry(draft.client.country);
-    setVoiceDraft(draft);
-    setVoiceBanner(true);
-    setAddClientOpen(true);
+  // Consume voice draft from global context on mount (routed from FAB)
+  useEffect(() => {
+    const draft = consume();
+    if (!draft) return;
+
+    if (draft.intent === "new_client") {
+      // Pre-fill Add Client dialog
+      if (draft.client.fullName)     setNewClientName(draft.client.fullName);
+      if (draft.client.email)        setNewClientEmail(draft.client.email);
+      if (draft.client.phone)        setNewClientPhone(draft.client.phone);
+      if (draft.client.source)       setNewClientSource(draft.client.source);
+      if (draft.client.tags?.length) setNewClientTags(draft.client.tags);
+      if (draft.client.street1)      setNewClientStreet(draft.client.street1);
+      if (draft.client.street2)      setNewClientUnit(draft.client.street2);
+      if (draft.client.city)         setNewClientCity(draft.client.city);
+      if (draft.client.province)     setNewClientProvince(draft.client.province);
+      if (draft.client.postalCode)   setNewClientPostal(draft.client.postalCode);
+      if (draft.client.country)      setNewClientCountry(draft.client.country);
+      setVoiceDraft(draft);
+      setVoiceBanner(true);
+      setAddClientOpen(true);
+    } else if (draft.intent === "note") {
+      // Fuzzy-match client by name and open Log Activity
+      const nameQuery = draft.note.client_name?.toLowerCase() ?? "";
+      const match = nameQuery
+        ? localClients.find((c) =>
+            c.name?.toLowerCase().includes(nameQuery)
+          )
+        : null;
+      if (match) {
+        setSelectedClientId(match.id);
+        setDetailPanelOpen(true);
+        setLogActivityClientId(match.id);
+        setLogType(draft.note.activity_type);
+        setLogDescription(draft.note.description);
+        setShowLogActivity(true);
+      } else {
+        toast.info("Couldn't find a matching client", {
+          description: draft.note.client_name
+            ? `"${draft.note.client_name}" — try adding the note manually.`
+            : "No client name detected. Try adding the note manually.",
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Add a relationship between two clients
@@ -1203,7 +1235,6 @@ export function ClientsContent({
             <Upload className="h-3.5 w-3.5" />
             Import CSV
           </Button>
-          <VoiceClientButton onDraft={handleVoiceDraft} />
         </div>
       </div>
 

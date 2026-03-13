@@ -29,7 +29,7 @@ export default async function DashboardPage({
   const dashYear = new Date().getFullYear();
 
   // Fetch dashboard data in parallel
-  const [txResult, pipelineResult, settingsResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult] =
+  const [txResult, pipelineResult, settingsResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -86,6 +86,18 @@ export default async function DashboardPage({
         .from("t2125_cca_assets")
         .select("id")
         .eq("user_id", user.id),
+      // Active clients (boarding/taxiing/in_flight) — for CRM summary
+      supabase
+        .from("clients")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .in("status", ["boarding", "taxiing", "in_flight"]),
+      // Distinct clients contacted in last 14 days — for stale lead detection
+      supabase
+        .from("contact_activities")
+        .select("client_id")
+        .eq("user_id", user.id)
+        .gte("activity_date", new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10)),
     ]);
 
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
@@ -105,6 +117,13 @@ export default async function DashboardPage({
     0,
   );
   const ccaAssetCount = (ccaResult.data ?? []).length;
+
+  // CRM summary: stale leads = active clients NOT contacted in 14 days
+  const activeClientCount = activeClientsResult.count ?? 0;
+  const recentlyContactedIds = new Set(
+    (recentActivitiesResult.data ?? []).map((a) => a.client_id)
+  );
+  const staleLeadCount = Math.max(0, activeClientCount - recentlyContactedIds.size);
 
   const params = await searchParams;
   const isAdmin = settingsResult.data?.is_admin ?? false;
@@ -127,6 +146,8 @@ export default async function DashboardPage({
       openTasks={(tasksResult.data ?? []) as ContactTask[]}
       mileageKmTotal={mileageKmTotal}
       ccaAssetCount={ccaAssetCount}
+      activeClientCount={activeClientCount}
+      staleLeadCount={staleLeadCount}
     />
   );
 }

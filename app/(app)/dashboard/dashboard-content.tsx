@@ -126,6 +126,8 @@ interface Props {
   openTasks?: ContactTask[];
   mileageKmTotal?: number;
   ccaAssetCount?: number;
+  activeClientCount?: number;
+  staleLeadCount?: number;
 }
 
 function getTimeGreeting(): { greeting: string; emoji: string } {
@@ -195,6 +197,8 @@ export function DashboardContent({
   openTasks = [],
   mileageKmTotal = 0,
   ccaAssetCount = 0,
+  activeClientCount: _activeClientCount = 0,
+  staleLeadCount = 0,
 }: Props) {
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [showAnnualReview, setShowAnnualReview] = useState(false);
@@ -1059,8 +1063,8 @@ export function DashboardContent({
         </Card>
       )}
 
-      {/* ── Section: Follow-up Tasks ── */}
-      {localTasks.length > 0 && (() => {
+      {/* ── Section: Follow-up Tasks & CRM Summary ── */}
+      {(localTasks.length > 0 || staleLeadCount > 0) && (() => {
         const todayStr = new Date().toISOString().slice(0, 10);
         const overdue  = localTasks.filter((t) => t.due_date < todayStr);
         const dueToday = localTasks.filter((t) => t.due_date === todayStr);
@@ -1073,16 +1077,28 @@ export function DashboardContent({
                 <CardTitle className="text-sm font-semibold text-blue-900 flex items-center gap-2">
                   <CheckSquare className="h-4 w-4 text-blue-500" />
                   Follow-up Tasks
-                  {overdue.length > 0 && (
-                    <span className="ml-1 rounded-full bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 leading-none">
-                      {overdue.length} overdue
-                    </span>
-                  )}
                 </CardTitle>
                 <Link href="/crm" className="text-xs text-blue-600 hover:underline font-medium">
                   View all →
                 </Link>
               </div>
+              {/* CRM stat pills row */}
+              {(overdue.length > 0 || staleLeadCount > 0) && (
+                <div className="flex items-center gap-2 mt-1">
+                  {overdue.length > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-red-100 text-red-700 text-[11px] font-semibold px-2.5 py-0.5 border border-red-200">
+                      <AlertTriangle className="h-3 w-3" />
+                      {overdue.length} overdue
+                    </span>
+                  )}
+                  {staleLeadCount > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 text-[11px] font-semibold px-2.5 py-0.5 border border-amber-200">
+                      <Building2 className="h-3 w-3" />
+                      {staleLeadCount} need outreach
+                    </span>
+                  )}
+                </div>
+              )}
             </CardHeader>
             <CardContent className="pt-0 space-y-1.5">
               {shown.map((task) => {
@@ -1121,6 +1137,11 @@ export function DashboardContent({
                 <p className="text-xs text-blue-700 text-center pt-1">
                   +{localTasks.length - 5} more tasks —{" "}
                   <Link href="/crm" className="underline font-medium">view all in CRM</Link>
+                </p>
+              )}
+              {localTasks.length === 0 && staleLeadCount > 0 && (
+                <p className="text-xs text-blue-700 text-center py-2">
+                  No open tasks — <Link href="/crm" className="underline font-medium">check on your {staleLeadCount} stale lead{staleLeadCount !== 1 ? "s" : ""}</Link>
                 </p>
               )}
             </CardContent>
