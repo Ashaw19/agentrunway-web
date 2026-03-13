@@ -542,9 +542,9 @@ export async function GET(req: NextRequest) {
               {cornerFrame(p.accent, 48, 1.5, 16)}
               {/* Bottom gradient */}
               <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 120, background: "linear-gradient(to bottom, transparent, rgba(10,22,40,0.5))" }} />
-              {/* Price overlay */}
+              {/* Price overlay — shift right when cutout present */}
               {showSalePrice && !!price && (
-                <div style={{ position: "absolute", bottom: 20, left: 24, fontSize: 32, fontWeight: 700, color: "#FFFFFF", fontFamily: df, textShadow: "0 2px 8px rgba(0,0,0,0.4)", display: "flex" }}>
+                <div style={{ position: "absolute", bottom: 20, left: showCutout && embeddedCutoutSrc ? 260 : 24, fontSize: 32, fontWeight: 700, color: "#FFFFFF", fontFamily: df, textShadow: "0 2px 8px rgba(0,0,0,0.4)", display: "flex" }}>
                   {price}
                 </div>
               )}
@@ -612,8 +612,8 @@ export async function GET(req: NextRequest) {
                 {`${slideNum} / ${slideTotal}`}
               </div>
 
-              {/* Bottom gradient with address overlaid */}
-              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 280, display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "0 64px 28px", background: "linear-gradient(to bottom, transparent, rgba(0,0,0,0.85))" }}>
+              {/* Bottom gradient with address overlaid — push text right when cutout present */}
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 280, display: "flex", flexDirection: "column", justifyContent: "flex-end", paddingTop: 0, paddingRight: 64, paddingBottom: 28, paddingLeft: showCutout && embeddedCutoutSrc ? 300 : 64, background: "linear-gradient(to bottom, transparent, rgba(0,0,0,0.85))" }}>
                 <div style={{ fontSize: boldAddrSize, fontWeight: 700, color: "#FFFFFF", lineHeight: 1.1, fontFamily: df, textShadow: "0 2px 12px rgba(0,0,0,0.5)" }}>
                   {address || "123 Main Street"}
                 </div>
