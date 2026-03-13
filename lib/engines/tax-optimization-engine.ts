@@ -35,7 +35,7 @@ const ESTIMATED_ACCOUNTING_COST = 4_000;
 /** CRA: GST/HST small supplier threshold */
 const GST_REGISTRATION_THRESHOLD = 30_000;
 
-/** CRA prescribed interest rate on instalment shortfalls (approximate — changes quarterly) */
+/** CRA prescribed interest rate on instalment shortfalls (approximate as of 2025 — CRA adjusts quarterly) */
 const CRA_INSTALMENT_INTEREST_RATE = 0.06;
 
 /** CRA: Home office simplified method — $5/sq ft, max 300 sq ft */
@@ -529,7 +529,7 @@ export function generateTaxOptimizations(
         evidence: [
           `Projected annual tax: ${fmtCurrency(Math.round(annualTax))} \u2192 quarterly target: ${fmtCurrency(Math.round(quarterlyTarget))}`,
           `Through Q${q}, expected paid: ${fmtCurrency(Math.round(expectedByNow))} \u00b7 Actual paid: ${fmtCurrency(Math.round(input.taxInstalmentsPaid))}`,
-          `Shortfall of ~${fmtCurrency(Math.round(gap))} could incur ~${fmtCurrency(Math.round(interestRisk))} in CRA interest at ~${fmtPct(CRA_INSTALMENT_INTEREST_RATE)}`,
+          `Shortfall of ~${fmtCurrency(Math.round(gap))} could incur ~${fmtCurrency(Math.round(interestRisk))} in CRA interest at ~${fmtPct(CRA_INSTALMENT_INTEREST_RATE)} (rate changes quarterly)`,
         ],
         action:
           "Review your instalment payments with your accountant. CRA charges interest on instalment shortfalls at the prescribed rate. Catching up before the next deadline may reduce interest.",

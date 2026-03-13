@@ -63,6 +63,18 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
         <section className="bg-white px-6 py-16 sm:px-10">
           <div className="mx-auto max-w-3xl">
 
+            {/* Top disclaimer */}
+            <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+              <p className="text-xs leading-relaxed text-amber-700">
+                <strong className="text-amber-800">General information only — not tax advice.</strong>{" "}
+                This article provides general planning awareness for Canadian self-employed real estate agents.
+                Tax rules change frequently, rates vary by province, and individual circumstances differ.
+                Always consult a qualified accountant or tax professional and verify current rules with the CRA
+                or your provincial tax authority.{" "}
+                <a href="/terms" className="underline underline-offset-2 hover:text-amber-900">Terms of Service</a>.
+              </p>
+            </div>
+
             {/* Table of Contents */}
             <nav
               aria-label="Table of contents"
@@ -395,7 +407,7 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               <p>
                 For agents who find it easier to think deal-by-deal rather than
                 annually, Agent Runway displays a per-deal tax set-aside amount: the
-                dollar figure you should move into your tax reserve account each time
+                dollar figure to consider moving into your tax reserve account each time
                 a commission payment arrives, given your current income trajectory.
                 This translates the abstract quarterly instalment into an immediate,
                 actionable step that fits naturally into how commission income actually
@@ -427,6 +439,18 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               </p>
 
             </article>
+
+            {/* Bottom disclaimer */}
+            <p className="mt-12 text-center text-xs leading-relaxed text-slate-400">
+              This article is for general information and planning awareness only — not financial,
+              tax, or professional advice. Tax laws change frequently and rates vary by province.
+              Always consult a qualified accountant or tax professional and verify current rules
+              with CRA or your provincial tax authority. Agent Runway assumes no liability for tax
+              filing outcomes.{" "}
+              <a href="/terms" className="underline underline-offset-2 hover:text-slate-600">
+                Terms of Service
+              </a>.
+            </p>
 
           </div>
         </section>

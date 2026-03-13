@@ -1,7 +1,7 @@
 // CanadianTaxEngine — ported from Swift
 // Comprehensive Canadian self-employed income tax estimator.
 // Federal + all 13 provinces/territories, CPP/QPP, Ontario surtax, Quebec abatement.
-// Tax year: 2025 (confirmed 2025 CRA / TaxTips.ca figures).
+// Tax year: 2025 (primary source: CRA; secondary reference: TaxTips.ca).
 //
 // ESTIMATE ONLY — Not legal or tax advice.
 
