@@ -127,49 +127,65 @@ interface ProvCorpInfo {
    * Sources: provincial finance ministries + TaxTips.ca 2025 tables.
    */
   nelDTCRate: number;
+  /**
+   * Provincial SBD business limit — most provinces use the federal $500K, but
+   * NS ($700K since Apr 2025), PEI ($600K since Jul 2025), and SK ($600K since 2018)
+   * have higher provincial limits. The federal SBD applies only to the first $500K
+   * of active business income regardless; the provincial SBD may apply to a higher amount.
+   * CRA: canada.ca/en/revenue-agency/services/tax/businesses/topics/corporations/provincial-territorial-corporation-tax/
+   */
+  provSbdLimit: number;
 }
 
 function provCorpInfo(province: Province): ProvCorpInfo {
   switch (province) {
     case "alberta":
       // AB: SBD 2%, General 8%; non-eligible DTC 2% of grossed-up
-      return { sbdRate: 0.020, generalRate: 0.080, nelDTCRate: 0.0200 };
+      return { sbdRate: 0.020, generalRate: 0.080, nelDTCRate: 0.0200, provSbdLimit: SBD_LIMIT };
     case "britishColumbia":
       // BC: SBD 2%, General 12%; non-eligible DTC eliminated in 2020
-      return { sbdRate: 0.020, generalRate: 0.120, nelDTCRate: 0.0000 };
+      return { sbdRate: 0.020, generalRate: 0.120, nelDTCRate: 0.0000, provSbdLimit: SBD_LIMIT };
     case "manitoba":
       // MB: SBD 0%, General 12%; non-eligible DTC 1% of grossed-up
-      return { sbdRate: 0.000, generalRate: 0.120, nelDTCRate: 0.0100 };
+      return { sbdRate: 0.000, generalRate: 0.120, nelDTCRate: 0.0100, provSbdLimit: SBD_LIMIT };
     case "newBrunswick":
       // NB: SBD 2.5%, General 14%; non-eligible DTC 4% of grossed-up
-      return { sbdRate: 0.025, generalRate: 0.140, nelDTCRate: 0.0400 };
+      return { sbdRate: 0.025, generalRate: 0.140, nelDTCRate: 0.0400, provSbdLimit: SBD_LIMIT };
     case "newfoundland":
-      // NL: SBD 3%, General 15%; non-eligible DTC 3% of grossed-up
-      return { sbdRate: 0.030, generalRate: 0.150, nelDTCRate: 0.0300 };
+      // NL: SBD 2.5% (reduced from 3% Jan 1, 2024), General 15%; non-eligible DTC 3%
+      // CRA: canada.ca/en/revenue-agency/services/tax/businesses/topics/corporations/provincial-territorial-corporation-tax/newfoundland-labrador.html
+      return { sbdRate: 0.025, generalRate: 0.150, nelDTCRate: 0.0300, provSbdLimit: SBD_LIMIT };
     case "northwestTerritories":
       // NT: SBD 2%, General 11.5%; non-eligible DTC ~3% of grossed-up
-      return { sbdRate: 0.020, generalRate: 0.115, nelDTCRate: 0.0301 };
+      return { sbdRate: 0.020, generalRate: 0.115, nelDTCRate: 0.0301, provSbdLimit: SBD_LIMIT };
     case "novaScotia":
-      // NS: SBD 2.5%, General 14%; non-eligible DTC ~2.41% of grossed-up
-      return { sbdRate: 0.025, generalRate: 0.140, nelDTCRate: 0.0241 };
+      // NS: SBD 1.5% (reduced from 2.5% Apr 1, 2025), General 14%; non-eligible DTC ~2.41%
+      // Provincial SBD limit: $700K (raised from $500K Apr 1, 2025)
+      // CRA: canada.ca/en/revenue-agency/services/tax/businesses/topics/corporations/provincial-territorial-corporation-tax/nova-scotia.html
+      return { sbdRate: 0.015, generalRate: 0.140, nelDTCRate: 0.0241, provSbdLimit: 700_000 };
     case "nunavut":
       // NU: SBD 3%, General 12%; non-eligible DTC ~3% of grossed-up
-      return { sbdRate: 0.030, generalRate: 0.120, nelDTCRate: 0.0301 };
+      return { sbdRate: 0.030, generalRate: 0.120, nelDTCRate: 0.0301, provSbdLimit: SBD_LIMIT };
     case "ontario":
       // ON: SBD 3.2%, General 11.5%; non-eligible DTC 3.3161% of grossed-up
-      return { sbdRate: 0.032, generalRate: 0.115, nelDTCRate: 0.0332 };
+      return { sbdRate: 0.032, generalRate: 0.115, nelDTCRate: 0.0332, provSbdLimit: SBD_LIMIT };
     case "princeEdwardIsland":
-      // PE: SBD 1%, General 16%; non-eligible DTC 3.5% of grossed-up
-      return { sbdRate: 0.010, generalRate: 0.160, nelDTCRate: 0.0350 };
+      // PE: SBD 1%, General 15% (reduced from 16% Jul 1, 2025); non-eligible DTC 3.5%
+      // Provincial SBD limit: $600K (raised from $500K Jul 1, 2025)
+      // CRA: canada.ca/en/revenue-agency/services/tax/businesses/topics/corporations/provincial-territorial-corporation-tax/prince-edward-island.html
+      return { sbdRate: 0.010, generalRate: 0.150, nelDTCRate: 0.0350, provSbdLimit: 600_000 };
     case "quebec":
       // QC: SBD 3.2%, General 11.5%; non-eligible DTC 4.01% of grossed-up (2025)
-      return { sbdRate: 0.032, generalRate: 0.115, nelDTCRate: 0.0401 };
+      return { sbdRate: 0.032, generalRate: 0.115, nelDTCRate: 0.0401, provSbdLimit: SBD_LIMIT };
     case "saskatchewan":
-      // SK: SBD 2%, General 12%; non-eligible DTC 3.362% of grossed-up
-      return { sbdRate: 0.020, generalRate: 0.120, nelDTCRate: 0.0336 };
+      // SK: SBD 1% (reduced from 2% Jul 1, 2023), General 12%; non-eligible DTC 3.362%
+      // Provincial SBD limit: $600K (since 2018)
+      // CRA: canada.ca/en/revenue-agency/services/tax/businesses/topics/corporations/provincial-territorial-corporation-tax/saskatchewan.html
+      return { sbdRate: 0.010, generalRate: 0.120, nelDTCRate: 0.0336, provSbdLimit: 600_000 };
     case "yukon":
-      // YT: SBD 2%, General 12%; non-eligible DTC 2% of grossed-up
-      return { sbdRate: 0.020, generalRate: 0.120, nelDTCRate: 0.0200 };
+      // YT: SBD 0% (reduced from 2% Jan 1, 2021), General 12%; non-eligible DTC 2%
+      // CRA: canada.ca/en/revenue-agency/services/tax/businesses/topics/corporations/provincial-territorial-corporation-tax/yukon.html
+      return { sbdRate: 0.000, generalRate: 0.120, nelDTCRate: 0.0200, provSbdLimit: SBD_LIMIT };
   }
 }
 
@@ -190,9 +206,17 @@ export function calculateCorporateTax(input: CorporateTaxInput): CorporateTaxRes
   const provInfo = provCorpInfo(province);
 
   // ── Step 1: SBD limit (passive income grind-out) ─────────────────────────
+  // Federal SBD limit: $500K, reduced by $5 per $1 of AAII over $50K
   const passiveOver = Math.max(0, passiveIncome - SBD_PASSIVE_THRESHOLD);
   const sbdReductionAmount = Math.min(SBD_LIMIT, passiveOver * SBD_REDUCTION_FACTOR);
   const sbdLimit = SBD_LIMIT - sbdReductionAmount;
+  // Provincial SBD limit: NS=$700K, PEI=$600K, SK=$600K (others = federal $500K)
+  // Provincial AAII phase-out uses the provincial limit's own ratio
+  const provSbdReduction = Math.min(
+    provInfo.provSbdLimit,
+    passiveOver * (provInfo.provSbdLimit / SBD_LIMIT) * SBD_REDUCTION_FACTOR,
+  );
+  const provSbdLimit = provInfo.provSbdLimit - provSbdReduction;
   const passiveIncomeWarning = passiveIncome > SBD_PASSIVE_THRESHOLD;
 
   // ── Step 2: Salary / dividend split ──────────────────────────────────────
@@ -210,11 +234,15 @@ export function calculateCorporateTax(input: CorporateTaxInput): CorporateTaxRes
   const corpTaxableIncome = Math.max(0, corporateIncome - salaryTaken);
 
   // ── Step 4: Corporate tax ─────────────────────────────────────────────────
-  const sbdIncome     = Math.min(corpTaxableIncome, sbdLimit);
-  const generalIncome = Math.max(0, corpTaxableIncome - sbdLimit);
+  // Federal SBD applies on first $sbdLimit (usually $500K) of active business income
+  const fedSbdIncome     = Math.min(corpTaxableIncome, sbdLimit);
+  const fedGeneralIncome = Math.max(0, corpTaxableIncome - sbdLimit);
+  // Provincial SBD limit may differ (NS=$700K, PEI=$600K, SK=$600K)
+  const provSbdIncome     = Math.min(corpTaxableIncome, provSbdLimit);
+  const provGeneralIncome = Math.max(0, corpTaxableIncome - provSbdLimit);
 
-  const fedCorpTax  = sbdIncome * FED_SBD_RATE     + generalIncome * FED_GENERAL_RATE;
-  const provCorpTax = sbdIncome * provInfo.sbdRate  + generalIncome * provInfo.generalRate;
+  const fedCorpTax  = fedSbdIncome * FED_SBD_RATE      + fedGeneralIncome * FED_GENERAL_RATE;
+  const provCorpTax = provSbdIncome * provInfo.sbdRate  + provGeneralIncome * provInfo.generalRate;
   const corporateTax = fedCorpTax + provCorpTax;
   const afterTaxCorporateIncome = corpTaxableIncome - corporateTax;
 
@@ -255,8 +283,10 @@ export function calculateCorporateTax(input: CorporateTaxInput): CorporateTaxRes
   const allSalaryTotalTax = calcPersonalTax(corporateIncome, province, dealCount).totalBurden;
 
   // All-dividends scenario: corp pays tax on full income; remainder distributed
-  const allDivCorpTax     = sbdIncome * (FED_SBD_RATE + provInfo.sbdRate)
-                          + generalIncome * (FED_GENERAL_RATE + provInfo.generalRate);
+  // Use the same split SBD logic for the all-dividends comparison
+  const allDivFedCorpTax  = fedSbdIncome * FED_SBD_RATE      + fedGeneralIncome * FED_GENERAL_RATE;
+  const allDivProvCorpTax = provSbdIncome * provInfo.sbdRate  + provGeneralIncome * provInfo.generalRate;
+  const allDivCorpTax     = allDivFedCorpTax + allDivProvCorpTax;
   const allDivAfterCorpTax = Math.max(0, corporateIncome - allDivCorpTax);
   const allDivPersonalTax  = calcPersonalTaxOnDividend(allDivAfterCorpTax, province, provInfo);
   const allDividendsTotalTax = allDivCorpTax + allDivPersonalTax;

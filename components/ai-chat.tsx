@@ -280,6 +280,11 @@ export function AiChat({ financialContext }: Props) {
             </div>
           )}
 
+          {/* Disclaimer */}
+          <p className="px-4 pb-1 text-[9px] leading-tight text-slate-600">
+            AI estimates only — not tax, legal, or financial advice. Consult a qualified professional.
+          </p>
+
           {/* Input */}
           <div
             className="flex items-end gap-2 p-3"

@@ -370,17 +370,19 @@ function zeroResult(province: Province, dealCount: number): CanadianTaxResult {
 // ── GST/HST utilities ───────────────────────────────────────────────────────
 
 /** GST/HST/QST/PST rate agents charge on commissions, by province.
- *  HST provinces (harmonised): ON 13%, NB/NS/NL/PE 15%
+ *  HST provinces (harmonised): ON 13%, NB/NL/PE 15%, NS 14% (reduced Apr 1, 2025)
  *  QST province: QC GST 5% + QST 9.975% = 14.975%
  *  PST on agent commissions: SK only — GST 5% + PST 6% = 11%
  *    (BC/MB PST does NOT apply to residential real estate commissions;
  *     BC commercial PST expansion is Oct 2026 and excludes residential)
  *  All others: GST 5% only
+ *
+ *  CRA: canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html
  */
 export function gstHstRate(province: string): number {
   switch (province) {
     case "ontario":                 return 0.13;
-    case "novaScotia":              return 0.15;
+    case "novaScotia":              return 0.14;    // reduced from 15% to 14% Apr 1, 2025 (CRA Notice 342)
     case "newBrunswick":            return 0.15;
     case "newfoundland":            return 0.15;
     case "princeEdwardIsland":      return 0.15;

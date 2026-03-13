@@ -1404,7 +1404,7 @@ export function DashboardContent({
               corpTaxResult.optimalMethod !== settings.compensation_method && (
               <div className="mt-3 rounded-md bg-violet-100 border border-violet-200 px-3 py-2">
                 <p className="text-xs text-violet-800 font-medium">
-                  💡 Switching to {corpTaxResult.optimalMethod === "salary" ? "salary" : "dividends"} could save ~{fmtCurrency(corpTaxResult.optimalSaving)}/yr at your income level
+                  💡 Switching to {corpTaxResult.optimalMethod === "salary" ? "salary" : "dividends"} could save ~{fmtCurrency(corpTaxResult.optimalSaving)}/yr at your income level. Talk to your accountant before changing compensation structure.
                 </p>
               </div>
             )}
