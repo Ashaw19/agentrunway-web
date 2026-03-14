@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "March 12, 2026";
+const LAST_UPDATED = "March 14, 2026";
 
 export default function TermsPage() {
   return (
@@ -177,9 +177,11 @@ export default function TermsPage() {
               </h2>
               <p className="mb-4 leading-relaxed">
                 Agent Runway offers a free Starter plan and a paid Professional
-                plan. Paid subscriptions are billed monthly. By subscribing,
-                you authorize us to charge your payment method on a recurring
-                basis.
+                plan. Paid subscriptions are billed on a recurring monthly or
+                annual basis at the rate displayed at checkout. By subscribing,
+                you authorize Agent Runway to charge your payment method
+                automatically on that recurring basis until you cancel. You
+                will receive a receipt for each charge.
               </p>
               <ul className="list-disc space-y-2 pl-6 text-slate-400">
                 <li>
@@ -194,6 +196,15 @@ export default function TermsPage() {
                 <li>
                   All prices are in Canadian dollars (CAD) unless stated
                   otherwise.
+                </li>
+                <li>
+                  Payment processing is provided by{" "}
+                  <strong className="text-slate-300">Stripe, Inc.</strong>, a
+                  PCI DSS Level&nbsp;1 certified payment processor. Agent
+                  Runway does not store, process, or transmit your full card
+                  number, CVV, or other sensitive payment card data. All card
+                  data is entered directly into Stripe&apos;s secure,
+                  encrypted payment fields and handled solely by Stripe.
                 </li>
               </ul>
             </section>
@@ -393,10 +404,80 @@ export default function TermsPage() {
               </p>
             </section>
 
-            {/* 12 — was §11 — Limitation of Liability */}
+            {/* 12 — NEW: Third-Party Data Sources */}
+            <section>
+              <h2 className="mb-4 text-xl font-semibold text-white">
+                12. Third-Party Data Sources
+              </h2>
+              <p className="mb-4 leading-relaxed">
+                Agent Runway incorporates data from third-party sources to
+                provide market benchmarking features. Your use of these
+                features is subject to the following:
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <p className="mb-2 font-semibold text-white">
+                    CREA MLS® Statistics
+                  </p>
+                  <p className="leading-relaxed text-slate-400">
+                    Local market data displayed in Agent Runway (including
+                    board average sale prices, Sales-to-New-Listings Ratios,
+                    and market condition indicators) is sourced from
+                    statistics published by{" "}
+                    <strong className="text-slate-300">
+                      The Canadian Real Estate Association (CREA)
+                    </strong>{" "}
+                    via the CREA MLS® Statistics portal. This data is provided
+                    for general informational and benchmarking purposes only
+                    and is updated on a monthly basis as CREA publishes new
+                    data.
+                  </p>
+                  <p className="mt-3 leading-relaxed text-slate-400">
+                    The trademarks{" "}
+                    <strong className="text-slate-300">MLS®</strong>,{" "}
+                    <strong className="text-slate-300">
+                      Multiple Listing Service®
+                    </strong>{" "}
+                    and the associated logos are owned by The Canadian Real
+                    Estate Association (CREA) and identify the quality of
+                    services provided by real estate professionals who are
+                    members of CREA. Agent Runway is not affiliated with,
+                    endorsed by, or an official partner of CREA. CREA market
+                    data is reproduced under CREA&apos;s published data access
+                    policy. All CREA data remains the property of CREA.{" "}
+                    &copy; {new Date().getFullYear()} The Canadian Real Estate
+                    Association. All rights reserved.
+                  </p>
+                  <p className="mt-3 leading-relaxed text-slate-400">
+                    Agent Runway makes no representations about the accuracy,
+                    completeness, or timeliness of CREA data displayed in the
+                    app. Market data should not be used as the sole basis for
+                    any real estate, investment, or business decision. Always
+                    consult a qualified real estate professional for advice
+                    specific to your market.
+                  </p>
+                </div>
+                <div>
+                  <p className="mb-2 font-semibold text-white">
+                    National Benchmark Data
+                  </p>
+                  <p className="leading-relaxed text-slate-400">
+                    The Runway Score benchmarking component uses a national
+                    cohort dataset derived from published CREA statistics to
+                    compare your performance against agents with similar
+                    experience. This data is based on historical survey and
+                    transaction data and is updated periodically. It is
+                    provided for general comparative purposes only and does
+                    not constitute professional performance assessment.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* 13 — was §12 — Limitation of Liability */}
             <section className="rounded-xl border border-slate-700 bg-slate-800/40 p-6">
               <h2 className="mb-4 text-xl font-semibold text-white">
-                12. Disclaimer of Warranties and Limitation of Liability
+                13. Disclaimer of Warranties and Limitation of Liability
               </h2>
               <div className="space-y-4 leading-relaxed">
                 <p>
@@ -428,17 +509,18 @@ export default function TermsPage() {
                 </p>
                 <p>
                   Our total aggregate liability to you shall not exceed the
-                  greater of (a) the amount you paid us in the three months
-                  preceding the claim, or (b) CAD $50.00. This cap does not
-                  limit your indemnification obligations to us under §13.
+                  greater of (a) the total amount you paid to Agent Runway in
+                  the twelve (12) months immediately preceding the claim, or
+                  (b) CAD $100.00. This cap does not limit your
+                  indemnification obligations to us under §14.
                 </p>
               </div>
             </section>
 
-            {/* 13 — was §12 */}
+            {/* 14 — was §13 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                13. Indemnification
+                14. Indemnification
               </h2>
               <p className="leading-relaxed">
                 You agree to indemnify, defend, and hold harmless Agent Runway
@@ -456,10 +538,10 @@ export default function TermsPage() {
               </p>
             </section>
 
-            {/* 14 — was §13 */}
+            {/* 15 — was §14 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                14. Termination
+                15. Termination
               </h2>
               <p className="leading-relaxed">
                 You may terminate your account at any time by deleting it from
@@ -470,10 +552,10 @@ export default function TermsPage() {
               </p>
             </section>
 
-            {/* 15 — was §14 */}
+            {/* 16 — was §15 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                15. Governing Law
+                16. Governing Law
               </h2>
               <p className="leading-relaxed">
                 These Terms are governed by the laws of the Province of New
@@ -485,10 +567,10 @@ export default function TermsPage() {
               </p>
             </section>
 
-            {/* 16 — was §15 */}
+            {/* 17 — was §16 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                16. Contact
+                17. Contact
               </h2>
               <p className="leading-relaxed">
                 Questions about these Terms may be directed to:

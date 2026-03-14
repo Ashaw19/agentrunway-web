@@ -794,6 +794,11 @@ export function DashboardContent({
                     </p>
                   </>
                 )}
+                {boardMarketData && (
+                  <p className="text-[9px] text-slate-500 mt-1.5 leading-tight">
+                    Source: CREA MLS® Statistics · © {new Date().getFullYear()} CREA
+                  </p>
+                )}
               </div>
             </div>
           </div>

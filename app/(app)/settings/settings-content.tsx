@@ -469,6 +469,10 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
           )}
 
           <SaveRow saving={savingBoard} saved={boardSaved.saved} onSave={saveBoard} />
+
+          <p className="text-[10px] text-muted-foreground/60 leading-relaxed pt-1">
+            The trademarks MLS®, Multiple Listing Service® and the associated logos are owned by The Canadian Real Estate Association (CREA) and identify the quality of services provided by real estate professionals who are members of CREA. Market statistics sourced from CREA MLS® Statistics. © {new Date().getFullYear()} CREA. All rights reserved.
+          </p>
         </CardContent>
       </Card>
 

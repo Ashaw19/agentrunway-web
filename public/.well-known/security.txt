@@ -1,0 +1,5 @@
+Contact: mailto:security@agentrunway.ca
+Expires: 2027-03-14T00:00:00.000Z
+Preferred-Languages: en, fr
+Canonical: https://agentrunway.ca/.well-known/security.txt
+Policy: https://agentrunway.ca/security

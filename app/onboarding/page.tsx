@@ -141,6 +141,7 @@ export default function OnboardingPage() {
   const [goalGCI, setGoalGCI] = useState("");
   const [goalTx, setGoalTx] = useState("");
   const [goalVolume, setGoalVolume] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // Business structure
   const [isIncorporated, setIsIncorporated] = useState(false);
@@ -748,6 +749,8 @@ export default function OnboardingPage() {
               colorTheme={colorTheme}
               saving={saving}
               onFinish={handleFinish}
+              termsAccepted={termsAccepted}
+              onTermsChange={setTermsAccepted}
             />
           )}
 
@@ -956,6 +959,8 @@ function DoneStep({
   colorTheme,
   saving,
   onFinish,
+  termsAccepted,
+  onTermsChange,
 }: {
   displayName: string;
   province: Province;
@@ -963,6 +968,8 @@ function DoneStep({
   colorTheme: string;
   saving: boolean;
   onFinish: () => void;
+  termsAccepted: boolean;
+  onTermsChange: (v: boolean) => void;
 }) {
   const agentPct = parseInt(splitPreset.match(/p(\d+)/)?.[1] ?? "80");
   const theme = COLOR_THEMES.find((t) => t.value === colorTheme) ?? COLOR_THEMES[0];
@@ -1001,11 +1008,32 @@ function DoneStep({
         </div>
       </div>
 
+      {/* Terms acceptance */}
+      <label className="flex w-full cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-white/5 p-4 text-left">
+        <input
+          type="checkbox"
+          checked={termsAccepted}
+          onChange={(e) => onTermsChange(e.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+        />
+        <span className="text-[12px] leading-relaxed text-white/50">
+          I have read and agree to the{" "}
+          <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+            Terms of Service
+          </a>{" "}
+          and{" "}
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+            Privacy Policy
+          </a>
+          , including the disclaimer that Agent Runway outputs are not financial or tax advice.
+        </span>
+      </label>
+
       <Button
         onClick={onFinish}
-        disabled={saving}
+        disabled={saving || !termsAccepted}
         size="lg"
-        className="w-full gap-2 bg-primary text-white shadow-lg hover:bg-primary/90"
+        className="w-full gap-2 bg-primary text-white shadow-lg hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {saving ? "Saving your settings..." : "Go to Dashboard"}
         <ArrowRight className="h-4 w-4" />

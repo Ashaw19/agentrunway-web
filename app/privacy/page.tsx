@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "March 12, 2026";
+const LAST_UPDATED = "March 14, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -147,13 +147,17 @@ export default function PrivacyPage() {
                 4. Data Storage and Security
               </h2>
               <p className="leading-relaxed">
-                Your data is stored using Supabase, a managed database platform.
-                Data may be stored on servers located in the United States. By
-                using Agent Runway, you consent to this cross-border transfer.
-                We use TLS encryption for all data in transit and AES-256
-                encryption for data at rest. We implement row-level security
-                (RLS) policies so your data is never accessible to other users.
-                We maintain regular backups and monitor for unauthorized access.
+                Your data is stored using{" "}
+                <strong className="text-slate-300">Supabase</strong>, a managed
+                database platform hosted on Amazon Web Services in the{" "}
+                <strong className="text-slate-300">
+                  Canada (ca-central-1) region
+                </strong>
+                . Your data is stored in Canada. We use TLS 1.3 encryption for
+                all data in transit and AES-256 encryption for data at rest. We
+                implement row-level security (RLS) policies so your data is
+                never accessible to other users. We maintain regular backups
+                and monitor for unauthorized access.
               </p>
               <p className="mt-4 leading-relaxed">
                 Plaid access tokens (which authorize Plaid to retrieve your bank
@@ -248,10 +252,36 @@ export default function PrivacyPage() {
               </ul>
             </section>
 
-            {/* 6 — was §5 */}
+            {/* 6 — NEW: Third-Party Market Data */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                6. Sharing Your Information
+                6. Third-Party Market Data (CREA MLS® Statistics)
+              </h2>
+              <p className="leading-relaxed">
+                Agent Runway displays local real estate market data sourced
+                from{" "}
+                <strong className="text-slate-300">
+                  The Canadian Real Estate Association (CREA)
+                </strong>{" "}
+                MLS® Statistics portal. This market data (board average prices,
+                SNLR, market conditions) is publicly available aggregate
+                information — it is{" "}
+                <strong className="text-slate-300">not</strong> personal
+                information about you. No personal information is transmitted
+                to CREA in connection with this feature.
+              </p>
+              <p className="mt-4 leading-relaxed">
+                The trademarks MLS®, Multiple Listing Service® and the
+                associated logos are owned by CREA. &copy;{" "}
+                {new Date().getFullYear()} The Canadian Real Estate Association.
+                All rights reserved.
+              </p>
+            </section>
+
+            {/* 7 — was §6 (Sharing) */}
+            <section>
+              <h2 className="mb-4 text-xl font-semibold text-white">
+                7. Sharing Your Information
               </h2>
               <p className="mb-4 leading-relaxed">
                 We do not sell your personal information. We may share data
@@ -259,11 +289,31 @@ export default function PrivacyPage() {
                 to operate the service:
               </p>
               <ul className="list-disc space-y-2 pl-6 text-slate-400">
-                <li>Database infrastructure (Supabase)</li>
-                <li>Payment processing (Stripe or equivalent, PCI-DSS compliant)</li>
                 <li>
-                  Plaid Technologies, Inc. (for bank account data retrieval,
-                  only when you use the optional Bank Sync feature)
+                  <strong className="text-slate-300">Supabase</strong> —
+                  database infrastructure (AWS ca-central-1, Canada)
+                </li>
+                <li>
+                  <strong className="text-slate-300">Stripe, Inc.</strong> —
+                  payment processing. Stripe is PCI DSS Level&nbsp;1 certified.
+                  Agent Runway does not store or process payment card data;
+                  all card information is handled solely by Stripe.
+                </li>
+                <li>
+                  <strong className="text-slate-300">
+                    Plaid Technologies, Inc.
+                  </strong>{" "}
+                  — bank account data retrieval (only when you use the
+                  optional Bank Sync feature). Governed by{" "}
+                  <a
+                    href="https://plaid.com/legal/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 hover:text-blue-300 underline"
+                  >
+                    Plaid&apos;s Privacy Policy
+                  </a>
+                  .
                 </li>
                 <li>Web analytics (aggregated, non-personal data only)</li>
                 <li>Email delivery for transactional messages</li>
@@ -275,10 +325,10 @@ export default function PrivacyPage() {
               </p>
             </section>
 
-            {/* 7 — was §6 */}
+            {/* 8 — was §7 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                7. Your Rights
+                8. Your Rights
               </h2>
               <p className="mb-4 leading-relaxed">
                 As a Canadian resident, you have the following rights under
@@ -329,10 +379,10 @@ export default function PrivacyPage() {
               </p>
             </section>
 
-            {/* 8 — was §7 */}
+            {/* 9 — was §8 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                8. Data Retention
+                9. Data Retention
               </h2>
               <p className="leading-relaxed">
                 We retain your account data for as long as your account is
@@ -353,10 +403,10 @@ export default function PrivacyPage() {
               </p>
             </section>
 
-            {/* 9 — was §8 */}
+            {/* 10 — was §9 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                9. Cookies and Tracking
+                10. Cookies and Tracking
               </h2>
               <p className="leading-relaxed">
                 Agent Runway uses essential cookies for authentication (session
@@ -367,10 +417,10 @@ export default function PrivacyPage() {
               </p>
             </section>
 
-            {/* 10 — was §9 */}
+            {/* 11 — was §10 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                10. Changes to This Policy
+                11. Changes to This Policy
               </h2>
               <p className="leading-relaxed">
                 We may update this privacy policy from time to time. Material
@@ -380,10 +430,10 @@ export default function PrivacyPage() {
               </p>
             </section>
 
-            {/* 11 — was §10 */}
+            {/* 12 — was §11 */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                11. Contact Us
+                12. Contact Us
               </h2>
               <p className="leading-relaxed">
                 For questions about this policy or to exercise your privacy
