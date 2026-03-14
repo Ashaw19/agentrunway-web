@@ -70,9 +70,9 @@ export default async function ReportsPage() {
   }
 
   // Build expenseAmounts for T2125 tab: receipts YTD + projected recurring
+  // Use whole-month remaining formula consistent with dashboard/forecast/reports-content
   const now = new Date();
-  const monthsElapsed   = now.getMonth() + (now.getDate() / 30);
-  const monthsRemaining = Math.max(0, 12 - monthsElapsed);
+  const monthsRemaining = Math.max(0, 12 - (now.getMonth() + 1));
   const expenseAmounts: Record<string, number> = { ...receiptTotalsByKey };
   for (const item of expItemResult.data ?? []) {
     if (item.monthly_recurring > 0) {

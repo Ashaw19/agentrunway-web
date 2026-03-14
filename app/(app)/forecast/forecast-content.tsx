@@ -129,7 +129,7 @@ export function ForecastContent({
       ? (settings.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
       : [0.25, 0.25, 0.25, 0.25]);
   const fraction = seasonalFractionElapsed(seasonalWeights);
-  const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeighted, fraction);
+  const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeighted, fraction, settings.goal_gci);
   const projectedDeals = projectedYearEndTransactions(ytdDealCount, pipelineDeals.length, fraction);
 
   // ── Financial waterfall ───────────────────────────────────────────────
@@ -177,11 +177,12 @@ export function ForecastContent({
       })
     : null;
 
-  // ── GST/HST collected on commissions ──────────────────────────────────
+  // ── GST/HST collected on commissions (only for registered agents) ─────
+  const isGstRegistered = settings.gst_hst_registered;
   const taxLabel = gstHstLabel(settings.province);
   const taxRate = gstHstRate(settings.province);
-  const gstHstCollectedYTD = ytdGCI * taxRate;
-  const gstHstCollectedProjected = projectedGCI * taxRate;
+  const gstHstCollectedYTD = isGstRegistered ? ytdGCI * taxRate : 0;
+  const gstHstCollectedProjected = isGstRegistered ? projectedGCI * taxRate : 0;
 
   // ── CRA remittance calendar ────────────────────────────────────────────
   const today = new Date();
@@ -207,10 +208,12 @@ export function ForecastContent({
   const dailyNeeded = goalGCI > 0 ? dailyPaceRequired(goalGCI, ytdGCI, daysLeft) : 0;
 
   // ── Survival ──────────────────────────────────────────────────────────
+  const pipelineMonthlyEst = fraction > 0 ? (pipelineWeighted * 0.5) / 12 : 0;
   const survival = survivalResult(
     settings.monthly_brokerage_fee,
     monthlyRecurring,
     settings.cash_reserve,
+    pipelineMonthlyEst,
   );
 
   // ── Benchmark ─────────────────────────────────────────────────────────
@@ -486,23 +489,33 @@ export function ForecastContent({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* HST/GST Collected */}
-            <div className="flex items-center justify-between py-2 border-b border-border/50">
-              <div>
-                <p className="text-sm font-medium">{taxLabel} Collected YTD</p>
-                <p className="text-xs text-muted-foreground">
-                  On {fmtCurrency(ytdGCI)} GCI &middot; {(taxRate * 100).toFixed(taxRate === 0.14975 ? 3 : 0)}% rate &middot; set aside for remittance
+            {/* HST/GST Collected — only shown for GST/HST-registered agents */}
+            {isGstRegistered ? (
+              <>
+                <div className="flex items-center justify-between py-2 border-b border-border/50">
+                  <div>
+                    <p className="text-sm font-medium">{taxLabel} Collected YTD</p>
+                    <p className="text-xs text-muted-foreground">
+                      On {fmtCurrency(ytdGCI)} GCI &middot; {(taxRate * 100).toFixed(taxRate === 0.14975 ? 3 : 0)}% rate &middot; set aside for remittance
+                    </p>
+                  </div>
+                  <p className="text-lg font-bold tabular-nums">{fmtCurrency(gstHstCollectedYTD)}</p>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-border/50">
+                  <div>
+                    <p className="text-sm font-medium">{taxLabel} Full-Year Projected</p>
+                    <p className="text-xs text-muted-foreground">Based on {fmtCurrency(projectedGCI)} projected GCI</p>
+                  </div>
+                  <p className="text-lg font-bold tabular-nums text-muted-foreground">{fmtCurrency(gstHstCollectedProjected)}</p>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-between py-2 border-b border-border/50">
+                <p className="text-sm text-muted-foreground">
+                  {taxLabel} tracking is available once you mark yourself as registered in Settings.
                 </p>
               </div>
-              <p className="text-lg font-bold tabular-nums">{fmtCurrency(gstHstCollectedYTD)}</p>
-            </div>
-            <div className="flex items-center justify-between py-2 border-b border-border/50">
-              <div>
-                <p className="text-sm font-medium">{taxLabel} Full-Year Projected</p>
-                <p className="text-xs text-muted-foreground">Based on {fmtCurrency(projectedGCI)} projected GCI</p>
-              </div>
-              <p className="text-lg font-bold tabular-nums text-muted-foreground">{fmtCurrency(gstHstCollectedProjected)}</p>
-            </div>
+            )}
             <div className="grid gap-4 sm:grid-cols-3 pt-4">
               <div className="text-center">
                 <p className="text-2xl font-bold">{fmtCurrency(taxResult.quarterlyEstimate)}</p>
@@ -681,14 +694,18 @@ export function ForecastContent({
               {daysUntilRemittance}d away
             </p>
           </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium">{taxLabel} collected YTD</p>
-              <p className="text-xs text-muted-foreground">Set this aside — it&apos;s the government&apos;s, not yours</p>
-            </div>
-            <p className="text-lg font-bold tabular-nums">{fmtCurrency(gstHstCollectedYTD)}</p>
-          </div>
+          {isGstRegistered && (
+            <>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">{taxLabel} collected YTD</p>
+                  <p className="text-xs text-muted-foreground">Set this aside — it&apos;s the government&apos;s, not yours</p>
+                </div>
+                <p className="text-lg font-bold tabular-nums">{fmtCurrency(gstHstCollectedYTD)}</p>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

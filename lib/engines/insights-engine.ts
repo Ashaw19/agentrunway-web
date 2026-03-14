@@ -7,9 +7,11 @@ import {
   computeWeightedGCI,
   type Transaction,
   type PipelineDeal,
+  type HistoryItem,
 } from "@/lib/types/database";
 import {
   seasonalFractionElapsed,
+  projectedYearEndGCI,
   paceVsGoalPercent,
   dailyPaceRequired,
   daysRemaining,
@@ -45,6 +47,11 @@ export interface InsightsInput {
   postCapAgentPct: number;
   estimatedCapMonth: string | null;
   forecastReadiness: number; // 0.0–1.0
+  // New fields for ported Swift insights:
+  historyItems?: HistoryItem[];              // for deal-size historical comparison
+  runwayScore?: number;                      // composite 0–100 from RunwayScoreEngine
+  runwayGrade?: string;                      // grade string (A+, A, B, C, D, F)
+  runwayWeakestLabel?: string;               // weakest component label
 }
 
 // ── Engine ───────────────────────────────────────────────────────────────────
@@ -105,7 +112,7 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
     }
   }
 
-  // ── Average Deal Size ──
+  // ── Average Deal Size + Historical Comparison ──
   if (hasTransactions) {
     const avgGCI = ytdGCI / closedTx.length;
     if (avgGCI > 0) {
@@ -115,6 +122,33 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
         message: `Your average closed deal earns ${fmtCurrency(avgGCI)} in GCI.`,
         priority: 40,
       });
+
+      // Compare to prior year's average deal size (from history_items)
+      if (input.historyItems && input.historyItems.length > 0) {
+        const sorted = [...input.historyItems].sort((a, b) => b.year - a.year);
+        const priorYear = sorted.find((h) => h.year < currentYear && h.annual_gci > 0 && h.annual_tx > 0);
+        if (priorYear) {
+          const historicalAvg = priorYear.annual_gci / priorYear.annual_tx;
+          if (historicalAvg > 0) {
+            const change = ((avgGCI - historicalAvg) / historicalAvg) * 100;
+            if (change > 10) {
+              insights.push({
+                id: nextId(), type: "praise", icon: "trending-up",
+                title: "Improving Deal Size",
+                message: `Your average GCI per deal is up ${Math.round(change)}% compared to last year.`,
+                priority: 65,
+              });
+            } else if (change < -10) {
+              insights.push({
+                id: nextId(), type: "tip", icon: "trending-down",
+                title: "Declining Deal Size",
+                message: `Your average GCI per deal is down ${Math.round(Math.abs(change))}% vs last year. Consider focusing on higher-value listings.`,
+                priority: 60,
+              });
+            }
+          }
+        }
+      }
     }
   }
 
@@ -210,6 +244,92 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
         title: "Cap Within Reach",
         message: `${fmtCurrency(input.gciRemainingToCap)} away from your commission cap${monthText}. Prioritize closings to flip to your higher split.`,
         priority: 88,
+      });
+    } else if (input.estimatedCapMonth && input.gciRemainingToCap > 0) {
+      // Cap projected later this year but not imminently close
+      insights.push({
+        id: nextId(), type: "info", icon: "trending-up",
+        title: `Cap Projected: ${input.estimatedCapMonth}`,
+        message: `${fmtCurrency(input.gciRemainingToCap)} to cap at current pace. Once hit, your agent split increases significantly.`,
+        priority: 52,
+      });
+    }
+  }
+
+  // ── Projection Milestone ──
+  if (ytdGCI > 0) {
+    const pipelineWeightedForProj = input.pipelineDeals.reduce(
+      (sum, d) => sum + computeWeightedGCI(d), 0,
+    );
+    const projected = projectedYearEndGCI(ytdGCI, pipelineWeightedForProj, fraction);
+    if (projected > 100_000 && ytdGCI < 100_000) {
+      insights.push({
+        id: nextId(), type: "info", icon: "target",
+        title: `On Pace for ${fmtCurrency(projected)}`,
+        message: `At your current pace, you're projected to reach ${fmtCurrency(projected)} by year-end.`,
+        priority: 50,
+      });
+    }
+  }
+
+  // ── Monthly Runway — current month target vs actual ──
+  if (input.goalGCI > 0 && input.seasonalWeights.length === 4) {
+    const nowDate = new Date();
+    const currentQ = Math.floor(nowDate.getMonth() / 3);
+    const quarterWeight = input.seasonalWeights[currentQ] ?? 0.25;
+    const monthlyTarget = input.goalGCI * (quarterWeight / 3);
+
+    if (monthlyTarget > 0) {
+      // Sum GCI closed in the current calendar month
+      const currentMonthStr = `${currentYear}-${String(nowDate.getMonth() + 1).padStart(2, "0")}`;
+      const monthActual = closedTx
+        .filter((tx) => tx.date.startsWith(currentMonthStr))
+        .reduce((sum, tx) => sum + computeGCI(tx), 0);
+      const daysInMonth = new Date(currentYear, nowDate.getMonth() + 1, 0).getDate();
+      const monthDaysLeft = Math.max(0, daysInMonth - nowDate.getDate());
+      const monthProgress = Math.min(1, monthActual / monthlyTarget);
+
+      if (monthActual >= monthlyTarget) {
+        insights.push({
+          id: nextId(), type: "praise", icon: "check-circle",
+          title: "Month Target Hit",
+          message: `You've already hit your ${fmtCurrency(monthlyTarget)} monthly target. Any additional closings go straight to your annual total.`,
+          priority: 72,
+        });
+      } else if (monthProgress < 0.35 && monthDaysLeft <= 7) {
+        const needed = monthDaysLeft > 0 ? (monthlyTarget - monthActual) / monthDaysLeft : 0;
+        insights.push({
+          id: nextId(), type: "warning", icon: "alert-triangle",
+          title: "Month Falling Short",
+          message: `${monthDaysLeft} day${monthDaysLeft === 1 ? "" : "s"} left — need ${fmtCurrency(needed)}/day to hit ${fmtCurrency(monthlyTarget)}. Focus on pipeline closings.`,
+          priority: 91,
+        });
+      } else if (monthProgress < 0.6 && monthDaysLeft <= 5) {
+        insights.push({
+          id: nextId(), type: "tip", icon: "alert-triangle",
+          title: "Month Running Out",
+          message: `${monthDaysLeft} day${monthDaysLeft === 1 ? "" : "s"} left, ${Math.round(monthProgress * 100)}% to monthly target. Push for any pending closings.`,
+          priority: 77,
+        });
+      }
+    }
+  }
+
+  // ── Business Health Score ──
+  if (input.runwayScore != null && ytdGCI > 0) {
+    if (input.runwayScore < 50) {
+      insights.push({
+        id: nextId(), type: "warning", icon: "alert-circle",
+        title: "Business Health Needs Attention",
+        message: `Health score: ${input.runwayScore}/100. ${input.runwayWeakestLabel ? `Weakest area: ${input.runwayWeakestLabel}. ` : ""}Review your Dashboard for specific guidance.`,
+        priority: 82,
+      });
+    } else if (input.runwayScore >= 90) {
+      insights.push({
+        id: nextId(), type: "praise", icon: "star",
+        title: "Strong Business Health",
+        message: `Health score: ${input.runwayScore}/100 (${input.runwayGrade ?? "A"}). Pace, pipeline, expenses, and setup are all firing well.`,
+        priority: 48,
       });
     }
   }

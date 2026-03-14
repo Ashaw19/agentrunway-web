@@ -91,16 +91,33 @@ export function seasonalFractionElapsed(
 
 // ── GCI / Transaction Projections ───────────────────────────────────────────
 
-/** Project year-end GCI from closed deals + weighted pipeline. */
+/**
+ * Project year-end GCI from closed deals + weighted pipeline.
+ * Early-year guard: when less than 10% of the year has elapsed,
+ * blend the raw extrapolation toward the goal (or the closed total)
+ * to avoid a single January deal projecting a million-dollar year.
+ */
 export function projectedYearEndGCI(
   closedGCI: number,
   pipelineWeightedGCI: number = 0,
   seasonalFraction: number,
+  goalGCI: number = 0,
 ): number {
   if (seasonalFraction <= 0) return closedGCI;
   const paceBasedProjection = closedGCI / seasonalFraction;
-  // Pipeline adds a forward-looking adjustment
-  return paceBasedProjection + pipelineWeightedGCI * 0.5; // conservative pipeline weight
+  const pipelineAdj = pipelineWeightedGCI * 0.5;
+  const rawProjection = paceBasedProjection + pipelineAdj;
+
+  // Early-year dampening: blend raw extrapolation toward goal (or actual)
+  // to prevent a single early deal from implying a wildly inflated year.
+  if (seasonalFraction < 0.10) {
+    // Confidence ramp: at fraction=0.01 → 10% raw, at fraction=0.10 → 100% raw
+    const confidence = Math.min(1, seasonalFraction / 0.10);
+    const anchor = goalGCI > 0 ? goalGCI : closedGCI;
+    return anchor * (1 - confidence) + rawProjection * confidence;
+  }
+
+  return rawProjection;
 }
 
 /** Project year-end transaction count. */
@@ -111,7 +128,13 @@ export function projectedYearEndTransactions(
 ): number {
   if (seasonalFraction <= 0) return closedCount;
   const paceBasedProjection = closedCount / seasonalFraction;
-  return Math.round(paceBasedProjection + pipelineCount * 0.3);
+  const raw = Math.round(paceBasedProjection + pipelineCount * 0.3);
+  // Early-year dampening for deal count too
+  if (seasonalFraction < 0.10) {
+    const confidence = Math.min(1, seasonalFraction / 0.10);
+    return Math.round(closedCount * (1 - confidence) + raw * confidence);
+  }
+  return raw;
 }
 
 // ── Pace Analysis ───────────────────────────────────────────────────────────

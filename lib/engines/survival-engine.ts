@@ -3,7 +3,7 @@
 
 // ── Risk Level ──────────────────────────────────────────────────────────────
 
-export type RiskLevel = "critical" | "warning" | "healthy" | "strong";
+export type RiskLevel = "critical" | "warning" | "healthy" | "strong" | "notConfigured";
 
 export function riskLevelFromMonths(months: number): RiskLevel {
   if (months < 2) return "critical";
@@ -46,6 +46,19 @@ export function survivalResult(
   pipelineMonthlyEstimate: number = 0,
 ): SurvivalResult {
   const burn = monthlyBrokerageFee + monthlyRecurringExpenses;
+
+  // If cash reserve is 0 AND no burn tracked, user hasn't configured — show neutral state
+  if (cashReserve <= 0 && burn <= 0) {
+    return {
+      months: -1, // sentinel: not configured
+      riskLevel: "notConfigured",
+      monthlyBurn: 0,
+      monthlyIncome: pipelineMonthlyEstimate,
+      cashReserve: 0,
+      label: "Not set",
+    };
+  }
+
   const months = runwayMonths(burn, cashReserve, pipelineMonthlyEstimate);
   const risk = riskLevelFromMonths(months);
   const label = months >= 24 ? "24+ months" : `${months.toFixed(1)} months`;

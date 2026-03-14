@@ -293,11 +293,9 @@ export function DashboardContent({
         ? "national"
         : "default";
   const fraction = seasonalFractionElapsed(seasonalWeights);
-  const rawProjectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction);
-  const projectedGCI = rawProjectedGCI * scenarioMultiplier;
-
-  // ── Goal & pace ─────────────────────────────────────────────────────
   const goalGCI = settings?.goal_gci ?? 0;
+  const rawProjectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, goalGCI);
+  const projectedGCI = rawProjectedGCI * scenarioMultiplier;
   const gciProgress = goalGCI > 0 ? Math.min((ytdGCI / goalGCI) * 100, 100) : 0;
   const pacePercent = goalGCI > 0 ? paceVsGoalPercent(goalGCI, ytdGCI, fraction) : 0;
   const paceStatus =
@@ -328,10 +326,13 @@ export function DashboardContent({
   );
 
   // ── Survival ──────────────────────────────────────────────────────────
+  // Pipeline monthly estimate: annualize weighted pipeline GCI, then divide by 12
+  const pipelineMonthlyEst = fraction > 0 ? (pipelineWeightedGCI * 0.5) / 12 : 0;
   const survival = survivalResult(
     settings?.monthly_brokerage_fee ?? 0,
     monthlyRecurring,
     settings?.cash_reserve ?? 0,
+    pipelineMonthlyEst,
   );
 
   // ── Runway Score ──────────────────────────────────────────────────────
@@ -465,6 +466,10 @@ export function DashboardContent({
         postCapAgentPct: settings.post_cap_agent_pct ?? 0,
         estimatedCapMonth: null,
         forecastReadiness: goalGCI > 0 ? 0.6 : 0,
+        historyItems,
+        runwayScore: runwayScore.score,
+        runwayGrade: runwayScore.grade,
+        runwayWeakestLabel: healthReport.weakestLabel,
       }, insightsLimit)
     : [];
 
@@ -502,8 +507,8 @@ export function DashboardContent({
   // ── Smart alerts — only render when conditions are met ────────────────
   const smartAlerts: Array<{ type: "warning" | "danger" | "info"; icon: string; title: string; body: string }> = [];
 
-  // Alert 1: Low cash runway
-  if (survival.months < 3) {
+  // Alert 1: Low cash runway (skip if not configured — don't scare new users)
+  if (survival.riskLevel !== "notConfigured" && survival.months < 3) {
     smartAlerts.push({
       type: "danger",
       icon: "🔴",
@@ -585,13 +590,14 @@ export function DashboardContent({
     warning: "text-amber-600",
     healthy: "text-emerald-600",
     strong: "text-emerald-600",
+    notConfigured: "text-muted-foreground",
   };
 
   // Derived status labels for the strip
   const paceLabel = paceStatus === "ahead" ? "Ahead" : paceStatus === "behind" ? "Behind" : "On Track";
-  const runwayLabel = survival.riskLevel === "critical" ? "Critical" : survival.riskLevel === "warning" ? "Watchlist" : "Stable";
+  const runwayLabel = survival.riskLevel === "notConfigured" ? "Not Set" : survival.riskLevel === "critical" ? "Critical" : survival.riskLevel === "warning" ? "Watchlist" : "Stable";
   const paceStripColor = paceStatus === "ahead" ? "text-emerald-800 bg-emerald-100 border-emerald-300" : paceStatus === "behind" ? "text-amber-800 bg-amber-100 border-amber-300" : "text-slate-700 bg-slate-100 border-slate-300";
-  const runwayStripColor = survival.riskLevel === "critical" ? "text-red-800 bg-red-100 border-red-300" : survival.riskLevel === "warning" ? "text-amber-800 bg-amber-100 border-amber-300" : "text-emerald-800 bg-emerald-100 border-emerald-300";
+  const runwayStripColor = survival.riskLevel === "notConfigured" ? "text-slate-600 bg-slate-100 border-slate-300" : survival.riskLevel === "critical" ? "text-red-800 bg-red-100 border-red-300" : survival.riskLevel === "warning" ? "text-amber-800 bg-amber-100 border-amber-300" : "text-emerald-800 bg-emerald-100 border-emerald-300";
 
   return (
     <div className="space-y-8">
@@ -1325,7 +1331,7 @@ export function DashboardContent({
                 <GuideLink anchor="benchmark" label="Benchmark cohorts explained in Guide" />
               </div>
               <CardDescription>
-                vs. {COHORT_LABELS[benchmark.cohort]} cohort (CREA 2023)
+                vs. {COHORT_LABELS[benchmark.cohort]} cohort · CREA 2023 data
               </CardDescription>
             </CardHeader>
             <CardContent>

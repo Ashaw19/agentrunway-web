@@ -107,14 +107,17 @@ function buildHealthReport(
   projectedGCI: number,
   settings: UserSettings | null,
 ): BusinessHealthReport {
+  // Pace score: 50 = on pace (neutral), 100 = 50%+ ahead, 0 = 50%+ behind.
+  // Matches Swift's offset-based mapping: [-50%, +50%] → [0, 100].
   let paceScore = 50;
   if (goalGCI > 0 && fraction > 0) {
-    const expected = goalGCI * fraction;
-    const ratio = ytdGCI / expected;
-    paceScore = Math.min(100, Math.round(ratio * 100));
+    const paceVsGoal = paceVsGoalPercent(goalGCI, ytdGCI, fraction);
+    const raw = (paceVsGoal + 50) / 100;
+    paceScore = Math.round(Math.min(1, Math.max(0, raw)) * 100);
   }
 
-  let pipelineScore = 30;
+  // Default 65 (neutral) for agents not using the pipeline feature — matches Swift.
+  let pipelineScore = 65;
   const remaining = Math.max(0, goalGCI - ytdGCI);
   if (remaining > 0 && pipelineWeightedGCI > 0) {
     pipelineScore = Math.min(100, Math.round((pipelineWeightedGCI / remaining) * 100));
@@ -188,9 +191,10 @@ function gradeStyle(grade: string) {
 }
 
 function riskStyle(level: string) {
-  if (level === "strong")  return { cardBorder: "border-emerald-200", badgeCls: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500", labelColor: "text-emerald-700", label: "Strong" };
-  if (level === "healthy") return { cardBorder: "border-blue-200",    badgeCls: "bg-blue-100 text-blue-800",       dot: "bg-blue-500",    labelColor: "text-blue-700",   label: "Healthy" };
-  if (level === "warning") return { cardBorder: "border-amber-200",   badgeCls: "bg-amber-100 text-amber-800",     dot: "bg-amber-500",   labelColor: "text-amber-700",  label: "Warning" };
+  if (level === "strong")        return { cardBorder: "border-emerald-200", badgeCls: "bg-emerald-100 text-emerald-800", dot: "bg-emerald-500", labelColor: "text-emerald-700", label: "Strong" };
+  if (level === "healthy")       return { cardBorder: "border-blue-200",    badgeCls: "bg-blue-100 text-blue-800",       dot: "bg-blue-500",    labelColor: "text-blue-700",   label: "Healthy" };
+  if (level === "warning")       return { cardBorder: "border-amber-200",   badgeCls: "bg-amber-100 text-amber-800",     dot: "bg-amber-500",   labelColor: "text-amber-700",  label: "Warning" };
+  if (level === "notConfigured") return { cardBorder: "border-slate-200",   badgeCls: "bg-slate-100 text-slate-600",     dot: "bg-slate-400",   labelColor: "text-slate-600",  label: "Not Set" };
   return { cardBorder: "border-red-200", badgeCls: "bg-red-100 text-red-800", dot: "bg-red-500", labelColor: "text-red-700", label: "Critical" };
 }
 
@@ -279,15 +283,28 @@ export function ReportsContent({
   const pipelineWeighted = pipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
 
   // ── Seasonality & Projections ─────────────────────────────────────────────────
-  const seasonalWeights = settings.use_national_seasonality
-    ? (settings.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
-    : [0.25, 0.25, 0.25, 0.25];
+  // Prefer agent-specific weights derived from history (same logic as dashboard)
+  const agentSeasonalWeights = (() => {
+    const withData = historyItems.filter((h) =>
+      (h.quarter_gci as number[]).some((v) => (v ?? 0) > 0),
+    );
+    if (withData.length < 2) return null;
+    const avgQ = [0, 1, 2, 3].map((q) =>
+      withData.reduce((sum, h) => sum + ((h.quarter_gci as number[])[q] ?? 0), 0) /
+      withData.length,
+    );
+    const total = avgQ.reduce((a, b) => a + b, 0);
+    return total > 0 ? avgQ.map((v) => v / total) : null;
+  })();
+  const seasonalWeights =
+    agentSeasonalWeights ??
+    (settings.use_national_seasonality
+      ? (settings.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
+      : [0.25, 0.25, 0.25, 0.25]);
   const fraction = seasonalFractionElapsed(seasonalWeights);
-  const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeighted, fraction);
-  const projectedDeals = projectedYearEndTransactions(ytdTx.length, pipelineDeals.length, fraction);
-
-  // ── Goal ──────────────────────────────────────────────────────────────────────
   const goalGCI = settings.goal_gci ?? 0;
+  const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeighted, fraction, goalGCI);
+  const projectedDeals = projectedYearEndTransactions(ytdTx.length, pipelineDeals.length, fraction);
   const gciProgress = goalGCI > 0 ? Math.min((ytdGCI / goalGCI) * 100, 100) : 0;
   const pacePercent = goalGCI > 0 ? paceVsGoalPercent(goalGCI, ytdGCI, fraction) : 0;
   const paceStatus: "ahead" | "behind" | "no-goal" = goalGCI <= 0 ? "no-goal" : pacePercent >= 0 ? "ahead" : "behind";
@@ -334,10 +351,12 @@ export function ReportsContent({
   const benchmark = compare(projectedGCI, settings.experience_years);
 
   // ── Survival ──────────────────────────────────────────────────────────────────
+  const pipelineMonthlyEst = fraction > 0 ? (pipelineWeighted * 0.5) / 12 : 0;
   const survival = survivalResult(
     settings.monthly_brokerage_fee,
     monthlyRecurring,
     settings.cash_reserve,
+    pipelineMonthlyEst,
   );
 
   // ── Runway Score ──────────────────────────────────────────────────────────────
@@ -385,7 +404,7 @@ export function ReportsContent({
     expensesYTD,
     monthlyRecurringExpenses: monthlyRecurring,
     projectedYearEndGCI: projectedGCI,
-    marketYoYGrowth: 0.05,
+    marketYoYGrowth: (settings.market_yoy_growth_pct ?? 0) / 100,
     benchmarkPercentile: benchmark.percentile,
     survivalMonths: survival.months,
     capIsConfigured,
@@ -974,10 +993,12 @@ export function ReportsContent({
               <div className="text-lg font-bold text-slate-900">{fmtCurrency(taxResult.perDealSetAside)}</div>
               <div className="text-xs text-slate-500 mt-0.5">Per-deal set-aside</div>
             </div>
-            <div className="rounded-xl border border-amber-200 bg-white px-4 py-3 text-center">
-              <div className="text-lg font-bold text-slate-900">{fmtCurrency(gstHstCollectedYTD)}</div>
-              <div className="text-xs text-slate-500 mt-0.5">{taxLabel} collected YTD</div>
-            </div>
+            {settings.gst_hst_registered && (
+              <div className="rounded-xl border border-amber-200 bg-white px-4 py-3 text-center">
+                <div className="text-lg font-bold text-slate-900">{fmtCurrency(gstHstCollectedYTD)}</div>
+                <div className="text-xs text-slate-500 mt-0.5">{taxLabel} collected YTD</div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5 text-sm">
@@ -1004,10 +1025,16 @@ export function ReportsContent({
             </div>
           </div>
 
-          <p className="mt-3 text-[11px] text-muted-foreground">
-            {taxLabel} of {fmtCurrency(gstHstCollectedYTD)} was charged to clients and must be remitted to CRA.
-            Net of input tax credits (ITCs) on business expenses may reduce your remittance.
-          </p>
+          {settings.gst_hst_registered ? (
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              {taxLabel} of {fmtCurrency(gstHstCollectedYTD)} was charged to clients and must be remitted to CRA.
+              Net of input tax credits (ITCs) on business expenses may reduce your remittance.
+            </p>
+          ) : (
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              {taxLabel} tracking is available once you register and enable it in Settings.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -1094,7 +1121,7 @@ export function ReportsContent({
               <GuideLink anchor="benchmark" label="Benchmark cohorts explained in Guide" />
               {isPro && <ExplainButton question="How does my benchmark standing work and what does my percentile rank mean?" />}
             </CardTitle>
-            <CardDescription>vs. {COHORT_LABELS[benchmark.cohort]} cohort (CREA 2023)</CardDescription>
+            <CardDescription>vs. {COHORT_LABELS[benchmark.cohort]} cohort · CREA 2023 data</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">

@@ -185,8 +185,8 @@ export function generateAdvisory(input: AdvisorInput, limit: number = 5): Adviso
     });
   }
 
-  // 6. Market Timing
-  if (input.marketYoYGrowth !== 0) {
+  // 6. Market Timing — ±2% dead-zone to avoid noise from flat markets
+  if (Math.abs(input.marketYoYGrowth) > 0.02) {
     const direction = input.marketYoYGrowth > 0 ? "growing" : "contracting";
     cards.push({
       id: nextId(), category: "marketTiming", icon: "trending-up",
@@ -202,11 +202,11 @@ export function generateAdvisory(input: AdvisorInput, limit: number = 5): Adviso
     });
   }
 
-  // 7. Deal Size Analysis
+  // 7. Deal Size Analysis — only show when agent is below national median per-deal
   if (closedTx.length > 0) {
     const avgGCI = ytdGCI / closedTx.length;
-    if (avgGCI > 0) {
-      const nationalAvgPerDeal = NATIONAL_MEDIAN_GCI / NATIONAL_MEDIAN_TRANSACTIONS;
+    const nationalAvgPerDeal = NATIONAL_MEDIAN_GCI / NATIONAL_MEDIAN_TRANSACTIONS;
+    if (avgGCI > 0 && avgGCI < nationalAvgPerDeal) {
       const targetIncrease = avgGCI * 0.15;
       cards.push({
         id: nextId(), category: "dealSizeAnalysis", icon: "arrow-up-square",
