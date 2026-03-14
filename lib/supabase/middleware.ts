@@ -26,6 +26,8 @@ const PROTECTED_PREFIXES = [
   "/settings",
   "/profile",
   "/onboarding",
+  "/org",
+  "/consent",
 ];
 
 export async function updateSession(request: NextRequest) {

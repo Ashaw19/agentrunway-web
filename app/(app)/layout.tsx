@@ -9,6 +9,7 @@ import { Toaster } from "sonner";
 import { createClient } from "@/lib/supabase/server";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
+import { getOrgContext } from "@/lib/org-context";
 
 const VALID_THEMES = new Set([
   // Original 5
@@ -159,10 +160,11 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [financialContext, colorTheme, subscriptionTier] = await Promise.all([
+  const [financialContext, colorTheme, subscriptionTier, orgContext] = await Promise.all([
     buildFinancialContext(),
     getColorTheme(),
     getSubscriptionTier(),
+    getOrgContext(),
   ]);
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
 
@@ -173,7 +175,7 @@ export default async function AppLayout({
           className="flex h-screen overflow-hidden"
           data-color-theme={colorTheme}
         >
-          <SidebarNav isPro={isPro} />
+          <SidebarNav isPro={isPro} orgContext={orgContext} />
           <div className="flex flex-1 flex-col overflow-hidden">
             <MobileNav isPro={isPro} />
             <TopBar />

@@ -1,0 +1,165 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Settings, Eye, EyeOff, AlertTriangle, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { updateOrgSettings } from "@/lib/actions/org-actions";
+import type { Organization } from "@/lib/types/organizations";
+import { ORG_TYPE_LABELS } from "@/lib/types/organizations";
+
+interface Props {
+  org: Organization;
+  isOwner: boolean;
+}
+
+export function OrgSettingsContent({ org, isOwner }: Props) {
+  const router = useRouter();
+  const [name, setName] = useState(org.name);
+  const [anonymize, setAnonymize] = useState(org.anonymize_agents);
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    const { error } = await updateOrgSettings(org.id, {
+      name: name.trim(),
+      anonymize_agents: anonymize,
+    });
+    if (error) {
+      toast.error(error);
+    } else {
+      toast.success("Settings saved");
+      router.refresh();
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      {/* Header */}
+      <div>
+        <div className="flex items-center gap-3 mb-1">
+          <Settings className="h-6 w-6 text-orange-500" />
+          <h1 className="text-2xl font-bold tracking-tight">
+            Organization Settings
+          </h1>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Manage your organization preferences
+        </p>
+      </div>
+
+      {/* General Settings */}
+      <div className="rounded-xl border bg-card p-5 space-y-5">
+        <h3 className="text-sm font-semibold">General</h3>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">
+            Organization Name
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">
+            Slug (URL identifier)
+          </label>
+          <input
+            type="text"
+            value={org.slug}
+            disabled
+            className="w-full rounded-lg border bg-muted px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
+          />
+          <p className="text-[10px] text-muted-foreground/60">
+            Cannot be changed after creation
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">
+            Type
+          </label>
+          <p className="text-sm">{ORG_TYPE_LABELS[org.type]}</p>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">
+            Max Seats
+          </label>
+          <p className="text-sm">{org.max_seats}</p>
+        </div>
+      </div>
+
+      {/* Privacy Settings */}
+      <div className="rounded-xl border bg-card p-5 space-y-5">
+        <h3 className="text-sm font-semibold">Privacy</h3>
+
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-medium flex items-center gap-2">
+              {anonymize ? (
+                <EyeOff className="h-4 w-4 text-amber-500" />
+              ) : (
+                <Eye className="h-4 w-4 text-emerald-500" />
+              )}
+              Agent Anonymization
+            </p>
+            <p className="text-xs text-muted-foreground max-w-sm">
+              When enabled, agent names are replaced with &quot;Agent A&quot;,
+              &quot;Agent B&quot; on the organization dashboard.
+            </p>
+          </div>
+          <button
+            onClick={() => setAnonymize(!anonymize)}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              anonymize ? "bg-orange-500" : "bg-muted"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition-transform ${
+                anonymize ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* Save */}
+      <Button onClick={handleSave} disabled={saving} className="gap-2">
+        {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+        Save Changes
+      </Button>
+
+      {/* Danger Zone */}
+      {isOwner && (
+        <div className="rounded-xl border border-rose-500/20 bg-card p-5 space-y-4">
+          <h3 className="text-sm font-semibold text-rose-500 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            Danger Zone
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            These actions are irreversible. Deleting the organization will
+            remove all member associations and audit history.
+          </p>
+          <Button
+            variant="outline"
+            className="border-rose-500/30 text-rose-500 hover:bg-rose-500/10"
+            onClick={() =>
+              toast.error(
+                "Contact support@agentrunway.ca to delete your organization",
+              )
+            }
+          >
+            Delete Organization
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -13,10 +13,15 @@ import {
   Share2,
   Globe,
   BookOpen,
+  Building2,
+  Shield,
+  Settings,
+  Lock,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import type { OrgContext } from "@/lib/types/organizations";
 
 type SidebarEntry =
   | { type: "header"; label: string }
@@ -65,8 +70,83 @@ const sidebarEntries: SidebarEntry[] = [
 ];
 
 
-export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
+export function SidebarNav({
+  isPro = false,
+  orgContext = null,
+}: {
+  isPro?: boolean;
+  orgContext?: OrgContext | null;
+}) {
   const pathname = usePathname();
+
+  // Build org-specific sidebar entries dynamically
+  const orgEntries: SidebarEntry[] = orgContext
+    ? [
+        { type: "header", label: "ORGANIZATION" },
+        {
+          type: "item",
+          label: orgContext.org.name.length > 18
+            ? orgContext.org.name.slice(0, 16) + "…"
+            : orgContext.org.name,
+          href: "/org",
+          icon: Building2,
+          iconActive: "text-orange-300",
+          iconInactive: "text-orange-400/60",
+          borderActive: "border-l-orange-400",
+        },
+        ...(orgContext.isAdmin
+          ? [
+              {
+                type: "item" as const,
+                label: "Members",
+                href: "/org/members",
+                icon: Users,
+                iconActive: "text-orange-300",
+                iconInactive: "text-orange-400/60",
+                borderActive: "border-l-orange-400",
+              },
+              {
+                type: "item" as const,
+                label: "Org Settings",
+                href: "/org/settings",
+                icon: Settings,
+                iconActive: "text-orange-300",
+                iconInactive: "text-orange-400/60",
+                borderActive: "border-l-orange-400",
+              },
+              {
+                type: "item" as const,
+                label: "Audit Log",
+                href: "/org/audit-log",
+                icon: Shield,
+                iconActive: "text-orange-300",
+                iconInactive: "text-orange-400/60",
+                borderActive: "border-l-orange-400",
+              },
+            ]
+          : [
+              {
+                type: "item" as const,
+                label: "My Consent",
+                href: "/consent",
+                icon: Lock,
+                iconActive: "text-orange-300",
+                iconInactive: "text-orange-400/60",
+                borderActive: "border-l-orange-400",
+              },
+            ]),
+      ]
+    : [];
+
+  // Insert org entries between CRM and TOOLS
+  const allEntries: SidebarEntry[] = [];
+  for (const entry of sidebarEntries) {
+    allEntries.push(entry);
+    // Insert org entries after the CRM item
+    if (entry.type === "item" && entry.href === "/crm") {
+      allEntries.push(...orgEntries);
+    }
+  }
 
   return (
     <aside
@@ -103,7 +183,7 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
       {/* Nav links */}
       <nav className="flex-1 px-2 py-4 overflow-y-auto">
         <div className="space-y-0.5">
-          {sidebarEntries.map((entry, i) => {
+          {allEntries.map((entry, i) => {
             if (entry.type === "header") {
               return (
                 <div key={entry.label} className={cn("px-3 pb-1", i === 0 ? "pt-0" : "pt-4")}>
@@ -113,7 +193,7 @@ export function SidebarNav({ isPro = false }: { isPro?: boolean }) {
                 </div>
               );
             }
-            const isActive = pathname === entry.href;
+            const isActive = pathname === entry.href || pathname.startsWith(entry.href + "/");
             return (
               <Link
                 key={entry.href}

@@ -868,3 +868,6 @@ export function computeAgentGross(
   const agentGross = totalGCI * agentPct;
   return { agentGross, brokerageTake: totalGCI * brokeragePct };
 }
+
+// ── Organization types (re-export from dedicated module) ────────────────────
+export * from "./organizations";
