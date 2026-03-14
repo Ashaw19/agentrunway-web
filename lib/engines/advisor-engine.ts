@@ -78,12 +78,13 @@ export interface AdvisorInput {
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
-let cardCounter = 0;
+let _cardCounter = 0;
 function nextId(): string {
-  return `advisor-${++cardCounter}`;
+  return `advisor-${++_cardCounter}`;
 }
 
 export function generateAdvisory(input: AdvisorInput, limit: number = 5): AdvisorCard[] {
+  _cardCounter = 0; // Reset per call — prevents unbounded growth & SSR hydration mismatches
   const cards: AdvisorCard[] = [];
 
   const currentYear = new Date().getFullYear();

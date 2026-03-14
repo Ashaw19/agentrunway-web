@@ -49,12 +49,13 @@ export interface InsightsInput {
 
 // ── Engine ───────────────────────────────────────────────────────────────────
 
-let insightCounter = 0;
+let _insightCounter = 0;
 function nextId(): string {
-  return `insight-${++insightCounter}`;
+  return `insight-${++_insightCounter}`;
 }
 
 export function generateInsights(input: InsightsInput, limit: number = 5): Insight[] {
+  _insightCounter = 0; // Reset per call — prevents unbounded growth & SSR hydration mismatches
   const insights: Insight[] = [];
 
   const currentYear = new Date().getFullYear();

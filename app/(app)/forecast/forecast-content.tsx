@@ -67,6 +67,7 @@ interface Props {
   expenseCategories: ExpenseCategoryWithItems[];
   historyItems: HistoryItem[];
   subscriptionTier?: string;
+  receiptYTD?: number;
   mileageKmTotal?: number;
   ccaAssetCount?: number;
 }
@@ -78,6 +79,7 @@ export function ForecastContent({
   expenseCategories,
   historyItems,
   subscriptionTier = "starter",
+  receiptYTD: receiptYTDProp = 0,
   mileageKmTotal = 0,
   ccaAssetCount = 0,
 }: Props) {
@@ -147,10 +149,8 @@ export function ForecastContent({
   const projectedNet = agentGross - txFees - brokerageFeeAnnual;
 
   // ── Expenses ──────────────────────────────────────────────────────────
-  const expensesYTD = expenseCategories.reduce(
-    (sum, cat) => sum + cat.items.reduce((s, i) => s + Number(i.ytd_amount), 0),
-    0,
-  );
+  // Use receipt-based totals (same source as Dashboard/Reports) for accuracy
+  const expensesYTD = receiptYTDProp;
   const monthlyRecurring = expenseCategories.reduce(
     (sum, cat) => sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
     0,

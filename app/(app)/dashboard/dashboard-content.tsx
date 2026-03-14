@@ -2416,16 +2416,19 @@ function buildHealthReport(
   projectedGCI: number,
   settings: UserSettings | null,
 ): BusinessHealthReport {
-  // Pace score: 100 if at or ahead of goal pace, scales down linearly
+  // Pace score: 50 = on pace (neutral), 100 = 50%+ ahead, 0 = 50%+ behind.
+  // Matches Swift's offset-based mapping: [-50%, +50%] → [0, 100].
   let paceScore = 50;
   if (goalGCI > 0 && fraction > 0) {
-    const expected = goalGCI * fraction;
-    const ratio = ytdGCI / expected;
-    paceScore = Math.min(100, Math.round(ratio * 100));
+    const paceVsGoal = paceVsGoalPercent(goalGCI, ytdGCI, fraction);
+    // paceVsGoal is a percentage: +20 means 20% ahead, -30 means 30% behind
+    const raw = (paceVsGoal + 50) / 100; // maps [-50, +50] → [0, 1]
+    paceScore = Math.round(Math.min(1, Math.max(0, raw)) * 100);
   }
 
-  // Pipeline score: based on pipeline-to-remaining-goal ratio
-  let pipelineScore = 30;
+  // Pipeline score: based on pipeline-to-remaining-goal ratio.
+  // Default 65 (neutral) for agents not using the pipeline feature — matches Swift.
+  let pipelineScore = 65;
   const remaining = Math.max(0, goalGCI - ytdGCI);
   if (remaining > 0 && pipelineWeightedGCI > 0) {
     pipelineScore = Math.min(100, Math.round((pipelineWeightedGCI / remaining) * 100));

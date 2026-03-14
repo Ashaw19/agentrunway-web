@@ -7,7 +7,8 @@ export default async function ForecastPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [settingsResult, txResult, pipelineResult, expCatResult, expItemResult, historyResult, mileageResult, ccaResult] =
+  const year = new Date().getFullYear();
+  const [settingsResult, txResult, pipelineResult, expCatResult, expItemResult, historyResult, mileageResult, ccaResult, receiptTotalsResult] =
     await Promise.all([
       supabase
         .from("user_settings")
@@ -48,12 +49,24 @@ export default async function ForecastPage() {
         .from("t2125_cca_assets")
         .select("id")
         .eq("user_id", user.id),
+      // Current-year receipt totals for accurate YTD expense calculation
+      supabase
+        .from("receipt_expenses")
+        .select("total_amount")
+        .eq("user_id", user.id)
+        .gte("expense_date", `${year}-01-01`),
     ]);
 
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
     ...cat,
     items: (expItemResult.data ?? []).filter((i) => i.category_id === cat.id),
   }));
+
+  // Sum current-year receipt totals for accurate expense YTD
+  const receiptYTD = (receiptTotalsResult.data ?? []).reduce(
+    (sum, r) => sum + Number(r.total_amount ?? 0),
+    0,
+  );
 
   // Sum mileage logs for tax optimization
   const mileageKmTotal = (mileageResult.data ?? []).reduce(
@@ -70,6 +83,7 @@ export default async function ForecastPage() {
       expenseCategories={expenseCategories}
       historyItems={historyResult.data ?? []}
       subscriptionTier={settingsResult.data?.subscription_tier ?? "starter"}
+      receiptYTD={receiptYTD}
       mileageKmTotal={mileageKmTotal}
       ccaAssetCount={ccaAssetCount}
     />
