@@ -34,7 +34,7 @@ import {
   paceVsGoalPercent,
   dailyPaceRequired,
 } from "@/lib/engines/projection-engine";
-import { calculate as calculateTax, gstHstRate, gstHstLabel } from "@/lib/engines/canadian-tax-engine";
+import { calculate as calculateTax, gstHstRate, gstHstLabel, marginalRate } from "@/lib/engines/canadian-tax-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { probabilityBands, fiveYearBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
@@ -165,6 +165,7 @@ export function ForecastContent({
   // ── Tax estimate ──────────────────────────────────────────────────────
   const netForTax = Math.max(0, projectedNet - annualExpenses);
   const taxResult = calculateTax(netForTax, settings.province, Math.max(projectedDeals, 1));
+  const marginalTaxRate = marginalRate(Math.max(projectedGCI, ytdGCI), settings.province);
 
   // ── Corporate tax estimate (incorporated users only) ──────────────────
   const corpTaxResult = settings.is_incorporated
@@ -311,7 +312,7 @@ export function ForecastContent({
 
       {/* Projection summary */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-100 to-blue-50 shadow-sm">
+        <Card className="rounded-2xl border border-blue-200 bg-blue-50/70 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-blue-700">Projected GCI</CardDescription>
           </CardHeader>
@@ -323,7 +324,7 @@ export function ForecastContent({
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-100 to-indigo-50 shadow-sm">
+        <Card className="rounded-2xl border border-indigo-200 bg-indigo-50/70 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Projected Deals</CardDescription>
           </CardHeader>
@@ -335,7 +336,7 @@ export function ForecastContent({
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 shadow-sm">
+        <Card className="rounded-2xl border border-emerald-200 bg-emerald-50/70 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-emerald-700">After-Tax Net</CardDescription>
           </CardHeader>
@@ -353,7 +354,7 @@ export function ForecastContent({
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-100 to-amber-50 shadow-sm">
+        <Card className="rounded-2xl border border-amber-200 bg-amber-50/70 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-amber-700">Cash Runway</CardDescription>
           </CardHeader>
@@ -530,6 +531,12 @@ export function ForecastContent({
                 <p className="text-xs text-muted-foreground">Effective rate (all-in)</p>
               </div>
             </div>
+            {marginalTaxRate > 0 && (
+              <div className="flex items-center justify-between pt-3 mt-1 border-t border-amber-200/50">
+                <span className="text-sm text-muted-foreground">Marginal tax rate</span>
+                <span className="text-sm font-semibold">{fmtPct(marginalTaxRate)}</span>
+              </div>
+            )}
             <p className="mt-3 text-[10px] text-amber-700/70 leading-relaxed">
               Estimates only · Not tax advice · Consult a qualified accountant
             </p>
@@ -758,7 +765,7 @@ export function ForecastContent({
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Visual chart */}
-          {(() => {
+          {bands.p50 > 0 ? (() => {
             const chartData: ProbabilityDataPoint[] = (() => {
               const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
               const now = new Date();
@@ -776,7 +783,11 @@ export function ForecastContent({
               });
             })();
             return <ProbabilityChart data={chartData} />;
-          })()}
+          })() : (
+            <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
+              Add transactions to see projection bands
+            </div>
+          )}
           {/* Text reference */}
           <div className="grid grid-cols-2 gap-x-6 gap-y-1 pt-1 text-sm sm:grid-cols-3">
             {[

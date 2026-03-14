@@ -668,7 +668,7 @@ export function ReportsContent({
 
       {/* ── 2. YTD Snapshot ───────────────────────────────────────────────────── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 shadow-sm">
+        <Card className="rounded-2xl border border-emerald-200 bg-emerald-50/70 shadow-sm">
           <CardHeader className="pb-1">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-emerald-700 flex items-center gap-1">
               <DollarSign className="h-3.5 w-3.5" /> YTD GCI
@@ -687,7 +687,7 @@ export function ReportsContent({
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-100 to-blue-50 shadow-sm">
+        <Card className="rounded-2xl border border-blue-200 bg-blue-50/70 shadow-sm">
           <CardHeader className="pb-1">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-blue-700 flex items-center gap-1">
               <BarChart2 className="h-3.5 w-3.5" /> Avg Deal
@@ -699,7 +699,7 @@ export function ReportsContent({
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-100 to-purple-50 shadow-sm">
+        <Card className="rounded-2xl border border-purple-200 bg-purple-50/70 shadow-sm">
           <CardHeader className="pb-1">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-purple-700 flex items-center gap-1">
               <Layers className="h-3.5 w-3.5" /> Pipeline
@@ -711,7 +711,7 @@ export function ReportsContent({
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-100 to-teal-50 shadow-sm">
+        <Card className="rounded-2xl border border-teal-200 bg-teal-50/70 shadow-sm">
           <CardHeader className="pb-1">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-teal-700 flex items-center gap-1">
               <Target className="h-3.5 w-3.5" /> Projected Year-End
@@ -794,7 +794,13 @@ export function ReportsContent({
         </CardHeader>
         <CardContent>
           <div className="h-[200px]">
-            <ProbabilityChart data={probChartData} />
+            {bands.p50 > 0 ? (
+              <ProbabilityChart data={probChartData} />
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                Add transactions to see projection bands
+              </div>
+            )}
           </div>
           <div className="mt-4 grid grid-cols-5 gap-2">
             {[

@@ -85,7 +85,7 @@ import { computeAgentMarketPosition, type LocalMarketData } from "@/lib/crea-boa
 import { survivalResult, type SurvivalResult } from "@/lib/engines/survival-engine";
 import { compute as computeRunwayScore, type BusinessHealthReport, type RunwayScoreResult } from "@/lib/engines/runway-score-engine";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
-import { calculate as calculateTax } from "@/lib/engines/canadian-tax-engine";
+import { calculate as calculateTax, marginalRate } from "@/lib/engines/canadian-tax-engine";
 import { calculateCorporateTax, type CorporateTaxResult } from "@/lib/engines/corporate-tax-engine";
 import { generateTaxOptimizations, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
 import {
@@ -354,6 +354,36 @@ export function DashboardContent({
   const taxResult = settings
     ? calculateTax(netForTax, settings.province, Math.max(projectedDealCount, 1))
     : null;
+
+  // ── Value-add metrics ─────────────────────────────────────────────────────
+  // Marginal tax rate (combined federal + provincial at projected income level)
+  const marginalTaxRate = settings
+    ? marginalRate(Math.max(rawProjectedGCI, ytdGCI), settings.province)
+    : 0;
+
+  // After-tax take-home per projected deal
+  const afterTaxPerDeal =
+    rawProjectedGCI > 0 && taxResult && projectedDealCount > 0
+      ? (rawProjectedGCI - taxResult.totalBurden) / projectedDealCount
+      : 0;
+
+  // Break-even GCI: the gross income needed to cover all expenses + taxes, netting $0.
+  // Uses iterative convergence — typically resolves in 3–5 iterations.
+  const breakEvenGCI = (() => {
+    if (!settings || annualExpenses <= 0) return 0;
+    let guess = annualExpenses * 1.5;
+    for (let i = 0; i < 15; i++) {
+      const tax = calculateTax(guess, settings.province, 12).totalBurden;
+      const next = annualExpenses + tax;
+      if (Math.abs(next - guess) < 50) { guess = next; break; }
+      guess = next;
+    }
+    return Math.round(guess);
+  })();
+
+  // Revenue per working day (approximate: 5/7 of calendar days)
+  const workingDaysElapsed = Math.max(1, Math.round(dayOfYear() * (5 / 7)));
+  const revenuePerWorkingDay = ytdGCI > 0 ? ytdGCI / workingDaysElapsed : 0;
 
   // ── Corporate tax estimate (incorporated users only) ──────────────────
   const corpTaxResult: CorporateTaxResult | null =
@@ -926,7 +956,7 @@ export function DashboardContent({
 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-2xl border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+        <Card className="rounded-2xl border-emerald-200 bg-emerald-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription className="font-semibold text-emerald-800">YTD GCI</CardDescription>
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-200">
@@ -963,10 +993,15 @@ export function DashboardContent({
                   : `↓ ${fmtCurrency(Math.abs(vsLastYearGCI))} vs last year`}
               </p>
             )}
+            {revenuePerWorkingDay > 0 && (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {fmtCurrency(revenuePerWorkingDay)}/working day
+              </p>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-blue-200 bg-gradient-to-br from-blue-100 to-blue-50 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+        <Card className="rounded-2xl border-blue-200 bg-blue-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription className="font-semibold text-blue-800">Deals Closed</CardDescription>
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-200">
@@ -1006,7 +1041,7 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-purple-200 bg-gradient-to-br from-purple-100 to-purple-50 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+        <Card className="rounded-2xl border-purple-200 bg-purple-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription className="font-semibold text-purple-800">
               <span className="flex items-center gap-1">
@@ -1030,7 +1065,7 @@ export function DashboardContent({
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-teal-200 bg-gradient-to-br from-teal-100 to-teal-50 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+        <Card className="rounded-2xl border-teal-200 bg-teal-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardDescription className="font-semibold text-teal-800">Projected Year-End</CardDescription>
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-200">
@@ -1418,6 +1453,24 @@ export function DashboardContent({
                     <span className="text-muted-foreground">Per-deal set-aside</span>
                     <span>{fmtCurrency(taxResult.perDealSetAside)}</span>
                   </div>
+                  {marginalTaxRate > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Marginal rate</span>
+                      <span>{fmtPct(marginalTaxRate)}</span>
+                    </div>
+                  )}
+                  {afterTaxPerDeal > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Take-home / deal</span>
+                      <span className="font-medium text-emerald-700">{fmtCurrency(afterTaxPerDeal)}</span>
+                    </div>
+                  )}
+                  {breakEvenGCI > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Break-even GCI</span>
+                      <span>{fmtCurrency(breakEvenGCI)}/yr</span>
+                    </div>
+                  )}
                 </div>
                 <p className="mt-3 text-[10px] text-amber-700/70 leading-relaxed">
                   Estimates only · Not tax advice · Consult a qualified accountant
@@ -2064,7 +2117,7 @@ function RunwayScoreInfoDialog() {
           {/* Grade ranges */}
           <div>
             <h3 className="mb-2 font-semibold">Score ranges</h3>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {GRADE_RANGES.map((g) => (
                 <div
                   key={g.grade}

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 // ── Security headers ──────────────────────────────────────────────────────────
 //
@@ -84,4 +85,25 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  // Sentry organization and project (set in Vercel env vars)
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+
+  // Suppress output in local dev; show in CI
+  silent: !process.env.CI,
+
+  // Upload wider sourcemap coverage for better stack traces
+  widenClientFileUpload: true,
+
+  // Tunnel Sentry requests through /monitoring to avoid ad-blocker interference
+  // This works because the tunnelRoute is on the same origin ('self' in CSP)
+  tunnelRoute: "/monitoring",
+
+  webpack: {
+    // Suppress Sentry's own logger in production bundles (tree-shaking)
+    treeshake: { removeDebugLogging: true },
+    // Auto-instrument Vercel Cron Monitors if used
+    automaticVercelMonitors: true,
+  },
+});
