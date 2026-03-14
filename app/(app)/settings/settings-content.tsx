@@ -420,21 +420,21 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
           <div className="grid gap-1.5">
             <Label>Real Estate Board</Label>
             <Select
-              value={boardCode}
-              onValueChange={(v) => { setBoardCode(v); setBoardSubregion(""); }}
+              value={boardCode || "__none__"}
+              onValueChange={(v) => { setBoardCode(v === "__none__" ? "" : v); setBoardSubregion(""); }}
             >
               <SelectTrigger className="max-w-xs">
                 <SelectValue placeholder="Select your board…" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">— None selected —</SelectItem>
+                <SelectItem value="__none__">— None selected —</SelectItem>
                 {availableBoards.map((b) => (
                   <SelectItem key={b.slug} value={b.slug}>
                     {b.label}
                   </SelectItem>
                 ))}
                 {availableBoards.length === 0 && (
-                  <SelectItem value="" disabled>No boards available for this province</SelectItem>
+                  <SelectItem value="__no_boards__" disabled>No boards available for this province</SelectItem>
                 )}
               </SelectContent>
             </Select>
@@ -448,12 +448,15 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
           {selectedBoard?.subRegions && selectedBoard.subRegions.length > 0 && (
             <div className="grid gap-1.5">
               <Label>Sub-Region <span className="text-muted-foreground font-normal">(optional)</span></Label>
-              <Select value={boardSubregion} onValueChange={setBoardSubregion}>
+              <Select
+                value={boardSubregion || "__board_wide__"}
+                onValueChange={(v) => setBoardSubregion(v === "__board_wide__" ? "" : v)}
+              >
                 <SelectTrigger className="max-w-xs">
                   <SelectValue placeholder="Use board-wide average…" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Board-wide average</SelectItem>
+                  <SelectItem value="__board_wide__">Board-wide average</SelectItem>
                   {selectedBoard.subRegions.map((r) => (
                     <SelectItem key={r} value={r}>{r}</SelectItem>
                   ))}
