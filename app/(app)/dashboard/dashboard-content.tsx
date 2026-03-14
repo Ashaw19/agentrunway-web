@@ -681,29 +681,7 @@ export function DashboardContent({
         </div>
       </div>
 
-      {/* ── Smart alerts ── */}
-      {smartAlerts.length > 0 && (
-        <div className="space-y-2">
-          {smartAlerts.map((alert, i) => (
-            <div
-              key={i}
-              className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
-                alert.type === "danger"
-                  ? "border-red-200 bg-red-50 text-red-900"
-                  : "border-amber-200 bg-amber-50 text-amber-900"
-              }`}
-            >
-              <span className="text-base leading-none mt-0.5">{alert.icon}</span>
-              <div>
-                <p className="font-medium">{alert.title}</p>
-                <p className="text-xs mt-0.5 opacity-80">{alert.body}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Runway Score Hero */}
+      {/* Runway Score Hero — always first */}
       <Card data-tour="dashboard-score" className="rounded-2xl border-amber-200/60 bg-gradient-to-br from-amber-50/80 via-slate-50 to-blue-50/60 shadow-lg shadow-amber-100/50">
         <CardContent className="pt-6 pb-6">
           <div className="flex flex-wrap items-center justify-between gap-6">
@@ -752,19 +730,13 @@ export function DashboardContent({
               </div>
               <div>
                 <span className="flex items-center gap-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Cohort Rank</p>
-                  <MetricInfo tip="How you rank vs Canadian agents with similar experience, based on CREA 2023 benchmarks. P75 means you out-earned 75% of your peers." />
-                  {isPro && <ExplainButton question="How does my cohort benchmark ranking work and what does my percentile mean?" />}
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Board Rank</p>
+                  <MetricInfo tip="Local board ranking is coming soon. We're sourcing real-time stats from your provincial and local real estate board so you can benchmark against agents in your actual market — not the national average." />
                 </span>
-                {/* Gold for top-half performers — commission gold as achievement signal */}
-                <p
-                  className="text-xl font-bold mt-0.5"
-                  style={{ color: benchmark.percentile >= 50 ? "#D97706" : "#334155" }}
-                >
-                  P{benchmark.percentile}
-                  {benchmark.percentile >= 75 && <span className="ml-1 text-base">★</span>}
+                <p className="text-xl font-bold mt-0.5 text-slate-300">—</p>
+                <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">
+                  Local data<br />coming soon
                 </p>
-                <p className="text-xs text-slate-400">{COHORT_LABELS[benchmark.cohort]}</p>
               </div>
             </div>
           </div>
@@ -800,6 +772,28 @@ export function DashboardContent({
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Smart alerts — below score card ── */}
+      {smartAlerts.length > 0 && (
+        <div className="space-y-2">
+          {smartAlerts.map((alert, i) => (
+            <div
+              key={i}
+              className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+                alert.type === "danger"
+                  ? "border-red-200 bg-red-50 text-red-900"
+                  : "border-amber-200 bg-amber-50 text-amber-900"
+              }`}
+            >
+              <span className="text-base leading-none mt-0.5">{alert.icon}</span>
+              <div>
+                <p className="font-medium">{alert.title}</p>
+                <p className="text-xs mt-0.5 opacity-80">{alert.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── You Are Here strip ── */}
       <YouAreHereStrip
