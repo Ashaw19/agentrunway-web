@@ -38,6 +38,7 @@ import {
 import Link from "next/link";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import { ExplainButton } from "@/components/explain-button";
+import { GuideLink } from "@/components/guide-link";
 import {
   computeGCI,
   computeWeightedGCI,
@@ -748,7 +749,10 @@ export function ReportsContent({
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <CardTitle className="text-base">Income Probability Forecast</CardTitle>
+              <CardTitle className="text-base flex items-center gap-1.5">
+                Income Probability Forecast
+                <GuideLink anchor="probability-bands" label="Probability bands explained in Guide" />
+              </CardTitle>
               <CardDescription>Year-end GCI range based on your historical variance</CardDescription>
             </div>
             <Badge
@@ -912,7 +916,10 @@ export function ReportsContent({
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <CardTitle className="text-base">Tax Snapshot</CardTitle>
+              <CardTitle className="text-base flex items-center gap-1.5">
+                Tax Snapshot
+                <GuideLink anchor="tax-estimate" label="Tax estimate methodology explained in Guide" />
+              </CardTitle>
               <CardDescription>
                 {taxResult.taxYear} estimate &middot; {PROVINCE_LABELS[settings.province]}
               </CardDescription>
@@ -1084,6 +1091,7 @@ export function ReportsContent({
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-1.5">
               Benchmark Standing
+              <GuideLink anchor="benchmark" label="Benchmark cohorts explained in Guide" />
               {isPro && <ExplainButton question="How does my benchmark standing work and what does my percentile rank mean?" />}
             </CardTitle>
             <CardDescription>vs. {COHORT_LABELS[benchmark.cohort]} cohort (CREA 2023)</CardDescription>
@@ -1132,7 +1140,10 @@ export function ReportsContent({
         <Card className={`rounded-2xl shadow-sm border ${rs.cardBorder}`}>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Cash Runway</CardTitle>
+              <CardTitle className="text-base flex items-center gap-1.5">
+                Cash Runway
+                <GuideLink anchor="cash-runway" label="Cash Runway explained in Guide" />
+              </CardTitle>
               <Badge className={`${rs.badgeCls} border-0`}>{rs.label}</Badge>
             </div>
             <CardDescription>Estimated months without commission income</CardDescription>

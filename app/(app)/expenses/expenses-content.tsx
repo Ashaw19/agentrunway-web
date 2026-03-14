@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ExplainButton } from "@/components/explain-button";
+import { GuideLink } from "@/components/guide-link";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight, Download, FileText } from "lucide-react";
@@ -972,6 +973,7 @@ export function ExpensesContent({
             <div className="flex items-center justify-between">
               <CardTitle className="text-base flex items-center gap-1.5">
                 Expense Ratio vs. Benchmark
+                <GuideLink anchor="expense-ratio" label="Expense ratio explained in Guide" />
                 {isPro && <ExplainButton question="What is a healthy expense ratio for a real estate agent and how can I improve mine?" />}
               </CardTitle>
               <Badge

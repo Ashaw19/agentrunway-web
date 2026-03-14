@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
   Search,
   Download,
@@ -16,6 +16,7 @@ import {
   Calculator,
   Layers,
   Rocket,
+  MapPin,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -44,6 +45,23 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
   "ONBOARDING": Rocket,
   "EXPENSE CATEGORIES (T2125 MAPPING)": Receipt,
   "FREQUENTLY ASKED QUESTIONS": HelpCircle,
+  "CREA MLS® STATISTICS — DATA METHODOLOGY": MapPin,
+};
+
+/**
+ * Maps friendly anchor IDs (used by GuideLink components across the app)
+ * to the knowledge base section IDs generated from ### headings.
+ * e.g. GuideLink anchor="runway-score" → opens KEY METRICS & TERMS section
+ */
+const ANCHOR_MAP: Record<string, string> = {
+  "runway-score":          "key-metrics-terms",
+  "cash-runway":           "key-metrics-terms",
+  "probability-bands":     "key-metrics-terms",
+  "benchmark":             "key-metrics-terms",
+  "expense-ratio":         "key-metrics-terms",
+  "tax-estimate":          "tax-reference-2025-cra",
+  "financial-waterfall":   "pages-features",
+  "market-position":       "crea-mls-statistics-data-methodology",
 };
 
 function parseSections(kb: string): Section[] {
@@ -182,6 +200,22 @@ export function GuideContent({
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
 
   const sections = useMemo(() => parseSections(KNOWLEDGE_BASE), []);
+
+  // Handle deep-link anchors: /guide#runway-score → expand + scroll to the right section
+  useEffect(() => {
+    const hash = window.location.hash.slice(1); // remove leading #
+    if (!hash) return;
+    // Map friendly anchor ID to section ID (fallback to raw hash)
+    const targetId = ANCHOR_MAP[hash] ?? hash;
+    // Expand the target section
+    setExpandedSections((prev) => new Set([...prev, targetId]));
+    // Delay scroll to allow DOM to render the expanded content
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`guide-${targetId}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Filter sections by search query
   const filteredSections = useMemo(() => {

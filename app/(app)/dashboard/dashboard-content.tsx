@@ -81,6 +81,7 @@ import {
 } from "@/lib/engines/projection-engine";
 import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
+import { computeAgentMarketPosition, type LocalMarketData } from "@/lib/crea-board";
 import { survivalResult, type SurvivalResult } from "@/lib/engines/survival-engine";
 import { compute as computeRunwayScore, type BusinessHealthReport, type RunwayScoreResult } from "@/lib/engines/runway-score-engine";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
@@ -95,6 +96,7 @@ import {
 } from "@/components/ui/tooltip";
 import { ExplainButton } from "@/components/explain-button";
 import { WelcomeTour } from "@/components/welcome-tour";
+import { GuideLink } from "@/components/guide-link";
 
 function MetricInfo({ tip }: { tip: string }) {
   return (
@@ -131,6 +133,8 @@ interface Props {
   activeClientCount?: number;
   staleLeadCount?: number;
   hasSeenTour?: boolean;
+  boardMarketData?: LocalMarketData | null;
+  boardSubregion?: string;
 }
 
 function getTimeGreeting(): { greeting: string; emoji: string } {
@@ -203,6 +207,8 @@ export function DashboardContent({
   activeClientCount: _activeClientCount = 0,
   staleLeadCount = 0,
   hasSeenTour = true,
+  boardMarketData = null,
+  boardSubregion = "",
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const [tourComplete, setTourComplete] = useState(hasSeenTour);
@@ -304,6 +310,13 @@ export function DashboardContent({
 
   // ── Benchmark ─────────────────────────────────────────────────────────
   const benchmark = compare(projectedGCI, settings?.experience_years ?? null);
+
+  // ── Local Market Position (CREA live data) ────────────────────────────
+  // ytdDealCount already computed above (transactions are pre-filtered to closed)
+  const agentAvgDeal = ytdDealCount > 0 ? ytdGCI / ytdDealCount : 0;
+  const marketPosition = boardMarketData && agentAvgDeal > 0
+    ? computeAgentMarketPosition(agentAvgDeal, boardMarketData, boardSubregion || undefined)
+    : null;
 
   // ── Expenses ──────────────────────────────────────────────────────────
   // expensesYTD is now sourced from receipt_expenses (not the manual ytd_amount field)
@@ -704,6 +717,7 @@ export function DashboardContent({
                   <span className="flex items-center gap-1">
                     <p className="text-sm font-semibold text-slate-500">Runway Score</p>
                     <MetricInfo tip="A composite score across 6 factors: pace vs goal, expense ratio, pipeline health, cash runway, trend direction, and deal consistency." />
+                    <GuideLink anchor="runway-score" label="Runway Score explained in Guide" />
                     {isPro && <ExplainButton question="How is my Runway Score calculated and what can I do to improve it?" />}
                   </span>
                   <RunwayScoreInfoDialog />
@@ -721,6 +735,7 @@ export function DashboardContent({
                 <span className="flex items-center gap-1">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Cash Runway</p>
                   <MetricInfo tip="How many months you could sustain current expenses using only your cash reserve, with zero new income." />
+                  <GuideLink anchor="cash-runway" label="Cash Runway explained in Guide" />
                   {isPro && <ExplainButton question="What is my current cash runway and how can I extend it?" />}
                 </span>
                 <p className={cn("text-xl font-bold mt-0.5", riskColors[survival.riskLevel])}>
@@ -729,14 +744,56 @@ export function DashboardContent({
                 <p className="text-xs text-slate-400">cash coverage</p>
               </div>
               <div>
-                <span className="flex items-center gap-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Board Rank</p>
-                  <MetricInfo tip="Local board ranking is coming soon. We're sourcing real-time stats from your provincial and local real estate board so you can benchmark against agents in your actual market — not the national average." />
-                </span>
-                <p className="text-xl font-bold mt-0.5 text-slate-300">—</p>
-                <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">
-                  Local data<br />coming soon
-                </p>
+                {boardMarketData && marketPosition ? (
+                  <>
+                    <span className="flex items-center gap-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Market Position</p>
+                      <MetricInfo tip={`How your average deal compares to the ${marketPosition.subRegionName} board average of ${fmtCurrency(marketPosition.boardAvgPrice)}. Source: CREA MLS® Statistics, ${boardMarketData.reportMonth}.`} />
+                      <GuideLink anchor="market-position" label="Market Position explained in Guide" />
+                      {isPro && <ExplainButton question="How does my average deal size compare to my local board average and what does my market position mean?" />}
+                    </span>
+                    <p
+                      className="text-xl font-bold mt-0.5"
+                      style={{
+                        color: marketPosition.positionTier === "above" ? "#059669"
+                          : marketPosition.positionTier === "below" ? "#DC2626"
+                          : "#D97706",
+                      }}
+                    >
+                      {marketPosition.differencePct >= 0 ? "+" : ""}
+                      {marketPosition.differencePct.toFixed(0)}%
+                    </p>
+                    <p className="text-xs text-slate-400">{marketPosition.positionLabel}</p>
+                  </>
+                ) : boardMarketData ? (
+                  <>
+                    <span className="flex items-center gap-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Market Conditions</p>
+                      <MetricInfo tip={`Local market conditions for ${boardMarketData.boardName}. Source: CREA MLS® Statistics, ${boardMarketData.reportMonth}.`} />
+                      <GuideLink anchor="market-position" label="Market Conditions explained in Guide" />
+                    </span>
+                    <p className={cn("text-xl font-bold mt-0.5",
+                      boardMarketData.marketCondition === "seller" ? "text-emerald-600"
+                        : boardMarketData.marketCondition === "buyer" ? "text-blue-600"
+                        : "text-amber-600"
+                    )}>
+                      {boardMarketData.marketCondition === "seller" ? "🔥" : boardMarketData.marketCondition === "buyer" ? "🧊" : "⚖️"}
+                    </p>
+                    <p className="text-xs text-slate-400">{boardMarketData.marketConditionLabel}</p>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex items-center gap-1">
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Board Rank</p>
+                      <MetricInfo tip="Select your local real estate board in Settings to see live market benchmarking data sourced from CREA MLS® Statistics." />
+                      <GuideLink anchor="market-position" label="Board benchmarking explained in Guide" />
+                    </span>
+                    <p className="text-xl font-bold mt-0.5 text-slate-300">—</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">
+                      <Link href="/settings" className="underline hover:text-slate-600">Set board</Link> in Settings
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -1222,7 +1279,10 @@ export function DashboardContent({
         <div className="grid gap-4 sm:grid-cols-2">
           <Card className="rounded-2xl border-blue-200 bg-blue-100 shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Projection Range</CardTitle>
+              <div className="flex items-center gap-1.5">
+                <CardTitle className="text-base">Projection Range</CardTitle>
+                <GuideLink anchor="probability-bands" label="Probability bands explained in Guide" />
+              </div>
               <CardDescription>
                 {bands.confidence} confidence &middot; {bands.monthsOfData} months data
               </CardDescription>
@@ -1255,7 +1315,10 @@ export function DashboardContent({
 
           <Card className="rounded-2xl border-purple-200 bg-purple-100 shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Benchmark</CardTitle>
+              <div className="flex items-center gap-1.5">
+                <CardTitle className="text-base">Benchmark</CardTitle>
+                <GuideLink anchor="benchmark" label="Benchmark cohorts explained in Guide" />
+              </div>
               <CardDescription>
                 vs. {COHORT_LABELS[benchmark.cohort]} cohort (CREA 2023)
               </CardDescription>
@@ -1302,7 +1365,10 @@ export function DashboardContent({
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-base">Tax Readiness</CardTitle>
+                    <div className="flex items-center gap-1.5">
+                      <CardTitle className="text-base">Tax Readiness</CardTitle>
+                      <GuideLink anchor="tax-estimate" label="Tax estimate explained in Guide" />
+                    </div>
                     <CardDescription>
                       {taxResult.taxYear} · {PROVINCE_LABELS[settings!.province]} · {fmtPct(taxResult.effectiveRate)} effective rate
                     </CardDescription>

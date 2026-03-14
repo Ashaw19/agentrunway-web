@@ -149,4 +149,53 @@ A: Generates Instagram-ready month-in-review carousels. Select deals, choose a t
 
 Q: Is Agent Runway available outside Canada?
 A: Currently optimized for Canadian real estate agents with CRA tax rules, provincial brackets, and CREA benchmarks. The core financial tracking works anywhere, but tax calculations are Canada-specific.
+
+### CREA MLS® STATISTICS — DATA METHODOLOGY
+
+#### What is the CREA MLS® Statistics integration?
+Agent Runway connects to CREA's (Canadian Real Estate Association) publicly published MLS® Statistics to give users real-time local market context directly on their dashboard. Instead of comparing your performance against stale national averages, you can benchmark against your own board or sub-region.
+
+#### What data source is used?
+Agent Runway fetches data from stats.crea.ca, the official CREA MLS® Statistics portal. The data is structured as Gatsby static site page-data JSON files and is refreshed monthly by CREA, typically within the first two weeks of each calendar month. Agent Runway caches board data for 24 hours to avoid repeated fetches.
+
+#### What boards are available?
+All 60 active CREA real estate boards across Canada are supported — every province from British Columbia to Newfoundland and Labrador. Users can select their board in Settings → Local Market Board. Boards are filtered by your province selection so only relevant options appear.
+
+#### What sub-regions are supported?
+Some boards publish sub-regional breakdowns. For example, the New Brunswick Real Estate Association (NBREA) publishes separate statistics for: Fredericton Area, Greater Moncton, Northern and Valley Region, and Saint John. When sub-regions are available, you can select your specific area in Settings for a more precise comparison.
+
+#### What is Market Position?
+Market Position compares your average closed deal size to the local board or sub-region average sale price. Formula: (Your Avg Deal − Board Avg Price) ÷ Board Avg Price × 100%. Results:
+- Above Market (+5% or higher): Your average deal is above the local board average. This may indicate you work in premium price segments or with high-value clients.
+- At Market (within ±5%): Your average deal closely matches the local board average.
+- Below Market (−5% or lower): Your average deal is below the local board average. This may indicate opportunity to move up-market or that your market segment is below average.
+
+The board average price shown is sourced from CREA's most recent monthly report. When a sub-region is selected (e.g., Saint John), that sub-region's average is used instead of the board total.
+
+#### What is Market Conditions?
+When you have a board selected but no closed deals yet (so Market Position cannot be calculated), the dashboard shows the overall market condition for your board. This is derived from the Sales-to-New-Listings Ratio (SNLR):
+- Seller's Market (🔥): SNLR above 65% — demand significantly exceeds supply. Sellers have pricing power and properties sell quickly.
+- Balanced Market (⚖️): SNLR between 45–65% — supply and demand are roughly in equilibrium. CREA's long-run national average is 54.8%.
+- Buyer's Market (🧊): SNLR below 45% — supply exceeds demand. Buyers have more negotiating power.
+
+#### How is the Sales-to-New-Listings Ratio calculated?
+SNLR = Monthly Sales ÷ New Listings × 100%. Agent Runway reads both figures from the CREA board report (the Home1 dataset) and computes this ratio live. The result is classified using CREA's standard thresholds.
+
+#### What monthly data points are available?
+For each board, Agent Runway reads: total unit sales, new listings, dollar volume, and average sale price. For boards with sub-regions, all four metrics are available per sub-region plus a board total row.
+
+#### What quarterly data is available?
+Some boards publish quarterly MLS® statistics including: unit sales for the quarter, median sale price, year-over-year change in median price, and sales by price range band. This data is used in future planned features (quarterly performance comparison).
+
+#### How often does the data update?
+CREA publishes monthly statistics, typically in the first two weeks of the following month. Agent Runway fetches fresh data once per 24 hours per board and caches it in memory. If you need the very latest data, it will refresh within 24 hours of CREA publishing it.
+
+#### How does CREA data affect my Runway Score?
+Currently, CREA board data provides contextual market benchmarking on the dashboard — the Market Position and Market Conditions metrics. In future releases, local market conditions may be incorporated as a factor in the Runway Score's benchmark component, replacing the national CREA 2023 cohort comparison with live local data.
+
+#### Does this replace the national benchmark comparison?
+Not yet — both exist in parallel. The national cohort benchmark (CREA 2023 data, segmented by experience years) remains available in the Full dashboard view and on the Reports page. The local Market Position metric supplements this with real-time local market context. The national benchmark compares you to other agents; the local Market Position compares your deal sizes to your local market.
+
+#### Is there a partnership with CREA?
+Agent Runway currently uses publicly available data from stats.crea.ca. A formal partnership with CREA for direct data access, branded integration, or API licensing is being pursued. For partnership inquiries: Jacob Coopersmith (MLS Statistics Coordinator) at jcoopersmith@crea.ca, or Zach Kleiman (VP, REALTOR.ca Strategic Business and Innovation) via LinkedIn.
 `;

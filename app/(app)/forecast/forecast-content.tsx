@@ -10,6 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ExplainButton } from "@/components/explain-button";
+import { GuideLink } from "@/components/guide-link";
 import { Separator } from "@/components/ui/separator";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import {
@@ -369,6 +370,7 @@ export function ForecastContent({
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-1.5">
             Financial Waterfall
+            <GuideLink anchor="financial-waterfall" label="Financial Waterfall explained in Guide" />
             {isPro && <ExplainButton question="Walk me through my financial waterfall — where does every dollar of my GCI go?" />}
           </CardTitle>
           <CardDescription>
@@ -476,6 +478,7 @@ export function ForecastContent({
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-1.5">
               Tax Planning
+              <GuideLink anchor="tax-estimate" label="Tax estimate methodology explained in Guide" />
               {isPro && <ExplainButton question="How are my tax estimates calculated and how much should I set aside per deal?" />}
             </CardTitle>
             <CardDescription>
@@ -729,6 +732,7 @@ export function ForecastContent({
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-1.5">
             Projection Range
+            <GuideLink anchor="probability-bands" label="Probability bands explained in Guide" />
             {isPro && <ExplainButton question="How are my probability bands (P10–P90) calculated and what does my range mean?" />}
           </CardTitle>
           <CardDescription>

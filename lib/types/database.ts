@@ -236,6 +236,10 @@ export interface UserSettings {
   // Admin override
   is_admin: boolean; // founder/admin flag — bypasses all subscription checks
 
+  // CREA board benchmarking
+  board_code:          string;       // CREA board slug (e.g. 'nbreb', 'treb') — '' = not set
+  board_subregion:     string;       // Optional sub-region within board (e.g. 'Saint John') — '' = board total
+
   // Business structure
   is_incorporated:     boolean;      // true = PREC or general corp
   corp_type:           string | null; // 'prec' | 'general' | null

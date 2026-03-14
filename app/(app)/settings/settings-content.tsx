@@ -42,6 +42,12 @@ import {
   type UserSettings,
   type PlaidItem,
 } from "@/lib/types/database";
+import {
+  CREA_BOARDS,
+  boardsForProvinceEnum,
+  type CreaBoard,
+} from "@/lib/crea-board";
+import { MapPin } from "lucide-react";
 
 interface Props {
   settings: UserSettings;
@@ -73,6 +79,26 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
 
   // ── Section 1: Province ──────────────────────────────────────────────────
   const [province, setProvince] = useState<Province>(settings.province);
+
+  // ── Section 1c: CREA Board ───────────────────────────────────────────────
+  const [boardCode, setBoardCode] = useState<string>(settings.board_code ?? "");
+  const [boardSubregion, setBoardSubregion] = useState<string>(settings.board_subregion ?? "");
+  const [savingBoard, setSavingBoard] = useState(false);
+  const boardSaved = useSaved();
+
+  const availableBoards: CreaBoard[] = boardsForProvinceEnum(province);
+  const selectedBoard = CREA_BOARDS.find((b) => b.slug === boardCode) ?? null;
+
+  async function saveBoard() {
+    setSavingBoard(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSavingBoard(false); return; }
+    await supabase.from("user_settings").update({ board_code: boardCode, board_subregion: boardSubregion }).eq("user_id", user.id);
+    setSavingBoard(false);
+    boardSaved.flash();
+    router.refresh();
+  }
   const [savingProvince, setSavingProvince] = useState(false);
   const provinceSaved = useSaved();
 
@@ -371,6 +397,75 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
             saved={provinceSaved.saved}
             onSave={saveProvince}
           />
+        </CardContent>
+      </Card>
+
+      {/* Card 1c — Local Market Board */}
+      <Card className="rounded-2xl border-l-4 border-l-cyan-500 shadow-sm">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-cyan-500" />
+            <CardTitle>Local Market Board</CardTitle>
+          </div>
+          <CardDescription>
+            Select your real estate board for live local benchmarking. Used to show your market position,
+            local price averages, and market conditions on the Dashboard.
+            Data is sourced monthly from{" "}
+            <a href="https://stats.crea.ca/en-CA/" target="_blank" rel="noopener noreferrer" className="underline text-cyan-600">
+              CREA MLS® Statistics
+            </a>.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-1.5">
+            <Label>Real Estate Board</Label>
+            <Select
+              value={boardCode}
+              onValueChange={(v) => { setBoardCode(v); setBoardSubregion(""); }}
+            >
+              <SelectTrigger className="max-w-xs">
+                <SelectValue placeholder="Select your board…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">— None selected —</SelectItem>
+                {availableBoards.map((b) => (
+                  <SelectItem key={b.slug} value={b.slug}>
+                    {b.label}
+                  </SelectItem>
+                ))}
+                {availableBoards.length === 0 && (
+                  <SelectItem value="" disabled>No boards available for this province</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+            {availableBoards.length === 0 && province && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Your province may not have a separate board listing on CREA stats — try selecting a neighbouring province board.
+              </p>
+            )}
+          </div>
+
+          {selectedBoard?.subRegions && selectedBoard.subRegions.length > 0 && (
+            <div className="grid gap-1.5">
+              <Label>Sub-Region <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Select value={boardSubregion} onValueChange={setBoardSubregion}>
+                <SelectTrigger className="max-w-xs">
+                  <SelectValue placeholder="Use board-wide average…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Board-wide average</SelectItem>
+                  {selectedBoard.subRegions.map((r) => (
+                    <SelectItem key={r} value={r}>{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Choosing a sub-region (e.g. Saint John vs. Moncton) gives more accurate local price comparisons.
+              </p>
+            </div>
+          )}
+
+          <SaveRow saving={savingBoard} saved={boardSaved.saved} onSave={saveBoard} />
         </CardContent>
       </Card>
 
