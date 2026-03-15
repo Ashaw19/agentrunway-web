@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check, Sparkles, ExternalLink, Loader2, Car, Landmark, RefreshCw, Trash2, Clock, Info, AlertCircle, XCircle, Building2 } from "lucide-react";
+import { Check, Sparkles, ExternalLink, Loader2, Car, Landmark, RefreshCw, Trash2, Clock, Info, AlertCircle, XCircle, Building2, User, TrendingDown, Home } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -208,26 +208,30 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const [savingGoal, setSavingGoal] = useState(false);
   const goalSaved = useSaved();
 
-  // ── Section 7: Vehicle & Mileage ────────────────────────────────────────
+  // ── Section 7: Claiming (Home Office + Vehicle) ──────────────────────────
   const [vehiclePct, setVehiclePct] = useState<string>(
     settings.vehicle_business_use_pct != null
       ? String(Math.round(Number(settings.vehicle_business_use_pct) * 100))
       : "0",
   );
-  const [savingVehicle, setSavingVehicle] = useState(false);
-  const vehicleSaved = useSaved();
+  const [savingClaiming, setSavingClaiming] = useState(false);
+  const claimingSaved = useSaved();
 
-  async function saveVehiclePct() {
-    const pct = Math.min(100, Math.max(0, parseFloat(vehiclePct) || 0)) / 100;
-    setSavingVehicle(true);
+  async function saveClaiming() {
+    const vPct = Math.min(100, Math.max(0, parseFloat(vehiclePct)    || 0)) / 100;
+    const hPct = Math.min(100, Math.max(0, parseFloat(homeOfficePct) || 0)) / 100;
+    setSavingClaiming(true);
     const supabase = createClient();
     await supabase
       .from("user_settings")
-      .update({ vehicle_business_use_pct: pct })
+      .update({
+        vehicle_business_use_pct:    vPct,
+        home_office_business_use_pct: hPct,
+      })
       .eq("user_id", settings.user_id);
-    setSavingVehicle(false);
-    vehicleSaved.flash();
-    toast.success("Vehicle business use % saved ✓");
+    setSavingClaiming(false);
+    claimingSaved.flash();
+    toast.success("Claiming percentages saved ✓");
   }
 
   // ── Section 8: Bank Connections ──────────────────────────────────────────
@@ -300,6 +304,81 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
     });
   }
 
+  // ── Section P: Profile Identity ─────────────────────────────────────────
+  const [displayName,   setDisplayName]   = useState(settings.display_name ?? "");
+  const [brokerageName, setBrokerageName] = useState(settings.brokerage_name ?? "");
+  const [businessName,  setBusinessName]  = useState(settings.business_name ?? "");
+  const [socialInstagram, setSocialInstagram] = useState(settings.social_instagram ?? "");
+  const [socialFacebook,  setSocialFacebook]  = useState(settings.social_facebook  ?? "");
+  const [socialLinkedin,  setSocialLinkedin]  = useState(settings.social_linkedin  ?? "");
+  const [socialTiktok,    setSocialTiktok]    = useState(settings.social_tiktok    ?? "");
+  const [socialYoutube,   setSocialYoutube]   = useState(settings.social_youtube   ?? "");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const profileSaved = useSaved();
+
+  async function saveProfile() {
+    setSavingProfile(true);
+    const supabase = createClient();
+    await supabase
+      .from("user_settings")
+      .update({
+        display_name:      displayName,
+        brokerage_name:    brokerageName,
+        business_name:     businessName,
+        social_instagram:  socialInstagram,
+        social_facebook:   socialFacebook,
+        social_linkedin:   socialLinkedin,
+        social_tiktok:     socialTiktok,
+        social_youtube:    socialYoutube,
+      })
+      .eq("user_id", settings.user_id);
+    setSavingProfile(false);
+    profileSaved.flash();
+    toast.success("Profile saved ✓");
+    router.refresh();
+  }
+
+  // ── Section PC: Post-Cap Split ───────────────────────────────────────────
+  const [postCapThreshold,   setPostCapThreshold]   = useState(String(settings.post_cap_threshold_gci ?? 0));
+  const [postCapAgentPct,    setPostCapAgentPct]    = useState(
+    settings.post_cap_agent_pct > 0
+      ? String(Math.round(Number(settings.post_cap_agent_pct) * 100))
+      : ""
+  );
+  const [postCapBrokeragePct, setPostCapBrokeragePct] = useState(
+    settings.post_cap_brokerage_pct > 0
+      ? String(Math.round(Number(settings.post_cap_brokerage_pct) * 100))
+      : ""
+  );
+  const [savingPostCap, setSavingPostCap] = useState(false);
+  const postCapSaved = useSaved();
+
+  async function savePostCap() {
+    setSavingPostCap(true);
+    const supabase = createClient();
+    const threshold = parseFloat(postCapThreshold) || 0;
+    const agentPct  = (parseFloat(postCapAgentPct)    || 0) / 100;
+    const brokPct   = (parseFloat(postCapBrokeragePct) || 0) / 100;
+    await supabase
+      .from("user_settings")
+      .update({
+        post_cap_threshold_gci:   threshold,
+        post_cap_agent_pct:       agentPct,
+        post_cap_brokerage_pct:   brokPct,
+      })
+      .eq("user_id", settings.user_id);
+    setSavingPostCap(false);
+    postCapSaved.flash();
+    toast.success("Post-cap split saved ✓");
+  }
+
+  // ── Section HO: Home Office % (state only — saved together with vehicle via saveClaiming) ──
+  const [homeOfficePct, setHomeOfficePct] = useState<string>(
+    settings.home_office_business_use_pct != null
+      ? String(Math.round(Number(settings.home_office_business_use_pct) * 100))
+      : "0",
+  );
+
   // ── Section 6: 5-Year Growth Plan ───────────────────────────────────────
   const currentYear = new Date().getFullYear();
   const [growthGoals, setGrowthGoals] = useState<number[]>(() => {
@@ -364,6 +443,100 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
           Garbage in, garbage out. Keep these honest.
         </p>
       </div>
+
+      {/* Card P — Profile Identity */}
+      <Card className="rounded-2xl border-l-4 border-l-teal-500 shadow-sm">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <User className="h-4 w-4 text-teal-500" />
+            <CardTitle>Profile Identity</CardTitle>
+          </div>
+          <CardDescription>
+            Your public-facing name and social links — synced from the iOS app and shown across your reports.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-5">
+          {/* Name + Brokerage */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label>Display Name</Label>
+              <Input
+                placeholder="Jane Smith"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Brokerage Name</Label>
+              <Input
+                placeholder="RE/MAX Centre"
+                value={brokerageName}
+                onChange={(e) => setBrokerageName(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Business Name */}
+          <div className="grid gap-1.5 max-w-sm">
+            <Label>Business / Team Name <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
+            <Input
+              placeholder="The Smith Group"
+              value={businessName}
+              onChange={(e) => setBusinessName(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">Trade name, team name, or PREC corporation name.</p>
+          </div>
+
+          {/* Social Media URLs */}
+          <div className="grid gap-3">
+            <Label className="text-sm font-medium">Social Media Links <span className="text-muted-foreground font-normal text-xs">(optional)</span></Label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">Instagram</Label>
+                <Input
+                  placeholder="https://instagram.com/yourhandle"
+                  value={socialInstagram}
+                  onChange={(e) => setSocialInstagram(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">Facebook</Label>
+                <Input
+                  placeholder="https://facebook.com/yourpage"
+                  value={socialFacebook}
+                  onChange={(e) => setSocialFacebook(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">LinkedIn</Label>
+                <Input
+                  placeholder="https://linkedin.com/in/yourprofile"
+                  value={socialLinkedin}
+                  onChange={(e) => setSocialLinkedin(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-xs text-muted-foreground">TikTok</Label>
+                <Input
+                  placeholder="https://tiktok.com/@yourhandle"
+                  value={socialTiktok}
+                  onChange={(e) => setSocialTiktok(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid gap-1.5 max-w-sm">
+              <Label className="text-xs text-muted-foreground">YouTube</Label>
+              <Input
+                placeholder="https://youtube.com/@yourchannel"
+                value={socialYoutube}
+                onChange={(e) => setSocialYoutube(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <SaveRow saving={savingProfile} saved={profileSaved.saved} onSave={saveProfile} />
+        </CardContent>
+      </Card>
 
       {/* Card 1 — Province & Tax */}
       <Card className="rounded-2xl border-l-4 border-l-blue-500 shadow-sm">
@@ -492,7 +665,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
           {/* Business type */}
           <div className="grid gap-2">
             <Label>Business type</Label>
-            <div className="grid grid-cols-3 gap-2 max-w-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-sm">
               {[
                 { value: "no",      label: "Sole Proprietor" },
                 { value: "prec",    label: "PREC" },
@@ -537,7 +710,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
           {isIncorporated && (
             <div className="grid gap-2">
               <Label>Compensation method</Label>
-              <div className="grid grid-cols-3 gap-2 max-w-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-sm">
                 {[
                   { value: "salary",    label: "Salary" },
                   { value: "dividends", label: "Dividends" },
@@ -632,6 +805,69 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
             saved={splitSaved.saved}
             onSave={saveSplit}
           />
+        </CardContent>
+      </Card>
+
+      {/* Card PC — Post-Cap Split */}
+      <Card className="rounded-2xl border-l-4 border-l-violet-400 shadow-sm">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <TrendingDown className="h-4 w-4 text-violet-500" />
+            <CardTitle>Post-Cap Split <span className="text-sm font-normal text-muted-foreground">(optional)</span></CardTitle>
+          </div>
+          <CardDescription>
+            Some brokerages reduce their cut after you hit an annual GCI threshold (the &ldquo;cap&rdquo;).
+            If yours does, enter the threshold and the new splits — your net GCI calculations will use
+            the boosted rate for deals above the cap.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid gap-1.5">
+              <Label>GCI Threshold ($)</Label>
+              <Input
+                type="number"
+                placeholder="e.g. 40000"
+                value={postCapThreshold === "0" ? "" : postCapThreshold}
+                onChange={(e) => setPostCapThreshold(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">GCI at which your split improves.</p>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Agent % after cap</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="e.g. 90"
+                  className="pr-8"
+                  value={postCapAgentPct}
+                  onChange={(e) => setPostCapAgentPct(e.target.value)}
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Brokerage % after cap</Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  placeholder="e.g. 10"
+                  className="pr-8"
+                  value={postCapBrokeragePct}
+                  onChange={(e) => setPostCapBrokeragePct(e.target.value)}
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Leave all fields at 0 if your brokerage doesn&apos;t offer a cap. Agent % + Brokerage % should sum to 100.
+          </p>
+          <SaveRow saving={savingPostCap} saved={postCapSaved.saved} onSave={savePostCap} />
         </CardContent>
       </Card>
 
@@ -831,44 +1067,72 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
         </CardContent>
       </Card>
 
-      {/* Card 7 — Vehicle & Mileage */}
+      {/* Card 7 — Claiming (Home Office & Vehicle) */}
       <Card className="rounded-2xl border-l-4 border-l-blue-400 shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Car className="h-5 w-5 text-blue-500" />
-            <CardTitle>Vehicle &amp; Mileage</CardTitle>
+            <Home className="h-5 w-5 text-blue-500" />
+            <CardTitle>Claiming &amp; Deductions</CardTitle>
           </div>
           <CardDescription>
-            Set your vehicle business use % for actual expense deductions.
-            Use the Mileage tab in Expenses to track the CRA per-km method instead.
+            Business-use percentages for home office and vehicle deductions.
+            Applies when you claim actual expenses on your T2125.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="grid gap-1.5 max-w-xs">
-            <Label>Vehicle business use %</Label>
-            <div className="relative">
-              <Input
-                type="number"
-                min={0}
-                max={100}
-                step={1}
-                placeholder="e.g. 80"
-                className="pr-8"
-                value={vehiclePct}
-                onChange={(e) => setVehiclePct(e.target.value)}
-              />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+        <CardContent className="grid gap-5">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            {/* Home Office */}
+            <div className="grid gap-1.5">
+              <Label className="flex items-center gap-1.5">
+                <Home className="h-3.5 w-3.5 text-muted-foreground" />
+                Home office business use %
+              </Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  placeholder="e.g. 15"
+                  className="pr-8"
+                  value={homeOfficePct}
+                  onChange={(e) => setHomeOfficePct(e.target.value)}
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                The % of your home used exclusively for business (e.g. office room ÷ total area).
+                Used to calculate allowable home office deductions on T2125 Line 9270.
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              % of your total vehicle costs used for business (e.g. 80 = 80% business use).
-              Applies when you claim actual vehicle expenses vs. the per-km mileage method.
-            </p>
+
+            {/* Vehicle */}
+            <div className="grid gap-1.5">
+              <Label className="flex items-center gap-1.5">
+                <Car className="h-3.5 w-3.5 text-muted-foreground" />
+                Vehicle business use %
+              </Label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step={1}
+                  placeholder="e.g. 80"
+                  className="pr-8"
+                  value={vehiclePct}
+                  onChange={(e) => setVehiclePct(e.target.value)}
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">%</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                % of total vehicle costs used for business (e.g. 80 = 80% business use).
+                Use the Mileage tab in Expenses for the CRA per-km method instead.
+              </p>
+            </div>
           </div>
-          <SaveRow
-            saving={savingVehicle}
-            saved={vehicleSaved.saved}
-            onSave={saveVehiclePct}
-          />
+
+          <SaveRow saving={savingClaiming} saved={claimingSaved.saved} onSave={saveClaiming} />
         </CardContent>
       </Card>
 

@@ -72,7 +72,7 @@ const EXPERIENCE_OPTIONS = [
     years: 15,
     label: "Veteran Status",
     range_label: "10+ years",
-    subtitle: "More deals closed than most people have had hot meals.",
+    subtitle: "You've survived enough market shifts to write the textbook.",
   },
 ];
 
@@ -756,35 +756,56 @@ export default function OnboardingPage() {
 
           {/* Nav buttons — steps 1–6 */}
           {step > 0 && step < TOTAL_STEPS - 1 && (
-            <div className="mt-7 flex items-center justify-between gap-3 border-t border-white/10 pt-5">
-              <Button
-                variant="ghost"
-                onClick={back}
-                className="text-white/50 hover:bg-white/10 hover:text-white"
-              >
-                <ArrowLeft className="mr-1 h-4 w-4" />
-                Back
-              </Button>
-
-              <div className="flex items-center gap-2">
-                {step === 7 && (
+            <div className="mt-7 border-t border-white/10 pt-5">
+              {/* Step 7: stack buttons vertically on narrow screens */}
+              {step === 7 ? (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <Button
                     variant="ghost"
-                    onClick={() => setStep(TOTAL_STEPS - 1)}
-                    className="text-white/40 hover:text-white/70 text-sm"
+                    onClick={back}
+                    className="text-white/50 hover:bg-white/10 hover:text-white order-3 sm:order-1"
                   >
-                    Use suggested
+                    <ArrowLeft className="mr-1 h-4 w-4" />
+                    Back
                   </Button>
-                )}
-                <Button
-                  onClick={step === 7 ? () => setStep(TOTAL_STEPS - 1) : advance}
-                  style={{ background: selectedTheme.bg }}
-                  className="gap-2 text-white shadow-lg hover:opacity-90 transition-opacity"
-                >
-                  {step === 7 ? "Lock in Goals" : "Continue"}
-                  <ArrowRight className="h-4 w-4" />
-                </Button>
-              </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center order-1 sm:order-2">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setStep(TOTAL_STEPS - 1)}
+                      className="text-white/40 hover:text-white/70 text-sm"
+                    >
+                      Use suggested
+                    </Button>
+                    <Button
+                      onClick={() => setStep(TOTAL_STEPS - 1)}
+                      style={{ background: selectedTheme.bg }}
+                      className="gap-2 text-white shadow-lg hover:opacity-90 transition-opacity w-full sm:w-auto"
+                    >
+                      Lock in Goals
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-3">
+                  <Button
+                    variant="ghost"
+                    onClick={back}
+                    className="text-white/50 hover:bg-white/10 hover:text-white"
+                  >
+                    <ArrowLeft className="mr-1 h-4 w-4" />
+                    Back
+                  </Button>
+                  <Button
+                    onClick={advance}
+                    style={{ background: selectedTheme.bg }}
+                    className="gap-2 text-white shadow-lg hover:opacity-90 transition-opacity"
+                  >
+                    Continue
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>

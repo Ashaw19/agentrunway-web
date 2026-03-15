@@ -114,7 +114,7 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
           onClick={() => setShowShortcuts(false)}
         >
           <div
-            className="relative w-80 overflow-hidden rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl"
+            className="relative w-[calc(100vw-2rem)] sm:w-80 max-w-sm overflow-hidden rounded-2xl border border-white/10 bg-slate-900 p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <button

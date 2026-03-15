@@ -223,6 +223,13 @@ export interface UserSettings {
   business_name: string;   // trade name or team name (e.g. "The Smith Group")
   business_number: string; // GST/HST registration number for CRA claiming
 
+  // Social media profile URLs (synced from iOS ProfileView)
+  social_instagram: string;
+  social_facebook:  string;
+  social_linkedin:  string;
+  social_tiktok:    string;
+  social_youtube:   string;
+
   // UI preferences
   dashboard_view: string; // 'essentials' | 'standard' | 'full'
 

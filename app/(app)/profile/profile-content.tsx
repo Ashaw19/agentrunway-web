@@ -580,7 +580,7 @@ export function ProfileContent({
           </CardHeader>
           <CardContent>
             {/* 15 swatches — 5 per row, 3 rows */}
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
               {COLOR_THEMES.map((theme) => {
                 const isSelected = colorTheme === theme.value;
                 return (

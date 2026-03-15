@@ -172,14 +172,14 @@ export default async function AppLayout({
     <VoiceDraftProvider>
       <AiChatProvider>
         <div
-          className="flex h-screen overflow-hidden"
+          className="flex h-dvh overflow-hidden"
           data-color-theme={colorTheme}
         >
           <SidebarNav isPro={isPro} orgContext={orgContext} />
           <div className="flex flex-1 flex-col overflow-hidden">
             <MobileNav isPro={isPro} />
             <TopBar />
-            <main className="flex-1 overflow-y-auto bg-muted/30 p-4 sm:p-6 lg:p-8">
+            <main className="flex-1 overflow-y-auto overscroll-y-contain bg-muted/30 p-4 sm:p-6 lg:p-8">
               <div className="mx-auto max-w-screen-xl page-enter">
                 {children}
               </div>

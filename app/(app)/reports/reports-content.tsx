@@ -802,7 +802,7 @@ export function ReportsContent({
               </div>
             )}
           </div>
-          <div className="mt-4 grid grid-cols-5 gap-2">
+          <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5">
             {[
               { label: "P90", value: bands.p90, color: "text-emerald-600", desc: "Best case" },
               { label: "P75", value: bands.p75, color: "text-blue-600", desc: "Optimistic" },
