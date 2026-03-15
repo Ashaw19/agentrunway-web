@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Settings, Eye, EyeOff, AlertTriangle, Loader2 } from "lucide-react";
+import { Settings, Eye, EyeOff, AlertTriangle, Loader2, Target } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { updateOrgSettings } from "@/lib/actions/org-actions";
+import { fmtCurrency } from "@/lib/formatters";
 import type { Organization } from "@/lib/types/organizations";
 import { ORG_TYPE_LABELS } from "@/lib/types/organizations";
 
@@ -18,13 +19,21 @@ export function OrgSettingsContent({ org, isOwner }: Props) {
   const router = useRouter();
   const [name, setName] = useState(org.name);
   const [anonymize, setAnonymize] = useState(org.anonymize_agents);
+  const [goalEnabled, setGoalEnabled] = useState(org.org_goal_gci != null && org.org_goal_gci > 0);
+  const [goalValue, setGoalValue] = useState(
+    org.org_goal_gci != null && org.org_goal_gci > 0 ? String(org.org_goal_gci) : "",
+  );
   const [saving, setSaving] = useState(false);
 
   async function handleSave() {
     setSaving(true);
+    const orgGoalGci = goalEnabled && goalValue.trim()
+      ? Number(goalValue.replace(/[^0-9.]/g, ""))
+      : null;
     const { error } = await updateOrgSettings(org.id, {
       name: name.trim(),
       anonymize_agents: anonymize,
+      org_goal_gci: orgGoalGci && orgGoalGci > 0 ? orgGoalGci : null,
     });
     if (error) {
       toast.error(error);
@@ -94,6 +103,60 @@ export function OrgSettingsContent({ org, isOwner }: Props) {
           </label>
           <p className="text-sm">{org.max_seats}</p>
         </div>
+      </div>
+
+      {/* Organization Goal */}
+      <div className="rounded-xl border bg-card p-5 space-y-5">
+        <h3 className="text-sm font-semibold">Organization Goal</h3>
+
+        <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-sm font-medium flex items-center gap-2">
+              <Target className="h-4 w-4 text-teal-500" />
+              Aggregate GCI Goal
+            </p>
+            <p className="text-xs text-muted-foreground max-w-sm">
+              Set an optional organization-wide GCI target. Individual agent
+              goals are always tracked independently.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setGoalEnabled(!goalEnabled);
+              if (goalEnabled) setGoalValue("");
+            }}
+            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+              goalEnabled ? "bg-orange-500" : "bg-muted"
+            }`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition-transform ${
+                goalEnabled ? "translate-x-5" : "translate-x-0"
+              }`}
+            />
+          </button>
+        </div>
+
+        {goalEnabled && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              Annual GCI Target
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={goalValue}
+              onChange={(e) => setGoalValue(e.target.value.replace(/[^0-9]/g, ""))}
+              placeholder="e.g. 2000000"
+              className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            {goalValue && Number(goalValue) > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {fmtCurrency(Number(goalValue))}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Privacy Settings */}

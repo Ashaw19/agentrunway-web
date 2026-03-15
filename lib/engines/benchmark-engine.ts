@@ -31,7 +31,7 @@ interface CohortBenchmark {
   medianAvgPrice: number;
 }
 
-const BENCHMARKS: Record<Cohort, CohortBenchmark> = {
+export const BENCHMARKS: Record<Cohort, CohortBenchmark> = {
   rookie: {
     medianGCI: 42_000, p25GCI: 18_000, p75GCI: 72_000, p90GCI: 110_000,
     medianTransactions: 4, medianAvgPrice: 380_000,

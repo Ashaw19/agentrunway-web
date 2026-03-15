@@ -436,6 +436,7 @@ export async function updateOrgSettings(
   settings: {
     name?: string;
     anonymize_agents?: boolean;
+    org_goal_gci?: number | null;
   },
 ): Promise<ActionResult<Organization>> {
   const userId = await getAuthUserId();
