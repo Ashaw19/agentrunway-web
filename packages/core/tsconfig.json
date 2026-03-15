@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": ".",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "composite": true
+  },
+  "include": [
+    "engines/**/*.ts",
+    "types/**/*.ts",
+    "formatters.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "engines/__tests__"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "name": "@agent-runway/core",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./engines": "./engines/index.ts",
+    "./engines/*": "./engines/*.ts",
+    "./types/database": "./types/database.ts",
+    "./types/organizations": "./types/organizations.ts",
+    "./formatters": "./formatters.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}
