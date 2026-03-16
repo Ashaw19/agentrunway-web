@@ -230,9 +230,8 @@ function buildAllGroups(clients: Client[], records: ClientRecord[]): ClientGroup
 
   for (const client of clients) {
     const deals = buckets.get(client.id) ?? [];
-    if (deals.length > 0) {
-      groups.push(makeGroup(client.id, client.name, deals));
-    }
+    // Always include — clients with no records (e.g. FUB imports) must still appear
+    groups.push(makeGroup(client.id, client.name, deals));
   }
 
   for (const [key, deals] of buckets) {
@@ -241,7 +240,11 @@ function buildAllGroups(clients: Client[], records: ClientRecord[]): ClientGroup
     }
   }
 
-  return groups.sort((a, b) => b.totalGCI - a.totalGCI);
+  // Sort by GCI desc; break ties alphabetically so contacts-only clients are ordered
+  return groups.sort((a, b) => {
+    if (b.totalGCI !== a.totalGCI) return b.totalGCI - a.totalGCI;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 function makeGroup(
