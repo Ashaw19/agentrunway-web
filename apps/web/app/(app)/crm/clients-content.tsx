@@ -77,6 +77,10 @@ import {
   MoreHorizontal,
   Archive,
   RotateCcw,
+  Plane,
+  Rocket,
+  Crown,
+  Wind,
 } from "lucide-react";
 import { fmtCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -239,48 +243,111 @@ type AchievementBadgeId = "high_yield" | "frequent_flyer" | "silver_wings" | "ta
 interface AchievementBadge {
   id: AchievementBadgeId;
   label: string;
-  tooltip: string;
-  chipCls: string;   // Tailwind classes for the chip
-  dotCls: string;    // Tailwind class for the dot colour
+  /** One-liner shown under the badge name in the tooltip */
+  earned: string;
+  /** Reward suggestion shown in the tooltip */
+  reward: string;
+  /** Tailwind gradient + ring for the badge disc */
+  ringCls: string;
+  bgCls: string;
 }
 
 const ACHIEVEMENT_DEFS: Record<AchievementBadgeId, AchievementBadge> = {
   high_yield: {
     id: "high_yield",
     label: "High Yield",
-    tooltip: "Single deal with $10 K+ GCI",
-    chipCls: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    dotCls: "bg-emerald-500",
+    earned: "Closed a deal worth $10K+ in GCI",
+    reward: "💡 Reward idea: A premium bottle of wine, a fine-dining gift card ($100–150), or a luxury candle set — something that feels as polished as the deal.",
+    ringCls: "ring-emerald-400",
+    bgCls:   "bg-gradient-to-br from-emerald-500 to-teal-600",
   },
   frequent_flyer: {
     id: "frequent_flyer",
     label: "Frequent Flyer",
-    tooltip: "2 or more transactions",
-    chipCls: "bg-sky-50 text-sky-700 border-sky-200",
-    dotCls: "bg-sky-500",
+    earned: "Has flown with you 2 or more times",
+    reward: "💡 Reward idea: A personalised thank-you note with a coffee or restaurant gift card ($50–75). They're loyal — make them feel seen.",
+    ringCls: "ring-sky-400",
+    bgCls:   "bg-gradient-to-br from-sky-500 to-blue-600",
   },
   silver_wings: {
     id: "silver_wings",
     label: "Silver Wings",
-    tooltip: "5 or more transactions",
-    chipCls: "bg-slate-100 text-slate-600 border-slate-300",
-    dotCls: "bg-slate-400",
+    earned: "5+ transactions — a true repeat client",
+    reward: "💡 Reward idea: A curated gift box ($150–250) — artisan food, spa products, or a local experience. They've invested in you; invest back.",
+    ringCls: "ring-slate-400",
+    bgCls:   "bg-gradient-to-br from-slate-400 to-slate-600",
   },
   tailwind_club: {
     id: "tailwind_club",
     label: "Tailwind Club",
-    tooltip: "10 or more transactions",
-    chipCls: "bg-amber-50 text-amber-700 border-amber-300",
-    dotCls: "bg-amber-400",
+    earned: "10+ transactions — a lifetime loyalist",
+    reward: "💡 Reward idea: A signature experience ($300–600): a tasting tour, concert tickets, weekend getaway voucher, or premium subscription. This client has made your career — celebrate them.",
+    ringCls: "ring-amber-400",
+    bgCls:   "bg-gradient-to-br from-amber-400 to-orange-500",
   },
   first_class: {
     id: "first_class",
     label: "First Class",
-    tooltip: "Top 5% of clients by lifetime GCI",
-    chipCls: "bg-violet-50 text-violet-700 border-violet-200",
-    dotCls: "bg-violet-500",
+    earned: "Top 5% of all clients by lifetime GCI",
+    reward: "💡 Reward idea: A curated luxury experience ($600–1,200): a premium spa day, exclusive dining event, weekend getaway, or personalised keepsake. These clients built your business — treat them like it.",
+    ringCls: "ring-violet-400",
+    bgCls:   "bg-gradient-to-br from-violet-500 to-purple-700",
   },
 };
+
+// ── Badge icon components (aviation-themed SVG discs) ─────────────────────────
+
+function AchievementBadgeIcon({
+  badge,
+  size = 24,
+  showLabel = false,
+}: {
+  badge: AchievementBadge;
+  size?: number;
+  showLabel?: boolean;
+}) {
+  const iconSize = Math.round(size * 0.52);
+  const IconComponent: React.ComponentType<{ size?: number; className?: string }> =
+    badge.id === "high_yield"    ? Gem
+    : badge.id === "frequent_flyer" ? Plane
+    : badge.id === "silver_wings"   ? Wind
+    : badge.id === "tailwind_club"  ? Rocket
+    : Crown;
+
+  return (
+    <span className="group/badge relative inline-flex flex-col items-center" title="">
+      {/* Disc */}
+      <span
+        className={cn(
+          "rounded-full flex items-center justify-center ring-2 shadow-sm shrink-0",
+          badge.bgCls,
+          badge.ringCls,
+        )}
+        style={{ width: size, height: size }}
+      >
+        <IconComponent size={iconSize} className="text-white drop-shadow-sm" />
+      </span>
+      {showLabel && (
+        <span className="text-[9px] font-semibold text-muted-foreground mt-0.5 whitespace-nowrap leading-tight">
+          {badge.label}
+        </span>
+      )}
+      {/* Hover tooltip */}
+      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 hidden group-hover/badge:flex flex-col gap-1 w-56 rounded-xl border border-border/80 bg-popover shadow-xl p-3">
+        <span className="flex items-center gap-1.5">
+          <span
+            className={cn("h-5 w-5 rounded-full flex items-center justify-center ring-1 shrink-0", badge.bgCls, badge.ringCls)}
+          >
+            <IconComponent size={10} className="text-white" />
+          </span>
+          <span className="text-xs font-bold text-foreground">{badge.label}</span>
+        </span>
+        <span className="text-[11px] text-muted-foreground leading-snug">{badge.earned}</span>
+        <span className="text-[11px] leading-snug text-foreground/80 border-t border-border/40 pt-1.5 mt-0.5">{badge.reward}</span>
+      </span>
+    </span>
+  );
+}
 
 function computeAchievements(
   group: { deals: ClientRecord[]; dealCount: number; totalGCI: number },
@@ -514,6 +581,7 @@ export function ClientsContent({
   const [filterSide, setFilterSide] = useState<"all" | "buyer" | "seller" | "both">("all");
   const [filterSource, setFilterSource] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<"all" | ClientStatus>("all");
+  const [activityFilter, setActivityFilter] = useState<"all" | "1y" | "3y" | "5y">("all");
   const [showArchived, setShowArchived] = useState(false);
   const [sortCol, setSortCol] = useState<SortCol>("gci");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -743,10 +811,21 @@ export function ClientsContent({
         const client = localClients.find((c) => c.id === g.clientId);
         if (client && client.status !== filterStatus) return false;
       }
+      // Activity window filter
+      if (activityFilter !== "all") {
+        if (!g.lastDeal) return false;
+        const cutoffMs = {
+          "1y": 365,
+          "3y": 365 * 3,
+          "5y": 365 * 5,
+        }[activityFilter] * 24 * 60 * 60 * 1000;
+        const lastMs = new Date(g.lastDeal + "T12:00:00").getTime();
+        if (Date.now() - lastMs > cutoffMs) return false;
+      }
       return true;
     });
     return sortTableGroups(f, sortCol, sortDir);
-  }, [grouped, search, filterSide, filterSource, filterStatus, sortCol, sortDir, localClients, showArchived, archivedClientIds]);
+  }, [grouped, search, filterSide, filterSource, filterStatus, activityFilter, sortCol, sortDir, localClients, showArchived, archivedClientIds]);
 
   // Max GCI across all clients (for proportional bar)
   const maxGCI = useMemo(
@@ -1576,6 +1655,31 @@ export function ClientsContent({
             })}
           </div>
 
+          {/* Activity window filter */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {(
+              [
+                { id: "all", label: "All Time" },
+                { id: "1y",  label: "Last 365 days" },
+                { id: "3y",  label: "Last 3 years" },
+                { id: "5y",  label: "Last 5 years" },
+              ] as { id: "all" | "1y" | "3y" | "5y"; label: string }[]
+            ).map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => setActivityFilter(id)}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
+                  activityFilter === id
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-card text-muted-foreground border-border hover:border-primary/40",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           {/* Hangar toggle */}
           {archivedCount > 0 && (
             <div className="flex items-center">
@@ -1652,26 +1756,21 @@ export function ClientsContent({
 
                               {/* Name + achievement badges */}
                               <TableCell className="pl-3 pr-2 py-2.5">
-                                <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                <div className="flex items-center gap-1.5 min-w-0">
                                   <div className="h-7 w-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
                                     {group.name.charAt(0).toUpperCase()}
                                   </div>
                                   <span className="font-medium text-foreground text-sm truncate max-w-[160px]">
                                     {group.name}
                                   </span>
-                                  {badges.map((b) => (
-                                    <span
-                                      key={b.id}
-                                      title={b.tooltip}
-                                      className={cn(
-                                        "inline-flex items-center gap-1 text-[9px] font-semibold border rounded-full px-1.5 py-0.5 shrink-0 whitespace-nowrap",
-                                        b.chipCls,
-                                      )}
-                                    >
-                                      <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", b.dotCls)} />
-                                      {b.label}
+                                  {/* Achievement badge icons — circular discs with hover tooltip */}
+                                  {badges.length > 0 && (
+                                    <span className="flex items-center gap-0.5 shrink-0">
+                                      {badges.map((b) => (
+                                        <AchievementBadgeIcon key={b.id} badge={b} size={22} />
+                                      ))}
                                     </span>
-                                  ))}
+                                  )}
                                   {client?.tags?.[0] && (
                                     <Badge variant="outline" className="text-[9px] bg-violet-50 text-violet-700 border-violet-200 shrink-0 py-0">
                                       {client.tags[0]}
