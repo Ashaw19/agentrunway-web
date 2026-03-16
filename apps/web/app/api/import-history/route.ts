@@ -2,18 +2,27 @@ import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { TEXT_PROMPT } from "@/lib/import-prompt";
 
 // ── Exported types shared with the client component ──────────────────────────
 
 export interface ExtractedDeal {
-  date: string;         // YYYY-MM-DD
+  date: string;          // YYYY-MM-DD
   address: string;
-  gci: number;          // agent's net commission for this deal (post-split)
-  party_a: string;      // names from ONE side of the deal (before the /)
-  party_b: string;      // names from the OTHER side (after the /)
+  sale_price: number;    // property sale / transaction price (0 if not found in document)
+  gci: number;           // agent's net commission for this deal (post-split)
+  party_a: string;       // names from ONE side of the deal (before the /)
+  party_b: string;       // names from the OTHER side (after the /)
   agent_side: 0 | 1 | null; // 0 = represented party_a, 1 = party_b, null = unclear
-  source?: string;      // lead source: SOI, Agent Referral, Realtor.ca, etc.
+  source?: string;       // lead source: SOI, Agent Referral, Realtor.ca, etc.
   side?: "buyer" | "seller" | "both"; // agent's role: from "Buy | Sell" column
+  confidence?: {
+    gci: "high" | "medium" | "low";
+    sale_price: "high" | "medium" | "low" | "missing";
+    names: "high" | "medium" | "low";
+    date: "high" | "medium" | "low";
+    address: "high" | "medium" | "low" | "missing";
+  };
 }
 
 export interface ImportResult {
@@ -33,6 +42,7 @@ interface GroqRawResponse {
   deals: Array<{
     date: string;
     address: string;
+    sale_price?: number | string | null;
     gci: number | string;
     party_a: string;
     party_b: string;
@@ -55,11 +65,19 @@ Required JSON structure:
   "deals": [
     {
       "date": "<YYYY-MM-DD — the closing or payment date of the deal>",
-      "address": "<property street address>",
+      "address": "<property street address, or empty string if not shown>",
+      "sale_price": <number — the property sale / transaction price (e.g. 485000). Look for columns labelled "Sale Price", "Transaction Price", "Purchase Price", "Selling Price", "Listed/Sold Price", "Property Value", or similar. Set to 0 if no sale price column exists in this document.>,
       "gci": <number — the agent's NET commission after the brokerage split. Look for columns labelled "Taxable", "Net Commission", "Agent Share", "Net", "Your Commission", or similar. Do NOT use the gross/full commission before split.>,
       "party_a": "<ALL names from ONE side of the transaction — everything BEFORE the first '/' separator>",
       "party_b": "<ALL names from the OTHER side — everything AFTER the first '/' separator>",
-      "agent_side": <0 if evidence suggests agent represented party_a, 1 if party_b, null if unclear>
+      "agent_side": <0 if evidence suggests agent represented party_a, 1 if party_b, null if unclear>,
+      "confidence": {
+        "gci": "<high | medium | low> — high if an exact labelled GCI/Net column was found, medium if inferred, low if estimated",
+        "sale_price": "<high | medium | low | missing> — missing if no sale price column in document",
+        "names": "<high | medium | low> — high if names are clearly formatted, medium if partial, low if ambiguous",
+        "date": "<high | medium | low> — high if explicit date, medium if inferred from quarter, low if estimated",
+        "address": "<high | medium | low | missing> — missing if no address in document"
+      }
     }
   ]
 }
@@ -105,141 +123,99 @@ CRITICAL RULES — read every rule carefully before outputting:
    - Use "Taxable", "Net Commission", "Agent Share", "Your Net", or equivalent
    - If only one commission column exists, use it
 
-3. agent_side hint — if one party is a corporation, estate, developer, or builder,
+3. SALE PRICE — look for any column indicating the property value or transaction amount:
+   - Common labels: "Sale Price", "Purchase Price", "Selling Price", "Transaction Price", "Sold Price"
+   - Do NOT confuse with commission amounts — sale prices are typically 6–8 figures for Canadian real estate
+   - Set sale_price to 0 and confidence.sale_price to "missing" if no such column exists
+
+4. agent_side hint — if one party is a corporation, estate, developer, or builder,
    the agent probably represented the individual on the other side (set 0 or 1 accordingly).
    Otherwise set null.
 
-4. IGNORE expenses, fees, advances, or any section that is not the commission/transaction table.
+5. IGNORE expenses, fees, advances, or any section that is not the commission/transaction table.
 
-5. Return ONLY the JSON — nothing before or after it.`;
+6. Return ONLY the JSON — nothing before or after it.`;
 
-// Used for text-based input (Excel converted to CSV, plain CSV, or .txt files).
-// Handles:
-//   A) Agent's own transaction tracker (Name | Address | Close Date | Buy | Sell | Source | GCI | Net)
-//   B) Brokerage commission reports (party_a / party_b separated by "/")
-//   C) Freeform narrative / bullet-point text (prose summaries, notes, copy-pasted text)
-const TEXT_PROMPT = (content: string) => `You are extracting real estate commission transaction data from a document.
-
-The data below may be in any of three formats:
-  (A) An agent's own deal tracker — tabular rows with columns like Name, Address, Close Date, Buy | Sell, Source, GCI, Net Commission
-  (B) A brokerage commission report — tabular rows where party names are joined by "/"
-  (C) Freeform narrative / bullet-point text — prose paragraphs or bullet lists describing closed deals
-
-DOCUMENT CONTENT:
----
-${content.slice(0, 20000)}
----
-
-Return ONLY a raw JSON object (no markdown, no code fences). Required structure:
-{
-  "year": <integer — the calendar year this document covers. Infer from a title line (e.g. "2024 YEAR-END TRANSACTION SUMMARY", "2025 Transaction Tracker") or from the dates. If explicitly stated in a heading, always use that year.>,
-  "deals": [
-    {
-      "date": "<YYYY-MM-DD — closing or payment date>",
-      "address": "<property street address, or empty string if not mentioned>",
-      "gci": <number — the agent's GROSS commission BEFORE brokerage split. In tracker format use the "GCI" column. In narrative format use amounts labelled "GCI", "GCI earned", "Earned ... GCI", or "Commission" — NOT net/after-split amounts.>,
-      "party_a": "<client name — see format rules below>",
-      "party_b": "<other party name, or empty string>",
-      "agent_side": <0 = agent represented party_a, 1 = party_b, null = unclear>,
-      "side": "<\"buyer\" | \"seller\" | \"both\" | null — agent's role>",
-      "source": "<lead source, e.g. SOI, Agent Referral, Realtor.ca — or null>"
-    }
-  ]
-}
-
-═══════════════════════════════════════════════════════════════════
-FORMAT A — Agent's Own Tracker (tabular, one client per row)
-═══════════════════════════════════════════════════════════════════
-Detected when columns include: Name, Buy | Sell (or Buy/Sell), Source, GCI, Net Commission Income.
-
-Rules:
-- party_a = the Name column value (agent's client)
-- party_b = "" (empty)
-- agent_side = 0
-- side: "Buy" → "buyer" | "Sell" → "seller" | "Buy | Sell" → "both" | "Rent" → "buyer"
-- source: copy the Source column verbatim
-- gci: use the "GCI" column. Do NOT use "Net Commission" or any post-split column.
-
-Date handling — apply rules in this exact priority order:
-1. If the date cell contains a SPECIFIC day (e.g. "Jan 12 2024", "March 26th 2024", "2024-04-22", "30/04/2024", "May 1 (2024)"):
-   → Parse the specific date directly. NEVER fall back to a quarter-end date when a day is present.
-   → Ignore any parenthetical annotation e.g. "(paid)", "(closed)".
-   → For DD/MM vs MM/DD ambiguity: scan ALL dates in the file first. If ANY date has a first component > 12 (e.g. "22/04", "26/03", "30/04"), the entire file uses DD/MM/YYYY — apply DD/MM to ALL dates including ambiguous ones like "12/01/2024" (→ Jan 12, not Dec 1). Only default to MM/DD if no date in the file has a first component > 12.
-2. If the date cell contains ONLY a quarter code with no day or month (exactly "Q1", "Q2", "Q3", or "Q4"):
-   → Use the LAST day of that quarter for the inferred year: Q1→Mar 31, Q2→Jun 30, Q3→Sep 30, Q4→Dec 31.
-3. Excel serial numbers (e.g. 45769 ≈ 2025-03-21). Anchors: 44927=2023-01-01, 45292=2024-01-01, 45658=2025-01-01, 46023=2026-01-01.
-4. Partial month+year only (e.g. "Oct 2024", "June 2024"): use the 15th of that month.
-
-EXAMPLES:
-  Row: Matt Foster | 531 Ridge Row | Jan 12 (paid) | Sell | SOI | 580000 | 14500 | 10875
-  → party_a="Matt Foster", side="seller", source="SOI", gci=14500
-
-  Row: Tong & Sunny Gao | 68 Elizabeth Pkwy | 45769 | Buy | Sell | SOI | 430000 | 10750 | 8062.5
-  → party_a="Tong & Sunny Gao", side="both", source="SOI", gci=10750
-
-══════════════════════════════════════════════════════════════════
-FORMAT B — Brokerage Commission Report (party_a / party_b names)
-══════════════════════════════════════════════════════════════════
-Detected when party names are combined with a "/" separator in one field.
-
-Rules:
-- Split on the FIRST "/" only: party_a = before, party_b = after (trimmed)
-- "&" connects people on the SAME side — never a separator between sides
-- agent_side: 0 if agent represented party_a, 1 if party_b, null if unclear
-- side: null | source: null
-
-══════════════════════════════════════════════════════════════════════
-FORMAT C — Freeform Narrative / Bullet-Point Text
-══════════════════════════════════════════════════════════════════════
-Detected when the content is prose paragraphs or bullet lists rather than rows with consistent columns.
-Examples: "January 12: Sold 531 Ridge Row for Matt Foster. GCI earned $14,500."
-          "- Jun 12: Buyer rep for Angelique Simpson — purchased 139 McCarthy's Point Road. Earned $12,700 GCI."
-          "May 2: Out-of-area referral sent for Travis & Chryssie Radtke (Cape Breton). Received referral fee of $832.70."
-
-Rules for Format C:
-- Extract EVERY transaction mentioned — including small referral fees, rentals, and out-of-area referrals
-- party_a = the client name (person described as "for [Name]", "buyer rep for [Name]", "[Name] purchased", etc.)
-- party_b = "" (narratives typically only mention the agent's client)
-- agent_side = 0
-- side: look for words like "Sold/Listing/Sell" → "seller"; "Buyer rep/purchased/bought" → "buyer"; "Double-ended/both sides" → "both"
-- source: extract from phrases like "SOI", "Agent Referral", "Realtor.ca", "Referral from SOI", "Database" etc.
-- gci: extract the dollar amount labelled "GCI", "GCI earned", "Earned ... GCI", "Commission", or "referral fee". Use the GROSS (pre-split) amount when both gross and net are mentioned.
-- date: extract from date mentions at the start of bullets or sentences. If only a quarter section is given (e.g. "Q2 CLOSINGS:"), use the last day of that quarter.
-- address: extract any street address mentioned (e.g. "531 Ridge Row", "139 McCarthy's Point Road"). If only a city/region is mentioned (e.g. "Cape Breton"), use that as the address.
-
-CRITICAL for Format C: Do NOT skip deals just because they are small, referral-only, or lack a property address. Every bullet or sentence describing a closed transaction or referral fee must produce one deal object.
-
-══════════════════════════════════════════════════
-UNIVERSAL RULES (apply to ALL formats)
-══════════════════════════════════════════════════
-- SKIP rows/lines where party_a is empty, "Totals", "Name", or a section heading with no deal data
-- SKIP subtotals, quarterly summary lines, and expense entries
-- year: read from the document title/heading (e.g. "2024 YEAR-END TRANSACTION SUMMARY" → year=2024, "2025 Transaction Tracker" → year=2025)
-- If no title, infer year from the dates in the data
-- Return ONLY the JSON — nothing before or after it`;
+// TEXT_PROMPT is now in lib/import-prompt.ts (shared with the accuracy test runner).
+// Imported above.
 
 // ── Date normalization (pre-processes content before sending to LLM) ─────────
-// Detects DD/MM vs MM/DD by scanning all slash-dates; if any first component > 12
-// the whole file is DD/MM. Converts all matched dates to ISO YYYY-MM-DD so the
-// LLM never sees ambiguous date strings.
+// Two passes:
+//   1. Excel serial numbers → ISO dates (so LLM never has to do serial arithmetic)
+//   2. Slash dates DD/MM vs MM/DD disambiguation → ISO dates
+
+/** Convert an Excel serial number to YYYY-MM-DD using the known 2023-01-01 = 44927 anchor. */
+function excelSerialToISO(serial: number): string {
+  const ANCHOR_DATE  = new Date(Date.UTC(2023, 0, 1)); // 2023-01-01
+  const ANCHOR_SERIAL = 44927;
+  const ms = ANCHOR_DATE.getTime() + (serial - ANCHOR_SERIAL) * 86_400_000;
+  const d  = new Date(ms);
+  const y  = d.getUTCFullYear();
+  const m  = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 function normalizeDateFormats(content: string): string {
+  // Pass 1 — Excel serial numbers (5-digit integers, ~2015-2035 range)
+  //
+  // Strategy: if the content is a CSV with a labelled Date column, only convert
+  // serials in THAT column — prevents false-positives from GCI/price values that
+  // happen to fall in the 42000–47999 range (e.g. a $45,000 commission).
+  // Falls back to a generic cell-boundary regex for non-CSV content.
+  const SERIAL_RE = /^(4[2-7]\d{3}|48[0-3]\d\d)$/;
+
+  const lines = content.split("\n");
+  let dateColIdx = -1;
+  for (let i = 0; i < Math.min(lines.length, 5); i++) {
+    const cells = lines[i].split(",");
+    if (cells.length >= 3) {
+      const idx = cells.findIndex(c =>
+        /\b(?:close[\s_]?)?date\b|\bclosing\b|\bsettlement[\s_]date\b/i.test(c.trim())
+      );
+      if (idx >= 0) { dateColIdx = idx; break; }
+    }
+  }
+
+  let result: string;
+  if (dateColIdx >= 0) {
+    // Column-aware: only replace serials in the detected date column
+    result = lines.map(line => {
+      const cells = line.split(",");
+      if (cells.length > dateColIdx) {
+        const cell = cells[dateColIdx].trim();
+        if (SERIAL_RE.test(cell)) {
+          cells[dateColIdx] = excelSerialToISO(parseInt(cell, 10));
+          return cells.join(",");
+        }
+      }
+      return line;
+    }).join("\n");
+  } else {
+    // Generic: replace cell-isolated serial numbers (tab/comma/newline/line-start boundaries)
+    result = content.replace(
+      /(?<=^|[\t,\n])(4[2-7]\d{3}|48[0-3]\d\d)(?=$|[\t,\n])/gm,
+      (_, serial) => excelSerialToISO(parseInt(serial, 10)),
+    );
+  }
+
+  // Pass 2 — slash dates (DD/MM/YYYY vs MM/DD/YYYY)
   const slashDate = /\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g;
-  const matches = [...content.matchAll(slashDate)];
-  if (matches.length === 0) return content;
+  const matches = [...result.matchAll(slashDate)];
+  if (matches.length === 0) return result;
 
   const isDDMM = matches.some(m => parseInt(m[1]) > 12);
   const isMDY  = !isDDMM && matches.some(m => parseInt(m[2]) > 12);
 
   if (isDDMM) {
-    return content.replace(slashDate, (_, d, m, y) =>
+    return result.replace(slashDate, (_, d, m, y) =>
       `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
   }
   if (isMDY) {
-    return content.replace(slashDate, (_, m, d, y) =>
+    return result.replace(slashDate, (_, m, d, y) =>
       `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
   }
-  return content; // all ambiguous — leave for LLM
+  return result; // all ambiguous — leave for LLM
 }
 
 // ── Aggregate computation (done in code — not trusted to Groq) ───────────────
@@ -265,15 +241,41 @@ function computeAggregates(deals: GroqRawResponse["deals"], year: number): Impor
       : rawSide === "both" ? "both"
       : undefined;
 
+    const rawDeal = d as typeof d & {
+      confidence?: ExtractedDeal["confidence"];
+      sale_price?: number | string | null;
+    };
+
+    // Derive code-level confidence overrides for fields we can verify deterministically
+    const salePrice = Number(rawDeal.sale_price ?? 0) || 0;
+    const gci = Number(d.gci) || 0;
+    const address = (d.address ?? "").trim();
+
+    // If party_a still had a "/" (we just fixed it above), names confidence is medium
+    const namesWereSplit = party_a !== (d.party_a ?? "").trim();
+
+    const confidence: ExtractedDeal["confidence"] = rawDeal.confidence ?? {
+      gci: gci > 0 ? "high" : "low",
+      sale_price: salePrice > 0 ? "high" : "missing",
+      names: namesWereSplit ? "medium" : "high",
+      date: "high",
+      address: address ? "high" : "missing",
+    };
+
+    // Override sale_price confidence if we can see it's missing
+    if (salePrice === 0) confidence.sale_price = "missing";
+
     return {
       date: d.date,
-      address: d.address ?? "",
-      gci: Number(d.gci) || 0,
+      address,
+      sale_price: salePrice,
+      gci,
       party_a,
       party_b,
       agent_side: d.agent_side ?? null,
       source: d.source || undefined,
       side,
+      confidence,
     };
   });
 

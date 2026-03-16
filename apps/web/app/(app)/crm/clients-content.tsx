@@ -21,7 +21,16 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -65,6 +74,9 @@ import {
   UserPlus,
   Pencil,
   FileText,
+  MoreHorizontal,
+  Archive,
+  RotateCcw,
 } from "lucide-react";
 import { fmtCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -85,6 +97,7 @@ import type {
   RelationshipType,
   FlightPlan,
   FlightPlanStep,
+  ArchiveReason,
 } from "@/lib/types/database";
 import {
   ACTIVITY_TYPE_LABELS,
@@ -403,6 +416,7 @@ export function ClientsContent({
   const [filterSide, setFilterSide] = useState<"all" | "buyer" | "seller" | "both">("all");
   const [filterSource, setFilterSource] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<"all" | ClientStatus>("all");
+  const [showArchived, setShowArchived] = useState(false);
   const [sortCol, setSortCol] = useState<SortCol>("gci");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [tab, setTab] = useState<TabId>("clients");
@@ -427,6 +441,13 @@ export function ClientsContent({
   const [newClientPostal,   setNewClientPostal]    = useState("");
   const [newClientCountry,  setNewClientCountry]   = useState("Canada");
   const [addClientSaving, setAddClientSaving] = useState(false);
+
+  // Archive / Delete dialogs
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [archiveReason, setArchiveReason] = useState<ArchiveReason>("deceased");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   // Voice-to-client state
   const [voiceDraft,  setVoiceDraft]  = useState<VoiceDraft | null>(null);
   const [voiceBanner, setVoiceBanner] = useState(false);
@@ -496,7 +517,7 @@ export function ClientsContent({
   const [mapPostal, setMapPostal] = useState("__none__");
   const [mapCountry, setMapCountry] = useState("__none__");
   const [mapPhoneType, setMapPhoneType] = useState("__none__");
-  const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null);
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; enriched: number } | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -588,8 +609,19 @@ export function ClientsContent({
     [records],
   );
 
+  // Sets of archived client IDs for fast lookup
+  const archivedClientIds = useMemo(
+    () => new Set(localClients.filter((c) => !!c.archived_at).map((c) => c.id)),
+    [localClients],
+  );
+  const archivedCount = archivedClientIds.size;
+
   const filtered = useMemo(() => {
     const f = grouped.filter((g) => {
+      // Archive visibility: hide archived clients unless in Hangar view (and vice versa)
+      const isArchived = g.clientId ? archivedClientIds.has(g.clientId) : false;
+      if (showArchived ? !isArchived : isArchived) return false;
+
       if (search) {
         const q = search.toLowerCase();
         if (
@@ -616,7 +648,7 @@ export function ClientsContent({
       return true;
     });
     return sortTableGroups(f, sortCol, sortDir);
-  }, [grouped, search, filterSide, filterSource, filterStatus, sortCol, sortDir, localClients]);
+  }, [grouped, search, filterSide, filterSource, filterStatus, sortCol, sortDir, localClients, showArchived, archivedClientIds]);
 
   const hasAnyData = records.length > 0;
 
@@ -797,6 +829,33 @@ export function ClientsContent({
     },
     [localFlightPlans, localFlightPlanSteps, localClients, addTask],
   );
+
+  // Archive a client (move to Hangar)
+  const handleArchiveClient = useCallback(async (clientId: string, reason: ArchiveReason) => {
+    const archivedAt = new Date().toISOString();
+    await updateClientField(clientId, "archived_at", archivedAt);
+    await updateClientField(clientId, "archive_reason", reason);
+    setArchiveDialogOpen(false);
+    setDetailPanelOpen(false);
+  }, [updateClientField]);
+
+  // Restore a client from the Hangar
+  const handleRestoreClient = useCallback(async (clientId: string) => {
+    await updateClientField(clientId, "archived_at", null);
+    await updateClientField(clientId, "archive_reason", null);
+    setDetailPanelOpen(false);
+  }, [updateClientField]);
+
+  // Permanently delete a client
+  const handleDeleteClient = useCallback(async (clientId: string) => {
+    setDeleteLoading(true);
+    const supabase = createClient();
+    await supabase.from("clients").delete().eq("id", clientId);
+    setLocalClients((prev) => prev.filter((c) => c.id !== clientId));
+    setDeleteLoading(false);
+    setDeleteDialogOpen(false);
+    setDetailPanelOpen(false);
+  }, []);
 
   // Add a new client manually
   const handleAddClient = useCallback(async () => {
@@ -1130,21 +1189,50 @@ export function ClientsContent({
     const existingSearchNames = new Set(localClients.map((c) => c.name_search));
     let imported = 0;
     let skipped = 0;
+    let enriched = 0;
     const newClients: Client[] = [];
 
     for (const row of csvRows) {
       const rawName = (row[mapName] ?? "").trim();
       if (!rawName) { skipped++; continue; }
       const nameSearch = rawName.toLowerCase();
-      if (existingSearchNames.has(nameSearch)) { skipped++; continue; }
 
-      const email = mapEmail !== "__none__" ? (row[mapEmail] ?? "").trim() || null : null;
-      const phone = mapPhone !== "__none__" ? (row[mapPhone] ?? "").trim() || null : null;
-      const leadSource = mapSource !== "__none__" ? (row[mapSource] ?? "").trim() || null : null;
+      const email    = mapEmail    !== "__none__" ? (row[mapEmail]    ?? "").trim() || null : null;
+      const phone    = mapPhone    !== "__none__" ? (row[mapPhone]    ?? "").trim() || null : null;
+      const city     = mapCity     !== "__none__" ? (row[mapCity]     ?? "").trim() || null : null;
+      const street   = mapStreet   !== "__none__" ? (row[mapStreet]   ?? "").trim() || null : null;
+      const postal   = mapPostal   !== "__none__" ? (row[mapPostal]   ?? "").trim() || null : null;
+      const leadSource = mapSource !== "__none__" ? (row[mapSource]   ?? "").trim() || null : null;
       // Province: strip trailing commas (FUB exports "ON," sometimes)
       const province = mapProvince !== "__none__"
         ? (row[mapProvince] ?? "").trim().replace(/,+$/, "") || null
         : null;
+
+      // If name already exists, enrich empty contact fields instead of skipping
+      if (existingSearchNames.has(nameSearch)) {
+        const existing = localClients.find((c) => c.name_search === nameSearch);
+        if (existing) {
+          const updates: Record<string, unknown> = {};
+          if (!existing.email           && email)    updates.email           = email;
+          if (!existing.phone           && phone)    updates.phone           = phone;
+          if (!existing.city            && city)     updates.city            = city;
+          if (!existing.province_region && province) updates.province_region = province;
+          if (!existing.street_address  && street)   updates.street_address  = street;
+          if (!existing.postal_code     && postal)   updates.postal_code     = postal;
+          if (Object.keys(updates).length > 0) {
+            await supabase.from("clients").update(updates).eq("id", existing.id);
+            setLocalClients((prev) =>
+              prev.map((c) => (c.id === existing.id ? { ...c, ...updates } : c))
+            );
+            enriched++;
+          } else {
+            skipped++;
+          }
+        } else {
+          skipped++;
+        }
+        continue;
+      }
 
       const { data, error } = await supabase
         .from("clients")
@@ -1156,10 +1244,10 @@ export function ClientsContent({
           phone,
           lead_source: leadSource,
           tags: [],
-          city:           mapCity      !== "__none__" ? (row[mapCity]      ?? "").trim() || null : null,
+          city,
           province_region: province,
-          street_address: mapStreet    !== "__none__" ? (row[mapStreet]    ?? "").trim() || null : null,
-          postal_code:    mapPostal    !== "__none__" ? (row[mapPostal]    ?? "").trim() || null : null,
+          street_address: street,
+          postal_code:    postal,
           country:        mapCountry   !== "__none__" ? (row[mapCountry]   ?? "").trim() || "Canada" : "Canada",
           phone_type:     mapPhoneType !== "__none__" ? normalizePhoneType(row[mapPhoneType] ?? "") : "mobile",
         })
@@ -1176,7 +1264,7 @@ export function ClientsContent({
     }
 
     setLocalClients((prev) => [...prev, ...newClients]);
-    setImportResult({ imported, skipped });
+    setImportResult({ imported, skipped, enriched });
     setImportStep("done");
     setImportLoading(false);
   }
@@ -1375,6 +1463,24 @@ export function ClientsContent({
               );
             })}
           </div>
+
+          {/* Hangar toggle */}
+          {archivedCount > 0 && (
+            <div className="flex items-center">
+              <button
+                onClick={() => setShowArchived((v) => !v)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
+                  showArchived
+                    ? "bg-zinc-800 text-zinc-100 border-zinc-700"
+                    : "bg-card text-muted-foreground border-border hover:border-primary/40",
+                )}
+              >
+                <Archive className="h-3 w-3" />
+                {showArchived ? "← Back to Active" : `Hangar (${archivedCount})`}
+              </button>
+            </div>
+          )}
 
           {/* Client table */}
           {!hasAnyData ? (
@@ -1770,7 +1876,10 @@ export function ClientsContent({
                               }
                               setEditingField(null);
                             }}
-                            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === "Tab") (e.target as HTMLInputElement).blur();
+                              if (e.key === "Escape") { setEditingValue(selectedClient.name); setEditingField(null); }
+                            }}
                             className="h-8 text-lg font-semibold"
                           />
                         ) : (
@@ -1810,6 +1919,43 @@ export function ClientsContent({
                         ))}
                       </SelectContent>
                     </Select>
+                    {/* Three-dot menu: Archive / Delete */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {selectedClient.archived_at ? (
+                          <DropdownMenuItem
+                            className="gap-2"
+                            onSelect={() => handleRestoreClient(selectedClient.id)}
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                            Restore Client
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem
+                            className="gap-2"
+                            onSelect={() => {
+                              setArchiveReason("deceased");
+                              setArchiveDialogOpen(true);
+                            }}
+                          >
+                            <Archive className="h-4 w-4" />
+                            Move to Hangar…
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="gap-2 text-destructive focus:text-destructive"
+                          onSelect={() => setDeleteDialogOpen(true)}
+                        >
+                          Delete Forever…
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </SheetHeader>
 
@@ -2810,8 +2956,11 @@ export function ClientsContent({
                 </p>
                 <p className="text-sm text-emerald-700">
                   {importResult.imported} contact{importResult.imported !== 1 ? "s" : ""} imported
+                  {importResult.enriched > 0
+                    ? `, ${importResult.enriched} enriched`
+                    : ""}
                   {importResult.skipped > 0
-                    ? `, ${importResult.skipped} skipped (duplicates)`
+                    ? `, ${importResult.skipped} skipped`
                     : ""}
                   .
                 </p>
@@ -2836,6 +2985,67 @@ export function ClientsContent({
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ Archive Dialog ══ */}
+      <Dialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Move to Hangar</DialogTitle>
+            <DialogDescription>
+              {selectedClient?.name} will be hidden from your active client list but all their history and deals will be preserved.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Label className="text-xs text-muted-foreground">Reason for archiving</Label>
+            <Select value={archiveReason} onValueChange={(v) => setArchiveReason(v as ArchiveReason)}>
+              <SelectTrigger className="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="deceased">Deceased</SelectItem>
+                <SelectItem value="moved_away">Moved Away</SelectItem>
+                <SelectItem value="do_not_contact">Do Not Contact</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setArchiveDialogOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (selectedClient) handleArchiveClient(selectedClient.id, archiveReason);
+              }}
+            >
+              <Archive className="mr-2 h-4 w-4" />
+              Move to Hangar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ══ Delete Dialog ══ */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Permanently delete {selectedClient?.name}?</DialogTitle>
+            <DialogDescription>
+              All activities and tasks for this client will be deleted. Deal history records are preserved — they remain in your History with no client link.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={deleteLoading}
+              onClick={() => {
+                if (selectedClient) handleDeleteClient(selectedClient.id);
+              }}
+            >
+              {deleteLoading ? "Deleting…" : "Delete Forever"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
@@ -3122,7 +3332,12 @@ function InlineEdit({
           value={localVal}
           onChange={(e) => setLocalVal(e.target.value)}
           onBlur={commit}
-          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setLocalVal(value); setEditing(false); } }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); }
+            // Tab: save and let the browser move focus naturally to the next field
+            if (e.key === "Tab") { commit(); }
+            if (e.key === "Escape") { setLocalVal(value); setEditing(false); }
+          }}
           className="h-7 text-xs"
         />
       </div>
@@ -3132,7 +3347,9 @@ function InlineEdit({
   return (
     <div
       className="cursor-pointer group"
+      tabIndex={0}
       onClick={() => { setLocalVal(value); setEditing(true); }}
+      onFocus={() => { setLocalVal(value); setEditing(true); }}
     >
       {label && <span className="text-[10px] text-muted-foreground block mb-0.5">{label}</span>}
       <span className={cn(

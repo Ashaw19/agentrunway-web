@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -40,7 +40,7 @@ import {
 import { fmtCurrency } from "@/lib/formatters";
 import { computeGCI, type HistoryItem, type Transaction, type UserSettings } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
-import type { ImportResult } from "@/app/api/import-history/route";
+import type { ImportResult, ExtractedDeal } from "@/app/api/import-history/route";
 import { ProductionReportDialog } from "@/components/production-report-dialog";
 import { YearOverYearChart, type YoYDataPoint } from "@/components/year-over-year-chart";
 import { Download } from "lucide-react";
@@ -98,6 +98,28 @@ function buildSeasonalProfile(items: HistoryItem[]): SeasonalProfile | null {
   return { avgGCI, avgTx, pcts, strongestQ, weakestQ, yearCount: withData.length };
 }
 
+// ── Client name splitter ──────────────────────────────────────────────────────
+// Splits combined names like "Tom & Nancy Doyle" → ["Tom Doyle", "Nancy Doyle"].
+// Corporate/estate names (Inc, Corp, Realty, Estate of, etc.) are kept as-is.
+const CORPORATE_RE = /\b(inc|corp|ltd|llc|llp|co\.|realty|properties|group|team|trust|estate\s+of)\b/i;
+
+function splitClientNames(raw: string): string[] {
+  if (CORPORATE_RE.test(raw)) return [raw.trim()];
+
+  const parts = raw.split(/\s+(?:&|and)\s+/i);
+  if (parts.length < 2) return [raw.trim()];
+
+  // Inherit last name from the final segment: "Tom & Nancy Doyle" → "Tom Doyle", "Nancy Doyle"
+  const lastName = parts[parts.length - 1].trim().split(/\s+/).pop() ?? "";
+  return parts
+    .map((p, i) => {
+      p = p.trim();
+      if (i < parts.length - 1 && !p.includes(" ")) return `${p} ${lastName}`;
+      return p;
+    })
+    .filter(Boolean);
+}
+
 type ImportStatus = "idle" | "rendering" | "extracting" | "preview" | "saving";
 
 const SPLIT_OPTIONS: { label: string; value: number }[] = [
@@ -109,6 +131,22 @@ const SPLIT_OPTIONS: { label: string; value: number }[] = [
   { label: "95/5  — agent keeps 95%", value: 0.95 },
   { label: "100%  — no brokerage split", value: 1.00 },
 ];
+
+/** Small coloured dot indicating AI extraction confidence for a single extracted field.
+ *  Green (high) dots are hidden — only amber, red, and gray are rendered. */
+function ConfidenceDot({ level }: { level?: "high" | "medium" | "low" | "missing" }) {
+  if (!level || level === "high") return null;
+  const cfg =
+    level === "medium" ? { cls: "bg-amber-400",  tip: "Medium confidence — verify this value"   }
+    : level === "low"  ? { cls: "bg-red-500",    tip: "Low confidence — please verify this field" }
+    :                    { cls: "bg-slate-300",  tip: "Not found in document"                    };
+  return (
+    <span
+      title={cfg.tip}
+      className={cn("inline-block w-1.5 h-1.5 rounded-full shrink-0 mt-[3px]", cfg.cls)}
+    />
+  );
+}
 
 export function HistoryContent({ historyItems: initial, transactions, settingsSplit, settings }: Props) {
   const [items, setItems] = useState(initial);
@@ -128,6 +166,8 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
   const [importData, setImportData]       = useState<ImportResult | null>(null);
   // Per-deal: which party is the agent's client (0 = party_a, 1 = party_b)
   const [agentSides, setAgentSides]       = useState<Record<number, 0 | 1>>({});
+  // Per-deal user corrections to extracted fields (keyed by deal index in importData.deals)
+  const [editedFields, setEditedFields]   = useState<Record<number, Partial<ExtractedDeal>>>({});
 
   // ── Batch (multi-year) import state ──────────────────────────────────────
   const [batchImportData, setBatchImportData]   = useState<ImportResult[]>([]);
@@ -145,6 +185,17 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
   const [batchSplitPcts, setBatchSplitPcts] = useState<Record<number, number | null>>({});
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Live-updating preview data: recomputes quarterly aggregates as user edits GCI values
+  const previewImportData = useMemo(() => {
+    if (!importData) return null;
+    if (Object.keys(editedFields).length === 0) return importData;
+    const resolvedDeals = importData.deals.map((d, i) => {
+      const edits = editedFields[i];
+      return edits ? { ...d, ...edits } : d;
+    });
+    return computeLocalAggregates(resolvedDeals, importData.year);
+  }, [importData, editedFields]);
 
   // Group transactions by year for auto-derived stats
   const txByYear = transactions.reduce<Record<number, Transaction[]>>(
@@ -549,13 +600,21 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
+    // Apply any per-deal edits the user made during the preview step
+    const resolvedDeals = importData.deals.map((deal, i) => getEffectiveDeal(deal, i));
+    const hasUserEdits = Object.keys(editedFields).length > 0;
+    // If user corrected any GCI values, recompute quarterly aggregates
+    const effectiveImportData = hasUserEdits
+      ? computeLocalAggregates(resolvedDeals, importData.year)
+      : importData;
+
     const payload = {
       user_id: user.id,
       year: importData.year,
-      annual_gci: importData.annual_gci,
-      annual_tx: importData.annual_tx,
-      quarter_gci: importData.quarter_gci,
-      quarter_tx: importData.quarter_tx,
+      annual_gci: effectiveImportData.annual_gci,
+      annual_tx: effectiveImportData.annual_tx,
+      quarter_gci: effectiveImportData.quarter_gci,
+      quarter_tx: effectiveImportData.quarter_tx,
       split_pct: importSplitPct,
     };
 
@@ -592,12 +651,14 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
         .eq("user_id", user.id).eq("year", importData.year);
 
       // ── Upsert client identities, then attach client_id to each record ────
-      const dealNames = importData.deals
-        .map((deal, i) => {
+      // splitClientNames() splits "Tom & Nancy Doyle" → ["Tom Doyle", "Nancy Doyle"]
+      // Corporate/estate names (Inc, Realty, Estate of…) are kept as-is.
+      const dealNames = resolvedDeals
+        .flatMap((deal, i) => {
           const sideSelected = agentSides[i] ?? deal.agent_side;
-          return ((sideSelected === 1 ? deal.party_b : deal.party_a) ?? "").trim();
-        })
-        .filter(Boolean);
+          const raw = ((sideSelected === 1 ? deal.party_b : deal.party_a) ?? "").trim();
+          return raw ? splitClientNames(raw) : [];
+        });
       const uniqueNames = [...new Set(dealNames)];
 
       if (uniqueNames.length > 0) {
@@ -612,12 +673,12 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
         : { data: [] as { id: string; name_search: string }[] };
       const clientIdMap = new Map((clientRows ?? []).map((c) => [c.name_search, c.id]));
 
-      const clientInserts = importData.deals
-        .map((deal, i) => {
+      const clientInserts = resolvedDeals
+        .flatMap((deal, i) => {
           const sideSelected = agentSides[i] ?? deal.agent_side;
-          const clientName = ((sideSelected === 1 ? deal.party_b : deal.party_a) ?? "").trim();
-          if (!clientName) return null;
-          return {
+          const raw = ((sideSelected === 1 ? deal.party_b : deal.party_a) ?? "").trim();
+          if (!raw) return [];
+          return splitClientNames(raw).map((clientName) => ({
             user_id: user.id,
             name: clientName,
             client_id: clientIdMap.get(clientName.toLowerCase()) ?? null,
@@ -627,7 +688,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             close_date: deal.date || null,
             year: importData.year,
             gci: deal.gci,
-          };
+          }));
         })
         .filter(Boolean);
 
@@ -661,6 +722,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     setImportStatus("idle");
     setImportData(null);
     setAgentSides({});
+    setEditedFields({});
     setBatchImportData([]);
     setBatchProgress({ current: 0, total: 0 });
     setBatchSplitPcts({});
@@ -767,7 +829,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             user_id: user.id,
             date: d.date,
             address: d.address || "",
-            sale_price: 0,           // not available from commission reports
+            sale_price: d.sale_price ?? 0,
             commission_pct: 0,       // not available from commission reports
             gci_override: d.gci,     // store GCI directly
             side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
@@ -790,6 +852,30 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     toast.success(
       `${savedYears} years imported · ${totalClients} clients saved to your database ✓`,
     );
+  }
+
+  // ── Per-deal edit helpers ─────────────────────────────────────────────────
+
+  /** Returns the extracted deal merged with any user corrections. */
+  function getEffectiveDeal(deal: ExtractedDeal, i: number): ExtractedDeal {
+    const edits = editedFields[i];
+    return edits ? { ...deal, ...edits } : deal;
+  }
+
+  /** Override a deal's GCI and mark its GCI confidence as "high" (user-verified). */
+  function updateEditedGci(i: number, originalDeal: ExtractedDeal, newGci: number) {
+    setEditedFields((prev) => ({
+      ...prev,
+      [i]: {
+        ...prev[i],
+        gci: newGci,
+        confidence: {
+          ...(originalDeal.confidence ?? { gci: "high", sale_price: "missing", names: "high", date: "high", address: "missing" }),
+          ...prev[i]?.confidence,
+          gci: "high",
+        },
+      },
+    }));
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -1066,10 +1152,19 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                 <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
                 <div>
                   <p className="text-sm font-semibold text-emerald-800">
-                    {importData.year} — {fmtCurrency(importData.annual_gci)} GCI · {importData.annual_tx} deals
+                    {importData.year} — {fmtCurrency((previewImportData ?? importData).annual_gci)} GCI · {(previewImportData ?? importData).annual_tx} deals
                   </p>
                   <p className="text-xs text-emerald-700 mt-0.5">
-                    Extracted from your brokerage report. Review the details below before saving.
+                    Extracted from your document.{" "}
+                    {(() => {
+                      const n = importData.deals.filter((d, i) => {
+                        const c = getEffectiveDeal(d, i).confidence;
+                        return c && (c.gci === "low" || c.gci === "medium" || c.names === "low");
+                      }).length;
+                      return n > 0
+                        ? `${n} deal${n !== 1 ? "s" : ""} flagged for review — check highlighted fields below.`
+                        : "All fields extracted with high confidence.";
+                    })()}
                   </p>
                 </div>
               </div>
@@ -1111,10 +1206,10 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                         {qs.label}
                       </p>
                       <p className="text-sm font-bold text-slate-800 tabular-nums">
-                        {fmtCurrency(importData.quarter_gci[qi] ?? 0)}
+                        {fmtCurrency((previewImportData ?? importData).quarter_gci[qi] ?? 0)}
                       </p>
                       <p className="text-[11px] text-slate-500">
-                        {importData.quarter_tx[qi] ?? 0} deal{(importData.quarter_tx[qi] ?? 0) !== 1 ? "s" : ""}
+                        {(previewImportData ?? importData).quarter_tx[qi] ?? 0} deal{((previewImportData ?? importData).quarter_tx[qi] ?? 0) !== 1 ? "s" : ""}
                       </p>
                     </div>
                   ))}
@@ -1123,6 +1218,32 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
               {/* Deal-by-deal review */}
               <div>
+                {/* Confidence legend + warning when uncertain fields are present */}
+                {importData.deals.some((d, i) => {
+                  const c = getEffectiveDeal(d, i).confidence;
+                  return c && (c.gci !== "high" || c.names === "low");
+                }) && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 flex items-start gap-2 mb-3">
+                    <AlertCircle className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-amber-800 font-medium">
+                        Some fields have medium or low confidence. Click any GCI value below to correct it.
+                      </p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="flex items-center gap-1 text-[10px] text-amber-700">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" /> Medium — verify
+                        </span>
+                        <span className="flex items-center gap-1 text-[10px] text-amber-700">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500" /> Low — correct if wrong
+                        </span>
+                        <span className="flex items-center gap-1 text-[10px] text-amber-700">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-300" /> Not found
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Only show party-selection header when party_b data is present */}
                 {importData.deals.some((d) => d.party_b) ? (
                   <div className="flex items-center justify-between mb-2">
@@ -1190,6 +1311,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                 {importData.deals.some((d) => d.party_b) ? (
                   <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                     {importData.deals.map((deal, i) => {
+                      const eff = getEffectiveDeal(deal, i);
                       const selected = agentSides[i];
                       const date = new Date(deal.date + "T12:00:00").toLocaleDateString("en-CA", { month: "short", day: "numeric" });
                       const sideBadge =
@@ -1197,30 +1319,65 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                         : deal.side === "seller" ? { label: "Seller", cls: "bg-amber-50 text-amber-700 border-amber-200" }
                         : deal.side === "both"   ? { label: "Both",   cls: "bg-violet-50 text-violet-700 border-violet-200" }
                         : null;
+                      const gciIsUncertain = eff.confidence?.gci === "low" || eff.confidence?.gci === "medium";
                       return (
-                        <div key={i} className="rounded-xl border border-border/60 bg-card px-3 py-2.5 space-y-2">
+                        <div key={i} className={cn(
+                          "rounded-xl border bg-card px-3 py-2.5 space-y-2",
+                          gciIsUncertain ? "border-amber-200" : "border-border/60",
+                        )}>
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0 flex-1">
-                              <p className="text-xs font-semibold text-foreground truncate">{deal.address}</p>
-                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                <p className="text-[11px] text-muted-foreground">{date} · {fmtCurrency(deal.gci)} GCI</p>
+                              {/* Address row — dim if missing */}
+                              <div className="flex items-center gap-1.5">
+                                <ConfidenceDot level={eff.confidence?.address} />
+                                <p className={cn("text-xs font-semibold truncate", deal.address ? "text-foreground" : "text-slate-400 italic")}>
+                                  {deal.address || "(no address)"}
+                                </p>
+                              </div>
+                              {/* GCI + badges row */}
+                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                <span className="text-[11px] text-muted-foreground">{date} ·</span>
+                                {/* Editable GCI with confidence dot */}
+                                <span className="flex items-center gap-1">
+                                  <ConfidenceDot level={eff.confidence?.gci} />
+                                  <input
+                                    type="number"
+                                    title={gciIsUncertain ? "GCI — uncertain, click to correct" : "GCI — click to edit"}
+                                    value={editedFields[i]?.gci ?? deal.gci}
+                                    onChange={(e) => updateEditedGci(i, deal, parseFloat(e.target.value) || 0)}
+                                    className={cn(
+                                      "w-20 text-[11px] font-medium tabular-nums bg-transparent border-0 border-b focus:outline-none",
+                                      gciIsUncertain
+                                        ? "text-amber-700 border-amber-200 hover:border-amber-400 focus:border-amber-500"
+                                        : "text-emerald-700 border-transparent hover:border-emerald-200 focus:border-emerald-400",
+                                    )}
+                                  />
+                                  <span className="text-[11px] text-muted-foreground">GCI</span>
+                                </span>
                                 {sideBadge && <span className={cn("text-[10px] font-semibold border rounded px-1.5 py-0.5", sideBadge.cls)}>{sideBadge.label}</span>}
                                 {deal.source && <span className="text-[10px] text-slate-400 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5">{deal.source}</span>}
                               </div>
                             </div>
                             <span className="text-[10px] font-medium text-slate-400 shrink-0 tabular-nums">#{String(i + 1).padStart(2, "0")}</span>
                           </div>
+                          {/* Names row — show confidence dot when uncertain */}
                           <div className="grid grid-cols-2 gap-1.5">
                             <button type="button" onClick={() => setAgentSides((prev) => ({ ...prev, [i]: 0 }))}
                               className={cn("rounded-lg border px-2 py-1.5 text-left text-[11px] leading-snug transition-all",
                                 selected === 0 ? "border-primary bg-primary/10 text-primary font-semibold" : "border-border/60 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5")}>
-                              <span className="block text-[10px] font-bold uppercase tracking-wide mb-0.5 opacity-60">{selected === 0 ? "✓ My Client" : "Party A"}</span>
+                              <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide mb-0.5 opacity-60">
+                                {selected === 0 ? "✓ My Client" : "Party A"}
+                                {eff.confidence?.names === "low" && <ConfidenceDot level="low" />}
+                              </span>
                               {deal.party_a}
                             </button>
                             <button type="button" onClick={() => setAgentSides((prev) => ({ ...prev, [i]: 1 }))}
                               className={cn("rounded-lg border px-2 py-1.5 text-left text-[11px] leading-snug transition-all",
                                 selected === 1 ? "border-primary bg-primary/10 text-primary font-semibold" : "border-border/60 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5")}>
-                              <span className="block text-[10px] font-bold uppercase tracking-wide mb-0.5 opacity-60">{selected === 1 ? "✓ My Client" : "Party B"}</span>
+                              <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide mb-0.5 opacity-60">
+                                {selected === 1 ? "✓ My Client" : "Party B"}
+                                {eff.confidence?.names === "low" && <ConfidenceDot level="low" />}
+                              </span>
                               {deal.party_b}
                             </button>
                           </div>
@@ -1237,31 +1394,58 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                           <th className="text-left px-2 py-1.5 text-[10px] font-semibold text-slate-500 w-6">#</th>
                           <th className="text-left px-2 py-1.5 text-[10px] font-semibold text-slate-500">Address</th>
                           <th className="text-left px-2 py-1.5 text-[10px] font-semibold text-slate-500 whitespace-nowrap">Date</th>
-                          <th className="text-right px-2 py-1.5 text-[10px] font-semibold text-slate-500 whitespace-nowrap">GCI</th>
+                          <th className="text-right px-2 py-1.5 text-[10px] font-semibold text-slate-500 whitespace-nowrap">GCI ✎</th>
                           <th className="text-left px-2 py-1.5 text-[10px] font-semibold text-slate-500">Side</th>
                           <th className="text-left px-2 py-1.5 text-[10px] font-semibold text-slate-500">Client</th>
                         </tr>
                       </thead>
                       <tbody>
                         {importData.deals.map((deal, i) => {
+                          const eff = getEffectiveDeal(deal, i);
                           const date = new Date(deal.date + "T12:00:00").toLocaleDateString("en-CA", { month: "short", day: "numeric" });
                           const sideBadge =
                             deal.side === "buyer"  ? { label: "Buyer",  cls: "text-teal-700" }
                             : deal.side === "seller" ? { label: "Seller", cls: "text-amber-700" }
                             : deal.side === "both"   ? { label: "Both",   cls: "text-violet-700" }
                             : null;
+                          const gciIsUncertain = eff.confidence?.gci === "low" || eff.confidence?.gci === "medium";
                           return (
-                            <tr key={i} className={cn("border-b border-border/40 last:border-0", i % 2 === 0 ? "bg-card" : "bg-muted/20")}>
+                            <tr key={i} className={cn(
+                              "border-b border-border/40 last:border-0",
+                              gciIsUncertain ? "bg-amber-50/60" : i % 2 === 0 ? "bg-card" : "bg-muted/20",
+                            )}>
                               <td className="px-2 py-1.5 text-slate-400 tabular-nums">{i + 1}</td>
                               <td className="px-2 py-1.5 font-medium text-foreground max-w-[140px] truncate">{deal.address || <span className="text-slate-400 italic">—</span>}</td>
                               <td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap">{date}</td>
-                              <td className="px-2 py-1.5 text-right font-semibold text-emerald-700 tabular-nums whitespace-nowrap">{fmtCurrency(deal.gci)}</td>
+                              {/* Editable GCI with inline confidence dot */}
+                              <td className="px-2 py-1.5 whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-1">
+                                  <ConfidenceDot level={eff.confidence?.gci} />
+                                  <input
+                                    type="number"
+                                    title={gciIsUncertain ? "GCI — uncertain, click to correct" : "GCI — click to edit"}
+                                    value={editedFields[i]?.gci ?? deal.gci}
+                                    onChange={(e) => updateEditedGci(i, deal, parseFloat(e.target.value) || 0)}
+                                    className={cn(
+                                      "w-20 text-right tabular-nums bg-transparent border-0 border-b focus:outline-none text-[11px] font-semibold",
+                                      gciIsUncertain
+                                        ? "text-amber-700 border-amber-200 hover:border-amber-400 focus:border-amber-500"
+                                        : "text-emerald-700 border-transparent hover:border-emerald-200 focus:border-emerald-400",
+                                    )}
+                                  />
+                                </div>
+                              </td>
                               <td className="px-2 py-1.5">
                                 {sideBadge
                                   ? <span className={cn("font-semibold", sideBadge.cls)}>{sideBadge.label}</span>
                                   : <span className="text-slate-400">—</span>}
                               </td>
-                              <td className="px-2 py-1.5 text-foreground max-w-[120px] truncate">{deal.party_a || <span className="text-slate-400 italic">—</span>}</td>
+                              <td className="px-2 py-1.5 max-w-[120px]">
+                                <div className="flex items-center gap-1 truncate">
+                                  <ConfidenceDot level={eff.confidence?.names} />
+                                  <span className={deal.party_a ? "text-foreground truncate" : "text-slate-400 italic"}>{deal.party_a || "—"}</span>
+                                </div>
+                              </td>
                             </tr>
                           );
                         })}
@@ -1816,6 +2000,7 @@ function parseTrackerSheet(
     deals.push({
       date:       parseTrackerDate(rawDate, sheetYear),
       address,
+      sale_price: 0,  // local tracker parsing — sale price not extracted from column
       gci,
       party_a:    name,
       party_b:    "",

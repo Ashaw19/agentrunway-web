@@ -401,6 +401,9 @@ export type LeadSource    = "SOI" | "Referral" | "Zillow" | "Realtor.ca" | "Open
 // ── Client Flight Status (aviation-themed pipeline stages, migration 00027) ──
 export type ClientStatus = "boarding" | "taxiing" | "in_flight" | "landed" | "cruising";
 
+// ── Client Archive Reason (migration 00037) ───────────────────────────────────
+export type ArchiveReason = "deceased" | "moved_away" | "do_not_contact" | "other";
+
 export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
   boarding:  "Boarding",
   taxiing:   "Taxiing",
@@ -558,6 +561,10 @@ export interface Client {
 
   // Speed to Lead (migration 00028)
   first_contacted_at: string | null;
+
+  // Archive (migration 00037)
+  archived_at:    string | null;   // TIMESTAMPTZ — null = active
+  archive_reason: ArchiveReason | null;
 
   created_at: string;
   updated_at: string;
