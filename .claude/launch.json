@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "apps/web"],
+      "port": 3001
+    },
+    {
       "name": "expo-mobile",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],

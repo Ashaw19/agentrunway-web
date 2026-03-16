@@ -4,6 +4,8 @@
   "packageManager": "pnpm@10.32.1",
   "scripts": {
     "dev": "cd apps/mobile && npx expo start --web --port 3000",
+    "mobile": "cd apps/mobile && npx expo start",
+    "mobile:ios": "cd apps/mobile && npx expo start --ios",
     "dev:turbo": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
