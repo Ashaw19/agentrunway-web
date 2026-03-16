@@ -4,14 +4,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { TableHead } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -191,6 +184,37 @@ function fmtMonthYear(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+function monthsAgo(iso: string): number {
+  const d = new Date(iso + "T12:00:00");
+  const now = new Date();
+  return (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+}
+
+function relativeTimeLabel(iso: string): string {
+  const m = monthsAgo(iso);
+  if (m <= 0) return "This month";
+  if (m === 1) return "1 month ago";
+  if (m < 12) return `${m} months ago`;
+  const y = Math.floor(m / 12);
+  return y === 1 ? "1 year ago" : `${y} years ago`;
+}
+
+function recencyAccent(iso: string | null): string {
+  if (!iso) return "bg-border/60";
+  const m = monthsAgo(iso);
+  if (m < 6) return "bg-emerald-500";
+  if (m < 18) return "bg-amber-400";
+  return "bg-rose-400";
+}
+
+function recencyTextClass(iso: string | null): string {
+  if (!iso) return "text-muted-foreground";
+  const m = monthsAgo(iso);
+  if (m < 6) return "text-emerald-600";
+  if (m < 18) return "text-amber-600";
+  return "text-rose-500";
 }
 
 function todayIso(): string {
@@ -652,6 +676,12 @@ export function ClientsContent({
     });
     return sortTableGroups(f, sortCol, sortDir);
   }, [grouped, search, filterSide, filterSource, filterStatus, sortCol, sortDir, localClients, showArchived, archivedClientIds]);
+
+  // Max GCI for proportional bar in card rows
+  const maxGCI = useMemo(
+    () => filtered.reduce((m, g) => Math.max(m, g.totalGCI), 1),
+    [filtered],
+  );
 
   const hasAnyData = records.length > 0;
 
@@ -1485,227 +1515,198 @@ export function ClientsContent({
             </div>
           )}
 
-          {/* Client table */}
+          {/* Client cards */}
           {!hasAnyData ? (
-            <Card className="rounded-2xl border-slate-200 shadow-sm">
-              <CardContent className="py-12 text-center text-muted-foreground">
-                No clients yet. Import a brokerage report or career tracker
-                from the History page to populate your client database.
-              </CardContent>
-            </Card>
+            <p className="py-16 text-center text-sm text-muted-foreground">
+              No clients yet. Import a brokerage report or career tracker from the History page to populate your client database.
+            </p>
           ) : (
-            <Card className="rounded-2xl shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-b border-border/60 hover:bg-transparent">
-                      <SortableHead
-                        col="name"
-                        label="Client"
-                        active={sortCol}
-                        dir={sortDir}
-                        onSort={handleSort}
-                        className="pl-4"
-                      />
-                      <SortableHead
-                        col="deals"
-                        label="Deals"
-                        active={sortCol}
-                        dir={sortDir}
-                        onSort={handleSort}
-                        className="text-right"
-                      />
-                      <SortableHead
-                        col="gci"
-                        label="Lifetime GCI"
-                        active={sortCol}
-                        dir={sortDir}
-                        onSort={handleSort}
-                        className="text-right"
-                      />
-                      <SortableHead
-                        col="avg"
-                        label="Avg / Deal"
-                        active={sortCol}
-                        dir={sortDir}
-                        onSort={handleSort}
-                        className="text-right"
-                      />
-                      <SortableHead
-                        col="last"
-                        label="Last Deal"
-                        active={sortCol}
-                        dir={sortDir}
-                        onSort={handleSort}
-                        className="text-right"
-                      />
-                      <SortableHead
-                        col="years"
-                        label="Years Active"
-                        active={sortCol}
-                        dir={sortDir}
-                        onSort={handleSort}
-                      />
-                      <TableHead className="text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap">
-                        Status
-                      </TableHead>
-                      <SortableHead
-                        col="side"
-                        label="Side"
-                        active={sortCol}
-                        dir={sortDir}
-                        onSort={handleSort}
-                        className="pr-4"
-                      />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={8}
-                          className="py-12 text-center text-muted-foreground"
-                        >
-                          No clients match your search.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filtered.map((group) => {
-                        const isRepeat = group.dealCount > 1;
-                        const side = dominantSide(group.deals);
-                        const sideStyle = SIDE_STYLES[side];
-                        const hasClientId = group.clientId !== null;
-                        return (
-                          <TableRow
-                            key={group.clientId ?? group.name}
-                            className={cn(
-                              "transition-colors",
-                              hasClientId
-                                ? "hover:bg-muted/40 cursor-pointer"
-                                : "hover:bg-muted/20",
-                            )}
-                            onClick={() => {
-                              if (hasClientId) {
-                                openDetailPanel(group.clientId!);
-                              }
-                            }}
-                          >
-                            <TableCell className="pl-4 py-3">
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold shrink-0">
-                                  {group.name.charAt(0).toUpperCase()}
-                                </div>
-                                <span className="font-medium text-foreground text-sm truncate">
-                                  {group.name}
-                                </span>
-                                {isRepeat && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-[10px] bg-violet-50 text-violet-700 border-violet-200 shrink-0 py-0"
-                                  >
-                                    ×{group.dealCount}
-                                  </Badge>
-                                )}
-                                {(() => {
-                                  const v = valuationMap.get(group.clientId ?? group.name);
-                                  if (!v) return null;
-                                  const tc = TIER_CONFIG[v.tier];
-                                  return (
-                                    <Badge
-                                      variant="outline"
-                                      className={cn("text-[9px] shrink-0 py-0", tc.bg, tc.color, tc.border)}
-                                    >
-                                      {fmtCurrency(v.lgv)}
-                                    </Badge>
-                                  );
-                                })()}
-                                {/* Tag chips (up to 2) */}
-                                {(() => {
-                                  const client = group.clientId ? clientById.get(group.clientId) : null;
-                                  if (!client?.tags?.length) return null;
-                                  const visible = client.tags.slice(0, 2);
-                                  const overflow = client.tags.length - 2;
-                                  return (
-                                    <>
-                                      {visible.map((tag) => (
-                                        <Badge
-                                          key={tag}
-                                          variant="outline"
-                                          className="text-[9px] bg-violet-50 text-violet-700 border-violet-200 shrink-0 py-0"
-                                        >
-                                          {tag}
-                                        </Badge>
-                                      ))}
-                                      {overflow > 0 && (
-                                        <Badge
-                                          variant="outline"
-                                          className="text-[9px] bg-muted text-muted-foreground shrink-0 py-0"
-                                        >
-                                          +{overflow}
-                                        </Badge>
-                                      )}
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums text-sm text-muted-foreground py-3">
-                              {group.dealCount}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums text-sm font-semibold text-foreground py-3">
-                              {fmtCurrency(group.totalGCI)}
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums text-sm text-muted-foreground py-3">
-                              {fmtCurrency(group.avgDeal)}
-                            </TableCell>
-                            <TableCell className="text-right text-sm text-muted-foreground py-3 whitespace-nowrap">
-                              {group.lastDeal ? fmtMonthYear(group.lastDeal) : "—"}
-                            </TableCell>
-                            <TableCell className="py-3">
-                              <div className="flex flex-wrap gap-1">
-                                {group.years.map((y) => (
-                                  <span
-                                    key={y}
-                                    className="text-[10px] font-medium text-muted-foreground bg-muted rounded px-1.5 py-0.5"
-                                  >
-                                    {y}
-                                  </span>
-                                ))}
-                              </div>
-                            </TableCell>
-                            <TableCell className="py-3">
-                              {(() => {
-                                const client = hasClientId ? clientById.get(group.clientId!) : null;
-                                if (!client) return null;
-                                const sc = CLIENT_STATUS_COLORS[client.status];
-                                return (
-                                  <span className={cn("text-[10px] font-semibold border rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1", sc.bg, sc.text, sc.border)}>
-                                    <span className={cn("h-1.5 w-1.5 rounded-full", sc.dot)} />
-                                    {CLIENT_STATUS_LABELS[client.status]}
-                                  </span>
-                                );
-                              })()}
-                            </TableCell>
-                            <TableCell className="pr-4 py-3">
-                              {sideStyle && (
-                                <span
-                                  className={cn(
-                                    "text-[10px] font-semibold border rounded px-1.5 py-0.5 whitespace-nowrap",
-                                    sideStyle.cls,
-                                  )}
-                                >
-                                  {sideStyle.label}
-                                </span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
+            <>
+              {/* Sort pill bar */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] text-muted-foreground font-medium mr-1">Sort:</span>
+                {(
+                  [
+                    { col: "gci",  label: "Lifetime GCI" },
+                    { col: "name", label: "Name" },
+                    { col: "deals",label: "Deals" },
+                    { col: "last", label: "Last Deal" },
+                    { col: "avg",  label: "Avg / Deal" },
+                  ] as { col: SortCol; label: string }[]
+                ).map(({ col, label }) => (
+                  <button
+                    key={col}
+                    onClick={() => handleSort(col)}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
+                      sortCol === col
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-card text-muted-foreground border-border hover:border-primary/40",
                     )}
-                  </TableBody>
-                </Table>
+                  >
+                    {label}
+                    {sortCol === col && (
+                      <span className="opacity-70">{sortDir === "asc" ? "↑" : "↓"}</span>
+                    )}
+                  </button>
+                ))}
               </div>
-            </Card>
+
+              {/* Card list */}
+              {filtered.length === 0 ? (
+                <p className="py-16 text-center text-sm text-muted-foreground">
+                  No clients match your search.
+                </p>
+              ) : (
+                <div className="rounded-2xl border border-border/60 overflow-hidden shadow-sm divide-y divide-border/40">
+                  {filtered.map((group) => {
+                    const isRepeat   = group.dealCount > 1;
+                    const side       = dominantSide(group.deals);
+                    const sideStyle  = SIDE_STYLES[side];
+                    const hasClientId = group.clientId !== null;
+                    const client     = hasClientId ? clientById.get(group.clientId!) : null;
+                    const v          = valuationMap.get(group.clientId ?? group.name);
+                    const tc         = v ? TIER_CONFIG[v.tier] : null;
+                    const sc         = client ? CLIENT_STATUS_COLORS[client.status] : null;
+                    const barPct     = maxGCI > 0 ? (group.totalGCI / maxGCI) * 100 : 0;
+
+                    // Avatar gradient by tier
+                    const avatarCls = v
+                      ? v.tier === "platinum"
+                        ? "bg-gradient-to-br from-slate-600 to-slate-400 text-white"
+                        : v.tier === "gold"
+                          ? "bg-gradient-to-br from-amber-500 to-yellow-300 text-white"
+                          : v.tier === "silver"
+                            ? "bg-slate-200 text-slate-600"
+                            : "bg-gradient-to-br from-orange-400 to-amber-300 text-white"
+                      : "bg-primary/10 text-primary";
+
+                    // Activity dots — last 5 calendar years
+                    const thisYear = new Date().getFullYear();
+                    const activityYears = new Set(group.years);
+
+                    return (
+                      <div
+                        key={group.clientId ?? group.name}
+                        className={cn(
+                          "flex items-stretch bg-card transition-colors group",
+                          hasClientId ? "cursor-pointer hover:bg-muted/30" : "hover:bg-muted/10",
+                        )}
+                        onClick={() => {
+                          if (hasClientId) openDetailPanel(group.clientId!);
+                        }}
+                      >
+                        {/* Recency accent strip */}
+                        <div className={cn("w-1 shrink-0 self-stretch", recencyAccent(group.lastDeal))} />
+
+                        {/* Main content */}
+                        <div className="flex-1 min-w-0 px-4 py-3 flex flex-col gap-1.5">
+                          {/* Row 1: Avatar + name + badges */}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={cn(
+                              "h-9 w-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 shadow-sm",
+                              avatarCls,
+                            )}>
+                              {group.name.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="font-semibold text-foreground text-sm truncate">
+                              {group.name}
+                            </span>
+                            {isRepeat && (
+                              <Badge variant="outline" className="text-[9px] bg-violet-50 text-violet-700 border-violet-200 shrink-0 py-0">
+                                ×{group.dealCount}
+                              </Badge>
+                            )}
+                            {tc && v && (
+                              <Badge variant="outline" className={cn("text-[9px] shrink-0 py-0", tc.bg, tc.color, tc.border)}>
+                                {fmtCurrency(v.lgv)}
+                              </Badge>
+                            )}
+                            {sc && client && (
+                              <span className={cn("text-[9px] font-semibold border rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1 shrink-0", sc.bg, sc.text, sc.border)}>
+                                <span className={cn("h-1.5 w-1.5 rounded-full", sc.dot)} />
+                                {CLIENT_STATUS_LABELS[client.status]}
+                              </span>
+                            )}
+                            {sideStyle && (
+                              <span className={cn("text-[9px] font-semibold border rounded px-1.5 py-0.5 whitespace-nowrap shrink-0", sideStyle.cls)}>
+                                {sideStyle.label}
+                              </span>
+                            )}
+                            {/* Tag chips (up to 2) */}
+                            {client?.tags?.slice(0, 2).map((tag) => (
+                              <Badge key={tag} variant="outline" className="text-[9px] bg-violet-50 text-violet-700 border-violet-200 shrink-0 py-0">
+                                {tag}
+                              </Badge>
+                            ))}
+                            {(client?.tags?.length ?? 0) > 2 && (
+                              <Badge variant="outline" className="text-[9px] bg-muted text-muted-foreground shrink-0 py-0">
+                                +{(client?.tags?.length ?? 0) - 2}
+                              </Badge>
+                            )}
+                          </div>
+
+                          {/* Row 2: Activity dots + relative time */}
+                          <div className="flex items-center gap-3 pl-[46px]">
+                            <div className="flex items-center gap-1">
+                              {Array.from({ length: 5 }, (_, i) => {
+                                const yr = thisYear - 4 + i;
+                                const active = activityYears.has(yr);
+                                return (
+                                  <span
+                                    key={yr}
+                                    title={String(yr)}
+                                    className={cn(
+                                      "h-2 w-2 rounded-full transition-colors",
+                                      active ? "bg-primary" : "bg-border",
+                                    )}
+                                  />
+                                );
+                              })}
+                            </div>
+                            {group.lastDeal ? (
+                              <span className={cn("text-[11px] font-medium", recencyTextClass(group.lastDeal))}>
+                                {fmtMonthYear(group.lastDeal)} · {relativeTimeLabel(group.lastDeal)}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground/50">No deal history</span>
+                            )}
+                          </div>
+
+                          {/* Row 3: GCI bar + stats */}
+                          <div className="flex items-center gap-3 pl-[46px]">
+                            <div className="flex-1 h-1.5 bg-border/40 rounded-full overflow-hidden max-w-[140px]">
+                              <div
+                                className="h-full bg-primary/60 rounded-full transition-all"
+                                style={{ width: `${barPct}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-semibold text-foreground tabular-nums">
+                              {fmtCurrency(group.totalGCI)}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground tabular-nums">
+                              {group.dealCount === 1 ? "1 deal" : `${group.dealCount} deals`}
+                              {group.dealCount > 0 && (
+                                <> · {fmtCurrency(group.avgDeal)} avg</>
+                              )}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Chevron hint */}
+                        {hasClientId && (
+                          <div className="flex items-center pr-3 text-muted-foreground/30 group-hover:text-muted-foreground/60 transition-colors shrink-0">
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                              <path d="M5 3l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </>
       )}
