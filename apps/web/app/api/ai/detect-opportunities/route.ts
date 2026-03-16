@@ -22,7 +22,7 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }       from "@/lib/supabase/server";
-import { createAdminClient }  from "@/lib/supabase/admin";
+import { createAdminClient as _createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import type { OutreachQueueItem } from "@agent-runway/core/types/database";
 import type { SupabaseClient }    from "@supabase/supabase-js";
@@ -66,7 +66,7 @@ function monthsAgoDate(months: number): Date {
 function nextBirthdayDate(birthdate: string): Date {
   const today = new Date();
   const [, mmdd] = birthdate.split(/-(.+)/); // "1990-03-21" → "03-21"
-  let candidate = new Date(`${today.getFullYear()}-${mmdd}T12:00:00`);
+  const candidate = new Date(`${today.getFullYear()}-${mmdd}T12:00:00`);
   if (isNaN(candidate.getTime())) return candidate; // guard malformed dates
   if (candidate < today) candidate.setFullYear(today.getFullYear() + 1);
   return candidate;
@@ -266,7 +266,7 @@ export async function detectAndDraftForUser(
 
   const clients = clientsRes.data ?? [];
   const records = recordsRes.data ?? [];
-  const clientMap = new Map(clients.map((c) => [c.id, c]));
+  const _clientMap = new Map(clients.map((c) => [c.id, c]));
 
   const inserts: object[] = [];
   const idleCutoff = monthsAgoDate(IDLE_MONTHS);
@@ -344,10 +344,11 @@ export async function detectAndDraftForUser(
   if (inserts.length > 0) {
     await supabase
       .from("outreach_queue")
-      .upsert(inserts as Parameters<typeof supabase.from>[0], {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .upsert(inserts as any, {
         onConflict:       "user_id,client_id,opportunity_type,trigger_date",
         ignoreDuplicates: true,
-      } as never);
+      });
   }
 
   // ── AI drafting ────────────────────────────────────────────────────────────

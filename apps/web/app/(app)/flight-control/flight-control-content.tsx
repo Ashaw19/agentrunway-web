@@ -630,7 +630,7 @@ function EmptyState({
         </h2>
         <p className="text-sm text-muted-foreground">
           Flight Control checks for closing anniversaries, birthdays, and
-          clients who haven't heard from you in a while.
+          clients who haven&apos;t heard from you in a while.
         </p>
       </div>
       <Button
