@@ -404,6 +404,36 @@ export type ClientStatus = "boarding" | "taxiing" | "in_flight" | "landed" | "cr
 // ── Client Archive Reason (migration 00037) ───────────────────────────────────
 export type ArchiveReason = "deceased" | "moved_away" | "do_not_contact" | "other";
 
+// ── AI Flight Control — outreach queue (migration 00038) ──────────────────────
+export type OutreachOpportunityType = "closing_anniversary" | "idle_client" | "birthday";
+export type OutreachStatus          = "draft" | "ready" | "sent" | "skipped";
+
+export interface OutreachQueueItem {
+  id:               string;
+  user_id:          string;
+  client_id:        string | null;
+  client_record_id: string | null;
+  opportunity_type: OutreachOpportunityType;
+  trigger_date:     string;                  // ISO date
+  context:          Record<string, unknown>;
+  status:           OutreachStatus;
+  ai_subject:       string | null;
+  ai_body:          string | null;
+  final_subject:    string | null;
+  final_body:       string | null;
+  sent_at:          string | null;
+  created_at:       string;
+}
+
+export interface EmailConnection {
+  id:            string;
+  user_id:       string;
+  provider:      "gmail" | "outlook";
+  email_address: string;
+  display_name:  string | null;
+  connected_at:  string;
+}
+
 export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
   boarding:  "Boarding",
   taxiing:   "Taxiing",

@@ -56,6 +56,10 @@ const sidebarEntries: SidebarEntry[] = [
     type: "item", label: "CRM", href: "/crm", icon: Users,
     iconActive: "text-teal-300", iconInactive: "text-teal-400/60", borderActive: "border-l-teal-400",
   },
+  {
+    type: "item", label: "Flight Control", href: "/flight-control", icon: Sparkles,
+    iconActive: "text-violet-300", iconInactive: "text-violet-400/60", borderActive: "border-l-violet-400",
+  },
   // ── TOOLS ──────────────────────────────────────────────────────
   { type: "header", label: "TOOLS" },
   {
