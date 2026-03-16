@@ -21,17 +21,25 @@ export default async function FlightControlPage() {
   // Count messages sent this month for the stats strip
   const now        = new Date();
   const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-  const { count: sentThisMonth } = await supabase
-    .from("outreach_queue")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .eq("status", "sent")
-    .gte("sent_at", monthStart);
+  const [sentCountRes, settingsRes] = await Promise.all([
+    supabase
+      .from("outreach_queue")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "sent")
+      .gte("sent_at", monthStart),
+    supabase
+      .from("user_settings")
+      .select("email_signature")
+      .eq("user_id", user.id)
+      .single(),
+  ]);
 
   return (
     <FlightControlContent
       initialQueue={(queue ?? []) as (OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; email: string | null } | null })[]}
-      sentThisMonth={sentThisMonth ?? 0}
+      sentThisMonth={sentCountRes.count ?? 0}
+      initialSignature={(settingsRes.data?.email_signature as string) ?? ""}
     />
   );
 }

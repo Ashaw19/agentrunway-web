@@ -7,17 +7,18 @@
  * review and send with one click. No templates, no campaign builder.
  */
 
-import { useState, useCallback }          from "react";
+import { useState, useCallback, useRef }   from "react";
 import { Button }                          from "@/components/ui/button";
 import { Badge }                           from "@/components/ui/badge";
 import { Input }                           from "@/components/ui/input";
 import { Textarea }                        from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { createClient }                    from "@/lib/supabase/client";
 import { toast }                           from "sonner";
 import { cn }                              from "@/lib/utils";
 import {
   Sparkles, Calendar, Clock, Gift, Mail, Copy,
-  ChevronRight, Loader2, CheckCircle2,
+  ChevronRight, ChevronDown, Loader2, CheckCircle2, Pen,
 } from "lucide-react";
 import type { OutreachQueueItem, OutreachOpportunityType } from "@/lib/types/database";
 
@@ -376,18 +377,48 @@ function ReviewDrawer({
 // ── Main component ────────────────────────────────────────────────────────────
 
 interface FlightControlContentProps {
-  initialQueue:  QueueItemWithClient[];
-  sentThisMonth: number;
+  initialQueue:     QueueItemWithClient[];
+  sentThisMonth:    number;
+  initialSignature: string;
 }
 
 export function FlightControlContent({
   initialQueue,
   sentThisMonth: initialSentThisMonth,
+  initialSignature,
 }: FlightControlContentProps) {
   const [queue,         setQueue]         = useState<QueueItemWithClient[]>(initialQueue);
   const [reviewItem,    setReviewItem]    = useState<QueueItemWithClient | null>(null);
   const [scanning,      setScanning]      = useState(false);
   const [sentThisMonth, setSentThisMonth] = useState(initialSentThisMonth);
+
+  // ── Email signature ─────────────────────────────────────────────────────────
+  const [signature,     setSignature]     = useState(initialSignature);
+  const [sigOpen,       setSigOpen]       = useState(false);
+  const [sigSaving,     setSigSaving]     = useState(false);
+  const sigDebounce     = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const saveSignature = useCallback((value: string) => {
+    setSignature(value);
+    if (sigDebounce.current) clearTimeout(sigDebounce.current);
+    sigDebounce.current = setTimeout(async () => {
+      setSigSaving(true);
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase
+            .from("user_settings")
+            .update({ email_signature: value })
+            .eq("user_id", user.id);
+        }
+      } catch {
+        // silent — non-critical
+      } finally {
+        setSigSaving(false);
+      }
+    }, 800);
+  }, []);
 
   // ── Skip ──────────────────────────────────────────────────────────────────
 
@@ -502,6 +533,37 @@ export function FlightControlContent({
               <Mail className="h-3 w-3" />
               Connect Gmail — coming soon
             </span>
+          </div>
+
+          {/* Email signature editor (collapsible) */}
+          <div className="mt-2">
+            <button
+              onClick={() => setSigOpen(!sigOpen)}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Pen className="h-3 w-3" />
+              <span>Email Signature</span>
+              {signature && !sigOpen && (
+                <span className="text-foreground/50 truncate max-w-[200px]">
+                  — {signature.split("\n")[0]}
+                </span>
+              )}
+              <ChevronDown className={cn("h-3 w-3 transition-transform", sigOpen && "rotate-180")} />
+            </button>
+            {sigOpen && (
+              <div className="mt-2 space-y-1.5">
+                <Textarea
+                  value={signature}
+                  onChange={(e) => saveSignature(e.target.value)}
+                  rows={4}
+                  className="text-xs font-mono resize-none"
+                  placeholder={"Best regards,\nYour Name\nBrokerage Name\n(555) 123-4567"}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  {sigSaving ? "Saving…" : "Appended to every AI-drafted message. Saves automatically."}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 

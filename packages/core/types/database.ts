@@ -257,6 +257,9 @@ export interface UserSettings {
   // Tax optimization
   tax_opt_dismissed: string[];       // IDs of dismissed/acted-on tax optimization cards
 
+  // Flight Control email signature (migration 00039)
+  email_signature: string;           // free-form multi-line signature block
+
   // Timestamps
   created_at: string;
   updated_at: string;

@@ -366,7 +366,7 @@ function AchievementBadgeIcon({
         </span>
       )}
       {/* Hover tooltip */}
-      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 hidden group-hover/badge:flex flex-col gap-1.5 w-60 rounded-xl border border-border/80 bg-popover shadow-xl p-3">
+      <span className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 hidden group-hover/badge:flex flex-col gap-1.5 w-60 rounded-xl border border-border/80 bg-popover shadow-xl p-3">
         <span className="flex items-center gap-1.5">
           <span
             className={cn("h-5 w-5 rounded-full flex items-center justify-center ring-1 shrink-0", badge.bgCls, badge.ringCls)}
@@ -937,6 +937,24 @@ export function ClientsContent({
     if (!selectedClientId) return [];
     return records.filter((r) => r.client_id === selectedClientId);
   }, [records, selectedClientId]);
+
+  // Badges + reward budget for the selected client's detail panel
+  const selectedClientBadges = useMemo(() => {
+    if (!selectedClientId || !clientDeals.length) return [];
+    const group = {
+      deals: clientDeals,
+      dealCount: clientDeals.length,
+      totalGCI: clientDeals.reduce((s, d) => s + d.gci, 0),
+    };
+    return computeAchievements(group, firstClassThreshold);
+  }, [selectedClientId, clientDeals, firstClassThreshold]);
+
+  const selectedClientRewardBudget = useMemo(() => {
+    if (!clientDeals.length) return undefined;
+    const sorted = [...clientDeals].filter((d) => d.close_date).sort((a, b) => (b.close_date ?? "").localeCompare(a.close_date ?? ""));
+    const gci = sorted[0]?.gci ?? (clientDeals.reduce((s, d) => s + d.gci, 0) / clientDeals.length);
+    return gci > 0 ? calcRewardBudget(gci, rewardGenerosity) : undefined;
+  }, [clientDeals, rewardGenerosity]);
 
   // Clients for relationship linking search
   const linkCandidates = useMemo(() => {
@@ -1847,7 +1865,7 @@ export function ClientsContent({
                                   </span>
                                   {/* Achievement badge icons — circular discs with hover tooltip */}
                                   {badges.length > 0 && (
-                                    <span className="flex items-center gap-0.5 shrink-0">
+                                    <span className="flex items-center gap-1.5 shrink-0">
                                       {badges.map((b) => (
                                         <AchievementBadgeIcon
                                           key={b.id}
@@ -2112,6 +2130,21 @@ export function ClientsContent({
                           </SheetTitle>
                         )}
                       </div>
+                      {/* Achievement badges */}
+                      {selectedClientBadges.length > 0 && (
+                        <div className="flex items-center gap-1.5 mt-1">
+                          {selectedClientBadges.map((b) => (
+                            <AchievementBadgeIcon
+                              key={b.id}
+                              badge={b}
+                              size={26}
+                              showLabel
+                              rewardBudget={selectedClientRewardBudget}
+                              generosity={rewardGenerosity}
+                            />
+                          ))}
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 mt-0.5">
                         {selectedClient.last_contact_at && (
                           <span className="text-xs text-muted-foreground">

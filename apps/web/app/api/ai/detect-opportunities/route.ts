@@ -164,10 +164,11 @@ SUBJECT: [your subject line]`;
 // ── Draft a single queue item via Groq ────────────────────────────────────────
 
 async function draftItem(
-  item:         OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null } | null },
-  agentFirst:   string,
-  groq:         OpenAI,
-  supabase:     SupabaseClient,
+  item:           OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null } | null },
+  agentFirst:     string,
+  emailSignature: string,
+  groq:           OpenAI,
+  supabase:       SupabaseClient,
 ): Promise<void> {
   const clientName = item.clients?.name ?? "your client";
   const ctx        = item.context as Record<string, string | number>;
@@ -217,7 +218,12 @@ async function draftItem(
 
     const realSubjIdx = lines.length - 1 - subjIdx;
     const ai_subject  = lines[realSubjIdx].replace(/^SUBJECT:\s*/i, "").trim();
-    const ai_body     = lines.slice(0, realSubjIdx).join("\n").trim();
+    let   ai_body     = lines.slice(0, realSubjIdx).join("\n").trim();
+
+    // Append custom email signature if the agent has one configured
+    if (emailSignature) {
+      ai_body += `\n\n${emailSignature}`;
+    }
 
     await supabase
       .from("outreach_queue")
@@ -239,7 +245,7 @@ export async function detectAndDraftForUser(
   const [settingsRes, clientsRes, recordsRes] = await Promise.all([
     supabase
       .from("user_settings")
-      .select("display_name")
+      .select("display_name, email_signature")
       .eq("user_id", userId)
       .single(),
     supabase
@@ -255,10 +261,8 @@ export async function detectAndDraftForUser(
       .not("client_id", "is", null),
   ]);
 
-  const agentFirst = extractFirstName(
-    settingsRes.data?.display_name ?? null,
-    "",
-  );
+  const agentFirst    = extractFirstName(settingsRes.data?.display_name ?? null, "");
+  const emailSignature = (settingsRes.data?.email_signature as string) ?? "";
 
   const clients = clientsRes.data ?? [];
   const records = recordsRes.data ?? [];
@@ -373,6 +377,7 @@ export async function detectAndDraftForUser(
     await draftItem(
       item as OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null } | null },
       agentFirst,
+      emailSignature,
       groq,
       supabase,
     );
