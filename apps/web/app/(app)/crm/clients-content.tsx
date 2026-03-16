@@ -368,8 +368,8 @@ function AchievementBadgeIcon({
           {badge.label}
         </span>
       )}
-      {/* Hover tooltip */}
-      <span className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2 z-50 hidden group-hover/badge:flex flex-col gap-1.5 w-60 rounded-xl border border-border/80 bg-popover shadow-xl p-3">
+      {/* Hover tooltip — anchored right so it never overflows */}
+      <span className="pointer-events-none absolute top-full right-0 mt-2 z-50 hidden group-hover/badge:flex flex-col gap-1.5 w-56 max-w-[85vw] rounded-xl border border-border/80 bg-popover shadow-xl p-3">
         <span className="flex items-center gap-1.5">
           <span
             className={cn("h-5 w-5 rounded-full flex items-center justify-center ring-1 shrink-0", badge.bgCls, badge.ringCls)}
@@ -379,11 +379,11 @@ function AchievementBadgeIcon({
           <span className="text-xs font-bold text-foreground">{badge.label}</span>
         </span>
         <span className="text-[11px] text-muted-foreground leading-snug">{badge.earned}</span>
-        <span className="text-[11px] leading-snug text-foreground/80 border-t border-border/40 pt-1.5">
+        <span className="text-[11px] leading-snug text-foreground/80 border-t border-border/40 pt-1.5 break-words">
           💡 {rewardBudget !== undefined ? quickGiftTip(rewardBudget) : badge.rewardCategory}
         </span>
         {rewardBudget !== undefined && generosity && (
-          <span className="text-[11px] font-semibold text-primary border-t border-border/40 pt-1.5 flex items-center gap-1">
+          <span className="text-[11px] font-semibold text-primary border-t border-border/40 pt-1.5 flex items-center gap-1 flex-wrap">
             <span>Suggested budget:</span>
             <span className="tabular-nums">~{fmtCurrency(rewardBudget)}</span>
             <span className="text-muted-foreground font-normal">· {GENEROSITY_LABELS[generosity].label}</span>
