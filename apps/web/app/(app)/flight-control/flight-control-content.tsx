@@ -7,7 +7,7 @@
  * review and send with one click. No templates, no campaign builder.
  */
 
-import { useState, useCallback, useRef }   from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Button }                          from "@/components/ui/button";
 import { Badge }                           from "@/components/ui/badge";
 import { Input }                           from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { cn }                              from "@/lib/utils";
 import {
   Sparkles, Calendar, Clock, Gift, Mail, Copy,
   ChevronRight, ChevronDown, Loader2, CheckCircle2, Pen,
+  Send, Radar, TrendingUp,
 } from "lucide-react";
 import type { OutreachQueueItem, OutreachOpportunityType } from "@/lib/types/database";
 
@@ -111,26 +112,27 @@ function MessageCard({
 
   return (
     <div className={cn(
-      "rounded-xl border bg-card/60 backdrop-blur-sm p-4 flex flex-col gap-3",
-      "ring-1", cfg.ringCls,
-      "hover:bg-card/80 transition-colors",
+      "group/card rounded-xl border bg-card/80 backdrop-blur-sm p-4 flex flex-col gap-3",
+      "ring-1 transition-all duration-200",
+      cfg.ringCls,
+      "hover:shadow-lg hover:shadow-black/5 hover:bg-card hover:ring-2",
     )}>
       {/* Header row */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <span className={cn(
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full ring-1",
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 shadow-sm",
             cfg.bgCls, cfg.ringCls,
           )}>
             <Icon className={cn("h-4 w-4", cfg.textCls)} />
           </span>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={cn("text-[11px] font-semibold uppercase tracking-wide", cfg.textCls)}>
+              <span className={cn("text-[11px] font-bold uppercase tracking-wider", cfg.textCls)}>
                 {cfg.label}
               </span>
               {isDraft && (
-                <Badge variant="outline" className="text-[10px] py-0 h-4 border-muted-foreground/30">
+                <Badge variant="outline" className="text-[10px] py-0 h-4 border-muted-foreground/30 animate-pulse">
                   <Loader2 className="h-2.5 w-2.5 mr-1 animate-spin" />
                   Drafting…
                 </Badge>
@@ -142,7 +144,7 @@ function MessageCard({
           </div>
         </div>
         <span className={cn(
-          "shrink-0 text-[11px] font-medium px-2 py-0.5 rounded-full",
+          "shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full",
           cfg.bgCls, cfg.textCls,
         )}>
           {daysUntilLabel(item.trigger_date)}
@@ -150,25 +152,25 @@ function MessageCard({
       </div>
 
       {/* Client name */}
-      <p className="font-semibold text-sm text-foreground leading-tight">
+      <p className="font-semibold text-sm text-foreground leading-tight pl-0.5">
         {item.clients?.name ?? "Unknown client"}
       </p>
 
       {/* Message preview */}
       {!isDraft && subject && body ? (
-        <div className="rounded-lg border border-border/50 bg-background/40 p-3 space-y-1">
+        <div className={cn("rounded-lg p-3 space-y-1.5 border", cfg.bgCls, "border-transparent")}>
           <p className="text-[12px] font-semibold text-foreground/90 truncate">
             {subject}
           </p>
-          <p className="text-[12px] text-muted-foreground line-clamp-2 leading-snug">
-            {body.slice(0, 160)}…
+          <p className="text-[12px] text-muted-foreground line-clamp-2 leading-relaxed">
+            {body.slice(0, 180)}…
           </p>
         </div>
       ) : isDraft ? (
-        <div className="rounded-lg border border-border/50 bg-muted/30 p-3 space-y-1.5 animate-pulse">
-          <div className="h-3 w-3/4 rounded bg-muted-foreground/20" />
-          <div className="h-3 w-full rounded bg-muted-foreground/15" />
-          <div className="h-3 w-5/6 rounded bg-muted-foreground/10" />
+        <div className="rounded-lg border border-border/30 bg-muted/20 p-3 space-y-2 animate-pulse">
+          <div className="h-3 w-3/4 rounded-full bg-muted-foreground/15" />
+          <div className="h-3 w-full rounded-full bg-muted-foreground/10" />
+          <div className="h-3 w-5/6 rounded-full bg-muted-foreground/8" />
         </div>
       ) : null}
 
@@ -184,8 +186,11 @@ function MessageCard({
         </Button>
         <Button
           size="sm"
-          variant="outline"
-          className={cn("h-7 text-xs gap-1.5", isDraft && "opacity-50 cursor-not-allowed")}
+          className={cn(
+            "h-8 text-xs gap-1.5 font-semibold",
+            "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white border-0 shadow-sm",
+            isDraft && "opacity-40 cursor-not-allowed",
+          )}
           disabled={isDraft}
           onClick={() => !isDraft && onReview(item)}
         >
@@ -208,17 +213,24 @@ function ReviewDrawer({
   onClose: () => void;
   onSent:  (id: string) => void;
 }) {
-  const [editSubject, setEditSubject] = useState(item?.final_subject ?? item?.ai_subject ?? "");
-  const [editBody,    setEditBody]    = useState(item?.final_body    ?? item?.ai_body    ?? "");
+  const [editSubject, setEditSubject] = useState("");
+  const [editBody,    setEditBody]    = useState("");
   const [saving,      setSaving]      = useState(false);
   const [copied,      setCopied]      = useState(false);
 
-  // Reset local state when item changes
-  const prevId = item?.id;
-  if (item?.id !== prevId) {
-    setEditSubject(item?.final_subject ?? item?.ai_subject ?? "");
-    setEditBody(item?.final_body    ?? item?.ai_body    ?? "");
-  }
+  // Sync local state when a new item is opened in the drawer
+  const prevIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (item && item.id !== prevIdRef.current) {
+      prevIdRef.current = item.id;
+      setEditSubject(item.final_subject ?? item.ai_subject ?? "");
+      setEditBody(item.final_body ?? item.ai_body ?? "");
+      setCopied(false);
+    }
+    if (!item) {
+      prevIdRef.current = null;
+    }
+  }, [item]);
 
   const saveEdits = useCallback(async () => {
     if (!item) return;
@@ -286,62 +298,64 @@ function ReviewDrawer({
   return (
     <Sheet open={!!item} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-full sm:max-w-lg flex flex-col gap-0 p-0 overflow-hidden">
-        <SheetHeader className="px-6 pt-6 pb-4 border-b border-border/40 shrink-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className={cn(
-              "flex h-6 w-6 items-center justify-center rounded-full ring-1 text-xs",
-              cfg.bgCls, cfg.ringCls,
-            )}>
-              <cfg.icon className={cn("h-3.5 w-3.5", cfg.textCls)} />
-            </span>
-            <span className={cn("text-[11px] font-semibold uppercase tracking-wide", cfg.textCls)}>
-              {cfg.label}
-            </span>
+        {/* Header with gradient */}
+        <SheetHeader className="relative px-6 pt-6 pb-4 shrink-0 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-600/8 via-indigo-500/5 to-transparent pointer-events-none" />
+          <div className="relative">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-lg ring-1 shadow-sm",
+                cfg.bgCls, cfg.ringCls,
+              )}>
+                <cfg.icon className={cn("h-3.5 w-3.5", cfg.textCls)} />
+              </span>
+              <span className={cn("text-[11px] font-bold uppercase tracking-wider", cfg.textCls)}>
+                {cfg.label}
+              </span>
+            </div>
+            <SheetTitle className="text-base font-bold">
+              {item.clients?.name ?? "Client"} — {contextLabel(item)}
+            </SheetTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Review and personalise before sending. Edits are saved automatically.
+            </p>
           </div>
-          <SheetTitle className="text-base">
-            {item.clients?.name ?? "Client"} — {contextLabel(item)}
-          </SheetTitle>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Review and personalise before sending. Edits are saved automatically.
-          </p>
+          <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border/60 to-transparent" />
         </SheetHeader>
 
         {/* Editable message */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
               Subject
             </label>
             <Input
               value={editSubject}
               onChange={(e) => setEditSubject(e.target.value)}
-              className="text-sm"
+              className="text-sm font-medium"
               placeholder="Subject line…"
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
               Message
             </label>
             <Textarea
               value={editBody}
               onChange={(e) => setEditBody(e.target.value)}
-              rows={12}
-              className="text-sm font-mono leading-relaxed resize-none"
+              rows={14}
+              className="text-sm leading-relaxed resize-none"
               placeholder="Message body…"
             />
           </div>
         </div>
 
         {/* Send actions */}
-        <div className="px-6 pb-6 pt-4 border-t border-border/40 shrink-0 space-y-3">
-          <p className="text-[11px] text-muted-foreground">
-            Gmail OAuth coming in the next update — send directly from Agent Runway.
-          </p>
+        <div className="px-6 pb-6 pt-4 shrink-0 space-y-3 border-t border-border/30">
           <div className="flex gap-2">
             <Button
               variant="outline"
-              className="flex-1 gap-2"
+              className="flex-1 gap-2 h-10"
               onClick={handleCopy}
               disabled={saving}
             >
@@ -352,7 +366,7 @@ function ReviewDrawer({
               )}
             </Button>
             <Button
-              className="flex-1 gap-2"
+              className="flex-1 gap-2 h-10 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white border-0 shadow-md shadow-violet-500/20"
               onClick={handleOpenGmail}
               disabled={saving}
             >
@@ -362,12 +376,15 @@ function ReviewDrawer({
           </div>
           <Button
             variant="ghost"
-            className="w-full text-muted-foreground text-xs"
+            className="w-full text-muted-foreground text-xs h-8"
             onClick={markAsSent}
             disabled={saving}
           >
             Mark as sent without opening
           </Button>
+          <p className="text-[10px] text-center text-muted-foreground/50">
+            Gmail &amp; Outlook direct-send coming in the next update.
+          </p>
         </div>
       </SheetContent>
     </Sheet>
@@ -479,100 +496,124 @@ export function FlightControlContent({
   return (
     <>
       <div className="flex flex-col h-full">
-        {/* Page header */}
-        <div className="px-6 pt-6 pb-4 border-b border-border/40 space-y-3 shrink-0">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 ring-1 ring-violet-500/30">
-                <Sparkles className="h-4.5 w-4.5 text-violet-400" />
-              </span>
-              <div>
-                <h1 className="text-xl font-bold tracking-tight text-foreground">
-                  Flight Control
-                </h1>
-                <p className="text-xs text-muted-foreground">
-                  Your intelligent outreach assistant
-                </p>
+        {/* ── Hero header with gradient ─────────────────────────────────── */}
+        <div className="shrink-0 relative overflow-hidden">
+          {/* Gradient background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-600/8 via-indigo-500/5 to-transparent pointer-events-none" />
+          <div className="relative px-6 pt-6 pb-5 space-y-4">
+            {/* Title row */}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow-lg shadow-violet-500/20">
+                  <Sparkles className="h-5 w-5 text-white" />
+                </span>
+                <div>
+                  <h1 className="text-xl font-bold tracking-tight text-foreground">
+                    Flight Control
+                  </h1>
+                  <p className="text-xs text-muted-foreground">
+                    AI-powered outreach that feels human
+                  </p>
+                </div>
               </div>
+              <Button
+                onClick={handleScan}
+                disabled={scanning}
+                size="sm"
+                className="gap-2 shrink-0 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-md shadow-violet-500/20 border-0"
+              >
+                {scanning ? (
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Scanning…</>
+                ) : (
+                  <><Radar className="h-3.5 w-3.5" /> Scan Now</>
+                )}
+              </Button>
             </div>
-            <Button
-              onClick={handleScan}
-              disabled={scanning}
-              size="sm"
-              className="gap-2 shrink-0"
-            >
-              {scanning ? (
-                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Scanning…</>
-              ) : (
-                <><Sparkles className="h-3.5 w-3.5" /> Scan for Opportunities</>
-              )}
-            </Button>
-          </div>
 
-          {/* Stats strip */}
-          <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
-            {readyCount > 0 && (
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-violet-400 animate-pulse" />
-                <span className="font-medium text-foreground">{readyCount}</span> ready to send
-              </span>
-            )}
-            {draftCount > 0 && (
-              <span className="flex items-center gap-1.5">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                {draftCount} drafting…
-              </span>
-            )}
-            {sentThisMonth > 0 && (
-              <span>
-                <span className="font-medium text-foreground">{sentThisMonth}</span> sent this month
-              </span>
-            )}
-            {/* Phase B placeholder */}
-            <span className="ml-auto flex items-center gap-1 text-muted-foreground/60 cursor-not-allowed" title="Coming soon">
-              <Mail className="h-3 w-3" />
-              Connect Gmail — coming soon
-            </span>
-          </div>
-
-          {/* Email signature editor (collapsible) */}
-          <div className="mt-2">
-            <button
-              onClick={() => setSigOpen(!sigOpen)}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Pen className="h-3 w-3" />
-              <span>Email Signature</span>
-              {signature && !sigOpen && (
-                <span className="text-foreground/50 truncate max-w-[200px]">
-                  — {signature.split("\n")[0]}
+            {/* Stat pills */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {readyCount > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-500/10 ring-1 ring-violet-500/20 text-xs">
+                  <span className="h-2 w-2 rounded-full bg-violet-400 animate-pulse" />
+                  <span className="font-semibold text-violet-600 dark:text-violet-400">{readyCount}</span>
+                  <span className="text-muted-foreground">ready</span>
                 </span>
               )}
-              <ChevronDown className={cn("h-3 w-3 transition-transform", sigOpen && "rotate-180")} />
-            </button>
-            {sigOpen && (
-              <div className="mt-2 space-y-1.5">
-                <Textarea
-                  value={signature}
-                  onChange={(e) => saveSignature(e.target.value)}
-                  rows={4}
-                  className="text-xs font-mono resize-none"
-                  placeholder={"Best regards,\nYour Name\nBrokerage Name\n(555) 123-4567"}
-                />
-                <p className="text-[10px] text-muted-foreground">
-                  {sigSaving ? "Saving…" : "Appended to every AI-drafted message. Saves automatically."}
-                </p>
-              </div>
-            )}
+              {draftCount > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 ring-1 ring-amber-500/20 text-xs">
+                  <Loader2 className="h-3 w-3 animate-spin text-amber-500" />
+                  <span className="font-semibold text-amber-600 dark:text-amber-400">{draftCount}</span>
+                  <span className="text-muted-foreground">drafting</span>
+                </span>
+              )}
+              {sentThisMonth > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 ring-1 ring-emerald-500/20 text-xs">
+                  <Send className="h-3 w-3 text-emerald-500" />
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">{sentThisMonth}</span>
+                  <span className="text-muted-foreground">sent this month</span>
+                </span>
+              )}
+              {readyCount === 0 && draftCount === 0 && sentThisMonth === 0 && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/50 text-xs text-muted-foreground">
+                  <CheckCircle2 className="h-3 w-3" />
+                  All caught up
+                </span>
+              )}
+              {/* Phase B placeholder */}
+              <span className="ml-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/30 ring-1 ring-border/50 text-[11px] text-muted-foreground/50 cursor-not-allowed" title="Coming soon — Gmail & Outlook integration">
+                <Mail className="h-3 w-3" />
+                Connect Email
+              </span>
+            </div>
+
+            {/* Email signature (collapsible) */}
+            <div>
+              <button
+                onClick={() => setSigOpen(!sigOpen)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Pen className="h-3 w-3" />
+                <span>Email Signature</span>
+                {signature && !sigOpen && (
+                  <span className="text-foreground/50 truncate max-w-[200px]">
+                    — {signature.split("\n")[0]}
+                  </span>
+                )}
+                <ChevronDown className={cn("h-3 w-3 transition-transform", sigOpen && "rotate-180")} />
+              </button>
+              {sigOpen && (
+                <div className="mt-2 space-y-1.5">
+                  <Textarea
+                    value={signature}
+                    onChange={(e) => saveSignature(e.target.value)}
+                    rows={3}
+                    className="text-xs font-mono resize-none"
+                    placeholder={"Best regards,\nYour Name\nBrokerage Name\n(555) 123-4567"}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    {sigSaving ? "Saving…" : "Appended to every AI-drafted message. Saves automatically."}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
+          {/* Bottom divider with gradient fade */}
+          <div className="h-px bg-gradient-to-r from-transparent via-border/60 to-transparent" />
         </div>
 
-        {/* Queue list */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        {/* ── Queue list ─────────────────────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto px-6 py-5">
           {queue.length === 0 ? (
             <EmptyState onScan={handleScan} scanning={scanning} />
           ) : (
             <div className="space-y-3 max-w-2xl">
+              {/* Section label */}
+              {readyCount > 0 && (
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
+                  <TrendingUp className="h-3 w-3 text-violet-400" />
+                  Opportunities Ready
+                </p>
+              )}
               {/* Ready items first */}
               {queue
                 .filter((i) => i.status === "ready")
@@ -584,6 +625,13 @@ export function FlightControlContent({
                     onSkip={handleSkip}
                   />
                 ))}
+              {/* Draft section label */}
+              {draftCount > 0 && (
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mt-4 mb-1">
+                  <Loader2 className="h-3 w-3 animate-spin text-amber-400" />
+                  Generating Drafts
+                </p>
+              )}
               {/* Draft / still generating */}
               {queue
                 .filter((i) => i.status === "draft")
@@ -620,34 +668,39 @@ function EmptyState({
   scanning: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center max-w-sm mx-auto gap-4">
-      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 ring-1 ring-emerald-500/30">
-        <CheckCircle2 className="h-7 w-7 text-emerald-400" />
-      </span>
-      <div className="space-y-1">
-        <h2 className="text-base font-semibold text-foreground">
-          Your client relationships are all caught up
+    <div className="flex flex-col items-center justify-center py-20 text-center max-w-md mx-auto gap-5">
+      <div className="relative">
+        <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400/20 to-emerald-600/10 ring-1 ring-emerald-500/30 shadow-lg shadow-emerald-500/10">
+          <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+        </span>
+        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 shadow-sm">
+          <Sparkles className="h-3 w-3 text-white" />
+        </span>
+      </div>
+      <div className="space-y-2">
+        <h2 className="text-lg font-bold text-foreground">
+          All caught up
         </h2>
-        <p className="text-sm text-muted-foreground">
-          Flight Control checks for closing anniversaries, birthdays, and
-          clients who haven&apos;t heard from you in a while.
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Flight Control monitors closing anniversaries, birthdays, and
+          clients who haven&apos;t heard from you lately. When it finds a
+          touchpoint, it drafts a personal message for you.
         </p>
       </div>
       <Button
-        variant="outline"
-        size="sm"
         onClick={onScan}
         disabled={scanning}
-        className="gap-2"
+        size="sm"
+        className="gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white border-0 shadow-md shadow-violet-500/20"
       >
         {scanning ? (
           <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Scanning…</>
         ) : (
-          <><Sparkles className="h-3.5 w-3.5" /> Scan Now</>
+          <><Radar className="h-3.5 w-3.5" /> Scan Now</>
         )}
       </Button>
-      <p className="text-[11px] text-muted-foreground/60">
-        Scans run automatically every morning — or tap Scan Now anytime.
+      <p className="text-[11px] text-muted-foreground/50">
+        Scans run automatically each morning at 8 AM.
       </p>
     </div>
   );

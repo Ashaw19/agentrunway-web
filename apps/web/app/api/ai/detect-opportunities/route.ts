@@ -86,6 +86,17 @@ function extractFirstName(displayName: string | null, email: string): string {
   return email.split("@")[0].replace(/[._-]/g, " ").split(" ")[0] ?? "your agent";
 }
 
+// ── Tone instructions ──────────────────────────────────────────────────────────
+
+type Tone = "casual" | "friendly" | "professional" | "formal";
+
+const TONE_INSTRUCTIONS: Record<Tone, string> = {
+  casual: `TONE: Very casual, like texting a close friend. Use contractions freely, short sentences, maybe even humour. First names only. Think "buddy sending a quick note" — not an agent running a campaign. No formal greetings.`,
+  friendly: `TONE: Warm and conversational — like a friendly neighbour who also happens to be their agent. Use contractions, keep it light, but still polished. No stiff corporate language. Write like you'd talk over coffee.`,
+  professional: `TONE: Polished and respectful. Warm but business-appropriate. Use full sentences and proper structure, though contractions are fine. Reads like a trusted advisor — capable and personable.`,
+  formal: `TONE: Respectful, precise, and measured. Minimal contractions. Appropriate for a high-net-worth investor or executive. Every sentence should convey competence and discretion. No slang, no emojis, no exclamation marks.`,
+};
+
 // ── Groq prompt builders ──────────────────────────────────────────────────────
 
 function buildAnniversaryPrompt(
@@ -94,6 +105,7 @@ function buildAnniversaryPrompt(
   years: number,
   address: string | null,
   province: string | null,
+  tone: Tone = "friendly",
 ): string {
   const location = [address, province].filter(Boolean).join(", ");
   return `You are ghostwriting a personal email from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}.
@@ -101,17 +113,20 @@ function buildAnniversaryPrompt(
 Context:
 - Milestone: ${years}-year anniversary of the client's home purchase
 - Property: ${location || "their home"}
-- Tone: warm, genuine, personal — NOT a template or newsletter
+
+${TONE_INSTRUCTIONS[tone]}
 
 Write a ${years}-year closing anniversary email (3–4 short paragraphs, under 180 words total).
-- Open with something other than "I hope this email finds you well."
-- Reference the property or neighbourhood naturally.
-- Include a soft CTA: offer a free home-value update or simply invite them to catch up over coffee.
-- Sign off with ${agentFirst}'s first name only — no generic sign-off lines.
-- Match the warmth expected in Canadian professional real estate communication.
+- DO NOT open with "I hope this email finds you well" or any cliched opener.
+- DO NOT start with "Subject:" — just write the email body.
+- Reference the property or neighbourhood naturally — make it feel like YOU remember.
+- Include a soft CTA: offer a free home-value update or simply invite them to catch up.
+- Sign off with just "${agentFirst}" — no "Best regards," no "Sincerely," no formal closing line.
+- This should read like a real person wrote it in 2 minutes, not like ChatGPT generated it.
+- Vary sentence length. Short sentences are powerful. Mix them in.
 
 On the very last line of your response, write exactly:
-SUBJECT: [your subject line]`;
+SUBJECT: [your subject line — keep it short, personal, not clickbaity]`;
 }
 
 function buildIdlePrompt(
@@ -120,6 +135,7 @@ function buildIdlePrompt(
   lastDeal: string | null,
   address: string | null,
   province: string | null,
+  tone: Tone = "friendly",
 ): string {
   const location = [address, province].filter(Boolean).join(", ");
   const month    = new Date().getMonth();
@@ -134,37 +150,47 @@ Context:
 - Last property: ${location || "a property"}
 - It's the ${season} in Canada
 
-Write a natural 2–3 paragraph re-engagement email (under 150 words) that:
-- Feels like it comes from someone who genuinely cares, not a drip campaign
-- References something timely: the ${season}, real estate conditions, or just life in general
-- Includes a relaxed CTA: coffee, a quick call, or a free home-value check
-- Does NOT apologise for not reaching out sooner — that's awkward
-- Sign off with ${agentFirst}'s first name only
+${TONE_INSTRUCTIONS[tone]}
+
+Write a natural 2–3 paragraph check-in email (under 150 words) that:
+- Feels like it comes from someone who actually remembers this person — not a CRM drip
+- DO NOT open with "I hope this email finds you well" or similar cliches
+- DO NOT start with "Subject:" — just write the email body
+- Reference something real: the ${season}, their neighbourhood, life in general
+- Include a relaxed CTA: coffee, a quick call, or a free home-value check
+- Does NOT apologise for not reaching out sooner — just pick up naturally
+- Sign off with just "${agentFirst}" — no formal closing line
+- Vary sentence length. Keep it human. One-word sentences are fine.
 
 On the very last line, write exactly:
-SUBJECT: [your subject line]`;
+SUBJECT: [short, casual subject — not "Checking In!" or anything generic]`;
 }
 
 function buildBirthdayPrompt(
   agentFirst: string,
   clientName: string,
+  tone: Tone = "friendly",
 ): string {
   return `You are ghostwriting a short, warm birthday email from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}.
 
+${TONE_INSTRUCTIONS[tone]}
+
 Write a brief 2-paragraph birthday message (under 80 words) that:
-- Feels genuinely personal, not mass-market
-- Doesn't mention real estate or ask for anything
-- Is warm and human — the goal is just to make the client feel remembered
-- Sign off with ${agentFirst}'s first name only
+- Feels genuinely personal — like a friend remembered, not an automated system
+- DO NOT mention real estate, home values, or ask for anything
+- DO NOT start with "Subject:" — just write the message
+- The goal: make the client smile and feel remembered
+- Sign off with just "${agentFirst}" — no formal closing
+- Keep it real. A birthday message that sounds like AI is worse than no message at all.
 
 On the very last line, write exactly:
-SUBJECT: [your subject line]`;
+SUBJECT: [short personal birthday subject — not "Happy Birthday!" which screams auto-generated]`;
 }
 
 // ── Draft a single queue item via Groq ────────────────────────────────────────
 
 async function draftItem(
-  item:           OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null } | null },
+  item:           OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; communication_tone?: string } | null },
   agentFirst:     string,
   emailSignature: string,
   groq:           OpenAI,
@@ -172,6 +198,7 @@ async function draftItem(
 ): Promise<void> {
   const clientName = item.clients?.name ?? "your client";
   const ctx        = item.context as Record<string, string | number>;
+  const tone       = (item.clients?.communication_tone as Tone) ?? "friendly";
 
   let prompt: string;
   switch (item.opportunity_type) {
@@ -182,6 +209,7 @@ async function draftItem(
         Number(ctx.anniversary_year ?? 1),
         (ctx.address as string) ?? item.clients?.city ?? null,
         item.clients?.province_region ?? null,
+        tone,
       );
       break;
     case "idle_client":
@@ -191,10 +219,11 @@ async function draftItem(
         (ctx.last_deal as string) ?? null,
         item.clients?.city ?? null,
         item.clients?.province_region ?? null,
+        tone,
       );
       break;
     case "birthday":
-      prompt = buildBirthdayPrompt(agentFirst, clientName);
+      prompt = buildBirthdayPrompt(agentFirst, clientName, tone);
       break;
     default:
       return;
@@ -203,8 +232,8 @@ async function draftItem(
   try {
     const completion = await groq.chat.completions.create({
       model:       "llama-3.3-70b-versatile",
-      max_tokens:  350,
-      temperature: 0.75,
+      max_tokens:  400,
+      temperature: 0.85,
       messages:    [{ role: "user", content: prompt }],
     });
 
@@ -359,7 +388,7 @@ export async function detectAndDraftForUser(
 
   const { data: undrafted } = await supabase
     .from("outreach_queue")
-    .select("*, clients(name, city, province_region)")
+    .select("*, clients(name, city, province_region, communication_tone)")
     .eq("user_id", userId)
     .eq("status", "draft")
     .is("ai_subject", null)
@@ -376,7 +405,7 @@ export async function detectAndDraftForUser(
   let drafted = 0;
   for (const item of undrafted) {
     await draftItem(
-      item as OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null } | null },
+      item as OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; communication_tone?: string } | null },
       agentFirst,
       emailSignature,
       groq,

@@ -45,6 +45,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Users,
   Search,
   TrendingUp,
@@ -104,6 +110,7 @@ import type {
   FlightPlanStep,
   ArchiveReason,
   PropertyShowing,
+  CommunicationTone,
 } from "@/lib/types/database";
 import {
   ACTIVITY_TYPE_LABELS,
@@ -114,6 +121,8 @@ import {
   PREFERRED_CONTACT_LABELS,
   CLIENT_TIMEFRAME_LABELS,
   RELATIONSHIP_TYPE_LABELS,
+  COMMUNICATION_TONE_LABELS,
+  COMMUNICATION_TONE_DESCRIPTIONS,
 } from "@/lib/types/database";
 import {
   computeClientValuations,
@@ -351,46 +360,58 @@ function AchievementBadgeIcon({
     : Crown;
 
   return (
-    <span className="group/badge relative inline-flex flex-col items-center" title="">
-      {/* Disc */}
-      <span
-        className={cn(
-          "rounded-full flex items-center justify-center ring-2 shadow-sm shrink-0",
-          badge.bgCls,
-          badge.ringCls,
-        )}
-        style={{ width: size, height: size }}
-      >
-        <IconComponent size={iconSize} className="text-white drop-shadow-sm" />
-      </span>
-      {showLabel && (
-        <span className="text-[9px] font-semibold text-muted-foreground mt-0.5 whitespace-nowrap leading-tight">
-          {badge.label}
-        </span>
-      )}
-      {/* Hover tooltip — anchored right so it never overflows */}
-      <span className="pointer-events-none absolute top-full right-0 mt-2 z-50 hidden group-hover/badge:flex flex-col gap-1.5 w-56 max-w-[85vw] rounded-xl border border-border/80 bg-popover shadow-xl p-3">
-        <span className="flex items-center gap-1.5">
-          <span
-            className={cn("h-5 w-5 rounded-full flex items-center justify-center ring-1 shrink-0", badge.bgCls, badge.ringCls)}
-          >
-            <IconComponent size={10} className="text-white" />
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex flex-col items-center cursor-default">
+            {/* Disc */}
+            <span
+              className={cn(
+                "rounded-full flex items-center justify-center ring-2 shadow-sm shrink-0",
+                badge.bgCls,
+                badge.ringCls,
+              )}
+              style={{ width: size, height: size }}
+            >
+              <IconComponent size={iconSize} className="text-white drop-shadow-sm" />
+            </span>
+            {showLabel && (
+              <span className="text-[9px] font-semibold text-muted-foreground mt-0.5 whitespace-nowrap leading-tight">
+                {badge.label}
+              </span>
+            )}
           </span>
-          <span className="text-xs font-bold text-foreground">{badge.label}</span>
-        </span>
-        <span className="text-[11px] text-muted-foreground leading-snug">{badge.earned}</span>
-        <span className="text-[11px] leading-snug text-foreground/80 border-t border-border/40 pt-1.5 break-words">
-          💡 {rewardBudget !== undefined ? quickGiftTip(rewardBudget) : badge.rewardCategory}
-        </span>
-        {rewardBudget !== undefined && generosity && (
-          <span className="text-[11px] font-semibold text-primary border-t border-border/40 pt-1.5 flex items-center gap-1 flex-wrap">
-            <span>Suggested budget:</span>
-            <span className="tabular-nums">~{fmtCurrency(rewardBudget)}</span>
-            <span className="text-muted-foreground font-normal">· {GENEROSITY_LABELS[generosity].label}</span>
-          </span>
-        )}
-      </span>
-    </span>
+        </TooltipTrigger>
+        <TooltipContent
+          side="bottom"
+          align="start"
+          sideOffset={8}
+          className="w-60 p-3 rounded-xl border border-border/80 bg-popover shadow-xl text-left"
+        >
+          <div className="flex flex-col gap-1.5">
+            <span className="flex items-center gap-1.5">
+              <span
+                className={cn("h-5 w-5 rounded-full flex items-center justify-center ring-1 shrink-0", badge.bgCls, badge.ringCls)}
+              >
+                <IconComponent size={10} className="text-white" />
+              </span>
+              <span className="text-xs font-bold text-foreground">{badge.label}</span>
+            </span>
+            <span className="text-[11px] text-muted-foreground leading-snug">{badge.earned}</span>
+            <span className="text-[11px] leading-snug text-foreground/80 border-t border-border/40 pt-1.5 break-words">
+              {rewardBudget !== undefined ? quickGiftTip(rewardBudget) : badge.rewardCategory}
+            </span>
+            {rewardBudget !== undefined && generosity && (
+              <span className="text-[11px] font-semibold text-primary border-t border-border/40 pt-1.5 flex items-center gap-1 flex-wrap">
+                <span>Suggested budget:</span>
+                <span className="tabular-nums">~{fmtCurrency(rewardBudget)}</span>
+                <span className="text-muted-foreground font-normal">· {GENEROSITY_LABELS[generosity].label}</span>
+              </span>
+            )}
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -1773,8 +1794,8 @@ export function ClientsContent({
               </CardContent>
             </Card>
           ) : (
-              <Card className="rounded-2xl shadow-sm overflow-visible">
-                <div className="[&_[data-slot=table-container]]:overflow-visible">
+              <Card className="rounded-2xl shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="border-b border-border/60 hover:bg-transparent">
@@ -1827,8 +1848,8 @@ export function ClientsContent({
                               </TableCell>
 
                               {/* Name + achievement badges */}
-                              <TableCell className="pl-3 pr-2 py-2.5 overflow-visible">
-                                <div className="flex items-center gap-1.5 min-w-0 overflow-visible">
+                              <TableCell className="pl-3 pr-2 py-2.5">
+                                <div className="flex items-center gap-1.5 min-w-0">
                                   <div className="h-7 w-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
                                     {group.name.charAt(0).toUpperCase()}
                                   </div>
@@ -1837,7 +1858,7 @@ export function ClientsContent({
                                   </span>
                                   {/* Achievement badge icons — circular discs with hover tooltip */}
                                   {badges.length > 0 && (
-                                    <span className="flex items-center gap-1.5 shrink-0 overflow-visible">
+                                    <span className="flex items-center gap-1.5 shrink-0">
                                       {badges.map((b) => (
                                         <AchievementBadgeIcon
                                           key={b.id}
@@ -2240,6 +2261,26 @@ export function ClientsContent({
                             )}
                           >
                             {PREFERRED_CONTACT_LABELS[pc]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-[10px] text-muted-foreground block mb-1">AI Message Tone</span>
+                      <div className="flex gap-1">
+                        {(["casual", "friendly", "professional", "formal"] as CommunicationTone[]).map((tone) => (
+                          <button
+                            key={tone}
+                            onClick={() => updateClientField(selectedClient.id, "communication_tone", tone)}
+                            title={COMMUNICATION_TONE_DESCRIPTIONS[tone]}
+                            className={cn(
+                              "rounded-full px-2 py-0.5 text-[10px] font-semibold border transition-colors",
+                              selectedClient.communication_tone === tone
+                                ? "bg-violet-600 text-white border-violet-600"
+                                : "bg-card text-muted-foreground border-border hover:border-violet-400/40",
+                            )}
+                          >
+                            {COMMUNICATION_TONE_LABELS[tone]}
                           </button>
                         ))}
                       </div>

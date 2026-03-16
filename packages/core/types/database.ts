@@ -407,6 +407,23 @@ export type ClientStatus = "boarding" | "taxiing" | "in_flight" | "landed" | "cr
 // ── Client Archive Reason (migration 00037) ───────────────────────────────────
 export type ArchiveReason = "deceased" | "moved_away" | "do_not_contact" | "other";
 
+// ── Client Communication Tone (migration 00041) ─────────────────────────────
+export type CommunicationTone = "casual" | "friendly" | "professional" | "formal";
+
+export const COMMUNICATION_TONE_LABELS: Record<CommunicationTone, string> = {
+  casual:       "Casual",
+  friendly:     "Friendly",
+  professional: "Professional",
+  formal:       "Formal",
+};
+
+export const COMMUNICATION_TONE_DESCRIPTIONS: Record<CommunicationTone, string> = {
+  casual:       "Close friend — first names, slang okay",
+  friendly:     "Warm & personal — default tone",
+  professional: "Business-appropriate — polished",
+  formal:       "Investor/VIP — respectful & precise",
+};
+
 // ── AI Flight Control — outreach queue (migration 00038) ──────────────────────
 export type OutreachOpportunityType = "closing_anniversary" | "idle_client" | "birthday";
 export type OutreachStatus          = "draft" | "ready" | "sent" | "skipped";
@@ -663,6 +680,9 @@ export interface Client {
   // Archive (migration 00037)
   archived_at:    string | null;   // TIMESTAMPTZ — null = active
   archive_reason: ArchiveReason | null;
+
+  // Communication tone for AI Flight Control (migration 00041)
+  communication_tone: CommunicationTone;
 
   created_at: string;
   updated_at: string;
