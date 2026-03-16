@@ -1816,6 +1816,7 @@ function parseTrackerSheet(
     deals.push({
       date:       parseTrackerDate(rawDate, sheetYear),
       address,
+      sale_price: 0,  // local tracker parsing — sale price not extracted from column
       gci,
       party_a:    name,
       party_b:    "",
