@@ -1773,8 +1773,8 @@ export function ClientsContent({
               </CardContent>
             </Card>
           ) : (
-              <Card className="rounded-2xl shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
+              <Card className="rounded-2xl shadow-sm overflow-visible">
+                <div className="[&_[data-slot=table-container]]:overflow-visible">
                   <Table>
                     <TableHeader>
                       <TableRow className="border-b border-border/60 hover:bg-transparent">
@@ -1827,8 +1827,8 @@ export function ClientsContent({
                               </TableCell>
 
                               {/* Name + achievement badges */}
-                              <TableCell className="pl-3 pr-2 py-2.5">
-                                <div className="flex items-center gap-1.5 min-w-0">
+                              <TableCell className="pl-3 pr-2 py-2.5 overflow-visible">
+                                <div className="flex items-center gap-1.5 min-w-0 overflow-visible">
                                   <div className="h-7 w-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
                                     {group.name.charAt(0).toUpperCase()}
                                   </div>
@@ -1837,7 +1837,7 @@ export function ClientsContent({
                                   </span>
                                   {/* Achievement badge icons — circular discs with hover tooltip */}
                                   {badges.length > 0 && (
-                                    <span className="flex items-center gap-1.5 shrink-0">
+                                    <span className="flex items-center gap-1.5 shrink-0 overflow-visible">
                                       {badges.map((b) => (
                                         <AchievementBadgeIcon
                                           key={b.id}
