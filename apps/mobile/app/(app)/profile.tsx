@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth-context";
 
@@ -23,21 +23,24 @@ export default function ProfileScreen() {
         </Text>
 
         <View style={{ marginTop: 24 }}>
-          <TouchableOpacity
+          <Pressable
             onPress={signOut}
-            style={{
+            accessibilityRole="button"
+            accessibilityLabel="Sign Out"
+            style={({ pressed }) => ({
               backgroundColor: "#1A1A2E",
               borderRadius: 12,
               padding: 16,
               alignItems: "center",
               borderWidth: 1,
-              borderColor: "#2D2D44",
-            }}
+              borderColor: pressed ? "#EF4444" : "#2D2D44",
+              opacity: pressed ? 0.8 : 1,
+            })}
           >
             <Text style={{ color: "#EF4444", fontSize: 16, fontWeight: "600" }}>
               Sign Out
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
     </SafeAreaView>

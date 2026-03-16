@@ -3,11 +3,10 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
+  Pressable,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { Link } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
@@ -17,17 +16,26 @@ export default function LoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSignIn = async () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Please enter email and password");
+    setError(null);
+
+    if (!email.trim() || !password) {
+      setError("Please enter email and password");
       return;
     }
+
     setLoading(true);
-    const { error } = await signIn(email, password);
-    setLoading(false);
-    if (error) {
-      Alert.alert("Sign In Error", error.message);
+    try {
+      const { error: signInError } = await signIn(email.trim(), password);
+      if (signInError) {
+        setError(signInError.message);
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "An unexpected error occurred");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -67,6 +75,23 @@ export default function LoginScreen() {
           </Text>
         </View>
 
+        {/* Inline Error Message */}
+        {error ? (
+          <View
+            style={{
+              backgroundColor: "rgba(239, 68, 68, 0.15)",
+              borderWidth: 1,
+              borderColor: "rgba(239, 68, 68, 0.3)",
+              borderRadius: 12,
+              padding: 14,
+            }}
+          >
+            <Text style={{ color: "#F87171", fontSize: 14, textAlign: "center" }}>
+              {error}
+            </Text>
+          </View>
+        ) : null}
+
         {/* Email Input */}
         <View>
           <Text style={{ color: "#9CA3AF", fontSize: 14, marginBottom: 6 }}>
@@ -74,12 +99,18 @@ export default function LoginScreen() {
           </Text>
           <TextInput
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(text) => {
+              setEmail(text);
+              if (error) setError(null);
+            }}
             placeholder="you@example.com"
             placeholderTextColor="#4B5563"
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
+            autoComplete="email"
+            textContentType="emailAddress"
+            returnKeyType="next"
             style={{
               backgroundColor: "#1A1A2E",
               borderRadius: 12,
@@ -99,10 +130,17 @@ export default function LoginScreen() {
           </Text>
           <TextInput
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              if (error) setError(null);
+            }}
             placeholder="Enter your password"
             placeholderTextColor="#4B5563"
             secureTextEntry
+            autoComplete="password"
+            textContentType="password"
+            returnKeyType="done"
+            onSubmitEditing={handleSignIn}
             style={{
               backgroundColor: "#1A1A2E",
               borderRadius: 12,
@@ -116,17 +154,19 @@ export default function LoginScreen() {
         </View>
 
         {/* Sign In Button */}
-        <TouchableOpacity
+        <Pressable
           onPress={handleSignIn}
           disabled={loading}
-          style={{
+          accessibilityRole="button"
+          accessibilityLabel="Sign In"
+          style={({ pressed }) => ({
             backgroundColor: "#6366F1",
             borderRadius: 12,
             padding: 16,
             alignItems: "center",
             marginTop: 8,
-            opacity: loading ? 0.7 : 1,
-          }}
+            opacity: loading ? 0.7 : pressed ? 0.85 : 1,
+          })}
         >
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
@@ -141,7 +181,7 @@ export default function LoginScreen() {
               Sign In
             </Text>
           )}
-        </TouchableOpacity>
+        </Pressable>
 
         {/* Sign Up Link */}
         <View
@@ -155,13 +195,13 @@ export default function LoginScreen() {
             Don't have an account?{" "}
           </Text>
           <Link href="/(auth)/signup" asChild>
-            <TouchableOpacity>
+            <Pressable accessibilityRole="link">
               <Text
                 style={{ color: "#6366F1", fontSize: 14, fontWeight: "600" }}
               >
                 Sign Up
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           </Link>
         </View>
       </View>

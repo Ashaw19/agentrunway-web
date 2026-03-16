@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Slot, useRouter, useSegments } from "expo-router";
+import { Redirect, Slot, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
@@ -12,23 +12,16 @@ SplashScreen.preventAutoHideAsync();
 function RootLayoutNav() {
   const { session, isLoading } = useAuth();
   const segments = useSegments();
-  const router = useRouter();
 
+  // Hide splash screen as soon as auth state is known
   useEffect(() => {
-    if (isLoading) return;
-
-    const inAuthGroup = segments[0] === "(auth)";
-
-    if (!session && !inAuthGroup) {
-      router.replace("/(auth)/login");
-    } else if (session && inAuthGroup) {
-      router.replace("/(app)");
+    if (!isLoading) {
+      SplashScreen.hideAsync();
     }
+  }, [isLoading]);
 
-    SplashScreen.hideAsync();
-  }, [session, isLoading, segments]);
-
-  // Show loading screen until auth state is resolved to prevent flash
+  // Show spinner while auth state is being resolved —
+  // this blocks any route from rendering until we know the session status
   if (isLoading) {
     return (
       <View
@@ -42,6 +35,18 @@ function RootLayoutNav() {
         <ActivityIndicator size="large" color="#6366F1" />
       </View>
     );
+  }
+
+  // Not authenticated and not already in auth group → go to login
+  // Using <Redirect> (not router.replace) so it fires synchronously
+  // during render, with no frame where the wrong screen is shown.
+  if (!session && segments[0] !== "(auth)") {
+    return <Redirect href="/(auth)/login" />;
+  }
+
+  // Authenticated but still on an auth screen → go to app
+  if (session && segments[0] === "(auth)") {
+    return <Redirect href="/(app)" />;
   }
 
   return (
