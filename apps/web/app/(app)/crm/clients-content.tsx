@@ -239,17 +239,36 @@ function nowIso(): string {
 // ── Achievement Badges ────────────────────────────────────────────────────────
 
 type AchievementBadgeId = "high_yield" | "frequent_flyer" | "silver_wings" | "tailwind_club" | "first_class";
+type RewardGenerosity   = "thoughtful" | "generous" | "lavish";
 
 interface AchievementBadge {
   id: AchievementBadgeId;
   label: string;
   /** One-liner shown under the badge name in the tooltip */
   earned: string;
-  /** Reward suggestion shown in the tooltip */
-  reward: string;
+  /** Category description (no dollar amounts — those are computed dynamically) */
+  rewardCategory: string;
   /** Tailwind gradient + ring for the badge disc */
   ringCls: string;
   bgCls: string;
+}
+
+/** Generosity multiplier as a fraction of the relevant deal's GCI */
+const GENEROSITY_PCT: Record<RewardGenerosity, number> = {
+  thoughtful: 0.0075, // 0.75 % of GCI
+  generous:   0.015,  // 1.5 %
+  lavish:     0.025,  // 2.5 %
+};
+
+const GENEROSITY_LABELS: Record<RewardGenerosity, { label: string; sub: string }> = {
+  thoughtful: { label: "Thoughtful",  sub: "~0.75% of deal GCI" },
+  generous:   { label: "Generous",    sub: "~1.5% of deal GCI"  },
+  lavish:     { label: "Lavish",      sub: "~2.5% of deal GCI"  },
+};
+
+/** Round budget to nearest $5, minimum $10 */
+function calcRewardBudget(gci: number, generosity: RewardGenerosity): number {
+  return Math.max(10, Math.round((gci * GENEROSITY_PCT[generosity]) / 5) * 5);
 }
 
 const ACHIEVEMENT_DEFS: Record<AchievementBadgeId, AchievementBadge> = {
@@ -257,7 +276,7 @@ const ACHIEVEMENT_DEFS: Record<AchievementBadgeId, AchievementBadge> = {
     id: "high_yield",
     label: "High Yield",
     earned: "Closed a deal worth $10K+ in GCI",
-    reward: "💡 Reward idea: A premium bottle of wine, a fine-dining gift card ($100–150), or a luxury candle set — something that feels as polished as the deal.",
+    rewardCategory: "A polished gift that matches the quality of the deal — fine dining, premium wine, or a curated local experience.",
     ringCls: "ring-emerald-400",
     bgCls:   "bg-gradient-to-br from-emerald-500 to-teal-600",
   },
@@ -265,7 +284,7 @@ const ACHIEVEMENT_DEFS: Record<AchievementBadgeId, AchievementBadge> = {
     id: "frequent_flyer",
     label: "Frequent Flyer",
     earned: "Has flown with you 2 or more times",
-    reward: "💡 Reward idea: A personalised thank-you note with a coffee or restaurant gift card ($50–75). They're loyal — make them feel seen.",
+    rewardCategory: "A personal touch — handwritten card, local coffee shop or restaurant gift card.",
     ringCls: "ring-sky-400",
     bgCls:   "bg-gradient-to-br from-sky-500 to-blue-600",
   },
@@ -273,7 +292,7 @@ const ACHIEVEMENT_DEFS: Record<AchievementBadgeId, AchievementBadge> = {
     id: "silver_wings",
     label: "Silver Wings",
     earned: "5+ transactions — a true repeat client",
-    reward: "💡 Reward idea: A curated gift box ($150–250) — artisan food, spa products, or a local experience. They've invested in you; invest back.",
+    rewardCategory: "A curated gift box — artisan food, spa products, or a meaningful local experience.",
     ringCls: "ring-slate-400",
     bgCls:   "bg-gradient-to-br from-slate-400 to-slate-600",
   },
@@ -281,7 +300,7 @@ const ACHIEVEMENT_DEFS: Record<AchievementBadgeId, AchievementBadge> = {
     id: "tailwind_club",
     label: "Tailwind Club",
     earned: "10+ transactions — a lifetime loyalist",
-    reward: "💡 Reward idea: A signature experience ($300–600): a tasting tour, concert tickets, weekend getaway voucher, or premium subscription. This client has made your career — celebrate them.",
+    rewardCategory: "A signature experience — tasting tour, event tickets, or a weekend getaway voucher.",
     ringCls: "ring-amber-400",
     bgCls:   "bg-gradient-to-br from-amber-400 to-orange-500",
   },
@@ -289,26 +308,30 @@ const ACHIEVEMENT_DEFS: Record<AchievementBadgeId, AchievementBadge> = {
     id: "first_class",
     label: "First Class",
     earned: "Top 5% of all clients by lifetime GCI",
-    reward: "💡 Reward idea: A curated luxury experience ($600–1,200): a premium spa day, exclusive dining event, weekend getaway, or personalised keepsake. These clients built your business — treat them like it.",
+    rewardCategory: "A luxury experience that shows this client truly made your career.",
     ringCls: "ring-violet-400",
     bgCls:   "bg-gradient-to-br from-violet-500 to-purple-700",
   },
 };
 
-// ── Badge icon components (aviation-themed SVG discs) ─────────────────────────
+// ── Badge icon component (aviation-themed disc + hover tooltip) ───────────────
 
 function AchievementBadgeIcon({
   badge,
+  rewardBudget,
+  generosity,
   size = 24,
   showLabel = false,
 }: {
   badge: AchievementBadge;
+  rewardBudget?: number;
+  generosity?: RewardGenerosity;
   size?: number;
   showLabel?: boolean;
 }) {
   const iconSize = Math.round(size * 0.52);
   const IconComponent: React.ComponentType<{ size?: number; className?: string }> =
-    badge.id === "high_yield"    ? Gem
+    badge.id === "high_yield"       ? Gem
     : badge.id === "frequent_flyer" ? Plane
     : badge.id === "silver_wings"   ? Wind
     : badge.id === "tailwind_club"  ? Rocket
@@ -333,7 +356,7 @@ function AchievementBadgeIcon({
         </span>
       )}
       {/* Hover tooltip */}
-      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 hidden group-hover/badge:flex flex-col gap-1 w-56 rounded-xl border border-border/80 bg-popover shadow-xl p-3">
+      <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 hidden group-hover/badge:flex flex-col gap-1.5 w-60 rounded-xl border border-border/80 bg-popover shadow-xl p-3">
         <span className="flex items-center gap-1.5">
           <span
             className={cn("h-5 w-5 rounded-full flex items-center justify-center ring-1 shrink-0", badge.bgCls, badge.ringCls)}
@@ -343,7 +366,16 @@ function AchievementBadgeIcon({
           <span className="text-xs font-bold text-foreground">{badge.label}</span>
         </span>
         <span className="text-[11px] text-muted-foreground leading-snug">{badge.earned}</span>
-        <span className="text-[11px] leading-snug text-foreground/80 border-t border-border/40 pt-1.5 mt-0.5">{badge.reward}</span>
+        <span className="text-[11px] leading-snug text-foreground/80 border-t border-border/40 pt-1.5">
+          💡 {badge.rewardCategory}
+        </span>
+        {rewardBudget !== undefined && generosity && (
+          <span className="text-[11px] font-semibold text-primary border-t border-border/40 pt-1.5 flex items-center gap-1">
+            <span>Suggested budget:</span>
+            <span className="tabular-nums">~{fmtCurrency(rewardBudget)}</span>
+            <span className="text-muted-foreground font-normal">· {GENEROSITY_LABELS[generosity].label}</span>
+          </span>
+        )}
       </span>
     </span>
   );
@@ -582,6 +614,10 @@ export function ClientsContent({
   const [filterSource, setFilterSource] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<"all" | ClientStatus>("all");
   const [activityFilter, setActivityFilter] = useState<"all" | "1y" | "3y" | "5y">("all");
+  const [rewardGenerosity, setRewardGenerosity] = useState<RewardGenerosity>(() => {
+    if (typeof window === "undefined") return "thoughtful";
+    return (localStorage.getItem("crm_reward_generosity") as RewardGenerosity | null) ?? "thoughtful";
+  });
   const [showArchived, setShowArchived] = useState(false);
   const [sortCol, setSortCol] = useState<SortCol>("gci");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -1100,6 +1136,11 @@ export function ClientsContent({
       newClientStreet, newClientUnit, newClientCity, newClientProvince, newClientPostal, newClientCountry]);
 
   // Consume voice draft from global context on mount (routed from FAB)
+  // Persist reward generosity preference
+  useEffect(() => {
+    localStorage.setItem("crm_reward_generosity", rewardGenerosity);
+  }, [rewardGenerosity]);
+
   useEffect(() => {
     const draft = consume();
     if (!draft) return;
@@ -1680,6 +1721,31 @@ export function ClientsContent({
             ))}
           </div>
 
+          {/* Gift generosity toggle */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
+              🎁 Gift level:
+            </span>
+            {(Object.keys(GENEROSITY_LABELS) as RewardGenerosity[]).map((g) => (
+              <button
+                key={g}
+                onClick={() => setRewardGenerosity(g)}
+                title={GENEROSITY_LABELS[g].sub}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
+                  rewardGenerosity === g
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-card text-muted-foreground border-border hover:border-primary/40",
+                )}
+              >
+                {GENEROSITY_LABELS[g].label}
+              </button>
+            ))}
+            <span className="text-[10px] text-muted-foreground/60 hidden sm:block">
+              ({GENEROSITY_LABELS[rewardGenerosity].sub} · scales with your market)
+            </span>
+          </div>
+
           {/* Hangar toggle */}
           {archivedCount > 0 && (
             <div className="flex items-center">
@@ -1740,6 +1806,12 @@ export function ClientsContent({
                           const client      = hasClientId ? clientById.get(group.clientId!) : null;
                           const sc          = client ? CLIENT_STATUS_COLORS[client.status] : null;
                           const barPct      = maxGCI > 0 ? (group.totalGCI / maxGCI) * 100 : 0;
+                          // Budget basis: most recent deal's GCI (fallback to average per deal)
+                          const mostRecentGCI = group.deals
+                            .filter((d) => d.close_date)
+                            .sort((a, b) => (b.close_date ?? "").localeCompare(a.close_date ?? ""))[0]?.gci
+                            ?? (group.dealCount > 0 ? group.totalGCI / group.dealCount : 0);
+                          const rewardBudget = mostRecentGCI > 0 ? calcRewardBudget(mostRecentGCI, rewardGenerosity) : undefined;
                           return (
                             <TableRow
                               key={group.clientId ?? group.name}
@@ -1767,7 +1839,13 @@ export function ClientsContent({
                                   {badges.length > 0 && (
                                     <span className="flex items-center gap-0.5 shrink-0">
                                       {badges.map((b) => (
-                                        <AchievementBadgeIcon key={b.id} badge={b} size={22} />
+                                        <AchievementBadgeIcon
+                                          key={b.id}
+                                          badge={b}
+                                          size={22}
+                                          rewardBudget={rewardBudget}
+                                          generosity={rewardGenerosity}
+                                        />
                                       ))}
                                     </span>
                                   )}
