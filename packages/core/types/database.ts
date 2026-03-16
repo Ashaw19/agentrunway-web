@@ -437,6 +437,71 @@ export interface EmailConnection {
   connected_at:  string;
 }
 
+// AI Property Showings Ledger — migration 00040
+export type PropertyType = "detached" | "semi" | "townhouse" | "condo" | "other";
+export type AnalysisSourceType = "mls_cutsheet" | "screenshot" | "manual";
+
+export interface PropertyShowing {
+  id:                string;
+  user_id:           string;
+  client_id:         string;
+  property_address:  string;
+  city:              string | null;
+  province_region:   string | null;
+  postal_code:       string | null;
+  mls_number:        string | null;
+  listing_price:     number | null;
+  property_type:     PropertyType | null;
+  bedrooms:          number | null;
+  bathrooms:         number | null;
+  square_feet:       number | null;
+  lot_size:          string | null;
+  year_built:        number | null;
+  showing_date:      string;
+  client_rating:     number | null; // 1–5
+  notes:             string | null;
+  realtor_ca_url:    string | null;
+  screenshot_url:    string | null;
+  extracted_data:    Record<string, unknown>;
+  created_at:        string;
+  updated_at:        string;
+}
+
+export interface PropertyAnalysis {
+  id:             string;
+  user_id:        string;
+  client_id:      string | null;
+  showing_id:     string | null;
+  source_type:    AnalysisSourceType;
+  source_url:     string | null;
+  property_data:  Record<string, unknown>;
+  ai_analysis: {
+    pricing_assessment?: string;
+    offer_strategy?:     string;
+    leverage_tips?:      string[];
+    market_comparison?:  string;
+    risk_factors?:       string[];
+    summary?:            string;
+  };
+  created_at:     string;
+}
+
+export interface BuyerDNA {
+  preferred_type:      string;       // most common property type
+  avg_price:           number;
+  price_range:         [number, number];
+  avg_bedrooms:        number;
+  avg_bathrooms:       number;
+  avg_sqft:            number;
+  preferred_areas:     string[];     // most common cities/neighbourhoods
+  budget_drift:        "stable" | "increasing" | "decreasing";
+  viewing_velocity:    number;       // showings per week
+  top_rated_features:  string[];     // from notes + ratings
+  total_showings:      number;
+  date_range:          [string, string]; // first → most recent showing
+  ai_summary:          string;       // Groq-generated narrative
+}
+
 export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
   boarding:  "Boarding",
   taxiing:   "Taxiing",

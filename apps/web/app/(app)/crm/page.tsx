@@ -1,14 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ClientsContent } from "./clients-content";
-import type { Client, ClientRecord, ContactActivity, ContactTask, UserSettings, ExpenseItem, ClientRelationship, FlightPlan, FlightPlanStep } from "@/lib/types/database";
+import type { Client, ClientRecord, ContactActivity, ContactTask, UserSettings, ExpenseItem, ClientRelationship, FlightPlan, FlightPlanStep, PropertyShowing } from "@/lib/types/database";
 
 export default async function ClientsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [clientsResult, recordsResult, activitiesResult, tasksResult, settingsResult, expensesResult, relationshipsResult, flightPlansResult, flightPlanStepsResult] = await Promise.all([
+  const [clientsResult, recordsResult, activitiesResult, tasksResult, settingsResult, expensesResult, relationshipsResult, flightPlansResult, flightPlanStepsResult, showingsResult] = await Promise.all([
     supabase
       .from("clients")
       .select("*")
@@ -56,6 +56,11 @@ export default async function ClientsPage() {
       .from("flight_plan_steps")
       .select("*")
       .order("step_order", { ascending: true }),
+    supabase
+      .from("property_showings")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("showing_date", { ascending: false }),
   ]);
 
   return (
@@ -69,6 +74,7 @@ export default async function ClientsPage() {
       relationships={(relationshipsResult.data ?? []) as ClientRelationship[]}
       flightPlans={(flightPlansResult.data ?? []) as FlightPlan[]}
       flightPlanSteps={(flightPlanStepsResult.data ?? []) as FlightPlanStep[]}
+      showings={(showingsResult.data ?? []) as PropertyShowing[]}
     />
   );
 }

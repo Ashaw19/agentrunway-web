@@ -82,6 +82,7 @@ import {
   Crown,
   Wind,
 } from "lucide-react";
+import { ShowingsSection } from "./showings-section";
 import { fmtCurrency } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import type {
@@ -102,6 +103,7 @@ import type {
   FlightPlan,
   FlightPlanStep,
   ArchiveReason,
+  PropertyShowing,
 } from "@/lib/types/database";
 import {
   ACTIVITY_TYPE_LABELS,
@@ -141,6 +143,7 @@ interface Props {
   relationships: ClientRelationship[];
   flightPlans: FlightPlan[];
   flightPlanSteps: FlightPlanStep[];
+  showings: PropertyShowing[];
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -606,6 +609,7 @@ export function ClientsContent({
   relationships: initialRelationships,
   flightPlans: initialFlightPlans,
   flightPlanSteps: initialFlightPlanSteps,
+  showings: initialShowings,
 }: Props) {
   // ── Local state ─────────────────────────────────────────────────────────────
   const [localActivities, setLocalActivities] =
@@ -618,6 +622,8 @@ export function ClientsContent({
     useState<FlightPlan[]>(initialFlightPlans);
   const [localFlightPlanSteps, setLocalFlightPlanSteps] =
     useState<FlightPlanStep[]>(initialFlightPlanSteps);
+  const [localShowings, setLocalShowings] =
+    useState<PropertyShowing[]>(initialShowings);
 
   const [search, setSearch] = useState("");
   const [filterSide, setFilterSide] = useState<"all" | "buyer" | "seller" | "both">("all");
@@ -955,6 +961,12 @@ export function ClientsContent({
     const gci = sorted[0]?.gci ?? (clientDeals.reduce((s, d) => s + d.gci, 0) / clientDeals.length);
     return gci > 0 ? calcRewardBudget(gci, rewardGenerosity) : undefined;
   }, [clientDeals, rewardGenerosity]);
+
+  // Showings for the selected client
+  const selectedClientShowings = useMemo(
+    () => selectedClientId ? localShowings.filter((s) => s.client_id === selectedClientId) : [],
+    [localShowings, selectedClientId],
+  );
 
   // Clients for relationship linking search
   const linkCandidates = useMemo(() => {
@@ -2667,6 +2679,20 @@ export function ClientsContent({
                     </div>
                   )}
                 </div>
+
+                <Separator />
+
+                {/* Property Showings */}
+                <ShowingsSection
+                  clientId={selectedClient.id}
+                  clientName={selectedClient.name}
+                  showings={selectedClientShowings}
+                  onShowingsChange={(updated) => {
+                    // Replace this client's showings in the global list
+                    const otherShowings = localShowings.filter((s) => s.client_id !== selectedClient.id);
+                    setLocalShowings([...updated, ...otherShowings]);
+                  }}
+                />
 
                 {/* Deal History */}
                 {clientDeals.length > 0 && (
