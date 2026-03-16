@@ -1599,7 +1599,7 @@ export function ClientsContent({
       </div>
 
       {/* ── Summary KPI strip ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <SummaryCard
           icon={<Users className="h-4 w-4 text-blue-500" />}
           label="Total Clients"
@@ -1703,106 +1703,66 @@ export function ClientsContent({
             </div>
           </div>
 
-          {/* Flight Status filter pills */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <button
-              onClick={() => setFilterStatus("all")}
-              className={cn(
-                "rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
-                filterStatus === "all"
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-card text-muted-foreground border-border hover:border-primary/40",
-              )}
-            >
-              All Statuses
-            </button>
-            {(Object.keys(CLIENT_STATUS_LABELS) as ClientStatus[]).map((s) => {
-              const colors = CLIENT_STATUS_COLORS[s];
-              return (
-                <button
-                  key={s}
-                  onClick={() => setFilterStatus(s)}
-                  className={cn(
-                    "rounded-full px-3 py-1 text-xs font-semibold border transition-colors inline-flex items-center gap-1.5",
-                    filterStatus === s
-                      ? cn(colors.bg, colors.text, colors.border)
-                      : "bg-card text-muted-foreground border-border hover:border-primary/40",
-                  )}
-                >
-                  <span className={cn("h-2 w-2 rounded-full", filterStatus === s ? colors.dot : "bg-muted-foreground/30")} />
-                  {CLIENT_STATUS_LABELS[s]}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Activity window filter */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {(
-              [
-                { id: "all", label: "All Time" },
-                { id: "1y",  label: "Last 365 days" },
-                { id: "3y",  label: "Last 3 years" },
-                { id: "5y",  label: "Last 5 years" },
-              ] as { id: "all" | "1y" | "3y" | "5y"; label: string }[]
-            ).map(({ id, label }) => (
-              <button
-                key={id}
-                onClick={() => setActivityFilter(id)}
-                className={cn(
-                  "rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
-                  activityFilter === id
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-card text-muted-foreground border-border hover:border-primary/40",
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {/* Gift generosity toggle */}
+          {/* ── Compact filter bar ────────────────────────────────── */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] text-muted-foreground font-medium flex items-center gap-1">
-              🎁 Gift level:
-            </span>
-            {(Object.keys(GENEROSITY_LABELS) as RewardGenerosity[]).map((g) => (
-              <button
-                key={g}
-                onClick={() => setRewardGenerosity(g)}
-                title={GENEROSITY_LABELS[g].sub}
-                className={cn(
-                  "rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
-                  rewardGenerosity === g
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-card text-muted-foreground border-border hover:border-primary/40",
-                )}
-              >
-                {GENEROSITY_LABELS[g].label}
-              </button>
-            ))}
-            <span className="text-[10px] text-muted-foreground/60 hidden sm:block">
-              ({GENEROSITY_LABELS[rewardGenerosity].sub} · scales with your market)
-            </span>
-          </div>
+            {/* Status filter — compact dropdown */}
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as "all" | ClientStatus)}
+              className="rounded-full px-3 py-1 text-xs font-semibold border border-border bg-card text-muted-foreground hover:border-primary/40 transition-colors cursor-pointer outline-none"
+            >
+              <option value="all">All Statuses</option>
+              {(Object.keys(CLIENT_STATUS_LABELS) as ClientStatus[]).map((s) => (
+                <option key={s} value={s}>
+                  {CLIENT_STATUS_LABELS[s]}
+                </option>
+              ))}
+            </select>
 
-          {/* Hangar toggle */}
-          {archivedCount > 0 && (
-            <div className="flex items-center">
+            {/* Time window — compact dropdown */}
+            <select
+              value={activityFilter}
+              onChange={(e) => setActivityFilter(e.target.value as "all" | "1y" | "3y" | "5y")}
+              className="rounded-full px-3 py-1 text-xs font-semibold border border-border bg-card text-muted-foreground hover:border-primary/40 transition-colors cursor-pointer outline-none"
+            >
+              <option value="all">All Time</option>
+              <option value="1y">Last 365 days</option>
+              <option value="3y">Last 3 years</option>
+              <option value="5y">Last 5 years</option>
+            </select>
+
+            {/* Gift level — compact dropdown */}
+            <select
+              value={rewardGenerosity}
+              onChange={(e) => setRewardGenerosity(e.target.value as RewardGenerosity)}
+              className="rounded-full px-3 py-1 text-xs font-semibold border border-border bg-card text-muted-foreground hover:border-primary/40 transition-colors cursor-pointer outline-none"
+            >
+              {(Object.keys(GENEROSITY_LABELS) as RewardGenerosity[]).map((g) => (
+                <option key={g} value={g}>
+                  🎁 {GENEROSITY_LABELS[g].label}
+                </option>
+              ))}
+            </select>
+            <span className="text-[10px] text-muted-foreground/60 hidden sm:block">
+              {GENEROSITY_LABELS[rewardGenerosity].sub}
+            </span>
+
+            {/* Hangar toggle */}
+            {archivedCount > 0 && (
               <button
                 onClick={() => setShowArchived((v) => !v)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
+                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border transition-colors ml-auto",
                   showArchived
                     ? "bg-zinc-800 text-zinc-100 border-zinc-700"
                     : "bg-card text-muted-foreground border-border hover:border-primary/40",
                 )}
               >
                 <Archive className="h-3 w-3" />
-                {showArchived ? "← Back to Active" : `Hangar (${archivedCount})`}
+                {showArchived ? "← Active" : `Hangar (${archivedCount})`}
               </button>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Client table */}
           {!hasAnyData ? (
@@ -3396,21 +3356,21 @@ function SummaryCard({
   return (
     <Card
       className={cn(
-        "rounded-2xl border shadow-sm bg-gradient-to-br to-card",
+        "rounded-xl border shadow-sm bg-gradient-to-br to-card",
         accentMap[accent],
       )}
     >
-      <CardContent className="pt-4 pb-3 px-4">
-        <div className="flex items-center gap-1.5 mb-1">
+      <CardContent className="pt-2.5 pb-2 px-3">
+        <div className="flex items-center gap-1 mb-0.5">
           {icon}
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             {label}
           </span>
         </div>
-        <p className="text-2xl font-bold text-foreground tabular-nums">
+        <p className="text-lg font-bold text-foreground tabular-nums leading-tight">
           {value}
         </p>
-        <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>
+        <p className="text-[10px] text-muted-foreground">{sub}</p>
       </CardContent>
     </Card>
   );
