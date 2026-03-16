@@ -337,6 +337,26 @@ export function ExpensesContent({
     }))
     .filter((d) => d.value > 0);
 
+  // ── Expense insights ──────────────────────────────────────────────────
+  // Cost per closed deal this year
+  const ytdClosedCount = transactions.filter(
+    (t) => t.status === "closed" && t.date.startsWith(String(thisYear)),
+  ).length;
+  const costPerDeal = ytdClosedCount > 0 && ytdTotal > 0 ? ytdTotal / ytdClosedCount : null;
+
+  // Marketing ROI: YTD GCI ÷ marketing spend
+  const marketingCat = categories.find((cat) => cat.key === "marketing");
+  const marketingSpend = marketingCat
+    ? marketingCat.items.reduce((sum, i) => sum + (receiptTotals[i.key] ?? 0), 0)
+    : 0;
+  const ytdGCIThisYear = transactions
+    .filter((t) => t.status === "closed" && t.date.startsWith(String(thisYear)))
+    .reduce((sum, tx) => sum + computeGCI(tx), 0);
+  // Only show ROI if there's meaningful marketing spend (>$100)
+  const marketingROI = marketingSpend > 100 && ytdGCIThisYear > 0
+    ? ytdGCIThisYear / marketingSpend
+    : null;
+
   // ── Helpers ───────────────────────────────────────────────────────────
   function toggleExpand(id: string) {
     setExpanded((prev) => {
@@ -622,20 +642,6 @@ export function ExpensesContent({
             Accountant PDF
           </Button>
 
-          {/* QuickBooks coming-soon CTA */}
-          <Button
-            variant="outline"
-            size="sm"
-            disabled
-            title="QuickBooks integration — coming soon"
-            className="opacity-50"
-          >
-            <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-            Connect QuickBooks
-            <Badge className="ml-1.5 bg-amber-100 px-1.5 py-0 text-[10px] font-semibold text-amber-700 hover:bg-amber-100">
-              Soon
-            </Badge>
-          </Button>
         </div>
       </div>
 
@@ -711,6 +717,39 @@ export function ExpensesContent({
           </CardContent>
         </Card>
       </div>
+
+      {/* Expense insights strip — cost per deal & marketing ROI */}
+      {(costPerDeal !== null || marketingROI !== null) && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-slate-200 bg-slate-50 px-5 py-3 text-sm">
+          {costPerDeal !== null && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Cost per deal</span>
+              <span className="font-semibold text-slate-800">{fmtCurrency(costPerDeal)}</span>
+              <span className="text-xs text-slate-400">in expenses per closed deal this year</span>
+            </div>
+          )}
+          {costPerDeal !== null && marketingROI !== null && (
+            <div className="hidden h-4 w-px bg-slate-200 sm:block" />
+          )}
+          {marketingROI !== null && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Marketing ROI</span>
+              <span className={cn(
+                "font-semibold",
+                marketingROI >= 5 ? "text-emerald-700" : marketingROI >= 2 ? "text-amber-700" : "text-rose-600",
+              )}>
+                {marketingROI.toFixed(1)}×
+              </span>
+              <span className="text-xs text-slate-400">GCI earned per $1 of marketing spend</span>
+              {marketingROI < 2 && (
+                <span className="rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                  Consider optimising spend
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Tab bar ──────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-1 border-b border-border/60">

@@ -36,6 +36,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import { ExplainButton } from "@/components/explain-button";
 import { GuideLink } from "@/components/guide-link";
@@ -412,6 +413,48 @@ export function ReportsContent({
     gciRemainingToCap,
     postCapAgentPct: settings.post_cap_agent_pct ?? 1.0,
   }, 3);
+
+  // ── Quarterly production breakdown ───────────────────────────────────────────
+  // Current year Q1-Q4 GCI and deal count computed from actual transactions
+  const currentQGCI = [1, 4, 7, 10].map((startMonth) => {
+    const endMonth = startMonth + 2;
+    return ytdTx
+      .filter((t) => {
+        const m = parseInt(t.date.slice(5, 7));
+        return t.status === "closed" && m >= startMonth && m <= endMonth;
+      })
+      .reduce((sum, t) => sum + computeGCI(t), 0);
+  });
+  const currentQDeals = [1, 4, 7, 10].map((startMonth) => {
+    const endMonth = startMonth + 2;
+    return ytdTx.filter((t) => {
+      const m = parseInt(t.date.slice(5, 7));
+      return t.status === "closed" && m >= startMonth && m <= endMonth;
+    }).length;
+  });
+
+  // Prior year quarterly data from historyItems
+  const priorYearItem = historyItems.find((h) => h.year === currentYear - 1) ?? null;
+  const priorQGCI = priorYearItem ? (priorYearItem.quarter_gci as number[]) : null;
+
+  // YoY trajectory: classify 3+ year trend as accelerating / stable / declining
+  const sortedHistory = [...historyItems]
+    .filter((h) => h.annual_gci > 0)
+    .sort((a, b) => b.year - a.year); // most recent first
+  const hasTrajectory = sortedHistory.length >= 3;
+  const yoyTrajectory: "accelerating" | "stable" | "declining" | null = hasTrajectory
+    ? sortedHistory[0].annual_gci > sortedHistory[1].annual_gci &&
+      sortedHistory[1].annual_gci > sortedHistory[2].annual_gci
+      ? "accelerating"
+      : sortedHistory[0].annual_gci < sortedHistory[1].annual_gci &&
+        sortedHistory[1].annual_gci < sortedHistory[2].annual_gci
+      ? "declining"
+      : "stable"
+    : null;
+  const yoyGrowthRate =
+    sortedHistory.length >= 2 && sortedHistory[1].annual_gci > 0
+      ? (sortedHistory[0].annual_gci - sortedHistory[1].annual_gci) / sortedHistory[1].annual_gci
+      : null;
 
   // ── Year-over-year ────────────────────────────────────────────────────────────
   const yoyData: YoYDataPoint[] = [
@@ -1248,6 +1291,104 @@ export function ReportsContent({
           )}
         </CardContent>
       </Card>
+
+      {/* ── Quarterly Production Table ────────────────────────────────────────── */}
+      {(currentQGCI.some((v) => v > 0) || priorQGCI !== null) && (
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Quarterly Production</CardTitle>
+            <CardDescription>
+              GCI by quarter — {currentYear}{priorYearItem ? ` vs ${currentYear - 1}` : ""}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-6">Quarter</TableHead>
+                  <TableHead className="text-right">{currentYear} GCI</TableHead>
+                  {priorQGCI && <TableHead className="text-right">{currentYear - 1}</TableHead>}
+                  {priorQGCI && <TableHead className="text-right">YoY</TableHead>}
+                  <TableHead className="text-right pr-6">Deals</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(["Q1", "Q2", "Q3", "Q4"] as const).map((q, i) => {
+                  const gci = currentQGCI[i];
+                  const deals = currentQDeals[i];
+                  const prior = priorQGCI ? (priorQGCI[i] ?? 0) : null;
+                  const yoyChange = prior !== null && prior > 0 ? (gci - prior) / prior : null;
+                  const qStartMonth = i * 3 + 1;
+                  const currentMonth = now.getMonth() + 1;
+                  const isFuture = qStartMonth > currentMonth;
+                  return (
+                    <TableRow key={q} className={isFuture ? "opacity-40" : ""}>
+                      <TableCell className="pl-6 font-medium text-sm">
+                        {q}
+                        {isFuture && (
+                          <span className="ml-1.5 text-[10px] text-muted-foreground">(upcoming)</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-sm">
+                        {gci > 0 ? fmtCurrency(gci) : <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      {prior !== null && (
+                        <TableCell className="text-right text-sm text-muted-foreground">
+                          {prior > 0 ? fmtCurrency(prior) : "—"}
+                        </TableCell>
+                      )}
+                      {prior !== null && (
+                        <TableCell className="text-right text-sm">
+                          {yoyChange !== null ? (
+                            <span className={yoyChange >= 0 ? "font-medium text-emerald-700" : "font-medium text-rose-600"}>
+                              {yoyChange >= 0 ? "+" : ""}{fmtPct(yoyChange)}
+                            </span>
+                          ) : "—"}
+                        </TableCell>
+                      )}
+                      <TableCell className="text-right text-sm text-muted-foreground pr-6">
+                        {deals > 0 ? deals : "—"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            {/* YoY trajectory insight */}
+            {yoyTrajectory && (
+              <div className={cn(
+                "mx-6 mb-4 mt-2 flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm",
+                yoyTrajectory === "accelerating"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : yoyTrajectory === "declining"
+                  ? "border-rose-200 bg-rose-50 text-rose-800"
+                  : "border-slate-200 bg-slate-50 text-slate-700",
+              )}>
+                {yoyTrajectory === "accelerating" ? (
+                  <TrendingUp className="h-4 w-4 shrink-0" />
+                ) : yoyTrajectory === "declining" ? (
+                  <TrendingDown className="h-4 w-4 shrink-0" />
+                ) : (
+                  <Layers className="h-4 w-4 shrink-0" />
+                )}
+                <span>
+                  <strong className="capitalize">{yoyTrajectory}</strong> —{" "}
+                  {yoyTrajectory === "accelerating"
+                    ? "GCI has grown every year for the past 3 years"
+                    : yoyTrajectory === "declining"
+                    ? "GCI has declined over the past 3 years — review your pipeline strategy"
+                    : "GCI has been relatively stable over the past 3 years"}
+                  {yoyGrowthRate !== null && (
+                    <span className="ml-1 opacity-70">
+                      ({yoyGrowthRate >= 0 ? "+" : ""}{fmtPct(yoyGrowthRate)} last year)
+                    </span>
+                  )}
+                </span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── 9. AI Advisor Intelligence ────────────────────────────────────────── */}
       <div>

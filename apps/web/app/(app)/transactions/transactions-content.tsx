@@ -32,11 +32,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, DollarSign, Briefcase, TrendingUp, AlertTriangle, Users, Layers, History } from "lucide-react";
+import { Plus, Pencil, Trash2, DollarSign, Briefcase, TrendingUp, AlertTriangle, Users, Layers, History, ArrowUp, ArrowDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { fmtCurrency } from "@/lib/formatters";
-import { computeGCI, type Transaction, type PipelineDeal, type HistoryItem, type UserSettings } from "@/lib/types/database";
+import { computeGCI, getAgentPct, type Transaction, type PipelineDeal, type HistoryItem, type UserSettings } from "@/lib/types/database";
 import { TransactionsPipelineTab } from "./transactions-pipeline-tab";
 import { TransactionsHistoryTab } from "./transactions-history-tab";
 import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
@@ -290,6 +290,32 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
 
   const avgDealSize = ytdCount > 0 ? ytdGCI / ytdCount : 0;
 
+  // ── Insights ─────────────────────────────────────────────────────────────
+  // Agent's brokerage split percentage (for "your cut" sub-label)
+  const agentPct = settings?.split_preset ? getAgentPct(settings.split_preset) : null;
+
+  // Closing velocity: last 30 days vs prior 30 days
+  const _now = new Date();
+  const _ms30 = 30 * 24 * 60 * 60 * 1000;
+  const thirtyDaysAgo = new Date(_now.getTime() - _ms30);
+  const sixtyDaysAgo = new Date(_now.getTime() - 2 * _ms30);
+  const last30Deals = transactions.filter((t) => {
+    const d = new Date(t.date + "T12:00:00");
+    return t.status === "closed" && d >= thirtyDaysAgo && d <= _now;
+  }).length;
+  const prior30Deals = transactions.filter((t) => {
+    const d = new Date(t.date + "T12:00:00");
+    return t.status === "closed" && d >= sixtyDaysAgo && d < thirtyDaysAgo;
+  }).length;
+
+  // YTD business mix
+  const ytdClosed = transactions.filter((t) => t.status === "closed" && t.date.startsWith(currentYear));
+  const buyerCount  = ytdClosed.filter((t) => t.side === "buyer").length;
+  const sellerCount = ytdClosed.filter((t) => t.side === "seller").length;
+  const bothCount   = ytdClosed.filter((t) => t.side === "both").length;
+  // Insight: flag if ≥65% buyer-side with ≥3 deals — listings typically net more per deal
+  const showListingInsight = ytdCount >= 3 && buyerCount / ytdCount >= 0.65;
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -402,6 +428,55 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
           </div>
         </div>
       </div>
+
+      {/* Insight strip — velocity, mix, avg take-home */}
+      {transactions.length >= 2 && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-slate-200 bg-slate-50 px-5 py-3 text-sm">
+          {/* Closing velocity */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Last 30 d</span>
+            <span className="font-semibold text-slate-800">{last30Deals} deal{last30Deals !== 1 ? "s" : ""}</span>
+            {last30Deals > prior30Deals && (
+              <span className="flex items-center gap-0.5 text-xs font-medium text-emerald-600">
+                <ArrowUp className="h-3 w-3" />vs prior
+              </span>
+            )}
+            {last30Deals < prior30Deals && (
+              <span className="flex items-center gap-0.5 text-xs font-medium text-rose-500">
+                <ArrowDown className="h-3 w-3" />vs prior
+              </span>
+            )}
+          </div>
+          {ytdCount >= 1 && (
+            <>
+              <div className="hidden h-4 w-px bg-slate-200 sm:block" />
+              {/* Business mix */}
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Mix</span>
+                <span className="font-medium text-slate-700">
+                  {buyerCount} buyer &middot; {sellerCount} listing &middot; {bothCount} dual
+                </span>
+                {showListingInsight && (
+                  <span className="rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                    Add listings — typically 1.5–2× net per deal
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+          {agentPct !== null && ytdCount >= 1 && (
+            <>
+              <div className="hidden h-4 w-px bg-slate-200 sm:block" />
+              {/* Avg take-home after brokerage split */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Avg take-home</span>
+                <span className="font-semibold text-emerald-700">{fmtCurrency((ytdGCI * agentPct) / ytdCount)}</span>
+                <span className="text-xs text-slate-400">/ deal after split</span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Filter + Sort bar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -523,6 +598,11 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                           <span className="text-[10px] font-normal text-amber-600 flex items-center gap-0.5">
                             <Users className="h-2.5 w-2.5" />
                             {Math.round(tx.team_split_pct * 100)}% split
+                          </span>
+                        )}
+                        {agentPct !== null && tx.status === "closed" && (
+                          <span className="text-[10px] font-normal text-slate-400">
+                            {fmtCurrency(computeGCI(tx) * agentPct)} your cut
                           </span>
                         )}
                       </div>

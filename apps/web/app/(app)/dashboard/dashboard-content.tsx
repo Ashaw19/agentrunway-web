@@ -76,8 +76,6 @@ import {
   daysRemaining,
   trendDirection,
   dayOfYear,
-  daysInYear,
-  weekOfYear,
 } from "@/lib/engines/projection-engine";
 import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
@@ -171,6 +169,19 @@ function getStreakLabel(transactions: Transaction[]): string | null {
   return null;
 }
 
+const PIPELINE_STAGE_CONFIG: Array<{
+  key: string;
+  label: string;
+  dotClass: string;
+  chipClass: string;
+}> = [
+  { key: "lead",        label: "Lead",        dotClass: "bg-slate-400",   chipClass: "border-slate-200 bg-slate-50 text-slate-600" },
+  { key: "showing",    label: "Showing",     dotClass: "bg-sky-500",     chipClass: "border-sky-200 bg-sky-50 text-sky-700" },
+  { key: "offer",      label: "Offer",       dotClass: "bg-amber-500",   chipClass: "border-amber-200 bg-amber-50 text-amber-700" },
+  { key: "conditional", label: "Conditional", dotClass: "bg-orange-500", chipClass: "border-orange-200 bg-orange-50 text-orange-700" },
+  { key: "firm",       label: "Firm",        dotClass: "bg-emerald-500", chipClass: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+];
+
 const INSIGHT_ICONS: Record<string, React.ElementType> = {
   "gauge": Gauge,
   "check-circle": CheckCircle,
@@ -228,7 +239,10 @@ export function DashboardContent({
   const isDecember = now.getMonth() === 11; // 0-indexed
 
   // ── Scenario toggle ────────────────────────────────────────────────────
-  const [scenario, setScenario] = useState<"conservative" | "base" | "optimistic">("base");
+  // NOTE [RELOCATED]: Scenario selector (Conservative/Base/Optimistic ±15%)
+  // was removed from the dashboard header to reduce cognitive load on the home screen.
+  // It belongs on the Forecast page where scenario planning is the primary intent.
+  // The dashboard always shows the Base projection.
   // ── Business Health Narrative expanded by default (Weekly Brief) ────────
   const [narrativeOpen, setNarrativeOpen] = useState(true);
 
@@ -250,9 +264,6 @@ export function DashboardContent({
         .eq("user_id", user.id);
     } catch { /* fire-and-forget — UI already updated */ }
   }, []);
-  const scenarioMultiplier =
-    scenario === "conservative" ? 0.85 : scenario === "optimistic" ? 1.15 : 1.0;
-
   // ── YTD calculations ──────────────────────────────────────────────────
   const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
   const ytdDealCount = transactions.length;
@@ -295,7 +306,7 @@ export function DashboardContent({
   const fraction = seasonalFractionElapsed(seasonalWeights);
   const goalGCI = settings?.goal_gci ?? 0;
   const rawProjectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, goalGCI);
-  const projectedGCI = rawProjectedGCI * scenarioMultiplier;
+  const projectedGCI = rawProjectedGCI; // Base scenario — see note above re: scenario selector
   const gciProgress = goalGCI > 0 ? Math.min((ytdGCI / goalGCI) * 100, 100) : 0;
   const pacePercent = goalGCI > 0 ? paceVsGoalPercent(goalGCI, ytdGCI, fraction) : 0;
   const paceStatus =
@@ -623,11 +634,45 @@ export function DashboardContent({
     notConfigured: "text-muted-foreground",
   };
 
-  // Derived status labels for the strip
-  const paceLabel = paceStatus === "ahead" ? "Ahead" : paceStatus === "behind" ? "Behind" : "On Track";
-  const runwayLabel = survival.riskLevel === "notConfigured" ? "Not Set" : survival.riskLevel === "critical" ? "Critical" : survival.riskLevel === "warning" ? "Watchlist" : "Stable";
-  const paceStripColor = paceStatus === "ahead" ? "text-emerald-800 bg-emerald-100 border-emerald-300" : paceStatus === "behind" ? "text-amber-800 bg-amber-100 border-amber-300" : "text-slate-700 bg-slate-100 border-slate-300";
-  const runwayStripColor = survival.riskLevel === "notConfigured" ? "text-slate-600 bg-slate-100 border-slate-300" : survival.riskLevel === "critical" ? "text-red-800 bg-red-100 border-red-300" : survival.riskLevel === "warning" ? "text-amber-800 bg-amber-100 border-amber-300" : "text-emerald-800 bg-emerald-100 border-emerald-300";
+  // ── YTD Net Take-Home calculations ────────────────────────────────────
+  // This answers "what do I actually keep?" — the most important dashboard metric.
+  const ytdAgentGrossCalc = settings
+    ? computeAgentGross(
+        ytdGCI,
+        settings.split_preset,
+        settings.post_cap_threshold_gci,
+        settings.post_cap_agent_pct,
+        settings.post_cap_brokerage_pct,
+      )
+    : null;
+  const ytdAgentGross = ytdAgentGrossCalc?.agentGross ?? ytdGCI;
+  const ytdTxFees = settings ? computeTxFees(ytdGCI, settings.tx_fee_rate_pct, settings.tx_fee_annual_cap) : 0;
+  const ytdBrokerageFeesTotal = settings ? settings.monthly_brokerage_fee * monthsElapsed : 0;
+  const ytdNetBeforeTax = Math.max(0, ytdAgentGross - ytdTxFees - ytdBrokerageFeesTotal);
+  // Prorated tax estimate (fraction of year elapsed)
+  const ytdTaxSetAside = taxResult ? taxResult.totalBurden * Math.min(fraction, 1) : 0;
+  const ytdEstimatedTakeHome = Math.max(0, ytdNetBeforeTax - ytdTaxSetAside);
+
+  // ── Commission side mix (TransactionSide: "buyer" | "seller" | "both") ──
+  const buyerDeals = transactions.filter(tx => tx.side === "buyer");
+  const listingDeals = transactions.filter(tx => tx.side === "seller");
+  const dualDeals = transactions.filter(tx => tx.side === "both");
+  const buyerGCI = buyerDeals.reduce((s, tx) => s + computeGCI(tx), 0);
+  const listingGCI = listingDeals.reduce((s, tx) => s + computeGCI(tx), 0);
+  const dualGCI = dualDeals.reduce((s, tx) => s + computeGCI(tx), 0);
+
+  // ── Pipeline by stage ────────────────────────────────────────────────
+  const pipelineByStage = pipelineDeals.reduce<Record<string, number>>((acc, deal) => {
+    const stage = (deal.stage ?? "lead") as string;
+    acc[stage] = (acc[stage] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  // ── Cap progress ──────────────────────────────────────────────────────
+  const capThreshold = settings?.post_cap_threshold_gci ?? 0;
+  const capConfigured = capThreshold > 0;
+  const capProgress = capConfigured ? Math.min((ytdGCI / capThreshold) * 100, 100) : 0;
+  const hasHitCap = capConfigured && ytdGCI >= capThreshold;
 
   return (
     <div className="space-y-8">
@@ -707,23 +752,6 @@ export function DashboardContent({
                 )}
               >
                 {mode.charAt(0).toUpperCase() + mode.slice(1)}
-              </button>
-            ))}
-          </div>
-          {/* Scenario toggle */}
-          <div className="flex rounded-lg border border-border p-0.5 text-xs">
-            {(["conservative", "base", "optimistic"] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setScenario(s)}
-                className={cn(
-                  "rounded-md px-3 py-1.5 font-medium transition-colors",
-                  scenario === s
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {s === "conservative" ? "−15%" : s === "optimistic" ? "+15%" : "Base"}
               </button>
             ))}
           </div>
@@ -893,35 +921,14 @@ export function DashboardContent({
         </div>
       )}
 
-      {/* ── You Are Here strip ── */}
-      <YouAreHereStrip
-        fraction={fraction}
-        pacePercent={pacePercent}
-        paceStatus={paceStatus}
-        goalGCI={goalGCI}
-      />
+      {/* NOTE [REMOVED]: "You Are Here" year-progress strip — removed to reduce noise.
+           Pace information is already surfaced in the Runway Score hero card and the
+           YTD GCI card's pace indicator. If re-adding, place between Smart Alerts
+           and Business Health Narrative. The YouAreHereStrip component is preserved below. */}
 
-      {/* ── Status strip ── */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2.5">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-500 mr-1">
-          Status
-        </span>
-        <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold", paceStripColor)}>
-          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
-          Pace: {paceLabel}
-        </span>
-        <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold", runwayStripColor)}>
-          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
-          Runway: {runwayLabel}
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
-          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-          Scenario: {scenario === "conservative" ? "Conservative −15%" : scenario === "optimistic" ? "Optimistic +15%" : "Base"}
-        </span>
-        <span className="ml-auto text-[11px] text-slate-400 hidden sm:block">
-          {runwayScore.grade} · Score {runwayScore.score}/100
-        </span>
-      </div>
+      {/* NOTE [REMOVED]: Status strip (Pace / Runway / Scenario badges) — removed as
+           redundant with the Runway Score hero card which already shows these signals.
+           Scenario info was moved to Forecast page. */}
 
       {/* ── Period recap (month boundary) ── */}
       {periodRecap && (
@@ -1126,6 +1133,59 @@ export function DashboardContent({
         </Card>
       </div>
 
+      {/* ── Net Take-Home card — "what do I actually keep?" ── */}
+      {ytdGCI > 0 && settings && (
+        <Card className="rounded-2xl border-emerald-300 bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 shadow-md">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-1.5">
+                <CardTitle className="text-base">Net Take-Home (YTD Est.)</CardTitle>
+                <MetricInfo tip="Your gross GCI after brokerage split, transaction fees, monthly brokerage costs, and estimated income tax — approximately what you actually keep." />
+                {isPro && <ExplainButton question="Break down my net take-home calculation — what am I actually keeping from each deal this year?" />}
+              </div>
+              <Link href="/forecast" className="text-xs text-emerald-700 hover:text-emerald-900 font-medium transition-colors">
+                Full tax breakdown →
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-6 items-start">
+              <div>
+                <p className="text-3xl font-bold text-emerald-800">
+                  {fmtCurrency(ytdEstimatedTakeHome)}
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">after splits, fees &amp; estimated tax</p>
+              </div>
+              <div className="flex flex-wrap gap-5 text-sm">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Agent Net (pre-tax)</p>
+                  <p className="font-bold text-slate-700 mt-0.5">{fmtCurrency(ytdNetBeforeTax)}</p>
+                  <p className="text-[10px] text-slate-400">after split &amp; fees</p>
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Est. Tax Owed</p>
+                  <p className="font-bold text-amber-700 mt-0.5">{fmtCurrency(ytdTaxSetAside)}</p>
+                  <p className="text-[10px] text-slate-400">set aside now</p>
+                </div>
+                {ytdDealCount > 0 && (
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Per Deal</p>
+                    <p className="font-bold text-emerald-700 mt-0.5">{fmtCurrency(ytdEstimatedTakeHome / ytdDealCount)}</p>
+                    <p className="text-[10px] text-slate-400">actual take-home</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-400 border-t border-emerald-100 pt-2.5">
+              <span>Split: {settings.split_preset ?? "custom"}</span>
+              {settings.monthly_brokerage_fee > 0 && <span>Monthly fee: {fmtCurrency(settings.monthly_brokerage_fee)}/mo × {monthsElapsed}mo</span>}
+              {ytdTxFees > 0 && <span>Tx fees: {fmtCurrency(ytdTxFees)}</span>}
+              <span className="italic">Estimate only · Not tax advice</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Personal Records — standard + full, only when there's data */}
       {dashboardView !== "essentials" && (transactions.length > 0 || historyItems.length > 0) && (
         <PersonalRecordsCard
@@ -1134,6 +1194,149 @@ export function DashboardContent({
           ytdGCI={ytdGCI}
           currentYear={currentYear}
         />
+      )}
+
+      {/* ── Commission Mix + Pipeline Snapshot row (Standard + Full) ── */}
+      {dashboardView !== "essentials" && (ytdDealCount > 0 || pipelineCount > 0) && (
+        <div className="grid gap-4 sm:grid-cols-2">
+
+          {/* Commission Side Mix */}
+          {ytdDealCount > 0 && (
+            <Card className="rounded-2xl border-slate-200 shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-1.5">
+                  <CardTitle className="text-sm font-semibold">Commission Mix</CardTitle>
+                  <MetricInfo tip="How your closed GCI breaks down by transaction side — buyer, listing, or dual-ended. Knowing your mix helps identify where your business actually comes from." />
+                  {isPro && <ExplainButton question="Analyze my commission mix — am I over-reliant on one side and what does that mean for my business?" />}
+                </div>
+                <CardDescription>Buyer vs. listing side · YTD</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2.5">
+                {buyerGCI > 0 && (
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-500 font-medium">Buyer</span>
+                      <span className="font-semibold text-slate-700">{fmtCurrency(buyerGCI)} · {buyerDeals.length} deal{buyerDeals.length !== 1 ? "s" : ""}</span>
+                    </div>
+                    <Progress value={ytdGCI > 0 ? (buyerGCI / ytdGCI) * 100 : 0} className="h-1.5 [&>div]:bg-blue-500" />
+                  </div>
+                )}
+                {listingGCI > 0 && (
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-500 font-medium">Seller / Listing</span>
+                      <span className="font-semibold text-slate-700">{fmtCurrency(listingGCI)} · {listingDeals.length} deal{listingDeals.length !== 1 ? "s" : ""}</span>
+                    </div>
+                    <Progress value={ytdGCI > 0 ? (listingGCI / ytdGCI) * 100 : 0} className="h-1.5 [&>div]:bg-violet-500" />
+                  </div>
+                )}
+                {dualGCI > 0 && (
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-500 font-medium">Both / Double-ended</span>
+                      <span className="font-semibold text-slate-700">{fmtCurrency(dualGCI)} · {dualDeals.length} deal{dualDeals.length !== 1 ? "s" : ""}</span>
+                    </div>
+                    <Progress value={ytdGCI > 0 ? (dualGCI / ytdGCI) * 100 : 0} className="h-1.5 [&>div]:bg-emerald-500" />
+                  </div>
+                )}
+                {buyerGCI === 0 && listingGCI === 0 && dualGCI === 0 && (
+                  <p className="text-xs text-muted-foreground py-2">
+                    No side data recorded yet. Tag each deal as buyer, seller, or both on the Transactions page.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Pipeline Stage Snapshot */}
+          {pipelineCount > 0 && (
+            <Card className="rounded-2xl border-slate-200 shadow-sm">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <CardTitle className="text-sm font-semibold">Pipeline Snapshot</CardTitle>
+                    <MetricInfo tip="A count of active deals by pipeline stage. Seeing where deals cluster helps you spot bottlenecks before they cost you closings." />
+                    {isPro && <ExplainButton question="Analyze my pipeline stages — are there any bottlenecks I should address to close more deals?" />}
+                  </div>
+                  <Link href="/pipeline" className="text-xs text-muted-foreground hover:text-foreground font-medium transition-colors">
+                    View all →
+                  </Link>
+                </div>
+                <CardDescription>{pipelineCount} active deal{pipelineCount !== 1 ? "s" : ""} · {fmtCurrency(pipelineWeightedGCI)} weighted</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {PIPELINE_STAGE_CONFIG.map(stage => {
+                    const count = pipelineByStage[stage.key] ?? 0;
+                    if (count === 0) return null;
+                    return (
+                      <div key={stage.key} className={cn("flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium", stage.chipClass)}>
+                        <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", stage.dotClass)} />
+                        <span>{stage.label}</span>
+                        <span className="font-bold ml-0.5">{count}</span>
+                      </div>
+                    );
+                  })}
+                  {/* catch-all for unknown stages */}
+                  {Object.entries(pipelineByStage)
+                    .filter(([key]) => !PIPELINE_STAGE_CONFIG.some(s => s.key === key))
+                    .map(([key, count]) => (
+                      <div key={key} className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+                        <span className="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0" />
+                        <span className="capitalize">{key}</span>
+                        <span className="font-bold ml-0.5">{count}</span>
+                      </div>
+                    ))}
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Probability-weighted value includes deal confidence %. <Link href="/pipeline" className="text-primary hover:underline">Manage pipeline →</Link>
+                </p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ── Cap Progress (Standard + Full, only when cap is configured) ── */}
+      {capConfigured && dashboardView !== "essentials" && (
+        <Card className="rounded-2xl border-violet-200 bg-violet-50/60 shadow-sm">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-1.5">
+                <CardTitle className="text-sm font-semibold">Cap Progress</CardTitle>
+                <MetricInfo tip={`Your commission cap is ${fmtCurrency(capThreshold)}. After hitting cap, you keep ${settings ? fmtPct(settings.post_cap_agent_pct) : ""} of each deal's GCI — often 100% — instead of your normal split. Hitting cap is one of the highest-leverage moments in an agent's year.`} />
+                {isPro && <ExplainButton question="How close am I to my commission cap and what's my projected take-home once I hit it?" />}
+              </div>
+              {hasHitCap && (
+                <span className="rounded-full bg-violet-200 text-violet-800 border border-violet-300 text-[11px] font-bold px-2.5 py-0.5">
+                  🎉 Cap Hit!
+                </span>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Progress value={capProgress} className="h-2.5 [&>div]:bg-violet-500" />
+            <div className="flex justify-between text-xs text-slate-500 mt-1.5">
+              <span>$0</span>
+              <span className="font-semibold text-slate-700">
+                {fmtPct(capProgress / 100)} — {fmtCurrency(ytdGCI)} of {fmtCurrency(capThreshold)}
+              </span>
+              <span>{fmtCompact(capThreshold)}</span>
+            </div>
+            {!hasHitCap ? (
+              <p className="mt-2 text-xs text-slate-600">
+                <span className="font-medium">{fmtCurrency(Math.max(0, capThreshold - ytdGCI))} to cap</span>
+                {settings && settings.post_cap_agent_pct > 0 && (
+                  <> — then you keep <span className="font-semibold text-violet-700">{fmtPct(settings.post_cap_agent_pct)}</span> per deal (vs. your current split)</>
+                )}
+              </p>
+            ) : (
+              <p className="mt-2 text-xs font-medium text-violet-700">
+                Every dollar you close now earns you {settings ? fmtPct(settings.post_cap_agent_pct) : "a higher rate"} — you&apos;re in your highest-earning window. Push hard.
+              </p>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       {/* First-run guide — shown only when there's no data yet */}
@@ -1307,11 +1510,6 @@ export function DashboardContent({
                   Closed GCI by month &mdash; projected months shown lighter
                 </CardDescription>
               </div>
-              {scenario !== "base" && (
-                <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary capitalize">
-                  {scenario} scenario
-                </span>
-              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -1328,32 +1526,41 @@ export function DashboardContent({
               <div className="flex items-center gap-1.5">
                 <CardTitle className="text-base">Projection Range</CardTitle>
                 <GuideLink anchor="probability-bands" label="Probability bands explained in Guide" />
+                {isPro && <ExplainButton question="Explain my projection range — what would I need to do differently to reach the upside scenario?" />}
               </div>
               <CardDescription>
-                {bands.confidence} confidence &middot; {bands.monthsOfData} months data
+                {bands.confidence} confidence &middot; {bands.monthsOfData} months of data
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Best case (P90)</span>
-                  <span>{fmtCurrency(bands.p90)}</span>
+            <CardContent className="space-y-3">
+              {/* Plain-English range statement — the most important signal */}
+              <div className="rounded-lg bg-white/80 border border-blue-200 px-3.5 py-3">
+                <p className="text-sm font-medium text-blue-900 leading-snug">
+                  Your year-end GCI is most likely to fall between{" "}
+                  <span className="font-bold">{fmtCurrency(bands.p25)}</span> and{" "}
+                  <span className="font-bold">{fmtCurrency(bands.p75)}</span>
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  That&apos;s the 50% confidence window — there&apos;s a 1-in-10 chance you&apos;ll exceed{" "}
+                  <span className="font-semibold">{fmtCurrency(bands.p90)}</span>
+                </p>
+              </div>
+              {/* Three-column compact view for reference */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-md border border-blue-100 bg-white/50 px-2 py-2">
+                  <p className="text-[10px] font-semibold uppercase text-slate-400 tracking-wide">Downside</p>
+                  <p className="text-base font-bold text-slate-700 mt-0.5">{fmtCompact(bands.p10)}</p>
+                  <p className="text-[10px] text-slate-400">1-in-10 scenario</p>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Optimistic (P75)</span>
-                  <span>{fmtCurrency(bands.p75)}</span>
+                <div className="rounded-md border border-blue-300 bg-blue-50 px-2 py-2">
+                  <p className="text-[10px] font-semibold uppercase text-blue-600 tracking-wide">Base</p>
+                  <p className="text-base font-bold text-slate-800 mt-0.5">{fmtCompact(bands.p50)}</p>
+                  <p className="text-[10px] text-blue-500">most likely</p>
                 </div>
-                <div className="flex justify-between font-medium">
-                  <span>Base (P50)</span>
-                  <span>{fmtCurrency(bands.p50)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Conservative (P25)</span>
-                  <span>{fmtCurrency(bands.p25)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Pessimistic (P10)</span>
-                  <span>{fmtCurrency(bands.p10)}</span>
+                <div className="rounded-md border border-blue-100 bg-white/50 px-2 py-2">
+                  <p className="text-[10px] font-semibold uppercase text-slate-400 tracking-wide">Upside</p>
+                  <p className="text-base font-bold text-slate-700 mt-0.5">{fmtCompact(bands.p90)}</p>
+                  <p className="text-[10px] text-slate-400">exceptional year</p>
                 </div>
               </div>
             </CardContent>
@@ -1680,64 +1887,6 @@ export function DashboardContent({
           hasAiChat={isPro}
           onComplete={() => setTourComplete(true)}
         />
-      )}
-    </div>
-  );
-}
-
-// ── YouAreHereStrip ───────────────────────────────────────────────────────
-
-function YouAreHereStrip({
-  fraction,
-  pacePercent,
-  paceStatus,
-  goalGCI,
-}: {
-  fraction: number;
-  pacePercent: number;
-  paceStatus: string;
-  goalGCI: number;
-}) {
-  const now = new Date();
-  const doy = dayOfYear(now);
-  const total = daysInYear(now);
-  const week = weekOfYear(now);
-  const pctThrough = Math.round(fraction * 100);
-  const daysLeft = total - doy;
-  const paceAbs = Math.abs(Math.round(pacePercent));
-  const paceColor =
-    paceStatus === "ahead"
-      ? "text-emerald-600"
-      : paceStatus === "behind"
-      ? "text-amber-600"
-      : "text-slate-500";
-
-  return (
-    <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-          You Are Here
-        </span>
-        <span className="text-[11px] text-muted-foreground">
-          Week {week} of 52 &middot; {daysLeft} days left in {now.getFullYear()}
-        </span>
-      </div>
-      <Progress value={pctThrough} className="h-2" />
-      <div className="flex items-center justify-between mt-1.5">
-        <span className="text-[11px] text-muted-foreground">Jan 1</span>
-        <span className="text-[11px] font-semibold text-foreground">
-          {pctThrough}% through {now.getFullYear()}
-        </span>
-        <span className="text-[11px] text-muted-foreground">Dec 31</span>
-      </div>
-      {goalGCI > 0 && paceStatus !== "no-goal" && (
-        <p className={cn("mt-1.5 text-xs font-medium", paceColor)}>
-          {paceStatus === "ahead"
-            ? `↑ ${paceAbs}% ahead of goal pace`
-            : paceStatus === "behind"
-            ? `↓ ${paceAbs}% behind goal pace`
-            : "Right on track with goal pace"}
-        </p>
       )}
     </div>
   );

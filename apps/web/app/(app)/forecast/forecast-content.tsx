@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -45,6 +46,7 @@ import { ProbabilityChart, type ProbabilityDataPoint } from "@/components/probab
 import Link from "next/link";
 import { Settings, CalendarCheck, Building2, TrendingDown, TrendingUp, AlertTriangle } from "lucide-react";
 import * as LucideIcons from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // ── CRA quarterly remittance helper ─────────────────────────────────────────
 function nextRemittanceDate(from: Date): { date: Date; label: string; quarter: string } {
@@ -84,6 +86,9 @@ export function ForecastContent({
   ccaAssetCount = 0,
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
+
+  // ── Scenario selector (Conservative −15% / Base / Optimistic +15%) ────
+  const [scenario, setScenario] = useState<"conservative" | "base" | "optimistic">("base");
 
   if (!settings) {
     return (
@@ -129,7 +134,9 @@ export function ForecastContent({
       ? (settings.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
       : [0.25, 0.25, 0.25, 0.25]);
   const fraction = seasonalFractionElapsed(seasonalWeights);
-  const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeighted, fraction, settings.goal_gci);
+  const rawProjectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeighted, fraction, settings.goal_gci);
+  const scenarioMultiplier = scenario === "conservative" ? 0.85 : scenario === "optimistic" ? 1.15 : 1.0;
+  const projectedGCI = rawProjectedGCI * scenarioMultiplier;
   const projectedDeals = projectedYearEndTransactions(ytdDealCount, pipelineDeals.length, fraction);
 
   // ── Financial waterfall ───────────────────────────────────────────────
@@ -301,13 +308,61 @@ export function ForecastContent({
     strong: "text-emerald-600",
   };
 
+  // ── Break-even analysis ───────────────────────────────────────────────
+  const agentPctVal = getAgentPct(settings.split_preset);
+  const avgDealGCIForBreakEven = ytdDealCount > 0
+    ? ytdGCI / ytdDealCount
+    : projectedGCI / Math.max(projectedDeals, 1);
+  // Per-deal tx fee (proportional to GCI)
+  const perDealTxFee = avgDealGCIForBreakEven * ((settings.tx_fee_rate_pct ?? 0) / 100);
+  // Per-deal contribution to covering annual overhead
+  const perDealContribution = avgDealGCIForBreakEven * agentPctVal - perDealTxFee;
+  // Annual fixed overhead (brokerage fee + projected expenses)
+  const annualOverhead = brokerageFeeAnnual + annualExpenses;
+  const breakEvenDeals = perDealContribution > 0
+    ? Math.ceil(annualOverhead / perDealContribution)
+    : null;
+  const ytdDealsPastBreakEven = breakEvenDeals !== null
+    ? Math.max(0, ytdDealCount - breakEvenDeals)
+    : null;
+
+  // ── Cap milestone ─────────────────────────────────────────────────────
+  const capThreshold = settings.post_cap_threshold_gci;
+  const capConfigured = capThreshold > 0;
+  const hasHitCap = capConfigured && ytdGCI >= capThreshold;
+  const gciToCap = Math.max(0, capThreshold - ytdGCI);
+  const capProgress = capConfigured ? Math.min((ytdGCI / capThreshold) * 100, 100) : 0;
+  const avgDealForCap = ytdDealCount > 0 ? ytdGCI / ytdDealCount : 0;
+  const dealsToCap = avgDealForCap > 0 && !hasHitCap
+    ? Math.ceil(gciToCap / avgDealForCap)
+    : 0;
+
   return (
     <div className="space-y-8">
-      <div className="border-b border-border/60 pb-5">
-        <h1 className="text-2xl font-semibold tracking-tight">Forecast</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Where you&apos;ll land this year — and what to do about the gap. &middot; {PROVINCE_LABELS[settings.province]}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/60 pb-5">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Forecast</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Where you&apos;ll land this year — and what to do about the gap. &middot; {PROVINCE_LABELS[settings.province]}
+          </p>
+        </div>
+        {/* Scenario selector — applies a multiplier to the projected GCI and all downstream numbers */}
+        <div className="flex shrink-0 rounded-lg border border-border p-0.5 text-xs">
+          {(["conservative", "base", "optimistic"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setScenario(s)}
+              className={cn(
+                "rounded-md px-3 py-1.5 font-medium transition-colors",
+                scenario === s
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {s === "conservative" ? "−15%" : s === "optimistic" ? "+15%" : "Base"}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Projection summary */}
@@ -368,6 +423,88 @@ export function ForecastContent({
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Planning insight cards: Break-even & Cap Milestone ──────────── */}
+      {(breakEvenDeals !== null || capConfigured) && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Break-even analysis */}
+          {breakEvenDeals !== null && avgDealGCIForBreakEven > 0 && (
+            <Card className="rounded-2xl border-slate-200 shadow-sm">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Break-Even Analysis</CardTitle>
+                <CardDescription>How many deals you need to cover all costs</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-end gap-2">
+                  <span className="text-3xl font-bold text-slate-800">{breakEvenDeals}</span>
+                  <span className="mb-1 text-sm text-muted-foreground">deals to break even</span>
+                </div>
+                <Progress
+                  value={breakEvenDeals > 0 ? Math.min((ytdDealCount / breakEvenDeals) * 100, 100) : 100}
+                  className="h-2"
+                />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{ytdDealCount} closed so far</span>
+                  <span>{Math.max(0, breakEvenDeals - ytdDealCount)} more to go</span>
+                </div>
+                {ytdDealsPastBreakEven !== null && ytdDealsPastBreakEven > 0 && (
+                  <p className="text-xs font-medium text-emerald-700">
+                    ✓ {ytdDealsPastBreakEven} surplus deal{ytdDealsPastBreakEven !== 1 ? "s" : ""} — you&apos;re generating profit
+                  </p>
+                )}
+                <div className="border-t border-slate-100 pt-2 text-xs text-muted-foreground space-y-1">
+                  <div className="flex justify-between">
+                    <span>Annual overhead (fees + expenses)</span>
+                    <span>{fmtCurrency(annualOverhead)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Avg net per deal after split</span>
+                    <span>{fmtCurrency(perDealContribution)}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Cap milestone */}
+          {capConfigured && (
+            <Card className={cn(
+              "rounded-2xl shadow-sm",
+              hasHitCap
+                ? "border border-emerald-200 bg-emerald-50/60"
+                : "border-slate-200",
+            )}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">
+                  {hasHitCap ? "🎉 Cap Hit!" : "Cap Milestone"}
+                </CardTitle>
+                <CardDescription>
+                  {hasHitCap
+                    ? `Post-cap split: ${Math.round(settings.post_cap_agent_pct * 100)}% to you`
+                    : `${fmtCurrency(gciToCap)} to reach your ${fmtCurrency(capThreshold)} cap`}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-end gap-2">
+                  <span className={cn("text-3xl font-bold", hasHitCap ? "text-emerald-700" : "text-slate-800")}>
+                    {hasHitCap ? fmtCurrency(ytdGCI) : fmtCurrency(ytdGCI)}
+                  </span>
+                  <span className="mb-1 text-sm text-muted-foreground">
+                    {hasHitCap ? "GCI this year" : `of ${fmtCurrency(capThreshold)}`}
+                  </span>
+                </div>
+                <Progress value={capProgress} className="h-2" />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{fmtPct(capProgress / 100)} of cap</span>
+                  {!hasHitCap && dealsToCap > 0 && avgDealForCap > 0 && (
+                    <span>~{dealsToCap} more deal{dealsToCap !== 1 ? "s" : ""} at current avg</span>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
 
       {/* Financial waterfall with tax */}
       <Card className="rounded-2xl border-slate-200 shadow-sm">
