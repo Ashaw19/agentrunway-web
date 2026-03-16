@@ -89,7 +89,11 @@ export function InlineEdit({
           value={localVal}
           onChange={(e) => setLocalVal(e.target.value)}
           onBlur={commit}
-          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setLocalVal(value); setEditing(false); } }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            if (e.key === "Escape") { e.preventDefault(); setLocalVal(value); setEditing(false); }
+            // Tab: onBlur handles saving; browser naturally moves to next focusable field
+          }}
           className="h-7 text-xs"
         />
       </div>
@@ -99,7 +103,9 @@ export function InlineEdit({
   return (
     <div
       className="cursor-pointer group"
+      tabIndex={0}
       onClick={() => { setLocalVal(value); setEditing(true); }}
+      onFocus={() => { setLocalVal(value); setEditing(true); }}
     >
       {label && <span className="text-[10px] text-muted-foreground block mb-0.5">{label}</span>}
       <span className={cn(
