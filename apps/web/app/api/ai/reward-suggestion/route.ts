@@ -107,23 +107,47 @@ Context:
 - Agent's gift style: ${GENEROSITY_COPY[req.generosity]}
 - Suggested gift budget: ~$${req.budget} CAD${venueCtx}
 
-Write a 2–3 sentence personalised gift recommendation for this client. Be specific, warm, and practical. If real venue names were provided above, mention one by name. Match the tone to the location (a Newfoundland agent shouldn't sound like Bay Street; a Toronto agent can lean a bit more upscale). Do NOT include a dollar amount — the agent already knows their budget. End with one brief "pro tip" line.
+Write a 2–3 sentence personalised gift recommendation for this client. Be specific, warm, and practical.
+- If real venue names were provided above, mention one by name.
+- If no venues are listed and the budget is modest, suggest a practical Canadian gift card (Canadian Tire, Home Depot, Amazon, Costco, or Tim Hortons) — new homeowners always have a list.
+- Match the tone to the location (a Newfoundland agent shouldn't sound like Bay Street; a Toronto agent can lean a bit more upscale).
+- Do NOT include a dollar amount — the agent already knows their budget.
+- End with one brief "pro tip" line (practical, not generic).
 
 Respond with ONLY the recommendation text — no labels, no JSON, no preamble.`;
+}
+
+// ── Gift card fallback tiers (nationwide, no venue lookup needed) ─────────────
+
+function giftCardTier(budget: number): string {
+  if (budget < 30) {
+    return "a Tim Hortons or local coffee shop gift card with a handwritten note";
+  }
+  if (budget < 60) {
+    return "a Canadian Tire or Amazon gift card — practical, universally appreciated by new homeowners";
+  }
+  if (budget < 100) {
+    return "a Home Depot or Costco gift card — a new homeowner's wish list is never short";
+  }
+  if (budget < 180) {
+    return "a The Keg, Boston Pizza, or local restaurant gift card for a nice dinner out";
+  }
+  return "a spa, experience, or premium restaurant gift card — something genuinely memorable";
 }
 
 // ── Rule-based fallback ───────────────────────────────────────────────────────
 
 function fallbackSuggestion(req: RewardSuggestionRequest): RewardSuggestionResponse {
   const ratio = req.avgGCI > 0 ? req.dealGCI / req.avgGCI : 1;
+  const giftCard = giftCardTier(req.budget);
   let suggestion: string;
 
   if (ratio >= 2) {
-    suggestion = `This was an exceptional deal for ${req.clientName} — a polished experience like a restaurant gift card or curated gift basket would feel as special as the transaction itself. Consider adding a handwritten note referencing the property — it makes the gesture personal. Pro tip: local is always better than chain for gifting in smaller markets.`;
+    suggestion = `This was an exceptional deal for ${req.clientName} — consider ${giftCard}, paired with a handwritten note that references the property. Something this specific shows you were paying attention. Pro tip: local is always more memorable than chain when you can find it.`;
   } else if (ratio >= 1) {
-    suggestion = `${req.clientName} had a solid deal with you — a warm, personal thank-you goes a long way. A gift card to a well-reviewed local restaurant or a quality bottle of wine with a note is perfectly proportionate. Pro tip: mention a detail from the transaction in your card — clients remember that more than the gift itself.`;
+    suggestion = `${req.clientName} brought you a solid deal — ${giftCard} is a perfectly proportionate thank-you. Add a card that mentions one detail from the transaction; clients remember the personal touch far more than the gift itself. Pro tip: drop it off in person if you can — that visit plants the next referral.`;
   } else {
-    suggestion = `A heartfelt handwritten card with a local coffee shop or bakery gift card is the right scale for this transaction with ${req.clientName}. It's the personal touch that turns a one-time client into a referral source. Pro tip: follow up in 6 months to ask how they're settling in — that call often leads to referrals.`;
+    suggestion = `A thoughtful gesture goes a long way with ${req.clientName} — ${giftCard} keeps it simple and genuinely useful. It's this kind of consistent follow-through that turns a one-time client into your best referral source. Pro tip: follow up in 6 months to ask how they're settling in.`;
   }
 
   return { suggestion, confidence: "low", source: "fallback" };

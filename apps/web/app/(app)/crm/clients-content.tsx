@@ -271,6 +271,16 @@ function calcRewardBudget(gci: number, generosity: RewardGenerosity): number {
   return Math.max(10, Math.round((gci * GENEROSITY_PCT[generosity]) / 5) * 5);
 }
 
+/** Returns a quick, budget-appropriate gift idea shown instantly in the tooltip
+ *  (before any AI call is made). No dollar amounts — just a category + example. */
+function quickGiftTip(budget: number): string {
+  if (budget < 30)  return "Tim Hortons or local coffee shop gift card + handwritten note.";
+  if (budget < 60)  return "Canadian Tire or Amazon gift card — a new homeowner's to-do list is endless.";
+  if (budget < 100) return "Home Depot or Costco gift card — practical and universally appreciated.";
+  if (budget < 180) return "Local restaurant or The Keg gift card for a nice dinner out.";
+  return "A spa day, experience gift, or premium restaurant — something genuinely memorable.";
+}
+
 const ACHIEVEMENT_DEFS: Record<AchievementBadgeId, AchievementBadge> = {
   high_yield: {
     id: "high_yield",
@@ -367,7 +377,7 @@ function AchievementBadgeIcon({
         </span>
         <span className="text-[11px] text-muted-foreground leading-snug">{badge.earned}</span>
         <span className="text-[11px] leading-snug text-foreground/80 border-t border-border/40 pt-1.5">
-          💡 {badge.rewardCategory}
+          💡 {rewardBudget !== undefined ? quickGiftTip(rewardBudget) : badge.rewardCategory}
         </span>
         {rewardBudget !== undefined && generosity && (
           <span className="text-[11px] font-semibold text-primary border-t border-border/40 pt-1.5 flex items-center gap-1">
