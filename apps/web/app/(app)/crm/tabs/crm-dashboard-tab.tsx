@@ -39,6 +39,9 @@ import {
   ChevronDown,
   ChevronUp,
   X,
+  RefreshCw,
+  Home,
+  Timer,
 } from "lucide-react";
 import {
   BarChart,
@@ -92,13 +95,18 @@ interface CrmDashboardTabProps {
 // ── Briefing Row ────────────────────────────────────────────────────────────
 
 function BriefingIcon({ type }: { type: BriefingItem["type"] }) {
-  if (type === "vip_overdue")         return <Star className="h-3.5 w-3.5 text-amber-500" />;
-  if (type === "uncontacted_lead")    return <UserX className="h-3.5 w-3.5 text-red-500" />;
-  if (type === "in_flight_stale")     return <AlertCircle className="h-3.5 w-3.5 text-red-500" />;
-  if (type === "birthday_today")      return <Gift className="h-3.5 w-3.5 text-pink-500" />;
-  if (type === "birthday_soon")       return <Gift className="h-3.5 w-3.5 text-pink-400" />;
-  if (type === "closing_anniversary") return <Key className="h-3.5 w-3.5 text-blue-500" />;
-  if (type === "no_contact_info")     return <WifiOff className="h-3.5 w-3.5 text-amber-500" />;
+  if (type === "vip_overdue")            return <Star className="h-3.5 w-3.5 text-amber-500" />;
+  if (type === "uncontacted_lead")       return <UserX className="h-3.5 w-3.5 text-red-500" />;
+  if (type === "in_flight_stale")        return <AlertCircle className="h-3.5 w-3.5 text-red-500" />;
+  if (type === "birthday_today")         return <Gift className="h-3.5 w-3.5 text-pink-500" />;
+  if (type === "birthday_soon")          return <Gift className="h-3.5 w-3.5 text-pink-400" />;
+  if (type === "closing_anniversary")    return <Key className="h-3.5 w-3.5 text-blue-500" />;
+  if (type === "mortgage_renewal_due")   return <RefreshCw className="h-3.5 w-3.5 text-red-500" />;
+  if (type === "mortgage_renewal_window") return <RefreshCw className="h-3.5 w-3.5 text-blue-400" />;
+  if (type === "past_client_check_in")   return <Clock className="h-3.5 w-3.5 text-slate-500" />;
+  if (type === "timeframe_approaching")  return <Timer className="h-3.5 w-3.5 text-amber-500" />;
+  if (type === "property_value_milestone") return <Home className="h-3.5 w-3.5 text-emerald-500" />;
+  if (type === "no_contact_info")        return <WifiOff className="h-3.5 w-3.5 text-amber-500" />;
   return <Copy className="h-3.5 w-3.5 text-slate-500" />;
 }
 

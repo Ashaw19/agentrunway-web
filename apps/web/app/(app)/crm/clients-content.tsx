@@ -652,6 +652,124 @@ function parseCsv(text: string): { headers: string[]; rows: CsvRow[] } {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// MORTGAGE ESTIMATE SECTION
+// Canadian semi-annual compounding, CMHC insurance tiers, 3-scenario comparison
+// ─────────────────────────────────────────────────────────────────────────────
+
+function computeMonthlyPayment(
+  principal: number,
+  annualPct: number,
+  amortYears: number,
+): number {
+  const semiAnnualRate = annualPct / 100 / 2;
+  const effectiveMonthly = Math.pow(1 + semiAnnualRate, 1 / 6) - 1;
+  const n = amortYears * 12;
+  if (effectiveMonthly === 0) return principal / n;
+  return (
+    (principal * (effectiveMonthly * Math.pow(1 + effectiveMonthly, n))) /
+    (Math.pow(1 + effectiveMonthly, n) - 1)
+  );
+}
+
+function cmhcInsurancePremium(purchasePrice: number, downPct: number): number {
+  if (downPct >= 0.2) return 0;
+  if (purchasePrice > 1_500_000) return 0; // CMHC doesn't insure over $1.5M
+  const loan = purchasePrice * (1 - downPct);
+  const rate = downPct >= 0.15 ? 0.028 : downPct >= 0.10 ? 0.031 : 0.04;
+  return loan * rate;
+}
+
+function MortgageEstimateSection({ price }: { price: number }) {
+  const [annualRate, setAnnualRate] = useState(4.99);
+  const [amort, setAmort] = useState(25);
+
+  const scenarios = [
+    { label: "5% down", downPct: 0.05 },
+    { label: "10% down", downPct: 0.10 },
+    { label: "20% down", downPct: 0.20 },
+  ].map(({ label, downPct }) => {
+    const downAmount = price * downPct;
+    const insurance = cmhcInsurancePremium(price, downPct);
+    const principal = price - downAmount + insurance;
+    const monthly = computeMonthlyPayment(principal, annualRate, amort);
+    return { label, downPct, downAmount, insurance, principal, monthly };
+  });
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+        <DollarSign className="h-3.5 w-3.5" />
+        Mortgage Estimate
+      </h3>
+
+      {/* Rate + Amortization inputs */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground">Rate</span>
+          <Input
+            type="number"
+            step="0.01"
+            min={0}
+            max={20}
+            value={annualRate}
+            onChange={(e) => setAnnualRate(Number(e.target.value) || 0)}
+            className="h-6 text-[11px] w-16"
+          />
+          <span className="text-[10px] text-muted-foreground">%</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground">Amort</span>
+          <Select value={String(amort)} onValueChange={(v) => setAmort(Number(v))}>
+            <SelectTrigger className="h-6 text-[11px] w-16">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="20">20yr</SelectItem>
+              <SelectItem value="25">25yr</SelectItem>
+              <SelectItem value="30">30yr</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <span className="text-[10px] text-muted-foreground/60 ml-auto">semi-annual cpd</span>
+      </div>
+
+      {/* Scenario cards */}
+      <div className="grid grid-cols-3 gap-2">
+        {scenarios.map((s) => (
+          <div
+            key={s.label}
+            className={cn(
+              "rounded-xl border p-2.5 text-center",
+              s.downPct >= 0.2
+                ? "border-emerald-200 bg-emerald-50/60"
+                : "border-border bg-muted/30",
+            )}
+          >
+            <p className="text-[10px] font-semibold text-muted-foreground">{s.label}</p>
+            <p className="text-sm font-bold tabular-nums text-foreground mt-0.5">
+              {fmtCurrency(Math.round(s.monthly))}
+              <span className="text-[9px] font-normal text-muted-foreground">/mo</span>
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {fmtCurrency(Math.round(s.downAmount))} down
+            </p>
+            {s.insurance > 0 && (
+              <p className="text-[9px] text-amber-600 mt-0.5">
+                +{fmtCurrency(Math.round(s.insurance))} CMHC
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <p className="text-[10px] text-muted-foreground/60">
+        Estimate only · {annualRate}% rate · {amort}-yr amortization · Canadian semi-annual compounding
+      </p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2574,6 +2692,16 @@ export function ClientsContent({
                 </div>
 
                 <Separator />
+
+                {/* Mortgage Estimate — only for buyer clients with a budget set */}
+                {selectedClient.property_interest_type === "budget" &&
+                  selectedClient.property_interest &&
+                  selectedClient.property_interest > 0 && (
+                    <>
+                      <MortgageEstimateSection price={selectedClient.property_interest} />
+                      <Separator />
+                    </>
+                  )}
 
                 {/* Relationships */}
                 <div className="space-y-3">

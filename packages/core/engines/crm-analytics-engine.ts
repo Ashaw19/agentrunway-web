@@ -21,6 +21,11 @@ export type BriefingItemType =
   | "birthday_today"
   | "birthday_soon"
   | "closing_anniversary"
+  | "mortgage_renewal_window"
+  | "mortgage_renewal_due"
+  | "past_client_check_in"
+  | "timeframe_approaching"
+  | "property_value_milestone"
   | "no_contact_info"
   | "possible_duplicate";
 
@@ -590,7 +595,76 @@ export function computeIntelligenceBriefing(
       }
     }
 
-    // ── 6. Missing contact info (active leads, no email AND no phone) ──────────
+    // ── 6. Past client check-in (landed / cruising, 180+ days no contact) ───────
+    if (
+      (client.status === "landed" || client.status === "cruising") &&
+      daysSince >= 180
+    ) {
+      items.push({
+        id: `checkin_${client.id}`,
+        type: "past_client_check_in",
+        severity: daysSince >= 365 ? "attention" : "upcoming",
+        clientId: client.id,
+        clientName: client.name,
+        title: `${client.name} — past client, check in soon`,
+        detail:
+          daysSince === 999
+            ? "Never contacted after closing"
+            : `${daysSince} days since last contact`,
+        daysValue: daysSince,
+      });
+    }
+
+    // ── 7. Timeframe approaching ───────────────────────────────────────────────
+    if (
+      !hasActionItem.has(client.id) &&
+      client.timeframe &&
+      client.timeframe !== "unknown" &&
+      client.timeframe !== "12_plus" &&
+      (client.status === "boarding" || client.status === "taxiing")
+    ) {
+      const timeframeTotalDays: Record<string, number> = {
+        asap: 14,
+        "1_3_months": 90,
+        "3_6_months": 180,
+        "6_12_months": 365,
+      };
+      const totalDays = timeframeTotalDays[client.timeframe];
+      if (totalDays !== undefined) {
+        const ageDays =
+          (now.getTime() - new Date(client.created_at).getTime()) / 86_400_000;
+        const daysRemaining = totalDays - ageDays;
+        const alertThreshold = Math.max(14, totalDays * 0.2);
+        if (daysRemaining <= alertThreshold) {
+          const timeframeLabel: Record<string, string> = {
+            asap: "ASAP",
+            "1_3_months": "1–3 Month",
+            "3_6_months": "3–6 Month",
+            "6_12_months": "6–12 Month",
+          };
+          const label = timeframeLabel[client.timeframe] ?? client.timeframe;
+          hasActionItem.add(client.id);
+          items.push({
+            id: `timeframe_${client.id}`,
+            type: "timeframe_approaching",
+            severity: daysRemaining <= 0 ? "urgent" : "attention",
+            clientId: client.id,
+            clientName: client.name,
+            title:
+              daysRemaining <= 0
+                ? `${client.name} — ${label} timeframe passed`
+                : `${client.name} — ${label} timeframe ending soon`,
+            detail:
+              daysRemaining <= 0
+                ? "Client's stated timeframe has passed — follow up on next steps"
+                : `${Math.ceil(daysRemaining)} days left in their ${label} window`,
+            daysValue: Math.max(0, Math.ceil(daysRemaining)),
+          });
+        }
+      }
+    }
+
+    // ── 8. Missing contact info (active leads, no email AND no phone) ──────────
     if (
       !client.email &&
       !client.phone &&
@@ -605,6 +679,97 @@ export function computeIntelligenceBriefing(
         title: `${client.name} — no contact info`,
         detail: "Active lead with no email or phone on file",
       });
+    }
+  }
+
+  // ── 9. Mortgage renewal detection ────────────────────────────────────────────
+  // Standard Canadian 5-year term:
+  //   4.5–5.5 yrs since close = renewal imminent (mortgage_renewal_due)
+  //   3.0–4.5 yrs since close = renewal planning window (mortgage_renewal_window)
+  for (const client of activeClients) {
+    const closeDates = closeDatesByClient.get(client.id) ?? [];
+    if (closeDates.length === 0) continue;
+    // Use most recent close date for renewal tracking
+    const latestClose = [...closeDates].sort(
+      (a, b) => b.getTime() - a.getTime(),
+    )[0];
+    const yearsSince =
+      (now.getTime() - latestClose.getTime()) / (365.25 * 86_400_000);
+    const renewalDate = new Date(
+      latestClose.getFullYear() + 5,
+      latestClose.getMonth(),
+      latestClose.getDate(),
+    );
+    const daysUntilRenewal = Math.floor(
+      (renewalDate.getTime() - now.getTime()) / 86_400_000,
+    );
+
+    if (yearsSince >= 4.5 && yearsSince < 5.5) {
+      const label =
+        daysUntilRenewal <= 0
+          ? "overdue"
+          : daysUntilRenewal === 1
+          ? "in 1 day"
+          : `in ${daysUntilRenewal} days`;
+      items.push({
+        id: `renewal_due_${client.id}_${latestClose.toISOString().slice(0, 7)}`,
+        type: "mortgage_renewal_due",
+        severity: daysUntilRenewal <= 90 ? "urgent" : "attention",
+        clientId: client.id,
+        clientName: client.name,
+        title: `${client.name} — mortgage renewal ${label}`,
+        detail: `5-yr term on ${latestClose.toLocaleDateString("en-CA", { month: "long", year: "numeric" })} close`,
+        daysValue: Math.max(0, daysUntilRenewal),
+      });
+    } else if (yearsSince >= 3 && yearsSince < 4.5) {
+      const monthsUntil = Math.round(
+        (renewalDate.getTime() - now.getTime()) / (30.44 * 86_400_000),
+      );
+      items.push({
+        id: `renewal_window_${client.id}_${latestClose.toISOString().slice(0, 7)}`,
+        type: "mortgage_renewal_window",
+        severity: "upcoming",
+        clientId: client.id,
+        clientName: client.name,
+        title: `${client.name} — renewal window (~${monthsUntil} months)`,
+        detail: `Start the renewal conversation — review rate options`,
+        daysValue: Math.round(
+          (renewalDate.getTime() - now.getTime()) / 86_400_000,
+        ),
+      });
+    }
+  }
+
+  // ── 10. Property value milestone (15–30 day window, notable anniversary years) ─
+  // Surfaces milestone anniversaries before the 14-day closing_anniversary window
+  // kicks in, so the agent can prepare a CMA or market update in advance.
+  const MILESTONE_YEARS = [1, 2, 3, 5, 7, 10, 15, 20, 25];
+  for (const client of activeClients) {
+    const closeDates = closeDatesByClient.get(client.id) ?? [];
+    for (const cd of closeDates) {
+      for (const yr of MILESTONE_YEARS) {
+        const milestoneDate = new Date(
+          cd.getFullYear() + yr,
+          cd.getMonth(),
+          cd.getDate(),
+        );
+        const daysUntil = Math.floor(
+          (milestoneDate.getTime() - now.getTime()) / 86_400_000,
+        );
+        if (daysUntil >= 15 && daysUntil <= 30) {
+          items.push({
+            id: `value_${client.id}_${yr}yr_${cd.toISOString().slice(0, 7)}`,
+            type: "property_value_milestone",
+            severity: "upcoming",
+            clientId: client.id,
+            clientName: client.name,
+            title: `${client.name} — ${yr}-year home anniversary in ${daysUntil} days`,
+            detail: `Offer a complimentary market update or CMA`,
+            daysValue: daysUntil,
+          });
+          break; // one milestone alert per close date
+        }
+      }
     }
   }
 
