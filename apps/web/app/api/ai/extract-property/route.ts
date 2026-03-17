@@ -78,6 +78,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Reject images larger than ~5 MB (base64 is ~4/3× raw size, so 7 MB string ≈ 5 MB image)
+  if (image.length > 7_000_000) {
+    return NextResponse.json(
+      { error: "Image too large. Please use an image under 5 MB." },
+      { status: 413 },
+    );
+  }
+
   // Ensure proper data URL format
   const imageUrl = image.startsWith("data:")
     ? image

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { toast } from "sonner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -112,6 +113,7 @@ export function ExpensesBankImportsTab({
 
   const handleApprove = useCallback(async (tx: PlaidTransaction) => {
     const catKey = selectedCats[tx.id] ?? tx.suggested_category ?? null;
+    const prevTxs = localTxs;
 
     setLocalTxs((prev) =>
       prev.map((t) => t.id === tx.id
@@ -120,39 +122,52 @@ export function ExpensesBankImportsTab({
       ),
     );
 
-    if (catKey) {
-      await supabase.from("receipt_expenses").insert({
-        user_id:      tx.user_id,
-        expense_date: tx.transaction_date,
-        category_key: catKey,
-        total_amount: tx.amount,
-        vendor_name:  tx.merchant_name ?? tx.description,
-        notes:        "Imported from bank sync",
-      });
+    try {
+      if (catKey) {
+        const { error: insertErr } = await supabase.from("receipt_expenses").insert({
+          user_id:      tx.user_id,
+          expense_date: tx.transaction_date,
+          category_key: catKey,
+          total_amount: tx.amount,
+          vendor_name:  tx.merchant_name ?? tx.description,
+          notes:        "Imported from bank sync",
+        });
+        if (insertErr) throw insertErr;
+      }
+
+      const { error: updateErr } = await supabase
+        .from("plaid_transactions")
+        .update({ review_status: "approved", category_key: catKey })
+        .eq("id", tx.id);
+      if (updateErr) throw updateErr;
+
+      router.refresh();
+    } catch {
+      setLocalTxs(prevTxs);
+      toast.error("Failed to approve transaction — please try again.");
     }
-
-    await supabase
-      .from("plaid_transactions")
-      .update({ review_status: "approved", category_key: catKey })
-      .eq("id", tx.id);
-
-    router.refresh();
-  }, [selectedCats, supabase, router]);
+  }, [localTxs, selectedCats, supabase, router]);
 
   const handleIgnore = useCallback(async (txId: string) => {
+    const prevTxs = localTxs;
     setLocalTxs((prev) =>
       prev.map((t) => t.id === txId ? { ...t, review_status: "ignored" } : t),
     );
-    await supabase
+    const { error } = await supabase
       .from("plaid_transactions")
       .update({ review_status: "ignored" })
       .eq("id", txId);
-  }, [supabase]);
+    if (error) {
+      setLocalTxs(prevTxs);
+      toast.error("Failed to ignore transaction — please try again.");
+    }
+  }, [localTxs, supabase]);
 
   const handleApproveAll = useCallback(async () => {
     const pending = localTxs.filter(
       (t) => t.amount > 0 && t.review_status === "pending" && t.suggested_category,
     );
+    const prevTxs = localTxs;
 
     setLocalTxs((prev) =>
       prev.map((t) =>
@@ -162,9 +177,10 @@ export function ExpensesBankImportsTab({
       ),
     );
 
+    let failed = 0;
     for (const tx of pending) {
       const catKey = selectedCats[tx.id] ?? tx.suggested_category!;
-      await supabase.from("receipt_expenses").insert({
+      const { error: insertErr } = await supabase.from("receipt_expenses").insert({
         user_id:      tx.user_id,
         expense_date: tx.transaction_date,
         category_key: catKey,
@@ -172,13 +188,20 @@ export function ExpensesBankImportsTab({
         vendor_name:  tx.merchant_name ?? tx.description,
         notes:        "Imported from bank sync",
       });
-      await supabase
+      if (insertErr) { failed++; continue; }
+      const { error: updateErr } = await supabase
         .from("plaid_transactions")
         .update({ review_status: "approved", category_key: catKey })
         .eq("id", tx.id);
+      if (updateErr) failed++;
     }
 
-    router.refresh();
+    if (failed > 0) {
+      setLocalTxs(prevTxs);
+      toast.error(`${failed} transaction${failed !== 1 ? "s" : ""} failed to approve — please try again.`);
+    } else {
+      router.refresh();
+    }
   }, [localTxs, selectedCats, supabase, router]);
 
   // ── Render ────────────────────────────────────────────────────────────────

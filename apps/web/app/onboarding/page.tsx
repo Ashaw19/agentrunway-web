@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   ArrowRight,
   ArrowLeft,
@@ -179,7 +180,10 @@ export default function OnboardingPage() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setSaving(false);
+        return;
+      }
 
       // Suggested goal fallback — ensures goal_gci > 0 so the dashboard
       // redirect guard (goal_gci === 0) never triggers for completed onboardings.
@@ -188,7 +192,7 @@ export default function OnboardingPage() {
         experienceYears <= 5 ? 100000 :
         experienceYears <= 10 ? 150000 : 200000;
 
-      await supabase
+      const { error } = await supabase
         .from("user_settings")
         .update({
           province,
@@ -214,9 +218,16 @@ export default function OnboardingPage() {
         })
         .eq("user_id", user.id);
 
+      if (error) {
+        toast.error("Failed to save your settings. Please try again.");
+        setSaving(false);
+        return;
+      }
+
       router.push("/dashboard");
     } catch (err) {
       console.error("Onboarding save error:", err);
+      toast.error("Something went wrong. Please try again.");
       setSaving(false);
     }
   }

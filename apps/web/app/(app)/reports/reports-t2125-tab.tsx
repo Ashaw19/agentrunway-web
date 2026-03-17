@@ -157,6 +157,7 @@ export function ReportsT2125Tab({
     professional: true, cca: true, homeOffice: true, gstHst: true, instalments: true,
   });
   const [saving, setSaving] = useState(false);
+  const [addingAsset, setAddingAsset] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
 
   // Home office and GST/HST edits pulled from settings (live-editable)
@@ -212,11 +213,13 @@ export function ReportsT2125Tab({
       toast.error("Enter a description and cost");
       return;
     }
+    setAddingAsset(true);
     const { data, error } = await supabase
       .from("t2125_cca_assets")
       .insert({ ...newAsset, user_id: userId })
       .select()
       .single();
+    setAddingAsset(false);
     if (error) { toast.error(error.message); return; }
     if (data) {
       setCcaAssets((prev) => [...prev, data]);
@@ -612,9 +615,9 @@ export function ReportsT2125Tab({
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={addCcaAsset} className="gap-1.5">
+                  <Button size="sm" onClick={addCcaAsset} disabled={addingAsset} className="gap-1.5">
                     <Plus className="h-3.5 w-3.5" />
-                    Add Asset
+                    {addingAsset ? "Adding…" : "Add Asset"}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={() => setShowCcaForm(false)}>
                     Cancel

@@ -94,8 +94,9 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSavingBoard(false); return; }
-    await supabase.from("user_settings").update({ board_code: boardCode, board_subregion: boardSubregion }).eq("user_id", user.id);
+    const { error } = await supabase.from("user_settings").update({ board_code: boardCode, board_subregion: boardSubregion }).eq("user_id", user.id);
     setSavingBoard(false);
+    if (error) { toast.error("Failed to save board — please try again."); return; }
     boardSaved.flash();
     router.refresh();
   }
@@ -105,11 +106,12 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveProvince() {
     setSavingProvince(true);
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("user_settings")
       .update({ province })
       .eq("user_id", settings.user_id);
     setSavingProvince(false);
+    if (error) { toast.error("Failed to save province — please try again."); return; }
     provinceSaved.flash();
     toast.success("Province updated ✓");
   }
@@ -130,7 +132,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveBiz() {
     setSavingBiz(true);
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("user_settings")
       .update({
         is_incorporated: isIncorporated,
@@ -141,6 +143,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       })
       .eq("user_id", settings.user_id);
     setSavingBiz(false);
+    if (error) { toast.error("Failed to save business structure — please try again."); return; }
     bizSaved.flash();
     toast.success("Business structure saved ✓");
   }
@@ -155,11 +158,12 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveSplit() {
     setSavingSplit(true);
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("user_settings")
       .update({ split_preset: splitPreset })
       .eq("user_id", settings.user_id);
     setSavingSplit(false);
+    if (error) { toast.error("Failed to save commission split — please try again."); return; }
     splitSaved.flash();
     toast.success("Commission split locked in ✓");
   }
@@ -180,7 +184,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveFees() {
     setSavingFees(true);
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("user_settings")
       .update({
         monthly_brokerage_fee: parseFloat(monthlyFee) || 0,
@@ -189,6 +193,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       })
       .eq("user_id", settings.user_id);
     setSavingFees(false);
+    if (error) { toast.error("Failed to save brokerage fees — please try again."); return; }
     feesSaved.flash();
     toast.success("Brokerage fees saved ✓");
   }
@@ -222,7 +227,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
     const hPct = Math.min(100, Math.max(0, parseFloat(homeOfficePct) || 0)) / 100;
     setSavingClaiming(true);
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("user_settings")
       .update({
         vehicle_business_use_pct:    vPct,
@@ -230,6 +235,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       })
       .eq("user_id", settings.user_id);
     setSavingClaiming(false);
+    if (error) { toast.error("Failed to save claiming percentages — please try again."); return; }
     claimingSaved.flash();
     toast.success("Claiming percentages saved ✓");
   }
@@ -260,24 +266,33 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
         body: JSON.stringify({ item_id: itemId }),
       });
       if (res.ok) {
-        setPlaidItems((prev) =>
-          prev.map((i) => i.id === itemId ? { ...i, last_synced_at: new Date().toISOString() } : i),
-        );
         router.refresh();
+      } else {
+        toast.error("Sync failed — please try again.");
       }
+    } catch {
+      toast.error("Network error — please check your connection.");
     } finally {
       setSyncingId(null);
     }
   }
 
   async function handleDisconnect(itemId: string) {
-    const res = await fetch("/api/plaid/disconnect", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ item_id: itemId }),
-    });
-    if (res.ok) {
-      setPlaidItems((prev) => prev.filter((i) => i.id !== itemId));
+    const prevItems = plaidItems;
+    setPlaidItems((prev) => prev.filter((i) => i.id !== itemId));
+    try {
+      const res = await fetch("/api/plaid/disconnect", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item_id: itemId }),
+      });
+      if (!res.ok) {
+        setPlaidItems(prevItems);
+        toast.error("Failed to disconnect bank account — please try again.");
+      }
+    } catch {
+      setPlaidItems(prevItems);
+      toast.error("Network error — please check your connection.");
     }
   }
 
@@ -319,7 +334,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveProfile() {
     setSavingProfile(true);
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("user_settings")
       .update({
         display_name:      displayName,
@@ -333,6 +348,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       })
       .eq("user_id", settings.user_id);
     setSavingProfile(false);
+    if (error) { toast.error("Failed to save profile — please try again."); return; }
     profileSaved.flash();
     toast.success("Profile saved ✓");
     router.refresh();
@@ -359,7 +375,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
     const threshold = parseFloat(postCapThreshold) || 0;
     const agentPct  = (parseFloat(postCapAgentPct)    || 0) / 100;
     const brokPct   = (parseFloat(postCapBrokeragePct) || 0) / 100;
-    await supabase
+    const { error } = await supabase
       .from("user_settings")
       .update({
         post_cap_threshold_gci:   threshold,
@@ -368,6 +384,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       })
       .eq("user_id", settings.user_id);
     setSavingPostCap(false);
+    if (error) { toast.error("Failed to save post-cap split — please try again."); return; }
     postCapSaved.flash();
     toast.success("Post-cap split saved ✓");
   }
@@ -408,11 +425,12 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveGoal() {
     setSavingGoal(true);
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("user_settings")
       .update({ goal_gci: parseFloat(goalGCI) || 0 })
       .eq("user_id", settings.user_id);
     setSavingGoal(false);
+    if (error) { toast.error("Failed to save annual goal — please try again."); return; }
     goalSaved.flash();
     toast.success("Annual goal updated ✓");
   }
@@ -420,7 +438,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveRunway() {
     setSavingRunway(true);
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("user_settings")
       .update({
         cash_reserve: parseFloat(cashReserve) || 0,
@@ -430,6 +448,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       })
       .eq("user_id", settings.user_id);
     setSavingRunway(false);
+    if (error) { toast.error("Failed to save cash reserve — please try again."); return; }
     runwaySaved.flash();
     toast.success("Cash reserve updated ✓");
   }
@@ -551,7 +570,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
             <Label>Province / Territory</Label>
             <Select
               value={province}
-              onValueChange={(v) => setProvince(v as Province)}
+              onValueChange={(v) => { setProvince(v as Province); setBoardCode(""); setBoardSubregion(""); }}
             >
               <SelectTrigger className="max-w-xs">
                 <SelectValue />

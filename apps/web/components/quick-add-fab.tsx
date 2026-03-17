@@ -90,7 +90,7 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
       label: "Add Pipeline Deal",
       icon: Layers,
       color: "bg-violet-600 hover:bg-violet-500",
-      onClick: () => goTo("/pipeline?new=1"),
+      onClick: () => goTo("/transactions?tab=pipeline"),
     },
     {
       label: "Log Expense",

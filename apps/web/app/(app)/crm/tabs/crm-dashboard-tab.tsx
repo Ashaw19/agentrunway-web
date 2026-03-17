@@ -604,7 +604,7 @@ export function CrmDashboardTab({
                         <div className="flex items-center gap-2 flex-wrap">
                           <span
                             className={cn(
-                              "text-[10px] font-semibold border rounded px-1.5 py-0.5 shrink-0",
+                              "text-[10px] font-semibold border rounded-full px-2.5 py-0.5 shrink-0",
                               PRIORITY_STYLES[task.priority],
                             )}
                           >

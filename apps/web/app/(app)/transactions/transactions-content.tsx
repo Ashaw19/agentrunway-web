@@ -400,7 +400,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
 
       {/* KPI strip */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 px-5 py-4 shadow-sm">
+        <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-5 py-4 shadow-sm">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-200">
             <DollarSign className="h-5 w-5 text-emerald-700" />
           </div>
@@ -409,7 +409,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
             <p className="text-2xl font-bold text-slate-800">{fmtCurrency(ytdGCI)}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-100 to-blue-50 px-5 py-4 shadow-sm">
+        <div className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50/70 px-5 py-4 shadow-sm">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-200">
             <Briefcase className="h-5 w-5 text-blue-700" />
           </div>
@@ -418,7 +418,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
             <p className="text-2xl font-bold text-slate-800">{ytdCount}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-100 to-purple-50 px-5 py-4 shadow-sm">
+        <div className="flex items-center gap-3 rounded-2xl border border-purple-200 bg-purple-50/70 px-5 py-4 shadow-sm">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-200">
             <TrendingUp className="h-5 w-5 text-purple-700" />
           </div>
@@ -504,7 +504,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
               value={String(yearFilter)}
               onValueChange={(v) => setYearFilter(v === "all" ? "all" : parseInt(v))}
             >
-              <SelectTrigger className="h-8 w-24 text-xs">
+              <SelectTrigger className="h-8 w-20 text-xs sm:w-24">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -517,7 +517,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
           )}
           <span>Sort:</span>
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
-            <SelectTrigger className="h-8 w-32 text-xs">
+            <SelectTrigger className="h-8 w-28 text-xs sm:w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -562,7 +562,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                       <div className="flex flex-col gap-0.5">
                         <span>{tx.date}</span>
                         {tx.source === "imported" && (
-                          <span className="inline-flex w-fit items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                          <span className="inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
                             imported
                           </span>
                         )}
@@ -613,7 +613,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                           <Button
                             size="sm"
                             variant="destructive"
-                            className="h-7 px-2 text-xs"
+                            className="h-8 px-3 text-xs"
                             onClick={() => handleDelete(tx.id)}
                           >
                             Delete
@@ -621,7 +621,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 px-2 text-xs"
+                            className="h-8 px-3 text-xs"
                             onClick={() => setDeleteConfirmId(null)}
                           >
                             Cancel
@@ -632,7 +632,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7"
+                            className="h-8 w-8"
                             onClick={() => openEdit(tx)}
                           >
                             <Pencil className="h-3.5 w-3.5" />
@@ -640,7 +640,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
                             onClick={() => setDeleteConfirmId(tx.id)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -659,7 +659,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
 
       {/* Add / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-[95vw] max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingId ? "Edit Deal" : "Add Deal"}</DialogTitle>
           </DialogHeader>

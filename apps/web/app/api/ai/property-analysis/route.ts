@@ -106,6 +106,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Reject images larger than ~5 MB
+  if (image.length > 7_000_000) {
+    return NextResponse.json(
+      { error: "Image too large. Please use an image under 5 MB." },
+      { status: 413 },
+    );
+  }
+
   const imageUrl = image.startsWith("data:")
     ? image
     : `data:image/jpeg;base64,${image}`;
@@ -116,9 +124,10 @@ export async function POST(req: NextRequest) {
       baseURL: "https://api.groq.com/openai/v1",
     });
 
-    // Add optional agent context to the prompt
-    const fullPrompt = context
-      ? `${EXTRACT_PROMPT}\n\nAdditional context from the agent:\n${context}`
+    // Add optional agent context to the prompt (capped to prevent prompt injection/overflow)
+    const safeContext = typeof context === "string" ? context.slice(0, 500) : null;
+    const fullPrompt = safeContext
+      ? `${EXTRACT_PROMPT}\n\nAdditional context from the agent:\n${safeContext}`
       : EXTRACT_PROMPT;
 
     const res = await groq.chat.completions.create({

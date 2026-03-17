@@ -53,10 +53,9 @@ function nextRemittanceDate(from: Date): { date: Date; label: string; quarter: s
   // CRA quarterly filer deadlines: Apr 30, Jul 31, Oct 31, Jan 31
   const year = from.getFullYear();
   const candidates = [
-    { date: new Date(year, 3, 30),  quarter: "Q1", label: "April 30" },
-    { date: new Date(year, 6, 31),  quarter: "Q2", label: "July 31" },
-    { date: new Date(year, 9, 31),  quarter: "Q3", label: "October 31" },
-    { date: new Date(year, 11, 31), quarter: "Q4", label: "December 31" },
+    { date: new Date(year, 3, 30),     quarter: "Q1", label: "April 30" },
+    { date: new Date(year, 6, 31),     quarter: "Q2", label: "July 31" },
+    { date: new Date(year, 9, 31),     quarter: "Q3", label: "October 31" },
     { date: new Date(year + 1, 0, 31), quarter: "Q4", label: "January 31" },
   ];
   return candidates.find(c => c.date > from) ?? candidates[candidates.length - 1];

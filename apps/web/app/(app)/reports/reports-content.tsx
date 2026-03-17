@@ -183,12 +183,12 @@ function computeProjectedNet(projectedGCI: number, settings: UserSettings | null
 }
 
 function gradeStyle(grade: string) {
-  if (grade === "A+") return { ring: "ring-emerald-400", text: "text-white", pill: "bg-emerald-100 text-emerald-800 border-emerald-200", bar: "bg-emerald-500", label: "Exceptional" };
-  if (grade === "A")  return { ring: "ring-emerald-300", text: "text-white", pill: "bg-emerald-100 text-emerald-800 border-emerald-200", bar: "bg-emerald-400", label: "Excellent" };
-  if (grade === "B")  return { ring: "ring-blue-400",    text: "text-white", pill: "bg-blue-100 text-blue-800 border-blue-200",         bar: "bg-blue-500",    label: "Strong" };
-  if (grade === "C")  return { ring: "ring-amber-400",   text: "text-white", pill: "bg-amber-100 text-amber-800 border-amber-200",       bar: "bg-amber-400",   label: "Developing" };
-  if (grade === "D")  return { ring: "ring-orange-400",  text: "text-white", pill: "bg-orange-100 text-orange-800 border-orange-200",    bar: "bg-orange-400",  label: "Needs Work" };
-  return { ring: "ring-red-500", text: "text-white", pill: "bg-red-100 text-red-800 border-red-200", bar: "bg-red-500", label: "Critical" };
+  if (grade === "A+") return { ring: "ring-emerald-400", text: "text-white", pill: "bg-emerald-100 text-emerald-800 border-emerald-200", bar: "bg-emerald-500", label: "Exceptional", cardBg: "border-emerald-200 bg-emerald-50/70" };
+  if (grade === "A")  return { ring: "ring-emerald-300", text: "text-white", pill: "bg-emerald-100 text-emerald-800 border-emerald-200", bar: "bg-emerald-400", label: "Excellent",   cardBg: "border-emerald-200 bg-emerald-50/70" };
+  if (grade === "B")  return { ring: "ring-blue-400",    text: "text-white", pill: "bg-blue-100 text-blue-800 border-blue-200",         bar: "bg-blue-500",    label: "Strong",      cardBg: "border-blue-200 bg-blue-50/70"       };
+  if (grade === "C")  return { ring: "ring-amber-400",   text: "text-white", pill: "bg-amber-100 text-amber-800 border-amber-200",       bar: "bg-amber-400",   label: "Developing",  cardBg: "border-amber-200 bg-amber-50/70"     };
+  if (grade === "D")  return { ring: "ring-orange-400",  text: "text-white", pill: "bg-orange-100 text-orange-800 border-orange-200",    bar: "bg-orange-400",  label: "Needs Work",  cardBg: "border-orange-200 bg-orange-50/70"   };
+  return { ring: "ring-red-500", text: "text-white", pill: "bg-red-100 text-red-800 border-red-200", bar: "bg-red-500", label: "Critical", cardBg: "border-red-200 bg-red-50/70" };
 }
 
 function riskStyle(level: string) {
@@ -676,18 +676,24 @@ export function ReportsContent({
       {tab === "overview" && (<>
 
       {/* ── 1. Business Health Score (Hero) ───────────────────────────────────── */}
-      <div className="rounded-2xl overflow-hidden border border-slate-700 shadow-lg bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        <div className="px-6 py-4 border-b border-white/10 flex items-center gap-2">
-          <Zap className="h-4 w-4 text-amber-400" />
-          <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">Business Health Score</span>
+      <div className={`rounded-2xl overflow-hidden border shadow-sm ${gs.cardBg}`}>
+        <div className="px-6 py-4 border-b border-border/40 flex items-center gap-2">
+          <Zap className="h-4 w-4 text-amber-500" />
+          <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Business Health Score</span>
         </div>
         <div className="px-6 py-6 flex flex-col sm:flex-row gap-8 items-center sm:items-start">
-          {/* Grade circle */}
+          {/* Grade circle — matches Dashboard's amber-gold signature */}
           <div className="flex flex-col items-center gap-3 shrink-0">
-            <div className={`relative flex h-28 w-28 items-center justify-center rounded-full ring-4 ${gs.ring} bg-slate-700/50`}>
+            <div
+              className={`relative flex h-28 w-28 items-center justify-center rounded-full ring-4 ${gs.ring}`}
+              style={{
+                background: "linear-gradient(135deg, #F0A800 0%, #D97706 55%, #a85c00 100%)",
+                boxShadow: "0 0 20px rgba(240,168,0,0.35), inset 0 1px 1px rgba(255,255,255,0.2)",
+              }}
+            >
               <div className="text-center">
-                <div className="text-4xl font-black text-white leading-none">{runwayScore.grade}</div>
-                <div className="text-xs text-slate-400 mt-1">{runwayScore.score}/100</div>
+                <div className="text-4xl font-black leading-none" style={{ color: "#15110A" }}>{runwayScore.grade}</div>
+                <div className="text-xs mt-1" style={{ color: "#5a3e00" }}>{runwayScore.score}/100</div>
               </div>
             </div>
             <span className={`rounded-full px-3 py-0.5 text-xs font-semibold border ${gs.pill}`}>
@@ -699,12 +705,12 @@ export function ReportsContent({
             {runwayScore.components.map((comp) => (
               <div key={comp.label}>
                 <div className="flex justify-between mb-1.5 text-xs">
-                  <span className="text-slate-300 font-medium">{comp.label}</span>
-                  <span className="text-slate-400">
-                    {comp.weight} &middot; <span className="text-white font-semibold">{Math.round(comp.score)}</span>
+                  <span className="text-foreground font-medium">{comp.label}</span>
+                  <span className="text-muted-foreground">
+                    {comp.weight} &middot; <span className="text-foreground font-semibold">{Math.round(comp.score)}</span>
                   </span>
                 </div>
-                <div className="h-1.5 rounded-full bg-slate-700 overflow-hidden">
+                <div className="h-1.5 rounded-full bg-slate-200 overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
                       comp.score >= 80 ? "bg-emerald-500" :
@@ -720,7 +726,7 @@ export function ReportsContent({
         </div>
         {!runwayScore.hasEnoughData && (
           <div className="px-6 pb-4">
-            <p className="text-xs text-slate-500">Add closed transactions to get a fully personalised score.</p>
+            <p className="text-xs text-muted-foreground">Add closed transactions to get a fully personalised score.</p>
           </div>
         )}
       </div>

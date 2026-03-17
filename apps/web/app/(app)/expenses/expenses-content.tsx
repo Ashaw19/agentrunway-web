@@ -105,14 +105,14 @@ interface Props {
 
 // Per-category colour accent (left border + header icon tint)
 const CAT_COLORS: Record<string, { border: string; badge: string }> = {
-  vehicle:       { border: "border-l-blue-500",    badge: "bg-blue-50 text-blue-700" },
+  vehicle:       { border: "border-l-blue-500",    badge: "bg-blue-50 text-blue-700"    },
   marketing:     { border: "border-l-violet-500",  badge: "bg-violet-50 text-violet-700" },
-  office_tech:   { border: "border-l-teal-500",    badge: "bg-teal-50 text-teal-700" },
-  professional:  { border: "border-l-amber-500",   badge: "bg-amber-50 text-amber-700" },
+  office_tech:   { border: "border-l-teal-500",    badge: "bg-teal-50 text-teal-700"    },
+  professional:  { border: "border-l-amber-500",   badge: "bg-amber-50 text-amber-700"  },
   education:     { border: "border-l-emerald-500", badge: "bg-emerald-50 text-emerald-700" },
-  meals:         { border: "border-l-rose-400",    badge: "bg-rose-50 text-rose-700" },
-  entertainment: { border: "border-l-purple-500",  badge: "bg-purple-50 text-purple-700" },
-  other:         { border: "border-l-slate-400",   badge: "bg-slate-100 text-slate-600" },
+  meals:         { border: "border-l-orange-400",  badge: "bg-orange-50 text-orange-700" },
+  entertainment: { border: "border-l-indigo-500",  badge: "bg-indigo-50 text-indigo-700" },
+  other:         { border: "border-l-slate-400",   badge: "bg-slate-100 text-slate-600"  },
 };
 
 const DEFAULT_CAT = { border: "border-l-slate-400", badge: "bg-slate-100 text-slate-600" };
@@ -373,7 +373,11 @@ export function ExpensesContent({
   ) {
     const numValue = parseFloat(value) || 0;
     const supabase = createClient();
-    await supabase.from("expense_items").update({ [field]: numValue }).eq("id", itemId);
+    const { error } = await supabase.from("expense_items").update({ [field]: numValue }).eq("id", itemId);
+    if (error) {
+      toast.error("Couldn't save — please try again.");
+      return;
+    }
     setCategories((prev) =>
       prev.map((cat) => ({
         ...cat,
@@ -426,7 +430,11 @@ export function ExpensesContent({
 
   async function deleteItem(categoryId: string, itemId: string) {
     const supabase = createClient();
-    await supabase.from("expense_items").delete().eq("id", itemId);
+    const { error } = await supabase.from("expense_items").delete().eq("id", itemId);
+    if (error) {
+      toast.error("Couldn't remove item — please try again.");
+      return;
+    }
     setCategories((prev) =>
       prev.map((cat) =>
         cat.id === categoryId
@@ -443,10 +451,14 @@ export function ExpensesContent({
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    await supabase
+    const { error } = await supabase
       .from("user_settings")
       .update({ vehicle_business_use_pct: pct })
       .eq("user_id", user.id);
+    if (error) {
+      toast.error("Couldn't save vehicle % — please try again.");
+      return;
+    }
     setVehiclePct(pct);
     toast.success("Vehicle business use % saved ✓");
   }
@@ -509,13 +521,19 @@ export function ExpensesContent({
     if (!user) { setSavingYoy(null); return; }
     // Upsert: create history_item for this year if it doesn't exist
     const existing = priorRows.find((r) => r.year === yr);
+    let saveError = null;
     if (existing) {
-      await supabase.from("history_items").update({ [field]: val }).eq("user_id", user.id).eq("year", yr);
+      const { error } = await supabase.from("history_items").update({ [field]: val }).eq("user_id", user.id).eq("year", yr);
+      saveError = error;
     } else {
-      await supabase.from("history_items").upsert({
+      const { error } = await supabase.from("history_items").upsert({
         user_id: user.id, year: yr, annual_gci: 0, annual_tx: 0,
         quarter_gci: [0,0,0,0], quarter_tx: [0,0,0,0], [field]: val,
       }, { onConflict: "user_id,year" });
+      saveError = error;
+    }
+    if (saveError) {
+      toast.error("Couldn't save — please try again.");
     }
     setSavingYoy(null);
   }
@@ -647,7 +665,7 @@ export function ExpensesContent({
 
       {/* KPI Summary */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-2xl border border-rose-200 bg-gradient-to-br from-rose-100 to-rose-50 shadow-sm">
+        <Card className="rounded-2xl border border-rose-200 bg-rose-50/70 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-rose-700">YTD Expenses</CardDescription>
           </CardHeader>
@@ -657,7 +675,7 @@ export function ExpensesContent({
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-100 to-amber-50 shadow-sm">
+        <Card className="rounded-2xl border border-amber-200 bg-amber-50/70 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-amber-700">Monthly Recurring</CardDescription>
           </CardHeader>
@@ -671,9 +689,9 @@ export function ExpensesContent({
 
         <Card className={cn(
           "rounded-2xl shadow-sm",
-          ratioStatus === "healthy" ? "border border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50" :
-          ratioStatus === "warning"  ? "border border-amber-200 bg-gradient-to-br from-amber-100 to-amber-50" :
-                                       "border border-red-200 bg-gradient-to-br from-red-100 to-red-50"
+          ratioStatus === "healthy" ? "border border-emerald-200 bg-emerald-50/70" :
+          ratioStatus === "warning"  ? "border border-amber-200 bg-amber-50/70" :
+                                       "border border-red-200 bg-red-50/70"
         )}>
           <CardHeader className="pb-2">
             <CardDescription className={cn(
@@ -695,10 +713,10 @@ export function ExpensesContent({
         <Card className={cn(
           "rounded-2xl shadow-sm",
           survival.riskLevel === "strong" || survival.riskLevel === "healthy"
-            ? "border border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50"
+            ? "border border-emerald-200 bg-emerald-50/70"
             : survival.riskLevel === "warning"
-            ? "border border-amber-200 bg-gradient-to-br from-amber-100 to-amber-50"
-            : "border border-red-200 bg-gradient-to-br from-red-100 to-red-50"
+            ? "border border-amber-200 bg-amber-50/70"
+            : "border border-red-200 bg-red-50/70"
         )}>
           <CardHeader className="pb-2">
             <CardDescription className={cn(

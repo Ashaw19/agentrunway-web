@@ -2032,7 +2032,7 @@ export function ClientsContent({
 
                               <TableCell className="pr-4 py-2.5">
                                 {sideStyle && (
-                                  <span className={cn("text-[10px] font-semibold border rounded px-1.5 py-0.5 whitespace-nowrap", sideStyle.cls)}>
+                                  <span className={cn("text-[10px] font-semibold border rounded-full px-2.5 py-0.5 whitespace-nowrap", sideStyle.cls)}>
                                     {sideStyle.label}
                                   </span>
                                 )}
@@ -2846,7 +2846,7 @@ export function ClientsContent({
                             </button>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
-                                <span className={cn("text-[10px] font-semibold border rounded px-1.5 py-0.5 shrink-0", PRIORITY_STYLES[task.priority])}>{task.priority}</span>
+                                <span className={cn("text-[10px] font-semibold border rounded-full px-2.5 py-0.5 shrink-0", PRIORITY_STYLES[task.priority])}>{task.priority}</span>
                                 <span className="text-sm font-medium text-foreground truncate">{task.title}</span>
                               </div>
                               <span className={cn("text-xs mt-0.5", isOverdue ? "text-red-600 font-medium" : "text-muted-foreground")}>{isOverdue ? "Overdue · " : ""}{fmtDate(task.due_date)}</span>
@@ -2891,7 +2891,7 @@ export function ClientsContent({
                               </p>
                               <div className="flex items-center gap-2 mt-0.5">
                                 {deal.side && (
-                                  <span className={cn("text-[9px] font-semibold border rounded px-1.5 py-0 shrink-0", SIDE_STYLES[deal.side]?.cls)}>
+                                  <span className={cn("text-[9px] font-semibold border rounded-full px-2 py-0 shrink-0", SIDE_STYLES[deal.side]?.cls)}>
                                     {SIDE_STYLES[deal.side]?.label}
                                   </span>
                                 )}

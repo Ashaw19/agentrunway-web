@@ -130,7 +130,12 @@ export function ExpensesMileageTab({ mileageLogs, year, settings: _settings }: P
   async function handleDelete(id: string) {
     setDeleting(id);
     const supabase = createClient();
-    await supabase.from("mileage_logs").delete().eq("id", id);
+    const { error } = await supabase.from("mileage_logs").delete().eq("id", id);
+    if (error) {
+      setDeleting(null);
+      toast.error("Failed to remove trip — please try again.");
+      return;
+    }
     setLogs((prev) => prev.filter((l) => l.id !== id));
     setDeleting(null);
     toast("Trip removed");
@@ -191,7 +196,7 @@ export function ExpensesMileageTab({ mileageLogs, year, settings: _settings }: P
 
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-100 to-blue-50 shadow-sm">
+        <Card className="rounded-2xl border border-blue-200 bg-blue-50/70 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-blue-700">
               YTD Kilometres
@@ -209,7 +214,7 @@ export function ExpensesMileageTab({ mileageLogs, year, settings: _settings }: P
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-100 to-emerald-50 shadow-sm">
+        <Card className="rounded-2xl border border-emerald-200 bg-emerald-50/70 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
               Est. Deduction
@@ -223,7 +228,7 @@ export function ExpensesMileageTab({ mileageLogs, year, settings: _settings }: P
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-100 to-slate-50 shadow-sm">
+        <Card className="rounded-2xl border border-slate-200 bg-slate-50/70 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-slate-600">
               Trips Logged
@@ -239,7 +244,7 @@ export function ExpensesMileageTab({ mileageLogs, year, settings: _settings }: P
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-100 to-violet-50 shadow-sm">
+        <Card className="rounded-2xl border border-violet-200 bg-violet-50/70 shadow-sm">
           <CardHeader className="pb-2">
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-violet-700">
               Projected Annual

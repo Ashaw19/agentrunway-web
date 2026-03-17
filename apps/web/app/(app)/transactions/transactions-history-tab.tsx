@@ -986,7 +986,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-foreground">{yr.year}</span>
                             {hasExisting && (
-                              <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                              <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5">
                                 replaces existing
                               </span>
                             )}
@@ -1204,8 +1204,8 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
                               <p className="text-xs font-semibold text-foreground truncate">{deal.address}</p>
                               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                 <p className="text-[11px] text-muted-foreground">{date} · {fmtCurrency(deal.gci)} GCI</p>
-                                {sideBadge && <span className={cn("text-[10px] font-semibold border rounded px-1.5 py-0.5", sideBadge.cls)}>{sideBadge.label}</span>}
-                                {deal.source && <span className="text-[10px] text-slate-400 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5">{deal.source}</span>}
+                                {sideBadge && <span className={cn("text-[10px] font-semibold border rounded-full px-2.5 py-0.5", sideBadge.cls)}>{sideBadge.label}</span>}
+                                {deal.source && <span className="text-[10px] text-slate-400 bg-slate-50 border border-slate-200 rounded-full px-2.5 py-0.5">{deal.source}</span>}
                               </div>
                             </div>
                             <span className="text-[10px] font-medium text-slate-400 shrink-0 tabular-nums">#{String(i + 1).padStart(2, "0")}</span>

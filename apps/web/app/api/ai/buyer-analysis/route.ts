@@ -147,6 +147,7 @@ export async function POST(req: NextRequest) {
         .from("clients")
         .select("name")
         .eq("id", clientId)
+        .eq("user_id", user.id)
         .single();
 
       const prompt = `You are a Canadian real estate agent's AI assistant. Based on the following buyer showings data, write a 3-4 sentence "Buyer DNA" summary that helps the agent understand their client's home search patterns and preferences. Include one actionable insight or conversation starter.
@@ -164,8 +165,8 @@ Viewing pace: ${velocity} showings/week
 Top-rated properties:
 ${topRated.join("\n") || "None rated 4+ yet"}
 
-Showing history:
-${showings.map((s) => `- ${s.showing_date}: ${s.property_address} (${s.city ?? "?"}) — $${Number(s.listing_price ?? 0).toLocaleString()} — ${s.client_rating ?? "?"}★ — ${s.property_type ?? "?"}`).join("\n")}
+Showing history (most recent ${Math.min(showings.length, 20)}):
+${showings.slice(-20).map((s) => `- ${s.showing_date}: ${s.property_address} (${s.city ?? "?"}) — $${Number(s.listing_price ?? 0).toLocaleString()} — ${s.client_rating ?? "?"}★ — ${s.property_type ?? "?"}`).join("\n")}
 
 Write the summary in second person ("your client"). Be specific, not generic.`;
 

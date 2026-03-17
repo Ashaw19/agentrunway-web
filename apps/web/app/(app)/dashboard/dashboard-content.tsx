@@ -228,9 +228,17 @@ export function DashboardContent({
   // ── CRM task widget state ───────────────────────────────────────────────
   const [localTasks, setLocalTasks] = useState<ContactTask[]>(openTasks);
   async function completeTaskFromDashboard(taskId: string) {
+    const prevTasks = localTasks;
     setLocalTasks((prev) => prev.filter((t) => t.id !== taskId));
     const supabase = createClient();
-    await supabase.from("contact_tasks").update({ completed_at: new Date().toISOString() }).eq("id", taskId);
+    const { error } = await supabase
+      .from("contact_tasks")
+      .update({ completed_at: new Date().toISOString() })
+      .eq("id", taskId);
+    if (error) {
+      setLocalTasks(prevTasks);
+      toast.error("Failed to complete task");
+    }
   }
   const { fire: fireConfetti } = useConfetti();
   const confettiFiredRef = useRef(false);
@@ -867,7 +875,7 @@ export function DashboardContent({
             </div>
           </div>
           {/* Score components */}
-          <div className="mt-5 grid grid-cols-3 gap-3 sm:grid-cols-6 border-t border-amber-200/40 pt-4">
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6 border-t border-amber-200/40 pt-4">
             {runwayScore.components.map((c, i) => {
               const barColors = [
                 "[&>div]:bg-blue-500",
@@ -1135,7 +1143,7 @@ export function DashboardContent({
 
       {/* ── Net Take-Home card — "what do I actually keep?" ── */}
       {ytdGCI > 0 && settings && (
-        <Card className="rounded-2xl border-emerald-300 bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 shadow-md">
+        <Card className="rounded-2xl border-emerald-200 bg-emerald-50/70 shadow-sm">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-1.5">
@@ -1299,7 +1307,7 @@ export function DashboardContent({
 
       {/* ── Cap Progress (Standard + Full, only when cap is configured) ── */}
       {capConfigured && dashboardView !== "essentials" && (
-        <Card className="rounded-2xl border-violet-200 bg-violet-50/60 shadow-sm">
+        <Card className="rounded-2xl border-violet-200 bg-violet-50/70 shadow-sm">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-1.5">
@@ -1380,7 +1388,7 @@ export function DashboardContent({
         const upcoming = localTasks.filter((t) => t.due_date > todayStr).slice(0, 3);
         const shown    = [...overdue, ...dueToday, ...upcoming].slice(0, 5);
         return (
-          <Card className="rounded-2xl border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 shadow-sm">
+          <Card className="rounded-2xl border-blue-200 bg-blue-50/70 shadow-sm">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold text-blue-900 flex items-center gap-2">
@@ -1432,7 +1440,7 @@ export function DashboardContent({
                       </p>
                     </div>
                     <span className={cn(
-                      "text-[10px] font-semibold border rounded px-1.5 py-0.5 shrink-0",
+                      "text-[10px] font-semibold border rounded-full px-2.5 py-0.5 shrink-0",
                       task.priority === "high"   ? "bg-red-50 text-red-700 border-red-200"
                       : task.priority === "low"  ? "bg-gray-50 text-gray-600 border-gray-200"
                       : "bg-blue-50 text-blue-700 border-blue-200",
@@ -1477,7 +1485,7 @@ export function DashboardContent({
 
       {/* Full insight list */}
       {insights.length > 1 && (
-        <Card className="rounded-2xl border-amber-200 bg-gradient-to-br from-amber-100 to-amber-50 shadow-sm">
+        <Card className="rounded-2xl border-amber-200 bg-amber-50/70 shadow-sm">
           <CardHeader>
             <div className="flex items-center gap-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-200">
@@ -1546,7 +1554,7 @@ export function DashboardContent({
                 </p>
               </div>
               {/* Three-column compact view for reference */}
-              <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="grid grid-cols-1 gap-2 text-center sm:grid-cols-3">
                 <div className="rounded-md border border-blue-100 bg-white/50 px-2 py-2">
                   <p className="text-[10px] font-semibold uppercase text-slate-400 tracking-wide">Downside</p>
                   <p className="text-base font-bold text-slate-700 mt-0.5">{fmtCompact(bands.p10)}</p>
@@ -1711,7 +1719,7 @@ export function DashboardContent({
 
       {/* Corporate tax estimate — incorporated users only */}
       {dashboardView === "full" && corpTaxResult && settings && (
-        <Card className="rounded-2xl border-violet-200 bg-violet-50/60 shadow-sm">
+        <Card className="rounded-2xl border-violet-200 bg-violet-50/70 shadow-sm">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1885,7 +1893,19 @@ export function DashboardContent({
       {!tourComplete && (
         <WelcomeTour
           hasAiChat={isPro}
-          onComplete={() => setTourComplete(true)}
+          onComplete={async () => {
+            setTourComplete(true);
+            try {
+              const supabase = createClient();
+              const { data: { user } } = await supabase.auth.getUser();
+              if (user) {
+                await supabase
+                  .from("user_settings")
+                  .update({ has_seen_tour: true })
+                  .eq("user_id", user.id);
+              }
+            } catch { /* fire-and-forget — UI already updated */ }
+          }}
         />
       )}
     </div>
@@ -1999,7 +2019,7 @@ function PersonalRecordsCard({
   if (records.length === 0) return null;
 
   return (
-    <Card className="rounded-2xl border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 shadow-sm">
+    <Card className="rounded-2xl border-amber-200 bg-amber-50/70 shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <Trophy className="h-4 w-4 text-amber-600" />
@@ -2007,7 +2027,7 @@ function PersonalRecordsCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {records.map((r) => (
             <div key={r.label} className="text-center">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">
@@ -2040,12 +2060,12 @@ function SectionHeader({ label }: { label: string }) {
 
 const STATUS_STYLES: Record<
   HealthStatus,
-  { border: string; chip: string; icon: string }
+  { border: string; chip: string; icon: string; bg: string }
 > = {
-  Stable:    { border: "border-l-emerald-500", chip: "bg-emerald-100 text-emerald-800 border border-emerald-200",  icon: "text-emerald-600" },
-  Watchlist: { border: "border-l-amber-400",   chip: "bg-amber-100 text-amber-800 border border-amber-200",       icon: "text-amber-600"   },
-  "At Risk": { border: "border-l-orange-500",  chip: "bg-orange-100 text-orange-800 border border-orange-200",    icon: "text-orange-600"  },
-  Critical:  { border: "border-l-red-500",     chip: "bg-red-100 text-red-800 border border-red-200",             icon: "text-red-600"     },
+  Stable:    { border: "border-l-emerald-500", chip: "bg-emerald-100 text-emerald-800 border border-emerald-200",  icon: "text-emerald-600", bg: "from-emerald-50 to-emerald-50/40" },
+  Watchlist: { border: "border-l-amber-400",   chip: "bg-amber-100 text-amber-800 border border-amber-200",       icon: "text-amber-600",   bg: "from-amber-50 to-amber-50/40"    },
+  "At Risk": { border: "border-l-orange-500",  chip: "bg-orange-100 text-orange-800 border border-orange-200",    icon: "text-orange-600",  bg: "from-orange-50 to-orange-50/40"  },
+  Critical:  { border: "border-l-red-500",     chip: "bg-red-100 text-red-800 border border-red-200",             icon: "text-red-600",     bg: "from-red-50 to-red-50/40"        },
 };
 
 function BusinessHealthNarrativeCard({
@@ -2059,7 +2079,7 @@ function BusinessHealthNarrativeCard({
 }) {
   const styles = STATUS_STYLES[narrative.status];
   return (
-    <Card className={cn("rounded-2xl border-l-4 bg-gradient-to-br from-slate-100 to-slate-50 shadow-sm", styles.border)}>
+    <Card className={cn("rounded-2xl border-l-4 bg-gradient-to-br shadow-sm", styles.border, styles.bg)}>
       {/* Clickable header — always visible */}
       <CardHeader
         className="cursor-pointer pb-2 pt-4 select-none"

@@ -130,6 +130,7 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
   const [form, setForm] = useState<FormState>(emptyForm());
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [closeTarget, setCloseTarget] = useState<PipelineDeal | null>(null);
   const [closeForm, setCloseForm] = useState<CloseForm>({
     client_name: "",
@@ -248,17 +249,18 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
   }
 
   async function handleClose() {
-    if (!closeTarget) return;
+    if (!closeTarget || closing) return;
+    setClosing(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) { setClosing(false); return; }
 
     const { error: txErr } = await supabase.from("transactions").insert({
       user_id: user.id,
       address: closeTarget.address,
       client_name: closeForm.client_name || null,
       sale_price: parseFloat(closeForm.sale_price) || 0,
-      commission_pct: parseFloat(closeForm.commission_pct) || 0,
+      commission_pct: (parseFloat(closeForm.commission_pct) || 0) / 100,
       side: closeForm.side,
       status: "closed",
       date: closeForm.date,
@@ -266,6 +268,7 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
     });
     if (txErr) {
       toast.error("Couldn't close deal — try again");
+      setClosing(false);
       return;
     }
 
@@ -278,7 +281,10 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
       const address = closeTarget.address;
       setCloseTarget(null);
       toast.success(`${address} closed and added to transactions. 🎉`);
+    } else {
+      toast.error("Deal closed but couldn't remove from pipeline — refresh the page.");
     }
+    setClosing(false);
   }
 
   const totalWeighted = deals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
@@ -406,7 +412,7 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
                           <Button
                             size="sm"
                             variant="destructive"
-                            className="h-7 px-2 text-xs"
+                            className="h-8 px-3 text-xs"
                             onClick={() => handleDelete(deal.id)}
                           >
                             Delete
@@ -414,7 +420,7 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 px-2 text-xs"
+                            className="h-8 px-3 text-xs"
                             onClick={() => setDeleteConfirmId(null)}
                           >
                             Cancel
@@ -425,7 +431,7 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                            className="h-8 w-8 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
                             title="Mark as Closed"
                             onClick={() => setCloseTarget(deal)}
                           >
@@ -434,7 +440,7 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7"
+                            className="h-8 w-8"
                             onClick={() => openEdit(deal)}
                           >
                             <Pencil className="h-3.5 w-3.5" />
@@ -442,7 +448,7 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
                             onClick={() => setDeleteConfirmId(deal.id)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -461,7 +467,7 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
 
       {/* Add / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-[95vw] max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingId ? "Edit Deal" : "Add Pipeline Deal"}</DialogTitle>
           </DialogHeader>
@@ -594,7 +600,7 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
 
       {/* Close Deal Dialog */}
       <Dialog open={!!closeTarget} onOpenChange={(o) => !o && setCloseTarget(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="w-[95vw] max-w-md">
           <DialogHeader>
             <DialogTitle>Close Deal — {closeTarget?.address}</DialogTitle>
           </DialogHeader>
@@ -685,8 +691,9 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
               <Button
                 className="bg-emerald-600 text-white hover:bg-emerald-700"
                 onClick={handleClose}
+                disabled={closing}
               >
-                Close Deal ✓
+                {closing ? "Closing…" : "Close Deal ✓"}
               </Button>
             </div>
           </div>

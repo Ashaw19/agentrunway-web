@@ -67,7 +67,7 @@ export function useAppShortcuts(openQuickAdd: () => void) {
     },
     {
       key: "p",
-      handler: () => router.push("/pipeline"),
+      handler: () => router.push("/transactions?tab=pipeline"),
       description: "Go to Pipeline",
     },
     {

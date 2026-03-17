@@ -44,8 +44,19 @@ export async function POST(req: NextRequest) {
     return new Response("Invalid request body", { status: 400 });
   }
 
-  const pageContext = currentPage
-    ? `\nThe user is currently viewing the "${currentPage.replace(/^\//, "")}" page. Prioritize answers relevant to what they're looking at.`
+  // Strip any system-role messages from the client — only user/assistant allowed
+  const safeMessages = messages
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .slice(-20) // cap conversation history to last 20 messages
+    .map((m) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
+
+  // Sanitize currentPage to a plain path segment — prevents prompt injection
+  const safePage = typeof currentPage === "string"
+    ? currentPage.replace(/[^a-z0-9/\-_]/gi, "").slice(0, 64)
+    : "";
+
+  const pageContext = safePage
+    ? `\nThe user is currently viewing the "${safePage.replace(/^\//, "")}" page. Prioritize answers relevant to what they're looking at.`
     : "";
 
   const systemPrompt = `You are an expert AI business advisor for a Canadian real estate agent using Agent Runway — a financial analytics platform.
@@ -72,7 +83,7 @@ Guidelines:
       stream: true,
       messages: [
         { role: "system", content: systemPrompt },
-        ...messages,
+        ...safeMessages,
       ],
       max_tokens: 600,
       temperature: 0.7,
