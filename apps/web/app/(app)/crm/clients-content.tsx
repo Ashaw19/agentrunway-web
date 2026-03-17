@@ -1102,22 +1102,43 @@ export function ClientsContent({
   );
 
   const completeTask = useCallback(async (taskId: string) => {
-    setLocalTasks((prev) => prev.filter((t) => t.id !== taskId));
+    let removedTask: ContactTask | undefined;
+    setLocalTasks((prev) => {
+      removedTask = prev.find((t) => t.id === taskId);
+      return prev.filter((t) => t.id !== taskId);
+    });
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("contact_tasks")
       .update({ completed_at: new Date().toISOString() })
       .eq("id", taskId);
+    if (error) {
+      if (removedTask) {
+        setLocalTasks((prev) =>
+          [...prev, removedTask!].sort((a, b) => a.due_date.localeCompare(b.due_date)),
+        );
+      }
+      toast.error("Failed to complete task");
+    }
   }, []);
 
   // Update a single field on a client record
   const updateClientField = useCallback(
     async (clientId: string, field: string, value: unknown) => {
+      const prevClient = localClients.find((c) => c.id === clientId);
+      const prevValue = prevClient ? (prevClient as Record<string, unknown>)[field] : undefined;
       setLocalClients((prev) =>
         prev.map((c) => (c.id === clientId ? { ...c, [field]: value } : c)),
       );
       const supabase = createClient();
-      await supabase.from("clients").update({ [field]: value }).eq("id", clientId);
+      const { error } = await supabase.from("clients").update({ [field]: value }).eq("id", clientId);
+      if (error) {
+        setLocalClients((prev) =>
+          prev.map((c) => (c.id === clientId ? { ...c, [field]: prevValue } : c)),
+        );
+        toast.error("Failed to save changes");
+        return;
+      }
 
       // Flight Plan execution: fire matching plans on status change
       if (field === "status" && typeof value === "string") {
@@ -1153,29 +1174,53 @@ export function ClientsContent({
     [localFlightPlans, localFlightPlanSteps, localClients, addTask],
   );
 
-  // Archive a client (move to Hangar)
+  // Archive a client (move to Hangar) — atomic single update
   const handleArchiveClient = useCallback(async (clientId: string, reason: ArchiveReason) => {
     const archivedAt = new Date().toISOString();
-    await updateClientField(clientId, "archived_at", archivedAt);
-    await updateClientField(clientId, "archive_reason", reason);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("clients")
+      .update({ archived_at: archivedAt, archive_reason: reason })
+      .eq("id", clientId);
+    if (error) {
+      toast.error("Failed to archive client");
+      return;
+    }
+    setLocalClients((prev) =>
+      prev.map((c) => c.id === clientId ? { ...c, archived_at: archivedAt, archive_reason: reason } : c),
+    );
     setArchiveDialogOpen(false);
     setDetailPanelOpen(false);
-  }, [updateClientField]);
+  }, []);
 
-  // Restore a client from the Hangar
+  // Restore a client from the Hangar — atomic single update
   const handleRestoreClient = useCallback(async (clientId: string) => {
-    await updateClientField(clientId, "archived_at", null);
-    await updateClientField(clientId, "archive_reason", null);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("clients")
+      .update({ archived_at: null, archive_reason: null })
+      .eq("id", clientId);
+    if (error) {
+      toast.error("Failed to restore client");
+      return;
+    }
+    setLocalClients((prev) =>
+      prev.map((c) => c.id === clientId ? { ...c, archived_at: null, archive_reason: null } : c),
+    );
     setDetailPanelOpen(false);
-  }, [updateClientField]);
+  }, []);
 
   // Permanently delete a client
   const handleDeleteClient = useCallback(async (clientId: string) => {
     setDeleteLoading(true);
     const supabase = createClient();
-    await supabase.from("clients").delete().eq("id", clientId);
-    setLocalClients((prev) => prev.filter((c) => c.id !== clientId));
+    const { error } = await supabase.from("clients").delete().eq("id", clientId);
     setDeleteLoading(false);
+    if (error) {
+      toast.error("Failed to delete client");
+      return;
+    }
+    setLocalClients((prev) => prev.filter((c) => c.id !== clientId));
     setDeleteDialogOpen(false);
     setDetailPanelOpen(false);
   }, []);
@@ -1402,18 +1447,26 @@ export function ClientsContent({
   );
 
   const handleDeleteFlightPlan = useCallback(async (planId: string) => {
+    const supabase = createClient();
+    const { error } = await supabase.from("flight_plans").delete().eq("id", planId);
+    if (error) {
+      toast.error("Failed to delete flight plan");
+      return;
+    }
     setLocalFlightPlans((prev) => prev.filter((p) => p.id !== planId));
     setLocalFlightPlanSteps((prev) => prev.filter((s) => s.flight_plan_id !== planId));
-    const supabase = createClient();
-    await supabase.from("flight_plans").delete().eq("id", planId);
   }, []);
 
   const handleToggleFlightPlan = useCallback(async (planId: string, isActive: boolean) => {
+    const supabase = createClient();
+    const { error } = await supabase.from("flight_plans").update({ is_active: isActive }).eq("id", planId);
+    if (error) {
+      toast.error("Failed to update flight plan");
+      return;
+    }
     setLocalFlightPlans((prev) =>
       prev.map((p) => (p.id === planId ? { ...p, is_active: isActive } : p)),
     );
-    const supabase = createClient();
-    await supabase.from("flight_plans").update({ is_active: isActive }).eq("id", planId);
   }, []);
 
   // ── Form handlers ────────────────────────────────────────────────────────────
@@ -1520,6 +1573,12 @@ export function ClientsContent({
     let enriched = 0;
     const newClients: Client[] = [];
 
+    // Pass 1: separate rows into enrichments (existing clients) and inserts (new)
+    type EnrichItem = { existingId: string; updates: Record<string, unknown> };
+    type InsertRow = Record<string, unknown>;
+    const toEnrich: EnrichItem[] = [];
+    const toInsert: InsertRow[] = [];
+
     for (const row of csvRows) {
       const rawName = (row[mapName] ?? "").trim();
       if (!rawName) { skipped++; continue; }
@@ -1536,7 +1595,6 @@ export function ClientsContent({
         ? (row[mapProvince] ?? "").trim().replace(/,+$/, "") || null
         : null;
 
-      // If name already exists, enrich empty contact fields instead of skipping
       if (existingSearchNames.has(nameSearch)) {
         const existing = localClients.find((c) => c.name_search === nameSearch);
         if (existing) {
@@ -1548,23 +1606,17 @@ export function ClientsContent({
           if (!existing.street_address  && street)   updates.street_address  = street;
           if (!existing.postal_code     && postal)   updates.postal_code     = postal;
           if (Object.keys(updates).length > 0) {
-            await supabase.from("clients").update(updates).eq("id", existing.id);
-            setLocalClients((prev) =>
-              prev.map((c) => (c.id === existing.id ? { ...c, ...updates } : c))
-            );
-            enriched++;
+            toEnrich.push({ existingId: existing.id, updates });
           } else {
             skipped++;
           }
         } else {
           skipped++;
         }
-        continue;
-      }
-
-      const { data, error } = await supabase
-        .from("clients")
-        .insert({
+      } else {
+        // Track within-CSV duplicates so they don't get inserted twice
+        existingSearchNames.add(nameSearch);
+        toInsert.push({
           user_id: user.id,
           name: rawName,
           name_search: nameSearch,
@@ -1578,14 +1630,37 @@ export function ClientsContent({
           postal_code:    postal,
           country:        mapCountry   !== "__none__" ? (row[mapCountry]   ?? "").trim() || "Canada" : "Canada",
           phone_type:     mapPhoneType !== "__none__" ? normalizePhoneType(row[mapPhoneType] ?? "") : "mobile",
-        })
-        .select()
-        .single();
+        });
+      }
+    }
 
-      if (!error && data) {
-        existingSearchNames.add(nameSearch);
-        newClients.push(data as Client);
-        imported++;
+    // Pass 2: batch insert new clients in groups of 50
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
+      const batch = toInsert.slice(i, i + BATCH_SIZE);
+      const { data: batchData, error: batchError } = await supabase
+        .from("clients")
+        .insert(batch)
+        .select();
+      if (!batchError && batchData) {
+        newClients.push(...(batchData as Client[]));
+        imported += batchData.length;
+      } else {
+        skipped += batch.length;
+      }
+    }
+
+    // Pass 3: apply enrichments individually (different fields per row)
+    for (const { existingId, updates } of toEnrich) {
+      const { error: enrichError } = await supabase
+        .from("clients")
+        .update(updates)
+        .eq("id", existingId);
+      if (!enrichError) {
+        setLocalClients((prev) =>
+          prev.map((c) => (c.id === existingId ? { ...c, ...updates } : c)),
+        );
+        enriched++;
       } else {
         skipped++;
       }

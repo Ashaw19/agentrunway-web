@@ -90,7 +90,7 @@ function monthsIdleLabel(lastDeal: string): string {
 
 function extractFirstName(displayName: string | null, email: string): string {
   if (displayName) return displayName.split(/\s+/)[0] ?? displayName;
-  return email.split("@")[0].replace(/[._-]/g, " ").split(" ")[0] ?? "your agent";
+  return email.split("@")[0].replace(/[._-]/g, " ").split(" ")[0] || "your agent";
 }
 
 // ── Tone instructions ──────────────────────────────────────────────────────────

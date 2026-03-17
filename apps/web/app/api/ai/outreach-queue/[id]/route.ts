@@ -30,8 +30,14 @@ export async function PATCH(
   const body: PatchBody = await req.json();
 
   // Whitelist allowed fields to prevent arbitrary column writes
+  const VALID_STATUSES = new Set<PatchBody["status"]>(["draft", "ready", "sent", "skipped"]);
   const allowed: PatchBody = {};
-  if (body.status        !== undefined) allowed.status        = body.status;
+  if (body.status !== undefined) {
+    if (!VALID_STATUSES.has(body.status)) {
+      return NextResponse.json({ error: "Invalid status value" }, { status: 400 });
+    }
+    allowed.status = body.status;
+  }
   if (body.final_subject !== undefined) allowed.final_subject = body.final_subject;
   if (body.final_body    !== undefined) allowed.final_body    = body.final_body;
   if (body.sent_at       !== undefined) allowed.sent_at       = body.sent_at;

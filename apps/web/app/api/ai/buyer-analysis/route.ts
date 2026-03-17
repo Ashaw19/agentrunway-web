@@ -2,7 +2,7 @@
  * POST /api/ai/buyer-analysis
  *
  * Generates a "Buyer DNA" profile for a client based on their property showings.
- * Requires 4+ showings to have meaningful data. Analyzes:
+ * Requires 3+ showings to have meaningful data. Analyzes:
  * - Price range & budget drift (trending up/down/stable)
  * - Property type preferences
  * - Preferred areas (cities/neighbourhoods)
