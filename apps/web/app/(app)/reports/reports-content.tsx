@@ -627,6 +627,22 @@ export function ReportsContent({
         </div>
       </div>
 
+      {/* ── No-data banner (new users) ───────────────────────────────────────── */}
+      {transactions.length === 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 flex items-start gap-3">
+          <BarChart2 className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+          <div>
+            <p className="text-sm font-medium text-amber-900">No transactions yet</p>
+            <p className="text-sm text-amber-700 mt-0.5">
+              Your income report, GCI breakdown, and tax projections will populate once you log your first deal.{" "}
+              <Link href="/transactions" className="underline underline-offset-2 font-medium">
+                Add a deal →
+              </Link>
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Tab bar ──────────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-1 border-b border-border/60">
         {(["overview", "t2125"] as const).map((t) => (
