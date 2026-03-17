@@ -261,7 +261,9 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
           i.id === item.id ? { ...i, is_locked: !i.is_locked } : i,
         ),
       );
-      toast(item.is_locked ? "Year unlocked ✓" : "Year locked 🔒");
+      toast.success(item.is_locked ? "Year unlocked" : "Year locked");
+    } else {
+      toast.error("Failed to update lock — please try again.");
     }
   }
 
@@ -269,42 +271,62 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
   async function updateAnnualGCI(item: HistoryItem, value: string) {
     const num = parseFloat(value) || 0;
+    const prev_gci = item.annual_gci;
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, annual_gci: num } : i));
     setSaving(`${item.id}-annual_gci`);
     const supabase = createClient();
-    await supabase.from("history_items").update({ annual_gci: num }).eq("id", item.id);
+    const { error } = await supabase.from("history_items").update({ annual_gci: num }).eq("id", item.id);
     setSaving(null);
+    if (error) {
+      setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, annual_gci: prev_gci } : i));
+      toast.error("Couldn't save — please try again.");
+    }
   }
 
   async function updateAnnualTx(item: HistoryItem, value: string) {
     const num = parseInt(value) || 0;
+    const prev_tx = item.annual_tx;
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, annual_tx: num } : i));
     setSaving(`${item.id}-annual_tx`);
     const supabase = createClient();
-    await supabase.from("history_items").update({ annual_tx: num }).eq("id", item.id);
+    const { error } = await supabase.from("history_items").update({ annual_tx: num }).eq("id", item.id);
     setSaving(null);
+    if (error) {
+      setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, annual_tx: prev_tx } : i));
+      toast.error("Couldn't save — please try again.");
+    }
   }
 
   async function updateQuarterGCI(item: HistoryItem, qi: number, value: string) {
     const num = parseFloat(value) || 0;
-    const newArr = [...(item.quarter_gci as number[])];
+    const prevArr = [...(item.quarter_gci as number[])];
+    const newArr = [...prevArr];
     newArr[qi] = num;
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, quarter_gci: newArr } : i));
     setSaving(`${item.id}-qgci-${qi}`);
     const supabase = createClient();
-    await supabase.from("history_items").update({ quarter_gci: newArr }).eq("id", item.id);
+    const { error } = await supabase.from("history_items").update({ quarter_gci: newArr }).eq("id", item.id);
     setSaving(null);
+    if (error) {
+      setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, quarter_gci: prevArr } : i));
+      toast.error("Couldn't save — please try again.");
+    }
   }
 
   async function updateQuarterTx(item: HistoryItem, qi: number, value: string) {
     const num = parseInt(value) || 0;
-    const newArr = [...(item.quarter_tx as number[])];
+    const prevArr = [...(item.quarter_tx as number[])];
+    const newArr = [...prevArr];
     newArr[qi] = num;
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, quarter_tx: newArr } : i));
     setSaving(`${item.id}-qtx-${qi}`);
     const supabase = createClient();
-    await supabase.from("history_items").update({ quarter_tx: newArr }).eq("id", item.id);
+    const { error } = await supabase.from("history_items").update({ quarter_tx: newArr }).eq("id", item.id);
     setSaving(null);
+    if (error) {
+      setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, quarter_tx: prevArr } : i));
+      toast.error("Couldn't save — please try again.");
+    }
   }
 
   async function handleAddYear() {
@@ -381,7 +403,6 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
     if (crError) {
       toast.error(`${item.year} history removed, but some client records couldn't be deleted. Please refresh.`);
-      toast.success(`${item.year} removed from history.`);
       return;
     }
 
@@ -935,7 +956,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                 Add Year
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="sm:max-w-sm w-[95vw]">
               <DialogHeader>
                 <DialogTitle>Add History Year</DialogTitle>
               </DialogHeader>
@@ -992,7 +1013,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
       {/* ── Import dialog ─────────────────────────────────────────────────── */}
       <Dialog open={importOpen} onOpenChange={handleImportClose}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
