@@ -282,7 +282,11 @@ export function ShowingsSection({ clientId, clientName, showings, onShowingsChan
   // Delete showing
   const handleDelete = useCallback(async (id: string) => {
     const supabase = createClient();
-    await supabase.from("property_showings").delete().eq("id", id);
+    const { error } = await supabase.from("property_showings").delete().eq("id", id);
+    if (error) {
+      toast.error("Failed to remove showing");
+      return;
+    }
     onShowingsChange(showings.filter((s) => s.id !== id));
     toast.success("Showing removed");
   }, [showings, onShowingsChange]);

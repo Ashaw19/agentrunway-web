@@ -1062,6 +1062,8 @@ export function ClientsContent({
 
       if (!error && data) {
         setLocalActivities((prev) => [data as ContactActivity, ...prev]);
+      } else if (error) {
+        toast.error("Failed to log activity");
       }
     },
     [],
@@ -1096,6 +1098,8 @@ export function ClientsContent({
 
       if (!error && data) {
         setLocalTasks((prev) => [data as ContactTask, ...prev]);
+      } else if (error) {
+        toast.error("Failed to add task");
       }
     },
     [],
@@ -1351,6 +1355,8 @@ export function ClientsContent({
 
       if (!error && data) {
         setLocalRelationships((prev) => [...prev, data as ClientRelationship]);
+      } else if (error) {
+        toast.error("Failed to add relationship");
       }
     },
     [],
@@ -1371,7 +1377,7 @@ export function ClientsContent({
 
       if (planId) {
         // Update existing plan
-        await supabase
+        const { error: updateError } = await supabase
           .from("flight_plans")
           .update({
             name: plan.name,
@@ -1379,7 +1385,13 @@ export function ClientsContent({
             trigger_status: plan.trigger_status,
             is_active: plan.is_active,
           })
-          .eq("id", planId);
+          .eq("id", planId)
+          .eq("user_id", user.id);
+
+        if (updateError) {
+          toast.error("Failed to save flight plan");
+          return;
+        }
 
         // Delete existing steps and re-insert
         await supabase.from("flight_plan_steps").delete().eq("flight_plan_id", planId);
@@ -2133,18 +2145,18 @@ export function ClientsContent({
                   </CardContent>
                 </Card>
 
-                <Card className="rounded-2xl shadow-sm" style={{
-                  borderColor: valuationResult.portfolioHealth === "Concentrated"
-                    ? "rgb(251 191 36)" : valuationResult.portfolioHealth === "Balanced"
-                    ? "rgb(96 165 250)" : "rgb(52 211 153)",
-                }}>
+                <Card className={cn(
+                  "rounded-2xl shadow-sm",
+                  valuationResult.portfolioHealth === "Concentrated" ? "border-amber-400" :
+                  valuationResult.portfolioHealth === "Balanced" ? "border-blue-400" : "border-emerald-400",
+                )}>
                   <CardContent className="pt-4 pb-3 px-4">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <Shield className="h-4 w-4" style={{
-                        color: valuationResult.portfolioHealth === "Concentrated"
-                          ? "rgb(245 158 11)" : valuationResult.portfolioHealth === "Balanced"
-                          ? "rgb(59 130 246)" : "rgb(16 185 129)",
-                      }} />
+                      <Shield className={cn(
+                        "h-4 w-4",
+                        valuationResult.portfolioHealth === "Concentrated" ? "text-amber-500" :
+                        valuationResult.portfolioHealth === "Balanced" ? "text-blue-500" : "text-emerald-500",
+                      )} />
                       <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                         Portfolio Health
                       </span>
@@ -2193,7 +2205,20 @@ export function ClientsContent({
       {/* ══════════════════════════════════════════════════════════════════ */}
       {/* CLIENT DETAIL SHEET                                                */}
       {/* ══════════════════════════════════════════════════════════════════ */}
-      <Sheet open={detailPanelOpen} onOpenChange={setDetailPanelOpen}>
+      <Sheet open={detailPanelOpen} onOpenChange={(open) => {
+        setDetailPanelOpen(open);
+        if (!open) {
+          setEditingField(null);
+          setShowLogActivity(false);
+          setShowAddTask(false);
+          setLogDescription("");
+          setLogDate(nowIso());
+          setTaskTitle("");
+          setTaskDueDate(todayIso());
+          setTaskPriority("normal");
+          setTaskNotes("");
+        }
+      }}>
         <SheetContent side="right" className="sm:max-w-xl w-full overflow-y-auto p-0">
           {selectedClient && (
             <div className="flex flex-col">
@@ -2918,9 +2943,24 @@ export function ClientsContent({
       {/* ══════════════════════════════════════════════════════════════════ */}
       <Dialog open={addClientOpen} onOpenChange={(open) => {
         setAddClientOpen(open);
-        if (!open) { setVoiceBanner(false); setVoiceDraft(null); }
+        if (!open) {
+          setVoiceBanner(false);
+          setVoiceDraft(null);
+          setNewClientName("");
+          setNewClientEmail("");
+          setNewClientPhone("");
+          setNewClientStatus("boarding");
+          setNewClientSource("");
+          setNewClientTags([]);
+          setNewClientStreet("");
+          setNewClientUnit("");
+          setNewClientCity("");
+          setNewClientProvince("");
+          setNewClientPostal("");
+          setNewClientCountry("Canada");
+        }
       }}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-md w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="h-4 w-4" />
@@ -3086,8 +3126,26 @@ export function ClientsContent({
       {/* ══════════════════════════════════════════════════════════════════ */}
       {/* CSV IMPORT DIALOG                                                  */}
       {/* ══════════════════════════════════════════════════════════════════ */}
-      <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <Dialog open={importOpen} onOpenChange={(open) => {
+        setImportOpen(open);
+        if (!open) {
+          setImportStep("upload");
+          setCsvHeaders([]);
+          setCsvRows([]);
+          setMapName("");
+          setMapEmail("__none__");
+          setMapPhone("__none__");
+          setMapSource("__none__");
+          setMapCity("__none__");
+          setMapProvince("__none__");
+          setMapStreet("__none__");
+          setMapPostal("__none__");
+          setMapCountry("__none__");
+          setMapPhoneType("__none__");
+          setImportResult(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-lg w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Upload className="h-4 w-4" />
@@ -3449,7 +3507,7 @@ export function ClientsContent({
 
       {/* ══ Archive Dialog ══ */}
       <Dialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm w-[95vw]">
           <DialogHeader>
             <DialogTitle>Move to Hangar</DialogTitle>
             <DialogDescription>
@@ -3486,7 +3544,7 @@ export function ClientsContent({
 
       {/* ══ Delete Dialog ══ */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm w-[95vw]">
           <DialogHeader>
             <DialogTitle>Permanently delete {selectedClient?.name}?</DialogTitle>
             <DialogDescription>
