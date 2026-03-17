@@ -1126,7 +1126,7 @@ export function ClientsContent({
   const updateClientField = useCallback(
     async (clientId: string, field: string, value: unknown) => {
       const prevClient = localClients.find((c) => c.id === clientId);
-      const prevValue = prevClient ? (prevClient as Record<string, unknown>)[field] : undefined;
+      const prevValue = prevClient ? (prevClient as unknown as Record<string, unknown>)[field] : undefined;
       setLocalClients((prev) =>
         prev.map((c) => (c.id === clientId ? { ...c, [field]: value } : c)),
       );

@@ -14,6 +14,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { probabilityBands, fiveYearBands } from "@/lib/engines/probabilistic-forecast-engine";
 import type { ProbabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
+import type { Transaction } from "@/lib/types/database";
 import { TEST_TRANSACTIONS } from "./test-data";
 
 beforeEach(() => {
@@ -75,13 +76,14 @@ describe("probabilityBands — Variance-Based", () => {
       side: "buyer" as const,
       status: "closed" as const,
       team_split_pct: null,
-      notes: null,
+      notes: "",
       created_at: `2026-${String(i + 1).padStart(2, "0")}-15`,
       updated_at: `2026-${String(i + 1).padStart(2, "0")}-15`,
-      address: null,
+      address: "",
+      client_name: "",
       date_precision: "day" as const,
       source: "manual" as const,
-    }));
+    })) as unknown as Transaction[];
   }
 
   it("uses CV-based bands for ≥ 6 months with variation", () => {

@@ -40,9 +40,9 @@ export const TEST_SETTINGS: UserSettings = {
   post_cap_agent_pct: 0.95,
   post_cap_brokerage_pct: 0.05,
   // Seasonality (spring/summer heavy, typical Ontario market)
-  seasonal_weights: [0.20, 0.30, 0.30, 0.20],
+  national_quarter_pcts: [0.20, 0.30, 0.30, 0.20],
   // Growth goals (5-year)
-  growth_goals: [0.10, 0.10, 0.08, 0.08, 0.05],
+  growth_goal_year_pcts: [0.10, 0.10, 0.08, 0.08, 0.05],
   // Other required fields
   display_name: "Sarah Chen",
   avatar_url: null,
@@ -51,7 +51,7 @@ export const TEST_SETTINGS: UserSettings = {
   monthly_recurring_expenses: 800,
   // Pipeline
   pipeline_monthly_estimate: 0,
-} as UserSettings;
+} as unknown as UserSettings;
 
 // ── Transactions (6 closed deals in current year) ────────────────────────────
 //
@@ -74,10 +74,11 @@ function makeTx(overrides: Partial<Transaction> & { id: string; date: string }):
     side: "buyer",
     status: "closed",
     team_split_pct: null,
-    notes: null,
+    client_name: "",
+    notes: "",
     created_at: overrides.date,
     updated_at: overrides.date,
-    address: null,
+    address: "",
     date_precision: "day",
     source: "manual",
     ...overrides,
