@@ -40,7 +40,9 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -87,6 +89,7 @@ import {
   Rocket,
   Crown,
   Wind,
+  GitBranch,
 } from "lucide-react";
 import { ShowingsSection } from "./showings-section";
 import { fmtCurrency } from "@/lib/formatters";
@@ -111,6 +114,7 @@ import type {
   ArchiveReason,
   PropertyShowing,
   CommunicationTone,
+  LeadSource,
 } from "@/lib/types/database";
 import {
   ACTIVITY_TYPE_LABELS,
@@ -248,6 +252,37 @@ function nowIso(): string {
   return new Date().toISOString().slice(0, 16);
 }
 
+// ── Lead Source options ────────────────────────────────────────────────────────
+
+type LeadSourceGroup = { label: string; options: LeadSource[] };
+
+const LEAD_SOURCE_GROUPS: LeadSourceGroup[] = [
+  {
+    label: "Personal Network",
+    options: ["SOI", "Referral — Past Client", "Referral — Agent", "Referral — General"],
+  },
+  {
+    label: "Portals",
+    options: ["Realtor.ca", "Zillow", "Zolo", "HouseSigma", "Point2 Homes"],
+  },
+  {
+    label: "Brokerages",
+    options: ["Royal LePage", "RE/MAX", "EXIT Realty", "Century 21", "REAL Broker", "eXp Realty", "Keller Williams", "Brokerage Website"],
+  },
+  {
+    label: "Events & Outreach",
+    options: ["Open House", "Door Knocking", "Direct Mail", "Sphere Event"],
+  },
+  {
+    label: "Digital",
+    options: ["Social Media", "Google Ads", "Facebook Ads", "YouTube", "TikTok", "Podcast / Media", "Cold Call"],
+  },
+  {
+    label: "Other",
+    options: ["Other"],
+  },
+];
+
 // ── Achievement Badges ────────────────────────────────────────────────────────
 
 type AchievementBadgeId = "high_yield" | "frequent_flyer" | "silver_wings" | "tailwind_club" | "first_class";
@@ -376,7 +411,7 @@ function AchievementBadgeIcon({
               <IconComponent size={iconSize} className="text-white drop-shadow-sm" />
             </span>
             {showLabel && (
-              <span className="text-[9px] font-semibold text-muted-foreground mt-0.5 whitespace-nowrap leading-tight">
+              <span className="text-[10px] font-medium text-muted-foreground mt-1 whitespace-nowrap leading-tight">
                 {badge.label}
               </span>
             )}
@@ -2125,12 +2160,12 @@ export function ClientsContent({
                       </div>
                       {/* Achievement badges */}
                       {selectedClientBadges.length > 0 && (
-                        <div className="flex items-center gap-1.5 mt-1">
+                        <div className="flex flex-wrap items-end gap-3 mt-2">
                           {selectedClientBadges.map((b) => (
                             <AchievementBadgeIcon
                               key={b.id}
                               badge={b}
-                              size={26}
+                              size={28}
                               showLabel
                               rewardBudget={selectedClientRewardBudget}
                               generosity={rewardGenerosity}
@@ -2401,11 +2436,31 @@ export function ClientsContent({
                     />
                     <div>
                       <span className="text-[10px] text-muted-foreground block mb-1">Lead Source</span>
-                      <InlineEdit
-                        value={selectedClient.lead_source ?? ""}
-                        onSave={(v) => updateClientField(selectedClient.id, "lead_source", v || null)}
-                        placeholder="Add source…"
-                      />
+                      <Select
+                        value={selectedClient.lead_source ?? "__none__"}
+                        onValueChange={(v) => updateClientField(selectedClient.id, "lead_source", v === "__none__" ? null : v)}
+                      >
+                        <SelectTrigger className="h-7 text-xs w-full">
+                          <SelectValue placeholder="Select source…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__" className="text-muted-foreground text-xs italic">
+                            — Not set —
+                          </SelectItem>
+                          {LEAD_SOURCE_GROUPS.map((group) => (
+                            <SelectGroup key={group.label}>
+                              <SelectLabel className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70 px-2 py-1">
+                                {group.label}
+                              </SelectLabel>
+                              {group.options.map((src) => (
+                                <SelectItem key={src} value={src} className="text-xs pl-4">
+                                  {src}
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   {/* Tags */}
@@ -2427,15 +2482,35 @@ export function ClientsContent({
                       <Link2 className="h-3.5 w-3.5" />
                       Relationships
                     </h3>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1 h-6 text-[10px]"
-                      onClick={() => { setLinkRelOpen((v) => !v); setLinkRelSearch(""); }}
-                    >
-                      <Plus className="h-3 w-3" />
-                      Link Client
-                    </Button>
+                    <div className="flex gap-1">
+                      {/* Quick referral button — pre-selects "referred" type */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1 h-6 text-[10px] text-violet-400 border-violet-400/40 hover:border-violet-400/70 hover:text-violet-300"
+                        onClick={() => {
+                          setLinkRelType("referred");
+                          setLinkRelOpen(true);
+                          setLinkRelSearch("");
+                        }}
+                      >
+                        <GitBranch className="h-3 w-3" />
+                        Referral
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1 h-6 text-[10px]"
+                        onClick={() => {
+                          setLinkRelType("spouse");
+                          setLinkRelOpen((v) => !v);
+                          setLinkRelSearch("");
+                        }}
+                      >
+                        <Link2 className="h-3 w-3" />
+                        Link
+                      </Button>
+                    </div>
                   </div>
 
                   {linkRelOpen && (
@@ -2478,24 +2553,52 @@ export function ClientsContent({
                   )}
 
                   {clientRelationships.length === 0 ? (
-                    <p className="text-xs text-muted-foreground py-2 text-center">No linked clients.</p>
+                    <div className="py-2 text-center space-y-1">
+                      <p className="text-xs text-muted-foreground">No linked clients.</p>
+                      <p className="text-[10px] text-muted-foreground/60">
+                        Use <span className="font-medium text-violet-400">Referral</span> to track who referred this client,
+                        or <span className="font-medium">Link</span> for family connections.
+                      </p>
+                    </div>
                   ) : (
                     <div className="space-y-1">
                       {clientRelationships.map((rel) => {
                         const otherId = rel.client_id_a === selectedClient.id ? rel.client_id_b : rel.client_id_a;
                         const other = clientById.get(otherId);
                         if (!other) return null;
+                        const isReferral = rel.relationship_type === "referred" || rel.relationship_type === "referrer";
                         return (
                           <div
                             key={rel.id}
-                            className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer"
+                            className={cn(
+                              "flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer",
+                              isReferral && "bg-violet-500/5 hover:bg-violet-500/10",
+                            )}
                             onClick={() => openDetailPanel(otherId)}
                           >
-                            <div className="h-7 w-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold shrink-0">
-                              {other.name.charAt(0).toUpperCase()}
+                            <div className={cn(
+                              "h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0",
+                              isReferral ? "bg-violet-500/15 text-violet-400" : "bg-primary/10 text-primary",
+                            )}>
+                              {isReferral
+                                ? <GitBranch className="h-3.5 w-3.5" />
+                                : other.name.charAt(0).toUpperCase()}
                             </div>
-                            <span className="text-sm font-medium text-foreground truncate flex-1">{other.name}</span>
-                            <Badge variant="outline" className="text-[9px] py-0">
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium text-foreground truncate block">{other.name}</span>
+                              {isReferral && (
+                                <span className="text-[10px] text-violet-400/80 leading-none">
+                                  {rel.relationship_type === "referred" ? "Referred this client" : "This client referred them"}
+                                </span>
+                              )}
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-[9px] py-0 shrink-0",
+                                isReferral && "border-violet-400/40 text-violet-400 bg-violet-500/10",
+                              )}
+                            >
                               {RELATIONSHIP_TYPE_LABELS[rel.relationship_type as RelationshipType] ?? rel.relationship_type}
                             </Badge>
                           </div>

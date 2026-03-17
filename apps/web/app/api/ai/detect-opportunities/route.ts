@@ -33,12 +33,19 @@ const ANNIVERSARY_YEARS  = [1, 2, 3, 5, 10];
 const WINDOW_DAYS        = 14;   // detect N days in advance
 const IDLE_MONTHS        = 18;   // flag clients idle > this many months
 const MAX_DRAFTS_PER_RUN = 8;    // max Groq calls per invocation
+const SEASONAL_TOP_N     = 25;   // max clients for seasonal campaigns
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
 function addYears(isoDate: string, years: number): Date {
   const d = new Date(isoDate + "T12:00:00");
   d.setFullYear(d.getFullYear() + years);
+  return d;
+}
+
+function addDays(isoDate: string, days: number): Date {
+  const d = new Date(isoDate + "T12:00:00");
+  d.setDate(d.getDate() + days);
   return d;
 }
 
@@ -187,6 +194,317 @@ On the very last line, write exactly:
 SUBJECT: [short personal birthday subject — not "Happy Birthday!" which screams auto-generated]`;
 }
 
+// ── Batch 1 prompt builders (Post-Close Nurture) ─────────────────────────────
+
+function buildPostClose3Prompt(
+  agentFirst:  string,
+  clientName:  string,
+  address:     string | null,
+  tone:        Tone = "friendly",
+): string {
+  const prop = address ?? "their new home";
+  return `You are ghostwriting a short, genuine email from a Canadian real estate agent named ${agentFirst} to their client ${clientName}, sent 3 days after the client's deal just closed.
+
+Context:
+- Property: ${prop}
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a brief 2-paragraph move-in congratulations (under 100 words) that:
+- Feels like a warm text from a friend, not a corporate follow-up
+- DO NOT open with "I hope this email finds you well" or similar clichés
+- DO NOT start with "Subject:"
+- Acknowledge the excitement of the first few days in a new home
+- Offer to help with anything — local recommendations, tradespeople, questions
+- Sign off with just "${agentFirst}"
+- Vary sentence length. Keep it warm and real.
+
+On the very last line, write exactly:
+SUBJECT: [short, personal subject — not "Congratulations!" which screams automated]`;
+}
+
+function buildPostClose14Prompt(
+  agentFirst:  string,
+  clientName:  string,
+  address:     string | null,
+  tone:        Tone = "friendly",
+): string {
+  const prop = address ?? "the new place";
+  return `You are ghostwriting a casual check-in email from a Canadian real estate agent named ${agentFirst} to their client ${clientName}, two weeks after closing.
+
+Context:
+- Property: ${prop}
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a 2-paragraph check-in (under 100 words) that:
+- Feels like a genuine "how's it going?" — not a scripted follow-up
+- DO NOT open with clichés like "I hope you're settling in well"
+- DO NOT start with "Subject:"
+- Reference that it's been about two weeks — the chaos of moving should be clearing up
+- Ask a simple open question: how are they finding the neighbourhood, the commute, anything
+- Sign off with just "${agentFirst}"
+
+On the very last line, write exactly:
+SUBJECT: [casual, personal subject — could be as simple as their street name or a reference to the move]`;
+}
+
+function buildPostClose90Prompt(
+  agentFirst:  string,
+  clientName:  string,
+  address:     string | null,
+  province:    string | null,
+  tone:        Tone = "friendly",
+): string {
+  const location = [address, province].filter(Boolean).join(", ") || "the home";
+  return `You are ghostwriting a 3-month check-in email from a Canadian real estate agent named ${agentFirst} to their client ${clientName}.
+
+Context:
+- Property: ${location}
+- It's been 90 days since closing — three months in their new home
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a warm 2–3 paragraph check-in (under 150 words) that:
+- Celebrates the 3-month mark naturally — not in a corporate way
+- DO NOT open with clichés like "It's hard to believe it's already been 3 months!"
+- DO NOT start with "Subject:"
+- Mentions that property values shift in the first year — offer a no-obligation current value snapshot
+- Keep the CTA soft: "happy to pull a quick update if you're curious"
+- Sign off with just "${agentFirst}"
+- Vary sentence length. One or two short punchy sentences work well.
+
+On the very last line, write exactly:
+SUBJECT: [personal, not sales-y — reference the home or the timeline naturally]`;
+}
+
+function buildReviewRequestPrompt(
+  agentFirst:  string,
+  clientName:  string,
+  address:     string | null,
+  tone:        Tone = "friendly",
+): string {
+  const prop = address ?? "your recent purchase";
+  return `You are ghostwriting an honest, non-pushy review request from a Canadian real estate agent named ${agentFirst} to their recent client ${clientName}.
+
+Context:
+- Property: ${prop}
+- It's been about 3 weeks since closing — experience is still fresh
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a short 2-paragraph review request (under 120 words) that:
+- Opens by genuinely hoping the move went smoothly — but NOT with "I hope this email finds you well"
+- DO NOT start with "Subject:"
+- Asks honestly if they'd be willing to share their experience on Google or Realtor.ca
+- Makes it clear it's completely optional, no pressure — just one sentence asking
+- Does NOT grovel or over-explain why reviews matter
+- Sign off with just "${agentFirst}"
+- The tone should feel like asking a favour from a friend, not a business transaction
+
+On the very last line, write exactly:
+SUBJECT: [short, genuine subject — not "Quick Favour!" or "Review Request"]`;
+}
+
+function buildReferralAskPrompt(
+  agentFirst:  string,
+  clientName:  string,
+  address:     string | null,
+  tone:        Tone = "friendly",
+): string {
+  const prop = address ?? "your new home";
+  return `You are ghostwriting a natural referral ask from a Canadian real estate agent named ${agentFirst} to their settled-in client ${clientName}, about 6 weeks after closing.
+
+Context:
+- Property: ${prop}
+- Client has had time to settle in — the chaos is over
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a brief 2-paragraph referral ask (under 120 words) that:
+- Opens by connecting with how they're doing — NOT a cliché opener
+- DO NOT start with "Subject:"
+- Mentions that most of the agent's best clients come from people like ${clientName}
+- Makes a genuine, low-pressure ask: if anyone they know is thinking about buying or selling, ${agentFirst} would love the introduction
+- Does NOT use corporate phrases like "I'd appreciate any referrals you can send my way"
+- Sign off with just "${agentFirst}"
+
+On the very last line, write exactly:
+SUBJECT: [casual, warm subject — not "Referral Request" which nobody opens]`;
+}
+
+// ── Batch 2 prompt builders (Relationship Milestones) ─────────────────────────
+
+function buildNewClientWelcomePrompt(
+  agentFirst:  string,
+  clientName:  string,
+  tone:        Tone = "friendly",
+): string {
+  return `You are ghostwriting a brief welcome email from a Canadian real estate agent named ${agentFirst} to their new client ${clientName}, sent about a week after they first connected.
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a warm 2-paragraph welcome (under 100 words) that:
+- Feels like a genuine personal note, not an onboarding template
+- DO NOT open with "Welcome aboard!" or "I'm excited to work with you!"
+- DO NOT start with "Subject:"
+- Reminds them that ${agentFirst} is available for any questions — big or small
+- One line about what to expect from working together
+- Sign off with just "${agentFirst}"
+
+On the very last line, write exactly:
+SUBJECT: [personal, low-key subject — could just reference their first conversation or their goal]`;
+}
+
+function buildContactAnniversaryPrompt(
+  agentFirst:    string,
+  clientName:    string,
+  years:         number,
+  tone:          Tone = "friendly",
+): string {
+  const ordinal = years === 1 ? "first" : years === 2 ? "second" : years === 3 ? "third" : `${years}th`;
+  return `You are ghostwriting a short relationship anniversary email from a Canadian real estate agent named ${agentFirst} to their long-time client ${clientName}.
+
+Context:
+- It's been ${years} year${years !== 1 ? "s" : ""} since they first connected as agent and client
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a brief 2-paragraph note (under 100 words) that:
+- Acknowledges the ${ordinal} year of working together — naturally, not formally
+- DO NOT open with "Time flies!" or similar clichés
+- DO NOT start with "Subject:"
+- Expresses genuine appreciation without being overly sentimental
+- Keeps it light — maybe a small reflection on what's changed in the market or their life
+- Sign off with just "${agentFirst}"
+
+On the very last line, write exactly:
+SUBJECT: [warm, personal subject — reference the ${ordinal} year naturally]`;
+}
+
+function buildMultiDealMilestonePrompt(
+  agentFirst:  string,
+  clientName:  string,
+  dealCount:   number,
+  tone:        Tone = "friendly",
+): string {
+  const ordinal = dealCount === 2 ? "second" : dealCount === 3 ? "third" : `${dealCount}th`;
+  return `You are ghostwriting a short thank-you from a Canadian real estate agent named ${agentFirst} to their repeat client ${clientName}, who has just completed their ${ordinal} deal together.
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a genuine 2-paragraph note (under 110 words) that:
+- Thanks ${clientName} for trusting ${agentFirst} again — but naturally, not formally
+- DO NOT open with "It means so much to me!" or generic gratitude clichés
+- DO NOT start with "Subject:"
+- Acknowledges that returning clients are rare and appreciated — make it feel earned
+- Ends with a forward-looking note: here whenever they need anything next
+- Sign off with just "${agentFirst}"
+
+On the very last line, write exactly:
+SUBJECT: [concise, warm subject that references working together again]`;
+}
+
+// ── Batch 3 prompt builders (Seasonal Campaigns) ──────────────────────────────
+
+function buildSeasonalSpringPrompt(
+  agentFirst:  string,
+  clientName:  string,
+  province:    string | null,
+  tone:        Tone = "friendly",
+): string {
+  const market = province ? `the ${province} real estate market` : "the Canadian real estate market";
+  return `You are ghostwriting a spring market update email from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}.
+
+Context:
+- It's the spring real estate season in Canada
+- ${market} typically sees increased activity this time of year
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a 3-paragraph spring market note (under 160 words) that:
+- Opens with a seasonal observation about spring and real estate — but NOT "Spring is in the air!"
+- DO NOT start with "Subject:"
+- Shares a brief, genuine insight about the current spring market — what's moving, what's changed
+- Includes a soft CTA: happy to share what their home could be worth now, or discuss options
+- Does NOT feel like a mass newsletter — reads like it's written specifically for them
+- Sign off with just "${agentFirst}"
+
+On the very last line, write exactly:
+SUBJECT: [conversational spring market subject — not "Spring Market Update" which screams newsletter]`;
+}
+
+function buildSeasonalFallPrompt(
+  agentFirst:  string,
+  clientName:  string,
+  province:    string | null,
+  tone:        Tone = "friendly",
+): string {
+  const market = province ? `the ${province} market` : "the market";
+  return `You are ghostwriting a fall market check-in from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}.
+
+Context:
+- It's the fall real estate season in Canada
+- ${market} enters one of its two active selling periods
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a 2–3 paragraph fall note (under 150 words) that:
+- Opens with something real about fall — NOT "The leaves are changing and so is the market!"
+- DO NOT start with "Subject:"
+- Mentions that fall is a serious buying/selling window before winter slows things down
+- Offers a free home-value check or a 10-minute call to discuss the current market
+- Feels personal, not mass-blasted
+- Sign off with just "${agentFirst}"
+
+On the very last line, write exactly:
+SUBJECT: [casual fall subject — something that doesn't scream "seasonal real estate email"]`;
+}
+
+function buildSeasonalYearEndPrompt(
+  agentFirst:  string,
+  clientName:  string,
+  tone:        Tone = "friendly",
+): string {
+  return `You are ghostwriting a genuine year-end note from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}.
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a short 2-paragraph year-end message (under 120 words) that:
+- Reflects briefly on the year — NOT with "What a year it's been!"
+- DO NOT start with "Subject:"
+- Expresses genuine appreciation for the relationship — without being saccharine
+- Wishes them well for the coming year with one forward-looking sentence
+- Does NOT mention real estate, listings, or market trends — this is a pure relationship touchpoint
+- Sign off with just "${agentFirst}"
+
+On the very last line, write exactly:
+SUBJECT: [warm year-end subject that doesn't feel like a corporate holiday card]`;
+}
+
+function buildSeasonalTaxPrompt(
+  agentFirst:  string,
+  clientName:  string,
+  province:    string | null,
+  tone:        Tone = "friendly",
+): string {
+  const prov = province ?? "Canada";
+  return `You are ghostwriting a helpful tax-season tip email from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}, who owns real estate in ${prov}.
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a 2–3 paragraph tax-season note (under 150 words) that:
+- Opens with an observation about tax season arriving — NOT "Tax season is here!"
+- DO NOT start with "Subject:"
+- Shares one or two genuinely useful reminders: principal residence exemption, rental income, FHSA/RRSP home buyer's plan, capital gains on investment properties — pick what's relevant
+- Reminds them that ${agentFirst} can connect them with a great accountant or mortgage broker if needed
+- Ends with a low-pressure offer to answer any real estate–related tax questions
+- Sign off with just "${agentFirst}"
+
+On the very last line, write exactly:
+SUBJECT: [practical, approachable subject about tax season — not "Important Tax Reminder!"]`;
+}
+
 // ── Draft a single queue item via Groq ────────────────────────────────────────
 
 async function draftItem(
@@ -200,30 +518,59 @@ async function draftItem(
   const ctx        = item.context as Record<string, string | number>;
   const tone       = (item.clients?.communication_tone as Tone) ?? "friendly";
 
+  const address  = (ctx.address as string) ?? item.clients?.city ?? null;
+  const province = item.clients?.province_region ?? null;
+
   let prompt: string;
   switch (item.opportunity_type) {
+    // ── Phase A (live) ─────────────────────────────────────────────────────
     case "closing_anniversary":
-      prompt = buildAnniversaryPrompt(
-        agentFirst,
-        clientName,
-        Number(ctx.anniversary_year ?? 1),
-        (ctx.address as string) ?? item.clients?.city ?? null,
-        item.clients?.province_region ?? null,
-        tone,
-      );
+      prompt = buildAnniversaryPrompt(agentFirst, clientName, Number(ctx.anniversary_year ?? 1), address, province, tone);
       break;
     case "idle_client":
-      prompt = buildIdlePrompt(
-        agentFirst,
-        clientName,
-        (ctx.last_deal as string) ?? null,
-        item.clients?.city ?? null,
-        item.clients?.province_region ?? null,
-        tone,
-      );
+      prompt = buildIdlePrompt(agentFirst, clientName, (ctx.last_deal as string) ?? null, item.clients?.city ?? null, province, tone);
       break;
     case "birthday":
       prompt = buildBirthdayPrompt(agentFirst, clientName, tone);
+      break;
+    // ── Batch 1: Post-Close Nurture ────────────────────────────────────────
+    case "post_close_3":
+      prompt = buildPostClose3Prompt(agentFirst, clientName, address, tone);
+      break;
+    case "post_close_14":
+      prompt = buildPostClose14Prompt(agentFirst, clientName, address, tone);
+      break;
+    case "post_close_90":
+      prompt = buildPostClose90Prompt(agentFirst, clientName, address, province, tone);
+      break;
+    case "review_request":
+      prompt = buildReviewRequestPrompt(agentFirst, clientName, address, tone);
+      break;
+    case "referral_ask":
+      prompt = buildReferralAskPrompt(agentFirst, clientName, address, tone);
+      break;
+    // ── Batch 2: Relationship Milestones ───────────────────────────────────
+    case "new_client_welcome":
+      prompt = buildNewClientWelcomePrompt(agentFirst, clientName, tone);
+      break;
+    case "contact_anniversary":
+      prompt = buildContactAnniversaryPrompt(agentFirst, clientName, Number(ctx.anniversary_year ?? 1), tone);
+      break;
+    case "multi_deal_milestone":
+      prompt = buildMultiDealMilestonePrompt(agentFirst, clientName, Number(ctx.deal_count ?? 2), tone);
+      break;
+    // ── Batch 3: Seasonal ──────────────────────────────────────────────────
+    case "seasonal_spring":
+      prompt = buildSeasonalSpringPrompt(agentFirst, clientName, province, tone);
+      break;
+    case "seasonal_fall":
+      prompt = buildSeasonalFallPrompt(agentFirst, clientName, province, tone);
+      break;
+    case "seasonal_yearend":
+      prompt = buildSeasonalYearEndPrompt(agentFirst, clientName, tone);
+      break;
+    case "seasonal_tax":
+      prompt = buildSeasonalTaxPrompt(agentFirst, clientName, province, tone);
       break;
     default:
       return;
@@ -279,7 +626,7 @@ export async function detectAndDraftForUser(
       .single(),
     supabase
       .from("clients")
-      .select("id, name, city, province_region, birthdate")
+      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at")
       .eq("user_id", userId)
       .is("archived_at", null),
     supabase
@@ -364,6 +711,158 @@ export async function detectAndDraftForUser(
         opportunity_type: "birthday",
         trigger_date:     toISODate(birthday),
         context: { birthdate: client.birthdate },
+        status: "draft",
+      });
+    }
+  }
+
+  // ── 4. Post-close nurture sequence (Batch 1) ──────────────────────────────
+  const POST_CLOSE_CONFIGS = [
+    { type: "post_close_3"   as const, days:  3, lookback: 30 },
+    { type: "post_close_14"  as const, days: 14, lookback: 30 },
+    { type: "post_close_90"  as const, days: 90, lookback: 30 },
+    { type: "review_request" as const, days: 21, lookback: 30 },
+    { type: "referral_ask"   as const, days: 45, lookback: 30 },
+  ];
+
+  for (const rec of records) {
+    if (!rec.close_date || !rec.client_id) continue;
+    for (const cfg of POST_CLOSE_CONFIGS) {
+      const triggerDate = addDays(rec.close_date, cfg.days);
+      const d = daysUntil(triggerDate);
+      if (d >= -cfg.lookback && d <= WINDOW_DAYS) {
+        inserts.push({
+          user_id:          userId,
+          client_id:        rec.client_id,
+          client_record_id: rec.id,
+          opportunity_type: cfg.type,
+          trigger_date:     toISODate(triggerDate),
+          context: {
+            address:         rec.address,
+            close_date:      rec.close_date,
+            gci:             rec.gci,
+            days_after_close: cfg.days,
+          },
+          status: "draft",
+        });
+      }
+    }
+  }
+
+  // ── 5. New client welcome (Batch 2) ───────────────────────────────────────
+  for (const client of clients) {
+    if (!client.first_contacted_at) continue;
+    const welcomeDate = addDays(client.first_contacted_at.slice(0, 10), 7);
+    const d = daysUntil(welcomeDate);
+    if (d >= -14 && d <= WINDOW_DAYS) {
+      inserts.push({
+        user_id:          userId,
+        client_id:        client.id,
+        opportunity_type: "new_client_welcome",
+        trigger_date:     toISODate(welcomeDate),
+        context: { first_contacted_at: client.first_contacted_at },
+        status: "draft",
+      });
+    }
+  }
+
+  // ── 6. Contact anniversary (Batch 2) ──────────────────────────────────────
+  for (const client of clients) {
+    if (!client.first_contacted_at) continue;
+    const startDate   = client.first_contacted_at.slice(0, 10);
+    const yearsSince  = new Date().getFullYear() - new Date(startDate + "T12:00:00").getFullYear();
+    if (yearsSince < 1) continue;
+    for (const yr of [1, 2, 3, 5, 10]) {
+      if (yr > yearsSince + 1) break;
+      const annivDate = addYears(startDate, yr);
+      const d = daysUntil(annivDate);
+      if (d >= 0 && d <= WINDOW_DAYS) {
+        inserts.push({
+          user_id:          userId,
+          client_id:        client.id,
+          opportunity_type: "contact_anniversary",
+          trigger_date:     toISODate(annivDate),
+          context: { anniversary_year: yr, first_contacted_at: startDate },
+          status: "draft",
+        });
+      }
+    }
+  }
+
+  // ── 7. Multi-deal milestone (Batch 2) ────────────────────────────────────
+  const clientDealDates = new Map<string, string[]>();
+  for (const rec of records) {
+    if (!rec.client_id || !rec.close_date) continue;
+    const arr = clientDealDates.get(rec.client_id) ?? [];
+    arr.push(rec.close_date);
+    clientDealDates.set(rec.client_id, arr);
+  }
+  const MILESTONE_COUNTS = [2, 3, 5];
+  for (const [clientId, dates] of clientDealDates.entries()) {
+    const sorted = [...dates].sort();
+    for (const n of MILESTONE_COUNTS) {
+      if (sorted.length < n) continue;
+      const nthDate     = sorted[n - 1];
+      const triggerDate = addDays(nthDate, 3);
+      const d           = daysUntil(triggerDate);
+      if (d >= -30 && d <= WINDOW_DAYS) {
+        inserts.push({
+          user_id:          userId,
+          client_id:        clientId,
+          opportunity_type: "multi_deal_milestone",
+          trigger_date:     toISODate(triggerDate),
+          context: { deal_count: n, nth_close_date: nthDate },
+          status: "draft",
+        });
+      }
+    }
+  }
+
+  // ── 8. Seasonal campaigns (Batch 3) ───────────────────────────────────────
+  // Rank clients by lifetime GCI; limit to top SEASONAL_TOP_N
+  const clientLifetimeGCI = new Map<string, number>();
+  for (const rec of records) {
+    if (rec.client_id && rec.gci) {
+      clientLifetimeGCI.set(
+        rec.client_id,
+        (clientLifetimeGCI.get(rec.client_id) ?? 0) + (rec.gci as number),
+      );
+    }
+  }
+  const top25Ids = new Set(
+    [...clientLifetimeGCI.entries()]
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, SEASONAL_TOP_N)
+      .map(([id]) => id),
+  );
+
+  const todayD  = new Date();
+  const thisYr  = todayD.getFullYear();
+  const todayMM = todayD.getMonth() + 1;
+  const todayDD = todayD.getDate();
+
+  type SeasonDef = { type: "seasonal_spring" | "seasonal_fall" | "seasonal_yearend" | "seasonal_tax"; sm: number; sd: number; em: number; ed: number; key: string };
+  const SEASONS: SeasonDef[] = [
+    { type: "seasonal_spring",  sm:  2, sd: 15, em:  3, ed: 31, key: `${thisYr}-02-15` },
+    { type: "seasonal_fall",    sm:  9, sd:  1, em: 10, ed: 15, key: `${thisYr}-09-01` },
+    { type: "seasonal_yearend", sm: 12, sd:  1, em: 12, ed: 31, key: `${thisYr}-12-01` },
+    { type: "seasonal_tax",     sm:  1, sd: 15, em:  2, ed: 15, key: `${thisYr}-01-15` },
+  ];
+
+  for (const season of SEASONS) {
+    const inWindow =
+      (todayMM > season.sm || (todayMM === season.sm && todayDD >= season.sd)) &&
+      (todayMM < season.em || (todayMM === season.em && todayDD <= season.ed));
+    if (!inWindow) continue;
+
+    for (const client of clients) {
+      if (!top25Ids.has(client.id)) continue;
+      inserts.push({
+        user_id:          userId,
+        client_id:        client.id,
+        opportunity_type: season.type,
+        trigger_date:     season.key,
+        context: { season: season.type, year: thisYr },
         status: "draft",
       });
     }

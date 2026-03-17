@@ -20,6 +20,9 @@ import {
   Sparkles, Calendar, Clock, Gift, Mail, Copy,
   ChevronRight, ChevronDown, Loader2, CheckCircle2, Pen,
   Send, Radar, TrendingUp,
+  Home, MessageCircle, Star, Users,
+  Handshake, Heart, Repeat2,
+  Flower2, Leaf, PartyPopper, Receipt,
 } from "lucide-react";
 import type { OutreachQueueItem, OutreachOpportunityType } from "@/lib/types/database";
 
@@ -40,6 +43,7 @@ const OPTYPE_CONFIG: Record<
   OutreachOpportunityType,
   { label: string; icon: React.ElementType; ringCls: string; bgCls: string; textCls: string }
 > = {
+  // Phase A
   closing_anniversary: {
     label:   "Closing Anniversary",
     icon:    Calendar,
@@ -61,6 +65,93 @@ const OPTYPE_CONFIG: Record<
     bgCls:   "bg-rose-500/10",
     textCls: "text-rose-400",
   },
+  // Batch 1: Post-Close Nurture
+  post_close_3: {
+    label:   "Move-In Thanks",
+    icon:    Home,
+    ringCls: "ring-emerald-500/40",
+    bgCls:   "bg-emerald-500/10",
+    textCls: "text-emerald-400",
+  },
+  post_close_14: {
+    label:   "2-Week Check-In",
+    icon:    MessageCircle,
+    ringCls: "ring-teal-500/40",
+    bgCls:   "bg-teal-500/10",
+    textCls: "text-teal-400",
+  },
+  post_close_90: {
+    label:   "3-Month Check-In",
+    icon:    TrendingUp,
+    ringCls: "ring-blue-500/40",
+    bgCls:   "bg-blue-500/10",
+    textCls: "text-blue-400",
+  },
+  review_request: {
+    label:   "Review Request",
+    icon:    Star,
+    ringCls: "ring-yellow-500/40",
+    bgCls:   "bg-yellow-500/10",
+    textCls: "text-yellow-400",
+  },
+  referral_ask: {
+    label:   "Referral Ask",
+    icon:    Users,
+    ringCls: "ring-purple-500/40",
+    bgCls:   "bg-purple-500/10",
+    textCls: "text-purple-400",
+  },
+  // Batch 2: Relationship Milestones
+  new_client_welcome: {
+    label:   "New Client Welcome",
+    icon:    Handshake,
+    ringCls: "ring-cyan-500/40",
+    bgCls:   "bg-cyan-500/10",
+    textCls: "text-cyan-400",
+  },
+  contact_anniversary: {
+    label:   "Relationship Milestone",
+    icon:    Heart,
+    ringCls: "ring-pink-500/40",
+    bgCls:   "bg-pink-500/10",
+    textCls: "text-pink-400",
+  },
+  multi_deal_milestone: {
+    label:   "Repeat Client",
+    icon:    Repeat2,
+    ringCls: "ring-indigo-500/40",
+    bgCls:   "bg-indigo-500/10",
+    textCls: "text-indigo-400",
+  },
+  // Batch 3: Seasonal
+  seasonal_spring: {
+    label:   "Spring Market",
+    icon:    Flower2,
+    ringCls: "ring-green-500/40",
+    bgCls:   "bg-green-500/10",
+    textCls: "text-green-400",
+  },
+  seasonal_fall: {
+    label:   "Fall Market",
+    icon:    Leaf,
+    ringCls: "ring-orange-500/40",
+    bgCls:   "bg-orange-500/10",
+    textCls: "text-orange-400",
+  },
+  seasonal_yearend: {
+    label:   "Year-End",
+    icon:    PartyPopper,
+    ringCls: "ring-violet-500/40",
+    bgCls:   "bg-violet-500/10",
+    textCls: "text-violet-400",
+  },
+  seasonal_tax: {
+    label:   "Tax Season Tip",
+    icon:    Receipt,
+    ringCls: "ring-slate-500/40",
+    bgCls:   "bg-slate-500/10",
+    textCls: "text-slate-400",
+  },
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -79,6 +170,7 @@ function daysUntilLabel(triggerDate: string): string {
 function contextLabel(item: QueueItemWithClient): string {
   const ctx = item.context as Record<string, string | number>;
   switch (item.opportunity_type) {
+    // Phase A
     case "closing_anniversary": {
       const years = Number(ctx.anniversary_year ?? 1);
       const addr  = (ctx.address as string) ?? item.clients?.city ?? "";
@@ -88,6 +180,48 @@ function contextLabel(item: QueueItemWithClient): string {
       return `Last deal: ${ctx.last_deal ? String(ctx.last_deal).slice(0, 4) : "—"} · ${ctx.months_idle ?? "18+ months"} ago`;
     case "birthday":
       return "Upcoming birthday";
+    // Batch 1: Post-Close Nurture
+    case "post_close_3": {
+      const addr = (ctx.address as string) ?? item.clients?.city ?? "";
+      return `3 days after closing${addr ? ` · ${addr}` : ""}`;
+    }
+    case "post_close_14": {
+      const addr = (ctx.address as string) ?? item.clients?.city ?? "";
+      return `2-week check-in${addr ? ` · ${addr}` : ""}`;
+    }
+    case "post_close_90": {
+      const addr = (ctx.address as string) ?? item.clients?.city ?? "";
+      return `3-month mark${addr ? ` · ${addr}` : ""}`;
+    }
+    case "review_request": {
+      const addr = (ctx.address as string) ?? item.clients?.city ?? "";
+      return `21 days after closing${addr ? ` · ${addr}` : ""}`;
+    }
+    case "referral_ask": {
+      const addr = (ctx.address as string) ?? item.clients?.city ?? "";
+      return `45 days after closing${addr ? ` · ${addr}` : ""}`;
+    }
+    // Batch 2: Relationship Milestones
+    case "new_client_welcome":
+      return "7 days since first contact";
+    case "contact_anniversary": {
+      const yr = Number(ctx.anniversary_year ?? 1);
+      return `${yr}-year working relationship`;
+    }
+    case "multi_deal_milestone": {
+      const n = Number(ctx.deal_count ?? 2);
+      const ordinal = n === 2 ? "2nd" : n === 3 ? "3rd" : `${n}th`;
+      return `${ordinal} deal together`;
+    }
+    // Batch 3: Seasonal
+    case "seasonal_spring":
+      return `Spring ${ctx.year ?? new Date().getFullYear()} market update`;
+    case "seasonal_fall":
+      return `Fall ${ctx.year ?? new Date().getFullYear()} market update`;
+    case "seasonal_yearend":
+      return `Year-end ${ctx.year ?? new Date().getFullYear()} check-in`;
+    case "seasonal_tax":
+      return `Tax season ${ctx.year ?? new Date().getFullYear()} tips`;
     default:
       return "";
   }
@@ -208,10 +342,12 @@ function ReviewDrawer({
   item,
   onClose,
   onSent,
+  signature,
 }: {
-  item:   QueueItemWithClient | null;
-  onClose: () => void;
-  onSent:  (id: string) => void;
+  item:      QueueItemWithClient | null;
+  onClose:   () => void;
+  onSent:    (id: string) => void;
+  signature: string;
 }) {
   const [editSubject, setEditSubject] = useState("");
   const [editBody,    setEditBody]    = useState("");
@@ -343,10 +479,36 @@ function ReviewDrawer({
             <Textarea
               value={editBody}
               onChange={(e) => setEditBody(e.target.value)}
-              rows={14}
+              rows={12}
               className="text-sm leading-relaxed resize-none"
               placeholder="Message body…"
             />
+          </div>
+
+          {/* Signature status */}
+          <div className="rounded-lg border border-border/40 bg-muted/20 px-3 py-2.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+                  Your Signature
+                </p>
+                {signature ? (
+                  <p className="text-[11px] text-muted-foreground leading-relaxed whitespace-pre-line line-clamp-3">
+                    {signature}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground/60 italic">
+                    No signature set — add one in Settings so it appears in your drafted messages.
+                  </p>
+                )}
+              </div>
+              <a
+                href="/settings"
+                className="shrink-0 text-[10px] text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors mt-0.5"
+              >
+                Edit →
+              </a>
+            </div>
           </div>
         </div>
 
@@ -653,6 +815,7 @@ export function FlightControlContent({
         item={reviewItem}
         onClose={() => setReviewItem(null)}
         onSent={handleSent}
+        signature={signature}
       />
     </>
   );

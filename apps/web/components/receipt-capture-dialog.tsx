@@ -17,7 +17,8 @@
  * Mode 3 compression happens on the phone page.
  */
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
+import QRCode from "qrcode";
 import { toast }                                     from "sonner";
 import { createClient }                              from "@/lib/supabase/client";
 import { normalizeExtraction }                       from "@/lib/receipts/normalize";
@@ -119,9 +120,26 @@ function fmtCountdown(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-/** Build QR code image URL using free qrserver.com API */
-function qrCodeUrl(text: string, size = 240): string {
-  return `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(text)}&size=${size}x${size}&margin=8&format=png`;
+/** Render a QR code onto a canvas element using the local qrcode library */
+function QrCanvas({ text, size = 220 }: { text: string; size?: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useLayoutEffect(() => {
+    if (!canvasRef.current || !text) return;
+    QRCode.toCanvas(canvasRef.current, text, {
+      width:    size,
+      margin:   2,
+      color:    { dark: "#000000", light: "#ffffff" },
+    }).catch(console.error);
+  }, [text, size]);
+  return (
+    <canvas
+      ref={canvasRef}
+      width={size}
+      height={size}
+      className="rounded-xl"
+      aria-label="QR code for phone receipt upload"
+    />
+  );
 }
 
 /**
@@ -505,14 +523,9 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
               </p>
             </div>
 
-            {/* QR image */}
+            {/* QR code — rendered locally, no external service */}
             <div className="mx-auto flex h-56 w-56 items-center justify-center rounded-2xl border border-border bg-white p-2 shadow-sm">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={qrCodeUrl(qrUrl, 220)}
-                alt="QR code for phone receipt upload"
-                className="h-full w-full rounded-xl object-contain"
-              />
+              <QrCanvas text={qrUrl} size={208} />
             </div>
 
             {/* Countdown + waiting indicator */}

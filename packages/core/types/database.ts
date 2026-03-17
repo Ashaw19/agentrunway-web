@@ -399,7 +399,41 @@ export interface ExpenseCategoryWithItems extends ExpenseCategory {
 // ── Activity / CRM types (migration 00018) ───────────────────────────────────
 export type ActivityType = "call" | "email" | "text" | "showing" | "meeting" | "offer" | "note";
 export type TaskPriority  = "low" | "normal" | "high";
-export type LeadSource    = "SOI" | "Referral" | "Zillow" | "Realtor.ca" | "Open House" | "Social" | "Cold Call" | "Other";
+export type LeadSource =
+  // Personal network
+  | "SOI"
+  | "Referral — Past Client"
+  | "Referral — Agent"
+  | "Referral — General"
+  // Portals
+  | "Realtor.ca"
+  | "Zillow"
+  | "Zolo"
+  | "HouseSigma"
+  | "Point2 Homes"
+  // Brokerages
+  | "Royal LePage"
+  | "RE/MAX"
+  | "EXIT Realty"
+  | "Century 21"
+  | "REAL Broker"
+  | "eXp Realty"
+  | "Keller Williams"
+  | "Brokerage Website"
+  // Events & outreach
+  | "Open House"
+  | "Door Knocking"
+  | "Direct Mail"
+  | "Sphere Event"
+  // Digital
+  | "Social Media"
+  | "Google Ads"
+  | "Facebook Ads"
+  | "YouTube"
+  | "TikTok"
+  | "Podcast / Media"
+  | "Cold Call"
+  | "Other";
 
 // ── Client Flight Status (aviation-themed pipeline stages, migration 00027) ──
 export type ClientStatus = "boarding" | "taxiing" | "in_flight" | "landed" | "cruising";
@@ -425,7 +459,26 @@ export const COMMUNICATION_TONE_DESCRIPTIONS: Record<CommunicationTone, string> 
 };
 
 // ── AI Flight Control — outreach queue (migration 00038) ──────────────────────
-export type OutreachOpportunityType = "closing_anniversary" | "idle_client" | "birthday";
+export type OutreachOpportunityType =
+  // Phase A (live)
+  | "closing_anniversary"
+  | "idle_client"
+  | "birthday"
+  // Batch 1: Post-Close Nurture
+  | "post_close_3"
+  | "post_close_14"
+  | "post_close_90"
+  | "review_request"
+  | "referral_ask"
+  // Batch 2: Relationship Milestones
+  | "new_client_welcome"
+  | "contact_anniversary"
+  | "multi_deal_milestone"
+  // Batch 3: Seasonal
+  | "seasonal_spring"
+  | "seasonal_fall"
+  | "seasonal_yearend"
+  | "seasonal_tax";
 export type OutreachStatus          = "draft" | "ready" | "sent" | "skipped";
 
 export interface OutreachQueueItem {
@@ -590,7 +643,7 @@ export const RELATIONSHIP_TYPE_LABELS: Record<RelationshipType, string> = {
   partner:  "Partner",
   parent:   "Parent",
   child:    "Child",
-  referrer: "Referrer",
+  referrer: "They Referred Someone",
   referred: "Referred By",
 };
 
