@@ -28,6 +28,17 @@ import {
   BarChart3,
   Zap,
   Target,
+  Sparkles,
+  AlertCircle,
+  Gift,
+  Key,
+  Star,
+  UserX,
+  WifiOff,
+  Copy,
+  ChevronDown,
+  ChevronUp,
+  X,
 } from "lucide-react";
 import {
   BarChart,
@@ -59,6 +70,8 @@ import {
 import {
   computeCrmDashboard,
   computeSpeedToLead,
+  computeIntelligenceBriefing,
+  type BriefingItem,
 } from "@/lib/engines/crm-analytics-engine";
 import { SummaryCard, relativeDate, fmtDate, todayIso, PRIORITY_STYLES, fmtResponseTime } from "../shared";
 
@@ -74,6 +87,68 @@ interface CrmDashboardTabProps {
   onAddTask: (clientId: string | null, title: string, dueDate: string, priority: TaskPriority, notes: string) => Promise<void>;
   onCompleteTask: (taskId: string) => Promise<void>;
   onOpenDetailPanel: (clientId: string) => void;
+}
+
+// ── Briefing Row ────────────────────────────────────────────────────────────
+
+function BriefingIcon({ type }: { type: BriefingItem["type"] }) {
+  if (type === "vip_overdue")         return <Star className="h-3.5 w-3.5 text-amber-500" />;
+  if (type === "uncontacted_lead")    return <UserX className="h-3.5 w-3.5 text-red-500" />;
+  if (type === "in_flight_stale")     return <AlertCircle className="h-3.5 w-3.5 text-red-500" />;
+  if (type === "birthday_today")      return <Gift className="h-3.5 w-3.5 text-pink-500" />;
+  if (type === "birthday_soon")       return <Gift className="h-3.5 w-3.5 text-pink-400" />;
+  if (type === "closing_anniversary") return <Key className="h-3.5 w-3.5 text-blue-500" />;
+  if (type === "no_contact_info")     return <WifiOff className="h-3.5 w-3.5 text-amber-500" />;
+  return <Copy className="h-3.5 w-3.5 text-slate-500" />;
+}
+
+const BRIEFING_SEVERITY_STYLES: Record<BriefingItem["severity"], string> = {
+  urgent:    "border-red-200 bg-red-50/80",
+  attention: "border-amber-200 bg-amber-50/80",
+  upcoming:  "border-blue-200 bg-blue-50/60",
+};
+
+function BriefingRow({
+  item,
+  onView,
+  onDismiss,
+}: {
+  item: BriefingItem;
+  onView: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-2.5 rounded-xl border px-3 py-2",
+        BRIEFING_SEVERITY_STYLES[item.severity],
+      )}
+    >
+      <span className="shrink-0"><BriefingIcon type={item.type} /></span>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-semibold text-foreground truncate">{item.title}</p>
+        <p className="text-[11px] text-muted-foreground truncate">{item.detail}</p>
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 text-[10px] px-2 text-foreground hover:text-primary hover:bg-white/60"
+          onClick={onView}
+        >
+          View
+        </Button>
+        <button
+          onClick={onDismiss}
+          className="text-muted-foreground/50 hover:text-muted-foreground transition-colors p-1 rounded"
+          title="Dismiss"
+          aria-label="Dismiss this item"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // ── Pie colors ──────────────────────────────────────────────────────────────
@@ -97,6 +172,19 @@ export function CrmDashboardTab({
   const [periodDays, setPeriodDays] = useState<30 | 60 | 90>(30);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // ── Intelligence Briefing ────────────────────────────────────────────────
+  const briefing = useMemo(
+    () => computeIntelligenceBriefing(clients, activities, records),
+    [clients, activities, records],
+  );
+  const [briefingExpanded, setBriefingExpanded] = useState(true);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const visibleItems = briefing.items.filter((i) => !dismissedIds.has(i.id));
+
+  function dismissItem(id: string) {
+    setDismissedIds((prev) => new Set([...prev, id]));
+  }
 
   // ── CRM Dashboard engine ────────────────────────────────────────────────
   const dashboard = useMemo(
@@ -174,6 +262,72 @@ export function CrmDashboardTab({
 
   return (
     <div className="space-y-6">
+      {/* ── Intelligence Briefing ─────────────────────────────────────── */}
+      {briefing.totalCount > 0 && (
+        <Card className="rounded-2xl border-violet-200 bg-violet-50/60 shadow-sm">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-violet-500" />
+                <CardTitle className="text-sm font-semibold text-violet-900">
+                  Today&apos;s Briefing
+                </CardTitle>
+                <div className="flex items-center gap-1.5 ml-1">
+                  {visibleItems.filter((i) => i.severity === "urgent").length > 0 && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200 rounded-full px-2 py-0.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-red-500 inline-block" />
+                      {visibleItems.filter((i) => i.severity === "urgent").length} urgent
+                    </span>
+                  )}
+                  {visibleItems.filter((i) => i.severity === "attention").length > 0 && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 inline-block" />
+                      {visibleItems.filter((i) => i.severity === "attention").length} to review
+                    </span>
+                  )}
+                  {visibleItems.filter((i) => i.severity === "upcoming").length > 0 && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-blue-400 inline-block" />
+                      {visibleItems.filter((i) => i.severity === "upcoming").length} upcoming
+                    </span>
+                  )}
+                </div>
+              </div>
+              <button
+                onClick={() => setBriefingExpanded((v) => !v)}
+                className="text-violet-500 hover:text-violet-700 transition-colors"
+                aria-label={briefingExpanded ? "Collapse briefing" : "Expand briefing"}
+              >
+                {briefingExpanded
+                  ? <ChevronUp className="h-4 w-4" />
+                  : <ChevronDown className="h-4 w-4" />}
+              </button>
+            </div>
+          </CardHeader>
+          {briefingExpanded && visibleItems.length > 0 && (
+            <CardContent className="pt-0 pb-3">
+              <div className="space-y-1.5">
+                {visibleItems.map((item) => (
+                  <BriefingRow
+                    key={item.id}
+                    item={item}
+                    onView={() => onOpenDetailPanel(item.clientId)}
+                    onDismiss={() => dismissItem(item.id)}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          )}
+          {briefingExpanded && visibleItems.length === 0 && (
+            <CardContent className="pt-0 pb-4">
+              <p className="text-sm text-violet-700/70 text-center py-2">
+                All items reviewed — you&apos;re up to date.
+              </p>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
       {/* ── Period Selector ──────────────────────────────────────────────── */}
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium text-muted-foreground">Period:</span>

@@ -12,6 +12,37 @@ import type {
   ClientStatus,
 } from "../types/database";
 
+// ── Intelligence Briefing types ──────────────────────────────────────────────
+
+export type BriefingItemType =
+  | "vip_overdue"
+  | "uncontacted_lead"
+  | "in_flight_stale"
+  | "birthday_today"
+  | "birthday_soon"
+  | "closing_anniversary"
+  | "no_contact_info"
+  | "possible_duplicate";
+
+export interface BriefingItem {
+  id: string;
+  type: BriefingItemType;
+  severity: "urgent" | "attention" | "upcoming";
+  clientId: string;
+  clientName: string;
+  title: string;
+  detail: string;
+  daysValue?: number;
+}
+
+export interface IntelligenceBriefingResult {
+  items: BriefingItem[];
+  urgentCount: number;
+  attentionCount: number;
+  upcomingCount: number;
+  totalCount: number;
+}
+
 // ── Input / Output Types ────────────────────────────────────────────────────
 
 export interface CrmDashboardInput {
@@ -405,4 +436,234 @@ export function computeSourceFunnel(
       : null;
 
   return { rows, bestConverting, highestGCI };
+}
+
+// ── 4. Intelligence Briefing ─────────────────────────────────────────────────
+// Surfaces what a coordinator would catch in a morning review:
+//   - VIP clients going dark (14-day threshold)
+//   - Uncontacted new leads aging past 24h
+//   - Active deals (in_flight) without contact in 7+ days
+//   - Upcoming birthdays (next 14 days)
+//   - Closing anniversaries (next 14 days)
+//   - Active leads with no email or phone on file
+//   - Possible duplicate records (same email or phone)
+
+export function computeIntelligenceBriefing(
+  clients: Client[],
+  activities: ContactActivity[],
+  records: ClientRecord[],
+): IntelligenceBriefingResult {
+  const now = new Date();
+  const items: BriefingItem[] = [];
+
+  // ── Pre-compute last activity date per client ──────────────────────────────
+  const lastActByClient = new Map<string, Date>();
+  for (const a of activities) {
+    const d = new Date(a.activity_date);
+    const ex = lastActByClient.get(a.client_id);
+    if (!ex || d > ex) lastActByClient.set(a.client_id, d);
+  }
+
+  // ── Pre-compute closing dates by client (for anniversary detection) ────────
+  const closeDatesByClient = new Map<string, Date[]>();
+  for (const r of records) {
+    if (r.client_id && r.close_date) {
+      if (!closeDatesByClient.has(r.client_id)) closeDatesByClient.set(r.client_id, []);
+      closeDatesByClient.get(r.client_id)!.push(new Date(r.close_date + "T12:00:00"));
+    }
+  }
+
+  const activeClients = clients.filter((c) => !c.archived_at);
+  // Track which clients already have an "action needed" item (1 action item per client max)
+  const hasActionItem = new Set<string>();
+
+  for (const client of activeClients) {
+    const isVip = client.tags.includes("VIP") || client.tags.includes("High Value");
+    const lastAct = lastActByClient.get(client.id);
+    const daysSince = lastAct
+      ? Math.floor((now.getTime() - lastAct.getTime()) / 86_400_000)
+      : 999;
+
+    // ── 1. VIP / High Value overdue (threshold: 14 days) ──────────────────────
+    if (isVip && daysSince >= 14) {
+      hasActionItem.add(client.id);
+      items.push({
+        id: `vip_${client.id}`,
+        type: "vip_overdue",
+        severity: daysSince >= 30 ? "urgent" : "attention",
+        clientId: client.id,
+        clientName: client.name,
+        title: `${client.name} — VIP overdue`,
+        detail: daysSince === 999 ? "Never contacted" : `${daysSince} days without contact`,
+        daysValue: daysSince,
+      });
+    }
+
+    // ── 2. Uncontacted new leads (boarding, no first contact, 24h+ old) ────────
+    if (!hasActionItem.has(client.id) && client.status === "boarding" && !client.first_contacted_at) {
+      const ageHours = (now.getTime() - new Date(client.created_at).getTime()) / 3_600_000;
+      if (ageHours >= 24) {
+        hasActionItem.add(client.id);
+        items.push({
+          id: `new_lead_${client.id}`,
+          type: "uncontacted_lead",
+          severity: ageHours >= 48 ? "urgent" : "attention",
+          clientId: client.id,
+          clientName: client.name,
+          title: `${client.name} — not yet contacted`,
+          detail:
+            ageHours >= 48
+              ? `${Math.floor(ageHours / 24)}d old — speed to lead`
+              : `${Math.floor(ageHours)}hr old — follow up today`,
+          daysValue: Math.floor(ageHours / 24),
+        });
+      }
+    }
+
+    // ── 3. In-Flight stale (active deal, 7+ days no contact) ──────────────────
+    if (!hasActionItem.has(client.id) && client.status === "in_flight" && daysSince >= 7) {
+      hasActionItem.add(client.id);
+      items.push({
+        id: `in_flight_${client.id}`,
+        type: "in_flight_stale",
+        severity: daysSince >= 14 ? "urgent" : "attention",
+        clientId: client.id,
+        clientName: client.name,
+        title: `${client.name} — In-Flight, ${daysSince}d silent`,
+        detail: "Active deal — clients expect regular updates",
+        daysValue: daysSince,
+      });
+    }
+
+    // ── 4. Birthday alerts (next 14 days) ──────────────────────────────────────
+    if (client.birthdate) {
+      const parts = client.birthdate.split("-");
+      if (parts.length === 3) {
+        const mm = parseInt(parts[1]) - 1;
+        const dd = parseInt(parts[2]);
+        const thisYearBday = new Date(now.getFullYear(), mm, dd);
+        const nextBday =
+          thisYearBday.getTime() < now.getTime() - 86_400_000
+            ? new Date(now.getFullYear() + 1, mm, dd)
+            : thisYearBday;
+        const daysUntil = Math.floor((nextBday.getTime() - now.getTime()) / 86_400_000);
+        if (daysUntil <= 14) {
+          const label =
+            daysUntil <= 0 ? "today!" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil} days`;
+          items.push({
+            id: `bday_${client.id}_${nextBday.getFullYear()}`,
+            type: daysUntil <= 1 ? "birthday_today" : "birthday_soon",
+            severity: daysUntil <= 1 ? "urgent" : "upcoming",
+            clientId: client.id,
+            clientName: client.name,
+            title: `${client.name} — birthday ${label}`,
+            detail: nextBday.toLocaleDateString("en-CA", { month: "long", day: "numeric" }),
+            daysValue: Math.max(0, daysUntil),
+          });
+        }
+      }
+    }
+
+    // ── 5. Closing anniversaries (next 14 days) ────────────────────────────────
+    const closeDates = closeDatesByClient.get(client.id) ?? [];
+    for (const cd of closeDates) {
+      const thisYearAnn = new Date(now.getFullYear(), cd.getMonth(), cd.getDate());
+      const nextAnn =
+        thisYearAnn.getTime() < now.getTime() - 86_400_000
+          ? new Date(now.getFullYear() + 1, cd.getMonth(), cd.getDate())
+          : thisYearAnn;
+      const daysUntil = Math.floor((nextAnn.getTime() - now.getTime()) / 86_400_000);
+      const yearsAgo = nextAnn.getFullYear() - cd.getFullYear();
+      if (daysUntil <= 14 && yearsAgo >= 1) {
+        const label =
+          daysUntil <= 0 ? "today!" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil} days`;
+        items.push({
+          id: `ann_${client.id}_${cd.toISOString().slice(0, 7)}`,
+          type: "closing_anniversary",
+          severity: "upcoming",
+          clientId: client.id,
+          clientName: client.name,
+          title: `${client.name} — ${yearsAgo}-year closing anniversary ${label}`,
+          detail: nextAnn.toLocaleDateString("en-CA", { month: "long", day: "numeric" }),
+          daysValue: Math.max(0, daysUntil),
+        });
+      }
+    }
+
+    // ── 6. Missing contact info (active leads, no email AND no phone) ──────────
+    if (
+      !client.email &&
+      !client.phone &&
+      ["boarding", "taxiing", "in_flight"].includes(client.status)
+    ) {
+      items.push({
+        id: `no_contact_${client.id}`,
+        type: "no_contact_info",
+        severity: "attention",
+        clientId: client.id,
+        clientName: client.name,
+        title: `${client.name} — no contact info`,
+        detail: "Active lead with no email or phone on file",
+      });
+    }
+  }
+
+  // ── 7. Possible duplicates (shared email or phone across distinct records) ───
+  const emailMap = new Map<string, string[]>();
+  const phoneMap = new Map<string, string[]>();
+  for (const c of activeClients) {
+    if (c.email) {
+      const key = c.email.trim().toLowerCase();
+      if (!emailMap.has(key)) emailMap.set(key, []);
+      emailMap.get(key)!.push(c.id);
+    }
+    if (c.phone) {
+      const key = c.phone.replace(/\D/g, "").slice(-10);
+      if (key.length >= 7) {
+        if (!phoneMap.has(key)) phoneMap.set(key, []);
+        phoneMap.get(key)!.push(c.id);
+      }
+    }
+  }
+  const clientById = new Map(activeClients.map((c) => [c.id, c]));
+  const dupClientIds = new Set<string>();
+
+  for (const [, ids] of [...emailMap, ...phoneMap]) {
+    if (ids.length <= 1) continue;
+    for (const id of ids) {
+      if (dupClientIds.has(id)) continue;
+      dupClientIds.add(id);
+      const c = clientById.get(id);
+      if (!c) continue;
+      const others = ids
+        .filter((x) => x !== id)
+        .map((x) => clientById.get(x)?.name ?? "")
+        .filter(Boolean);
+      items.push({
+        id: `dup_${id}`,
+        type: "possible_duplicate",
+        severity: "attention",
+        clientId: id,
+        clientName: c.name,
+        title: `${c.name} — possible duplicate`,
+        detail: `Shares contact info with: ${others.join(", ")}`,
+      });
+    }
+  }
+
+  // Sort: urgent first, then attention, then upcoming; ties broken by daysValue
+  const sevOrder: Record<string, number> = { urgent: 0, attention: 1, upcoming: 2 };
+  items.sort((a, b) => {
+    const s = sevOrder[a.severity] - sevOrder[b.severity];
+    if (s !== 0) return s;
+    return (a.daysValue ?? 999) - (b.daysValue ?? 999);
+  });
+
+  return {
+    items,
+    urgentCount: items.filter((i) => i.severity === "urgent").length,
+    attentionCount: items.filter((i) => i.severity === "attention").length,
+    upcomingCount: items.filter((i) => i.severity === "upcoming").length,
+    totalCount: items.length,
+  };
 }
