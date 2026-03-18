@@ -91,6 +91,8 @@ import {
   Crown,
   Wind,
   GitBranch,
+  Loader2,
+  Save,
 } from "lucide-react";
 import { ShowingsSection } from "./showings-section";
 import { fmtCurrency } from "@/lib/formatters";
@@ -562,6 +564,14 @@ const SIDE_STYLES: Record<string, { label: string; cls: string }> = {
   both:   { label: "Both",   cls: "bg-teal-50 text-teal-700 border-teal-200" },
 };
 
+const STATUS_HEADER_GRADIENT: Record<ClientStatus, string> = {
+  boarding:  "from-sky-500 to-sky-600",
+  taxiing:   "from-amber-500 to-orange-500",
+  in_flight: "from-emerald-500 to-teal-600",
+  landed:    "from-violet-500 to-purple-600",
+  cruising:  "from-rose-400 to-pink-500",
+};
+
 function dominantSide(
   deals: ClientRecord[],
 ): "buyer" | "seller" | "both" {
@@ -918,6 +928,9 @@ export function ClientsContent({
   const [importLoading, setImportLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [profileDraft, setProfileDraft] = useState<{ first_name: string; last_name: string; notes: string } | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
+
   function handleSort(col: SortCol) {
     if (col === sortCol) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -1090,6 +1103,15 @@ export function ClientsContent({
   const selectedClient = selectedClientId
     ? clientById.get(selectedClientId) ?? null
     : null;
+
+  useEffect(() => {
+    if (!selectedClient) { setProfileDraft(null); return; }
+    setProfileDraft({
+      first_name: selectedClient.first_name ?? "",
+      last_name:  selectedClient.last_name  ?? "",
+      notes:      selectedClient.notes      ?? "",
+    });
+  }, [selectedClient?.id]);
 
   const clientActivities = useMemo(
     () =>
@@ -1515,6 +1537,23 @@ export function ClientsContent({
     toast.success(`${json.seeded} campaign${json.seeded !== 1 ? "s" : ""} loaded`);
     router.refresh();
   }, [router]);
+
+  const handleSaveProfile = useCallback(async () => {
+    if (!selectedClient || !profileDraft) return;
+    setProfileSaving(true);
+    const first = profileDraft.first_name.trim();
+    const last  = profileDraft.last_name.trim();
+    const fullName = [first, last].filter(Boolean).join(" ") || selectedClient.name;
+    await Promise.all([
+      updateClientField(selectedClient.id, "first_name", first || null),
+      updateClientField(selectedClient.id, "last_name",  last  || null),
+      updateClientField(selectedClient.id, "name",       fullName),
+      updateClientField(selectedClient.id, "name_search", fullName.toLowerCase()),
+      updateClientField(selectedClient.id, "notes", profileDraft.notes.trim() || null),
+    ]);
+    setProfileSaving(false);
+    toast.success("Profile saved");
+  }, [selectedClient, profileDraft, updateClientField]);
 
   const handleSaveFlightPlan = useCallback(
     async (
@@ -2377,71 +2416,25 @@ export function ClientsContent({
         <SheetContent side="right" className="sm:max-w-xl w-full overflow-y-auto p-0">
           {selectedClient && (
             <div className="flex flex-col">
-              {/* ── Header ──────────────────────────────────────────────── */}
-              <div className="sticky top-0 z-10 bg-background border-b border-border/60 px-6 pt-6 pb-4">
-                <SheetHeader className="p-0">
-                  <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xl font-semibold shrink-0">
-                      {selectedClient.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        {editingField === "name" ? (
-                          <Input
-                            autoFocus
-                            value={editingValue}
-                            onChange={(e) => setEditingValue(e.target.value)}
-                            onBlur={() => {
-                              if (editingValue.trim() && editingValue.trim() !== selectedClient.name) {
-                                updateClientField(selectedClient.id, "name", editingValue.trim());
-                                updateClientField(selectedClient.id, "name_search", editingValue.trim().toLowerCase());
-                              }
-                              setEditingField(null);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === "Tab") (e.target as HTMLInputElement).blur();
-                              if (e.key === "Escape") { setEditingValue(selectedClient.name); setEditingField(null); }
-                            }}
-                            className="h-8 text-lg font-semibold"
-                          />
-                        ) : (
-                          <SheetTitle
-                            className="text-lg font-semibold leading-tight cursor-pointer hover:text-primary transition-colors"
-                            onClick={() => { setEditingField("name"); setEditingValue(selectedClient.name); }}
-                          >
-                            {selectedClient.name}
-                          </SheetTitle>
-                        )}
-                      </div>
-                      {/* Achievement badges */}
-                      {selectedClientBadges.length > 0 && (
-                        <div className="flex flex-wrap items-end gap-3 mt-2">
-                          {selectedClientBadges.map((b) => (
-                            <AchievementBadgeIcon
-                              key={b.id}
-                              badge={b}
-                              size={28}
-                              showLabel
-                              rewardBudget={selectedClientRewardBudget}
-                              generosity={rewardGenerosity}
-                            />
-                          ))}
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {selectedClient.last_contact_at && (
-                          <span className="text-xs text-muted-foreground">
-                            Last contact: {relativeDate(selectedClient.last_contact_at)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {/* Flight Status dropdown */}
+              {/* ── Profile Header ───────────────────────────────────── */}
+              <div className="sticky top-0 z-10 bg-background">
+                {/* Status gradient banner */}
+                <div className={cn("h-20 w-full bg-gradient-to-r", STATUS_HEADER_GRADIENT[selectedClient.status])} />
+
+                {/* Avatar + controls row */}
+                <div className="px-5 -mt-9 flex items-end justify-between">
+                  <div className={cn(
+                    "h-16 w-16 rounded-2xl ring-4 ring-background shadow-lg flex items-center justify-center text-white text-2xl font-bold bg-gradient-to-br shrink-0",
+                    STATUS_HEADER_GRADIENT[selectedClient.status],
+                  )}>
+                    {(profileDraft?.first_name || selectedClient.first_name || selectedClient.name).charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex items-center gap-2 pb-1">
                     <Select
                       value={selectedClient.status}
                       onValueChange={(v) => updateClientField(selectedClient.id, "status", v)}
                     >
-                      <SelectTrigger className={cn("h-8 w-auto gap-1.5 rounded-full text-xs font-semibold border px-3", CLIENT_STATUS_COLORS[selectedClient.status].bg, CLIENT_STATUS_COLORS[selectedClient.status].text, CLIENT_STATUS_COLORS[selectedClient.status].border)}>
+                      <SelectTrigger className={cn("h-7 w-auto gap-1.5 rounded-full text-xs font-semibold border px-3", CLIENT_STATUS_COLORS[selectedClient.status].bg, CLIENT_STATUS_COLORS[selectedClient.status].text, CLIENT_STATUS_COLORS[selectedClient.status].border)}>
                         <span className={cn("h-2 w-2 rounded-full", CLIENT_STATUS_COLORS[selectedClient.status].dot)} />
                         <SelectValue />
                       </SelectTrigger>
@@ -2456,57 +2449,106 @@ export function ClientsContent({
                         ))}
                       </SelectContent>
                     </Select>
-                    {/* Three-dot menu: Archive / Delete */}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground">
+                        <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         {selectedClient.archived_at ? (
-                          <DropdownMenuItem
-                            className="gap-2"
-                            onSelect={() => handleRestoreClient(selectedClient.id)}
-                          >
+                          <DropdownMenuItem className="gap-2" onSelect={() => handleRestoreClient(selectedClient.id)}>
                             <RotateCcw className="h-4 w-4" />
                             Restore Client
                           </DropdownMenuItem>
                         ) : (
-                          <DropdownMenuItem
-                            className="gap-2"
-                            onSelect={() => {
-                              setArchiveReason("deceased");
-                              setArchiveDialogOpen(true);
-                            }}
-                          >
+                          <DropdownMenuItem className="gap-2" onSelect={() => { setArchiveReason("deceased"); setArchiveDialogOpen(true); }}>
                             <Archive className="h-4 w-4" />
                             Move to Hangar…
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="gap-2 text-destructive focus:text-destructive"
-                          onSelect={() => setDeleteDialogOpen(true)}
-                        >
+                        <DropdownMenuItem className="gap-2 text-destructive focus:text-destructive" onSelect={() => setDeleteDialogOpen(true)}>
                           Delete Forever…
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
-                </SheetHeader>
+                </div>
 
-                {/* Flight Status strip */}
-                <FlightStatusStrip current={selectedClient.status} />
+                {/* Name + save */}
+                <div className="px-5 pt-3 pb-4 border-b border-border/60 space-y-3">
+                  <SheetHeader className="p-0">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-0.5">
+                        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">First Name</label>
+                        <Input
+                          value={profileDraft?.first_name ?? ""}
+                          onChange={(e) => setProfileDraft((d) => d ? { ...d, first_name: e.target.value } : d)}
+                          placeholder="First name"
+                          className="h-9 text-base font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-0.5">
+                        <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Last Name</label>
+                        <Input
+                          value={profileDraft?.last_name ?? ""}
+                          onChange={(e) => setProfileDraft((d) => d ? { ...d, last_name: e.target.value } : d)}
+                          placeholder="Last name"
+                          className="h-9 text-base font-semibold"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Badges + meta */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {selectedClientBadges.length > 0 && selectedClientBadges.map((b) => (
+                          <AchievementBadgeIcon
+                            key={b.id}
+                            badge={b}
+                            size={24}
+                            showLabel
+                            rewardBudget={selectedClientRewardBudget}
+                            generosity={rewardGenerosity}
+                          />
+                        ))}
+                        {selectedClient.last_contact_at && (
+                          <span className="text-[11px] text-muted-foreground">
+                            Last contact: {relativeDate(selectedClient.last_contact_at)}
+                          </span>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveProfile}
+                        disabled={profileSaving || !profileDraft || (
+                          profileDraft.first_name === (selectedClient.first_name ?? "") &&
+                          profileDraft.last_name  === (selectedClient.last_name  ?? "") &&
+                          profileDraft.notes      === (selectedClient.notes      ?? "")
+                        )}
+                        className="h-7 gap-1.5 text-xs shrink-0"
+                      >
+                        {profileSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+                        Save
+                      </Button>
+                    </div>
+                  </SheetHeader>
+
+                  {/* Flight Status Strip */}
+                  <FlightStatusStrip current={selectedClient.status} />
+                </div>
               </div>
 
               {/* ── Body ────────────────────────────────────────────────── */}
-              <div className="px-6 py-5 space-y-6">
+              <div className="px-4 py-4 space-y-3">
 
                 {/* Contact info section */}
-                <div className="space-y-3">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <Phone className="h-3.5 w-3.5" />
+                <div className="rounded-2xl border border-sky-200/60 bg-sky-50/30 dark:bg-sky-950/10 p-4 space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400 flex items-center gap-2">
+                    <div className="h-5 w-5 rounded-md bg-sky-100 dark:bg-sky-900 flex items-center justify-center">
+                      <Phone className="h-3 w-3 text-sky-600 dark:text-sky-400" />
+                    </div>
                     Contact Information
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
@@ -2578,15 +2620,15 @@ export function ClientsContent({
                   </div>
                 </div>
 
-                <Separator />
-
                 {/* Address */}
                 {(() => {
                   const addrLabels = getCountryLabels(selectedClient.country ?? "Canada");
                   return (
-                    <div className="space-y-3">
-                      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                        <MapPin className="h-3.5 w-3.5" />
+                    <div className="rounded-2xl border border-emerald-200/60 bg-emerald-50/30 dark:bg-emerald-950/10 p-4 space-y-3">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                        <div className="h-5 w-5 rounded-md bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center">
+                          <MapPin className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                        </div>
                         Address
                       </h3>
                       <div className="grid grid-cols-1 gap-2">
@@ -2633,12 +2675,12 @@ export function ClientsContent({
                   );
                 })()}
 
-                <Separator />
-
                 {/* Details */}
-                <div className="space-y-3">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <FileText className="h-3.5 w-3.5" />
+                <div className="rounded-2xl border border-amber-200/60 bg-amber-50/30 dark:bg-amber-950/10 p-4 space-y-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                    <div className="h-5 w-5 rounded-md bg-amber-100 dark:bg-amber-900 flex items-center justify-center">
+                      <FileText className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                    </div>
                     Details
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
@@ -2728,23 +2770,20 @@ export function ClientsContent({
                   </div>
                 </div>
 
-                <Separator />
-
                 {/* Mortgage Estimate — only for buyer clients with a budget set */}
                 {selectedClient.property_interest_type === "budget" &&
                   selectedClient.property_interest &&
                   selectedClient.property_interest > 0 && (
-                    <>
-                      <MortgageEstimateSection price={selectedClient.property_interest} />
-                      <Separator />
-                    </>
+                    <MortgageEstimateSection price={selectedClient.property_interest} />
                   )}
 
                 {/* Relationships */}
-                <div className="space-y-3">
+                <div className="rounded-2xl border border-violet-200/60 bg-violet-50/30 dark:bg-violet-950/10 p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <Link2 className="h-3.5 w-3.5" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-violet-700 dark:text-violet-400 flex items-center gap-2">
+                      <div className="h-5 w-5 rounded-md bg-violet-100 dark:bg-violet-900 flex items-center justify-center">
+                        <Link2 className="h-3 w-3 text-violet-600 dark:text-violet-400" />
+                      </div>
                       Relationships
                     </h3>
                     <div className="flex gap-1">
@@ -2873,30 +2912,30 @@ export function ClientsContent({
                   )}
                 </div>
 
-                <Separator />
-
                 {/* Notes */}
-                <div className="space-y-2">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                    <FileText className="h-3.5 w-3.5" />
+                <div className="rounded-2xl border border-slate-200/60 bg-slate-50/40 dark:bg-slate-900/20 p-4 space-y-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                    <div className="h-5 w-5 rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                      <FileText className="h-3 w-3 text-slate-500 dark:text-slate-400" />
+                    </div>
                     Notes
                   </h3>
                   <Textarea
                     placeholder="Add notes about this client…"
-                    value={selectedClient.notes ?? ""}
-                    onChange={(e) => updateClientField(selectedClient.id, "notes", e.target.value || null)}
+                    value={profileDraft?.notes ?? ""}
+                    onChange={(e) => setProfileDraft((d) => d ? { ...d, notes: e.target.value } : d)}
                     rows={3}
-                    className="text-sm resize-none"
+                    className="text-sm resize-none bg-white/60 dark:bg-slate-900/40"
                   />
                 </div>
 
-                <Separator />
-
                 {/* Activity section */}
-                <div className="space-y-3">
+                <div className="rounded-2xl border border-blue-200/60 bg-blue-50/30 dark:bg-blue-950/10 p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <Activity className="h-3.5 w-3.5" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400 flex items-center gap-2">
+                      <div className="h-5 w-5 rounded-md bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                        <Activity className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                      </div>
                       Activity
                     </h3>
                     <Button
@@ -2965,13 +3004,13 @@ export function ClientsContent({
                   )}
                 </div>
 
-                <Separator />
-
                 {/* Tasks section */}
-                <div className="space-y-3">
+                <div className="rounded-2xl border border-orange-200/60 bg-orange-50/30 dark:bg-orange-950/10 p-4 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <ListTodo className="h-3.5 w-3.5" />
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-orange-700 dark:text-orange-400 flex items-center gap-2">
+                      <div className="h-5 w-5 rounded-md bg-orange-100 dark:bg-orange-900 flex items-center justify-center">
+                        <ListTodo className="h-3 w-3 text-orange-600 dark:text-orange-400" />
+                      </div>
                       Tasks
                     </h3>
                     <Button
@@ -3049,8 +3088,6 @@ export function ClientsContent({
                   )}
                 </div>
 
-                <Separator />
-
                 {/* Property Showings */}
                 <ShowingsSection
                   clientId={selectedClient.id}
@@ -3065,16 +3102,16 @@ export function ClientsContent({
 
                 {/* Deal History */}
                 {clientDeals.length > 0 && (
-                  <>
-                    <Separator />
-                    <div className="space-y-3">
-                      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                        <DollarSign className="h-3.5 w-3.5" />
-                        Deal History
-                      </h3>
-                      <div className="space-y-1.5">
-                        {clientDeals.map((deal) => (
-                          <div key={deal.id} className="py-1.5 px-2 rounded-lg bg-muted/20 space-y-1.5">
+                  <div className="rounded-2xl border border-green-200/60 bg-green-50/30 dark:bg-green-950/10 p-4 space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-green-700 dark:text-green-400 flex items-center gap-2">
+                      <div className="h-5 w-5 rounded-md bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                        <DollarSign className="h-3 w-3 text-green-600 dark:text-green-400" />
+                      </div>
+                      Deal History
+                    </h3>
+                    <div className="space-y-1.5">
+                      {clientDeals.map((deal) => (
+                        <div key={deal.id} className="py-1.5 px-2 rounded-lg bg-white/50 dark:bg-green-900/20 border border-green-100/60 dark:border-green-800/30 space-y-1.5">
                             <div className="flex items-center justify-between">
                               <div className="min-w-0 flex-1">
                                 <p className="text-xs font-medium text-foreground truncate">
@@ -3115,8 +3152,7 @@ export function ClientsContent({
                           </div>
                         ))}
                       </div>
-                    </div>
-                  </>
+                  </div>
                 )}
               </div>
             </div>

@@ -713,6 +713,8 @@ export interface Client {
 
   name: string;
   name_search: string;   // lower(trim(name)) — for dedup matching
+  first_name: string | null;
+  last_name:  string | null;
 
   // Contact info
   email:    string | null;
