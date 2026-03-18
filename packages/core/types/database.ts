@@ -439,7 +439,7 @@ export type LeadSource =
   | "Other";
 
 // ── Client Flight Status (aviation-themed pipeline stages, migration 00027) ──
-export type ClientStatus = "boarding" | "taxiing" | "in_flight" | "landed" | "cruising";
+export type ClientStatus = "boarding" | "taxiing" | "approach" | "in_flight" | "landed" | "cruising";
 
 // ── Client Archive Reason (migration 00037) ───────────────────────────────────
 export type ArchiveReason = "deceased" | "moved_away" | "do_not_contact" | "other";
@@ -594,6 +594,7 @@ export interface BuyerDNA {
 export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
   boarding:  "Boarding",
   taxiing:   "Taxiing",
+  approach:  "Approach",
   in_flight: "In-Flight",
   landed:    "Landed",
   cruising:  "Cruising",
@@ -601,7 +602,8 @@ export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
 
 export const CLIENT_STATUS_DESCRIPTIONS: Record<ClientStatus, string> = {
   boarding:  "New lead or prospect",
-  taxiing:   "Actively shopping or preparing",
+  taxiing:   "Gearing up to act",
+  approach:  "Actively viewing homes, preparing to offer",
   in_flight: "Under contract",
   landed:    "Deal closed",
   cruising:  "Past client, nurturing",
@@ -610,6 +612,7 @@ export const CLIENT_STATUS_DESCRIPTIONS: Record<ClientStatus, string> = {
 export const CLIENT_STATUS_COLORS: Record<ClientStatus, { bg: string; text: string; border: string; dot: string }> = {
   boarding:  { bg: "bg-sky-50",     text: "text-sky-700",     border: "border-sky-200",     dot: "bg-sky-400"     },
   taxiing:   { bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200",   dot: "bg-amber-400"   },
+  approach:  { bg: "bg-orange-50",  text: "text-orange-700",  border: "border-orange-200",  dot: "bg-orange-400"  },
   in_flight: { bg: "bg-violet-50",  text: "text-violet-700",  border: "border-violet-200",  dot: "bg-violet-400"  },
   landed:    { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", dot: "bg-emerald-400" },
   cruising:  { bg: "bg-blue-50",    text: "text-blue-700",    border: "border-blue-200",    dot: "bg-blue-400"    },

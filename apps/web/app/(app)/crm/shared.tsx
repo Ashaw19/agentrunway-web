@@ -124,6 +124,7 @@ export function InlineEdit({
 export const FLIGHT_STAGES: ClientStatus[] = [
   "boarding",
   "taxiing",
+  "approach",
   "in_flight",
   "landed",
   "cruising",

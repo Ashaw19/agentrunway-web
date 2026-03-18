@@ -87,12 +87,12 @@ export default async function DashboardPage({
         .from("t2125_cca_assets")
         .select("id")
         .eq("user_id", user.id),
-      // Active clients (boarding/taxiing/in_flight) — for CRM summary
+      // Active clients (boarding/taxiing/approach/in_flight) — for CRM summary
       supabase
         .from("clients")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
-        .in("status", ["boarding", "taxiing", "in_flight"]),
+        .in("status", ["boarding", "taxiing", "approach", "in_flight"]),
       // Distinct clients contacted in last 14 days — for stale lead detection
       supabase
         .from("contact_activities")

@@ -70,7 +70,7 @@ export default async function AppLayout({
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
         .is("archived_at", null)
-        .in("status", ["boarding", "taxiing", "in_flight"])
+        .in("status", ["boarding", "taxiing", "approach", "in_flight"])
         .lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
     ]);
 

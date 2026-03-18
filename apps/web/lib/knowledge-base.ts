@@ -129,7 +129,7 @@ In Settings, agents can write a personal AI Voice Guide — a short paragraph de
 
 **Speed to Lead:** Hours between client creation date and first recorded contact activity.
 
-**Stale Lead:** Active client (Boarding/Taxiing/In-Flight) with no recorded contact in 14+ days on dashboard, 30+ days in CRM view.
+**Stale Lead:** Active client (Boarding/Taxiing/Approach/In-Flight) with no recorded contact in 14+ days on dashboard, 30+ days in CRM view.
 
 **CCA (Capital Cost Allowance):** CRA's depreciation method for business assets using prescribed rates with a half-year rule in the first year of acquisition.
 
@@ -139,13 +139,14 @@ In Settings, agents can write a personal AI Voice Guide — a short paragraph de
 
 | Status | Meaning |
 |--------|---------|
-| Boarding | New lead, just entered the pipeline. First contact made or imminent. |
-| Taxiing | Warming up. Active engagement underway, needs nurturing. |
-| In-Flight | Hot active client. Showing, negotiating, or under contract. |
-| Landed | Deal closed. Transaction completed successfully. |
-| Cruising | Past client in long-term relationship. Referral source, repeat buyer candidate. |
+| Boarding | New lead, just added to the CRM. Move along fast — needs prompt first contact. |
+| Taxiing | Gearing up to act. Active engagement underway, needs consistent nurturing. |
+| Approach | Actively viewing homes and preparing to make an offer. High-touch stage. |
+| In-Flight | Engaged in a live transaction — showing, negotiating, or under contract. |
+| Landed | Deal just closed. Stays here for 30 days; AI focuses on post-close outreach. Auto-transitions to Cruising after 30 days post-close. |
+| Cruising | Settled past client. Light-touch communication; referral and repeat source. |
 
-**Status gradient colors in the detail panel:** Boarding = slate/gray, Taxiing = blue, In-Flight = emerald/green, Landed = amber/gold, Cruising = violet/purple.
+**Status gradient colors in the detail panel:** Boarding = sky, Taxiing = amber/orange, Approach = orange/amber, In-Flight = emerald/teal, Landed = violet/purple, Cruising = rose/pink.
 
 ---
 
@@ -255,7 +256,7 @@ Any tax calculation or recommendation must include: "This is an estimate for pla
 If asked about a feature not described in this knowledge base, say you're not sure and suggest checking the relevant page or contacting support. Do not hallucinate functionality.
 
 **6. Use the flight metaphor naturally.**
-When discussing client status, use the flight metaphor terms: Boarding, Taxiing, In-Flight, Landed, Cruising. These are the actual terms used in the product interface.
+When discussing client status, use the flight metaphor terms: Boarding, Taxiing, Approach, In-Flight, Landed, Cruising. These are the actual terms used in the product interface.
 
 **7. Proactive insight framing.**
 When the user's data shows a concerning pattern (high expense ratio, stale clients, behind pace), name it clearly and offer a concrete next step. Don't soften warnings to the point of uselessness.
@@ -277,7 +278,7 @@ When the user's financial data shows any of the following patterns, the AI shoul
 
 - **Behind pace:** YTD GCI is more than 10% below expected seasonal pace → suggest reviewing pipeline conversion, adding pipeline deals, or adjusting goal.
 - **High expense ratio:** Expense ratio above 35% → flag it, identify the likely category driving it (if data available), suggest a review.
-- **Thin pipeline:** Weighted pipeline GCI < 50% of monthly goal × 3 → suggest CRM outreach to Taxiing/Boarding clients.
+- **Thin pipeline:** Weighted pipeline GCI < 50% of monthly goal × 3 → suggest CRM outreach to Boarding/Taxiing/Approach clients.
 - **Low survival runway:** Runway < 3 months → flag urgency, suggest reviewing monthly burn and cash reserve.
 - **Stale active clients:** Multiple active clients with no contact in 30+ days → suggest running Flight Control outreach or doing a manual check-in sweep.
 - **Approaching annual goal:** Within 15% of hitting annual GCI goal → acknowledge momentum, discuss strategy for pushing past it.
@@ -326,7 +327,7 @@ A: Tap the microphone in the Quick Actions FAB, speak naturally. The system tran
 A: 2025 CRA rates: $0.72/km for the first 5,000 km, $0.66/km thereafter.
 
 **Q: What does "stale lead" mean?**
-A: An active client (Boarding/Taxiing/In-Flight) with no recorded contact activity in 14+ days (dashboard alert) or 30+ days (CRM Insights). The AI will flag stale leads and suggest outreach.
+A: An active client (Boarding/Taxiing/Approach/In-Flight) with no recorded contact activity in 14+ days (dashboard alert) or 30+ days (CRM Insights). The AI will flag stale leads and suggest outreach.
 
 **Q: Can I change my province or business structure after onboarding?**
 A: Yes — go to Settings to change province, business structure, commission split, fees, goals, and all other configuration.

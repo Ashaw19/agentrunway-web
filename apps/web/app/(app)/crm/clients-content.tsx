@@ -567,6 +567,7 @@ const SIDE_STYLES: Record<string, { label: string; cls: string }> = {
 const STATUS_HEADER_GRADIENT: Record<ClientStatus, string> = {
   boarding:  "from-sky-500 to-sky-600",
   taxiing:   "from-amber-500 to-orange-500",
+  approach:  "from-orange-500 to-amber-600",
   in_flight: "from-emerald-500 to-teal-600",
   landed:    "from-violet-500 to-purple-600",
   cruising:  "from-rose-400 to-pink-500",
@@ -4000,7 +4001,7 @@ function MetricPill({
 
 // ── Flight Status Strip ──────────────────────────────────────────────────────
 
-const FLIGHT_STAGES: ClientStatus[] = ["boarding", "taxiing", "in_flight", "landed", "cruising"];
+const FLIGHT_STAGES: ClientStatus[] = ["boarding", "taxiing", "approach", "in_flight", "landed", "cruising"];
 
 function FlightStatusStrip({ current }: { current: ClientStatus }) {
   const currentIdx = FLIGHT_STAGES.indexOf(current);
