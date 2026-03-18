@@ -2691,7 +2691,7 @@ export function ClientsContent({
                           value={selectedClient.property_interest_type}
                           onValueChange={(v) => updateClientField(selectedClient.id, "property_interest_type", v)}
                         >
-                          <SelectTrigger className="h-7 w-20 text-[10px]">
+                          <SelectTrigger className="h-7 w-24 text-[10px]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
