@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ProfileContent } from "./profile-content";
-import { computeGCI, type HistoryItem } from "@/lib/types/database";
+import { computeGCI, type HistoryItem, type Transaction } from "@/lib/types/database";
 
 export const metadata = { title: "Profile — Agent Runway" };
 
@@ -21,26 +21,26 @@ export default async function ProfilePage() {
       .single(),
     supabase
       .from("transactions")
-      .select("*")
+      .select("date, sale_price, commission_pct, team_split_pct, gci_override")
       .eq("user_id", user.id)
       .eq("status", "closed"),
     supabase
       .from("history_items")
-      .select("*")
+      .select("year, annual_gci")
       .eq("user_id", user.id)
       .order("year", { ascending: false }),
   ]);
 
-  // YTD stats
+  // YTD stats — cast partial rows since computeGCI only needs these 5 fields
+  type TxPartial = Pick<Transaction, "date" | "sale_price" | "commission_pct" | "team_split_pct" | "gci_override">;
+  const txRows = (transactions ?? []) as TxPartial[];
   const currentYear = new Date().getFullYear();
-  const ytdTx = (transactions ?? []).filter((tx) =>
-    tx.date.startsWith(String(currentYear)),
-  );
-  const ytdGCI = ytdTx.reduce((sum, tx) => sum + computeGCI(tx), 0);
+  const ytdTx = txRows.filter((tx) => tx.date.startsWith(String(currentYear)));
+  const ytdGCI = ytdTx.reduce((sum, tx) => sum + computeGCI(tx as Transaction), 0);
   const ytdDeals = ytdTx.length;
   const avgDeal = ytdDeals > 0 ? ytdGCI / ytdDeals : 0;
-  const lifetimeDeals = (transactions ?? []).length;
-  const lifetimeGCI = (transactions ?? []).reduce((sum, tx) => sum + computeGCI(tx), 0);
+  const lifetimeDeals = txRows.length;
+  const lifetimeGCI = txRows.reduce((sum, tx) => sum + computeGCI(tx as Transaction), 0);
 
   // Best year: compare history + current year
   const historyItems = (historyData ?? []) as HistoryItem[];
