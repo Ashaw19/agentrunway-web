@@ -83,8 +83,14 @@ export function InsightsTab({
         )
       : 0;
 
-  const repeatCount = grouped.filter((g) => g.dealCount > 1).length;
-  const repeatRate = grouped.length > 0 ? Math.round((repeatCount / grouped.length) * 100) : 0;
+  // Only clients who have closed at least one deal are eligible to be "repeat" clients.
+  // Using the full CRM roster as the denominator inflates the rate with contacts who
+  // have never transacted (pipeline leads, imports, etc.).
+  const transactionalClients = grouped.filter((g) => g.dealCount >= 1);
+  const repeatCount = transactionalClients.filter((g) => g.dealCount > 1).length;
+  const repeatRate = transactionalClients.length > 0
+    ? Math.round((repeatCount / transactionalClients.length) * 100)
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -328,7 +334,7 @@ export function InsightsTab({
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* EXISTING: Repeat Client Rate                                       */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {grouped.length >= 3 && (
+      {transactionalClients.length >= 2 && (
         <Card
           className={cn(
             "rounded-2xl shadow-sm",
@@ -354,7 +360,7 @@ export function InsightsTab({
                 {repeatRate}%
               </p>
               <p className="text-sm text-muted-foreground pb-1">
-                {repeatCount} of {grouped.length} clients returned for another deal
+                {repeatCount} of {transactionalClients.length} clients with closed deals
               </p>
             </div>
             <div className="h-2 rounded-full bg-muted overflow-hidden">
