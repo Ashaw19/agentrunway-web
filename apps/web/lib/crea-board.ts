@@ -358,6 +358,168 @@ export async function fetchBoardData(board: CreaBoard): Promise<LocalMarketData 
   }
 }
 
+// ── Board Agent Count Lookup ──────────────────────────────────────────────────
+// Approximate licensed REALTOR® member counts per board (2023–2024 data).
+// Sources: individual board annual reports, board websites, CREA media releases.
+// Used to calculate average deals-per-agent for market share benchmarking.
+// These figures are intentionally conservative midpoints — actual counts shift
+// ±5–10% year-over-year as licensing fluctuates.
+
+export const BOARD_AGENT_COUNTS: Record<string, number> = {
+  // Ontario
+  trreb:    73000,   // Toronto Regional Real Estate Board — confirmed
+  oreb:      3750,   // Ottawa Real Estate Board — confirmed
+  rahb:      3250,   // Hamilton-Burlington REALTORS® — estimated (post-merger)
+  lstar:     2750,   // London St. Thomas REALTORS® — estimated
+  kwar:      1000,   // Kitchener-Waterloo — estimated
+  niagara:   1100,   // Niagara Association of REALTORS® — estimated
+  wecar:      900,   // Windsor-Essex — estimated
+  gdar:       800,   // Guelph & District — estimated
+  bdar:       700,   // Barrie & District — estimated
+  sreb:       400,   // Sudbury — estimated
+  // British Columbia
+  rebgv:    15500,   // Real Estate Board of Greater Vancouver — confirmed
+  fvreb:     4750,   // Fraser Valley — confirmed
+  // Alberta
+  creb:      7250,   // Calgary Real Estate Board — confirmed
+  rae:       4250,   // REALTORS® Association of Edmonton — confirmed
+  // Quebec
+  apciq:    14500,   // APCIQ / Centris (Montreal metro) — confirmed
+  ciq:       2750,   // Chambre immobilière de Québec (Quebec City) — estimated
+  // Manitoba
+  wrreb:     2100,   // Winnipeg Regional Real Estate Board — estimated
+  mrea:      2100,   // Manitoba Real Estate Association — confirmed
+  // Saskatchewan
+  sra:       1500,   // Saskatchewan REALTORS® Association — confirmed
+  // Atlantic
+  nsar:      1500,   // Nova Scotia Association of REALTORS® — confirmed
+  nbrea:     1200,   // New Brunswick Real Estate Association — confirmed
+  nlar:       800,   // Newfoundland & Labrador REALTORS® — confirmed
+};
+
+// ── Market Momentum ───────────────────────────────────────────────────────────
+// Three metrics comparing the agent's business trajectory against their local board.
+
+export interface MarketMomentum {
+  // Metric 1 — YoY deal count growth vs. board market growth (PRIMARY DASHBOARD METRIC)
+  agentPriorYearDeals:   number | null;  // prior full-year deal count (from history)
+  agentCurrentYearDeals: number;         // YTD closed deals
+  agentDealGrowthPct:    number | null;  // YoY % change in agent's deal count
+  boardSalesYoYPct:      number | null;  // board's YoY sales % change (from CREA quarterly)
+  gainLossVsMarket:      number | null;  // agentGrowthPct − boardYoY (positive = gaining share)
+  momentumTier:          "gaining" | "tracking" | "trailing" | "no_data";
+  momentumLabel:         string;
+
+  // Metric 2 — Estimated deals-per-agent vs. your deal count (for reports)
+  boardAgentCount:         number | null;  // estimated licensed agents in board
+  monthlyBoardSales:       number | null;  // board's monthly sales volume
+  avgDealsPerAgentPerYear: number | null;  // annualized board sales ÷ agent count
+  agentAnnualizedDeals:    number | null;  // projected full-year deal count from YTD pace
+
+  // Metric 3 — GCI growth rate vs. board price appreciation (for reports)
+  agentPriorYearGCI:    number | null;  // prior full-year GCI (from history)
+  agentYtdGCI:          number;         // current YTD GCI
+  agentGCIGrowthPct:    number | null;  // YoY GCI growth %
+  boardPriceYoYPct:     number | null;  // board's YoY median price % change
+  gciVsPriceGrowthDiff: number | null;  // agentGCIGrowthPct − boardPriceYoYPct
+
+  // Context
+  reportMonth:  string;
+  boardName:    string;
+}
+
+export function computeMarketMomentum(
+  boardCode:        string,
+  ytdDealCount:     number,
+  ytdGCI:           number,
+  marketData:       LocalMarketData,
+  historyItems:     { year: number; annual_tx: number; annual_gci: number }[],
+  currentYear:      number,
+): MarketMomentum {
+  const priorYear      = currentYear - 1;
+  const priorHistory   = historyItems.find((h) => h.year === priorYear) ?? null;
+  const dayOfYear      = Math.ceil((Date.now() - new Date(`${currentYear}-01-01`).getTime()) / 86_400_000);
+  const yearFraction   = dayOfYear / 365;
+
+  // ── Metric 1 ───────────────────────────────────────────────────────────────
+  const agentPriorYearDeals  = priorHistory?.annual_tx ?? null;
+  const agentDealGrowthPct   =
+    agentPriorYearDeals != null && agentPriorYearDeals > 0
+      ? ((ytdDealCount - agentPriorYearDeals) / agentPriorYearDeals) * 100
+      : null;
+
+  // CREA provides YoY as a decimal or percentage depending on the field;
+  // quarterlyUnitSalesYoY is already in % points (e.g. 12.5 = +12.5%)
+  const boardSalesYoYPct = marketData.quarterlyUnitSalesYoY ?? null;
+
+  const gainLossVsMarket =
+    agentDealGrowthPct != null && boardSalesYoYPct != null
+      ? agentDealGrowthPct - boardSalesYoYPct
+      : null;
+
+  let momentumTier: MarketMomentum["momentumTier"];
+  let momentumLabel: string;
+
+  if (gainLossVsMarket == null) {
+    momentumTier  = "no_data";
+    momentumLabel = "Not enough data yet";
+  } else if (gainLossVsMarket > 5) {
+    momentumTier  = "gaining";
+    momentumLabel = "Gaining Market Share";
+  } else if (gainLossVsMarket < -5) {
+    momentumTier  = "trailing";
+    momentumLabel = "Trailing the Market";
+  } else {
+    momentumTier  = "tracking";
+    momentumLabel = "Tracking the Market";
+  }
+
+  // ── Metric 2 ───────────────────────────────────────────────────────────────
+  const boardAgentCount        = BOARD_AGENT_COUNTS[boardCode] ?? null;
+  const monthlyBoardSales      = marketData.boardTotal.sales > 0 ? marketData.boardTotal.sales : null;
+  const avgDealsPerAgentPerYear =
+    boardAgentCount != null && monthlyBoardSales != null
+      ? Math.round((monthlyBoardSales * 12) / boardAgentCount * 10) / 10
+      : null;
+  const agentAnnualizedDeals   =
+    yearFraction > 0.05
+      ? Math.round(ytdDealCount / yearFraction)
+      : null;
+
+  // ── Metric 3 ───────────────────────────────────────────────────────────────
+  const agentPriorYearGCI  = priorHistory?.annual_gci ?? null;
+  const agentGCIGrowthPct  =
+    agentPriorYearGCI != null && agentPriorYearGCI > 0
+      ? ((ytdGCI - agentPriorYearGCI) / agentPriorYearGCI) * 100
+      : null;
+  const boardPriceYoYPct   = marketData.medianSalePriceYoY ?? null;
+  const gciVsPriceGrowthDiff =
+    agentGCIGrowthPct != null && boardPriceYoYPct != null
+      ? agentGCIGrowthPct - boardPriceYoYPct
+      : null;
+
+  return {
+    agentPriorYearDeals,
+    agentCurrentYearDeals: ytdDealCount,
+    agentDealGrowthPct,
+    boardSalesYoYPct,
+    gainLossVsMarket,
+    momentumTier,
+    momentumLabel,
+    boardAgentCount,
+    monthlyBoardSales,
+    avgDealsPerAgentPerYear,
+    agentAnnualizedDeals,
+    agentPriorYearGCI,
+    agentYtdGCI: ytdGCI,
+    agentGCIGrowthPct,
+    boardPriceYoYPct,
+    gciVsPriceGrowthDiff,
+    reportMonth: marketData.reportMonth,
+    boardName:   marketData.boardName,
+  };
+}
+
 // ── Agent Market Position ─────────────────────────────────────────────────────
 // Computes how the agent's average deal size compares to the local board average.
 

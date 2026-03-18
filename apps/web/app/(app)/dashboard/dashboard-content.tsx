@@ -79,7 +79,7 @@ import {
 } from "@/lib/engines/projection-engine";
 import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
-import { computeAgentMarketPosition, type LocalMarketData } from "@/lib/crea-board";
+import { computeMarketMomentum, type LocalMarketData } from "@/lib/crea-board";
 import { survivalResult, type SurvivalResult } from "@/lib/engines/survival-engine";
 import { compute as computeRunwayScore, type BusinessHealthReport, type RunwayScoreResult } from "@/lib/engines/runway-score-engine";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
@@ -328,12 +328,18 @@ export function DashboardContent({
   // ── Benchmark ─────────────────────────────────────────────────────────
   const benchmark = compare(projectedGCI, settings?.experience_years ?? null);
 
-  // ── Local Market Position (CREA live data) ────────────────────────────
-  // Compare agent's average SALE PRICE (not GCI) against the board average home price
-  const ytdTotalSalePrice = transactions.reduce((sum, tx) => sum + tx.sale_price, 0);
-  const agentAvgDeal = ytdDealCount > 0 ? ytdTotalSalePrice / ytdDealCount : 0;
-  const marketPosition = boardMarketData && agentAvgDeal > 0
-    ? computeAgentMarketPosition(agentAvgDeal, boardMarketData, boardSubregion || undefined)
+  // ── Market Momentum (CREA live data + agent history) ─────────────────
+  const currentYear    = new Date().getFullYear();
+  const boardCodeSlug  = settings?.board_code ?? "";
+  const marketMomentum = boardMarketData
+    ? computeMarketMomentum(
+        boardCodeSlug,
+        ytdDealCount,
+        ytdGCI,
+        boardMarketData,
+        historyItems,
+        currentYear,
+      )
     : null;
 
   // ── Expenses ──────────────────────────────────────────────────────────
@@ -817,48 +823,57 @@ export function DashboardContent({
                 <p className="text-xs text-slate-400">cash coverage</p>
               </div>
               <div>
-                {boardMarketData && marketPosition ? (
+                {marketMomentum && marketMomentum.momentumTier !== "no_data" ? (
                   <>
                     <span className="flex items-center gap-1">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Market Position</p>
-                      <MetricInfo tip={`How your average deal compares to the ${marketPosition.subRegionName} board average of ${fmtCurrency(marketPosition.boardAvgPrice)}. Source: CREA MLS® Statistics, ${boardMarketData.reportMonth}.`} />
-                      <GuideLink anchor="market-position" label="Market Position explained in Guide" />
-                      {isPro && <ExplainButton question="How does my average deal size compare to my local board average and what does my market position mean?" />}
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Market Momentum</p>
+                      <MetricInfo tip={
+                        marketMomentum.agentDealGrowthPct != null && marketMomentum.boardSalesYoYPct != null
+                          ? `Your deal count changed ${marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}${marketMomentum.agentDealGrowthPct.toFixed(0)}% YoY vs. ${marketMomentum.boardName} market ${marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}${marketMomentum.boardSalesYoYPct.toFixed(0)}% YoY. A positive gap means you're growing faster than your market. Source: CREA MLS® Statistics, ${marketMomentum.reportMonth}.`
+                          : `Compares your business growth rate against your board's transaction volume trend. Source: CREA MLS® Statistics, ${marketMomentum.reportMonth}.`
+                      } />
+                      <GuideLink anchor="market-position" label="Market Momentum explained in Guide" />
+                      {isPro && <ExplainButton question="How is my business growing compared to my local real estate market, and am I gaining or losing market share?" />}
                     </span>
                     <p
                       className="text-xl font-bold mt-0.5"
                       style={{
-                        color: marketPosition.positionTier === "above" ? "#059669"
-                          : marketPosition.positionTier === "below" ? "#DC2626"
-                          : "#D97706",
+                        color: marketMomentum.momentumTier === "gaining"  ? "#059669"
+                             : marketMomentum.momentumTier === "trailing" ? "#DC2626"
+                             : "#D97706",
                       }}
                     >
-                      {marketPosition.differencePct >= 0 ? "+" : ""}
-                      {marketPosition.differencePct.toFixed(0)}%
+                      {marketMomentum.gainLossVsMarket != null
+                        ? `${marketMomentum.gainLossVsMarket >= 0 ? "+" : ""}${marketMomentum.gainLossVsMarket.toFixed(0)}pp`
+                        : "—"}
                     </p>
-                    <p className="text-xs text-slate-400">{marketPosition.positionLabel}</p>
+                    <p className="text-xs text-slate-400">{marketMomentum.momentumLabel}</p>
+                    {marketMomentum.agentDealGrowthPct != null && marketMomentum.boardSalesYoYPct != null && (
+                      <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                        You {marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}{marketMomentum.agentDealGrowthPct.toFixed(0)}% · Market {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}%
+                      </p>
+                    )}
+                    <p className="text-[9px] text-slate-500 mt-1 leading-tight">
+                      Source: CREA MLS® Statistics · © {new Date().getFullYear()} CREA
+                    </p>
                   </>
-                ) : boardMarketData ? (
+                ) : marketMomentum ? (
                   <>
                     <span className="flex items-center gap-1">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Market Conditions</p>
-                      <MetricInfo tip={`Local market conditions for ${boardMarketData.boardName}. Source: CREA MLS® Statistics, ${boardMarketData.reportMonth}.`} />
-                      <GuideLink anchor="market-position" label="Market Conditions explained in Guide" />
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Market Momentum</p>
+                      <MetricInfo tip="Close your first deal or add a prior year in History to unlock your market growth comparison." />
                     </span>
-                    <p className={cn("text-xl font-bold mt-0.5",
-                      boardMarketData.marketCondition === "seller" ? "text-emerald-600"
-                        : boardMarketData.marketCondition === "buyer" ? "text-blue-600"
-                        : "text-amber-600"
-                    )}>
-                      {boardMarketData.marketCondition === "seller" ? "🔥" : boardMarketData.marketCondition === "buyer" ? "🧊" : "⚖️"}
+                    <p className="text-xl font-bold mt-0.5 text-slate-300">—</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">Needs prior year data</p>
+                    <p className="text-[9px] text-slate-500 mt-1 leading-tight">
+                      Source: CREA MLS® Statistics · © {new Date().getFullYear()} CREA
                     </p>
-                    <p className="text-xs text-slate-400">{boardMarketData.marketConditionLabel}</p>
                   </>
                 ) : (
                   <>
                     <span className="flex items-center gap-1">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Board Rank</p>
-                      <MetricInfo tip="Select your local real estate board in Settings to see live market benchmarking data sourced from CREA MLS® Statistics." />
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Market Momentum</p>
+                      <MetricInfo tip="Select your local real estate board in Settings to see how your business growth compares to your market." />
                       <GuideLink anchor="market-position" label="Board benchmarking explained in Guide" />
                     </span>
                     <p className="text-xl font-bold mt-0.5 text-slate-300">—</p>
@@ -866,11 +881,6 @@ export function DashboardContent({
                       <Link href="/settings" className="underline hover:text-slate-600">Set board</Link> in Settings
                     </p>
                   </>
-                )}
-                {boardMarketData && (
-                  <p className="text-[9px] text-slate-500 mt-1.5 leading-tight">
-                    Source: CREA MLS® Statistics · © {new Date().getFullYear()} CREA
-                  </p>
                 )}
               </div>
             </div>
