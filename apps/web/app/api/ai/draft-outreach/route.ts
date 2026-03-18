@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
       .single(),
     supabase
       .from("client_records")
-      .select("id, client_id, address, close_date, gci")
+      .select("id, client_id, address, close_date, gci, side")
       .eq("client_id", client_id)
       .eq("user_id", user.id)
       .not("close_date", "is", null)
@@ -259,6 +259,7 @@ export async function POST(req: NextRequest) {
         address:          latestRecord.address,
         close_date:       latestRecord.close_date,
         gci:              latestRecord.gci,
+        side:             latestRecord.side ?? null,
       };
       break;
     }
@@ -380,6 +381,7 @@ export async function POST(req: NextRequest) {
         close_date:     latestRecord.close_date,
         address:        latestRecord.address,
         milestone_date: triggerDate,
+        side:           latestRecord.side ?? null,
       };
       break;
     }
@@ -458,6 +460,7 @@ export async function POST(req: NextRequest) {
     const tone       = (client.communication_tone as Tone) ?? "friendly";
     const address    = latestRecord?.address ?? client.city ?? null;
     const province   = client.province_region ?? null;
+    const side       = (context.side as "buyer" | "seller" | "both" | null) ?? null;
 
     let prompt: string;
 
@@ -470,7 +473,7 @@ export async function POST(req: NextRequest) {
         prompt = buildAnniversaryPrompt(
           agentFirst, clientName,
           Number(context.anniversary_year ?? 1),
-          address, province, tone,
+          address, province, tone, side,
         );
         break;
 
@@ -514,7 +517,7 @@ export async function POST(req: NextRequest) {
         prompt = buildPropertyValueMilestonePrompt(
           agentFirst, clientName,
           Number(context.milestone_year ?? 1),
-          address, province, tone,
+          address, province, tone, side,
         );
         break;
 

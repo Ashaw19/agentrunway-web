@@ -31,6 +31,13 @@ export const TONE_INSTRUCTIONS: Record<Tone, string> = {
   formal: `TONE: Respectful, precise, and measured. Minimal contractions. Appropriate for a high-net-worth investor or executive. Every sentence should convey competence and discretion. No slang, no emojis, no exclamation marks.`,
 };
 
+// ── Transaction side helper ───────────────────────────────────────────────────
+
+/** Returns true only when the agent's role was purely seller-side. */
+function wasSeller(side?: "buyer" | "seller" | "both" | null): boolean {
+  return side === "seller";
+}
+
 // ── Phase A: Core opportunity types ──────────────────────────────────────────
 
 export function buildAnniversaryPrompt(
@@ -40,8 +47,35 @@ export function buildAnniversaryPrompt(
   address: string | null,
   province: string | null,
   tone: Tone = "friendly",
+  side?: "buyer" | "seller" | "both" | null,
 ): string {
   const location = [address, province].filter(Boolean).join(", ");
+
+  if (wasSeller(side)) {
+    const prop = location || "their former property";
+    return `You are ghostwriting a personal email from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}.
+
+Context:
+- Milestone: ${years}-year anniversary since ${clientName} SOLD their property
+- Property sold: ${prop}
+- CRITICAL: ${clientName} was the SELLER — they no longer own this property. Do NOT ask "how's life at the house" or imply they still live there.
+- This is about acknowledging a meaningful moment and staying in touch
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a ${years}-year sale anniversary email (3–4 short paragraphs, under 180 words total).
+- DO NOT open with "I hope this email finds you well" or any clichéd opener.
+- DO NOT start with "Subject:" — just write the email body.
+- Acknowledge the milestone naturally — ${years} year${years !== 1 ? "s" : ""} since the sale.
+- Reflect briefly on the experience together — keep it warm, not transactional.
+- Soft CTA: if they're ever thinking about their next real estate move, you're always available.
+- Sign off with just "${agentFirst}" — no formal closing.
+- Vary sentence length. Short sentences are powerful. Mix them in.
+
+On the very last line of your response, write exactly:
+SUBJECT: [your subject line — keep it short, personal, not clickbaity]`;
+  }
+
   return `You are ghostwriting a personal email from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}.
 
 Context:
@@ -129,8 +163,31 @@ export function buildPostClose3Prompt(
   clientName: string,
   address:    string | null,
   tone:       Tone = "friendly",
+  side?:      "buyer" | "seller" | "both" | null,
 ): string {
-  const prop = address ?? "their new home";
+  const prop = address ?? (wasSeller(side) ? "the property" : "their new home");
+
+  if (wasSeller(side)) {
+    return `You are ghostwriting a short, genuine email from a Canadian real estate agent named ${agentFirst} to their client ${clientName}, sent 3 days after ${clientName}'s property sale just closed.
+
+Context:
+- Property SOLD: ${prop}
+- CRITICAL: ${clientName} was the SELLER. They sold this property. Do NOT say anything about moving in, settling in, or life at the new house — there is no new house in this context.
+- This is a post-sale check-in, not a move-in note.
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a brief 2-paragraph note (under 100 words) that:
+- Acknowledges that closing day is a big deal — relief, a little bittersweet, a lot of emotions
+- Checks in simply: how are they feeling now that it's done?
+- Offers to help with whatever comes next — whether that's finding their next place, a rental, or just having a resource
+- Sign off with just "${agentFirst}"
+- Vary sentence length. Keep it warm and real.
+
+On the very last line, write exactly:
+SUBJECT: [short, personal subject — not "Congratulations!" which screams automated]`;
+  }
+
   return `You are ghostwriting a short, genuine email from a Canadian real estate agent named ${agentFirst} to their client ${clientName}, sent 3 days after the client's deal just closed.
 
 Context:
@@ -156,8 +213,30 @@ export function buildPostClose14Prompt(
   clientName: string,
   address:    string | null,
   tone:       Tone = "friendly",
+  side?:      "buyer" | "seller" | "both" | null,
 ): string {
-  const prop = address ?? "the new place";
+  const prop = address ?? (wasSeller(side) ? "the property" : "the new place");
+
+  if (wasSeller(side)) {
+    return `You are ghostwriting a casual check-in email from a Canadian real estate agent named ${agentFirst} to their client ${clientName}, two weeks after their property sale closed.
+
+Context:
+- Property SOLD: ${prop}
+- CRITICAL: ${clientName} was the SELLER. Do NOT reference settling in, moving in, or the new place — they sold this home.
+- Two weeks out from a sale — the paperwork is done, the adrenaline has faded, emotions can be mixed.
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a 2-paragraph check-in (under 100 words) that:
+- Acknowledges it's been two weeks since the sale — life has probably shifted a bit
+- Asks a genuine open question: how are they doing, how has the transition been?
+- Keeps it light — no agenda, no ask
+- Sign off with just "${agentFirst}"
+
+On the very last line, write exactly:
+SUBJECT: [casual, personal subject — a reference to the sale or simply checking in on them]`;
+  }
+
   return `You are ghostwriting a casual check-in email from a Canadian real estate agent named ${agentFirst} to their client ${clientName}, two weeks after closing.
 
 Context:
@@ -183,8 +262,33 @@ export function buildPostClose90Prompt(
   address:    string | null,
   province:   string | null,
   tone:       Tone = "friendly",
+  side?:      "buyer" | "seller" | "both" | null,
 ): string {
-  const location = [address, province].filter(Boolean).join(", ") || "the home";
+  const location = [address, province].filter(Boolean).join(", ") || (wasSeller(side) ? "the property" : "the home");
+
+  if (wasSeller(side)) {
+    return `You are ghostwriting a 3-month check-in email from a Canadian real estate agent named ${agentFirst} to their client ${clientName}.
+
+Context:
+- Property SOLD: ${location}
+- It's been 90 days since ${clientName} sold — three months since closing
+- CRITICAL: ${clientName} was the SELLER. Do NOT reference "their home" as something they still own. They sold it.
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a warm 2–3 paragraph check-in (under 150 words) that:
+- Acknowledges the 3-month mark since the sale — naturally, not formally
+- DO NOT open with clichés
+- DO NOT start with "Subject:"
+- Asks how life has been going since the sale — keep it personal and open
+- Soft CTA: if they're thinking about their next real estate move (or just want to catch up), you're here
+- Sign off with just "${agentFirst}"
+- Vary sentence length. One or two short punchy sentences work well.
+
+On the very last line, write exactly:
+SUBJECT: [personal, not sales-y — reference the timeline naturally without implying they still own the home]`;
+  }
+
   return `You are ghostwriting a 3-month check-in email from a Canadian real estate agent named ${agentFirst} to their client ${clientName}.
 
 Context:
@@ -211,12 +315,15 @@ export function buildReviewRequestPrompt(
   clientName: string,
   address:    string | null,
   tone:       Tone = "friendly",
+  side?:      "buyer" | "seller" | "both" | null,
 ): string {
-  const prop = address ?? "your recent purchase";
+  const prop = address ?? (wasSeller(side) ? "your recent sale" : "your recent purchase");
+  const transactionLabel = wasSeller(side) ? "sale" : "purchase";
   return `You are ghostwriting an honest, non-pushy review request from a Canadian real estate agent named ${agentFirst} to their recent client ${clientName}.
 
 Context:
 - Property: ${prop}
+- Transaction type: ${transactionLabel}
 - It's been about 3 weeks since closing — experience is still fresh
 
 ${TONE_INSTRUCTIONS[tone]}
@@ -239,13 +346,17 @@ export function buildReferralAskPrompt(
   clientName: string,
   address:    string | null,
   tone:       Tone = "friendly",
+  side?:      "buyer" | "seller" | "both" | null,
 ): string {
-  const prop = address ?? "your new home";
-  return `You are ghostwriting a natural referral ask from a Canadian real estate agent named ${agentFirst} to their settled-in client ${clientName}, about 6 weeks after closing.
+  const prop = address ?? (wasSeller(side) ? "since the sale" : "your new home");
+  const settledLine = wasSeller(side)
+    ? "Client sold their property 6 weeks ago — the dust has settled"
+    : "Client has had time to settle in — the chaos is over";
+  return `You are ghostwriting a natural referral ask from a Canadian real estate agent named ${agentFirst} to their client ${clientName}, about 6 weeks after closing.
 
 Context:
 - Property: ${prop}
-- Client has had time to settle in — the chaos is over
+- ${settledLine}
 
 ${TONE_INSTRUCTIONS[tone]}
 
@@ -589,12 +700,36 @@ export function buildPropertyValueMilestonePrompt(
   address:        string | null,
   province:       string | null,
   tone:           Tone = "friendly",
+  side?:          "buyer" | "seller" | "both" | null,
 ): string {
-  const location = [address, province].filter(Boolean).join(", ") || "their home";
+  const location = [address, province].filter(Boolean).join(", ") || (wasSeller(side) ? "the property" : "their home");
   const ordinal  =
     milestoneYears === 1  ? "1-year"  :
     milestoneYears === 2  ? "2-year"  :
     milestoneYears === 3  ? "3-year"  : `${milestoneYears}-year`;
+
+  if (wasSeller(side)) {
+    return `You are ghostwriting a market intelligence check-in from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}.
+
+Context:
+- It's been ${milestoneYears} year${milestoneYears !== 1 ? "s" : ""} since ${clientName} SOLD ${location}
+- CRITICAL: ${clientName} was the SELLER — they no longer own this property. Do NOT offer a home value update as if they still own it.
+- This is a neighbourood/market update framed as useful context — great for someone thinking about their next move
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a 2–3 paragraph email (under 150 words) that:
+- Opens with a natural nod to the ${ordinal} mark since the sale — NOT "Time flies!"
+- DO NOT start with "Subject:"
+- Shares that the neighbourhood has moved quite a bit since then — positions the agent as someone who tracks these things
+- Offers to share a quick market snapshot for the area — useful context whether they're thinking about buying again or just curious
+- Soft CTA: happy to share over email or a quick call — no pressure, just a touch point
+- Sign off with just "${agentFirst}"
+- Vary sentence length. This should feel like the agent genuinely thought of them.
+
+On the very last line, write exactly:
+SUBJECT: [warm subject that references the milestone or neighbourhood naturally — NOT implying they still own the property]`;
+  }
 
   return `You are ghostwriting a genuine, value-driven email from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}.
 

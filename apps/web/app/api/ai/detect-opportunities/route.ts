@@ -133,7 +133,7 @@ async function draftItem(
   switch (item.opportunity_type) {
     // ── Phase A (live) ─────────────────────────────────────────────────────
     case "closing_anniversary":
-      prompt = buildAnniversaryPrompt(agentFirst, clientName, Number(ctx.anniversary_year ?? 1), address, province, tone);
+      prompt = buildAnniversaryPrompt(agentFirst, clientName, Number(ctx.anniversary_year ?? 1), address, province, tone, (ctx.side as "buyer" | "seller" | "both" | null) ?? null);
       break;
     case "idle_client":
       prompt = buildIdlePrompt(agentFirst, clientName, (ctx.last_deal as string) ?? null, item.clients?.city ?? null, province, tone);
@@ -143,19 +143,19 @@ async function draftItem(
       break;
     // ── Batch 1: Post-Close Nurture ────────────────────────────────────────
     case "post_close_3":
-      prompt = buildPostClose3Prompt(agentFirst, clientName, address, tone);
+      prompt = buildPostClose3Prompt(agentFirst, clientName, address, tone, (ctx.side as "buyer" | "seller" | "both" | null) ?? null);
       break;
     case "post_close_14":
-      prompt = buildPostClose14Prompt(agentFirst, clientName, address, tone);
+      prompt = buildPostClose14Prompt(agentFirst, clientName, address, tone, (ctx.side as "buyer" | "seller" | "both" | null) ?? null);
       break;
     case "post_close_90":
-      prompt = buildPostClose90Prompt(agentFirst, clientName, address, province, tone);
+      prompt = buildPostClose90Prompt(agentFirst, clientName, address, province, tone, (ctx.side as "buyer" | "seller" | "both" | null) ?? null);
       break;
     case "review_request":
-      prompt = buildReviewRequestPrompt(agentFirst, clientName, address, tone);
+      prompt = buildReviewRequestPrompt(agentFirst, clientName, address, tone, (ctx.side as "buyer" | "seller" | "both" | null) ?? null);
       break;
     case "referral_ask":
-      prompt = buildReferralAskPrompt(agentFirst, clientName, address, tone);
+      prompt = buildReferralAskPrompt(agentFirst, clientName, address, tone, (ctx.side as "buyer" | "seller" | "both" | null) ?? null);
       break;
     // ── Batch 2: Relationship Milestones ───────────────────────────────────
     case "new_client_welcome":
@@ -218,6 +218,7 @@ async function draftItem(
         agentFirst, clientName,
         Number(ctx.milestone_year ?? 1),
         address, province, tone,
+        (ctx.side as "buyer" | "seller" | "both" | null) ?? null,
       );
       break;
     default:
@@ -279,7 +280,7 @@ export async function detectAndDraftForUser(
       .is("archived_at", null),
     supabase
       .from("client_records")
-      .select("id, client_id, address, close_date, gci")
+      .select("id, client_id, address, close_date, gci, side")
       .eq("user_id", userId)
       .not("close_date", "is", null)
       .not("client_id", "is", null),
@@ -313,6 +314,7 @@ export async function detectAndDraftForUser(
             address:          rec.address,
             close_date:       rec.close_date,
             gci:              rec.gci,
+            side:             rec.side,
           },
           status: "draft",
         });
@@ -390,6 +392,7 @@ export async function detectAndDraftForUser(
             close_date:       rec.close_date,
             gci:              rec.gci,
             days_after_close: cfg.days,
+            side:             rec.side,
           },
           status: "draft",
         });
