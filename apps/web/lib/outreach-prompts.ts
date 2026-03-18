@@ -38,6 +38,46 @@ function wasSeller(side?: "buyer" | "seller" | "both" | null): boolean {
   return side === "seller";
 }
 
+// ── Property use helper ───────────────────────────────────────────────────────
+
+type PropertyUse = "primary_residence" | "investment" | "commercial" | "pre_construction" | null | undefined;
+
+/**
+ * Returns property-use framing for buyer-side post-close prompts.
+ * - primary_residence (default): "their new home" / "settling in" language
+ * - investment: "the investment property" / tenant / rental framing
+ * - commercial: commercial property framing, no residential language
+ * - pre_construction: "the pre-con unit" / builder updates framing
+ */
+function buyerPropertyContext(
+  use: PropertyUse,
+  address: string | null,
+): { propLabel: string; contextNote: string } {
+  const addr = address ?? "the property";
+  switch (use) {
+    case "investment":
+      return {
+        propLabel:   addr,
+        contextNote: `CRITICAL: This was an INVESTMENT/RENTAL property purchase — not a primary residence. Do NOT use "settling in", "moving in", "your new home", or any language implying ${addr} is where they live. Frame it around the investment: tenants, rental income, property management, long-term value.`,
+      };
+    case "commercial":
+      return {
+        propLabel:   addr,
+        contextNote: `CRITICAL: This was a COMMERCIAL property purchase. Do NOT use residential language like "home", "moving in", or "settling in". Frame it appropriately for a business or commercial real estate context.`,
+      };
+    case "pre_construction":
+      return {
+        propLabel:   addr,
+        contextNote: `NOTE: This was a PRE-CONSTRUCTION purchase — the unit may not yet be built or occupied. Do NOT assume they've moved in. Frame it around the pre-con journey: builder updates, occupancy timeline, anticipation of the finished product.`,
+      };
+    default: // primary_residence or null
+      return {
+        propLabel:   address ?? "their new home",
+        contextNote: "",
+      };
+  }
+}
+
 // ── Phase A: Core opportunity types ──────────────────────────────────────────
 
 export function buildAnniversaryPrompt(
@@ -159,15 +199,15 @@ SUBJECT: [short personal birthday subject — not "Happy Birthday!" which scream
 // ── Batch 1: Post-Close Nurture ───────────────────────────────────────────────
 
 export function buildPostClose3Prompt(
-  agentFirst: string,
-  clientName: string,
-  address:    string | null,
-  tone:       Tone = "friendly",
-  side?:      "buyer" | "seller" | "both" | null,
+  agentFirst:   string,
+  clientName:   string,
+  address:      string | null,
+  tone:         Tone = "friendly",
+  side?:        "buyer" | "seller" | "both" | null,
+  propertyUse?: PropertyUse,
 ): string {
-  const prop = address ?? (wasSeller(side) ? "the property" : "their new home");
-
   if (wasSeller(side)) {
+    const prop = address ?? "the property";
     return `You are ghostwriting a short, genuine email from a Canadian real estate agent named ${agentFirst} to their client ${clientName}, sent 3 days after ${clientName}'s property sale just closed.
 
 Context:
@@ -188,18 +228,20 @@ On the very last line, write exactly:
 SUBJECT: [short, personal subject — not "Congratulations!" which screams automated]`;
   }
 
+  const { propLabel, contextNote } = buyerPropertyContext(propertyUse, address);
+
   return `You are ghostwriting a short, genuine email from a Canadian real estate agent named ${agentFirst} to their client ${clientName}, sent 3 days after the client's deal just closed.
 
 Context:
-- Property: ${prop}
+- Property: ${propLabel}
+${contextNote ? `- ${contextNote}` : ""}
 
 ${TONE_INSTRUCTIONS[tone]}
 
-Write a brief 2-paragraph move-in congratulations (under 100 words) that:
+Write a brief 2-paragraph post-close check-in (under 100 words) that:
 - Feels like a warm text from a friend, not a corporate follow-up
 - DO NOT open with "I hope this email finds you well" or similar clichés
-- DO NOT start with "Subject:"
-- Acknowledge the excitement of the first few days in a new home
+- DO NOT start with "Subject:"${!contextNote ? "\n- Acknowledge the excitement of the first few days in a new home" : ""}
 - Offer to help with anything — local recommendations, tradespeople, questions
 - Sign off with just "${agentFirst}"
 - Vary sentence length. Keep it warm and real.
@@ -209,15 +251,15 @@ SUBJECT: [short, personal subject — not "Congratulations!" which screams autom
 }
 
 export function buildPostClose14Prompt(
-  agentFirst: string,
-  clientName: string,
-  address:    string | null,
-  tone:       Tone = "friendly",
-  side?:      "buyer" | "seller" | "both" | null,
+  agentFirst:   string,
+  clientName:   string,
+  address:      string | null,
+  tone:         Tone = "friendly",
+  side?:        "buyer" | "seller" | "both" | null,
+  propertyUse?: PropertyUse,
 ): string {
-  const prop = address ?? (wasSeller(side) ? "the property" : "the new place");
-
   if (wasSeller(side)) {
+    const prop = address ?? "the property";
     return `You are ghostwriting a casual check-in email from a Canadian real estate agent named ${agentFirst} to their client ${clientName}, two weeks after their property sale closed.
 
 Context:
@@ -237,32 +279,34 @@ On the very last line, write exactly:
 SUBJECT: [casual, personal subject — a reference to the sale or simply checking in on them]`;
   }
 
+  const { propLabel, contextNote } = buyerPropertyContext(propertyUse, address ?? "the property");
+
   return `You are ghostwriting a casual check-in email from a Canadian real estate agent named ${agentFirst} to their client ${clientName}, two weeks after closing.
 
 Context:
-- Property: ${prop}
+- Property: ${propLabel}
+${contextNote ? `- ${contextNote}` : ""}
 
 ${TONE_INSTRUCTIONS[tone]}
 
 Write a 2-paragraph check-in (under 100 words) that:
 - Feels like a genuine "how's it going?" — not a scripted follow-up
 - DO NOT open with clichés like "I hope you're settling in well"
-- DO NOT start with "Subject:"
-- Reference that it's been about two weeks — the chaos of moving should be clearing up
-- Ask a simple open question: how are they finding the neighbourhood, the commute, anything
+- DO NOT start with "Subject:"${!contextNote ? "\n- Reference that it's been about two weeks — the chaos of moving should be clearing up\n- Ask a simple open question: how are they finding the neighbourhood, the commute, anything" : "\n- Reference that it's been about two weeks since the purchase closed\n- Ask a natural open question relevant to their property type"}
 - Sign off with just "${agentFirst}"
 
 On the very last line, write exactly:
-SUBJECT: [casual, personal subject — could be as simple as their street name or a reference to the move]`;
+SUBJECT: [casual, personal subject — could be as simple as their street name or a reference to the closing]`;
 }
 
 export function buildPostClose90Prompt(
-  agentFirst: string,
-  clientName: string,
-  address:    string | null,
-  province:   string | null,
-  tone:       Tone = "friendly",
-  side?:      "buyer" | "seller" | "both" | null,
+  agentFirst:   string,
+  clientName:   string,
+  address:      string | null,
+  province:     string | null,
+  tone:         Tone = "friendly",
+  side?:        "buyer" | "seller" | "both" | null,
+  propertyUse?: PropertyUse,
 ): string {
   const location = [address, province].filter(Boolean).join(", ") || (wasSeller(side) ? "the property" : "the home");
 
@@ -289,11 +333,16 @@ On the very last line, write exactly:
 SUBJECT: [personal, not sales-y — reference the timeline naturally without implying they still own the home]`;
   }
 
+  const { propLabel, contextNote } = buyerPropertyContext(propertyUse, location);
+  const isInvestment = propertyUse === "investment";
+  const isPreCon     = propertyUse === "pre_construction";
+
   return `You are ghostwriting a 3-month check-in email from a Canadian real estate agent named ${agentFirst} to their client ${clientName}.
 
 Context:
-- Property: ${location}
-- It's been 90 days since closing — three months in their new home
+- Property: ${propLabel}
+- It's been 90 days since closing${isPreCon ? " — they may still be waiting on occupancy" : isInvestment ? " — enough time to have tenants in or be actively looking" : " — three months in their new home"}
+${contextNote ? `- ${contextNote}` : ""}
 
 ${TONE_INSTRUCTIONS[tone]}
 
@@ -301,13 +350,19 @@ Write a warm 2–3 paragraph check-in (under 150 words) that:
 - Celebrates the 3-month mark naturally — not in a corporate way
 - DO NOT open with clichés like "It's hard to believe it's already been 3 months!"
 - DO NOT start with "Subject:"
-- Mentions that property values shift in the first year — offer a no-obligation current value snapshot
-- Keep the CTA soft: "happy to pull a quick update if you're curious"
+${isInvestment
+  ? `- Ask how the investment is going — tenants, rental income, any issues?
+- Soft CTA: if they're thinking about their next investment property, you're here`
+  : isPreCon
+  ? `- Ask how things are progressing with the builder — any updates on occupancy?
+- Soft CTA: happy to help them prepare for closing or find anything else they need`
+  : `- Mentions that property values shift in the first year — offer a no-obligation current value snapshot
+- Keep the CTA soft: "happy to pull a quick update if you're curious"`}
 - Sign off with just "${agentFirst}"
 - Vary sentence length. One or two short punchy sentences work well.
 
 On the very last line, write exactly:
-SUBJECT: [personal, not sales-y — reference the home or the timeline naturally]`;
+SUBJECT: [personal, not sales-y — reference the property or the timeline naturally]`;
 }
 
 export function buildReviewRequestPrompt(

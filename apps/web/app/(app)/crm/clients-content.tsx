@@ -52,6 +52,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
 import {
   Users,
   Search,
@@ -115,6 +116,7 @@ import type {
   PropertyShowing,
   CommunicationTone,
   LeadSource,
+  PropertyUse,
 } from "@/lib/types/database";
 import {
   ACTIVITY_TYPE_LABELS,
@@ -127,6 +129,7 @@ import {
   RELATIONSHIP_TYPE_LABELS,
   COMMUNICATION_TONE_LABELS,
   COMMUNICATION_TONE_DESCRIPTIONS,
+  PROPERTY_USE_LABELS,
 } from "@/lib/types/database";
 import {
   computeClientValuations,
@@ -1294,6 +1297,16 @@ export function ClientsContent({
       }
     },
     [localFlightPlans, localFlightPlanSteps, localClients, addTask],
+  );
+
+  // Update a single field on a client_record (deal row) — no local state, DB write only
+  const updateClientRecordField = useCallback(
+    async (recordId: string, field: string, value: unknown) => {
+      const supabase = createClient();
+      const { error } = await supabase.from("client_records").update({ [field]: value }).eq("id", recordId);
+      if (error) toast.error("Failed to save changes");
+    },
+    [],
   );
 
   // Archive a client (move to Hangar) — atomic single update
@@ -2541,6 +2554,33 @@ export function ClientsContent({
                   </div>
                 </div>
 
+                {/* AI Safeguards */}
+                <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2.5 space-y-2">
+                  <h4 className="text-[10px] font-semibold uppercase tracking-wider text-amber-700 flex items-center gap-1.5">
+                    <Shield className="h-3 w-3" />
+                    AI Outreach Flags
+                  </h4>
+                  <div className="space-y-2">
+                    {([
+                      { field: "deceased",            label: "Deceased",            description: "Blocks ALL AI-generated outreach permanently" },
+                      { field: "do_not_contact",      label: "Do Not Contact",      description: "Blocks ALL AI-generated outreach" },
+                      { field: "sensitive_situation", label: "Sensitive Situation", description: "Suppresses review requests and referral asks only" },
+                    ] as { field: "deceased" | "do_not_contact" | "sensitive_situation"; label: string; description: string }[]).map(({ field, label, description }) => (
+                      <div key={field} className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <span className="text-[11px] font-medium text-amber-900">{label}</span>
+                          <p className="text-[9px] text-amber-700/80 leading-tight">{description}</p>
+                        </div>
+                        <Switch
+                          checked={!!selectedClient[field]}
+                          onCheckedChange={(checked) => updateClientField(selectedClient.id, field, checked)}
+                          className="shrink-0 data-[state=checked]:bg-amber-600"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <Separator />
 
                 {/* Address */}
@@ -3037,23 +3077,44 @@ export function ClientsContent({
                       </h3>
                       <div className="space-y-1.5">
                         {clientDeals.map((deal) => (
-                          <div key={deal.id} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-muted/20">
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-medium text-foreground truncate">
-                                {deal.address || "No address"}
-                              </p>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                {deal.side && (
-                                  <span className={cn("text-[9px] font-semibold border rounded-full px-2 py-0 shrink-0", SIDE_STYLES[deal.side]?.cls)}>
-                                    {SIDE_STYLES[deal.side]?.label}
-                                  </span>
-                                )}
-                                {deal.close_date && <span className="text-[10px] text-muted-foreground">{fmtMonthYear(deal.close_date)}</span>}
+                          <div key={deal.id} className="py-1.5 px-2 rounded-lg bg-muted/20 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-medium text-foreground truncate">
+                                  {deal.address || "No address"}
+                                </p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  {deal.side && (
+                                    <span className={cn("text-[9px] font-semibold border rounded-full px-2 py-0 shrink-0", SIDE_STYLES[deal.side]?.cls)}>
+                                      {SIDE_STYLES[deal.side]?.label}
+                                    </span>
+                                  )}
+                                  {deal.close_date && <span className="text-[10px] text-muted-foreground">{fmtMonthYear(deal.close_date)}</span>}
+                                </div>
                               </div>
+                              <span className="text-sm font-bold tabular-nums text-foreground shrink-0 ml-3">
+                                {fmtCurrency(deal.gci ?? 0)}
+                              </span>
                             </div>
-                            <span className="text-sm font-bold tabular-nums text-foreground shrink-0 ml-3">
-                              {fmtCurrency(deal.gci ?? 0)}
-                            </span>
+                            {/* Property use — only relevant for buyer-side deals */}
+                            {deal.side !== "seller" && (
+                              <Select
+                                value={deal.property_use ?? ""}
+                                onValueChange={(v) => updateClientRecordField(deal.id, "property_use", v || null)}
+                              >
+                                <SelectTrigger className="h-6 text-[10px] border-dashed bg-transparent">
+                                  <SelectValue placeholder="Property use…" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="">Unknown</SelectItem>
+                                  {(Object.keys(PROPERTY_USE_LABELS) as PropertyUse[]).map((u) => (
+                                    <SelectItem key={u} value={u} className="text-xs">
+                                      {PROPERTY_USE_LABELS[u]}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            )}
                           </div>
                         ))}
                       </div>

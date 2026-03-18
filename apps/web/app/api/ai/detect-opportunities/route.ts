@@ -143,13 +143,13 @@ async function draftItem(
       break;
     // ── Batch 1: Post-Close Nurture ────────────────────────────────────────
     case "post_close_3":
-      prompt = buildPostClose3Prompt(agentFirst, clientName, address, tone, (ctx.side as "buyer" | "seller" | "both" | null) ?? null);
+      prompt = buildPostClose3Prompt(agentFirst, clientName, address, tone, (ctx.side as "buyer" | "seller" | "both" | null) ?? null, (ctx.property_use as "primary_residence" | "investment" | "commercial" | "pre_construction" | null) ?? null);
       break;
     case "post_close_14":
-      prompt = buildPostClose14Prompt(agentFirst, clientName, address, tone, (ctx.side as "buyer" | "seller" | "both" | null) ?? null);
+      prompt = buildPostClose14Prompt(agentFirst, clientName, address, tone, (ctx.side as "buyer" | "seller" | "both" | null) ?? null, (ctx.property_use as "primary_residence" | "investment" | "commercial" | "pre_construction" | null) ?? null);
       break;
     case "post_close_90":
-      prompt = buildPostClose90Prompt(agentFirst, clientName, address, province, tone, (ctx.side as "buyer" | "seller" | "both" | null) ?? null);
+      prompt = buildPostClose90Prompt(agentFirst, clientName, address, province, tone, (ctx.side as "buyer" | "seller" | "both" | null) ?? null, (ctx.property_use as "primary_residence" | "investment" | "commercial" | "pre_construction" | null) ?? null);
       break;
     case "review_request":
       prompt = buildReviewRequestPrompt(agentFirst, clientName, address, tone, (ctx.side as "buyer" | "seller" | "both" | null) ?? null);
@@ -275,12 +275,12 @@ export async function detectAndDraftForUser(
       .single(),
     supabase
       .from("clients")
-      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at")
+      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, deceased, do_not_contact, sensitive_situation")
       .eq("user_id", userId)
       .is("archived_at", null),
     supabase
       .from("client_records")
-      .select("id, client_id, address, close_date, gci, side")
+      .select("id, client_id, address, close_date, gci, side, property_use")
       .eq("user_id", userId)
       .not("close_date", "is", null)
       .not("client_id", "is", null),
@@ -293,12 +293,29 @@ export async function detectAndDraftForUser(
   const records    = recordsRes.data ?? [];
   const _clientMap = new Map(clients.map((c) => [c.id, c]));
 
+  // ── Safety gate sets ────────────────────────────────────────────────────────
+  // Hard stop: deceased or do_not_contact → skip ALL AI outreach types
+  const hardBlockIds = new Set(
+    clients
+      .filter((c) => c.deceased || c.do_not_contact)
+      .map((c) => c.id),
+  );
+  // Soft stop: sensitive_situation → skip solicitation types only
+  const sensitiveIds = new Set(
+    clients
+      .filter((c) => c.sensitive_situation)
+      .map((c) => c.id),
+  );
+  // Types suppressed for sensitive_situation clients
+  const SENSITIVE_SUPPRESSED = new Set(["review_request", "referral_ask"]);
+
   const inserts: object[] = [];
   const idleCutoff = monthsAgoDate(IDLE_MONTHS);
 
   // ── 1. Closing anniversaries ───────────────────────────────────────────────
   for (const rec of records) {
     if (!rec.close_date || !rec.client_id) continue;
+    if (hardBlockIds.has(rec.client_id)) continue; // deceased / do_not_contact
     for (const years of ANNIVERSARY_YEARS) {
       const anniv = addYears(rec.close_date, years);
       const days  = daysUntil(anniv);
@@ -315,6 +332,7 @@ export async function detectAndDraftForUser(
             close_date:       rec.close_date,
             gci:              rec.gci,
             side:             rec.side,
+            property_use:     rec.property_use,
           },
           status: "draft",
         });
@@ -333,6 +351,7 @@ export async function detectAndDraftForUser(
   }
   const triggerMonthKey = firstOfMonth();
   for (const [clientId, lastDeal] of clientLastDeal.entries()) {
+    if (hardBlockIds.has(clientId)) continue; // deceased / do_not_contact
     if (new Date(lastDeal + "T12:00:00") < idleCutoff) {
       inserts.push({
         user_id:          userId,
@@ -350,6 +369,7 @@ export async function detectAndDraftForUser(
 
   // ── 3. Birthdays ───────────────────────────────────────────────────────────
   for (const client of clients) {
+    if (hardBlockIds.has(client.id)) continue; // deceased / do_not_contact
     if (!client.birthdate) continue;
     const birthday = nextBirthdayDate(client.birthdate);
     if (isNaN(birthday.getTime())) continue;
@@ -377,7 +397,10 @@ export async function detectAndDraftForUser(
 
   for (const rec of records) {
     if (!rec.close_date || !rec.client_id) continue;
+    if (hardBlockIds.has(rec.client_id)) continue; // deceased / do_not_contact
     for (const cfg of POST_CLOSE_CONFIGS) {
+      // Sensitive clients: suppress solicitation types only
+      if (sensitiveIds.has(rec.client_id) && SENSITIVE_SUPPRESSED.has(cfg.type)) continue;
       const triggerDate = addDays(rec.close_date, cfg.days);
       const d = daysUntil(triggerDate);
       if (d >= -cfg.lookback && d <= WINDOW_DAYS) {
@@ -393,6 +416,7 @@ export async function detectAndDraftForUser(
             gci:              rec.gci,
             days_after_close: cfg.days,
             side:             rec.side,
+            property_use:     rec.property_use,
           },
           status: "draft",
         });
@@ -402,6 +426,7 @@ export async function detectAndDraftForUser(
 
   // ── 5. New client welcome (Batch 2) ───────────────────────────────────────
   for (const client of clients) {
+    if (hardBlockIds.has(client.id)) continue; // deceased / do_not_contact
     if (!client.first_contacted_at) continue;
     const welcomeDate = addDays(client.first_contacted_at.slice(0, 10), 7);
     const d = daysUntil(welcomeDate);
@@ -419,6 +444,7 @@ export async function detectAndDraftForUser(
 
   // ── 6. Contact anniversary (Batch 2) ──────────────────────────────────────
   for (const client of clients) {
+    if (hardBlockIds.has(client.id)) continue; // deceased / do_not_contact
     if (!client.first_contacted_at) continue;
     const startDate  = client.first_contacted_at.slice(0, 10);
     const yearsSince = new Date().getFullYear() - new Date(startDate + "T12:00:00").getFullYear();
@@ -450,6 +476,7 @@ export async function detectAndDraftForUser(
   }
   const MILESTONE_COUNTS = [2, 3, 5];
   for (const [clientId, dates] of clientDealDates.entries()) {
+    if (hardBlockIds.has(clientId)) continue; // deceased / do_not_contact
     const sorted = [...dates].sort();
     for (const n of MILESTONE_COUNTS) {
       if (sorted.length < n) continue;
@@ -508,6 +535,7 @@ export async function detectAndDraftForUser(
 
     for (const client of clients) {
       if (!top25Ids.has(client.id)) continue;
+      if (hardBlockIds.has(client.id)) continue; // deceased / do_not_contact
       inserts.push({
         user_id:          userId,
         client_id:        client.id,

@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
       .single(),
     supabase
       .from("client_records")
-      .select("id, client_id, address, close_date, gci, side")
+      .select("id, client_id, address, close_date, gci, side, property_use")
       .eq("client_id", client_id)
       .eq("user_id", user.id)
       .not("close_date", "is", null)
@@ -260,6 +260,7 @@ export async function POST(req: NextRequest) {
         close_date:       latestRecord.close_date,
         gci:              latestRecord.gci,
         side:             latestRecord.side ?? null,
+        property_use:     latestRecord.property_use ?? null,
       };
       break;
     }
@@ -382,6 +383,7 @@ export async function POST(req: NextRequest) {
         address:        latestRecord.address,
         milestone_date: triggerDate,
         side:           latestRecord.side ?? null,
+        property_use:   latestRecord.property_use ?? null,
       };
       break;
     }

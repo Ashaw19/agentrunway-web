@@ -441,6 +441,16 @@ export type ClientStatus = "boarding" | "taxiing" | "in_flight" | "landed" | "cr
 // ── Client Archive Reason (migration 00037) ───────────────────────────────────
 export type ArchiveReason = "deceased" | "moved_away" | "do_not_contact" | "other";
 
+// ── Property Use (migration 00043) ────────────────────────────────────────────
+export type PropertyUse = "primary_residence" | "investment" | "commercial" | "pre_construction";
+
+export const PROPERTY_USE_LABELS: Record<PropertyUse, string> = {
+  primary_residence: "Primary Residence",
+  investment:        "Investment / Rental",
+  commercial:        "Commercial",
+  pre_construction:  "Pre-Construction",
+};
+
 // ── Client Communication Tone (migration 00041) ─────────────────────────────
 export type CommunicationTone = "casual" | "friendly" | "professional" | "formal";
 
@@ -743,6 +753,11 @@ export interface Client {
   // Communication tone for AI Flight Control (migration 00041)
   communication_tone: CommunicationTone;
 
+  // AI outreach safety flags (migration 00043)
+  deceased:            boolean;  // hard stop — no AI outreach of any kind
+  do_not_contact:      boolean;  // hard stop — no AI outreach of any kind
+  sensitive_situation: boolean;  // soft stop — suppress review_request + referral_ask only
+
   created_at: string;
   updated_at: string;
 }
@@ -824,6 +839,9 @@ export interface ClientRecord {
   year: number | null;
   gci: number;
   notes: string | null;
+
+  // Property use for AI post-close context (migration 00043)
+  property_use: PropertyUse | null;
 
   created_at: string;
   updated_at: string;
