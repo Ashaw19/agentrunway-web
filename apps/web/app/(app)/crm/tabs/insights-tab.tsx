@@ -11,13 +11,16 @@ import {
   Award,
   DollarSign,
   Layers,
+  Target,
+  Users2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fmtCurrency } from "@/lib/formatters";
+import { fmtCurrency, fmtCompact } from "@/lib/formatters";
 import type {
   Client,
   ClientRecord,
   ContactActivity,
+  ListingAppointment,
 } from "@/lib/types/database";
 import { computeSourceFunnel } from "@/lib/engines/crm-analytics-engine";
 import { SummaryCard } from "../shared";
@@ -47,6 +50,7 @@ interface InsightsTabProps {
   totalGCI: number;
   sourceStats: SourceStat[];
   topSource: SourceStat | null;
+  listingAppointments: ListingAppointment[];
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -59,6 +63,7 @@ export function InsightsTab({
   totalGCI,
   sourceStats,
   topSource,
+  listingAppointments,
 }: InsightsTabProps) {
   // ── Source Funnel ─────────────────────────────────────────────────────────
   const funnel = useMemo(
@@ -91,6 +96,43 @@ export function InsightsTab({
   const repeatRate = transactionalClients.length > 0
     ? Math.round((repeatCount / transactionalClients.length) * 100)
     : 0;
+
+  // ── Listing Price Accuracy ──────────────────────────────────────────────────
+  // Only computed when at least one appointment has both estimated and actual sale price.
+  const listingAccuracy = useMemo(() => {
+    const complete = listingAppointments.filter(
+      (a) => a.estimated_list_price != null && a.actual_sale_price != null && a.actual_sale_price > 0,
+    );
+    if (!complete.length) return null;
+    const accuracies = complete.map((a) =>
+      (1 - Math.abs(a.estimated_list_price! - a.actual_sale_price!) / a.actual_sale_price!) * 100,
+    );
+    const avg = Math.round(accuracies.reduce((s, v) => s + v, 0) / accuracies.length);
+    const best  = Math.round(Math.max(...accuracies));
+    const worst = Math.round(Math.min(...accuracies));
+    return { avg, best, worst, count: complete.length, total: listingAppointments.length };
+  }, [listingAppointments]);
+
+  // ── Buyer Pipeline ──────────────────────────────────────────────────────────
+  // "Tracked buyer" = client with a pre-approval amount or a budget on file.
+  // "Converted buyer" = tracked buyer who has at least one closed deal in records.
+  const buyerPipeline = useMemo(() => {
+    const tracked = clients.filter(
+      (c) =>
+        c.buyer_pre_approval_amount != null ||
+        (c.property_interest_type === "budget" && c.property_interest != null),
+    );
+    if (!tracked.length) return null;
+    const closedIds = new Set(records.map((r) => r.client_id));
+    const converted  = tracked.filter((c) => closedIds.has(c.id)).length;
+    const preApproved = tracked.filter((c) => c.buyer_pre_approved).length;
+    const budgets = tracked
+      .map((c) => c.buyer_pre_approval_amount ?? c.property_interest ?? 0)
+      .filter((v) => v > 0);
+    const avgBudget = budgets.length ? budgets.reduce((s, v) => s + v, 0) / budgets.length : 0;
+    const conversionRate = Math.round((converted / tracked.length) * 100);
+    return { total: tracked.length, preApproved, avgBudget, converted, conversionRate };
+  }, [clients, records]);
 
   return (
     <div className="space-y-6">
@@ -398,6 +440,114 @@ export function InsightsTab({
                   ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* Listing Price Accuracy                                             */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {listingAccuracy && (
+        <Card
+          className={cn(
+            "rounded-2xl shadow-sm",
+            listingAccuracy.avg >= 95
+              ? "border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50"
+              : "border-border",
+          )}
+        >
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Target className={cn("h-4 w-4", listingAccuracy.avg >= 95 ? "text-orange-500" : "text-muted-foreground")} />
+              Listing Price Accuracy
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-3">
+            <div className="flex items-end gap-3">
+              <p className="text-4xl font-bold tabular-nums text-foreground">{listingAccuracy.avg}%</p>
+              <p className="text-sm text-muted-foreground pb-1">avg across {listingAccuracy.count} tracked listing{listingAccuracy.count !== 1 ? "s" : ""}</p>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all",
+                  listingAccuracy.avg >= 97 ? "bg-green-500" : listingAccuracy.avg >= 90 ? "bg-orange-400" : "bg-slate-300",
+                )}
+                style={{ width: `${Math.min(listingAccuracy.avg, 100)}%` }}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {listingAccuracy.avg >= 97
+                ? "Exceptional pricing accuracy — your estimates closely match final sale prices."
+                : listingAccuracy.avg >= 90
+                ? "Good accuracy. Refining your CMA process could close the gap further."
+                : "There is room to improve pricing estimates. Review market comps at appointment time."}
+            </p>
+            {listingAccuracy.count > 1 && (
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className="text-xs">
+                  <span className="text-muted-foreground">Best: </span>
+                  <span className="font-medium text-green-600">{listingAccuracy.best}%</span>
+                </div>
+                <div className="text-xs">
+                  <span className="text-muted-foreground">Worst: </span>
+                  <span className={cn("font-medium", listingAccuracy.worst >= 90 ? "text-foreground" : "text-red-500")}>{listingAccuracy.worst}%</span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* Buyer Pipeline                                                     */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {buyerPipeline && (
+        <Card
+          className={cn(
+            "rounded-2xl shadow-sm",
+            buyerPipeline.conversionRate >= 30
+              ? "border-sky-200 bg-gradient-to-br from-sky-50 to-blue-50"
+              : "border-border",
+          )}
+        >
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Users2 className={cn("h-4 w-4", buyerPipeline.conversionRate >= 30 ? "text-sky-500" : "text-muted-foreground")} />
+              Buyer Pipeline
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-3">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-3xl font-bold tabular-nums text-foreground">{buyerPipeline.conversionRate}%</p>
+                <p className="text-xs text-muted-foreground mt-0.5">conversion rate</p>
+              </div>
+              <div>
+                <p className="text-3xl font-bold tabular-nums text-foreground">{fmtCompact(buyerPipeline.avgBudget)}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">avg buyer budget</p>
+              </div>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all",
+                  buyerPipeline.conversionRate >= 40 ? "bg-sky-500" : buyerPipeline.conversionRate >= 20 ? "bg-sky-400" : "bg-slate-300",
+                )}
+                style={{ width: `${Math.min(buyerPipeline.conversionRate, 100)}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{buyerPipeline.total} buyer{buyerPipeline.total !== 1 ? "s" : ""} tracked</span>
+              <span>{buyerPipeline.converted} converted · {buyerPipeline.preApproved} pre-approved</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {buyerPipeline.conversionRate >= 40
+                ? "Strong buyer conversion — your qualification process is working well."
+                : buyerPipeline.conversionRate >= 20
+                ? "Healthy conversion. Consistent follow-up on pre-approved buyers will grow this."
+                : "Low conversion rate. Consider tightening buyer qualification at intake."}
+            </p>
           </CardContent>
         </Card>
       )}

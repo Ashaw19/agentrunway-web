@@ -618,6 +618,43 @@ export const CLIENT_STATUS_COLORS: Record<ClientStatus, { bg: string; text: stri
   cruising:  { bg: "bg-blue-50",    text: "text-blue-700",    border: "border-blue-200",    dot: "bg-blue-400"    },
 };
 
+// ── Listing Appointment Status (migration 00048) ─────────────────────────────
+export type ListingStatus = "scheduled" | "active" | "sold" | "expired" | "withdrawn" | "lost";
+
+export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
+  scheduled: "Scheduled",
+  active:    "Active Listing",
+  sold:      "Sold",
+  expired:   "Expired",
+  withdrawn: "Withdrawn",
+  lost:      "Lost Listing",
+};
+
+export interface ListingAppointment {
+  id:                   string;
+  user_id:              string;
+  client_id:            string | null;
+  appointment_date:     string;        // ISO date "YYYY-MM-DD"
+  property_address:     string | null;
+  estimated_list_price: number | null; // agent's estimate at appointment time
+  actual_list_price:    number | null; // what it listed for
+  actual_sale_price:    number | null; // what it sold for
+  status:               string;        // ListingStatus value
+  notes:                string | null;
+  created_at:           string;
+  updated_at:           string;
+}
+
+// ── Buyer Financing Type (migration 00049) ───────────────────────────────────
+export type BuyerFinancingType = "mortgage" | "cash" | "bridge" | "unknown";
+
+export const BUYER_FINANCING_LABELS: Record<BuyerFinancingType, string> = {
+  mortgage: "Mortgage",
+  cash:     "Cash",
+  bridge:   "Bridge",
+  unknown:  "TBD",
+};
+
 // ── Phone Type ───────────────────────────────────────────────────────────────
 export type PhoneType = "mobile" | "home" | "work" | "other";
 
@@ -760,6 +797,12 @@ export interface Client {
 
   // Communication tone for AI Flight Control (migration 00041)
   communication_tone: CommunicationTone;
+
+  // Buyer profile (migration 00049)
+  buyer_pre_approved:        boolean | null;
+  buyer_pre_approval_amount: number | null;
+  buyer_financing_type:      string | null;  // BuyerFinancingType value
+  buyer_target_close_date:   string | null;  // ISO date
 
   created_at: string;
   updated_at: string;

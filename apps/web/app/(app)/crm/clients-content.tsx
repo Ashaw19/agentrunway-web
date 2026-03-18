@@ -93,6 +93,8 @@ import {
   GitBranch,
   Loader2,
   Save,
+  X,
+  CalendarDays,
 } from "lucide-react";
 import { ShowingsSection } from "./showings-section";
 import { fmtCurrency } from "@/lib/formatters";
@@ -119,6 +121,13 @@ import type {
   CommunicationTone,
   LeadSource,
   PropertyUse,
+  ListingAppointment,
+  ListingStatus,
+  BuyerFinancingType,
+} from "@/lib/types/database";
+import {
+  LISTING_STATUS_LABELS,
+  BUYER_FINANCING_LABELS,
 } from "@/lib/types/database";
 import {
   ACTIVITY_TYPE_LABELS,
@@ -162,6 +171,7 @@ interface Props {
   flightPlans: FlightPlan[];
   flightPlanSteps: FlightPlanStep[];
   showings: PropertyShowing[];
+  listingAppointments: ListingAppointment[];
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -798,6 +808,7 @@ export function ClientsContent({
   flightPlans: initialFlightPlans,
   flightPlanSteps: initialFlightPlanSteps,
   showings: initialShowings,
+  listingAppointments: initialListingAppointments,
 }: Props) {
   const router = useRouter();
 
@@ -814,6 +825,17 @@ export function ClientsContent({
     useState<FlightPlanStep[]>(initialFlightPlanSteps);
   const [localShowings, setLocalShowings] =
     useState<PropertyShowing[]>(initialShowings);
+  const [localListingAppointments, setLocalListingAppointments] =
+    useState<ListingAppointment[]>(initialListingAppointments);
+
+  // Listing appointment add form
+  const [showAddApptForm, setShowAddApptForm] = useState(false);
+  const [newApptForm, setNewApptForm] = useState({
+    appointment_date:     "",
+    property_address:     "",
+    estimated_list_price: "",
+    notes:                "",
+  });
 
   const [search, setSearch] = useState("");
   const [filterSide, setFilterSide] = useState<"all" | "buyer" | "seller" | "both">("all");
@@ -1170,6 +1192,12 @@ export function ClientsContent({
     [localShowings, selectedClientId],
   );
 
+  // Listing appointments for the selected client
+  const selectedClientListingAppointments = useMemo(
+    () => selectedClientId ? localListingAppointments.filter((a) => a.client_id === selectedClientId) : [],
+    [localListingAppointments, selectedClientId],
+  );
+
   // Clients for relationship linking search
   const linkCandidates = useMemo(() => {
     if (!selectedClientId || !linkRelSearch) return [];
@@ -1327,6 +1355,48 @@ export function ClientsContent({
     },
     [localFlightPlans, localFlightPlanSteps, localClients, addTask],
   );
+
+  // ── Listing Appointment CRUD ─────────────────────────────────────────────────
+
+  const addListingAppointment = useCallback(async () => {
+    if (!selectedClient || !newApptForm.appointment_date) return;
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("listing_appointments")
+      .insert({
+        user_id:              user.id,
+        client_id:            selectedClient.id,
+        appointment_date:     newApptForm.appointment_date,
+        property_address:     newApptForm.property_address || null,
+        estimated_list_price: newApptForm.estimated_list_price ? Number(newApptForm.estimated_list_price) : null,
+        notes:                newApptForm.notes || null,
+        status:               "scheduled",
+      })
+      .select()
+      .single();
+    if (error) { toast.error("Failed to add appointment"); return; }
+    setLocalListingAppointments((prev) => [...prev, data as ListingAppointment]);
+    setShowAddApptForm(false);
+    setNewApptForm({ appointment_date: "", property_address: "", estimated_list_price: "", notes: "" });
+  }, [selectedClient, newApptForm]);
+
+  const updateApptField = useCallback(async (id: string, field: string, value: unknown) => {
+    setLocalListingAppointments((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, [field]: value } : a)),
+    );
+    const supabase = createClient();
+    const { error } = await supabase.from("listing_appointments").update({ [field]: value }).eq("id", id);
+    if (error) toast.error("Failed to update appointment");
+  }, []);
+
+  const deleteListingAppointment = useCallback(async (id: string) => {
+    setLocalListingAppointments((prev) => prev.filter((a) => a.id !== id));
+    const supabase = createClient();
+    const { error } = await supabase.from("listing_appointments").delete().eq("id", id);
+    if (error) toast.error("Failed to delete appointment");
+  }, []);
 
   // Update a single field on a client_record (deal row) — no local state, DB write only
   const updateClientRecordField = useCallback(
@@ -2284,6 +2354,7 @@ export function ClientsContent({
           totalGCI={totalGCI}
           sourceStats={sourceStats}
           topSource={topSource}
+          listingAppointments={localListingAppointments}
         />
       )}
 
@@ -2760,6 +2831,57 @@ export function ClientsContent({
                         </SelectContent>
                       </Select>
                     </div>
+                    {/* Buyer Profile — pre-approval, financing, target close */}
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block mb-1">Pre-Approved</span>
+                      <Select
+                        value={selectedClient.buyer_pre_approved ? "yes" : "no"}
+                        onValueChange={(v) => updateClientField(selectedClient.id, "buyer_pre_approved", v === "yes")}
+                      >
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="no">No</SelectItem>
+                          <SelectItem value="yes">Yes</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block mb-1">Financing</span>
+                      <Select
+                        value={selectedClient.buyer_financing_type ?? "unknown"}
+                        onValueChange={(v) => updateClientField(selectedClient.id, "buyer_financing_type", v === "unknown" ? null : v)}
+                      >
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(Object.keys(BUYER_FINANCING_LABELS) as BuyerFinancingType[]).map((k) => (
+                            <SelectItem key={k} value={k} className="text-xs">{BUYER_FINANCING_LABELS[k]}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {selectedClient.buyer_pre_approved && (
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block mb-1">Pre-Approval Amount</span>
+                        <Input
+                          type="number"
+                          placeholder="$"
+                          value={selectedClient.buyer_pre_approval_amount ?? ""}
+                          onChange={(e) => updateClientField(selectedClient.id, "buyer_pre_approval_amount", e.target.value ? Number(e.target.value) : null)}
+                          className="h-7 text-xs"
+                        />
+                      </div>
+                    )}
+                    <InlineEdit
+                      label="Target Close Date"
+                      value={selectedClient.buyer_target_close_date ?? ""}
+                      type="date"
+                      onSave={(v) => updateClientField(selectedClient.id, "buyer_target_close_date", v || null)}
+                      placeholder="Expected close…"
+                    />
                   </div>
                   {/* Tags */}
                   <div className="col-span-2">
@@ -3100,6 +3222,158 @@ export function ClientsContent({
                     setLocalShowings([...updated, ...otherShowings]);
                   }}
                 />
+
+                {/* Listing Appointments */}
+                <div className="rounded-2xl border border-orange-200/60 bg-orange-50/30 dark:bg-orange-950/10 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-orange-700 dark:text-orange-400 flex items-center gap-2">
+                      <div className="h-5 w-5 rounded-md bg-orange-100 dark:bg-orange-900 flex items-center justify-center">
+                        <CalendarDays className="h-3 w-3 text-orange-600 dark:text-orange-400" />
+                      </div>
+                      Listing Appointments
+                    </h3>
+                    <button
+                      onClick={() => setShowAddApptForm((v) => !v)}
+                      className="flex items-center gap-0.5 text-[10px] text-orange-600 hover:text-orange-700 font-medium"
+                    >
+                      <Plus className="h-3 w-3" /> Add
+                    </button>
+                  </div>
+
+                  {showAddApptForm && (
+                    <div className="space-y-2 bg-white/60 dark:bg-orange-900/20 rounded-lg p-3 border border-orange-100 dark:border-orange-800/30">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block mb-1">Date *</span>
+                          <Input
+                            type="date"
+                            className="h-7 text-xs"
+                            value={newApptForm.appointment_date}
+                            onChange={(e) => setNewApptForm((f) => ({ ...f, appointment_date: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-muted-foreground block mb-1">Est. List Price</span>
+                          <Input
+                            type="number"
+                            placeholder="$"
+                            className="h-7 text-xs"
+                            value={newApptForm.estimated_list_price}
+                            onChange={(e) => setNewApptForm((f) => ({ ...f, estimated_list_price: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block mb-1">Property Address</span>
+                        <Input
+                          className="h-7 text-xs"
+                          placeholder="123 Main St…"
+                          value={newApptForm.property_address}
+                          onChange={(e) => setNewApptForm((f) => ({ ...f, property_address: e.target.value }))}
+                        />
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          onClick={() => setShowAddApptForm(false)}
+                          className="text-[10px] text-muted-foreground hover:text-foreground px-2 py-1"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={addListingAppointment}
+                          disabled={!newApptForm.appointment_date}
+                          className="text-[10px] bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white px-3 py-1 rounded-md font-medium"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedClientListingAppointments.length === 0 && !showAddApptForm ? (
+                    <p className="text-xs text-muted-foreground text-center py-1">No listing appointments recorded.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {[...selectedClientListingAppointments]
+                        .sort((a, b) => b.appointment_date.localeCompare(a.appointment_date))
+                        .map((appt) => {
+                          const accuracy =
+                            appt.estimated_list_price != null && appt.actual_sale_price != null && appt.actual_sale_price > 0
+                              ? Math.round((1 - Math.abs(appt.estimated_list_price - appt.actual_sale_price) / appt.actual_sale_price) * 100)
+                              : null;
+                          return (
+                            <div key={appt.id} className="py-2 px-3 rounded-lg bg-white/50 dark:bg-orange-900/20 border border-orange-100/60 dark:border-orange-800/30 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-medium truncate">{appt.property_address || "No address"}</p>
+                                  <p className="text-[10px] text-muted-foreground">{fmtDate(appt.appointment_date)}</p>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <Select
+                                    value={appt.status}
+                                    onValueChange={(v) => updateApptField(appt.id, "status", v)}
+                                  >
+                                    <SelectTrigger className="h-6 text-[9px] w-28 border-dashed bg-transparent">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {(Object.keys(LISTING_STATUS_LABELS) as ListingStatus[]).map((s) => (
+                                        <SelectItem key={s} value={s} className="text-xs">{LISTING_STATUS_LABELS[s]}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <button
+                                    onClick={() => deleteListingAppointment(appt.id)}
+                                    className="h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-destructive"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              </div>
+                              {/* Price tracking */}
+                              <div className="grid grid-cols-3 gap-1.5">
+                                <div>
+                                  <span className="text-[9px] text-muted-foreground block mb-0.5">Est. List</span>
+                                  <Input
+                                    type="number"
+                                    placeholder="$"
+                                    className="h-6 text-[10px] px-2"
+                                    value={appt.estimated_list_price ?? ""}
+                                    onChange={(e) => updateApptField(appt.id, "estimated_list_price", e.target.value ? Number(e.target.value) : null)}
+                                  />
+                                </div>
+                                <div>
+                                  <span className="text-[9px] text-muted-foreground block mb-0.5">List Price</span>
+                                  <Input
+                                    type="number"
+                                    placeholder="$"
+                                    className="h-6 text-[10px] px-2"
+                                    value={appt.actual_list_price ?? ""}
+                                    onChange={(e) => updateApptField(appt.id, "actual_list_price", e.target.value ? Number(e.target.value) : null)}
+                                  />
+                                </div>
+                                <div>
+                                  <span className="text-[9px] text-muted-foreground block mb-0.5">Sold For</span>
+                                  <Input
+                                    type="number"
+                                    placeholder="$"
+                                    className="h-6 text-[10px] px-2"
+                                    value={appt.actual_sale_price ?? ""}
+                                    onChange={(e) => updateApptField(appt.id, "actual_sale_price", e.target.value ? Number(e.target.value) : null)}
+                                  />
+                                </div>
+                              </div>
+                              {accuracy !== null && (
+                                <p className={cn("text-[9px] font-medium", accuracy >= 95 ? "text-green-600" : accuracy >= 85 ? "text-amber-600" : "text-red-500")}>
+                                  Price accuracy: {accuracy}%
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
 
                 {/* Deal History */}
                 {clientDeals.length > 0 && (
