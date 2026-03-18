@@ -154,6 +154,7 @@ import { CrmDashboardTab } from "./tabs/crm-dashboard-tab";
 import { InsightsTab } from "./tabs/insights-tab";
 import { FlightPlansTab } from "./tabs/flight-plans-tab";
 import { TagPicker, getCountryLabels } from "./shared";
+import { PipelineTab } from "./tabs/pipeline-tab";
 import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
 import type { VoiceDraft } from "@/lib/voice/types";
 import { toast } from "sonner";
@@ -189,7 +190,7 @@ type ClientGroup = {
 
 type SortCol = "name" | "deals" | "gci" | "avg" | "last" | "years" | "side";
 type SortDir = "asc" | "desc";
-type TabId = "clients" | "crm" | "insights" | "portfolio" | "flight_plans";
+type TabId = "clients" | "crm" | "insights" | "portfolio" | "flight_plans" | "pipeline";
 type SourceStat = { source: string; deals: number; totalGCI: number; avgGCI: number };
 
 // CSV import state
@@ -2039,8 +2040,8 @@ export function ClientsContent({
 
       {/* ── Tabs ─────────────────────────────────────────────────────────── */}
       <div className="flex gap-1 border-b border-border/60">
-        {(["clients", "crm", "insights", "portfolio", "flight_plans"] as TabId[]).map((t) => {
-          const label = t === "clients" ? "Clients" : t === "crm" ? "CRM" : t === "insights" ? "Insights" : t === "portfolio" ? "Portfolio" : "Flight Plans";
+        {(["clients", "crm", "insights", "portfolio", "flight_plans", "pipeline"] as TabId[]).map((t) => {
+          const label = t === "clients" ? "Clients" : t === "crm" ? "CRM" : t === "insights" ? "Insights" : t === "portfolio" ? "Portfolio" : t === "flight_plans" ? "Flight Plans" : "Pipeline";
           return (
             <button
               key={t}
@@ -2465,6 +2466,18 @@ export function ClientsContent({
           onDeleteFlightPlan={handleDeleteFlightPlan}
           onToggleFlightPlan={handleToggleFlightPlan}
           onLoadDefaults={handleLoadDefaults}
+        />
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* PIPELINE TAB                                                        */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {tab === "pipeline" && (
+        <PipelineTab
+          clients={localClients}
+          records={records}
+          activities={localActivities}
+          listingAppointments={localListingAppointments}
         />
       )}
 
