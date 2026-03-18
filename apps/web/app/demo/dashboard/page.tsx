@@ -274,6 +274,7 @@ const DEMO_SETTINGS: UserSettings = {
   board_code: "",
   board_subregion: "",
   email_signature: "",
+  ai_voice_guide: null,
   created_at: "2025-01-10T09:00:00Z",
   updated_at: "2026-03-07T09:00:00Z",
 };
