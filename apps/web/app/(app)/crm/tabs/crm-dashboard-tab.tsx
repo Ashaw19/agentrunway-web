@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +42,8 @@ import {
   RefreshCw,
   Home,
   Timer,
+  Loader2,
+  Pen,
 } from "lucide-react";
 import {
   BarChart,
@@ -63,6 +65,7 @@ import type {
   ContactTask,
   ActivityType,
   TaskPriority,
+  OutreachOpportunityType,
 } from "@/lib/types/database";
 import {
   ACTIVITY_TYPE_LABELS,
@@ -77,6 +80,22 @@ import {
   type BriefingItem,
 } from "@/lib/engines/crm-analytics-engine";
 import { SummaryCard, relativeDate, fmtDate, todayIso, PRIORITY_STYLES, fmtResponseTime } from "../shared";
+import { toast } from "sonner";
+
+// ── Draft button eligibility ─────────────────────────────────────────────────
+// Maps BriefingItem types → OutreachOpportunityType for the Draft endpoint.
+// Only types where a personalised email genuinely adds value are included.
+
+const BRIEFING_TO_OUTREACH_TYPE: Partial<Record<BriefingItem["type"], OutreachOpportunityType>> = {
+  birthday_today:           "birthday",
+  birthday_soon:            "birthday",
+  closing_anniversary:      "closing_anniversary",
+  mortgage_renewal_due:     "mortgage_renewal_due",
+  mortgage_renewal_window:  "mortgage_renewal_window",
+  past_client_check_in:     "past_client_check_in",
+  timeframe_approaching:    "timeframe_approaching",
+  property_value_milestone: "property_value_milestone",
+};
 
 // ── Props ───────────────────────────────────────────────────────────────────
 
@@ -120,10 +139,14 @@ function BriefingRow({
   item,
   onView,
   onDismiss,
+  onDraft,
+  drafting,
 }: {
-  item: BriefingItem;
-  onView: () => void;
+  item:      BriefingItem;
+  onView:    () => void;
   onDismiss: () => void;
+  onDraft?:  () => void;
+  drafting?: boolean;
 }) {
   return (
     <div
@@ -138,6 +161,23 @@ function BriefingRow({
         <p className="text-[11px] text-muted-foreground truncate">{item.detail}</p>
       </div>
       <div className="flex items-center gap-1 shrink-0">
+        {onDraft && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 text-[10px] px-2 text-violet-600 hover:text-violet-700 hover:bg-violet-50/80 font-semibold gap-1"
+            onClick={onDraft}
+            disabled={drafting}
+            title="Draft an AI outreach email for this opportunity"
+          >
+            {drafting ? (
+              <Loader2 className="h-2.5 w-2.5 animate-spin" />
+            ) : (
+              <Pen className="h-2.5 w-2.5" />
+            )}
+            {drafting ? "Drafting…" : "Draft"}
+          </Button>
+        )}
         <Button
           size="sm"
           variant="ghost"
@@ -187,12 +227,54 @@ export function CrmDashboardTab({
     [clients, activities, records],
   );
   const [briefingExpanded, setBriefingExpanded] = useState(true);
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [dismissedIds,     setDismissedIds]     = useState<Set<string>>(new Set());
+  const [draftingId,       setDraftingId]       = useState<string | null>(null);
   const visibleItems = briefing.items.filter((i) => !dismissedIds.has(i.id));
 
   function dismissItem(id: string) {
     setDismissedIds((prev) => new Set([...prev, id]));
   }
+
+  const handleDraft = useCallback(async (item: BriefingItem) => {
+    const outreachType = BRIEFING_TO_OUTREACH_TYPE[item.type];
+    if (!outreachType) return;
+
+    setDraftingId(item.id);
+    try {
+      const res  = await fetch("/api/ai/draft-outreach", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ client_id: item.clientId, opportunity_type: outreachType }),
+      });
+      const data = await res.json() as { status?: string; error?: string };
+
+      if (!res.ok) {
+        toast.error(data.error ?? "Drafting failed — try again");
+        return;
+      }
+
+      if (data.status === "existing") {
+        toast.info("Already drafted", {
+          description: "This opportunity already has a draft in Flight Control.",
+          action: { label: "Open Flight Control", onClick: () => window.location.href = "/flight-control" },
+        });
+      } else if (data.status === "queued") {
+        toast.success("Queued for drafting", {
+          description: "Groq is unavailable right now — your draft will be ready soon.",
+          action: { label: "Open Flight Control", onClick: () => window.location.href = "/flight-control" },
+        });
+      } else {
+        toast.success("Draft ready", {
+          description: `AI has drafted an outreach email for ${item.title}.`,
+          action: { label: "Review in Flight Control", onClick: () => window.location.href = "/flight-control" },
+        });
+      }
+    } catch {
+      toast.error("Network error — draft could not be created");
+    } finally {
+      setDraftingId(null);
+    }
+  }, []);
 
   // ── CRM Dashboard engine ────────────────────────────────────────────────
   const dashboard = useMemo(
@@ -321,6 +403,8 @@ export function CrmDashboardTab({
                     item={item}
                     onView={() => onOpenDetailPanel(item.clientId)}
                     onDismiss={() => dismissItem(item.id)}
+                    onDraft={BRIEFING_TO_OUTREACH_TYPE[item.type] ? () => handleDraft(item) : undefined}
+                    drafting={draftingId === item.id}
                   />
                 ))}
               </div>

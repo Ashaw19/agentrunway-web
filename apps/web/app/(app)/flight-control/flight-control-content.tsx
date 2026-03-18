@@ -23,6 +23,7 @@ import {
   Home, MessageCircle, Star, Users,
   Handshake, Heart, Repeat2,
   Flower2, Leaf, PartyPopper, Receipt,
+  RefreshCw, Timer,
 } from "lucide-react";
 import type { OutreachQueueItem, OutreachOpportunityType } from "@/lib/types/database";
 
@@ -152,6 +153,42 @@ const OPTYPE_CONFIG: Record<
     bgCls:   "bg-slate-500/10",
     textCls: "text-slate-400",
   },
+  // Batch 4: Intelligent Outreach (briefing-triggered)
+  mortgage_renewal_due: {
+    label:   "Mortgage Renewal",
+    icon:    RefreshCw,
+    ringCls: "ring-red-500/40",
+    bgCls:   "bg-red-500/10",
+    textCls: "text-red-400",
+  },
+  mortgage_renewal_window: {
+    label:   "Renewal Window",
+    icon:    RefreshCw,
+    ringCls: "ring-blue-500/40",
+    bgCls:   "bg-blue-500/10",
+    textCls: "text-blue-400",
+  },
+  past_client_check_in: {
+    label:   "Past Client Check-In",
+    icon:    Clock,
+    ringCls: "ring-slate-500/40",
+    bgCls:   "bg-slate-500/10",
+    textCls: "text-slate-400",
+  },
+  timeframe_approaching: {
+    label:   "Timeframe Approaching",
+    icon:    Timer,
+    ringCls: "ring-amber-500/40",
+    bgCls:   "bg-amber-500/10",
+    textCls: "text-amber-400",
+  },
+  property_value_milestone: {
+    label:   "Property Milestone",
+    icon:    Home,
+    ringCls: "ring-emerald-500/40",
+    bgCls:   "bg-emerald-500/10",
+    textCls: "text-emerald-400",
+  },
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -222,6 +259,32 @@ function contextLabel(item: QueueItemWithClient): string {
       return `Year-end ${ctx.year ?? new Date().getFullYear()} check-in`;
     case "seasonal_tax":
       return `Tax season ${ctx.year ?? new Date().getFullYear()} tips`;
+    // Batch 4: Intelligent Outreach
+    case "mortgage_renewal_due": {
+      const days = Number(ctx.days_until_renewal ?? 0);
+      const addr = (ctx.address as string) ?? item.clients?.city ?? "";
+      const timing = days <= 0 ? "overdue" : days <= 90 ? `${days}d away` : `~${Math.round(days / 30)}mo away`;
+      return `5-yr renewal ${timing}${addr ? ` · ${addr}` : ""}`;
+    }
+    case "mortgage_renewal_window": {
+      const months = Number(ctx.months_until_renewal ?? 12);
+      const addr   = (ctx.address as string) ?? item.clients?.city ?? "";
+      return `Renewal in ~${months}mo${addr ? ` · ${addr}` : ""}`;
+    }
+    case "past_client_check_in": {
+      const months = Number(ctx.months_idle ?? 6);
+      return `${months} month${months !== 1 ? "s" : ""} since last contact`;
+    }
+    case "timeframe_approaching": {
+      const label = (ctx.timeframe_label as string) ?? "upcoming";
+      const days  = Number(ctx.days_remaining ?? 0);
+      return `${label} window · ~${days}d remaining`;
+    }
+    case "property_value_milestone": {
+      const yr   = Number(ctx.milestone_year ?? 1);
+      const addr = (ctx.address as string) ?? item.clients?.city ?? "";
+      return `${yr}-year property anniversary${addr ? ` · ${addr}` : ""}`;
+    }
     default:
       return "";
   }

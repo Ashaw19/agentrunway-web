@@ -478,7 +478,13 @@ export type OutreachOpportunityType =
   | "seasonal_spring"
   | "seasonal_fall"
   | "seasonal_yearend"
-  | "seasonal_tax";
+  | "seasonal_tax"
+  // Batch 4: Intelligent Outreach (briefing-triggered, one-click from Today's Briefing)
+  | "mortgage_renewal_due"      // 5-yr term expiring within ~6 months — contact before the bank does
+  | "mortgage_renewal_window"   // 3–4.5 yrs post-close — plant the seed for upcoming renewal
+  | "past_client_check_in"      // landed/cruising client, 180+ days no contact
+  | "timeframe_approaching"     // active buyer/seller reaching their stated deadline
+  | "property_value_milestone"; // notable round-year anniversary (1,3,5,10yr) — offer CMA
 export type OutreachStatus          = "draft" | "ready" | "sent" | "skipped";
 
 export interface OutreachQueueItem {
