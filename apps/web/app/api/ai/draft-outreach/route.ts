@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
   const { data: client, error: clientError } = await supabase
     .from("clients")
     .select(
-      "id, name, city, province_region, birthdate, communication_tone, status, timeframe, property_interest, property_interest_type",
+      "id, name, first_name, last_name, city, province_region, birthdate, communication_tone, status, timeframe, property_interest, property_interest_type, notes, tags, last_contact_at",
     )
     .eq("id", client_id)
     .eq("user_id", user.id)
@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
   const [settingsRes, recordsRes] = await Promise.all([
     supabase
       .from("user_settings")
-      .select("display_name, email_signature")
+      .select("display_name, email_signature, ai_voice_guide")
       .eq("user_id", user.id)
       .single(),
     supabase
@@ -186,8 +186,21 @@ export async function POST(req: NextRequest) {
 
   const agentFirst     = extractFirstName(settingsRes.data?.display_name ?? null);
   const emailSignature = (settingsRes.data?.email_signature as string) ?? "";
+  const agentStyleGuide = (settingsRes.data?.ai_voice_guide as string | null) ?? null;
   const records        = recordsRes.data ?? [];
   const latestRecord   = records[0] ?? null;
+
+  // Build client context block for AI self-moderation (same pattern as batch detector)
+  const clientTags  = (client.tags as string[] | null) ?? [];
+  const clientNotes = (client.notes as string | null) ?? null;
+  const clientContextBlock = (clientTags.length > 0 || clientNotes)
+    ? [
+        "IMPORTANT — client context (use to self-moderate tone and content):",
+        clientTags.length > 0 ? `- Tags: ${clientTags.join(", ")}` : null,
+        clientNotes ? `- Agent notes: "${clientNotes}"` : null,
+        "If any context signals a sensitive circumstance, adjust the email accordingly and avoid assumptions.",
+      ].filter(Boolean).join("\n")
+    : null;
 
   // ── Compute trigger_date and context per type ─────────────────────────────
 
@@ -539,15 +552,58 @@ export async function POST(req: NextRequest) {
       baseURL: "https://api.groq.com/openai/v1",
     });
 
+    // Append client context and agent voice guide to prompt when available
+    const contextSuffix = [
+      clientContextBlock,
+      agentStyleGuide
+        ? `AGENT VOICE GUIDE (follow closely — message must sound like the agent personally wrote it):\n${agentStyleGuide}`
+        : null,
+    ].filter(Boolean).join("\n\n");
+
+    const fullPrompt = contextSuffix ? `${prompt}\n\n${contextSuffix}` : prompt;
+
     const completion = await groq.chat.completions.create({
       model:       "llama-3.3-70b-versatile",
       max_tokens:  400,
       temperature: 0.85,
-      messages:    [{ role: "user", content: prompt }],
+      messages:    [{ role: "user", content: fullPrompt }],
     });
 
-    const raw = completion.choices[0]?.message?.content?.trim() ?? "";
+    let raw = completion.choices[0]?.message?.content?.trim() ?? "";
     if (!raw) throw new Error("Empty Groq response");
+
+    // ── Self-review: check for banned phrases and retry once if found ─────────
+    const BANNED_PHRASES = [
+      "i hope this email finds you well",
+      "i hope you're doing well",
+      "hope this finds you",
+      "as per my last",
+      "touching base",
+      "just following up",
+      "just checking in",
+      "per our conversation",
+      "i wanted to reach out",
+    ];
+    const rawLower = raw.toLowerCase();
+    const hasBanned = BANNED_PHRASES.some((p) => rawLower.includes(p));
+    const wordCount = raw.split(/\s+/).filter(Boolean).length;
+    const tooLong   = wordCount > 250;
+
+    if (hasBanned || tooLong) {
+      const retryNote = [
+        hasBanned ? "IMPORTANT: The previous draft contained a clichéd opener. Do NOT open with 'I hope this email finds you well' or similar phrases. Start with something genuine and specific." : null,
+        tooLong   ? `IMPORTANT: The previous draft was ${wordCount} words. Keep it under 200 words.` : null,
+      ].filter(Boolean).join(" ");
+
+      const retryCompletion = await groq.chat.completions.create({
+        model:       "llama-3.3-70b-versatile",
+        max_tokens:  400,
+        temperature: 0.85,
+        messages:    [{ role: "user", content: `${fullPrompt}\n\n${retryNote}` }],
+      });
+      const retryRaw = retryCompletion.choices[0]?.message?.content?.trim();
+      if (retryRaw) raw = retryRaw;
+    }
 
     // Parse: last line starting with "SUBJECT:" is the subject
     const lines     = raw.split("\n");

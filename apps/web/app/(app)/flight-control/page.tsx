@@ -31,7 +31,7 @@ export default async function FlightControlPage() {
       .gte("sent_at", monthStart),
     supabase
       .from("user_settings")
-      .select("email_signature")
+      .select("email_signature, ai_voice_guide")
       .eq("user_id", user.id)
       .single(),
     supabase
@@ -47,6 +47,7 @@ export default async function FlightControlPage() {
       initialQueue={(queue ?? []) as (OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; email: string | null } | null })[]}
       sentThisMonth={sentCountRes.count ?? 0}
       initialSignature={(settingsRes.data?.email_signature as string) ?? ""}
+      initialVoiceGuide={(settingsRes.data?.ai_voice_guide as string | null) ?? ""}
       initialNewsletters={(newslettersRes.data ?? []) as NewsletterQueue[]}
     />
   );

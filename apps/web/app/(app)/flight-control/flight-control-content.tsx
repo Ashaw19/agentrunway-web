@@ -625,6 +625,7 @@ interface FlightControlContentProps {
   initialQueue:        QueueItemWithClient[];
   sentThisMonth:       number;
   initialSignature:    string;
+  initialVoiceGuide:   string;
   initialNewsletters:  NewsletterQueue[];
 }
 
@@ -632,6 +633,7 @@ export function FlightControlContent({
   initialQueue,
   sentThisMonth: initialSentThisMonth,
   initialSignature,
+  initialVoiceGuide,
   initialNewsletters,
 }: FlightControlContentProps) {
   const [activeTab, setActiveTab] = useState<Tab>("outreach");
@@ -664,6 +666,34 @@ export function FlightControlContent({
         // silent — non-critical
       } finally {
         setSigSaving(false);
+      }
+    }, 800);
+  }, []);
+
+  // ── AI Voice Guide ───────────────────────────────────────────────────────────
+  const [voiceGuide,    setVoiceGuide]    = useState(initialVoiceGuide);
+  const [guideOpen,     setGuideOpen]     = useState(false);
+  const [guideSaving,   setGuideSaving]   = useState(false);
+  const guideDebounce   = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const saveVoiceGuide = useCallback((value: string) => {
+    setVoiceGuide(value);
+    if (guideDebounce.current) clearTimeout(guideDebounce.current);
+    guideDebounce.current = setTimeout(async () => {
+      setGuideSaving(true);
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase
+            .from("user_settings")
+            .update({ ai_voice_guide: value })
+            .eq("user_id", user.id);
+        }
+      } catch {
+        // silent — non-critical
+      } finally {
+        setGuideSaving(false);
       }
     }, 800);
   }, []);
@@ -830,36 +860,67 @@ export function FlightControlContent({
               </button>
             </div>
 
-            {/* Email signature (collapsible) — outreach tab only */}
+            {/* Email signature + AI Voice Guide (collapsible) — outreach tab only */}
             {activeTab === "outreach" && (
-            <div>
-              <button
-                onClick={() => setSigOpen(!sigOpen)}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Pen className="h-3 w-3" />
-                <span>Email Signature</span>
-                {signature && !sigOpen && (
-                  <span className="text-foreground/50 truncate max-w-[200px]">
-                    — {signature.split("\n")[0]}
-                  </span>
+            <div className="flex flex-col gap-2">
+              <div>
+                <button
+                  onClick={() => setSigOpen(!sigOpen)}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Pen className="h-3 w-3" />
+                  <span>Email Signature</span>
+                  {signature && !sigOpen && (
+                    <span className="text-foreground/50 truncate max-w-[200px]">
+                      — {signature.split("\n")[0]}
+                    </span>
+                  )}
+                  <ChevronDown className={cn("h-3 w-3 transition-transform", sigOpen && "rotate-180")} />
+                </button>
+                {sigOpen && (
+                  <div className="mt-2 space-y-1.5">
+                    <Textarea
+                      value={signature}
+                      onChange={(e) => saveSignature(e.target.value)}
+                      rows={3}
+                      className="text-xs font-mono resize-none"
+                      placeholder={"Best regards,\nYour Name\nBrokerage Name\n(555) 123-4567"}
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      {sigSaving ? "Saving…" : "Appended to every AI-drafted message. Saves automatically."}
+                    </p>
+                  </div>
                 )}
-                <ChevronDown className={cn("h-3 w-3 transition-transform", sigOpen && "rotate-180")} />
-              </button>
-              {sigOpen && (
-                <div className="mt-2 space-y-1.5">
-                  <Textarea
-                    value={signature}
-                    onChange={(e) => saveSignature(e.target.value)}
-                    rows={3}
-                    className="text-xs font-mono resize-none"
-                    placeholder={"Best regards,\nYour Name\nBrokerage Name\n(555) 123-4567"}
-                  />
-                  <p className="text-[10px] text-muted-foreground">
-                    {sigSaving ? "Saving…" : "Appended to every AI-drafted message. Saves automatically."}
-                  </p>
-                </div>
-              )}
+              </div>
+              <div>
+                <button
+                  onClick={() => setGuideOpen(!guideOpen)}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Pen className="h-3 w-3" />
+                  <span>AI Voice Guide</span>
+                  {voiceGuide && !guideOpen && (
+                    <span className="text-foreground/50 truncate max-w-[200px]">
+                      — {voiceGuide.slice(0, 40)}{voiceGuide.length > 40 ? "…" : ""}
+                    </span>
+                  )}
+                  <ChevronDown className={cn("h-3 w-3 transition-transform", guideOpen && "rotate-180")} />
+                </button>
+                {guideOpen && (
+                  <div className="mt-2 space-y-1.5">
+                    <Textarea
+                      value={voiceGuide}
+                      onChange={(e) => saveVoiceGuide(e.target.value)}
+                      rows={4}
+                      className="text-xs resize-none"
+                      placeholder={"Describe your writing style so AI drafts sound like you.\n\nExample: I keep messages short and casual. I always end with an open question. I avoid real estate clichés and never say \"I hope this email finds you well\". I prefer first names only."}
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      {guideSaving ? "Saving…" : "The AI uses this to match your voice on every drafted message. Saves automatically."}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
             )}
           </div>

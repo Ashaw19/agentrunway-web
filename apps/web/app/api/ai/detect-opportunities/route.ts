@@ -115,10 +115,23 @@ function extractFirstName(displayName: string | null, email: string): string {
 
 // ── Draft a single queue item via Groq ────────────────────────────────────────
 
+const BANNED_PHRASES = [
+  "i hope this email finds you well",
+  "i hope you're doing well",
+  "hope this finds you",
+  "as per my last",
+  "touching base",
+  "just following up",
+  "just checking in",
+  "per our conversation",
+  "i wanted to reach out",
+];
+
 async function draftItem(
   item:           OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; communication_tone?: string; tags?: string[]; notes?: string | null } | null },
   agentFirst:     string,
   emailSignature: string,
+  agentStyleGuide: string | null,
   groq:           OpenAI,
   supabase:       SupabaseClient,
 ): Promise<void> {
@@ -241,15 +254,46 @@ async function draftItem(
   }
 
   try {
+    // Build full prompt with client context and agent voice guide
+    const contextSuffix = [
+      clientContextBlock,
+      agentStyleGuide
+        ? `AGENT VOICE GUIDE (follow closely — message must sound like the agent personally wrote it):\n${agentStyleGuide}`
+        : null,
+    ].filter(Boolean).join("\n\n");
+    const fullPrompt = contextSuffix ? `${prompt}\n\n${contextSuffix}` : prompt;
+
     const completion = await groq.chat.completions.create({
       model:       "llama-3.3-70b-versatile",
       max_tokens:  400,
       temperature: 0.85,
-      messages:    [{ role: "user", content: clientContextBlock ? `${prompt}\n\n${clientContextBlock}` : prompt }],
+      messages:    [{ role: "user", content: fullPrompt }],
     });
 
-    const raw = completion.choices[0]?.message?.content?.trim() ?? "";
+    let raw = completion.choices[0]?.message?.content?.trim() ?? "";
     if (!raw) throw new Error("Empty response");
+
+    // Self-review: retry once if banned phrases or excessive length
+    const rawLower  = raw.toLowerCase();
+    const hasBanned = BANNED_PHRASES.some((p) => rawLower.includes(p));
+    const wordCount = raw.split(/\s+/).filter(Boolean).length;
+    const tooLong   = wordCount > 250;
+
+    if (hasBanned || tooLong) {
+      const retryNote = [
+        hasBanned ? "IMPORTANT: The previous draft contained a clichéd opener. Do NOT open with 'I hope this email finds you well' or similar phrases. Start with something genuine and specific." : null,
+        tooLong   ? `IMPORTANT: The previous draft was ${wordCount} words. Keep it under 200 words.` : null,
+      ].filter(Boolean).join(" ");
+
+      const retryCompletion = await groq.chat.completions.create({
+        model:       "llama-3.3-70b-versatile",
+        max_tokens:  400,
+        temperature: 0.85,
+        messages:    [{ role: "user", content: `${fullPrompt}\n\n${retryNote}` }],
+      });
+      const retryRaw = retryCompletion.choices[0]?.message?.content?.trim();
+      if (retryRaw) raw = retryRaw;
+    }
 
     // Parse: last line starting with "SUBJECT:" is the subject
     const lines   = raw.split("\n");
@@ -285,12 +329,12 @@ export async function detectAndDraftForUser(
   const [settingsRes, clientsRes, recordsRes] = await Promise.all([
     supabase
       .from("user_settings")
-      .select("display_name, email_signature")
+      .select("display_name, email_signature, ai_voice_guide")
       .eq("user_id", userId)
       .single(),
     supabase
       .from("clients")
-      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, tags, notes")
+      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes")
       .eq("user_id", userId)
       .is("archived_at", null),
     supabase
@@ -301,12 +345,24 @@ export async function detectAndDraftForUser(
       .not("client_id", "is", null),
   ]);
 
-  const agentFirst     = extractFirstName(settingsRes.data?.display_name ?? null, "");
-  const emailSignature = (settingsRes.data?.email_signature as string) ?? "";
+  const agentFirst      = extractFirstName(settingsRes.data?.display_name ?? null, "");
+  const emailSignature  = (settingsRes.data?.email_signature as string) ?? "";
+  const agentStyleGuide = (settingsRes.data?.ai_voice_guide as string | null) ?? null;
 
   const clients    = clientsRes.data ?? [];
   const records    = recordsRes.data ?? [];
   const _clientMap = new Map(clients.map((c) => [c.id, c]));
+
+  // Suppression: clients contacted within 14 days should not receive non-birthday outreach
+  // Birthday messages are always appropriate regardless of recent contact
+  const SUPPRESSION_DAYS = 14;
+  const suppressionCutoff = new Date();
+  suppressionCutoff.setDate(suppressionCutoff.getDate() - SUPPRESSION_DAYS);
+  const recentlyContactedIds = new Set(
+    clients
+      .filter((c) => c.last_contact_at && new Date(c.last_contact_at) > suppressionCutoff)
+      .map((c) => c.id),
+  );
 
   const inserts: object[] = [];
   const idleCutoff = monthsAgoDate(IDLE_MONTHS);
@@ -314,6 +370,7 @@ export async function detectAndDraftForUser(
   // ── 1. Closing anniversaries ───────────────────────────────────────────────
   for (const rec of records) {
     if (!rec.close_date || !rec.client_id) continue;
+    if (recentlyContactedIds.has(rec.client_id)) continue; // suppress if recently contacted
     for (const years of ANNIVERSARY_YEARS) {
       const anniv = addYears(rec.close_date, years);
       const days  = daysUntil(anniv);
@@ -349,6 +406,7 @@ export async function detectAndDraftForUser(
   }
   const triggerMonthKey = firstOfMonth();
   for (const [clientId, lastDeal] of clientLastDeal.entries()) {
+    if (recentlyContactedIds.has(clientId)) continue; // suppress if recently contacted
     if (new Date(lastDeal + "T12:00:00") < idleCutoff) {
       inserts.push({
         user_id:          userId,
@@ -393,6 +451,7 @@ export async function detectAndDraftForUser(
 
   for (const rec of records) {
     if (!rec.close_date || !rec.client_id) continue;
+    if (recentlyContactedIds.has(rec.client_id)) continue; // suppress if recently contacted
     for (const cfg of POST_CLOSE_CONFIGS) {
       // Sensitive clients: suppress solicitation types only
       const triggerDate = addDays(rec.close_date, cfg.days);
@@ -421,6 +480,7 @@ export async function detectAndDraftForUser(
   // ── 5. New client welcome (Batch 2) ───────────────────────────────────────
   for (const client of clients) {
     if (!client.first_contacted_at) continue;
+    if (recentlyContactedIds.has(client.id)) continue; // suppress if recently contacted
     const welcomeDate = addDays(client.first_contacted_at.slice(0, 10), 7);
     const d = daysUntil(welcomeDate);
     if (d >= -14 && d <= WINDOW_DAYS) {
@@ -438,6 +498,7 @@ export async function detectAndDraftForUser(
   // ── 6. Contact anniversary (Batch 2) ──────────────────────────────────────
   for (const client of clients) {
     if (!client.first_contacted_at) continue;
+    if (recentlyContactedIds.has(client.id)) continue; // suppress if recently contacted
     const startDate  = client.first_contacted_at.slice(0, 10);
     const yearsSince = new Date().getFullYear() - new Date(startDate + "T12:00:00").getFullYear();
     if (yearsSince < 1) continue;
@@ -468,6 +529,7 @@ export async function detectAndDraftForUser(
   }
   const MILESTONE_COUNTS = [2, 3, 5];
   for (const [clientId, dates] of clientDealDates.entries()) {
+    if (recentlyContactedIds.has(clientId)) continue; // suppress if recently contacted
     const sorted = [...dates].sort();
     for (const n of MILESTONE_COUNTS) {
       if (sorted.length < n) continue;
@@ -526,6 +588,7 @@ export async function detectAndDraftForUser(
 
     for (const client of clients) {
       if (!top25Ids.has(client.id)) continue;
+      if (recentlyContactedIds.has(client.id)) continue; // suppress if recently contacted
       inserts.push({
         user_id:          userId,
         client_id:        client.id,
@@ -576,6 +639,7 @@ export async function detectAndDraftForUser(
       item as OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; communication_tone?: string; tags?: string[]; notes?: string | null } | null },
       agentFirst,
       emailSignature,
+      agentStyleGuide,
       groq,
       supabase,
     );

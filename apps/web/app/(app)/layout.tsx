@@ -39,6 +39,7 @@ export default async function AppLayout({
       { data: pipeline },
       { data: expenseCategories },
       { data: memberships },
+      { count: staleClientCount },
     ] = await Promise.all([
       supabase
         .from("user_settings")
@@ -64,6 +65,13 @@ export default async function AppLayout({
         .eq("user_id", user.id)
         .in("status", ["active", "pending"])
         .order("created_at", { ascending: true }),
+      supabase
+        .from("clients")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .is("archived_at", null)
+        .in("status", ["boarding", "taxiing", "in_flight"])
+        .lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
     ]);
 
     // ── Color theme ──────────────────────────────────────────────────────────
@@ -177,6 +185,9 @@ export default async function AppLayout({
           expensesYTD > 0 ? `YTD Business Expenses: ${fmtCurrency(expensesYTD)}` : null,
           monthlyRecurring > 0
             ? `Monthly Recurring Expenses: ${fmtCurrency(monthlyRecurring)}`
+            : null,
+          staleClientCount != null && staleClientCount > 0
+            ? `Stale Active Clients (no contact 30+ days): ${staleClientCount}`
             : null,
         ]
           .filter(Boolean)

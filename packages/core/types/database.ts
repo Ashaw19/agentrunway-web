@@ -260,6 +260,9 @@ export interface UserSettings {
   // Flight Control email signature (migration 00039)
   email_signature: string;           // free-form multi-line signature block
 
+  // AI Voice Guide (migration 00046) — personal writing style for AI outreach drafts
+  ai_voice_guide: string | null;
+
   // Timestamps
   created_at: string;
   updated_at: string;
