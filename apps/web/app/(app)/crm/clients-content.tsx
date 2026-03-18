@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -787,6 +788,8 @@ export function ClientsContent({
   flightPlanSteps: initialFlightPlanSteps,
   showings: initialShowings,
 }: Props) {
+  const router = useRouter();
+
   // ── Local state ─────────────────────────────────────────────────────────────
   const [localActivities, setLocalActivities] =
     useState<ContactActivity[]>(initialActivities);
@@ -1509,18 +1512,9 @@ export function ClientsContent({
       toast.info("All default campaigns are already loaded");
       return;
     }
-    // Refresh flight plans + steps from DB
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const [{ data: plans }, { data: steps }] = await Promise.all([
-      supabase.from("flight_plans").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
-      supabase.from("flight_plan_steps").select("*").order("step_order", { ascending: true }),
-    ]);
-    if (plans) setLocalFlightPlans(plans as FlightPlan[]);
-    if (steps) setLocalFlightPlanSteps(steps as FlightPlanStep[]);
     toast.success(`${json.seeded} campaign${json.seeded !== 1 ? "s" : ""} loaded`);
-  }, []);
+    router.refresh();
+  }, [router]);
 
   const handleSaveFlightPlan = useCallback(
     async (
@@ -3102,14 +3096,14 @@ export function ClientsContent({
                             {/* Property use — only relevant for buyer-side deals */}
                             {deal.side !== "seller" && (
                               <Select
-                                value={deal.property_use ?? ""}
-                                onValueChange={(v) => updateClientRecordField(deal.id, "property_use", v || null)}
+                                value={deal.property_use ?? "_none"}
+                                onValueChange={(v) => updateClientRecordField(deal.id, "property_use", v === "_none" ? null : v)}
                               >
                                 <SelectTrigger className="h-6 text-[10px] border-dashed bg-transparent">
                                   <SelectValue placeholder="Property use…" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="">Unknown</SelectItem>
+                                  <SelectItem value="_none">Unknown</SelectItem>
                                   {(Object.keys(PROPERTY_USE_LABELS) as PropertyUse[]).map((u) => (
                                     <SelectItem key={u} value={u} className="text-xs">
                                       {PROPERTY_USE_LABELS[u]}
