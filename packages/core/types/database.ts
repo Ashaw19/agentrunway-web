@@ -753,11 +753,6 @@ export interface Client {
   // Communication tone for AI Flight Control (migration 00041)
   communication_tone: CommunicationTone;
 
-  // AI outreach safety flags (migration 00043)
-  deceased:            boolean;  // hard stop — no AI outreach of any kind
-  do_not_contact:      boolean;  // hard stop — no AI outreach of any kind
-  sensitive_situation: boolean;  // soft stop — suppress review_request + referral_ask only
-
   created_at: string;
   updated_at: string;
 }

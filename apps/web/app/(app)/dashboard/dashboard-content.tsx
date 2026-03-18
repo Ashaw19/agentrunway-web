@@ -329,7 +329,6 @@ export function DashboardContent({
   const benchmark = compare(projectedGCI, settings?.experience_years ?? null);
 
   // ── Market Momentum (CREA live data + agent history) ─────────────────
-  const currentYear    = new Date().getFullYear();
   const boardCodeSlug  = settings?.board_code ?? "";
   const marketMomentum = boardMarketData
     ? computeMarketMomentum(

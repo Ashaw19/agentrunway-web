@@ -116,7 +116,7 @@ function extractFirstName(displayName: string | null, email: string): string {
 // ── Draft a single queue item via Groq ────────────────────────────────────────
 
 async function draftItem(
-  item:           OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; communication_tone?: string } | null },
+  item:           OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; communication_tone?: string; tags?: string[]; notes?: string | null } | null },
   agentFirst:     string,
   emailSignature: string,
   groq:           OpenAI,
@@ -128,6 +128,21 @@ async function draftItem(
 
   const address  = (ctx.address as string) ?? item.clients?.city ?? null;
   const province = item.clients?.province_region ?? null;
+
+  // ── Client context for AI self-moderation ─────────────────────────────────
+  // Pass tags + notes so the model can infer sensitivities without manual flags.
+  // e.g. tag "Investor" → don't say "settling in to your new home"
+  //      notes mentioning estate / executor → avoid assumptions about property
+  const clientTags  = item.clients?.tags ?? [];
+  const clientNotes = item.clients?.notes ?? null;
+  const clientContextBlock = (clientTags.length > 0 || clientNotes)
+    ? [
+        "IMPORTANT — client context (use to self-moderate tone and content):",
+        clientTags.length > 0 ? `- Tags: ${clientTags.join(", ")}` : null,
+        clientNotes        ? `- Agent notes: "${clientNotes}"` : null,
+        "If any context signals a sensitive circumstance, adjust the email accordingly and avoid assumptions.",
+      ].filter(Boolean).join("\n")
+    : null;
 
   let prompt: string;
   switch (item.opportunity_type) {
@@ -230,7 +245,7 @@ async function draftItem(
       model:       "llama-3.3-70b-versatile",
       max_tokens:  400,
       temperature: 0.85,
-      messages:    [{ role: "user", content: prompt }],
+      messages:    [{ role: "user", content: clientContextBlock ? `${prompt}\n\n${clientContextBlock}` : prompt }],
     });
 
     const raw = completion.choices[0]?.message?.content?.trim() ?? "";
@@ -275,7 +290,7 @@ export async function detectAndDraftForUser(
       .single(),
     supabase
       .from("clients")
-      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, deceased, do_not_contact, sensitive_situation")
+      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, tags, notes")
       .eq("user_id", userId)
       .is("archived_at", null),
     supabase
@@ -293,29 +308,12 @@ export async function detectAndDraftForUser(
   const records    = recordsRes.data ?? [];
   const _clientMap = new Map(clients.map((c) => [c.id, c]));
 
-  // ── Safety gate sets ────────────────────────────────────────────────────────
-  // Hard stop: deceased or do_not_contact → skip ALL AI outreach types
-  const hardBlockIds = new Set(
-    clients
-      .filter((c) => c.deceased || c.do_not_contact)
-      .map((c) => c.id),
-  );
-  // Soft stop: sensitive_situation → skip solicitation types only
-  const sensitiveIds = new Set(
-    clients
-      .filter((c) => c.sensitive_situation)
-      .map((c) => c.id),
-  );
-  // Types suppressed for sensitive_situation clients
-  const SENSITIVE_SUPPRESSED = new Set(["review_request", "referral_ask"]);
-
   const inserts: object[] = [];
   const idleCutoff = monthsAgoDate(IDLE_MONTHS);
 
   // ── 1. Closing anniversaries ───────────────────────────────────────────────
   for (const rec of records) {
     if (!rec.close_date || !rec.client_id) continue;
-    if (hardBlockIds.has(rec.client_id)) continue; // deceased / do_not_contact
     for (const years of ANNIVERSARY_YEARS) {
       const anniv = addYears(rec.close_date, years);
       const days  = daysUntil(anniv);
@@ -351,7 +349,6 @@ export async function detectAndDraftForUser(
   }
   const triggerMonthKey = firstOfMonth();
   for (const [clientId, lastDeal] of clientLastDeal.entries()) {
-    if (hardBlockIds.has(clientId)) continue; // deceased / do_not_contact
     if (new Date(lastDeal + "T12:00:00") < idleCutoff) {
       inserts.push({
         user_id:          userId,
@@ -369,7 +366,6 @@ export async function detectAndDraftForUser(
 
   // ── 3. Birthdays ───────────────────────────────────────────────────────────
   for (const client of clients) {
-    if (hardBlockIds.has(client.id)) continue; // deceased / do_not_contact
     if (!client.birthdate) continue;
     const birthday = nextBirthdayDate(client.birthdate);
     if (isNaN(birthday.getTime())) continue;
@@ -397,10 +393,8 @@ export async function detectAndDraftForUser(
 
   for (const rec of records) {
     if (!rec.close_date || !rec.client_id) continue;
-    if (hardBlockIds.has(rec.client_id)) continue; // deceased / do_not_contact
     for (const cfg of POST_CLOSE_CONFIGS) {
       // Sensitive clients: suppress solicitation types only
-      if (sensitiveIds.has(rec.client_id) && SENSITIVE_SUPPRESSED.has(cfg.type)) continue;
       const triggerDate = addDays(rec.close_date, cfg.days);
       const d = daysUntil(triggerDate);
       if (d >= -cfg.lookback && d <= WINDOW_DAYS) {
@@ -426,7 +420,6 @@ export async function detectAndDraftForUser(
 
   // ── 5. New client welcome (Batch 2) ───────────────────────────────────────
   for (const client of clients) {
-    if (hardBlockIds.has(client.id)) continue; // deceased / do_not_contact
     if (!client.first_contacted_at) continue;
     const welcomeDate = addDays(client.first_contacted_at.slice(0, 10), 7);
     const d = daysUntil(welcomeDate);
@@ -444,7 +437,6 @@ export async function detectAndDraftForUser(
 
   // ── 6. Contact anniversary (Batch 2) ──────────────────────────────────────
   for (const client of clients) {
-    if (hardBlockIds.has(client.id)) continue; // deceased / do_not_contact
     if (!client.first_contacted_at) continue;
     const startDate  = client.first_contacted_at.slice(0, 10);
     const yearsSince = new Date().getFullYear() - new Date(startDate + "T12:00:00").getFullYear();
@@ -476,7 +468,6 @@ export async function detectAndDraftForUser(
   }
   const MILESTONE_COUNTS = [2, 3, 5];
   for (const [clientId, dates] of clientDealDates.entries()) {
-    if (hardBlockIds.has(clientId)) continue; // deceased / do_not_contact
     const sorted = [...dates].sort();
     for (const n of MILESTONE_COUNTS) {
       if (sorted.length < n) continue;
@@ -535,7 +526,6 @@ export async function detectAndDraftForUser(
 
     for (const client of clients) {
       if (!top25Ids.has(client.id)) continue;
-      if (hardBlockIds.has(client.id)) continue; // deceased / do_not_contact
       inserts.push({
         user_id:          userId,
         client_id:        client.id,
@@ -566,7 +556,7 @@ export async function detectAndDraftForUser(
 
   const { data: undrafted } = await supabase
     .from("outreach_queue")
-    .select("*, clients(name, city, province_region, communication_tone)")
+    .select("*, clients(name, city, province_region, communication_tone, tags, notes)")
     .eq("user_id", userId)
     .eq("status", "draft")
     .is("ai_subject", null)
@@ -583,7 +573,7 @@ export async function detectAndDraftForUser(
   let drafted = 0;
   for (const item of undrafted) {
     await draftItem(
-      item as OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; communication_tone?: string } | null },
+      item as OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; communication_tone?: string; tags?: string[]; notes?: string | null } | null },
       agentFirst,
       emailSignature,
       groq,

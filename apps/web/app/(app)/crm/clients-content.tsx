@@ -52,7 +52,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Switch } from "@/components/ui/switch";
 import {
   Users,
   Search,
@@ -2551,33 +2550,6 @@ export function ClientsContent({
                         ))}
                       </div>
                     </div>
-                  </div>
-                </div>
-
-                {/* AI Safeguards */}
-                <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2.5 space-y-2">
-                  <h4 className="text-[10px] font-semibold uppercase tracking-wider text-amber-700 flex items-center gap-1.5">
-                    <Shield className="h-3 w-3" />
-                    AI Outreach Flags
-                  </h4>
-                  <div className="space-y-2">
-                    {([
-                      { field: "deceased",            label: "Deceased",            description: "Blocks ALL AI-generated outreach permanently" },
-                      { field: "do_not_contact",      label: "Do Not Contact",      description: "Blocks ALL AI-generated outreach" },
-                      { field: "sensitive_situation", label: "Sensitive Situation", description: "Suppresses review requests and referral asks only" },
-                    ] as { field: "deceased" | "do_not_contact" | "sensitive_situation"; label: string; description: string }[]).map(({ field, label, description }) => (
-                      <div key={field} className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <span className="text-[11px] font-medium text-amber-900">{label}</span>
-                          <p className="text-[9px] text-amber-700/80 leading-tight">{description}</p>
-                        </div>
-                        <Switch
-                          checked={!!selectedClient[field]}
-                          onCheckedChange={(checked) => updateClientField(selectedClient.id, field, checked)}
-                          className="shrink-0 data-[state=checked]:bg-amber-600"
-                        />
-                      </div>
-                    ))}
                   </div>
                 </div>
 
