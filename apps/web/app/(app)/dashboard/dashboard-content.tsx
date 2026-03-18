@@ -329,8 +329,9 @@ export function DashboardContent({
   const benchmark = compare(projectedGCI, settings?.experience_years ?? null);
 
   // ── Local Market Position (CREA live data) ────────────────────────────
-  // ytdDealCount already computed above (transactions are pre-filtered to closed)
-  const agentAvgDeal = ytdDealCount > 0 ? ytdGCI / ytdDealCount : 0;
+  // Compare agent's average SALE PRICE (not GCI) against the board average home price
+  const ytdTotalSalePrice = transactions.reduce((sum, tx) => sum + tx.sale_price, 0);
+  const agentAvgDeal = ytdDealCount > 0 ? ytdTotalSalePrice / ytdDealCount : 0;
   const marketPosition = boardMarketData && agentAvgDeal > 0
     ? computeAgentMarketPosition(agentAvgDeal, boardMarketData, boardSubregion || undefined)
     : null;
