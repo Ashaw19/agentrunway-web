@@ -31,6 +31,8 @@ import {
   Mail,
   MessageSquare,
   Zap,
+  Sparkles,
+  Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -46,11 +48,12 @@ interface FlightPlansTabProps {
   flightPlans: FlightPlan[];
   flightPlanSteps: FlightPlanStep[];
   onSaveFlightPlan: (
-    plan: { id?: string; name: string; description: string; trigger_status: ClientStatus | null; is_active: boolean },
+    plan: { id?: string; name: string; description: string; trigger_status: ClientStatus | null; trigger_tag: string | null; is_active: boolean },
     steps: { step_order: number; delay_days: number; action_type: "task" | "email" | "text"; template: string }[],
   ) => Promise<void>;
   onDeleteFlightPlan: (planId: string) => Promise<void>;
   onToggleFlightPlan: (planId: string, isActive: boolean) => Promise<void>;
+  onLoadDefaults: () => Promise<void>;
 }
 
 // ── Step Builder Row Type ───────────────────────────────────────────────────
@@ -70,15 +73,18 @@ export function FlightPlansTab({
   onSaveFlightPlan,
   onDeleteFlightPlan,
   onToggleFlightPlan,
+  onLoadDefaults,
 }: FlightPlansTabProps) {
   const [builderOpen, setBuilderOpen] = useState(false);
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loadingDefaults, setLoadingDefaults] = useState(false);
 
   // Builder form state
   const [planName, setPlanName] = useState("");
   const [planDescription, setPlanDescription] = useState("");
   const [triggerStatus, setTriggerStatus] = useState<ClientStatus | "none">("boarding");
+  const [triggerTag, setTriggerTag] = useState("");
   const [steps, setSteps] = useState<StepRow[]>([
     { key: crypto.randomUUID(), delay_days: 0, action_type: "task", template: "" },
   ]);
@@ -101,6 +107,7 @@ export function FlightPlansTab({
     setPlanName("");
     setPlanDescription("");
     setTriggerStatus("boarding");
+    setTriggerTag("");
     setSteps([{ key: crypto.randomUUID(), delay_days: 0, action_type: "task", template: "" }]);
     setBuilderOpen(true);
   }
@@ -110,6 +117,7 @@ export function FlightPlansTab({
     setPlanName(plan.name);
     setPlanDescription(plan.description || "");
     setTriggerStatus(plan.trigger_status ?? "none");
+    setTriggerTag(plan.trigger_tag ?? "");
     const existingSteps = stepsForPlan.get(plan.id) ?? [];
     if (existingSteps.length > 0) {
       setSteps(
@@ -144,6 +152,12 @@ export function FlightPlansTab({
     );
   }
 
+  async function handleLoadDefaultsClick() {
+    setLoadingDefaults(true);
+    await onLoadDefaults();
+    setLoadingDefaults(false);
+  }
+
   async function handleSave() {
     if (!planName.trim() || steps.length === 0) return;
     setSaving(true);
@@ -153,6 +167,7 @@ export function FlightPlansTab({
         name: planName.trim(),
         description: planDescription.trim(),
         trigger_status: triggerStatus === "none" ? null : triggerStatus,
+        trigger_tag: triggerTag.trim() || null,
         is_active: true,
       },
       steps.map((s, i) => ({
@@ -181,29 +196,47 @@ export function FlightPlansTab({
             Automated task sequences triggered by Flight Status changes.
           </p>
         </div>
-        <Button size="sm" onClick={openCreateBuilder} className="gap-1.5">
-          <Plus className="h-3.5 w-3.5" />
-          Create Flight Plan
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleLoadDefaultsClick}
+            disabled={loadingDefaults}
+            className="gap-1.5"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+            {loadingDefaults ? "Loading…" : "Load 20 Campaigns"}
+          </Button>
+          <Button size="sm" onClick={openCreateBuilder} className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" />
+            Create Flight Plan
+          </Button>
+        </div>
       </div>
 
       {/* Empty state */}
       {flightPlans.length === 0 && (
         <Card className="rounded-2xl border-dashed border-2 border-sky-200 bg-sky-50/30">
           <CardContent className="py-12 text-center space-y-3">
-            <Plane className="h-12 w-12 text-sky-300 mx-auto" />
+            <Sparkles className="h-12 w-12 text-amber-300 mx-auto" />
             <h3 className="text-base font-semibold text-foreground">
-              No Flight Plans Yet
+              Start with 20 Pre-Built Campaigns
             </h3>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Flight Plans are automated task sequences that fire when a client&apos;s
-              Flight Status changes. Set up a plan for &ldquo;Boarding&rdquo; to
-              automatically create follow-up tasks when a new lead arrives.
+              Load industry-proven drip campaigns — New Buyer Speed Blitz, Seller
+              Valuation Nurture, Post-Closing Follow-Up, Past Client SOI, and 16 more.
+              Every campaign is editable, pausable, and deletable.
             </p>
-            <Button size="sm" onClick={openCreateBuilder} className="gap-1.5 mt-2">
-              <Plus className="h-3.5 w-3.5" />
-              Create Your First Flight Plan
-            </Button>
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <Button size="sm" onClick={handleLoadDefaultsClick} disabled={loadingDefaults} className="gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" />
+                {loadingDefaults ? "Loading…" : "Load 20 Pre-Built Campaigns"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={openCreateBuilder} className="gap-1.5">
+                <Plus className="h-3.5 w-3.5" />
+                Build From Scratch
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -224,9 +257,21 @@ export function FlightPlansTab({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-foreground">{plan.name}</span>
+                      {plan.is_system && (
+                        <Badge variant="outline" className="text-[10px] py-0 bg-amber-50 text-amber-700 border-amber-200 gap-0.5">
+                          <Sparkles className="h-2.5 w-2.5" />
+                          Default
+                        </Badge>
+                      )}
                       {plan.trigger_status && (
                         <Badge variant="outline" className="text-[10px] py-0 bg-sky-50 text-sky-700 border-sky-200">
                           Fires → {CLIENT_STATUS_LABELS[plan.trigger_status]}
+                        </Badge>
+                      )}
+                      {plan.trigger_tag && (
+                        <Badge variant="outline" className="text-[10px] py-0 bg-violet-50 text-violet-700 border-violet-200 gap-0.5">
+                          <Tag className="h-2.5 w-2.5" />
+                          {plan.trigger_tag}
                         </Badge>
                       )}
                       {!plan.is_active && (
@@ -350,6 +395,22 @@ export function FlightPlansTab({
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Trigger Tag (optional) */}
+            {triggerStatus !== "none" && (
+              <div className="space-y-1">
+                <Label className="text-xs">Also require client tag (optional)</Label>
+                <Input
+                  placeholder="e.g. Buyer, Seller, Investor, First-Time Buyer"
+                  value={triggerTag}
+                  onChange={(e) => setTriggerTag(e.target.value)}
+                  className="h-8 text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  If set, this plan only fires when the client has this tag AND the status changes.
+                </p>
+              </div>
+            )}
 
             {/* Steps */}
             <div className="space-y-2">

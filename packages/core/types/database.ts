@@ -774,7 +774,10 @@ export interface FlightPlan {
   name: string;
   description: string | null;
   trigger_status: ClientStatus | null;
+  trigger_tag:    string | null;   // only fire if client has this tag (migration 00044)
   is_active: boolean;
+  is_system:  boolean;             // true = pre-loaded default (migration 00044)
+  system_key: string | null;       // stable key for idempotent seeding (migration 00044)
   created_at: string;
   updated_at: string;
 }

@@ -1266,20 +1266,24 @@ export function ClientsContent({
 
       // Flight Plan execution: fire matching plans on status change
       if (field === "status" && typeof value === "string") {
-        const matchingPlans = localFlightPlans.filter(
-          (fp) => fp.is_active && fp.trigger_status === value,
-        );
+        const client = localClients.find((c) => c.id === clientId);
+        const clientTags: string[] = client?.tags ?? [];
+        const matchingPlans = localFlightPlans.filter((fp) => {
+          if (!fp.is_active || fp.trigger_status !== value) return false;
+          if (fp.trigger_tag && !clientTags.includes(fp.trigger_tag)) return false;
+          return true;
+        });
         for (const plan of matchingPlans) {
           const planSteps = localFlightPlanSteps.filter(
             (s) => s.flight_plan_id === plan.id,
           );
           for (const step of planSteps) {
             if (step.action_type === "task" && step.template) {
-              const client = localClients.find((c) => c.id === clientId);
-              const taskTitle = step.template.replace(
-                /\{name\}/g,
-                client?.name ?? "Client",
-              );
+              const clientName = client?.name ?? "Client";
+              const taskTitle = step.template
+                .replace(/\{name\}/gi, clientName)
+                .replace(/\[name\]/gi, clientName)
+                .replace(/\[Name\]/g, clientName);
               const dueDate = new Date();
               dueDate.setDate(dueDate.getDate() + step.delay_days);
               const dueDateStr = dueDate.toISOString().slice(0, 10);
@@ -1494,9 +1498,33 @@ export function ClientsContent({
 
   // ── Flight Plan CRUD ─────────────────────────────────────────────────────────
 
+  const handleLoadDefaults = useCallback(async () => {
+    const res = await fetch("/api/flight-plans/seed-defaults", { method: "POST" });
+    const json = await res.json();
+    if (!res.ok) {
+      toast.error("Failed to load default campaigns");
+      return;
+    }
+    if (json.seeded === 0) {
+      toast.info("All default campaigns are already loaded");
+      return;
+    }
+    // Refresh flight plans + steps from DB
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const [{ data: plans }, { data: steps }] = await Promise.all([
+      supabase.from("flight_plans").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("flight_plan_steps").select("*").order("step_order", { ascending: true }),
+    ]);
+    if (plans) setLocalFlightPlans(plans as FlightPlan[]);
+    if (steps) setLocalFlightPlanSteps(steps as FlightPlanStep[]);
+    toast.success(`${json.seeded} campaign${json.seeded !== 1 ? "s" : ""} loaded`);
+  }, []);
+
   const handleSaveFlightPlan = useCallback(
     async (
-      plan: { id?: string; name: string; description: string; trigger_status: ClientStatus | null; is_active: boolean },
+      plan: { id?: string; name: string; description: string; trigger_status: ClientStatus | null; trigger_tag: string | null; is_active: boolean },
       steps: { step_order: number; delay_days: number; action_type: "task" | "email" | "text"; template: string }[],
     ) => {
       const supabase = createClient();
@@ -1513,6 +1541,7 @@ export function ClientsContent({
             name: plan.name,
             description: plan.description || null,
             trigger_status: plan.trigger_status,
+            trigger_tag: plan.trigger_tag,
             is_active: plan.is_active,
           })
           .eq("id", planId)
@@ -1534,6 +1563,7 @@ export function ClientsContent({
             name: plan.name,
             description: plan.description || null,
             trigger_status: plan.trigger_status,
+            trigger_tag: plan.trigger_tag,
             is_active: plan.is_active,
           })
           .select()
@@ -2329,6 +2359,7 @@ export function ClientsContent({
           onSaveFlightPlan={handleSaveFlightPlan}
           onDeleteFlightPlan={handleDeleteFlightPlan}
           onToggleFlightPlan={handleToggleFlightPlan}
+          onLoadDefaults={handleLoadDefaults}
         />
       )}
 
