@@ -96,7 +96,14 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
     if (!user) { setSavingBoard(false); return; }
     const { error } = await supabase.from("user_settings").update({ board_code: boardCode, board_subregion: boardSubregion }).eq("user_id", user.id);
     setSavingBoard(false);
-    if (error) { toast.error("Failed to save board — please try again."); return; }
+    if (error) {
+      console.error("[saveBoard] Supabase error:", error.code, error.message);
+      const hint = error.code === "42703"
+        ? "Database migration missing — run migration 00031 in the Supabase SQL Editor."
+        : error.message;
+      toast.error("Failed to save board", { description: hint });
+      return;
+    }
     boardSaved.flash();
     router.refresh();
   }
