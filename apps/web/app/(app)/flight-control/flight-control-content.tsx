@@ -25,7 +25,8 @@ import {
   Flower2, Leaf, PartyPopper, Receipt,
   RefreshCw, Timer,
 } from "lucide-react";
-import type { OutreachQueueItem, OutreachOpportunityType } from "@/lib/types/database";
+import type { OutreachQueueItem, OutreachOpportunityType, NewsletterQueue } from "@/lib/types/database";
+import { NewsletterSection } from "./newsletter-section";
 
 // ── Extended type with joined client fields ────────────────────────────────────
 
@@ -618,17 +619,22 @@ function ReviewDrawer({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+type Tab = "outreach" | "newsletters";
+
 interface FlightControlContentProps {
-  initialQueue:     QueueItemWithClient[];
-  sentThisMonth:    number;
-  initialSignature: string;
+  initialQueue:        QueueItemWithClient[];
+  sentThisMonth:       number;
+  initialSignature:    string;
+  initialNewsletters:  NewsletterQueue[];
 }
 
 export function FlightControlContent({
   initialQueue,
   sentThisMonth: initialSentThisMonth,
   initialSignature,
+  initialNewsletters,
 }: FlightControlContentProps) {
+  const [activeTab, setActiveTab] = useState<Tab>("outreach");
   const [queue,         setQueue]         = useState<QueueItemWithClient[]>(initialQueue);
   const [reviewItem,    setReviewItem]    = useState<QueueItemWithClient | null>(null);
   const [scanning,      setScanning]      = useState(false);
@@ -784,14 +790,48 @@ export function FlightControlContent({
                   All caught up
                 </span>
               )}
-              {/* Phase B placeholder */}
-              <span className="ml-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/30 ring-1 ring-border/50 text-[11px] text-muted-foreground/50 cursor-not-allowed" title="Coming soon — Gmail & Outlook integration">
-                <Mail className="h-3 w-3" />
-                Connect Email
-              </span>
             </div>
 
-            {/* Email signature (collapsible) */}
+            {/* Tab switcher */}
+            <div className="flex items-center gap-1 p-1 rounded-lg bg-muted/40 ring-1 ring-border/40 self-start">
+              <button
+                onClick={() => setActiveTab("outreach")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all",
+                  activeTab === "outreach"
+                    ? "bg-background shadow-sm text-foreground ring-1 ring-border/50"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Radar className="h-3 w-3" />
+                Outreach
+                {(readyCount + draftCount) > 0 && (
+                  <span className={cn(
+                    "ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold",
+                    activeTab === "outreach"
+                      ? "bg-violet-500/20 text-violet-600 dark:text-violet-400"
+                      : "bg-muted text-muted-foreground",
+                  )}>
+                    {readyCount + draftCount}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab("newsletters")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all",
+                  activeTab === "newsletters"
+                    ? "bg-background shadow-sm text-foreground ring-1 ring-border/50"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Mail className="h-3 w-3" />
+                Newsletters
+              </button>
+            </div>
+
+            {/* Email signature (collapsible) — outreach tab only */}
+            {activeTab === "outreach" && (
             <div>
               <button
                 onClick={() => setSigOpen(!sigOpen)}
@@ -821,14 +861,20 @@ export function FlightControlContent({
                 </div>
               )}
             </div>
+            )}
           </div>
           {/* Bottom divider with gradient fade */}
           <div className="h-px bg-gradient-to-r from-transparent via-border/60 to-transparent" />
         </div>
 
-        {/* ── Queue list ─────────────────────────────────────────────────── */}
+        {/* ── Tab content ────────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          {queue.length === 0 ? (
+          {activeTab === "newsletters" ? (
+            <NewsletterSection
+              initialNewsletters={initialNewsletters}
+              signature={signature}
+            />
+          ) : queue.length === 0 ? (
             <EmptyState onScan={handleScan} scanning={scanning} />
           ) : (
             <div className="space-y-3 max-w-2xl">

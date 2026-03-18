@@ -1,7 +1,7 @@
 import { createClient }   from "@/lib/supabase/server";
 import { redirect }        from "next/navigation";
 import { FlightControlContent } from "./flight-control-content";
-import type { OutreachQueueItem } from "@/lib/types/database";
+import type { OutreachQueueItem, NewsletterQueue } from "@/lib/types/database";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,8 @@ export default async function FlightControlPage() {
   // Count messages sent this month for the stats strip
   const now        = new Date();
   const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-  const [sentCountRes, settingsRes] = await Promise.all([
+
+  const [sentCountRes, settingsRes, newslettersRes] = await Promise.all([
     supabase
       .from("outreach_queue")
       .select("id", { count: "exact", head: true })
@@ -33,6 +34,12 @@ export default async function FlightControlPage() {
       .select("email_signature")
       .eq("user_id", user.id)
       .single(),
+    supabase
+      .from("newsletter_queue")
+      .select("*")
+      .eq("user_id", user.id)
+      .in("status", ["draft", "ready"])
+      .order("created_at", { ascending: false }),
   ]);
 
   return (
@@ -40,6 +47,7 @@ export default async function FlightControlPage() {
       initialQueue={(queue ?? []) as (OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; email: string | null } | null })[]}
       sentThisMonth={sentCountRes.count ?? 0}
       initialSignature={(settingsRes.data?.email_signature as string) ?? ""}
+      initialNewsletters={(newslettersRes.data ?? []) as NewsletterQueue[]}
     />
   );
 }

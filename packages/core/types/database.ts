@@ -1060,5 +1060,34 @@ export function computeAgentGross(
   return { agentGross, brokerageTake: totalGCI * brokeragePct };
 }
 
+// ── Newsletter Queue (migration 00042) ────────────────────────────────────────
+
+/** Which AI template produced the newsletter */
+export type NewsletterTemplateType = "boc_rate_change" | "market_update" | "custom";
+
+export type NewsletterStatus = "draft" | "ready" | "sent";
+
+export interface NewsletterQueue {
+  id:             string;
+  user_id:        string;
+
+  template_type:  NewsletterTemplateType;
+  context:        Record<string, unknown>;   // template-specific data (rates, stats, topic…)
+
+  status:         NewsletterStatus;
+
+  ai_subject:     string | null;
+  ai_body:        string | null;
+  final_subject:  string | null;
+  final_body:     string | null;
+
+  /** empty array = all active clients; otherwise filter by tag value */
+  recipient_tags: string[];
+
+  sent_at:        string | null;
+  created_at:     string;
+  updated_at:     string;
+}
+
 // ── Organization types (re-export from dedicated module) ────────────────────
 export * from "./organizations";
