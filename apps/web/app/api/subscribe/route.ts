@@ -4,9 +4,11 @@ import { createClient } from "@supabase/supabase-js";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(request: Request) {
-  const { email, source = "website" } = (await request.json()) as {
+  const { email, source = "website", name, brokerage } = (await request.json()) as {
     email: string;
     source?: string;
+    name?: string;
+    brokerage?: string;
   };
 
   if (!email || !EMAIL_RE.test(email)) {
@@ -24,7 +26,15 @@ export async function POST(request: Request) {
 
   const { error } = await supabase
     .from("email_signups")
-    .upsert({ email: email.toLowerCase().trim(), source }, { onConflict: "email" });
+    .upsert(
+      {
+        email: email.toLowerCase().trim(),
+        source,
+        ...(name?.trim() ? { name: name.trim() } : {}),
+        ...(brokerage?.trim() ? { brokerage: brokerage.trim() } : {}),
+      },
+      { onConflict: "email" }
+    );
 
   if (error) {
     console.error("[subscribe] upsert error:", error.message);
