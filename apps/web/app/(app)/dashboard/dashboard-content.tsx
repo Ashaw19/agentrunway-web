@@ -80,6 +80,7 @@ import {
 import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import { computeMarketMomentum, type LocalMarketData } from "@/lib/crea-board";
+import type { BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { survivalResult, type SurvivalResult } from "@/lib/engines/survival-engine";
 import { compute as computeRunwayScore, type BusinessHealthReport, type RunwayScoreResult } from "@/lib/engines/runway-score-engine";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
@@ -133,6 +134,8 @@ interface Props {
   hasSeenTour?: boolean;
   boardMarketData?: LocalMarketData | null;
   boardSubregion?: string;
+  briefingItems?: BriefingItem[];
+  runwayScoreSnapshot?: { score: number; month: string } | null;
 }
 
 function getTimeGreeting(): { greeting: string; emoji: string } {
@@ -182,6 +185,13 @@ const PIPELINE_STAGE_CONFIG: Array<{
   { key: "firm",       label: "Firm",        dotClass: "bg-emerald-500", chipClass: "border-emerald-200 bg-emerald-50 text-emerald-700" },
 ];
 
+function scoreBand(score: number): { label: string; colorClass: string } {
+  if (score >= 81) return { label: "Strong",   colorClass: "text-emerald-700 bg-emerald-50 border-emerald-200" };
+  if (score >= 61) return { label: "On Track",  colorClass: "text-blue-700 bg-blue-50 border-blue-200" };
+  if (score >= 41) return { label: "Building",  colorClass: "text-amber-700 bg-amber-50 border-amber-200" };
+  return                   { label: "At Risk",  colorClass: "text-red-700 bg-red-50 border-red-200" };
+}
+
 const INSIGHT_ICONS: Record<string, React.ElementType> = {
   "gauge": Gauge,
   "check-circle": CheckCircle,
@@ -220,6 +230,8 @@ export function DashboardContent({
   hasSeenTour = true,
   boardMarketData = null,
   boardSubregion = "",
+  briefingItems = [],
+  runwayScoreSnapshot = null,
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const [tourComplete, setTourComplete] = useState(hasSeenTour);
@@ -365,6 +377,28 @@ export function DashboardContent({
     ytdGCI, goalGCI, fraction, pipelineWeightedGCI, expensesYTD, projectedGCI, settings,
   );
   const runwayScore = computeRunwayScore(healthReport, benchmark.percentile, survival.months);
+
+  // ── Runway Score trend (month-over-month) ─────────────────────────────
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const scoreDelta =
+    runwayScoreSnapshot != null && runwayScoreSnapshot.month !== currentMonthKey
+      ? runwayScore.score - runwayScoreSnapshot.score
+      : null;
+
+  // Persist current score once per month (fire-and-forget)
+  useEffect(() => {
+    if (runwayScoreSnapshot?.month === currentMonthKey) return;
+    const supabase = createClient();
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await supabase
+        .from("user_settings")
+        .update({ runway_score_snapshot: { score: runwayScore.score, month: currentMonthKey } })
+        .eq("user_id", user.id);
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runwayScore.score]);
 
   // ── Tax estimate ──────────────────────────────────────────────────────
   // Project full-year expenses: actual YTD + remaining months of recurring.
@@ -804,6 +838,24 @@ export function DashboardContent({
                   {runwayScore.score}
                   <span className="text-base font-medium text-slate-400">/100</span>
                 </p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  {/* Named band */}
+                  <span className={cn(
+                    "text-[10px] font-semibold border rounded-full px-2 py-0 leading-5",
+                    scoreBand(runwayScore.score).colorClass,
+                  )}>
+                    {scoreBand(runwayScore.score).label}
+                  </span>
+                  {/* Month-over-month trend */}
+                  {scoreDelta !== null && (
+                    <span className={cn(
+                      "text-[10px] font-semibold tabular-nums",
+                      scoreDelta > 0 ? "text-emerald-600" : scoreDelta < 0 ? "text-red-500" : "text-slate-400",
+                    )}>
+                      {scoreDelta > 0 ? `+${scoreDelta}` : scoreDelta} vs last month
+                    </span>
+                  )}
+                </div>
                 <p className="mt-1 text-xs text-slate-500">{scoreNarrative}</p>
               </div>
             </div>
@@ -936,6 +988,35 @@ export function DashboardContent({
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── CRM Intelligence Briefing widget ── */}
+      {briefingItems.length > 0 && (
+        <div className="rounded-xl border border-sky-200/70 bg-sky-50/60 px-4 py-3 space-y-0">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Zap className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+              <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">Client Briefing</p>
+            </div>
+            <Link href="/crm" className="text-[11px] text-sky-600 hover:text-sky-800 font-medium">
+              View all →
+            </Link>
+          </div>
+          <div className="space-y-1.5">
+            {briefingItems.map((item) => (
+              <div key={item.id} className="flex items-start gap-2">
+                <span className={cn(
+                  "mt-1 h-1.5 w-1.5 rounded-full shrink-0",
+                  item.severity === "urgent" ? "bg-red-500" : item.severity === "attention" ? "bg-amber-500" : "bg-sky-400",
+                )} />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-slate-800 leading-snug">{item.title}</p>
+                  <p className="text-[11px] text-slate-500 leading-snug">{item.detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

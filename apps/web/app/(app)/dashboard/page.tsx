@@ -1,8 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardContent } from "./dashboard-content";
-import type { HistoryItem, ContactTask } from "@/lib/types/database";
+import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord } from "@/lib/types/database";
 import { CREA_BOARDS, fetchBoardData, type LocalMarketData } from "@/lib/crea-board";
+import { computeIntelligenceBriefing, type BriefingItem } from "@/lib/engines/crm-analytics-engine";
 
 export default async function DashboardPage({
   searchParams,
@@ -30,7 +31,7 @@ export default async function DashboardPage({
   const dashYear = new Date().getFullYear();
 
   // Fetch dashboard data in parallel
-  const [txResult, pipelineResult, settingsResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult] =
+  const [txResult, pipelineResult, settingsResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -99,6 +100,18 @@ export default async function DashboardPage({
         .select("client_id")
         .eq("user_id", user.id)
         .gte("activity_date", new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10)),
+      // Intelligence Briefing — lightweight client/activity/record fetch
+      supabase.from("clients").select("*").eq("user_id", user.id),
+      supabase
+        .from("contact_activities")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("activity_date", { ascending: false })
+        .limit(500),
+      supabase
+        .from("client_records")
+        .select("*")
+        .eq("user_id", user.id),
     ]);
 
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
@@ -118,6 +131,23 @@ export default async function DashboardPage({
     0,
   );
   const ccaAssetCount = (ccaResult.data ?? []).length;
+
+  // Intelligence Briefing — compute top alerts for dashboard widget
+  const briefingResult = briefingClientsResult.data && briefingActivitiesResult.data && briefingRecordsResult.data
+    ? computeIntelligenceBriefing(
+        briefingClientsResult.data as Client[],
+        briefingActivitiesResult.data as ContactActivity[],
+        briefingRecordsResult.data as ClientRecord[],
+      )
+    : null;
+  const topBriefingItems: BriefingItem[] = briefingResult
+    ? [...briefingResult.items]
+        .sort((a, b) => {
+          const sev: Record<string, number> = { urgent: 0, attention: 1, upcoming: 2 };
+          return (sev[a.severity] ?? 3) - (sev[b.severity] ?? 3);
+        })
+        .slice(0, 3)
+    : [];
 
   // CRM summary: stale leads = active clients NOT contacted in 14 days
   const activeClientCount = activeClientsResult.count ?? 0;
@@ -166,6 +196,8 @@ export default async function DashboardPage({
       hasSeenTour={settingsResult.data?.has_seen_tour ?? true}
       boardMarketData={boardMarketData}
       boardSubregion={settingsResult.data?.board_subregion ?? ""}
+      briefingItems={topBriefingItems}
+      runwayScoreSnapshot={(settingsResult.data?.runway_score_snapshot as { score: number; month: string } | null) ?? null}
     />
   );
 }
