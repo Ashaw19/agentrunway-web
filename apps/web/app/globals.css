@@ -519,6 +519,15 @@
     animation: shimmer 3s linear infinite;
   }
 
+  /* ─── Floating card animation ────────────────────────────────────────── */
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50%       { transform: translateY(-10px); }
+  }
+  .float-anim {
+    animation: float 6s ease-in-out infinite;
+  }
+
   /* ─── Page transition ─────────────────────────────────────────────────── */
   @keyframes pageIn {
     from { opacity: 0; transform: translateY(6px); }

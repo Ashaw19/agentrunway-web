@@ -3,12 +3,140 @@
 import { useState } from "react";
 import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 
+// ── Input component ───────────────────────────────────────────────────────────
+
+interface FieldProps {
+  id: string;
+  label: string;
+  required?: boolean;
+  optional?: boolean;
+  type?: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  autoComplete?: string;
+}
+
+function Field({
+  id,
+  label,
+  required,
+  optional,
+  type = "text",
+  value,
+  onChange,
+  placeholder,
+  autoComplete,
+}: FieldProps) {
+  const [focused, setFocused] = useState(false);
+
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-slate-300"
+      >
+        {label}
+        {required && (
+          <span style={{ color: "#F0A800" }} aria-hidden="true">
+            *
+          </span>
+        )}
+        {optional && (
+          <span className="font-normal text-slate-600">(optional)</span>
+        )}
+      </label>
+      <input
+        id={id}
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        required={required}
+        autoComplete={autoComplete}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        className="w-full rounded-xl border bg-white/[0.04] px-4 py-3.5 text-sm text-white placeholder-slate-600 outline-none transition-all duration-200"
+        style={{
+          borderColor: focused
+            ? "rgba(240,168,0,0.60)"
+            : "rgba(255,255,255,0.10)",
+          boxShadow: focused
+            ? "0 0 0 3px rgba(240,168,0,0.12), 0 0 20px rgba(240,168,0,0.08)"
+            : "none",
+        }}
+      />
+    </div>
+  );
+}
+
+// ── Success state ─────────────────────────────────────────────────────────────
+
+function SuccessState({ name }: { name: string }) {
+  return (
+    <div className="flex flex-col items-center gap-5 py-4 text-center">
+      {/* Success circle */}
+      <div className="relative">
+        <div
+          className="absolute -inset-4 rounded-full"
+          style={{
+            background: "radial-gradient(circle, rgba(16,185,129,0.25) 0%, transparent 70%)",
+          }}
+        />
+        <div
+          className="relative flex h-20 w-20 items-center justify-center rounded-full"
+          style={{
+            background: "linear-gradient(135deg, #10b981, #059669)",
+            boxShadow:
+              "0 0 40px rgba(16,185,129,0.45), 0 0 80px rgba(16,185,129,0.15), inset 0 1px 1px rgba(255,255,255,0.20)",
+          }}
+        >
+          <CheckCircle2 className="h-9 w-9 text-white" />
+        </div>
+      </div>
+
+      <div>
+        <p
+          className="text-2xl font-extrabold text-white"
+          style={{ letterSpacing: "-0.02em" }}
+        >
+          You&apos;re on the runway.
+        </p>
+        <p className="mt-2.5 text-sm leading-relaxed text-slate-400">
+          {name
+            ? `We'll be in touch when we launch. Talk soon, ${name.split(" ")[0]}.`
+            : "We'll be in touch when we launch."}
+        </p>
+      </div>
+
+      {/* Emerald divider accent */}
+      <div
+        className="h-px w-24 rounded-full"
+        style={{
+          background:
+            "linear-gradient(90deg, transparent, rgba(16,185,129,0.6), transparent)",
+        }}
+      />
+
+      <p className="text-xs text-slate-600">
+        Keep an eye on{" "}
+        <span className="text-slate-500">agentrunway.ca</span>
+        {" "}— we&apos;ll share updates here too.
+      </p>
+    </div>
+  );
+}
+
+// ── Main form ─────────────────────────────────────────────────────────────────
+
 export function WaitlistForm() {
-  const [name, setName]           = useState("");
-  const [email, setEmail]         = useState("");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [brokerage, setBrokerage] = useState("");
-  const [state, setState]         = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [errorMsg, setErrorMsg]   = useState("");
+  const [state, setState] = useState<"idle" | "loading" | "success" | "error">(
+    "idle"
+  );
+  const [errorMsg, setErrorMsg] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,118 +163,101 @@ export function WaitlistForm() {
       setState("success");
     } catch (err) {
       setState("error");
-      setErrorMsg(err instanceof Error ? err.message : "Something went wrong.");
+      setErrorMsg(
+        err instanceof Error ? err.message : "Something went wrong."
+      );
     }
   }
 
   if (state === "success") {
-    return (
-      <div className="flex flex-col items-center gap-4 py-6 text-center">
-        <div
-          className="flex h-16 w-16 items-center justify-center rounded-full"
-          style={{
-            background: "linear-gradient(135deg, #10b981, #059669)",
-            boxShadow: "0 0 40px rgba(16,185,129,0.4)",
-          }}
-        >
-          <CheckCircle2 className="h-8 w-8 text-white" />
-        </div>
-        <div>
-          <p className="text-xl font-bold text-white">You&apos;re on the runway.</p>
-          <p className="mt-2 text-sm text-slate-400">
-            We&apos;ll be in touch when we launch.{name ? ` Talk soon, ${name.split(" ")[0]}.` : ""}
-          </p>
-        </div>
-        <p className="text-xs text-slate-600">
-          Keep an eye on{" "}
-          <span className="text-slate-500">agentrunway.ca</span>{" "}
-          — we&apos;ll share updates here too.
-        </p>
-      </div>
-    );
+    return <SuccessState name={name} />;
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <Field
+        id="wl-name"
+        label="Your name"
+        value={name}
+        onChange={setName}
+        placeholder="Jane Smith"
+        autoComplete="name"
+      />
 
-      {/* Name */}
-      <div>
-        <label htmlFor="wl-name" className="block text-xs font-semibold text-slate-400 mb-1.5">
-          Your name
-        </label>
-        <input
-          id="wl-name"
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Jane Smith"
-          autoComplete="name"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-slate-600 outline-none transition focus:border-amber-400/50 focus:ring-2 focus:ring-amber-400/20"
-        />
-      </div>
+      <Field
+        id="wl-email"
+        label="Email address"
+        required
+        type="email"
+        value={email}
+        onChange={setEmail}
+        placeholder="jane@realestate.ca"
+        autoComplete="email"
+      />
 
-      {/* Email */}
-      <div>
-        <label htmlFor="wl-email" className="block text-xs font-semibold text-slate-400 mb-1.5">
-          Email address <span className="text-amber-400">*</span>
-        </label>
-        <input
-          id="wl-email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="jane@realestate.ca"
-          required
-          autoComplete="email"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-slate-600 outline-none transition focus:border-amber-400/50 focus:ring-2 focus:ring-amber-400/20"
-        />
-      </div>
+      <Field
+        id="wl-brokerage"
+        label="Brokerage"
+        optional
+        value={brokerage}
+        onChange={setBrokerage}
+        placeholder="RE/MAX, Royal LePage, Century 21…"
+        autoComplete="organization"
+      />
 
-      {/* Brokerage */}
-      <div>
-        <label htmlFor="wl-brokerage" className="block text-xs font-semibold text-slate-400 mb-1.5">
-          Brokerage <span className="text-slate-600 font-normal">(optional)</span>
-        </label>
-        <input
-          id="wl-brokerage"
-          type="text"
-          value={brokerage}
-          onChange={(e) => setBrokerage(e.target.value)}
-          placeholder="RE/MAX, Royal LePage, Century 21…"
-          autoComplete="organization"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-slate-600 outline-none transition focus:border-amber-400/50 focus:ring-2 focus:ring-amber-400/20"
-        />
-      </div>
-
-      {/* Error */}
+      {/* Error message */}
       {state === "error" && errorMsg && (
-        <p className="text-xs text-red-400">{errorMsg}</p>
+        <div
+          className="rounded-xl px-4 py-3 text-xs text-red-300"
+          style={{ background: "rgba(239,68,68,0.10)", border: "1px solid rgba(239,68,68,0.25)" }}
+        >
+          {errorMsg}
+        </div>
       )}
 
       {/* Submit */}
-      <button
-        type="submit"
-        disabled={state === "loading"}
-        className="group mt-2 w-full inline-flex items-center justify-center rounded-xl px-6 py-3.5 text-sm font-bold text-white transition-all duration-200 disabled:opacity-60"
-        style={{
-          background: "linear-gradient(135deg, #F0A800 0%, #D97706 100%)",
-          boxShadow: "0 0 30px rgba(240,168,0,0.35)",
-          color: "#15110A",
-        }}
-      >
-        {state === "loading" ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Securing your spot…
-          </>
-        ) : (
-          <>
-            Reserve my founding spot
-            <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-          </>
-        )}
-      </button>
+      <div className="pt-1">
+        <button
+          type="submit"
+          disabled={state === "loading"}
+          className="group relative w-full overflow-hidden rounded-xl px-6 py-4 text-sm font-bold transition-all duration-200 disabled:opacity-60"
+          style={{
+            background: "linear-gradient(135deg, #F0A800 0%, #D97706 55%, #c07700 100%)",
+            boxShadow:
+              "0 0 30px rgba(240,168,0,0.40), 0 0 60px rgba(240,168,0,0.15)",
+            color: "#15110A",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.boxShadow =
+              "0 0 40px rgba(240,168,0,0.60), 0 0 80px rgba(240,168,0,0.25)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.boxShadow =
+              "0 0 30px rgba(240,168,0,0.40), 0 0 60px rgba(240,168,0,0.15)";
+          }}
+        >
+          {/* Hover shimmer layer */}
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+            style={{
+              background: "linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 60%)",
+            }}
+          />
 
+          <span className="relative flex items-center justify-center gap-2">
+            {state === "loading" ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Securing your spot…
+              </>
+            ) : (
+              <>
+                Reserve my founding spot
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </>
+            )}
+          </span>
+        </button>
+      </div>
     </form>
   );
 }
