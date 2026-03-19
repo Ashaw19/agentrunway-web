@@ -41,6 +41,9 @@ import {
   type SplitPreset,
   type UserSettings,
   type PlaidItem,
+  type CommunicationProfile,
+  type BusinessIdentity,
+  type AgentGoals,
 } from "@/lib/types/database";
 import {
   CREA_BOARDS,
@@ -48,6 +51,10 @@ import {
   type CreaBoard,
 } from "@/lib/crea-board";
 import { MapPin } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { VoiceQuizModal } from "./voice-quiz-modal";
+import { cn } from "@/lib/utils";
 
 interface Props {
   settings: UserSettings;
@@ -76,6 +83,85 @@ function useSaved() {
 
 export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], plaidConfigured = false }: Props) {
   const router = useRouter();
+
+  // ── Section AI: AI Voice Profile ─────────────────────────────────────────
+  const [voiceQuizOpen, setVoiceQuizOpen] = useState(false);
+  const [communicationProfile, setCommunicationProfile] = useState<CommunicationProfile | null>(
+    settings.communication_profile ?? null,
+  );
+  const [businessIdentity, setBusinessIdentity] = useState<BusinessIdentity>(() => {
+    const b = settings.business_identity;
+    return {
+      completed: b?.completed ?? false,
+      specialty: b?.specialty ?? [],
+      market_type: b?.market_type ?? [],
+      business_model: b?.business_model ?? "",
+      lead_sources: b?.lead_sources ?? [],
+      years_experience: b?.years_experience ?? "",
+      avg_price_range: b?.avg_price_range ?? "",
+    };
+  });
+  const [agentGoals, setAgentGoals] = useState<AgentGoals>(() => {
+    const g = settings.agent_goals;
+    return {
+      completed: g?.completed ?? false,
+      primary_goal: g?.primary_goal ?? "",
+      secondary_goals: g?.secondary_goals ?? [],
+      signature_phrases: g?.signature_phrases ?? "",
+      hard_nogos: g?.hard_nogos ?? "",
+      suppressed_topics: g?.suppressed_topics ?? [],
+    };
+  });
+  const [savingAiProfile, setSavingAiProfile] = useState(false);
+  const aiProfileSaved = useSaved();
+
+  async function saveVoiceProfile(profile: CommunicationProfile) {
+    setCommunicationProfile(profile);
+    const supabase = createClient();
+    await supabase
+      .from("user_settings")
+      .update({
+        communication_profile: profile as unknown as Record<string, unknown>,
+        ai_voice_guide: profile.ai_voice_summary,
+      })
+      .eq("user_id", settings.user_id);
+    router.refresh();
+  }
+
+  async function saveAiProfile() {
+    setSavingAiProfile(true);
+    const updatedBiz: BusinessIdentity = {
+      ...businessIdentity,
+      completed: !!(
+        businessIdentity.specialty.length > 0 &&
+        businessIdentity.market_type.length > 0 &&
+        businessIdentity.business_model
+      ),
+    };
+    const updatedGoals: AgentGoals = {
+      ...agentGoals,
+      completed: !!(agentGoals.primary_goal || agentGoals.signature_phrases || agentGoals.hard_nogos),
+    };
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("user_settings")
+      .update({
+        business_identity: updatedBiz as unknown as Record<string, unknown>,
+        agent_goals: updatedGoals as unknown as Record<string, unknown>,
+      })
+      .eq("user_id", settings.user_id);
+    setSavingAiProfile(false);
+    if (error) { toast.error("Failed to save AI profile — please try again."); return; }
+    setBusinessIdentity(updatedBiz);
+    setAgentGoals(updatedGoals);
+    aiProfileSaved.flash();
+    toast.success("AI profile saved ✓");
+    router.refresh();
+  }
+
+  function toggleMulti<T extends string>(arr: T[], val: T): T[] {
+    return arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val];
+  }
 
   // ── Section 1: Province ──────────────────────────────────────────────────
   const [province, setProvince] = useState<Province>(settings.province);
@@ -468,6 +554,333 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
         <p className="mt-1 text-sm text-muted-foreground">
           Garbage in, garbage out. Keep these honest.
         </p>
+      </div>
+
+      {/* Card AI — Your AI Voice */}
+      <div id="ai-voice">
+        <VoiceQuizModal
+          open={voiceQuizOpen}
+          onOpenChange={setVoiceQuizOpen}
+          onSave={saveVoiceProfile}
+          existingProfile={communicationProfile}
+        />
+        <Card className="rounded-2xl shadow-sm overflow-hidden" style={{ border: "1.5px solid transparent", backgroundImage: "linear-gradient(var(--card), var(--card)), linear-gradient(135deg, #7c3aed, #f59e0b)", backgroundOrigin: "border-box", backgroundClip: "padding-box, border-box" }}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-violet-500" />
+                <CardTitle>Your AI Voice</CardTitle>
+              </div>
+              {/* Completion indicator */}
+              <div className="flex items-center gap-2">
+                {[communicationProfile?.completed, businessIdentity.completed || (businessIdentity.specialty.length > 0 && !!businessIdentity.business_model), agentGoals.completed || !!(agentGoals.signature_phrases || agentGoals.hard_nogos)].filter(Boolean).length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {[communicationProfile?.completed, businessIdentity.completed || (businessIdentity.specialty.length > 0 && !!businessIdentity.business_model), agentGoals.completed || !!(agentGoals.signature_phrases || agentGoals.hard_nogos)].filter(Boolean).length} of 3 complete
+                  </span>
+                )}
+              </div>
+            </div>
+            <CardDescription>
+              Help your AI communicate exactly like you do — your tone, your style, your rules.
+            </CardDescription>
+            {/* Completion progress bar */}
+            {(() => {
+              const count = [
+                communicationProfile?.completed,
+                businessIdentity.completed || (businessIdentity.specialty.length > 0 && !!businessIdentity.business_model),
+                agentGoals.completed || !!(agentGoals.signature_phrases || agentGoals.hard_nogos),
+              ].filter(Boolean).length;
+              return count > 0 ? (
+                <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-violet-500 to-amber-400 transition-all duration-500"
+                    style={{ width: `${(count / 3) * 100}%` }}
+                  />
+                </div>
+              ) : null;
+            })()}
+          </CardHeader>
+          <CardContent className="grid gap-6">
+
+            {/* Part A — Voice & Personality Quiz */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Voice & Personality</span>
+                {communicationProfile?.completed && (
+                  <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 font-medium">
+                    <Check className="h-3 w-3" /> Complete
+                  </span>
+                )}
+              </div>
+
+              {communicationProfile?.completed ? (
+                <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
+                  {/* Trait badges */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      ...(communicationProfile.derived.voice_traits ?? []),
+                      ...(communicationProfile.derived.archetype ?? []),
+                    ].slice(0, 5).map((trait) => (
+                      <Badge key={trait} variant="secondary" className="text-xs capitalize">
+                        {trait.replace(/_/g, " ")}
+                      </Badge>
+                    ))}
+                  </div>
+                  {/* AI voice summary */}
+                  <blockquote className="border-l-4 border-violet-400 pl-3 text-xs text-muted-foreground italic leading-relaxed">
+                    {communicationProfile.ai_voice_summary}
+                  </blockquote>
+                  <button
+                    type="button"
+                    onClick={() => setVoiceQuizOpen(true)}
+                    className="text-xs text-violet-600 hover:text-violet-700 dark:text-violet-400 underline-offset-2 hover:underline"
+                  >
+                    Retake quiz
+                  </button>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-violet-300 dark:border-violet-700 bg-violet-50/40 dark:bg-violet-950/20 p-5 space-y-3 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    Your AI doesn&apos;t know how you talk yet.
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => setVoiceQuizOpen(true)}
+                    className="bg-violet-600 hover:bg-violet-700 text-white"
+                  >
+                    Take the 3-minute quiz →
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Divider */}
+            <div className="border-t" />
+
+            {/* Part B — Business Identity */}
+            <div className="space-y-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">What kind of agent are you?</p>
+
+              {/* Specialty */}
+              <div className="space-y-2">
+                <Label className="text-sm">Specialty</Label>
+                <div className="flex flex-wrap gap-2">
+                  {(["buyer", "listing", "both"] as const).map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setBusinessIdentity((b) => ({ ...b, specialty: toggleMulti(b.specialty, val) }))}
+                      className={cn(
+                        "rounded-lg border px-3 py-1.5 text-sm transition-colors",
+                        businessIdentity.specialty.includes(val)
+                          ? "border-violet-500 bg-violet-50 dark:bg-violet-950/40 text-violet-800 dark:text-violet-200 font-medium"
+                          : "border-border bg-card text-muted-foreground hover:border-violet-400",
+                      )}
+                    >
+                      {val === "buyer" ? "Buyer-Focused" : val === "listing" ? "Listing-Focused" : "Both"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Market type */}
+              <div className="space-y-2">
+                <Label className="text-sm">Market Type <span className="text-xs text-muted-foreground font-normal">(multi-select)</span></Label>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { val: "urban_condo", label: "Urban / Condo" },
+                    { val: "suburban", label: "Suburban" },
+                    { val: "rural", label: "Rural" },
+                    { val: "luxury", label: "Luxury" },
+                    { val: "new_construction", label: "New Construction" },
+                  ] as const).map(({ val, label }) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setBusinessIdentity((b) => ({ ...b, market_type: toggleMulti(b.market_type, val) }))}
+                      className={cn(
+                        "rounded-lg border px-3 py-1.5 text-sm transition-colors",
+                        businessIdentity.market_type.includes(val)
+                          ? "border-violet-500 bg-violet-50 dark:bg-violet-950/40 text-violet-800 dark:text-violet-200 font-medium"
+                          : "border-border bg-card text-muted-foreground hover:border-violet-400",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Business model */}
+              <div className="space-y-2">
+                <Label className="text-sm">Business Model</Label>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { val: "solo_agent", label: "Solo Agent" },
+                    { val: "team_lead", label: "Team Lead" },
+                    { val: "team_member", label: "Team Member" },
+                  ] as const).map(({ val, label }) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setBusinessIdentity((b) => ({ ...b, business_model: b.business_model === val ? "" : val }))}
+                      className={cn(
+                        "rounded-lg border px-3 py-1.5 text-sm transition-colors",
+                        businessIdentity.business_model === val
+                          ? "border-violet-500 bg-violet-50 dark:bg-violet-950/40 text-violet-800 dark:text-violet-200 font-medium"
+                          : "border-border bg-card text-muted-foreground hover:border-violet-400",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Lead sources */}
+              <div className="space-y-2">
+                <Label className="text-sm">Lead Sources <span className="text-xs text-muted-foreground font-normal">(multi-select)</span></Label>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { val: "referrals", label: "Referrals" },
+                    { val: "sphere", label: "Sphere of Influence" },
+                    { val: "cold_outreach", label: "Cold Outreach" },
+                    { val: "social", label: "Social Media" },
+                    { val: "farming", label: "Geo Farming" },
+                  ] as const).map(({ val, label }) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setBusinessIdentity((b) => ({ ...b, lead_sources: toggleMulti(b.lead_sources, val) }))}
+                      className={cn(
+                        "rounded-lg border px-3 py-1.5 text-sm transition-colors",
+                        businessIdentity.lead_sources.includes(val)
+                          ? "border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 font-medium"
+                          : "border-border bg-card text-muted-foreground hover:border-amber-400",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Years experience */}
+              <div className="space-y-2">
+                <Label className="text-sm">Years of Experience</Label>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { val: "0_2", label: "0–2" },
+                    { val: "3_5", label: "3–5" },
+                    { val: "5_10", label: "5–10" },
+                    { val: "10_plus", label: "10+" },
+                  ] as const).map(({ val, label }) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setBusinessIdentity((b) => ({ ...b, years_experience: b.years_experience === val ? "" : val }))}
+                      className={cn(
+                        "rounded-lg border px-3 py-1.5 text-sm transition-colors",
+                        businessIdentity.years_experience === val
+                          ? "border-violet-500 bg-violet-50 dark:bg-violet-950/40 text-violet-800 dark:text-violet-200 font-medium"
+                          : "border-border bg-card text-muted-foreground hover:border-violet-400",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Average price range */}
+              <div className="space-y-2">
+                <Label className="text-sm">Average Price Range</Label>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { val: "under_300k", label: "Under $300K" },
+                    { val: "300_500k", label: "$300–500K" },
+                    { val: "500_800k", label: "$500–800K" },
+                    { val: "800k_1m", label: "$800K–$1M" },
+                    { val: "over_1m", label: "$1M+" },
+                  ] as const).map(({ val, label }) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setBusinessIdentity((b) => ({ ...b, avg_price_range: b.avg_price_range === val ? "" : val }))}
+                      className={cn(
+                        "rounded-lg border px-3 py-1.5 text-sm transition-colors",
+                        businessIdentity.avg_price_range === val
+                          ? "border-violet-500 bg-violet-50 dark:bg-violet-950/40 text-violet-800 dark:text-violet-200 font-medium"
+                          : "border-border bg-card text-muted-foreground hover:border-violet-400",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t" />
+
+            {/* Part C — Your Voice, Your Rules */}
+            <div className="space-y-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Your Voice, Your Rules</p>
+
+              <div className="grid gap-1.5">
+                <Label className="text-sm">Phrases I always use:</Label>
+                <Textarea
+                  placeholder="e.g. 'let's make it happen', 'I've got you'"
+                  value={agentGoals.signature_phrases}
+                  onChange={(e) => setAgentGoals((g) => ({ ...g, signature_phrases: e.target.value }))}
+                  className="resize-none h-20"
+                />
+              </div>
+
+              <div className="grid gap-1.5">
+                <Label className="text-sm">Things I never say:</Label>
+                <Textarea
+                  placeholder="e.g. 'it's just a house', 'the market is what it is'"
+                  value={agentGoals.hard_nogos}
+                  onChange={(e) => setAgentGoals((g) => ({ ...g, hard_nogos: e.target.value }))}
+                  className="resize-none h-20"
+                />
+              </div>
+
+              {/* Suppressed topics */}
+              <div className="space-y-2">
+                <Label className="text-sm">Topics to suppress in AI responses:</Label>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    { val: "tax_advice", label: "Tax Advice" },
+                    { val: "pricing", label: "Pricing Conversations" },
+                    { val: "business_growth", label: "Business Growth Tips" },
+                    { val: "crm_health", label: "CRM Advice" },
+                  ] as const).map(({ val, label }) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setAgentGoals((g) => ({ ...g, suppressed_topics: toggleMulti(g.suppressed_topics, val) }))}
+                      className={cn(
+                        "rounded-lg border px-3 py-1.5 text-sm transition-colors",
+                        agentGoals.suppressed_topics.includes(val)
+                          ? "border-rose-500 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 font-medium"
+                          : "border-border bg-card text-muted-foreground hover:border-rose-400",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Save AI Profile button */}
+            <SaveRow saving={savingAiProfile} saved={aiProfileSaved.saved} onSave={saveAiProfile} />
+
+          </CardContent>
+        </Card>
       </div>
 
       {/* Card P — Profile Identity */}

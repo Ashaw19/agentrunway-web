@@ -275,6 +275,10 @@ const DEMO_SETTINGS: UserSettings = {
   board_subregion: "",
   email_signature: "",
   ai_voice_guide: null,
+  communication_profile: null,
+  business_identity: null,
+  agent_goals: null,
+  ai_profile_prompt_dismissed_at: null,
   created_at: "2025-01-10T09:00:00Z",
   updated_at: "2026-03-07T09:00:00Z",
 };

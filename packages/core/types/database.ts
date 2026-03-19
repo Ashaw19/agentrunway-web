@@ -121,6 +121,42 @@ export type MarketMetricFocus = "sales" | "price" | "combined";
 
 export type MarketDataReadiness = "manualOnly" | "stubData" | "liveFeed";
 
+// ── AI Voice Profile Types ───────────────────────────────────────────────────
+
+export interface CommunicationProfile {
+  completed: boolean;
+  answers: Record<string, string[]>; // q1: ["A","C"], q2: ["B","E"], etc.
+  derived: {
+    voice_traits: string[];
+    humor_level: "none" | "light" | "moderate" | "frequent";
+    directness: "low" | "medium" | "high";
+    verbosity: "concise" | "balanced" | "thorough";
+    archetype: string[];
+    sign_off_style: string;
+    avoids: string[];
+  };
+  ai_voice_summary: string; // human-readable summary sent to Groq
+}
+
+export interface BusinessIdentity {
+  completed: boolean;
+  specialty: string[]; // "buyer", "listing", "both"
+  market_type: string[]; // "urban_condo", "suburban", "rural", "luxury", "new_construction"
+  business_model: string; // "solo_agent", "team_lead", "team_member"
+  lead_sources: string[]; // "referrals", "sphere", "cold_outreach", "social", "farming"
+  years_experience: string; // "0_2", "3_5", "5_10", "10_plus"
+  avg_price_range: string; // "under_300k", "300_500k", "500_800k", "800k_1m", "over_1m"
+}
+
+export interface AgentGoals {
+  completed: boolean;
+  primary_goal: string; // "grow_volume", "grow_margins", "build_referral_base", "work_less", "build_team"
+  secondary_goals: string[];
+  signature_phrases: string; // free text
+  hard_nogos: string; // free text
+  suppressed_topics: string[]; // "tax_advice", "pricing", "crm_health", "business_growth"
+}
+
 // ── Row Types ───────────────────────────────────────────────────────────────
 
 export interface UserSettings {
@@ -262,6 +298,12 @@ export interface UserSettings {
 
   // AI Voice Guide (migration 00046) — personal writing style for AI outreach drafts
   ai_voice_guide: string | null;
+
+  // AI Voice Profile (migration 00052)
+  communication_profile: CommunicationProfile | null;
+  business_identity: BusinessIdentity | null;
+  agent_goals: AgentGoals | null;
+  ai_profile_prompt_dismissed_at: string | null;
 
   // Timestamps
   created_at: string;

@@ -17,7 +17,7 @@ export default async function DashboardPage({
   // Check if user has completed onboarding (has settings row)
   const { data: settings } = await supabase
     .from("user_settings")
-    .select("user_id, goal_gci, display_name, province, split_preset, dashboard_layout")
+    .select("user_id, goal_gci, display_name, province, split_preset, dashboard_layout, communication_profile, business_identity, ai_profile_prompt_dismissed_at")
     .eq("user_id", user.id)
     .single();
 
@@ -199,6 +199,9 @@ export default async function DashboardPage({
       briefingItems={topBriefingItems}
       runwayScoreSnapshot={(settingsResult.data?.runway_score_snapshot as { score: number; month: string } | null) ?? null}
       dashboardLayout={(settingsResult.data?.dashboard_layout as import("./card-registry").DashboardLayout | null) ?? null}
+      communicationProfile={(settingsResult.data?.communication_profile as import("@/lib/types/database").CommunicationProfile | null) ?? null}
+      businessIdentity={(settingsResult.data?.business_identity as import("@/lib/types/database").BusinessIdentity | null) ?? null}
+      aiProfilePromptDismissedAt={settingsResult.data?.ai_profile_prompt_dismissed_at ?? null}
     />
   );
 }

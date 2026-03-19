@@ -122,6 +122,8 @@ import {
 import { ExplainButton } from "@/components/explain-button";
 import { WelcomeTour } from "@/components/welcome-tour";
 import { GuideLink } from "@/components/guide-link";
+import { AiProfilePrompt } from "./ai-profile-prompt";
+import type { CommunicationProfile, BusinessIdentity } from "@/lib/types/database";
 
 function MetricInfo({ tip }: { tip: string }) {
   return (
@@ -161,6 +163,9 @@ interface Props {
   briefingItems?: BriefingItem[];
   runwayScoreSnapshot?: { score: number; month: string } | null;
   dashboardLayout?: DashboardLayout | null;
+  communicationProfile?: CommunicationProfile | null;
+  businessIdentity?: BusinessIdentity | null;
+  aiProfilePromptDismissedAt?: string | null;
 }
 
 function getTimeGreeting(): { greeting: string; emoji: string } {
@@ -258,6 +263,9 @@ export function DashboardContent({
   briefingItems = [],
   runwayScoreSnapshot = null,
   dashboardLayout = null,
+  communicationProfile = null,
+  businessIdentity = null,
+  aiProfilePromptDismissedAt = null,
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const [tourComplete, setTourComplete] = useState(hasSeenTour);
@@ -2112,6 +2120,16 @@ export function DashboardContent({
               }
             } catch { /* fire-and-forget — UI already updated */ }
           }}
+        />
+      )}
+
+      {/* AI Profile floating prompt */}
+      {settings?.user_id && (
+        <AiProfilePrompt
+          userId={settings.user_id}
+          hasVoiceProfile={!!(communicationProfile?.completed)}
+          hasBusinessIdentity={!!(businessIdentity?.completed)}
+          lastDismissedAt={aiProfilePromptDismissedAt}
         />
       )}
     </div>
