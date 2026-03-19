@@ -3,6 +3,29 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { SortableCard } from "./sortable-card";
+import {
+  type CardId,
+  CARD_REGISTRY,
+  DEFAULT_ORDER,
+  DEFAULT_HIDDEN,
+  type DashboardLayout,
+} from "./card-registry";
 import { CountUp } from "@/components/count-up";
 import { useConfetti } from "@/hooks/use-confetti";
 import { AnnualReview } from "@/components/annual-review";
@@ -50,6 +73,9 @@ import {
   CheckSquare,
   Square,
   Building2,
+  Settings2,
+  RotateCcw,
+  Eye,
 } from "lucide-react";
 import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
@@ -112,8 +138,6 @@ function MetricInfo({ tip }: { tip: string }) {
   );
 }
 
-type DashboardView = "essentials" | "standard" | "full";
-
 interface Props {
   transactions: Transaction[];
   pipelineDeals: PipelineDeal[];
@@ -136,6 +160,7 @@ interface Props {
   boardSubregion?: string;
   briefingItems?: BriefingItem[];
   runwayScoreSnapshot?: { score: number; month: string } | null;
+  dashboardLayout?: DashboardLayout | null;
 }
 
 function getTimeGreeting(): { greeting: string; emoji: string } {
@@ -218,7 +243,7 @@ export function DashboardContent({
   expenseCategories,
   receiptYTD = 0,
   historyItems = [],
-  initialDashboardView,
+  initialDashboardView: _initialDashboardView,
   subscriptionTier = "starter",
   showUpgradeBanner = false,
   userName,
@@ -232,6 +257,7 @@ export function DashboardContent({
   boardSubregion = "",
   briefingItems = [],
   runwayScoreSnapshot = null,
+  dashboardLayout = null,
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const [tourComplete, setTourComplete] = useState(hasSeenTour);
@@ -266,24 +292,81 @@ export function DashboardContent({
   // ── Business Health Narrative expanded by default (Weekly Brief) ────────
   const [narrativeOpen, setNarrativeOpen] = useState(true);
 
-  // ── Dashboard view mode ────────────────────────────────────────────────
-  const validView = (v?: string): DashboardView =>
-    v === "essentials" || v === "standard" || v === "full" ? v : "standard";
-  const [dashboardView, setDashboardView] = useState<DashboardView>(
-    validView(initialDashboardView),
+  // ── Custom card layout ────────────────────────────────────────────────
+  const [cardOrder, setCardOrder] = useState<CardId[]>(() => {
+    if (dashboardLayout?.order && dashboardLayout.order.length > 0) {
+      // Merge: include any new cards not in saved order at the end
+      const saved = dashboardLayout.order.filter((id): id is CardId =>
+        DEFAULT_ORDER.includes(id as CardId)
+      );
+      const missing = DEFAULT_ORDER.filter((id) => !saved.includes(id));
+      return [...saved, ...missing];
+    }
+    return DEFAULT_ORDER;
+  });
+  const [hiddenCards, setHiddenCards] = useState<Set<CardId>>(() => {
+    if (dashboardLayout?.hidden) {
+      return new Set(dashboardLayout.hidden as CardId[]);
+    }
+    return new Set(DEFAULT_HIDDEN);
+  });
+  const [customizeMode, setCustomizeMode] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-  const handleViewChange = useCallback(async (mode: DashboardView) => {
-    setDashboardView(mode);
+
+  async function persistLayout(order: CardId[], hidden: Set<CardId>) {
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       await supabase
         .from("user_settings")
-        .update({ dashboard_view: mode })
+        .update({ dashboard_layout: { order, hidden: [...hidden] } })
         .eq("user_id", user.id);
-    } catch { /* fire-and-forget — UI already updated */ }
-  }, []);
+    } catch { /* fire-and-forget */ }
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setCardOrder((prev) => {
+      const oldIndex = prev.indexOf(active.id as CardId);
+      const newIndex = prev.indexOf(over.id as CardId);
+      const next = arrayMove(prev, oldIndex, newIndex);
+      persistLayout(next, hiddenCards);
+      return next;
+    });
+  }
+
+  function toggleHide(id: CardId) {
+    setHiddenCards((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      persistLayout(cardOrder, next);
+      return next;
+    });
+  }
+
+  function toggleShow(id: CardId) {
+    setHiddenCards((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      persistLayout(cardOrder, next);
+      return next;
+    });
+  }
+
+  function resetLayout() {
+    const order = DEFAULT_ORDER;
+    const hidden = new Set<CardId>(DEFAULT_HIDDEN);
+    setCardOrder(order);
+    setHiddenCards(hidden);
+    persistLayout(order, hidden);
+  }
+
   // ── YTD calculations ──────────────────────────────────────────────────
   const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
   const ytdDealCount = transactions.length;
@@ -540,7 +623,7 @@ export function DashboardContent({
   const quarterlyInstalment = taxResult ? taxResult.totalBurden / 4 : 0;
 
   // ── Insights ──────────────────────────────────────────────────────────
-  const insightsLimit = dashboardView === "full" ? 5 : dashboardView === "essentials" ? 2 : 3;
+  const insightsLimit = 5;
   const insights = settings
     ? generateInsights({
         transactions,
@@ -722,6 +805,941 @@ export function DashboardContent({
   const capProgress = capConfigured ? Math.min((ytdGCI / capThreshold) * 100, 100) : 0;
   const hasHitCap = capConfigured && ytdGCI >= capThreshold;
 
+  // ── Card render map — build all card JSX (null = card has no data to show) ──
+  const cardRenders: Partial<Record<CardId, React.ReactNode>> = {};
+
+  cardRenders["client_briefing"] = (smartAlerts.length > 0 || briefingItems.length > 0) ? (
+    <div className="space-y-2">
+      {smartAlerts.map((alert, i) => (
+        <div
+          key={i}
+          className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
+            alert.type === "danger"
+              ? "border-red-200 bg-red-50 text-red-900"
+              : "border-amber-200 bg-amber-50 text-amber-900"
+          }`}
+        >
+          <span className="text-base leading-none mt-0.5">{alert.icon}</span>
+          <div>
+            <p className="font-medium">{alert.title}</p>
+            <p className="text-xs mt-0.5 opacity-80">{alert.body}</p>
+          </div>
+        </div>
+      ))}
+      {briefingItems.length > 0 && (
+        <div className="rounded-xl border border-sky-200/70 bg-sky-50/60 px-4 py-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Zap className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+              <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">Client Briefing</p>
+            </div>
+            <Link href="/crm" className="text-[11px] text-sky-600 hover:text-sky-800 font-medium">
+              View all →
+            </Link>
+          </div>
+          <div className="space-y-1.5">
+            {briefingItems.map((item) => (
+              <div key={item.id} className="flex items-start gap-2">
+                <span className={cn(
+                  "mt-1 h-1.5 w-1.5 rounded-full shrink-0",
+                  item.severity === "urgent" ? "bg-red-500" : item.severity === "attention" ? "bg-amber-500" : "bg-sky-400",
+                )} />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-slate-800 leading-snug">{item.title}</p>
+                  <p className="text-[11px] text-slate-500 leading-snug">{item.detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  cardRenders["business_brief"] = (() => {
+    const hasPeriodRecap = periodRecap !== null;
+    const hasNarrative = narrative !== null;
+    if (!hasPeriodRecap && !hasNarrative) return null;
+    return (
+      <div className="space-y-4">
+        {periodRecap && (
+          <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-violet-800">
+                {periodRecap.monthName} recap — {fmtCurrency(periodRecap.monthGCI)} · {periodRecap.monthTx} deal{periodRecap.monthTx !== 1 ? "s" : ""}
+              </p>
+              <p className="text-xs text-violet-600 mt-0.5">
+                {periodRecap.vsAvg >= 1.2
+                  ? `↑ ${Math.round((periodRecap.vsAvg - 1) * 100)}% above your monthly average`
+                  : periodRecap.vsAvg <= 0.8 && periodRecap.vsAvg > 0
+                  ? `↓ ${Math.round((1 - periodRecap.vsAvg) * 100)}% below your monthly average`
+                  : "Right in line with your monthly average"}
+              </p>
+            </div>
+            <CalendarCheck className="h-5 w-5 text-violet-400 shrink-0" />
+          </div>
+        )}
+        {narrative && (
+          <BusinessHealthNarrativeCard
+            narrative={narrative}
+            isOpen={narrativeOpen}
+            onToggle={() => setNarrativeOpen((o) => !o)}
+          />
+        )}
+      </div>
+    );
+  })();
+
+  cardRenders["kpi_row"] = (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Card className="rounded-2xl border-emerald-200 bg-emerald-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardDescription className="font-semibold text-emerald-800">YTD GCI</CardDescription>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-200">
+            <DollarSign className="h-4 w-4 text-emerald-700" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-3xl font-bold tracking-tight text-slate-800">
+            $<CountUp end={ytdGCI} decimals={0} duration={1000} />
+          </div>
+          {goalGCI > 0 ? (
+            <>
+              <p className="text-xs text-slate-500">
+                {fmtPct(ytdGCI / goalGCI)} of {fmtCompact(goalGCI)} goal
+              </p>
+              {fraction > 0 && paceStatus !== "no-goal" && (
+                <p className={cn(
+                  "mt-0.5 text-xs font-semibold",
+                  paceStatus === "ahead" ? "text-emerald-600" : "text-amber-600",
+                )}>
+                  {paceStatus === "ahead"
+                    ? `↑ ${fmtCurrency(paceGapAmount)} ahead of pace`
+                    : `↓ ${fmtCurrency(Math.abs(paceGapAmount))} behind pace`}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-slate-400">Set a goal in Settings to track pace</p>
+          )}
+          {vsLastYearGCI !== null && ytdGCI > 0 && (
+            <p className={cn("mt-0.5 text-xs font-medium", vsLastYearGCI >= 0 ? "text-emerald-600" : "text-amber-600")}>
+              {vsLastYearGCI >= 0
+                ? `↑ ${fmtCurrency(vsLastYearGCI)} vs last year`
+                : `↓ ${fmtCurrency(Math.abs(vsLastYearGCI))} vs last year`}
+            </p>
+          )}
+          {revenuePerWorkingDay > 0 && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {fmtCurrency(revenuePerWorkingDay)}/working day
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl border-blue-200 bg-blue-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardDescription className="font-semibold text-blue-800">Deals Closed</CardDescription>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-200">
+            <Briefcase className="h-4 w-4 text-blue-700" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-3xl font-bold tracking-tight text-slate-800">
+            <CountUp end={ytdDealCount} duration={800} />
+          </div>
+          {ytdDealCount === 0 ? (
+            <p className="text-xs text-slate-500">No deals yet — your first is the hardest</p>
+          ) : (
+            <p className="text-xs text-slate-500 flex items-center gap-1">
+              <span className="flex items-center gap-1">
+                Avg Deal Size
+                <MetricInfo tip="Your total GCI divided by the number of closed deals this year." />
+              </span>
+              <span>· {fmtCurrency(avgDealSize)}</span>
+            </p>
+          )}
+          {dealsThisQ > 0 && (
+            <p className={cn("mt-0.5 text-xs font-medium",
+              lastYearQDeals !== null
+                ? dealsThisQ >= lastYearQDeals ? "text-emerald-600" : "text-amber-600"
+                : "text-slate-500"
+            )}>
+              {dealsThisQ} deal{dealsThisQ !== 1 ? "s" : ""} this Q{currentQ + 1}
+              {lastYearQDeals !== null ? ` · vs ${lastYearQDeals} last year` : ""}
+            </p>
+          )}
+          {lastYearDealAtThisPoint !== null && ytdDealCount > 0 && (
+            <p className="text-xs text-slate-400">
+              vs {lastYearDealAtThisPoint} at this point last year
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl border-purple-200 bg-purple-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardDescription className="font-semibold text-purple-800">
+            <span className="flex items-center gap-1">
+              Pipeline Weighted
+              <MetricInfo tip="Your in-progress deals weighted by their probability of closing. A $50K deal at 60% odds counts as $30K here." />
+            </span>
+          </CardDescription>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-200">
+            <TrendingUp className="h-4 w-4 text-purple-700" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-3xl font-bold tracking-tight text-slate-800">
+            {pipelineCount === 0 ? "—" : <>$<CountUp end={pipelineWeightedGCI} duration={1000} /></>}
+          </div>
+          <p className="text-xs text-slate-500">
+            {pipelineCount === 0
+              ? "Add prospects to see weighted forecasts"
+              : `${pipelineCount} deal${pipelineCount !== 1 ? "s" : ""} · probability-weighted`}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl border-teal-200 bg-teal-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardDescription className="font-semibold text-teal-800">Projected Year-End</CardDescription>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-200">
+            <Target className="h-4 w-4 text-teal-700" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-3xl font-bold tracking-tight">
+            $<CountUp end={projectedGCI} duration={1100} />
+          </div>
+          <div className="mt-1 flex items-center gap-2">
+            <Badge
+              variant={
+                paceStatus === "ahead"
+                  ? "default"
+                  : paceStatus === "behind"
+                    ? "destructive"
+                    : "secondary"
+              }
+            >
+              {paceStatus === "ahead"
+                ? `+${Math.round(pacePercent)}% ahead`
+                : paceStatus === "behind"
+                  ? `${Math.round(pacePercent)}% behind`
+                  : "Set a goal"}
+            </Badge>
+            {trend !== "flat" && (
+              <Badge variant="secondary" className="gap-1">
+                {trend === "up" ? (
+                  <TrendingUp className="h-3 w-3" />
+                ) : (
+                  <TrendingDown className="h-3 w-3" />
+                )}
+                {trend}
+              </Badge>
+            )}
+          </div>
+          {goalGCI > 0 && avgDealSize > 0 && ytdGCI < goalGCI && (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              ~{Math.ceil((goalGCI - ytdGCI) / avgDealSize)} more deal
+              {Math.ceil((goalGCI - ytdGCI) / avgDealSize) !== 1 ? "s" : ""} at avg size to hit goal
+            </p>
+          )}
+          {goalGCI > 0 && ytdGCI >= goalGCI && (
+            <p className="mt-1.5 text-xs font-semibold shimmer-text">
+              🎉 Goal reached — you crushed it!
+            </p>
+          )}
+          <p className="mt-2 text-[10px] text-muted-foreground/70">
+            {seasonalSource === "agent"
+              ? `Seasonality: your ${historyItems.filter((h) => (h.quarter_gci as number[]).some((v) => (v ?? 0) > 0)).length}-yr pattern`
+              : seasonalSource === "national"
+                ? "Seasonality: national averages"
+                : "Seasonality: uniform (add history to improve)"}
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  cardRenders["net_takehome"] = (ytdGCI > 0 && settings) ? (
+    <Card className="rounded-2xl border-emerald-200 bg-emerald-50/70 shadow-sm">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-1.5">
+            <CardTitle className="text-base">Net Take-Home (YTD Est.)</CardTitle>
+            <MetricInfo tip="Your gross GCI after brokerage split, transaction fees, monthly brokerage costs, and estimated income tax — approximately what you actually keep." />
+            {isPro && <ExplainButton question="Break down my net take-home calculation — what am I actually keeping from each deal this year?" />}
+          </div>
+          <Link href="/forecast" className="text-xs text-emerald-700 hover:text-emerald-900 font-medium transition-colors">
+            Full tax breakdown →
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-wrap gap-6 items-start">
+          <div>
+            <p className="text-3xl font-bold text-emerald-800">
+              {fmtCurrency(ytdEstimatedTakeHome)}
+            </p>
+            <p className="text-xs text-slate-500 mt-0.5">after splits, fees &amp; estimated tax</p>
+          </div>
+          <div className="flex flex-wrap gap-5 text-sm">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Agent Net (pre-tax)</p>
+              <p className="font-bold text-slate-700 mt-0.5">{fmtCurrency(ytdNetBeforeTax)}</p>
+              <p className="text-[10px] text-slate-400">after split &amp; fees</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Est. Tax Owed</p>
+              <p className="font-bold text-amber-700 mt-0.5">{fmtCurrency(ytdTaxSetAside)}</p>
+              <p className="text-[10px] text-slate-400">set aside now</p>
+            </div>
+            {ytdDealCount > 0 && (
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Per Deal</p>
+                <p className="font-bold text-emerald-700 mt-0.5">{fmtCurrency(ytdEstimatedTakeHome / ytdDealCount)}</p>
+                <p className="text-[10px] text-slate-400">actual take-home</p>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-400 border-t border-emerald-100 pt-2.5">
+          <span>Split: {settings.split_preset ?? "custom"}</span>
+          {settings.monthly_brokerage_fee > 0 && <span>Monthly fee: {fmtCurrency(settings.monthly_brokerage_fee)}/mo × {monthsElapsed}mo</span>}
+          {ytdTxFees > 0 && <span>Tx fees: {fmtCurrency(ytdTxFees)}</span>}
+          <span className="italic">Estimate only · Not tax advice</span>
+        </div>
+      </CardContent>
+    </Card>
+  ) : null;
+
+  cardRenders["personal_records"] = (transactions.length > 0 || historyItems.length > 0) ? (
+    <PersonalRecordsCard
+      transactions={transactions}
+      historyItems={historyItems}
+      ytdGCI={ytdGCI}
+      currentYear={currentYear}
+    />
+  ) : null;
+
+  cardRenders["commission_mix"] = (ytdDealCount > 0 || pipelineCount > 0) ? (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {ytdDealCount > 0 && (
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-1.5">
+              <CardTitle className="text-sm font-semibold">Commission Mix</CardTitle>
+              <MetricInfo tip="How your closed GCI breaks down by transaction side — buyer, listing, or dual-ended. Knowing your mix helps identify where your business actually comes from." />
+              {isPro && <ExplainButton question="Analyze my commission mix — am I over-reliant on one side and what does that mean for my business?" />}
+            </div>
+            <CardDescription>Buyer vs. listing side · YTD</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2.5">
+            {buyerGCI > 0 && (
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-slate-500 font-medium">Buyer</span>
+                  <span className="font-semibold text-slate-700">{fmtCurrency(buyerGCI)} · {buyerDeals.length} deal{buyerDeals.length !== 1 ? "s" : ""}</span>
+                </div>
+                <Progress value={ytdGCI > 0 ? (buyerGCI / ytdGCI) * 100 : 0} className="h-1.5 [&>div]:bg-blue-500" />
+              </div>
+            )}
+            {listingGCI > 0 && (
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-slate-500 font-medium">Seller / Listing</span>
+                  <span className="font-semibold text-slate-700">{fmtCurrency(listingGCI)} · {listingDeals.length} deal{listingDeals.length !== 1 ? "s" : ""}</span>
+                </div>
+                <Progress value={ytdGCI > 0 ? (listingGCI / ytdGCI) * 100 : 0} className="h-1.5 [&>div]:bg-violet-500" />
+              </div>
+            )}
+            {dualGCI > 0 && (
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-slate-500 font-medium">Both / Double-ended</span>
+                  <span className="font-semibold text-slate-700">{fmtCurrency(dualGCI)} · {dualDeals.length} deal{dualDeals.length !== 1 ? "s" : ""}</span>
+                </div>
+                <Progress value={ytdGCI > 0 ? (dualGCI / ytdGCI) * 100 : 0} className="h-1.5 [&>div]:bg-emerald-500" />
+              </div>
+            )}
+            {buyerGCI === 0 && listingGCI === 0 && dualGCI === 0 && (
+              <p className="text-xs text-muted-foreground py-2">
+                No side data recorded yet. Tag each deal as buyer, seller, or both on the Transactions page.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {pipelineCount > 0 && (
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <CardTitle className="text-sm font-semibold">Pipeline Snapshot</CardTitle>
+                <MetricInfo tip="A count of active deals by pipeline stage. Seeing where deals cluster helps you spot bottlenecks before they cost you closings." />
+                {isPro && <ExplainButton question="Analyze my pipeline stages — are there any bottlenecks I should address to close more deals?" />}
+              </div>
+              <Link href="/pipeline" className="text-xs text-muted-foreground hover:text-foreground font-medium transition-colors">
+                View all →
+              </Link>
+            </div>
+            <CardDescription>{pipelineCount} active deal{pipelineCount !== 1 ? "s" : ""} · {fmtCurrency(pipelineWeightedGCI)} weighted</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {PIPELINE_STAGE_CONFIG.map(stage => {
+                const count = pipelineByStage[stage.key] ?? 0;
+                if (count === 0) return null;
+                return (
+                  <div key={stage.key} className={cn("flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium", stage.chipClass)}>
+                    <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", stage.dotClass)} />
+                    <span>{stage.label}</span>
+                    <span className="font-bold ml-0.5">{count}</span>
+                  </div>
+                );
+              })}
+              {Object.entries(pipelineByStage)
+                .filter(([key]) => !PIPELINE_STAGE_CONFIG.some(s => s.key === key))
+                .map(([key, count]) => (
+                  <div key={key} className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+                    <span className="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0" />
+                    <span className="capitalize">{key}</span>
+                    <span className="font-bold ml-0.5">{count}</span>
+                  </div>
+                ))}
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Probability-weighted value includes deal confidence %. <Link href="/pipeline" className="text-primary hover:underline">Manage pipeline →</Link>
+            </p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  ) : null;
+
+  cardRenders["cap_progress"] = capConfigured ? (
+    <Card className="rounded-2xl border-violet-200 bg-violet-50/70 shadow-sm">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-1.5">
+            <CardTitle className="text-sm font-semibold">Cap Progress</CardTitle>
+            <MetricInfo tip={`Your commission cap is ${fmtCurrency(capThreshold)}. After hitting cap, you keep ${settings ? fmtPct(settings.post_cap_agent_pct) : ""} of each deal's GCI — often 100% — instead of your normal split. Hitting cap is one of the highest-leverage moments in an agent's year.`} />
+            {isPro && <ExplainButton question="How close am I to my commission cap and what's my projected take-home once I hit it?" />}
+          </div>
+          {hasHitCap && (
+            <span className="rounded-full bg-violet-200 text-violet-800 border border-violet-300 text-[11px] font-bold px-2.5 py-0.5">
+              🎉 Cap Hit!
+            </span>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Progress value={capProgress} className="h-2.5 [&>div]:bg-violet-500" />
+        <div className="flex justify-between text-xs text-slate-500 mt-1.5">
+          <span>$0</span>
+          <span className="font-semibold text-slate-700">
+            {fmtPct(capProgress / 100)} — {fmtCurrency(ytdGCI)} of {fmtCurrency(capThreshold)}
+          </span>
+          <span>{fmtCompact(capThreshold)}</span>
+        </div>
+        {!hasHitCap ? (
+          <p className="mt-2 text-xs text-slate-600">
+            <span className="font-medium">{fmtCurrency(Math.max(0, capThreshold - ytdGCI))} to cap</span>
+            {settings && settings.post_cap_agent_pct > 0 && (
+              <> — then you keep <span className="font-semibold text-violet-700">{fmtPct(settings.post_cap_agent_pct)}</span> per deal (vs. your current split)</>
+            )}
+          </p>
+        ) : (
+          <p className="mt-2 text-xs font-medium text-violet-700">
+            Every dollar you close now earns you {settings ? fmtPct(settings.post_cap_agent_pct) : "a higher rate"} — you&apos;re in your highest-earning window. Push hard.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  ) : null;
+
+  cardRenders["tasks"] = (() => {
+    if (localTasks.length === 0 && staleLeadCount === 0) return null;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const overdue  = localTasks.filter((t) => t.due_date < todayStr);
+    const dueToday = localTasks.filter((t) => t.due_date === todayStr);
+    const upcoming = localTasks.filter((t) => t.due_date > todayStr).slice(0, 3);
+    const shown    = [...overdue, ...dueToday, ...upcoming].slice(0, 5);
+    return (
+      <Card className="rounded-2xl border-blue-200 bg-blue-50/70 shadow-sm">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+              <CheckSquare className="h-4 w-4 text-blue-500" />
+              Follow-up Tasks
+            </CardTitle>
+            <Link href="/crm" className="text-xs text-blue-600 hover:underline font-medium">
+              View all →
+            </Link>
+          </div>
+          {(overdue.length > 0 || staleLeadCount > 0) && (
+            <div className="flex items-center gap-2 mt-1">
+              {overdue.length > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-red-100 text-red-700 text-[11px] font-semibold px-2.5 py-0.5 border border-red-200">
+                  <AlertTriangle className="h-3 w-3" />
+                  {overdue.length} overdue
+                </span>
+              )}
+              {staleLeadCount > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 text-[11px] font-semibold px-2.5 py-0.5 border border-amber-200">
+                  <Building2 className="h-3 w-3" />
+                  {staleLeadCount} need outreach
+                </span>
+              )}
+            </div>
+          )}
+        </CardHeader>
+        <CardContent className="pt-0 space-y-1.5">
+          {shown.map((task) => {
+            const isOverdue = task.due_date < todayStr;
+            const isToday   = task.due_date === todayStr;
+            const dateLabel = isOverdue ? `Overdue · ${task.due_date}`
+                            : isToday   ? "Due today"
+                            : task.due_date;
+            return (
+              <div key={task.id} className="flex items-center gap-2.5 rounded-lg bg-white/60 px-3 py-2">
+                <button
+                  onClick={() => completeTaskFromDashboard(task.id)}
+                  className="text-muted-foreground hover:text-emerald-600 transition-colors shrink-0"
+                  title="Mark complete"
+                >
+                  <Square className="h-4 w-4" />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
+                  <p className={cn("text-[11px]", isOverdue ? "text-red-600 font-semibold" : isToday ? "text-amber-700 font-medium" : "text-muted-foreground")}>
+                    {dateLabel}
+                  </p>
+                </div>
+                <span className={cn(
+                  "text-[10px] font-semibold border rounded-full px-2.5 py-0.5 shrink-0",
+                  task.priority === "high"   ? "bg-red-50 text-red-700 border-red-200"
+                  : task.priority === "low"  ? "bg-gray-50 text-gray-600 border-gray-200"
+                  : "bg-blue-50 text-blue-700 border-blue-200",
+                )}>
+                  {task.priority}
+                </span>
+              </div>
+            );
+          })}
+          {localTasks.length > 5 && (
+            <p className="text-xs text-blue-700 text-center pt-1">
+              +{localTasks.length - 5} more tasks —{" "}
+              <Link href="/crm" className="underline font-medium">view all in CRM</Link>
+            </p>
+          )}
+          {localTasks.length === 0 && staleLeadCount > 0 && (
+            <p className="text-xs text-blue-700 text-center py-2">
+              No open tasks — <Link href="/crm" className="underline font-medium">check on your {staleLeadCount} stale lead{staleLeadCount !== 1 ? "s" : ""}</Link>
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    );
+  })();
+
+  cardRenders["insights"] = insights.length > 0 ? (
+    <div className="space-y-4">
+      <div className="rounded-xl border-2 border-primary/20 bg-primary/5 px-4 py-3 flex items-start gap-3">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15 mt-0.5">
+          <Zap className="h-3.5 w-3.5 text-primary" />
+        </div>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-primary mb-0.5">Top Priority Action</p>
+          <p className="text-sm font-semibold text-foreground">{insights[0].title}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{insights[0].message}</p>
+        </div>
+      </div>
+      {insights.length > 1 && (
+        <Card className="rounded-2xl border-amber-200 bg-amber-50/70 shadow-sm">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-200">
+                <Sparkles className="h-3.5 w-3.5 text-amber-700" />
+              </div>
+              <CardTitle className="text-base">Insights</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {insights.slice(1).map((insight) => (
+                <InsightRow key={insight.id} insight={insight} />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  ) : null;
+
+  cardRenders["trends"] = (
+    <Card className="rounded-2xl border-slate-200 shadow-sm">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-base">Monthly Performance</CardTitle>
+            <CardDescription>
+              Closed GCI by month &mdash; projected months shown lighter
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <MonthlyChart data={monthlyChartData} />
+      </CardContent>
+    </Card>
+  );
+
+  cardRenders["probability"] = (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Card className="rounded-2xl border-blue-200 bg-blue-100 shadow-sm">
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-1.5">
+            <CardTitle className="text-base">Projection Range</CardTitle>
+            <GuideLink anchor="probability-bands" label="Probability bands explained in Guide" />
+            {isPro && <ExplainButton question="Explain my projection range — what would I need to do differently to reach the upside scenario?" />}
+          </div>
+          <CardDescription>
+            {bands.confidence} confidence &middot; {bands.monthsOfData} months of data
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="rounded-lg bg-white/80 border border-blue-200 px-3.5 py-3">
+            <p className="text-sm font-medium text-blue-900 leading-snug">
+              Your year-end GCI is most likely to fall between{" "}
+              <span className="font-bold">{fmtCurrency(bands.p25)}</span> and{" "}
+              <span className="font-bold">{fmtCurrency(bands.p75)}</span>
+            </p>
+            <p className="text-xs text-blue-700 mt-1">
+              That&apos;s the 50% confidence window — there&apos;s a 1-in-10 chance you&apos;ll exceed{" "}
+              <span className="font-semibold">{fmtCurrency(bands.p90)}</span>
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-2 text-center sm:grid-cols-3">
+            <div className="rounded-md border border-blue-100 bg-white/50 px-2 py-2">
+              <p className="text-[10px] font-semibold uppercase text-slate-400 tracking-wide">Downside</p>
+              <p className="text-base font-bold text-slate-700 mt-0.5">{fmtCompact(bands.p10)}</p>
+              <p className="text-[10px] text-slate-400">1-in-10 scenario</p>
+            </div>
+            <div className="rounded-md border border-blue-300 bg-blue-50 px-2 py-2">
+              <p className="text-[10px] font-semibold uppercase text-blue-600 tracking-wide">Base</p>
+              <p className="text-base font-bold text-slate-800 mt-0.5">{fmtCompact(bands.p50)}</p>
+              <p className="text-[10px] text-blue-500">most likely</p>
+            </div>
+            <div className="rounded-md border border-blue-100 bg-white/50 px-2 py-2">
+              <p className="text-[10px] font-semibold uppercase text-slate-400 tracking-wide">Upside</p>
+              <p className="text-base font-bold text-slate-700 mt-0.5">{fmtCompact(bands.p90)}</p>
+              <p className="text-[10px] text-slate-400">exceptional year</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl border-purple-200 bg-purple-100 shadow-sm">
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-1.5">
+            <CardTitle className="text-base">Benchmark</CardTitle>
+            <GuideLink anchor="benchmark" label="Benchmark cohorts explained in Guide" />
+          </div>
+          <CardDescription>
+            vs. {COHORT_LABELS[benchmark.cohort]} cohort · CREA 2023 data
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div>
+              <div className="mb-1 flex justify-between text-sm">
+                <span>Cohort percentile</span>
+                <span className="font-medium">P{benchmark.percentile}</span>
+              </div>
+              <Progress value={benchmark.percentile} className="h-2" />
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Cohort median GCI</span>
+              <span>{fmtCurrency(benchmark.cohortMedianGCI)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">National percentile</span>
+              <span>P{benchmark.nationalPercentile}</span>
+            </div>
+            {benchmark.distanceToNextTier != null && benchmark.distanceToNextTier > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">
+                  Gap to {benchmark.nextTierLabel}
+                </span>
+                <span>{fmtCurrency(benchmark.distanceToNextTier)}</span>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  cardRenders["tax_planning"] = (() => {
+    if (!taxResult && goalGCI <= 0) return null;
+    return (
+      <div className="grid gap-4 sm:grid-cols-2">
+        {taxResult && (
+          <Card className="rounded-2xl border-amber-200 bg-amber-100 shadow-sm">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <CardTitle className="text-base">Tax Readiness</CardTitle>
+                    <GuideLink anchor="tax-estimate" label="Tax estimate explained in Guide" />
+                  </div>
+                  <CardDescription>
+                    {taxResult.taxYear} · {PROVINCE_LABELS[settings!.province]} · {fmtPct(taxResult.effectiveRate)} effective rate
+                  </CardDescription>
+                </div>
+                <span className={cn(
+                  "rounded-full px-2.5 py-0.5 text-xs font-semibold border",
+                  monthsElapsed <= 3
+                    ? "bg-blue-100 text-blue-800 border-blue-200"
+                    : monthsElapsed <= 6
+                    ? "bg-amber-200 text-amber-900 border-amber-300"
+                    : "bg-orange-100 text-orange-800 border-orange-200"
+                )}>
+                  {monthsElapsed <= 3 ? "Q1 in progress" : monthsElapsed <= 6 ? "Q2 in progress" : monthsElapsed <= 9 ? "Q3 in progress" : "Q4 — year-end"}
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-3">
+                <p className="text-2xl font-bold text-slate-800">{fmtCurrency(taxResult.totalBurden)}</p>
+                <p className="text-xs text-slate-500">estimated total owed at year-end</p>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between items-center rounded-md bg-amber-200/60 px-3 py-1.5">
+                  <span className="text-amber-900 font-medium">Set aside monthly</span>
+                  <span className="font-bold text-amber-900">{fmtCurrency(recommendedMonthlySave)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Should have saved by now</span>
+                  <span className="font-medium">{fmtCurrency(expectedSavedByNow)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Quarterly instalment</span>
+                  <span>{fmtCurrency(quarterlyInstalment)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Per-deal set-aside</span>
+                  <span>{fmtCurrency(taxResult.perDealSetAside)}</span>
+                </div>
+                {marginalTaxRate > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Marginal rate</span>
+                    <span>{fmtPct(marginalTaxRate)}</span>
+                  </div>
+                )}
+                {afterTaxPerDeal > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Take-home / deal</span>
+                    <span className="font-medium text-emerald-700">{fmtCurrency(afterTaxPerDeal)}</span>
+                  </div>
+                )}
+                {breakEvenGCI > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Break-even GCI</span>
+                    <span>{fmtCurrency(breakEvenGCI)}/yr</span>
+                  </div>
+                )}
+              </div>
+              <p className="mt-3 text-[10px] text-amber-700/70 leading-relaxed">
+                Estimates only · Not tax advice · Consult a qualified accountant
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {goalGCI > 0 && (
+          <Card className="rounded-2xl border-emerald-200 bg-emerald-100 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Goal Progress</CardTitle>
+              <CardDescription>
+                {fmtCurrency(ytdGCI)} of {fmtCurrency(goalGCI)} ({fmtPct(gciProgress / 100)})
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Progress value={gciProgress} className="h-2.5 [&>div]:bg-emerald-500" />
+              <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                <span>$0</span>
+                <span>{fmtCompact(goalGCI)}</span>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {daysRemaining()} days remaining
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
+  })();
+
+  cardRenders["corp_tax"] = (corpTaxResult && settings) ? (
+    <Card className="rounded-2xl border-violet-200 bg-violet-50/70 shadow-sm">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-violet-600" />
+            <div>
+              <CardTitle className="text-base">Corporate Tax Estimate</CardTitle>
+              <CardDescription>
+                {settings.corp_type === "prec" ? "PREC" : "Corporation"} &middot; {PROVINCE_LABELS[settings.province]} &middot; {fmtPct(corpTaxResult.totalCorpRate)} corp rate
+              </CardDescription>
+            </div>
+          </div>
+          <span className={cn(
+            "rounded-full px-2.5 py-0.5 text-xs font-semibold border",
+            corpTaxResult.taxSavingVsSoleProp >= 0
+              ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+              : "bg-red-100 text-red-800 border-red-200"
+          )}>
+            {corpTaxResult.taxSavingVsSoleProp >= 0
+              ? `Saves ${fmtCompact(corpTaxResult.taxSavingVsSoleProp)} vs solo`
+              : `Costs ${fmtCompact(Math.abs(corpTaxResult.taxSavingVsSoleProp))} vs solo`}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-3">
+          <p className="text-2xl font-bold text-slate-800">{fmtCurrency(corpTaxResult.totalCombinedTax)}</p>
+          <p className="text-xs text-slate-500">combined corp + personal tax at year-end</p>
+        </div>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between items-center rounded-md bg-violet-100/80 px-3 py-1.5">
+            <span className="text-violet-900 font-medium">Corporate tax ({fmtPct(corpTaxResult.totalCorpRate)})</span>
+            <span className="font-bold text-violet-900">{fmtCurrency(corpTaxResult.corporateTax)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">After-tax corp income</span>
+            <span className="font-medium">{fmtCurrency(corpTaxResult.afterTaxCorporateIncome)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground capitalize">
+              Personal tax ({settings.compensation_method ?? "salary"})
+            </span>
+            <span>{fmtCurrency(corpTaxResult.totalPersonalTax)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Combined effective rate</span>
+            <span>{fmtPct(corpTaxResult.combinedEffectiveRate)}</span>
+          </div>
+        </div>
+        {corpTaxResult.optimalSaving > 500 &&
+          corpTaxResult.optimalMethod !== settings.compensation_method && (
+          <div className="mt-3 rounded-md bg-violet-100 border border-violet-200 px-3 py-2">
+            <p className="text-xs text-violet-800 font-medium">
+              💡 Switching to {corpTaxResult.optimalMethod === "salary" ? "salary" : "dividends"} could save ~{fmtCurrency(corpTaxResult.optimalSaving)}/yr at your income level. Talk to your accountant before changing compensation structure.
+            </p>
+          </div>
+        )}
+        {corpTaxResult.passiveIncomeWarning && (
+          <div className="mt-2 rounded-md bg-amber-100 border border-amber-200 px-3 py-2">
+            <p className="text-xs text-amber-800 font-medium">
+              ⚠️ Passive income exceeds $50K — SBD limit reduced by {fmtCurrency(corpTaxResult.sbdReductionAmount)}
+            </p>
+          </div>
+        )}
+        <p className="mt-3 text-[10px] text-violet-700/70 leading-relaxed">
+          Estimates only · Not tax advice · Consult a qualified accountant
+        </p>
+      </CardContent>
+    </Card>
+  ) : null;
+
+  cardRenders["tax_savings"] = (taxOptResult && taxOptResult.cardCount > 0) ? (
+    <Card className="rounded-2xl border-amber-200 bg-amber-50/40 shadow-sm">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-base">💰 Tax Savings Opportunities</CardTitle>
+            <CardDescription>
+              Estimated ~{fmtCurrency(taxOptResult.totalEstimatedSavings)}/yr in potential savings
+            </CardDescription>
+          </div>
+          <Link
+            href="/forecast"
+            className="text-xs text-amber-700 hover:text-amber-900 font-medium transition-colors shrink-0"
+          >
+            See all on Forecast →
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-[10px] text-amber-700/70 leading-relaxed italic">
+          For educational purposes only — not tax advice. Consult a qualified accountant.
+        </p>
+        {taxOptResult.cards.map((card: TaxOptimizationCard) => (
+          <div key={card.id} className="rounded-lg border border-amber-100 bg-white p-3">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold truncate">{card.title}</p>
+              <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs shrink-0 font-semibold">
+                {card.estimatedSavingsLabel}
+              </Badge>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{card.action}</p>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  ) : null;
+
+  cardRenders["recent_activity"] = (
+    <Card className="rounded-2xl border-slate-200 shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-base">Recent Transactions</CardTitle>
+        <CardDescription>
+          {ytdDealCount === 0
+            ? "No closed deals yet this year"
+            : `Showing latest ${Math.min(ytdDealCount, 5)} of ${ytdDealCount}`}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {transactions.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No transactions yet. Add your first deal to get started.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {transactions.slice(0, 5).map((tx) => (
+              <div
+                key={tx.id}
+                className="flex items-center justify-between rounded-lg border p-3"
+              >
+                <div>
+                  <p className="text-sm font-medium">
+                    {tx.address || "No address"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {tx.client_name || "\u2014"} &middot;{" "}
+                    {tx.date}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold">
+                    {fmtCurrency(computeGCI(tx))}
+                  </p>
+                  <Badge variant="secondary" className="text-xs capitalize">
+                    {tx.side}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="space-y-8">
       {/* Annual Review Modal */}
@@ -786,23 +1804,19 @@ export function DashboardContent({
               {currentYear} Review
             </button>
           )}
-          {/* View mode toggle */}
-          <div className="flex rounded-lg border border-border bg-muted/40 p-0.5 text-xs">
-            {(["essentials", "standard", "full"] as const).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => handleViewChange(mode)}
-                className={cn(
-                  "rounded-md px-3 py-1.5 font-medium transition-colors capitalize",
-                  dashboardView === mode
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {mode.charAt(0).toUpperCase() + mode.slice(1)}
-              </button>
-            ))}
-          </div>
+          {/* Customize button */}
+          <button
+            onClick={() => setCustomizeMode((m) => !m)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all",
+              customizeMode
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            {customizeMode ? "Done" : "Customize"}
+          </button>
         </div>
       </div>
 
@@ -969,474 +1983,72 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      {/* ── Smart alerts — below score card ── */}
-      {smartAlerts.length > 0 && (
-        <div className="space-y-2">
-          {smartAlerts.map((alert, i) => (
-            <div
-              key={i}
-              className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
-                alert.type === "danger"
-                  ? "border-red-200 bg-red-50 text-red-900"
-                  : "border-amber-200 bg-amber-50 text-amber-900"
-              }`}
-            >
-              <span className="text-base leading-none mt-0.5">{alert.icon}</span>
-              <div>
-                <p className="font-medium">{alert.title}</p>
-                <p className="text-xs mt-0.5 opacity-80">{alert.body}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ── CRM Intelligence Briefing widget ── */}
-      {briefingItems.length > 0 && (
-        <div className="rounded-xl border border-sky-200/70 bg-sky-50/60 px-4 py-3 space-y-0">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Zap className="h-3.5 w-3.5 text-sky-600 shrink-0" />
-              <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">Client Briefing</p>
-            </div>
-            <Link href="/crm" className="text-[11px] text-sky-600 hover:text-sky-800 font-medium">
-              View all →
-            </Link>
-          </div>
-          <div className="space-y-1.5">
-            {briefingItems.map((item) => (
-              <div key={item.id} className="flex items-start gap-2">
-                <span className={cn(
-                  "mt-1 h-1.5 w-1.5 rounded-full shrink-0",
-                  item.severity === "urgent" ? "bg-red-500" : item.severity === "attention" ? "bg-amber-500" : "bg-sky-400",
-                )} />
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-slate-800 leading-snug">{item.title}</p>
-                  <p className="text-[11px] text-slate-500 leading-snug">{item.detail}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* NOTE [REMOVED]: "You Are Here" year-progress strip — removed to reduce noise.
-           Pace information is already surfaced in the Runway Score hero card and the
-           YTD GCI card's pace indicator. If re-adding, place between Smart Alerts
-           and Business Health Narrative. The YouAreHereStrip component is preserved below. */}
-
-      {/* NOTE [REMOVED]: Status strip (Pace / Runway / Scenario badges) — removed as
-           redundant with the Runway Score hero card which already shows these signals.
-           Scenario info was moved to Forecast page. */}
-
-      {/* ── Period recap (month boundary) ── */}
-      {periodRecap && (
-        <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 flex items-center justify-between gap-3">
+      {/* ── Customize bar ── */}
+      {customizeMode && (
+        <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-violet-800">
-              {periodRecap.monthName} recap — {fmtCurrency(periodRecap.monthGCI)} · {periodRecap.monthTx} deal{periodRecap.monthTx !== 1 ? "s" : ""}
-            </p>
-            <p className="text-xs text-violet-600 mt-0.5">
-              {periodRecap.vsAvg >= 1.2
-                ? `↑ ${Math.round((periodRecap.vsAvg - 1) * 100)}% above your monthly average`
-                : periodRecap.vsAvg <= 0.8 && periodRecap.vsAvg > 0
-                ? `↓ ${Math.round((1 - periodRecap.vsAvg) * 100)}% below your monthly average`
-                : "Right in line with your monthly average"}
-            </p>
+            <p className="text-sm font-semibold text-foreground">Customize your dashboard</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Drag cards to reorder. Use the Hide button to remove cards you don&apos;t need.</p>
           </div>
-          <CalendarCheck className="h-5 w-5 text-violet-400 shrink-0" />
+          <button
+            onClick={resetLayout}
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground border border-border rounded-lg px-2.5 py-1.5 shrink-0"
+          >
+            <RotateCcw className="h-3 w-3" />
+            Reset
+          </button>
         </div>
       )}
 
-      {/* ── Weekly Business Brief (elevated, always visible) ── */}
-      {narrative && (
-        <BusinessHealthNarrativeCard
-          narrative={narrative}
-          isOpen={narrativeOpen}
-          onToggle={() => setNarrativeOpen((o) => !o)}
-        />
-      )}
-
-      {/* ── Section: Performance Metrics ── */}
-      <SectionHeader label="Performance Metrics" />
-
-      {/* KPI cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-2xl border-emerald-200 bg-emerald-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription className="font-semibold text-emerald-800">YTD GCI</CardDescription>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-200">
-              <DollarSign className="h-4 w-4 text-emerald-700" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-slate-800">
-              $<CountUp end={ytdGCI} decimals={0} duration={1000} />
-            </div>
-            {goalGCI > 0 ? (
-              <>
-                <p className="text-xs text-slate-500">
-                  {fmtPct(ytdGCI / goalGCI)} of {fmtCompact(goalGCI)} goal
-                </p>
-                {fraction > 0 && paceStatus !== "no-goal" && (
-                  <p className={cn(
-                    "mt-0.5 text-xs font-semibold",
-                    paceStatus === "ahead" ? "text-emerald-600" : "text-amber-600",
-                  )}>
-                    {paceStatus === "ahead"
-                      ? `↑ ${fmtCurrency(paceGapAmount)} ahead of pace`
-                      : `↓ ${fmtCurrency(Math.abs(paceGapAmount))} behind pace`}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="text-xs text-slate-400">Set a goal in Settings to track pace</p>
-            )}
-            {vsLastYearGCI !== null && ytdGCI > 0 && (
-              <p className={cn("mt-0.5 text-xs font-medium", vsLastYearGCI >= 0 ? "text-emerald-600" : "text-amber-600")}>
-                {vsLastYearGCI >= 0
-                  ? `↑ ${fmtCurrency(vsLastYearGCI)} vs last year`
-                  : `↓ ${fmtCurrency(Math.abs(vsLastYearGCI))} vs last year`}
-              </p>
-            )}
-            {revenuePerWorkingDay > 0 && (
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {fmtCurrency(revenuePerWorkingDay)}/working day
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-blue-200 bg-blue-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription className="font-semibold text-blue-800">Deals Closed</CardDescription>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-200">
-              <Briefcase className="h-4 w-4 text-blue-700" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-slate-800">
-              <CountUp end={ytdDealCount} duration={800} />
-            </div>
-            {ytdDealCount === 0 ? (
-              <p className="text-xs text-slate-500">No deals yet — your first is the hardest</p>
-            ) : (
-              <p className="text-xs text-slate-500 flex items-center gap-1">
-                <span className="flex items-center gap-1">
-                  Avg Deal Size
-                  <MetricInfo tip="Your total GCI divided by the number of closed deals this year." />
-                </span>
-                <span>· {fmtCurrency(avgDealSize)}</span>
-              </p>
-            )}
-            {dealsThisQ > 0 && (
-              <p className={cn("mt-0.5 text-xs font-medium",
-                lastYearQDeals !== null
-                  ? dealsThisQ >= lastYearQDeals ? "text-emerald-600" : "text-amber-600"
-                  : "text-slate-500"
-              )}>
-                {dealsThisQ} deal{dealsThisQ !== 1 ? "s" : ""} this Q{currentQ + 1}
-                {lastYearQDeals !== null ? ` · vs ${lastYearQDeals} last year` : ""}
-              </p>
-            )}
-            {lastYearDealAtThisPoint !== null && ytdDealCount > 0 && (
-              <p className="text-xs text-slate-400">
-                vs {lastYearDealAtThisPoint} at this point last year
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-purple-200 bg-purple-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription className="font-semibold text-purple-800">
-              <span className="flex items-center gap-1">
-                Pipeline Weighted
-                <MetricInfo tip="Your in-progress deals weighted by their probability of closing. A $50K deal at 60% odds counts as $30K here." />
-              </span>
-            </CardDescription>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-200">
-              <TrendingUp className="h-4 w-4 text-purple-700" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-slate-800">
-              {pipelineCount === 0 ? "—" : <>$<CountUp end={pipelineWeightedGCI} duration={1000} /></>}
-            </div>
-            <p className="text-xs text-slate-500">
-              {pipelineCount === 0
-                ? "Add prospects to see weighted forecasts"
-                : `${pipelineCount} deal${pipelineCount !== 1 ? "s" : ""} · probability-weighted`}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border-teal-200 bg-teal-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardDescription className="font-semibold text-teal-800">Projected Year-End</CardDescription>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-200">
-              <Target className="h-4 w-4 text-teal-700" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight">
-              $<CountUp end={projectedGCI} duration={1100} />
-            </div>
-            <div className="mt-1 flex items-center gap-2">
-              <Badge
-                variant={
-                  paceStatus === "ahead"
-                    ? "default"
-                    : paceStatus === "behind"
-                      ? "destructive"
-                      : "secondary"
-                }
-              >
-                {paceStatus === "ahead"
-                  ? `+${Math.round(pacePercent)}% ahead`
-                  : paceStatus === "behind"
-                    ? `${Math.round(pacePercent)}% behind`
-                    : "Set a goal"}
-              </Badge>
-              {trend !== "flat" && (
-                <Badge variant="secondary" className="gap-1">
-                  {trend === "up" ? (
-                    <TrendingUp className="h-3 w-3" />
-                  ) : (
-                    <TrendingDown className="h-3 w-3" />
-                  )}
-                  {trend}
-                </Badge>
-              )}
-            </div>
-            {/* Deals needed to hit goal */}
-            {goalGCI > 0 && avgDealSize > 0 && ytdGCI < goalGCI && (
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                ~{Math.ceil((goalGCI - ytdGCI) / avgDealSize)} more deal
-                {Math.ceil((goalGCI - ytdGCI) / avgDealSize) !== 1 ? "s" : ""} at avg size to hit goal
-              </p>
-            )}
-            {goalGCI > 0 && ytdGCI >= goalGCI && (
-              <p className="mt-1.5 text-xs font-semibold shimmer-text">
-                🎉 Goal reached — you crushed it!
-              </p>
-            )}
-            <p className="mt-2 text-[10px] text-muted-foreground/70">
-              {seasonalSource === "agent"
-                ? `Seasonality: your ${historyItems.filter((h) => (h.quarter_gci as number[]).some((v) => (v ?? 0) > 0)).length}-yr pattern`
-                : seasonalSource === "national"
-                  ? "Seasonality: national averages"
-                  : "Seasonality: uniform (add history to improve)"}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ── Net Take-Home card — "what do I actually keep?" ── */}
-      {ytdGCI > 0 && settings && (
-        <Card className="rounded-2xl border-emerald-200 bg-emerald-50/70 shadow-sm">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-1.5">
-                <CardTitle className="text-base">Net Take-Home (YTD Est.)</CardTitle>
-                <MetricInfo tip="Your gross GCI after brokerage split, transaction fees, monthly brokerage costs, and estimated income tax — approximately what you actually keep." />
-                {isPro && <ExplainButton question="Break down my net take-home calculation — what am I actually keeping from each deal this year?" />}
-              </div>
-              <Link href="/forecast" className="text-xs text-emerald-700 hover:text-emerald-900 font-medium transition-colors">
-                Full tax breakdown →
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-6 items-start">
-              <div>
-                <p className="text-3xl font-bold text-emerald-800">
-                  {fmtCurrency(ytdEstimatedTakeHome)}
-                </p>
-                <p className="text-xs text-slate-500 mt-0.5">after splits, fees &amp; estimated tax</p>
-              </div>
-              <div className="flex flex-wrap gap-5 text-sm">
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Agent Net (pre-tax)</p>
-                  <p className="font-bold text-slate-700 mt-0.5">{fmtCurrency(ytdNetBeforeTax)}</p>
-                  <p className="text-[10px] text-slate-400">after split &amp; fees</p>
-                </div>
-                <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Est. Tax Owed</p>
-                  <p className="font-bold text-amber-700 mt-0.5">{fmtCurrency(ytdTaxSetAside)}</p>
-                  <p className="text-[10px] text-slate-400">set aside now</p>
-                </div>
-                {ytdDealCount > 0 && (
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Per Deal</p>
-                    <p className="font-bold text-emerald-700 mt-0.5">{fmtCurrency(ytdEstimatedTakeHome / ytdDealCount)}</p>
-                    <p className="text-[10px] text-slate-400">actual take-home</p>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-slate-400 border-t border-emerald-100 pt-2.5">
-              <span>Split: {settings.split_preset ?? "custom"}</span>
-              {settings.monthly_brokerage_fee > 0 && <span>Monthly fee: {fmtCurrency(settings.monthly_brokerage_fee)}/mo × {monthsElapsed}mo</span>}
-              {ytdTxFees > 0 && <span>Tx fees: {fmtCurrency(ytdTxFees)}</span>}
-              <span className="italic">Estimate only · Not tax advice</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Personal Records — standard + full, only when there's data */}
-      {dashboardView !== "essentials" && (transactions.length > 0 || historyItems.length > 0) && (
-        <PersonalRecordsCard
-          transactions={transactions}
-          historyItems={historyItems}
-          ytdGCI={ytdGCI}
-          currentYear={currentYear}
-        />
-      )}
-
-      {/* ── Commission Mix + Pipeline Snapshot row (Standard + Full) ── */}
-      {dashboardView !== "essentials" && (ytdDealCount > 0 || pipelineCount > 0) && (
-        <div className="grid gap-4 sm:grid-cols-2">
-
-          {/* Commission Side Mix */}
-          {ytdDealCount > 0 && (
-            <Card className="rounded-2xl border-slate-200 shadow-sm">
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-1.5">
-                  <CardTitle className="text-sm font-semibold">Commission Mix</CardTitle>
-                  <MetricInfo tip="How your closed GCI breaks down by transaction side — buyer, listing, or dual-ended. Knowing your mix helps identify where your business actually comes from." />
-                  {isPro && <ExplainButton question="Analyze my commission mix — am I over-reliant on one side and what does that mean for my business?" />}
-                </div>
-                <CardDescription>Buyer vs. listing side · YTD</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2.5">
-                {buyerGCI > 0 && (
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-500 font-medium">Buyer</span>
-                      <span className="font-semibold text-slate-700">{fmtCurrency(buyerGCI)} · {buyerDeals.length} deal{buyerDeals.length !== 1 ? "s" : ""}</span>
-                    </div>
-                    <Progress value={ytdGCI > 0 ? (buyerGCI / ytdGCI) * 100 : 0} className="h-1.5 [&>div]:bg-blue-500" />
-                  </div>
-                )}
-                {listingGCI > 0 && (
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-500 font-medium">Seller / Listing</span>
-                      <span className="font-semibold text-slate-700">{fmtCurrency(listingGCI)} · {listingDeals.length} deal{listingDeals.length !== 1 ? "s" : ""}</span>
-                    </div>
-                    <Progress value={ytdGCI > 0 ? (listingGCI / ytdGCI) * 100 : 0} className="h-1.5 [&>div]:bg-violet-500" />
-                  </div>
-                )}
-                {dualGCI > 0 && (
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-500 font-medium">Both / Double-ended</span>
-                      <span className="font-semibold text-slate-700">{fmtCurrency(dualGCI)} · {dualDeals.length} deal{dualDeals.length !== 1 ? "s" : ""}</span>
-                    </div>
-                    <Progress value={ytdGCI > 0 ? (dualGCI / ytdGCI) * 100 : 0} className="h-1.5 [&>div]:bg-emerald-500" />
-                  </div>
-                )}
-                {buyerGCI === 0 && listingGCI === 0 && dualGCI === 0 && (
-                  <p className="text-xs text-muted-foreground py-2">
-                    No side data recorded yet. Tag each deal as buyer, seller, or both on the Transactions page.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Pipeline Stage Snapshot */}
-          {pipelineCount > 0 && (
-            <Card className="rounded-2xl border-slate-200 shadow-sm">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <CardTitle className="text-sm font-semibold">Pipeline Snapshot</CardTitle>
-                    <MetricInfo tip="A count of active deals by pipeline stage. Seeing where deals cluster helps you spot bottlenecks before they cost you closings." />
-                    {isPro && <ExplainButton question="Analyze my pipeline stages — are there any bottlenecks I should address to close more deals?" />}
-                  </div>
-                  <Link href="/pipeline" className="text-xs text-muted-foreground hover:text-foreground font-medium transition-colors">
-                    View all →
-                  </Link>
-                </div>
-                <CardDescription>{pipelineCount} active deal{pipelineCount !== 1 ? "s" : ""} · {fmtCurrency(pipelineWeightedGCI)} weighted</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {PIPELINE_STAGE_CONFIG.map(stage => {
-                    const count = pipelineByStage[stage.key] ?? 0;
-                    if (count === 0) return null;
-                    return (
-                      <div key={stage.key} className={cn("flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium", stage.chipClass)}>
-                        <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", stage.dotClass)} />
-                        <span>{stage.label}</span>
-                        <span className="font-bold ml-0.5">{count}</span>
+      {/* ── Sortable card area ── */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={cardOrder} strategy={verticalListSortingStrategy}>
+          <div className="space-y-4">
+            {cardOrder
+              .filter((id) => customizeMode || !hiddenCards.has(id))
+              .map((id) => {
+                const content = cardRenders[id];
+                const cardDef = CARD_REGISTRY.find((c) => c.id === id);
+                const isHidden = hiddenCards.has(id);
+                if (!customizeMode && (content == null || isHidden)) return null;
+                return (
+                  <SortableCard
+                    key={id}
+                    id={id}
+                    label={cardDef?.label ?? id}
+                    customizeMode={customizeMode}
+                    onHide={() => toggleHide(id)}
+                  >
+                    {isHidden ? (
+                      <div className="rounded-xl border-2 border-dashed border-border/50 bg-muted/20 px-4 py-3 flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-muted-foreground">{cardDef?.label}</p>
+                          <p className="text-xs text-muted-foreground/70">{cardDef?.description}</p>
+                        </div>
+                        <button
+                          onClick={() => toggleShow(id)}
+                          className="flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg px-2.5 py-1.5 hover:bg-primary/5"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Show
+                        </button>
                       </div>
-                    );
-                  })}
-                  {/* catch-all for unknown stages */}
-                  {Object.entries(pipelineByStage)
-                    .filter(([key]) => !PIPELINE_STAGE_CONFIG.some(s => s.key === key))
-                    .map(([key, count]) => (
-                      <div key={key} className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
-                        <span className="h-1.5 w-1.5 rounded-full bg-slate-400 shrink-0" />
-                        <span className="capitalize">{key}</span>
-                        <span className="font-bold ml-0.5">{count}</span>
+                    ) : content ?? (
+                      <div className="rounded-xl border border-dashed border-border/40 bg-muted/10 px-4 py-3 text-xs text-muted-foreground text-center">
+                        {cardDef?.label} — no data yet
                       </div>
-                    ))}
-                </div>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  Probability-weighted value includes deal confidence %. <Link href="/pipeline" className="text-primary hover:underline">Manage pipeline →</Link>
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
+                    )}
+                  </SortableCard>
+                );
+              })}
+          </div>
+        </SortableContext>
+      </DndContext>
 
-      {/* ── Cap Progress (Standard + Full, only when cap is configured) ── */}
-      {capConfigured && dashboardView !== "essentials" && (
-        <Card className="rounded-2xl border-violet-200 bg-violet-50/70 shadow-sm">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="flex items-center gap-1.5">
-                <CardTitle className="text-sm font-semibold">Cap Progress</CardTitle>
-                <MetricInfo tip={`Your commission cap is ${fmtCurrency(capThreshold)}. After hitting cap, you keep ${settings ? fmtPct(settings.post_cap_agent_pct) : ""} of each deal's GCI — often 100% — instead of your normal split. Hitting cap is one of the highest-leverage moments in an agent's year.`} />
-                {isPro && <ExplainButton question="How close am I to my commission cap and what's my projected take-home once I hit it?" />}
-              </div>
-              {hasHitCap && (
-                <span className="rounded-full bg-violet-200 text-violet-800 border border-violet-300 text-[11px] font-bold px-2.5 py-0.5">
-                  🎉 Cap Hit!
-                </span>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Progress value={capProgress} className="h-2.5 [&>div]:bg-violet-500" />
-            <div className="flex justify-between text-xs text-slate-500 mt-1.5">
-              <span>$0</span>
-              <span className="font-semibold text-slate-700">
-                {fmtPct(capProgress / 100)} — {fmtCurrency(ytdGCI)} of {fmtCurrency(capThreshold)}
-              </span>
-              <span>{fmtCompact(capThreshold)}</span>
-            </div>
-            {!hasHitCap ? (
-              <p className="mt-2 text-xs text-slate-600">
-                <span className="font-medium">{fmtCurrency(Math.max(0, capThreshold - ytdGCI))} to cap</span>
-                {settings && settings.post_cap_agent_pct > 0 && (
-                  <> — then you keep <span className="font-semibold text-violet-700">{fmtPct(settings.post_cap_agent_pct)}</span> per deal (vs. your current split)</>
-                )}
-              </p>
-            ) : (
-              <p className="mt-2 text-xs font-medium text-violet-700">
-                Every dollar you close now earns you {settings ? fmtPct(settings.post_cap_agent_pct) : "a higher rate"} — you&apos;re in your highest-earning window. Push hard.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* First-run guide — shown only when there's no data yet */}
       {transactions.length === 0 && pipelineDeals.length === 0 && (
@@ -1471,503 +2083,6 @@ export function DashboardContent({
         </Card>
       )}
 
-      {/* ── Section: Follow-up Tasks & CRM Summary ── */}
-      {(localTasks.length > 0 || staleLeadCount > 0) && (() => {
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const overdue  = localTasks.filter((t) => t.due_date < todayStr);
-        const dueToday = localTasks.filter((t) => t.due_date === todayStr);
-        const upcoming = localTasks.filter((t) => t.due_date > todayStr).slice(0, 3);
-        const shown    = [...overdue, ...dueToday, ...upcoming].slice(0, 5);
-        return (
-          <Card className="rounded-2xl border-blue-200 bg-blue-50/70 shadow-sm">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold text-blue-900 flex items-center gap-2">
-                  <CheckSquare className="h-4 w-4 text-blue-500" />
-                  Follow-up Tasks
-                </CardTitle>
-                <Link href="/crm" className="text-xs text-blue-600 hover:underline font-medium">
-                  View all →
-                </Link>
-              </div>
-              {/* CRM stat pills row */}
-              {(overdue.length > 0 || staleLeadCount > 0) && (
-                <div className="flex items-center gap-2 mt-1">
-                  {overdue.length > 0 && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-red-100 text-red-700 text-[11px] font-semibold px-2.5 py-0.5 border border-red-200">
-                      <AlertTriangle className="h-3 w-3" />
-                      {overdue.length} overdue
-                    </span>
-                  )}
-                  {staleLeadCount > 0 && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-700 text-[11px] font-semibold px-2.5 py-0.5 border border-amber-200">
-                      <Building2 className="h-3 w-3" />
-                      {staleLeadCount} need outreach
-                    </span>
-                  )}
-                </div>
-              )}
-            </CardHeader>
-            <CardContent className="pt-0 space-y-1.5">
-              {shown.map((task) => {
-                const isOverdue = task.due_date < todayStr;
-                const isToday   = task.due_date === todayStr;
-                const dateLabel = isOverdue ? `Overdue · ${task.due_date}`
-                                : isToday   ? "Due today"
-                                : task.due_date;
-                return (
-                  <div key={task.id} className="flex items-center gap-2.5 rounded-lg bg-white/60 px-3 py-2">
-                    <button
-                      onClick={() => completeTaskFromDashboard(task.id)}
-                      className="text-muted-foreground hover:text-emerald-600 transition-colors shrink-0"
-                      title="Mark complete"
-                    >
-                      <Square className="h-4 w-4" />
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
-                      <p className={cn("text-[11px]", isOverdue ? "text-red-600 font-semibold" : isToday ? "text-amber-700 font-medium" : "text-muted-foreground")}>
-                        {dateLabel}
-                      </p>
-                    </div>
-                    <span className={cn(
-                      "text-[10px] font-semibold border rounded-full px-2.5 py-0.5 shrink-0",
-                      task.priority === "high"   ? "bg-red-50 text-red-700 border-red-200"
-                      : task.priority === "low"  ? "bg-gray-50 text-gray-600 border-gray-200"
-                      : "bg-blue-50 text-blue-700 border-blue-200",
-                    )}>
-                      {task.priority}
-                    </span>
-                  </div>
-                );
-              })}
-              {localTasks.length > 5 && (
-                <p className="text-xs text-blue-700 text-center pt-1">
-                  +{localTasks.length - 5} more tasks —{" "}
-                  <Link href="/crm" className="underline font-medium">view all in CRM</Link>
-                </p>
-              )}
-              {localTasks.length === 0 && staleLeadCount > 0 && (
-                <p className="text-xs text-blue-700 text-center py-2">
-                  No open tasks — <Link href="/crm" className="underline font-medium">check on your {staleLeadCount} stale lead{staleLeadCount !== 1 ? "s" : ""}</Link>
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        );
-      })()}
-
-      {/* ── Section: Insights & Actions ── */}
-      {insights.length > 0 && <SectionHeader label="Insights & Actions" />}
-
-      {/* Top Priority Action callout */}
-      {insights.length > 0 && (
-        <div className="rounded-xl border-2 border-primary/20 bg-primary/5 px-4 py-3 flex items-start gap-3">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15 mt-0.5">
-            <Zap className="h-3.5 w-3.5 text-primary" />
-          </div>
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-primary mb-0.5">Top Priority Action</p>
-            <p className="text-sm font-semibold text-foreground">{insights[0].title}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{insights[0].message}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Full insight list */}
-      {insights.length > 1 && (
-        <Card className="rounded-2xl border-amber-200 bg-amber-50/70 shadow-sm">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-200">
-                <Sparkles className="h-3.5 w-3.5 text-amber-700" />
-              </div>
-              <CardTitle className="text-base">Insights</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {insights.slice(1).map((insight) => (
-                <InsightRow key={insight.id} insight={insight} />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ── Section: Activity & Trends ── */}
-      {dashboardView !== "essentials" && <SectionHeader label="Activity & Trends" />}
-
-      {/* Monthly Performance Chart — Standard + Full */}
-      {dashboardView !== "essentials" && (
-        <Card className="rounded-2xl border-slate-200 shadow-sm">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base">Monthly Performance</CardTitle>
-                <CardDescription>
-                  Closed GCI by month &mdash; projected months shown lighter
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <MonthlyChart data={monthlyChartData} />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Probability bands + benchmark row — Full only */}
-      {dashboardView === "full" && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card className="rounded-2xl border-blue-200 bg-blue-100 shadow-sm">
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-1.5">
-                <CardTitle className="text-base">Projection Range</CardTitle>
-                <GuideLink anchor="probability-bands" label="Probability bands explained in Guide" />
-                {isPro && <ExplainButton question="Explain my projection range — what would I need to do differently to reach the upside scenario?" />}
-              </div>
-              <CardDescription>
-                {bands.confidence} confidence &middot; {bands.monthsOfData} months of data
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {/* Plain-English range statement — the most important signal */}
-              <div className="rounded-lg bg-white/80 border border-blue-200 px-3.5 py-3">
-                <p className="text-sm font-medium text-blue-900 leading-snug">
-                  Your year-end GCI is most likely to fall between{" "}
-                  <span className="font-bold">{fmtCurrency(bands.p25)}</span> and{" "}
-                  <span className="font-bold">{fmtCurrency(bands.p75)}</span>
-                </p>
-                <p className="text-xs text-blue-700 mt-1">
-                  That&apos;s the 50% confidence window — there&apos;s a 1-in-10 chance you&apos;ll exceed{" "}
-                  <span className="font-semibold">{fmtCurrency(bands.p90)}</span>
-                </p>
-              </div>
-              {/* Three-column compact view for reference */}
-              <div className="grid grid-cols-1 gap-2 text-center sm:grid-cols-3">
-                <div className="rounded-md border border-blue-100 bg-white/50 px-2 py-2">
-                  <p className="text-[10px] font-semibold uppercase text-slate-400 tracking-wide">Downside</p>
-                  <p className="text-base font-bold text-slate-700 mt-0.5">{fmtCompact(bands.p10)}</p>
-                  <p className="text-[10px] text-slate-400">1-in-10 scenario</p>
-                </div>
-                <div className="rounded-md border border-blue-300 bg-blue-50 px-2 py-2">
-                  <p className="text-[10px] font-semibold uppercase text-blue-600 tracking-wide">Base</p>
-                  <p className="text-base font-bold text-slate-800 mt-0.5">{fmtCompact(bands.p50)}</p>
-                  <p className="text-[10px] text-blue-500">most likely</p>
-                </div>
-                <div className="rounded-md border border-blue-100 bg-white/50 px-2 py-2">
-                  <p className="text-[10px] font-semibold uppercase text-slate-400 tracking-wide">Upside</p>
-                  <p className="text-base font-bold text-slate-700 mt-0.5">{fmtCompact(bands.p90)}</p>
-                  <p className="text-[10px] text-slate-400">exceptional year</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-2xl border-purple-200 bg-purple-100 shadow-sm">
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-1.5">
-                <CardTitle className="text-base">Benchmark</CardTitle>
-                <GuideLink anchor="benchmark" label="Benchmark cohorts explained in Guide" />
-              </div>
-              <CardDescription>
-                vs. {COHORT_LABELS[benchmark.cohort]} cohort · CREA 2023 data
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div>
-                  <div className="mb-1 flex justify-between text-sm">
-                    <span>Cohort percentile</span>
-                    <span className="font-medium">P{benchmark.percentile}</span>
-                  </div>
-                  <Progress value={benchmark.percentile} className="h-2" />
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Cohort median GCI</span>
-                  <span>{fmtCurrency(benchmark.cohortMedianGCI)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">National percentile</span>
-                  <span>P{benchmark.nationalPercentile}</span>
-                </div>
-                {benchmark.distanceToNextTier != null && benchmark.distanceToNextTier > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      Gap to {benchmark.nextTierLabel}
-                    </span>
-                    <span>{fmtCurrency(benchmark.distanceToNextTier)}</span>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* ── Section: Planning ── */}
-      {dashboardView === "full" && <SectionHeader label="Planning" />}
-
-      {/* Tax estimate + Goal progress row — Full only */}
-      {dashboardView === "full" && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {taxResult && (
-            <Card className="rounded-2xl border-amber-200 bg-amber-100 shadow-sm">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <CardTitle className="text-base">Tax Readiness</CardTitle>
-                      <GuideLink anchor="tax-estimate" label="Tax estimate explained in Guide" />
-                    </div>
-                    <CardDescription>
-                      {taxResult.taxYear} · {PROVINCE_LABELS[settings!.province]} · {fmtPct(taxResult.effectiveRate)} effective rate
-                    </CardDescription>
-                  </div>
-                  <span className={cn(
-                    "rounded-full px-2.5 py-0.5 text-xs font-semibold border",
-                    monthsElapsed <= 3
-                      ? "bg-blue-100 text-blue-800 border-blue-200"
-                      : monthsElapsed <= 6
-                      ? "bg-amber-200 text-amber-900 border-amber-300"
-                      : "bg-orange-100 text-orange-800 border-orange-200"
-                  )}>
-                    {monthsElapsed <= 3 ? "Q1 in progress" : monthsElapsed <= 6 ? "Q2 in progress" : monthsElapsed <= 9 ? "Q3 in progress" : "Q4 — year-end"}
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-3">
-                  <p className="text-2xl font-bold text-slate-800">{fmtCurrency(taxResult.totalBurden)}</p>
-                  <p className="text-xs text-slate-500">estimated total owed at year-end</p>
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between items-center rounded-md bg-amber-200/60 px-3 py-1.5">
-                    <span className="text-amber-900 font-medium">Set aside monthly</span>
-                    <span className="font-bold text-amber-900">{fmtCurrency(recommendedMonthlySave)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Should have saved by now</span>
-                    <span className="font-medium">{fmtCurrency(expectedSavedByNow)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Quarterly instalment</span>
-                    <span>{fmtCurrency(quarterlyInstalment)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Per-deal set-aside</span>
-                    <span>{fmtCurrency(taxResult.perDealSetAside)}</span>
-                  </div>
-                  {marginalTaxRate > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Marginal rate</span>
-                      <span>{fmtPct(marginalTaxRate)}</span>
-                    </div>
-                  )}
-                  {afterTaxPerDeal > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Take-home / deal</span>
-                      <span className="font-medium text-emerald-700">{fmtCurrency(afterTaxPerDeal)}</span>
-                    </div>
-                  )}
-                  {breakEvenGCI > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Break-even GCI</span>
-                      <span>{fmtCurrency(breakEvenGCI)}/yr</span>
-                    </div>
-                  )}
-                </div>
-                <p className="mt-3 text-[10px] text-amber-700/70 leading-relaxed">
-                  Estimates only · Not tax advice · Consult a qualified accountant
-                </p>
-              </CardContent>
-            </Card>
-          )}
-
-          {goalGCI > 0 && (
-            <Card className="rounded-2xl border-emerald-200 bg-emerald-100 shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">Goal Progress</CardTitle>
-                <CardDescription>
-                  {fmtCurrency(ytdGCI)} of {fmtCurrency(goalGCI)} ({fmtPct(gciProgress / 100)})
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Progress value={gciProgress} className="h-2.5 [&>div]:bg-emerald-500" />
-                <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-                  <span>$0</span>
-                  <span>{fmtCompact(goalGCI)}</span>
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {daysRemaining()} days remaining
-                </p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
-
-      {/* Corporate tax estimate — incorporated users only */}
-      {dashboardView === "full" && corpTaxResult && settings && (
-        <Card className="rounded-2xl border-violet-200 bg-violet-50/70 shadow-sm">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-violet-600" />
-                <div>
-                  <CardTitle className="text-base">Corporate Tax Estimate</CardTitle>
-                  <CardDescription>
-                    {settings.corp_type === "prec" ? "PREC" : "Corporation"} &middot; {PROVINCE_LABELS[settings.province]} &middot; {fmtPct(corpTaxResult.totalCorpRate)} corp rate
-                  </CardDescription>
-                </div>
-              </div>
-              <span className={cn(
-                "rounded-full px-2.5 py-0.5 text-xs font-semibold border",
-                corpTaxResult.taxSavingVsSoleProp >= 0
-                  ? "bg-emerald-100 text-emerald-800 border-emerald-200"
-                  : "bg-red-100 text-red-800 border-red-200"
-              )}>
-                {corpTaxResult.taxSavingVsSoleProp >= 0
-                  ? `Saves ${fmtCompact(corpTaxResult.taxSavingVsSoleProp)} vs solo`
-                  : `Costs ${fmtCompact(Math.abs(corpTaxResult.taxSavingVsSoleProp))} vs solo`}
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-3">
-              <p className="text-2xl font-bold text-slate-800">{fmtCurrency(corpTaxResult.totalCombinedTax)}</p>
-              <p className="text-xs text-slate-500">combined corp + personal tax at year-end</p>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between items-center rounded-md bg-violet-100/80 px-3 py-1.5">
-                <span className="text-violet-900 font-medium">Corporate tax ({fmtPct(corpTaxResult.totalCorpRate)})</span>
-                <span className="font-bold text-violet-900">{fmtCurrency(corpTaxResult.corporateTax)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">After-tax corp income</span>
-                <span className="font-medium">{fmtCurrency(corpTaxResult.afterTaxCorporateIncome)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground capitalize">
-                  Personal tax ({settings.compensation_method ?? "salary"})
-                </span>
-                <span>{fmtCurrency(corpTaxResult.totalPersonalTax)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Combined effective rate</span>
-                <span>{fmtPct(corpTaxResult.combinedEffectiveRate)}</span>
-              </div>
-            </div>
-            {/* Optimizer tip */}
-            {corpTaxResult.optimalSaving > 500 &&
-              corpTaxResult.optimalMethod !== settings.compensation_method && (
-              <div className="mt-3 rounded-md bg-violet-100 border border-violet-200 px-3 py-2">
-                <p className="text-xs text-violet-800 font-medium">
-                  💡 Switching to {corpTaxResult.optimalMethod === "salary" ? "salary" : "dividends"} could save ~{fmtCurrency(corpTaxResult.optimalSaving)}/yr at your income level. Talk to your accountant before changing compensation structure.
-                </p>
-              </div>
-            )}
-            {corpTaxResult.passiveIncomeWarning && (
-              <div className="mt-2 rounded-md bg-amber-100 border border-amber-200 px-3 py-2">
-                <p className="text-xs text-amber-800 font-medium">
-                  ⚠️ Passive income exceeds $50K — SBD limit reduced by {fmtCurrency(corpTaxResult.sbdReductionAmount)}
-                </p>
-              </div>
-            )}
-            <p className="mt-3 text-[10px] text-violet-700/70 leading-relaxed">
-              Estimates only · Not tax advice · Consult a qualified accountant
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Tax Savings Opportunities — top 3 summary */}
-      {dashboardView === "full" && taxOptResult && taxOptResult.cardCount > 0 && (
-        <Card className="rounded-2xl border-amber-200 bg-amber-50/40 shadow-sm">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base">💰 Tax Savings Opportunities</CardTitle>
-                <CardDescription>
-                  Estimated ~{fmtCurrency(taxOptResult.totalEstimatedSavings)}/yr in potential savings
-                </CardDescription>
-              </div>
-              <Link
-                href="/forecast"
-                className="text-xs text-amber-700 hover:text-amber-900 font-medium transition-colors shrink-0"
-              >
-                See all on Forecast →
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-[10px] text-amber-700/70 leading-relaxed italic">
-              For educational purposes only — not tax advice. Consult a qualified accountant.
-            </p>
-            {taxOptResult.cards.map((card: TaxOptimizationCard) => (
-              <div key={card.id} className="rounded-lg border border-amber-100 bg-white p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold truncate">{card.title}</p>
-                  <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs shrink-0 font-semibold">
-                    {card.estimatedSavingsLabel}
-                  </Badge>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{card.action}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ── Section: Recent Activity ── */}
-      <SectionHeader label="Recent Activity" />
-
-      {/* Recent transactions */}
-      <Card className="rounded-2xl border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Recent Transactions</CardTitle>
-          <CardDescription>
-            {ytdDealCount === 0
-              ? "No closed deals yet this year"
-              : `Showing latest ${Math.min(ytdDealCount, 5)} of ${ytdDealCount}`}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {transactions.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              No transactions yet. Add your first deal to get started.
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {transactions.slice(0, 5).map((tx) => (
-                <div
-                  key={tx.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
-                >
-                  <div>
-                    <p className="text-sm font-medium">
-                      {tx.address || "No address"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {tx.client_name || "\u2014"} &middot;{" "}
-                      {tx.date}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold">
-                      {fmtCurrency(computeGCI(tx))}
-                    </p>
-                    <Badge variant="secondary" className="text-xs capitalize">
-                      {tx.side}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Disclaimer */}
       <p className="text-center text-xs leading-relaxed text-muted-foreground/60 pb-2">

@@ -17,7 +17,7 @@ export default async function DashboardPage({
   // Check if user has completed onboarding (has settings row)
   const { data: settings } = await supabase
     .from("user_settings")
-    .select("user_id, goal_gci, display_name, province, split_preset")
+    .select("user_id, goal_gci, display_name, province, split_preset, dashboard_layout")
     .eq("user_id", user.id)
     .single();
 
@@ -198,6 +198,7 @@ export default async function DashboardPage({
       boardSubregion={settingsResult.data?.board_subregion ?? ""}
       briefingItems={topBriefingItems}
       runwayScoreSnapshot={(settingsResult.data?.runway_score_snapshot as { score: number; month: string } | null) ?? null}
+      dashboardLayout={(settingsResult.data?.dashboard_layout as import("./card-registry").DashboardLayout | null) ?? null}
     />
   );
 }
