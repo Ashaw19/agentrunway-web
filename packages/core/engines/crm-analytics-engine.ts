@@ -489,8 +489,13 @@ export function computeIntelligenceBriefing(
       ? Math.floor((now.getTime() - lastAct.getTime()) / 86_400_000)
       : 999;
 
+    // Imported clients with no activity logged yet are silenced for contact-recency
+    // alerts. The user knows these people — they just haven't logged anything yet.
+    // The moment one activity is recorded, normal alerting resumes.
+    const importedNoActivity = !!client.imported_at && daysSince === 999;
+
     // ── 1. VIP / High Value overdue (threshold: 14 days) ──────────────────────
-    if (isVip && daysSince >= 14) {
+    if (!importedNoActivity && isVip && daysSince >= 14) {
       hasActionItem.add(client.id);
       items.push({
         id: `vip_${client.id}`,
@@ -505,7 +510,7 @@ export function computeIntelligenceBriefing(
     }
 
     // ── 2. Uncontacted new leads (boarding, no first contact, 24h+ old) ────────
-    if (!hasActionItem.has(client.id) && client.status === "boarding" && !client.first_contacted_at) {
+    if (!importedNoActivity && !hasActionItem.has(client.id) && client.status === "boarding" && !client.first_contacted_at) {
       const ageHours = (now.getTime() - new Date(client.created_at).getTime()) / 3_600_000;
       if (ageHours >= 24) {
         hasActionItem.add(client.id);
@@ -526,7 +531,7 @@ export function computeIntelligenceBriefing(
     }
 
     // ── 3. In-Flight stale (active deal, 7+ days no contact) ──────────────────
-    if (!hasActionItem.has(client.id) && client.status === "in_flight" && daysSince >= 7) {
+    if (!importedNoActivity && !hasActionItem.has(client.id) && client.status === "in_flight" && daysSince >= 7) {
       hasActionItem.add(client.id);
       items.push({
         id: `in_flight_${client.id}`,
@@ -597,6 +602,7 @@ export function computeIntelligenceBriefing(
 
     // ── 6. Past client check-in (landed / cruising, 180+ days no contact) ───────
     if (
+      !importedNoActivity &&
       (client.status === "landed" || client.status === "cruising") &&
       daysSince >= 180
     ) {

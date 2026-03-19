@@ -1907,6 +1907,7 @@ export function ClientsContent({
           postal_code:    postal,
           country:        mapCountry   !== "__none__" ? (row[mapCountry]   ?? "").trim() || "Canada" : "Canada",
           phone_type:     mapPhoneType !== "__none__" ? normalizePhoneType(row[mapPhoneType] ?? "") : "mobile",
+          imported_at:    new Date().toISOString(),
         });
       }
     }

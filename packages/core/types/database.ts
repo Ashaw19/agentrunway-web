@@ -846,6 +846,9 @@ export interface Client {
   buyer_financing_type:      string | null;  // BuyerFinancingType value
   buyer_target_close_date:   string | null;  // ISO date
 
+  // CSV import tracking (migration 00054)
+  imported_at: string | null;  // set when created via bulk CSV import; null = manually added
+
   created_at: string;
   updated_at: string;
 }
