@@ -4,7 +4,6 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 import { Check, Sparkles, ArrowRight } from "lucide-react";
-import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Join the Waitlist | Agent Runway",
@@ -317,7 +316,7 @@ function PillarVisual({ visual }: { visual: string }) {
 
 export default function WaitlistPage() {
   return (
-    <div className="flex min-h-screen flex-col" style={{ background: "#010D1F" }}>
+    <div className="flex min-h-[100dvh] flex-col" style={{ background: "#010D1F" }}>
       <MarketingNav isLoggedIn={false} />
 
       <main className="flex-1 overflow-hidden">
@@ -325,7 +324,7 @@ export default function WaitlistPage() {
         {/* ══════════════════════════════════════════════════════════════════
             SECTION 1 — FULL-VIEWPORT HERO
         ══════════════════════════════════════════════════════════════════ */}
-        <section className="relative min-h-screen flex flex-col justify-center">
+        <section className="relative min-h-[100dvh] flex flex-col justify-center">
 
           {/* ── Background atmosphere ── */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
@@ -359,11 +358,11 @@ export default function WaitlistPage() {
             />
           </div>
 
-          <div className="relative mx-auto w-full max-w-7xl px-6 py-20 sm:px-10 lg:py-28">
-            <div className="grid gap-16 lg:grid-cols-2 lg:gap-20 items-center">
+          <div className="relative mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 sm:py-20 lg:py-28">
+            <div className="grid gap-12 lg:grid-cols-2 lg:gap-20 items-center">
 
               {/* ── Left column: Copy ── */}
-              <div className="space-y-8">
+              <div className="space-y-7">
 
                 {/* Pill badge */}
                 <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs font-semibold text-amber-300">
@@ -373,7 +372,7 @@ export default function WaitlistPage() {
 
                 {/* Headline */}
                 <div>
-                  <h1 className="text-5xl font-extrabold tracking-tight leading-[1.08] text-white sm:text-6xl lg:text-7xl">
+                  <h1 className="text-4xl font-extrabold tracking-tight leading-[1.08] text-white sm:text-5xl lg:text-7xl">
                     Your business.
                     <br />
                     <span
@@ -390,7 +389,7 @@ export default function WaitlistPage() {
                 </div>
 
                 {/* Subheadline */}
-                <p className="text-lg leading-relaxed text-slate-400 sm:text-xl max-w-lg">
+                <p className="text-base leading-relaxed text-slate-400 sm:text-xl max-w-lg">
                   Agent Runway is the only all-in-one platform built exclusively for Canadian real estate agents.
                   CRM. Tax engine. AI that sounds like you. Every number that matters.
                 </p>
@@ -410,24 +409,25 @@ export default function WaitlistPage() {
                 </div>
 
                 {/* CTA scroll link */}
-                <div className="pt-2">
+                <div className="pt-1">
                   <a
                     href="#waitlist-form"
-                    className="group inline-flex items-center gap-2 rounded-xl px-7 py-3.5 text-sm font-bold transition-all duration-200"
+                    className="group inline-flex items-center gap-2 rounded-xl px-7 py-4 text-sm font-bold transition-all duration-200"
                     style={{
                       background: "linear-gradient(135deg, #F0A800 0%, #D97706 100%)",
                       boxShadow: "0 0 30px rgba(240,168,0,0.40), 0 0 60px rgba(240,168,0,0.15)",
                       color: "#15110A",
+                      minHeight: "48px",
                     }}
                   >
-                    Reserve my founding spot
+                    Request my boarding pass
                     <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </a>
                 </div>
               </div>
 
-              {/* ── Right column: Dashboard preview ── */}
-              <div className="relative flex justify-center lg:justify-end">
+              {/* ── Right column: Dashboard preview (desktop only) ── */}
+              <div className="relative hidden lg:flex justify-end">
                 <div className="w-full max-w-md">
                   <RunwayScorePreview />
                 </div>
@@ -436,8 +436,8 @@ export default function WaitlistPage() {
             </div>
           </div>
 
-          {/* Scroll hint */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+          {/* Scroll hint — hidden on very small screens to avoid layout overlap */}
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 hidden sm:flex flex-col items-center gap-2">
             <span className="text-[10px] uppercase tracking-widest text-slate-600">Scroll</span>
             <div className="h-6 w-px bg-gradient-to-b from-slate-600 to-transparent" />
           </div>
@@ -481,7 +481,7 @@ export default function WaitlistPage() {
                 }}
               >
                 <div
-                  className="rounded-[23px] p-10 sm:p-12"
+                  className="rounded-[23px] p-7 sm:p-10 md:p-12"
                   style={{ background: "#07101F" }}
                 >
                   {/* AR orb */}
@@ -603,7 +603,7 @@ export default function WaitlistPage() {
 
           <div className="relative mx-auto max-w-4xl px-6 sm:px-10">
             <ScrollRevealSection>
-              <div className="grid grid-cols-3 gap-8 text-center">
+              <div className="grid grid-cols-3 gap-4 sm:gap-8 text-center">
                 {[
                   { num: "13", label: "Provinces & Territories", sub: "Canada-wide" },
                   { num: "6",  label: "Score Dimensions",        sub: "For full business health" },
@@ -611,7 +611,7 @@ export default function WaitlistPage() {
                 ].map(({ num, label, sub }) => (
                   <div key={label} className="flex flex-col items-center gap-1">
                     <span
-                      className="text-4xl font-black sm:text-5xl"
+                      className="text-3xl font-black sm:text-5xl"
                       style={{
                         background: "linear-gradient(135deg, #F0A800 0%, #D97706 55%, #a85c00 100%)",
                         WebkitBackgroundClip: "text",
@@ -701,9 +701,10 @@ export default function WaitlistPage() {
                     background: "linear-gradient(135deg, #F0A800 0%, #D97706 100%)",
                     boxShadow: "0 0 40px rgba(240,168,0,0.50), 0 0 80px rgba(240,168,0,0.20)",
                     color: "#15110A",
+                    minHeight: "52px",
                   }}
                 >
-                  Reserve my founding spot
+                  Request my boarding pass
                   <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
                 </a>
               </div>

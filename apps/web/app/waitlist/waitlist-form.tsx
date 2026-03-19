@@ -56,7 +56,7 @@ function Field({
         autoComplete={autoComplete}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
-        className="w-full rounded-xl border bg-white/[0.04] px-4 py-3.5 text-sm text-white placeholder-slate-600 outline-none transition-all duration-200"
+        className="w-full rounded-xl border bg-white/[0.04] px-4 py-3.5 text-base text-white placeholder-slate-600 outline-none transition-all duration-200"
         style={{
           borderColor: focused
             ? "rgba(240,168,0,0.60)"
@@ -247,11 +247,11 @@ export function WaitlistForm() {
             {state === "loading" ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Securing your spot…
+                Requesting your boarding pass…
               </>
             ) : (
               <>
-                Reserve my founding spot
+                Request my boarding pass
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </>
             )}
