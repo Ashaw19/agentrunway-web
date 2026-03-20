@@ -489,13 +489,19 @@ export function computeIntelligenceBriefing(
       ? Math.floor((now.getTime() - lastAct.getTime()) / 86_400_000)
       : 999;
 
-    // Imported clients with no activity logged yet are silenced for contact-recency
-    // alerts. The user knows these people — they just haven't logged anything yet.
-    // The moment one activity is recorded, normal alerting resumes.
+    // Imported clients are suppressed from contact-recency alerts for 7 days from
+    // import date, giving the agent time to work through the list without being
+    // flooded immediately. After the grace period, normal alerting resumes.
+    // Additionally, imported clients with zero activity ever logged are suppressed
+    // indefinitely until the first activity is recorded.
+    const IMPORT_GRACE_DAYS = 7;
+    const importedInGrace = !!client.imported_at &&
+      (now.getTime() - new Date(client.imported_at).getTime()) < IMPORT_GRACE_DAYS * 86_400_000;
     const importedNoActivity = !!client.imported_at && daysSince === 999;
+    const importedSuppressed = importedInGrace || importedNoActivity;
 
     // ── 1. VIP / High Value overdue (threshold: 14 days) ──────────────────────
-    if (!importedNoActivity && isVip && daysSince >= 14) {
+    if (!importedSuppressed && isVip && daysSince >= 14) {
       hasActionItem.add(client.id);
       items.push({
         id: `vip_${client.id}`,
@@ -510,7 +516,7 @@ export function computeIntelligenceBriefing(
     }
 
     // ── 2. Uncontacted new leads (boarding, no first contact, 24h+ old) ────────
-    if (!importedNoActivity && !hasActionItem.has(client.id) && client.status === "boarding" && !client.first_contacted_at) {
+    if (!importedSuppressed && !hasActionItem.has(client.id) && client.status === "boarding" && !client.first_contacted_at) {
       const ageHours = (now.getTime() - new Date(client.created_at).getTime()) / 3_600_000;
       if (ageHours >= 24) {
         hasActionItem.add(client.id);
@@ -531,7 +537,7 @@ export function computeIntelligenceBriefing(
     }
 
     // ── 3. In-Flight stale (active deal, 7+ days no contact) ──────────────────
-    if (!importedNoActivity && !hasActionItem.has(client.id) && client.status === "in_flight" && daysSince >= 7) {
+    if (!importedSuppressed && !hasActionItem.has(client.id) && client.status === "in_flight" && daysSince >= 7) {
       hasActionItem.add(client.id);
       items.push({
         id: `in_flight_${client.id}`,
@@ -602,7 +608,7 @@ export function computeIntelligenceBriefing(
 
     // ── 6. Past client check-in (landed / cruising, 180+ days no contact) ───────
     if (
-      !importedNoActivity &&
+      !importedSuppressed &&
       (client.status === "landed" || client.status === "cruising") &&
       daysSince >= 180
     ) {
@@ -830,11 +836,24 @@ export function computeIntelligenceBriefing(
     return (a.daysValue ?? 999) - (b.daysValue ?? 999);
   });
 
+  // Cap uncontacted_lead alerts to 5 per briefing. After a bulk CSV import (once
+  // the 7-day grace period expires) the agent could have hundreds of these. Show
+  // the oldest 5 so the briefing stays actionable and not overwhelming.
+  const UNCONTACTED_CAP = 5;
+  let uncontactedSeen = 0;
+  const cappedItems = items.filter((item) => {
+    if (item.type === "uncontacted_lead") {
+      if (uncontactedSeen >= UNCONTACTED_CAP) return false;
+      uncontactedSeen++;
+    }
+    return true;
+  });
+
   return {
-    items,
-    urgentCount: items.filter((i) => i.severity === "urgent").length,
-    attentionCount: items.filter((i) => i.severity === "attention").length,
-    upcomingCount: items.filter((i) => i.severity === "upcoming").length,
-    totalCount: items.length,
+    items: cappedItems,
+    urgentCount: cappedItems.filter((i) => i.severity === "urgent").length,
+    attentionCount: cappedItems.filter((i) => i.severity === "attention").length,
+    upcomingCount: cappedItems.filter((i) => i.severity === "upcoming").length,
+    totalCount: cappedItems.length,
   };
 }

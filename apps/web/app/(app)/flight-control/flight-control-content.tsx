@@ -297,10 +297,12 @@ function MessageCard({
   item,
   onReview,
   onSkip,
+  onGenerate,
 }: {
-  item:     QueueItemWithClient;
-  onReview: (item: QueueItemWithClient) => void;
-  onSkip:   (id: string) => void;
+  item:       QueueItemWithClient;
+  onReview:   (item: QueueItemWithClient) => void;
+  onSkip:     (id: string) => void;
+  onGenerate: () => void;
 }) {
   const cfg    = OPTYPE_CONFIG[item.opportunity_type];
   const Icon   = cfg.icon;
@@ -382,19 +384,29 @@ function MessageCard({
         >
           Skip
         </Button>
+        {isDraft ? (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 text-xs gap-1.5 font-semibold border-violet-500/40 text-violet-400 hover:text-violet-300 hover:bg-violet-500/10"
+            onClick={onGenerate}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Generate Message
+          </Button>
+        ) : (
         <Button
           size="sm"
           className={cn(
             "h-8 text-xs gap-1.5 font-semibold",
             "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white border-0 shadow-sm",
-            isDraft && "opacity-40 cursor-not-allowed",
           )}
-          disabled={isDraft}
-          onClick={() => !isDraft && onReview(item)}
+          onClick={() => onReview(item)}
         >
           Review & Send
           <ChevronRight className="h-3 w-3" />
         </Button>
+        )}
       </div>
     </div>
   );
@@ -749,6 +761,24 @@ export function FlightControlContent({
     }
   }, []);
 
+  // ── Generate messages for stuck draft items ───────────────────────────────
+
+  const handleGenerate = useCallback(async () => {
+    try {
+      const res  = await fetch("/api/ai/detect-opportunities?draft_only=true", { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        const newQueue = (data.queue ?? []) as QueueItemWithClient[];
+        setQueue(newQueue);
+        if (data.drafted > 0) {
+          toast.success(`${data.drafted} message${data.drafted === 1 ? "" : "s"} generated`);
+        }
+      }
+    } catch {
+      toast.error("Couldn't generate message — try again");
+    }
+  }, []);
+
   // ── Stats ─────────────────────────────────────────────────────────────────
 
   const readyCount = queue.filter((i) => i.status === "ready").length;
@@ -955,13 +985,14 @@ export function FlightControlContent({
                     item={item}
                     onReview={setReviewItem}
                     onSkip={handleSkip}
+                    onGenerate={handleGenerate}
                   />
                 ))}
               {/* Draft section label */}
               {draftCount > 0 && (
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mt-4 mb-1">
-                  <Loader2 className="h-3 w-3 animate-spin text-amber-400" />
-                  Generating Drafts
+                  <Sparkles className="h-3 w-3 text-amber-400" />
+                  Pending — Generate Message to draft
                 </p>
               )}
               {/* Draft / still generating */}
@@ -973,6 +1004,7 @@ export function FlightControlContent({
                     item={item}
                     onReview={setReviewItem}
                     onSkip={handleSkip}
+                    onGenerate={handleGenerate}
                   />
                 ))}
             </div>

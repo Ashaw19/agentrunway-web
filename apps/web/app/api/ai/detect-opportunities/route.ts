@@ -52,7 +52,7 @@ import {
 const ANNIVERSARY_YEARS  = [1, 2, 3, 5, 10];
 const WINDOW_DAYS        = 14;   // detect N days in advance
 const IDLE_MONTHS        = 18;   // flag clients idle > this many months
-const MAX_DRAFTS_PER_RUN = 8;    // max Groq calls per invocation
+const MAX_DRAFTS_PER_RUN = 3;    // max Groq calls per invocation (keeps total < 20s)
 const SEASONAL_TOP_N     = 25;   // max clients for seasonal campaigns
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -649,6 +649,9 @@ export async function detectAndDraftForUser(
   return { detected: inserts.length, drafted };
 }
 
+// ── Vercel function timeout — allows up to 60s for sequential Groq calls ──────
+export const maxDuration = 60;
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -664,6 +667,11 @@ export async function POST(req: NextRequest) {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  // draft_only=true: skip detection, only draft already-queued "draft" items.
+  // Separate rate limit so users can unblock stuck items without burning their scan quota.
+  const url = new URL(req.url);
+  const draftOnly = url.searchParams.get("draft_only") === "true";
+
   // For cron calls running as a specific userId passed in body
   let userId: string;
   if (isCronCall && !user) {
@@ -676,8 +684,10 @@ export async function POST(req: NextRequest) {
     userId = user!.id;
   }
 
-  // Rate limit: 10 scans/hour per user
-  const rl = await checkRateLimit(userId, "detect_opportunities", 10, 60);
+  // Rate limit: 10 full scans/hour, 30 draft-only calls/hour per user
+  const rlKey = draftOnly ? "draft_queue_items" : "detect_opportunities";
+  const rlMax = draftOnly ? 30 : 10;
+  const rl = await checkRateLimit(userId, rlKey, rlMax, 60);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Rate limit reached. Try again in a few minutes." },
@@ -686,7 +696,36 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { detected, drafted } = await detectAndDraftForUser(userId, supabase);
+    let detected = 0;
+    let drafted  = 0;
+
+    if (draftOnly) {
+      // Skip detection — only draft pending items for this user
+      const groqKey = process.env.GROQ_API_KEY;
+      if (groqKey) {
+        const [settingsRes, undraftedRes] = await Promise.all([
+          supabase.from("user_settings").select("display_name, email_signature, ai_voice_guide").eq("user_id", userId).single(),
+          supabase.from("outreach_queue").select("*, clients(name, city, province_region, communication_tone, tags, notes)")
+            .eq("user_id", userId).eq("status", "draft").is("ai_subject", null)
+            .order("created_at", { ascending: true }).limit(MAX_DRAFTS_PER_RUN),
+        ]);
+        if (undraftedRes.data?.length) {
+          const groq = new OpenAI({ apiKey: groqKey, baseURL: "https://api.groq.com/openai/v1" });
+          const agentFirst     = extractFirstName(settingsRes.data?.display_name ?? null, "");
+          const emailSignature = (settingsRes.data?.email_signature as string) ?? "";
+          const agentStyleGuide = (settingsRes.data?.ai_voice_guide as string | null) ?? null;
+          for (const item of undraftedRes.data) {
+            await draftItem(
+              item as Parameters<typeof draftItem>[0],
+              agentFirst, emailSignature, agentStyleGuide, groq, supabase,
+            );
+            drafted++;
+          }
+        }
+      }
+    } else {
+      ({ detected, drafted } = await detectAndDraftForUser(userId, supabase));
+    }
 
     // Return full pending queue so the UI can refresh in one round-trip
     const { data: queue } = await supabase
