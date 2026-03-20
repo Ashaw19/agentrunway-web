@@ -201,7 +201,10 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
   /** Brokerage safeguard: user must explicitly confirm before saving a brokerage report */
   const [brokerageReviewConfirmed, setBrokerageReviewConfirmed] = useState(false);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef       = useRef<HTMLInputElement>(null);
+  /** Timestamp (Date.now()) when the import preview screen became visible.
+   *  Used to compute time_on_review_ms in telemetry. */
+  const reviewStartedAtRef = useRef<number | null>(null);
 
   // Live-updating preview data: recomputes quarterly aggregates as user edits GCI values
   const previewImportData = useMemo(() => {
@@ -678,6 +681,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       // PDF/image = brokerage report with net amounts already; default split to 100%
       if (isImage) setImportSplitPct(1.00);
       setAgentSides(sides);
+      reviewStartedAtRef.current = Date.now(); // telemetry: start of review screen
       setImportStatus("preview");
     } catch (err) {
       console.error("[import] error:", err);
@@ -793,6 +797,49 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
         await supabase.from("client_records").insert(clientInserts);
       }
 
+      // ── Telemetry (fire-and-forget — never blocks or fails the save) ────────
+      try {
+        // Derive edited-field counts from the editedFields state (field names only, no values)
+        const editedFieldCounts: Record<string, number> = {};
+        for (const edits of Object.values(editedFields)) {
+          for (const key of Object.keys(edits)) {
+            editedFieldCounts[key] = (editedFieldCounts[key] ?? 0) + 1;
+          }
+        }
+        const editedFieldNames    = Object.keys(editedFieldCounts);
+        const totalFieldsEdited   = Object.values(editedFieldCounts).reduce((s, n) => s + n, 0);
+        const timeOnReviewMs      = reviewStartedAtRef.current != null
+          ? Date.now() - reviewStartedAtRef.current
+          : null;
+        const issueCountTotal     = importData.deals.reduce((s, d) => s + (d.issues?.length ?? 0), 0);
+        const lowConfidenceGci    = importData.deals.filter(
+          d => d.confidence?.gci === "low" || d.confidence?.gci === "missing",
+        ).length;
+
+        // Wrap in Promise.resolve so .catch() is available (Supabase returns PromiseLike)
+        void Promise.resolve(supabase.from("import_telemetry").insert({
+          user_id:                        user.id,
+          import_source:                  importData.import_source ?? null,
+          document_subtype:               importData.document_subtype ?? null,
+          extraction_quality:             importData.extraction_quality ?? null,
+          deal_count:                     importData.deals.length,
+          is_replace:                     !!existing?.id,
+          truncation_occurred:            !!importData.truncation_warning,
+          rows_kept:                      importData.truncation_warning?.rows_kept ?? null,
+          rows_total:                     importData.truncation_warning?.rows_total ?? null,
+          time_on_review_ms:              timeOnReviewMs,
+          total_fields_edited:            totalFieldsEdited,
+          edited_field_names:             editedFieldNames.length > 0 ? editedFieldNames : null,
+          edited_field_counts:            editedFieldNames.length > 0 ? editedFieldCounts : null,
+          brokerage_confirmation_shown:   importData.document_subtype === "brokerage",
+          brokerage_confirmation_checked: importData.document_subtype === "brokerage" ? brokerageReviewConfirmed : false,
+          issue_count_total:              issueCountTotal,
+          low_confidence_gci_count:       lowConfidenceGci,
+        })).catch(() => {}); // intentionally silent — telemetry must never surface errors to users
+      } catch {
+        // Defensive catch — telemetry computation must never throw into the save path
+      }
+
       setItems((prev) => {
         const without = prev.filter((i) => i.id !== (existing?.id ?? "___"));
         return [data, ...without].sort((a, b) => b.year - a.year);
@@ -821,6 +868,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     setAgentSides({});
     setEditedFields({});
     setBrokerageReviewConfirmed(false);
+    reviewStartedAtRef.current = null;
     setBatchImportData([]);
     setBatchProgress({ current: 0, total: 0 });
     setBatchSplitPcts({});
@@ -1005,15 +1053,21 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             </Button>
           )}
 
-          {/* Import from brokerage report */}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Upload className="mr-1 h-4 w-4" />
-            Import from Report
-          </Button>
+          {/* Import from brokerage report + upload guidance */}
+          <div className="flex flex-col items-end gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="mr-1 h-4 w-4" />
+              Import from Report
+            </Button>
+            <p className="text-[10px] text-muted-foreground leading-snug text-right">
+              Best results: spreadsheet, brokerage export, or commission report
+              <span className="text-slate-400"> · PDF/image also supported (review required)</span>
+            </p>
+          </div>
           <input
             ref={fileInputRef}
             type="file"
