@@ -35,14 +35,19 @@
 //   A) Agent's own transaction tracker (Name | Address | Close Date | Buy | Sell | Source | GCI | Net)
 //   B) Brokerage commission reports (party_a / party_b separated by "/")
 //   C) Freeform narrative / bullet-point text (prose summaries, notes, copy-pasted text)
-export const TEXT_PROMPT = (content: string) => `You are extracting real estate commission transaction data from a document.
+//
+// @param content     The document text to extract from (max 20 000 chars).
+// @param columnHints Optional column-mapping hint from the heuristic pre-classifier.
+//                    When provided it is injected directly before the document content
+//                    so the LLM knows which columns map to which fields.
+export const TEXT_PROMPT = (content: string, columnHints?: string) => `You are extracting real estate commission transaction data from a document.
 
 The data below may be in any of three formats:
   (A) An agent's own deal tracker — tabular rows with columns like Name, Address, Close Date, Buy | Sell, Source, GCI, Net Commission
   (B) A brokerage commission report — tabular rows where party names are joined by "/"
   (C) Freeform narrative / bullet-point text — prose paragraphs or bullet lists describing closed deals
 
-DOCUMENT CONTENT:
+${columnHints ? `COLUMN MAPPING (pre-detected by heuristic scanner — use these to identify columns accurately):\n${columnHints}\n\n` : ""}DOCUMENT CONTENT:
 ---
 ${content.slice(0, 20000)}
 ---

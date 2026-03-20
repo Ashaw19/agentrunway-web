@@ -99,6 +99,27 @@ export interface NormalizedDocument {
 }
 
 /**
+ * Parser provenance for each extracted field.
+ *
+ * Used when a value was produced by deterministic parsing (not LLM/OCR).
+ * Distinguishes from ExtractionEvidence, which holds verbatim LLM source text.
+ *
+ * Examples:
+ *   "Parsed from column: GCI (col 6)"
+ *   "Parsed from row 14, column Net Commission"
+ *   "Inferred from column header: Buy | Sell"
+ */
+export interface ExtractionProvenance {
+  gci?:                string | null;
+  sale_price?:         string | null;
+  net_income?:         string | null;
+  commission_percent?: string | null;
+  names?:              string | null;
+  date?:               string | null;
+  address?:            string | null;
+}
+
+/**
  * Structured debug entry for one extracted field.
  * Returned alongside the import result so developers (and future UIs) can
  * understand why a field was extracted, scored, or flagged the way it was.

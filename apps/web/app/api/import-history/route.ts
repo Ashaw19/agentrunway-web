@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { TEXT_PROMPT } from "@/lib/import-prompt";
 import { applyValidation } from "@/lib/import/validation/validate-transactions";
+import { normalizeTextDocument } from "@/lib/import/normalizers/normalize-text";
+import type { ExtractionProvenance } from "@/lib/import/types";
 
 // ── Exported types shared with the client component ──────────────────────────
 //
@@ -51,6 +53,13 @@ export interface ExtractedDeal {
   };
   /** Human-readable issues detected by deterministic post-extraction validators. */
   issues?: string[];
+  /**
+   * Parser provenance — populated only for deals that were extracted by the
+   * deterministic tracker parser (not LLM). Describes which column each value
+   * came from so the UI can show "Parsed from column: GCI (col 6)" in tooltips.
+   * Absent (undefined) when the deal was produced by LLM/vision extraction.
+   */
+  provenance?: ExtractionProvenance;
 }
 
 export interface ImportResult {
@@ -440,13 +449,22 @@ export async function POST(req: NextRequest) {
 
     if (body.textContent) {
       // ── Text path: Excel / CSV / TXT ─────────────────────────────────────
-      const normalizedContent = normalizeDateFormats(body.textContent);
+      // 1. Date normalization (Excel serials, slash-date disambiguation)
+      const dateNormalized = normalizeDateFormats(body.textContent);
+
+      // 2. Row cleaning + column classification (strips subtotals, blank rows,
+      //    duplicate headers; detects column mapping for prompt injection)
+      const normalized = normalizeTextDocument(dateNormalized, true);
+
       const response = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
         messages: [
           {
             role: "user",
-            content: TEXT_PROMPT(normalizedContent),
+            content: TEXT_PROMPT(
+              normalized.cleaned_content,
+              normalized.column_hints ?? undefined,
+            ),
           },
         ],
         temperature: 0.1,

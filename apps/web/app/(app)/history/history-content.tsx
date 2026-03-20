@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, Fragment } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -132,18 +132,31 @@ const SPLIT_OPTIONS: { label: string; value: number }[] = [
   { label: "100%  — no brokerage split", value: 1.00 },
 ];
 
-/** Small coloured dot indicating AI extraction confidence for a single extracted field.
- *  Green (high) dots are hidden — only amber, red, and gray are rendered. */
-function ConfidenceDot({ level }: { level?: "high" | "medium" | "low" | "missing" }) {
+/**
+ * Small coloured dot indicating AI extraction confidence for a single extracted field.
+ * Green (high) dots are hidden — only amber, red, and gray are rendered.
+ *
+ * @param evidence  Verbatim LLM text OR parser provenance string to show in the tooltip.
+ *                  When provided, appended after the confidence label so the user can
+ *                  verify the source.  Never shown as an empty tooltip.
+ */
+function ConfidenceDot({
+  level,
+  evidence,
+}: {
+  level?:    "high" | "medium" | "low" | "missing";
+  evidence?: string | null;
+}) {
   if (!level || level === "high") return null;
-  const cfg =
-    level === "medium" ? { cls: "bg-amber-400",  tip: "Medium confidence — verify this value"   }
+  const base =
+    level === "medium" ? { cls: "bg-amber-400",  tip: "Medium confidence — verify this value"    }
     : level === "low"  ? { cls: "bg-red-500",    tip: "Low confidence — please verify this field" }
-    :                    { cls: "bg-slate-300",  tip: "Not found in document"                    };
+    :                    { cls: "bg-slate-300",  tip: "Not found in document"                     };
+  const tip = evidence ? `${base.tip}\n\nSource: ${evidence}` : base.tip;
   return (
     <span
-      title={cfg.tip}
-      className={cn("inline-block w-1.5 h-1.5 rounded-full shrink-0 mt-[3px]", cfg.cls)}
+      title={tip}
+      className={cn("inline-block w-1.5 h-1.5 rounded-full shrink-0 mt-[3px]", base.cls)}
     />
   );
 }
@@ -1405,7 +1418,10 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                             <div className="min-w-0 flex-1">
                               {/* Address row — dim if missing */}
                               <div className="flex items-center gap-1.5">
-                                <ConfidenceDot level={eff.confidence?.address} />
+                                <ConfidenceDot
+                                  level={eff.confidence?.address}
+                                  evidence={eff.evidence?.address ?? eff.provenance?.address}
+                                />
                                 <p className={cn("text-xs font-semibold truncate", deal.address ? "text-foreground" : "text-slate-400 italic")}>
                                   {deal.address || "(no address)"}
                                 </p>
@@ -1415,10 +1431,19 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                                 <span className="text-[11px] text-muted-foreground">{date} ·</span>
                                 {/* Editable GCI with confidence dot */}
                                 <span className="flex items-center gap-1">
-                                  <ConfidenceDot level={eff.confidence?.gci} />
+                                  <ConfidenceDot
+                                    level={eff.confidence?.gci}
+                                    evidence={eff.evidence?.gci ?? eff.provenance?.gci}
+                                  />
                                   <input
                                     type="number"
-                                    title={gciIsUncertain ? "GCI — uncertain, click to correct" : "GCI — click to edit"}
+                                    title={
+                                      (() => {
+                                        const src = eff.evidence?.gci ?? eff.provenance?.gci;
+                                        const base = gciIsUncertain ? "GCI — uncertain, click to correct" : "GCI — click to edit";
+                                        return src ? `${base}\n\nSource: ${src}` : base;
+                                      })()
+                                    }
                                     value={editedFields[i]?.gci ?? deal.gci}
                                     onChange={(e) => updateEditedGci(i, deal, parseFloat(e.target.value) || 0)}
                                     className={cn(
@@ -1443,7 +1468,9 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                                 selected === 0 ? "border-primary bg-primary/10 text-primary font-semibold" : "border-border/60 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5")}>
                               <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide mb-0.5 opacity-60">
                                 {selected === 0 ? "✓ My Client" : "Party A"}
-                                {eff.confidence?.names === "low" && <ConfidenceDot level="low" />}
+                                {eff.confidence?.names === "low" && (
+                                  <ConfidenceDot level="low" evidence={eff.evidence?.names ?? eff.provenance?.names} />
+                                )}
                               </span>
                               {deal.party_a}
                             </button>
@@ -1452,11 +1479,24 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                                 selected === 1 ? "border-primary bg-primary/10 text-primary font-semibold" : "border-border/60 bg-muted/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5")}>
                               <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide mb-0.5 opacity-60">
                                 {selected === 1 ? "✓ My Client" : "Party B"}
-                                {eff.confidence?.names === "low" && <ConfidenceDot level="low" />}
+                                {eff.confidence?.names === "low" && (
+                                  <ConfidenceDot level="low" evidence={eff.evidence?.names ?? eff.provenance?.names} />
+                                )}
                               </span>
                               {deal.party_b}
                             </button>
                           </div>
+                          {/* Validation issues — shown inline under the deal card when present */}
+                          {deal.issues && deal.issues.length > 0 && (
+                            <div className="mt-1 space-y-0.5 border-t border-amber-100 pt-1.5">
+                              {deal.issues.map((issue, j) => (
+                                <p key={j} className="text-[10px] text-amber-700 flex items-start gap-1 leading-snug">
+                                  <AlertCircle className="h-3 w-3 shrink-0 mt-[1px]" />
+                                  {issue}
+                                </p>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -1486,7 +1526,8 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                             : null;
                           const gciIsUncertain = eff.confidence?.gci === "low" || eff.confidence?.gci === "medium";
                           return (
-                            <tr key={i} className={cn(
+                            <Fragment key={i}>
+                            <tr className={cn(
                               "border-b border-border/40 last:border-0",
                               gciIsUncertain ? "bg-amber-50/60" : i % 2 === 0 ? "bg-card" : "bg-muted/20",
                             )}>
@@ -1496,10 +1537,19 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                               {/* Editable GCI with inline confidence dot */}
                               <td className="px-2 py-1.5 whitespace-nowrap">
                                 <div className="flex items-center justify-end gap-1">
-                                  <ConfidenceDot level={eff.confidence?.gci} />
+                                  <ConfidenceDot
+                                    level={eff.confidence?.gci}
+                                    evidence={eff.evidence?.gci ?? eff.provenance?.gci}
+                                  />
                                   <input
                                     type="number"
-                                    title={gciIsUncertain ? "GCI — uncertain, click to correct" : "GCI — click to edit"}
+                                    title={
+                                      (() => {
+                                        const src = eff.evidence?.gci ?? eff.provenance?.gci;
+                                        const base = gciIsUncertain ? "GCI — uncertain, click to correct" : "GCI — click to edit";
+                                        return src ? `${base}\n\nSource: ${src}` : base;
+                                      })()
+                                    }
                                     value={editedFields[i]?.gci ?? deal.gci}
                                     onChange={(e) => updateEditedGci(i, deal, parseFloat(e.target.value) || 0)}
                                     className={cn(
@@ -1518,11 +1568,30 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                               </td>
                               <td className="px-2 py-1.5 max-w-[120px]">
                                 <div className="flex items-center gap-1 truncate">
-                                  <ConfidenceDot level={eff.confidence?.names} />
+                                  <ConfidenceDot
+                                    level={eff.confidence?.names}
+                                    evidence={eff.evidence?.names ?? eff.provenance?.names}
+                                  />
                                   <span className={deal.party_a ? "text-foreground truncate" : "text-slate-400 italic"}>{deal.party_a || "—"}</span>
                                 </div>
                               </td>
                             </tr>
+                            {/* Validation issues row — only rendered when the deal has issues */}
+                            {deal.issues && deal.issues.length > 0 && (
+                              <tr className="bg-amber-50/70">
+                                <td colSpan={6} className="px-2 pb-1.5 pt-0">
+                                  <div className="space-y-0.5">
+                                    {deal.issues.map((issue, j) => (
+                                      <p key={j} className="text-[10px] text-amber-700 flex items-start gap-1 leading-snug">
+                                        <AlertCircle className="h-3 w-3 shrink-0 mt-[1px]" />
+                                        {issue}
+                                      </p>
+                                    ))}
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                            </Fragment>
                           );
                         })}
                       </tbody>
@@ -2050,6 +2119,19 @@ function parseTrackerSheet(
   // If no dedicated GCI column exists, fall back to Net Commission.
   const moneyCol = hdrs.gciCol >= 0 ? hdrs.gciCol : hdrs.netCol;
 
+  // Build provenance labels from the header row once — applied to every deal below.
+  // These appear in evidence tooltips so the user can verify "Parsed from column: GCI".
+  const headerRow = rows[hdrs.rowIdx];
+  const colLabel = (idx: number) => (idx >= 0 ? headerRow[idx]?.trim() || `col ${idx}` : null);
+  const provenanceTemplate: import("@/lib/import/types").ExtractionProvenance = {
+    gci:                hdrs.gciCol       >= 0 ? `Parsed from column: ${colLabel(hdrs.gciCol)}` : null,
+    sale_price:         hdrs.salePriceCol >= 0 ? `Parsed from column: ${colLabel(hdrs.salePriceCol)}` : null,
+    net_income:         hdrs.netCol       >= 0 ? `Parsed from column: ${colLabel(hdrs.netCol)}` : null,
+    names:              `Parsed from column: ${colLabel(hdrs.nameCol)}`,
+    date:               hdrs.dateCol      >= 0 ? `Parsed from column: ${colLabel(hdrs.dateCol)}` : null,
+    address:            hdrs.addrCol      >= 0 ? `Parsed from column: ${colLabel(hdrs.addrCol)}` : null,
+  };
+
   const deals: import("@/app/api/import-history/route").ExtractedDeal[] = [];
   const splitRatios: number[] = [];
 
@@ -2106,6 +2188,9 @@ function parseTrackerSheet(
       agent_side: 0 as const,
       source,
       side,
+      // Deterministic parser provenance — tells the UI tooltip which column each field came from.
+      // No LLM evidence needed here; the column labels are the authoritative source.
+      provenance: provenanceTemplate,
     });
   }
 
