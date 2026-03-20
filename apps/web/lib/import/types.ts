@@ -120,6 +120,47 @@ export interface ExtractionProvenance {
 }
 
 /**
+ * Overall quality signal for one import run.
+ *   "good"         — high confidence, no structural issues
+ *   "partial"      — some fields missing, truncated, or >25% deals flagged
+ *   "needs_review" — zero deals, or >50% of GCI values low/missing confidence
+ */
+export type ExtractionQuality = "good" | "partial" | "needs_review";
+
+/**
+ * Diagnostic snapshot produced server-side for each import run.
+ * Only populated in non-production environments.
+ */
+export interface ImportDebug {
+  /** Which execution path handled this document. */
+  import_path: "text-llm" | "vision-single" | "vision-multi";
+  /** True when normalizeTextDocument() ran before LLM extraction. */
+  normalization_ran: boolean;
+  /** Document subtype detected by column classifier, or null. */
+  column_subtype: "tracker" | "brokerage" | "generic" | null;
+  /** True when column hints were injected into the LLM prompt. */
+  column_hints_injected: boolean;
+  /** True when the document was trimmed to the 20k char limit. */
+  truncated: boolean;
+  rows_input: number;
+  rows_kept: number;
+  deals_extracted: number;
+  deals_with_issues: number;
+  /** Count of deals where each field is non-null. */
+  field_presence: {
+    gci:                number;
+    net_income:         number;
+    sale_price:         number;
+    commission_percent: number;
+    address:            number;
+    date:               number;
+    names:              number;
+  };
+  /** Most-frequent validation issue messages and their counts. */
+  top_issues: Array<{ message: string; count: number }>;
+}
+
+/**
  * Structured debug entry for one extracted field.
  * Returned alongside the import result so developers (and future UIs) can
  * understand why a field was extracted, scored, or flagged the way it was.

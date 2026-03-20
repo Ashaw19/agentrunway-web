@@ -41,6 +41,7 @@ import { fmtCurrency } from "@/lib/formatters";
 import { computeGCI, type HistoryItem, type Transaction, type UserSettings } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 import type { ImportResult, ExtractedDeal } from "@/app/api/import-history/route";
+import type { ExtractionQuality } from "@/lib/import/types";
 import { applyValidation } from "@/lib/import/validation/validate-transactions";
 import { ProductionReportDialog } from "@/components/production-report-dialog";
 import { YearOverYearChart, type YoYDataPoint } from "@/components/year-over-year-chart";
@@ -1243,10 +1244,39 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
               {/* Summary banner */}
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-start gap-3">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-sm font-semibold text-emerald-800">
-                    {importData.year} — {fmtCurrency((previewImportData ?? importData).annual_gci)} GCI · {(previewImportData ?? importData).annual_tx} deals
-                  </p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold text-emerald-800">
+                      {importData.year} — {fmtCurrency((previewImportData ?? importData).annual_gci)} GCI · {(previewImportData ?? importData).annual_tx} deals
+                    </p>
+                    {(() => {
+                      // Compute quality client-side for tracker imports (server sets it for LLM/vision)
+                      const q: ExtractionQuality = importData.extraction_quality ?? (() => {
+                        const deals = importData.deals;
+                        if (deals.length === 0) return "needs_review";
+                        const lowGci = deals.filter(d => d.confidence?.gci === "low" || d.confidence?.gci === "missing").length;
+                        if (lowGci / deals.length > 0.5) return "needs_review";
+                        const withIssues = deals.filter(d => (d.issues?.length ?? 0) > 0).length;
+                        if (withIssues / deals.length > 0.25) return "partial";
+                        return "good";
+                      })();
+                      if (q === "good") return (
+                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                          Good extraction
+                        </span>
+                      );
+                      if (q === "partial") return (
+                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                          Partial — review fields
+                        </span>
+                      );
+                      return (
+                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200">
+                          Needs review
+                        </span>
+                      );
+                    })()}
+                  </div>
                   <p className="text-xs text-emerald-700 mt-0.5">
                     Extracted from your document.{" "}
                     {(() => {

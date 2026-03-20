@@ -30,6 +30,8 @@ export interface GroundTruthDeal {
   address: string;
   sale_price: number;
   gci: number;
+  /** Post-split net income — only set for formats that include a net commission column. */
+  net_income?: number;
   party_a: string;
   party_b: string;
   side: "buyer" | "seller" | "both" | null;
@@ -401,7 +403,20 @@ export function generateSyntheticReports(
     for (let i = 0; i < perFormat; i++) {
       const year = years[i % years.length];
       const dealCount = randInt(Math.max(3, dealsPerReport - 4), dealsPerReport + 4);
-      const deals = generateDeals(year, dealCount);
+      let deals = generateDeals(year, dealCount);
+
+      // Annotate net_income on deals for formats that include a net commission column.
+      // The split % matches the value used inside the format generator function.
+      if (format === "A1" || format === "A3") {
+        deals = deals.map(d => ({ ...d, net_income: Math.round(d.gci * 0.8 * 100) / 100 }));
+      } else if (format === "A2") {
+        deals = deals.map(d => ({ ...d, net_income: Math.round(d.gci * 0.75 * 100) / 100 }));
+      } else if (format === "B1" || format === "B3") {
+        // In B-format CSVs, d.gci fills the "Agent Net (Taxable)" column.
+        // The "Gross Commission" column is d.gci / 0.8 (a higher number).
+        deals = deals.map(d => ({ ...d, net_income: d.gci }));
+      }
+
       const groundTruth = computeGroundTruth(year, deals);
       const content = FORMAT_GENERATORS[format](year, deals);
 

@@ -25,86 +25,13 @@ import OpenAI from "openai";
 import * as fs from "fs";
 import * as path from "path";
 import { generateSyntheticReports, type SyntheticReport, type GroundTruthDeal } from "./generate-reports.js";
-
-// ── Import extraction logic directly ──────────────────────────────────────────
-// We re-implement the key parts here so we can call without HTTP overhead.
-// If the prompts change in route.ts, update them here too.
+import { normalizeTextDocument } from "../../lib/import/normalizers/normalize-text.js";
+import { applyValidation } from "../../lib/import/validation/validate-transactions.js";
 
 // Default model for iteration. Override with --model flag:
 //   --model llama-3.3-70b-versatile   (production model, 6k TPM, needs 65s delay)
 //   --model llama-3.1-8b-instant      (fast iteration, 20k TPM, 20s delay is fine)
 let GROQ_TEXT_MODEL = "llama-3.1-8b-instant";
-
-function excelSerialToISO(serial: number): string {
-  const ANCHOR_DATE   = new Date(Date.UTC(2023, 0, 1));
-  const ANCHOR_SERIAL = 44927;
-  const ms  = ANCHOR_DATE.getTime() + (serial - ANCHOR_SERIAL) * 86_400_000;
-  const d   = new Date(ms);
-  const y   = d.getUTCFullYear();
-  const m   = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function normalizeDateFormats(content: string): string {
-  // Pass 1 — Excel serial numbers (5-digit integers, ~2015-2035 range)
-  //
-  // Strategy: if the content is a CSV with a labelled Date column, only convert
-  // serials in THAT column — prevents false-positives from GCI/price values that
-  // happen to fall in the 42000–47999 range (e.g. a $45,000 commission).
-  // Falls back to a generic cell-boundary regex for non-CSV content.
-  const SERIAL_RE = /^(4[2-7]\d{3}|48[0-3]\d\d)$/;
-
-  const lines = content.split("\n");
-  let dateColIdx = -1;
-  for (let i = 0; i < Math.min(lines.length, 5); i++) {
-    const cells = lines[i].split(",");
-    if (cells.length >= 3) {
-      const idx = cells.findIndex(c =>
-        /\b(?:close[\s_]?)?date\b|\bclosing\b|\bsettlement[\s_]date\b/i.test(c.trim())
-      );
-      if (idx >= 0) { dateColIdx = idx; break; }
-    }
-  }
-
-  let result: string;
-  if (dateColIdx >= 0) {
-    // Column-aware: only replace serials in the detected date column
-    result = lines.map(line => {
-      const cells = line.split(",");
-      if (cells.length > dateColIdx) {
-        const cell = cells[dateColIdx].trim();
-        if (SERIAL_RE.test(cell)) {
-          cells[dateColIdx] = excelSerialToISO(parseInt(cell, 10));
-          return cells.join(",");
-        }
-      }
-      return line;
-    }).join("\n");
-  } else {
-    // Generic: replace cell-isolated serial numbers (tab/comma/newline/line-start boundaries)
-    result = content.replace(
-      /(?<=^|[\t,\n])(4[2-7]\d{3}|48[0-3]\d\d)(?=$|[\t,\n])/gm,
-      (_, serial) => excelSerialToISO(parseInt(serial, 10)),
-    );
-  }
-
-  // Pass 2 — slash date DD/MM vs MM/DD disambiguation
-  const slashDate = /\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g;
-  const matches = [...result.matchAll(slashDate)];
-  if (matches.length === 0) return result;
-  const isDDMM = matches.some(m => parseInt(m[1]) > 12);
-  const isMDY  = !isDDMM && matches.some(m => parseInt(m[2]) > 12);
-  if (isDDMM) {
-    return result.replace(slashDate, (_, d, m, y) =>
-      `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
-  }
-  if (isMDY) {
-    return result.replace(slashDate, (_, m, d, y) =>
-      `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
-  }
-  return result;
-}
 
 // ── Accuracy measurement ──────────────────────────────────────────────────────
 
@@ -118,11 +45,14 @@ interface DealComparisonResult {
   matched: boolean;       // was a matching deal found at all?
   gci_correct: boolean;
   sale_price_correct: boolean;
-  sale_price_missing_ok: boolean;  // sale_price=0 and doc doesn't have it → acceptable
+  sale_price_missing_ok: boolean;  // sale_price=null and doc doesn't have it → acceptable
+  net_income_correct: boolean | null;   // null when ground truth has no net_income
+  commission_percent_correct: boolean | null; // null when ground truth has no commission_percent
   names_correct: boolean;
   date_correct: boolean;
   address_correct: boolean;
   side_correct: boolean;
+  validation_issues: number;  // count of issues from applyValidation()
 }
 
 interface ReportAccuracyResult {
@@ -131,6 +61,7 @@ interface ReportAccuracyResult {
   year: number;
   annual_gci_error_pct: number | null;  // % error vs ground truth
   annual_tx_error: number | null;       // absolute deal count error
+  truncated: boolean;                   // true if normalizer trimmed the document
   deal_results: DealComparisonResult[];
   raw_response?: string;
   error?: string;
@@ -162,7 +93,7 @@ function dateMatch(extracted: string, expected: string, formatCode: string): boo
 }
 
 function compareDeals(
-  extracted: Array<{ date: string; address: string; sale_price: number; gci: number; party_a: string; party_b: string; side?: string }>,
+  extracted: Array<{ date: string; address: string; sale_price?: number | null; gci: number; net_income?: number | null; commission_percent?: number | null; party_a: string; party_b: string; side?: string; issues?: string[] }>,
   groundTruth: GroundTruthDeal[],
   format: string,
   hasSalePrice: boolean
@@ -190,25 +121,38 @@ function compareDeals(
         gci_correct: false,
         sale_price_correct: false,
         sale_price_missing_ok: false,
+        net_income_correct: null,
+        commission_percent_correct: null,
         names_correct: false,
         date_correct: false,
         address_correct: false,
         side_correct: false,
+        validation_issues: 0,
       });
       continue;
     }
 
-    const salePriceMissingOk = !hasSalePrice && bestMatch.sale_price === 0;
+    const salePriceMissingOk = !hasSalePrice && bestMatch.sale_price == null;
+
+    const netIncomeCorrect = gt.net_income != null
+      ? numMatch(bestMatch.net_income ?? 0, gt.net_income, 0.02)
+      : null;
+
+    // commission_percent: ground truth doesn't store it so this is always null for now
+    const commissionPctCorrect: boolean | null = null;
 
     results.push({
       matched: true,
       gci_correct: numMatch(bestMatch.gci, gt.gci, 0.02),
-      sale_price_correct: hasSalePrice ? numMatch(bestMatch.sale_price, gt.sale_price, 0.01) : salePriceMissingOk,
+      sale_price_correct: hasSalePrice ? numMatch(bestMatch.sale_price ?? 0, gt.sale_price, 0.01) : salePriceMissingOk,
       sale_price_missing_ok: salePriceMissingOk,
+      net_income_correct: netIncomeCorrect,
+      commission_percent_correct: commissionPctCorrect,
       names_correct: nameMatch(bestMatch.party_a, gt.party_a),
       date_correct: dateMatch(bestMatch.date, gt.date, format),
       address_correct: bestMatch.address.toLowerCase().includes(gt.address.split(" ")[1]?.toLowerCase() ?? ""),
       side_correct: bestMatch.side === gt.side || gt.side === null,
+      validation_issues: bestMatch.issues?.length ?? 0,
     });
   }
 
@@ -252,14 +196,23 @@ async function apiCallWithRetry<T>(
 async function runReport(
   groq: OpenAI,
   report: SyntheticReport,
-  textPrompt: (content: string) => string
+  textPrompt: (content: string, columnHints?: string) => string
 ): Promise<ReportAccuracyResult> {
   try {
-    const normalized = normalizeDateFormats(report.content);
+    // Use the production normalizer (strips blank rows, subtotals, classifies columns)
+    const normResult = normalizeTextDocument(report.content, true);
+    const truncated  = normResult.stats.truncated;
+
     const response = await apiCallWithRetry(
       () => groq.chat.completions.create({
         model: GROQ_TEXT_MODEL,
-        messages: [{ role: "user", content: textPrompt(normalized) }],
+        messages: [{
+          role: "user",
+          content: textPrompt(
+            normResult.cleaned_content,
+            normResult.column_hints ?? undefined,
+          ),
+        }],
         temperature: 0.1,
         max_tokens: 8000,
       }),
@@ -269,7 +222,7 @@ async function runReport(
     const raw = response.choices[0]?.message?.content ?? "";
     const cleaned = raw.replace(/^```(?:json)?\s*/m, "").replace(/\s*```\s*$/m, "").trim();
 
-    let parsed: { year: number; deals: Array<{ date: string; address: string; sale_price?: number; gci: number; party_a: string; party_b: string; side?: string }> };
+    let parsed: { year: number; deals: Array<{ date: string; address: string; sale_price?: number | null; gci: number; net_income?: number | null; commission_percent?: number | null; party_a: string; party_b: string; side?: string }> };
     try {
       parsed = JSON.parse(cleaned);
     } catch {
@@ -279,13 +232,29 @@ async function runReport(
         year: report.year,
         annual_gci_error_pct: null,
         annual_tx_error: null,
+        truncated,
         deal_results: [],
         error: `JSON parse failed: ${cleaned.slice(0, 200)}`,
       };
     }
 
-    // Compute extracted aggregates
-    const extractedDeals = parsed.deals ?? [];
+    // Run deterministic validators on extracted deals (same as production route.ts)
+    const extractedDeals = (parsed.deals ?? []).map(d => {
+      const deal = {
+        date:               d.date ?? "",
+        address:            (d.address ?? "").trim(),
+        sale_price:         d.sale_price != null ? (Number(d.sale_price) || null) : null,
+        gci:                Number(d.gci) || 0,
+        net_income:         d.net_income != null ? (Number(d.net_income) || null) : null,
+        commission_percent: d.commission_percent != null ? (Number(d.commission_percent) || null) : null,
+        party_a:            d.party_a ?? "",
+        party_b:            d.party_b ?? "",
+        agent_side:         null as null,
+        side:               (d.side as "buyer" | "seller" | "both" | undefined) ?? undefined,
+      };
+      return applyValidation(deal, report.year);
+    });
+
     const yearDeals = extractedDeals.filter(d => d.date?.slice(0, 4) === String(report.year));
     const extractedGCI = yearDeals.reduce((s, d) => s + (Number(d.gci) || 0), 0);
     const extractedTx  = yearDeals.length;
@@ -305,8 +274,9 @@ async function runReport(
       year: report.year,
       annual_gci_error_pct: gciErrorPct,
       annual_tx_error: txError,
+      truncated,
       deal_results: dealResults,
-      raw_response: raw.slice(0, 500), // first 500 chars for debugging
+      raw_response: raw.slice(0, 500),
     };
   } catch (err: unknown) {
     return {
@@ -315,6 +285,7 @@ async function runReport(
       year: report.year,
       annual_gci_error_pct: null,
       annual_tx_error: null,
+      truncated: false,
       deal_results: [],
       error: err instanceof Error ? err.message : String(err),
     };
@@ -342,14 +313,23 @@ interface FormatSummary {
   format: string;
   reports: number;
   errors: number;
+  truncated_count: number;     // reports where normalizer truncated the content
   avg_gci_error_pct: number;
   avg_tx_error: number;
   gci_accuracy: number;        // % deals where GCI within 2%
   sale_price_accuracy: number; // % deals where sale price correct (or acceptably missing)
+  net_income_accuracy: number; // % deals where net_income within 2% (only counted when gt has net_income)
   names_accuracy: number;
   date_accuracy: number;
   address_accuracy: number;
   deal_match_rate: number;     // % ground truth deals that were found
+  avg_validation_issues: number; // average validation issue count per matched deal
+  field_presence: {            // % of matched deals where field is non-null
+    sale_price: number;
+    net_income: number;
+    commission_percent: number;
+    address: number;
+  };
 }
 
 function summarise(results: ReportAccuracyResult[]): FormatSummary[] {
@@ -359,63 +339,85 @@ function summarise(results: ReportAccuracyResult[]): FormatSummary[] {
   }
 
   return Object.entries(byFormat).map(([format, rs]) => {
-    const valid = rs.filter(r => !r.error);
+    const valid   = rs.filter(r => !r.error);
     const allDeals = valid.flatMap(r => r.deal_results);
-    const matched = allDeals.filter(d => d.matched);
+    const matched  = allDeals.filter(d => d.matched);
 
     const avgGCIErr = valid.length > 0
       ? valid.reduce((s, r) => s + (r.annual_gci_error_pct ?? 0), 0) / valid.length
       : 0;
-
     const avgTxErr = valid.length > 0
       ? valid.reduce((s, r) => s + (r.annual_tx_error ?? 0), 0) / valid.length
       : 0;
 
-    const pct = (arr: boolean[]) => arr.length === 0 ? 0 : arr.filter(Boolean).length / arr.length * 100;
+    const pct = (arr: boolean[]) =>
+      arr.length === 0 ? 0 : arr.filter(Boolean).length / arr.length * 100;
+
+    // net_income accuracy — only count deals where ground truth has net_income
+    const netIncomeDeals = matched.filter(d => d.net_income_correct !== null);
+    const netIncomeAcc = netIncomeDeals.length > 0
+      ? pct(netIncomeDeals.map(d => d.net_income_correct as boolean))
+      : 0;
+
+    const avgValidationIssues = matched.length > 0
+      ? matched.reduce((s, d) => s + d.validation_issues, 0) / matched.length
+      : 0;
 
     return {
       format,
-      reports: rs.length,
-      errors: rs.filter(r => r.error).length,
+      reports:           rs.length,
+      errors:            rs.filter(r => r.error).length,
+      truncated_count:   valid.filter(r => r.truncated).length,
       avg_gci_error_pct: Math.round(avgGCIErr * 10) / 10,
-      avg_tx_error: Math.round(avgTxErr * 10) / 10,
-      gci_accuracy:         Math.round(pct(matched.map(d => d.gci_correct))),
-      sale_price_accuracy:  Math.round(pct(matched.map(d => d.sale_price_correct))),
-      names_accuracy:       Math.round(pct(matched.map(d => d.names_correct))),
-      date_accuracy:        Math.round(pct(matched.map(d => d.date_correct))),
-      address_accuracy:     Math.round(pct(matched.map(d => d.address_correct))),
-      deal_match_rate:      Math.round(pct(allDeals.map(d => d.matched))),
+      avg_tx_error:      Math.round(avgTxErr * 10) / 10,
+      gci_accuracy:          Math.round(pct(matched.map(d => d.gci_correct))),
+      sale_price_accuracy:   Math.round(pct(matched.map(d => d.sale_price_correct))),
+      net_income_accuracy:   Math.round(netIncomeAcc),
+      names_accuracy:        Math.round(pct(matched.map(d => d.names_correct))),
+      date_accuracy:         Math.round(pct(matched.map(d => d.date_correct))),
+      address_accuracy:      Math.round(pct(matched.map(d => d.address_correct))),
+      deal_match_rate:       Math.round(pct(allDeals.map(d => d.matched))),
+      avg_validation_issues: Math.round(avgValidationIssues * 10) / 10,
+      field_presence: {
+        sale_price:         Math.round(pct(matched.map(d => d.sale_price_correct || d.sale_price_missing_ok))),
+        net_income:         Math.round(pct(matched.map(d => d.net_income_correct !== null && d.net_income_correct !== false))),
+        commission_percent: Math.round(pct(matched.map(d => d.commission_percent_correct !== null))),
+        address:            Math.round(pct(matched.map(d => d.address_correct))),
+      },
     };
   });
 }
 
 function printTable(summaries: FormatSummary[]) {
-  console.log("\n╔══════════════════════════════════════════════════════════════════════════════════╗");
-  console.log("║                     IMPORT ACCURACY TEST RESULTS                              ║");
-  console.log("╠══════╦═══════╦═══════╦══════════╦════════╦═══════╦═══════╦═══════╦═════════╣");
-  console.log("║ FMT  ║ RPT   ║ ERR   ║ GCI ERR% ║  GCI%  ║PRICE% ║NAMES% ║ DATE% ║MATCH RT ║");
-  console.log("╠══════╬═══════╬═══════╬══════════╬════════╬═══════╬═══════╬═══════╬═════════╣");
+  console.log("\n╔══════════════════════════════════════════════════════════════════════════════════════════╗");
+  console.log("║                          IMPORT ACCURACY TEST RESULTS                                 ║");
+  console.log("╠══════╦═══════╦═══════╦════╦══════════╦════════╦═══════╦══════╦═══════╦═══════╦═══════╣");
+  console.log("║ FMT  ║ RPT   ║ ERR   ║TRNC║ GCI ERR% ║  GCI%  ║PRICE% ║ NET% ║NAMES% ║ DATE% ║MATCH% ║");
+  console.log("╠══════╬═══════╬═══════╬════╬══════════╬════════╬═══════╬══════╬═══════╬═══════╬═══════╣");
   for (const s of summaries) {
     const gciErrStr = `${s.avg_gci_error_pct.toFixed(1)}%`.padStart(8);
-    const col = (v: number) => `${v}%`.padStart(7);
-    const matchRt = `${s.deal_match_rate}%`.padStart(7);
+    const col  = (v: number) => `${v}%`.padStart(7);
+    const col6 = (v: number) => `${v}%`.padStart(6);
+    const trunc = String(s.truncated_count).padStart(4);
     console.log(
-      `║ ${s.format.padEnd(4)} ║ ${String(s.reports).padStart(5)} ║ ${String(s.errors).padStart(5)} ║ ${gciErrStr} ║${col(s.gci_accuracy)} ║${col(s.sale_price_accuracy)} ║${col(s.names_accuracy)} ║${col(s.date_accuracy)} ║${matchRt}  ║`
+      `║ ${s.format.padEnd(4)} ║ ${String(s.reports).padStart(5)} ║ ${String(s.errors).padStart(5)} ║${trunc}║ ${gciErrStr} ║${col(s.gci_accuracy)} ║${col(s.sale_price_accuracy)} ║${col6(s.net_income_accuracy)} ║${col(s.names_accuracy)} ║${col(s.date_accuracy)} ║${col(s.deal_match_rate)} ║`
     );
   }
-  console.log("╚══════╩═══════╩═══════╩══════════╩════════╩═══════╩═══════╩═══════╩═════════╝");
+  console.log("╚══════╩═══════╩═══════╩════╩══════════╩════════╩═══════╩══════╩═══════╩═══════╩═══════╝");
 
   // Overall
   const all = summaries;
   const totalReports = all.reduce((s, r) => s + r.reports, 0);
-  const totalErrors = all.reduce((s, r) => s + r.errors, 0);
-  const avgGCI = all.reduce((s, r) => s + r.gci_accuracy * r.reports, 0) / totalReports;
-  const avgPrice = all.reduce((s, r) => s + r.sale_price_accuracy * r.reports, 0) / totalReports;
-  const avgNames = all.reduce((s, r) => s + r.names_accuracy * r.reports, 0) / totalReports;
-  const avgDate = all.reduce((s, r) => s + r.date_accuracy * r.reports, 0) / totalReports;
+  const totalErrors  = all.reduce((s, r) => s + r.errors, 0);
+  const totalTrunc   = all.reduce((s, r) => s + r.truncated_count, 0);
+  const avgGCI       = all.reduce((s, r) => s + r.gci_accuracy * r.reports, 0) / totalReports;
+  const avgPrice     = all.reduce((s, r) => s + r.sale_price_accuracy * r.reports, 0) / totalReports;
+  const avgNet       = all.reduce((s, r) => s + r.net_income_accuracy * r.reports, 0) / totalReports;
+  const avgNames     = all.reduce((s, r) => s + r.names_accuracy * r.reports, 0) / totalReports;
+  const avgDate      = all.reduce((s, r) => s + r.date_accuracy * r.reports, 0) / totalReports;
 
-  console.log(`\nTotal: ${totalReports} reports, ${totalErrors} errors`);
-  console.log(`Overall field accuracy — GCI: ${avgGCI.toFixed(1)}%  Sale Price: ${avgPrice.toFixed(1)}%  Names: ${avgNames.toFixed(1)}%  Date: ${avgDate.toFixed(1)}%\n`);
+  console.log(`\nTotal: ${totalReports} reports, ${totalErrors} errors, ${totalTrunc} truncated`);
+  console.log(`Overall field accuracy — GCI: ${avgGCI.toFixed(1)}%  Sale Price: ${avgPrice.toFixed(1)}%  Net: ${avgNet.toFixed(1)}%  Names: ${avgNames.toFixed(1)}%  Date: ${avgDate.toFixed(1)}%\n`);
 }
 
 // ── CLI ───────────────────────────────────────────────────────────────────────

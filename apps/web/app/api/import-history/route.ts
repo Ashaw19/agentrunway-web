@@ -6,7 +6,7 @@ import { TEXT_PROMPT } from "@/lib/import-prompt";
 import { applyValidation } from "@/lib/import/validation/validate-transactions";
 import { normalizeTextDocument } from "@/lib/import/normalizers/normalize-text";
 import type { ColumnClassification } from "@/lib/import/heuristics/column-classifier";
-import type { ExtractionProvenance } from "@/lib/import/types";
+import type { ExtractionProvenance, ExtractionQuality, ImportDebug } from "@/lib/import/types";
 
 // ── Exported types shared with the client component ──────────────────────────
 //
@@ -80,6 +80,10 @@ export interface ImportResult {
     rows_kept:  number;
     rows_total: number;
   };
+  /** Overall quality signal for this import run. Only set by server-side imports. */
+  extraction_quality?: ExtractionQuality;
+  /** Diagnostic snapshot — only present outside production. */
+  debug?: ImportDebug;
 }
 
 // ── Groq raw response (before we compute aggregates) ─────────────────────────
@@ -446,6 +450,78 @@ function computeAggregates(
   return { year, annual_gci, annual_tx, quarter_gci, quarter_tx, deals: validatedDeals };
 }
 
+// ── Quality + debug helpers ───────────────────────────────────────────────────
+
+function computeExtractionQuality(
+  deals:     ExtractedDeal[],
+  truncated: boolean,
+): ExtractionQuality {
+  if (deals.length === 0) return "needs_review";
+
+  const lowOrMissingGci = deals.filter(
+    d => d.confidence?.gci === "low" || d.confidence?.gci === "missing",
+  ).length;
+  if (lowOrMissingGci / deals.length > 0.5) return "needs_review";
+
+  const dealsWithIssues = deals.filter(d => (d.issues?.length ?? 0) > 0).length;
+  const missingAddress  = deals.filter(d => !d.address).length;
+
+  if (
+    truncated ||
+    dealsWithIssues / deals.length > 0.25 ||
+    missingAddress  / deals.length > 0.5
+  ) return "partial";
+
+  return "good";
+}
+
+function computeImportDebug(
+  deals:          ExtractedDeal[],
+  importPath:     ImportDebug["import_path"],
+  normStats:      ReturnType<typeof normalizeTextDocument>["stats"] | null,
+  columnSubtype:  ImportDebug["column_subtype"],
+  hintsInjected:  boolean,
+): ImportDebug {
+  const dealsWithIssues = deals.filter(d => (d.issues?.length ?? 0) > 0).length;
+
+  // Count field presence
+  const fieldPresence: ImportDebug["field_presence"] = {
+    gci:                deals.filter(d => d.gci > 0).length,
+    net_income:         deals.filter(d => d.net_income != null).length,
+    sale_price:         deals.filter(d => d.sale_price != null).length,
+    commission_percent: deals.filter(d => d.commission_percent != null).length,
+    address:            deals.filter(d => !!d.address).length,
+    date:               deals.filter(d => !!d.date).length,
+    names:              deals.filter(d => !!d.party_a).length,
+  };
+
+  // Collect all issue messages and count frequency
+  const issueCounts = new Map<string, number>();
+  for (const deal of deals) {
+    for (const msg of deal.issues ?? []) {
+      issueCounts.set(msg, (issueCounts.get(msg) ?? 0) + 1);
+    }
+  }
+  const top_issues = [...issueCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([message, count]) => ({ message, count }));
+
+  return {
+    import_path:          importPath,
+    normalization_ran:    normStats !== null,
+    column_subtype:       columnSubtype,
+    column_hints_injected: hintsInjected,
+    truncated:            normStats?.truncated ?? false,
+    rows_input:           normStats?.input_rows ?? 0,
+    rows_kept:            normStats?.output_rows ?? 0,
+    deals_extracted:      deals.length,
+    deals_with_issues:    dealsWithIssues,
+    field_presence:       fieldPresence,
+    top_issues,
+  };
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -578,16 +654,43 @@ export async function POST(req: NextRequest) {
       textNormalized?.raw_header_row ?? null,
     );
 
+    const truncated = textNormalized?.stats.truncated ?? false;
+
+    // Determine import path for debug metadata
+    const importPath: ImportDebug["import_path"] =
+      body.textContent ? "text-llm" :
+      imageSources.length > 1 ? "vision-multi" : "vision-single";
+
+    const columnSubtype = textNormalized?.column_classification?.document_subtype ?? null;
+    const hintsInjected = !!(textNormalized?.column_hints);
+
+    // Compute quality signal
+    const extraction_quality = computeExtractionQuality(result.deals, truncated);
+
+    // Compute debug snapshot (non-production only)
+    const debug: ImportDebug | undefined =
+      process.env.NODE_ENV !== "production"
+        ? computeImportDebug(
+            result.deals,
+            importPath,
+            textNormalized?.stats ?? null,
+            columnSubtype,
+            hintsInjected,
+          )
+        : undefined;
+
     // Attach truncation warning if the normalizer had to drop rows to fit 20k chars.
-    const response: ImportResult = textNormalized?.stats.truncated
-      ? {
-          ...result,
-          truncation_warning: {
-            rows_kept:  textNormalized.stats.output_rows,
-            rows_total: textNormalized.stats.input_rows,
-          },
-        }
-      : result;
+    const response: ImportResult = {
+      ...result,
+      extraction_quality,
+      ...(debug && { debug }),
+      ...(truncated && {
+        truncation_warning: {
+          rows_kept:  textNormalized!.stats.output_rows,
+          rows_total: textNormalized!.stats.input_rows,
+        },
+      }),
+    };
 
     return NextResponse.json(response);
   } catch (err) {

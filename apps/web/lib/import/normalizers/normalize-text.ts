@@ -19,8 +19,8 @@
  *   • Works with raw CSV text OR pre-split row arrays (SheetJS output).
  */
 
-import { classifyColumns } from "@/lib/import/heuristics/column-classifier";
-import type { ColumnClassification } from "@/lib/import/heuristics/column-classifier";
+import { classifyColumns } from "../heuristics/column-classifier.js";
+import type { ColumnClassification } from "../heuristics/column-classifier.js";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
