@@ -688,6 +688,27 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       toast.error("Couldn't read the file — please try again.");
       setImportStatus("idle");
       setImportOpen(false);
+      // Fire-and-forget error telemetry — runs independently after UI has already updated
+      void (async () => {
+        try {
+          const msg = err instanceof Error ? err.message.toLowerCase() : String(err).toLowerCase();
+          const errorCategory =
+            msg.includes("rate limit") || msg.includes("429")         ? "rate_limit"        :
+            msg.includes("extraction failed")                         ? "extraction_failed" :
+            msg.includes("network") || msg.includes("fetch failed")   ? "network_error"     :
+            msg.includes("token") || msg.includes("context length")   ? "context_exceeded"  :
+                                                                        "unknown";
+          const sb = createClient();
+          const { data: { user: u } } = await sb.auth.getUser();
+          if (!u) return;
+          await sb.from("import_telemetry").insert({
+            user_id:        u.id,
+            event_type:     "error",
+            file_type:      fileType,
+            error_category: errorCategory,
+          });
+        } catch { /* ignore — error telemetry must never throw */ }
+      })();
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -819,6 +840,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
         // Wrap in Promise.resolve so .catch() is available (Supabase returns PromiseLike)
         void Promise.resolve(supabase.from("import_telemetry").insert({
           user_id:                        user.id,
+          event_type:                     "save",
           import_source:                  importData.import_source ?? null,
           document_subtype:               importData.document_subtype ?? null,
           extraction_quality:             importData.extraction_quality ?? null,
@@ -990,6 +1012,32 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
           await supabase.from("transactions").insert(txInserts);
         }
       }
+    }
+
+    // ── Batch telemetry: one row per year saved (fire-and-forget) ───────────
+    for (const yearData of batchImportData) {
+      const isReplace = items.some((i) => i.year === yearData.year);
+      const issueCount = yearData.deals.reduce((s, d) => s + (d.issues?.length ?? 0), 0);
+      const lowGci     = yearData.deals.filter(
+        d => d.confidence?.gci === "low" || d.confidence?.gci === "missing",
+      ).length;
+      void Promise.resolve(supabase.from("import_telemetry").insert({
+        user_id:                      user.id,
+        event_type:                   "batch_save",
+        file_type:                    "excel",
+        import_source:                yearData.import_source ?? "text",
+        document_subtype:             yearData.document_subtype ?? "tracker",
+        extraction_quality:           yearData.extraction_quality ?? null,
+        deal_count:                   yearData.deals.length,
+        is_replace:                   isReplace,
+        truncation_occurred:          !!yearData.truncation_warning,
+        rows_kept:                    yearData.truncation_warning?.rows_kept ?? null,
+        rows_total:                   yearData.truncation_warning?.rows_total ?? null,
+        total_fields_edited:          0,   // batch preview has no per-deal editing
+        brokerage_confirmation_shown: false,
+        issue_count_total:            issueCount,
+        low_confidence_gci_count:     lowGci,
+      })).catch(() => {});
     }
 
     setImportOpen(false);
