@@ -25,6 +25,7 @@ import OpenAI from "openai";
 import * as fs from "fs";
 import * as path from "path";
 import { generateSyntheticReports, type SyntheticReport, type GroundTruthDeal } from "./generate-reports.js";
+import { normalizeDateFormats } from "../../lib/import/normalizers/normalize-dates.js";
 import { normalizeTextDocument } from "../../lib/import/normalizers/normalize-text.js";
 import { applyValidation } from "../../lib/import/validation/validate-transactions.js";
 
@@ -48,6 +49,12 @@ interface DealComparisonResult {
   sale_price_missing_ok: boolean;  // sale_price=null and doc doesn't have it → acceptable
   net_income_correct: boolean | null;   // null when ground truth has no net_income
   commission_percent_correct: boolean | null; // null when ground truth has no commission_percent
+  /**
+   * True when both gci and net_income are present in the extraction AND gci > net_income.
+   * False when values are present but inverted (net > gci = swap error).
+   * null when net_income is not present in the extraction (can't evaluate order).
+   */
+  gci_gt_net: boolean | null;
   names_correct: boolean;
   date_correct: boolean;
   address_correct: boolean;
@@ -123,6 +130,7 @@ function compareDeals(
         sale_price_missing_ok: false,
         net_income_correct: null,
         commission_percent_correct: null,
+        gci_gt_net: null,
         names_correct: false,
         date_correct: false,
         address_correct: false,
@@ -138,6 +146,13 @@ function compareDeals(
       ? numMatch(bestMatch.net_income ?? 0, gt.net_income, 0.02)
       : null;
 
+    // GCI > net_income sanity check: both must be present and gci must be larger.
+    // A false value here means a gross/net swap — the highest-risk financial error.
+    const gciGtNet: boolean | null =
+      bestMatch.gci > 0 && bestMatch.net_income != null && bestMatch.net_income > 0
+        ? bestMatch.gci > bestMatch.net_income
+        : null;
+
     // commission_percent: ground truth doesn't store it so this is always null for now
     const commissionPctCorrect: boolean | null = null;
 
@@ -148,6 +163,7 @@ function compareDeals(
       sale_price_missing_ok: salePriceMissingOk,
       net_income_correct: netIncomeCorrect,
       commission_percent_correct: commissionPctCorrect,
+      gci_gt_net: gciGtNet,
       names_correct: nameMatch(bestMatch.party_a, gt.party_a),
       date_correct: dateMatch(bestMatch.date, gt.date, format),
       address_correct: bestMatch.address.toLowerCase().includes(gt.address.split(" ")[1]?.toLowerCase() ?? ""),
@@ -199,8 +215,11 @@ async function runReport(
   textPrompt: (content: string, columnHints?: string) => string
 ): Promise<ReportAccuracyResult> {
   try {
-    // Use the production normalizer (strips blank rows, subtotals, classifies columns)
-    const normResult = normalizeTextDocument(report.content, true);
+    // Mirror production pipeline exactly:
+    // 1. Date normalization (Excel serials → ISO, DD/MM disambiguation)
+    // 2. Row cleaning + column classification
+    const dateNormalized = normalizeDateFormats(report.content);
+    const normResult = normalizeTextDocument(dateNormalized, true);
     const truncated  = normResult.stats.truncated;
 
     const response = await apiCallWithRetry(
@@ -319,6 +338,8 @@ interface FormatSummary {
   gci_accuracy: number;        // % deals where GCI within 2%
   sale_price_accuracy: number; // % deals where sale price correct (or acceptably missing)
   net_income_accuracy: number; // % deals where net_income within 2% (only counted when gt has net_income)
+  /** % of deals where both gci and net_income present AND gci > net_income. Low = swap risk. */
+  gci_gt_net_pct: number;
   names_accuracy: number;
   date_accuracy: number;
   address_accuracy: number;
@@ -359,6 +380,12 @@ function summarise(results: ReportAccuracyResult[]): FormatSummary[] {
       ? pct(netIncomeDeals.map(d => d.net_income_correct as boolean))
       : 0;
 
+    // GCI > net_income sanity — only count deals where both fields are present
+    const gciGtNetDeals = matched.filter(d => d.gci_gt_net !== null);
+    const gciGtNetPct = gciGtNetDeals.length > 0
+      ? pct(gciGtNetDeals.map(d => d.gci_gt_net as boolean))
+      : 0;
+
     const avgValidationIssues = matched.length > 0
       ? matched.reduce((s, d) => s + d.validation_issues, 0) / matched.length
       : 0;
@@ -373,6 +400,7 @@ function summarise(results: ReportAccuracyResult[]): FormatSummary[] {
       gci_accuracy:          Math.round(pct(matched.map(d => d.gci_correct))),
       sale_price_accuracy:   Math.round(pct(matched.map(d => d.sale_price_correct))),
       net_income_accuracy:   Math.round(netIncomeAcc),
+      gci_gt_net_pct:        Math.round(gciGtNetPct),
       names_accuracy:        Math.round(pct(matched.map(d => d.names_correct))),
       date_accuracy:         Math.round(pct(matched.map(d => d.date_correct))),
       address_accuracy:      Math.round(pct(matched.map(d => d.address_correct))),
@@ -389,21 +417,24 @@ function summarise(results: ReportAccuracyResult[]): FormatSummary[] {
 }
 
 function printTable(summaries: FormatSummary[]) {
-  console.log("\n╔══════════════════════════════════════════════════════════════════════════════════════════╗");
-  console.log("║                          IMPORT ACCURACY TEST RESULTS                                 ║");
-  console.log("╠══════╦═══════╦═══════╦════╦══════════╦════════╦═══════╦══════╦═══════╦═══════╦═══════╣");
-  console.log("║ FMT  ║ RPT   ║ ERR   ║TRNC║ GCI ERR% ║  GCI%  ║PRICE% ║ NET% ║NAMES% ║ DATE% ║MATCH% ║");
-  console.log("╠══════╬═══════╬═══════╬════╬══════════╬════════╬═══════╬══════╬═══════╬═══════╬═══════╣");
+  console.log("\n╔══════════════════════════════════════════════════════════════════════════════════════════════════╗");
+  console.log("║                            IMPORT ACCURACY TEST RESULTS                                      ║");
+  console.log("╠══════╦═══════╦═══════╦════╦══════════╦════════╦═══════╦══════╦═══════╦═══════╦════════╦═════╣");
+  console.log("║ FMT  ║ RPT   ║ ERR   ║TRNC║ GCI ERR% ║  GCI%  ║PRICE% ║ NET% ║NAMES% ║ DATE% ║G>NET%  ║MTH% ║");
+  console.log("╠══════╬═══════╬═══════╬════╬══════════╬════════╬═══════╬══════╬═══════╬═══════╬════════╬═════╣");
   for (const s of summaries) {
     const gciErrStr = `${s.avg_gci_error_pct.toFixed(1)}%`.padStart(8);
     const col  = (v: number) => `${v}%`.padStart(7);
     const col6 = (v: number) => `${v}%`.padStart(6);
+    const col8 = (v: number) => `${v}%`.padStart(8);
     const trunc = String(s.truncated_count).padStart(4);
+    const mth = `${s.deal_match_rate}%`.padStart(5);
     console.log(
-      `║ ${s.format.padEnd(4)} ║ ${String(s.reports).padStart(5)} ║ ${String(s.errors).padStart(5)} ║${trunc}║ ${gciErrStr} ║${col(s.gci_accuracy)} ║${col(s.sale_price_accuracy)} ║${col6(s.net_income_accuracy)} ║${col(s.names_accuracy)} ║${col(s.date_accuracy)} ║${col(s.deal_match_rate)} ║`
+      `║ ${s.format.padEnd(4)} ║ ${String(s.reports).padStart(5)} ║ ${String(s.errors).padStart(5)} ║${trunc}║ ${gciErrStr} ║${col(s.gci_accuracy)} ║${col(s.sale_price_accuracy)} ║${col6(s.net_income_accuracy)} ║${col(s.names_accuracy)} ║${col(s.date_accuracy)} ║${col8(s.gci_gt_net_pct)} ║${mth} ║`
     );
   }
-  console.log("╚══════╩═══════╩═══════╩════╩══════════╩════════╩═══════╩══════╩═══════╩═══════╩═══════╝");
+  console.log("╚══════╩═══════╩═══════╩════╩══════════╩════════╩═══════╩══════╩═══════╩═══════╩════════╩═════╝");
+  console.log("  G>NET% = % of deals where extracted GCI > Net Income (100% = no swaps detected)");
 
   // Overall
   const all = summaries;
@@ -415,9 +446,10 @@ function printTable(summaries: FormatSummary[]) {
   const avgNet       = all.reduce((s, r) => s + r.net_income_accuracy * r.reports, 0) / totalReports;
   const avgNames     = all.reduce((s, r) => s + r.names_accuracy * r.reports, 0) / totalReports;
   const avgDate      = all.reduce((s, r) => s + r.date_accuracy * r.reports, 0) / totalReports;
+  const avgGtNet     = all.reduce((s, r) => s + r.gci_gt_net_pct * r.reports, 0) / totalReports;
 
   console.log(`\nTotal: ${totalReports} reports, ${totalErrors} errors, ${totalTrunc} truncated`);
-  console.log(`Overall field accuracy — GCI: ${avgGCI.toFixed(1)}%  Sale Price: ${avgPrice.toFixed(1)}%  Net: ${avgNet.toFixed(1)}%  Names: ${avgNames.toFixed(1)}%  Date: ${avgDate.toFixed(1)}%\n`);
+  console.log(`Overall accuracy — GCI: ${avgGCI.toFixed(1)}%  Price: ${avgPrice.toFixed(1)}%  Net: ${avgNet.toFixed(1)}%  Names: ${avgNames.toFixed(1)}%  Date: ${avgDate.toFixed(1)}%  GCI>Net: ${avgGtNet.toFixed(1)}%\n`);
 }
 
 // ── CLI ───────────────────────────────────────────────────────────────────────
@@ -447,7 +479,7 @@ async function main() {
 
   // --delay flag overrides the between-call delay (ms).
   // Recommended: 20000 for 8b-instant (~20k TPM), 70000 for 70b-versatile (~6k TPM).
-  const delayMs = parseInt(getArg("--delay", "20000"), 10);
+  const delayMs = parseInt(getArg("--delay", "3000"), 10);
 
   console.log(`\nGenerating synthetic reports (${perFormat} per format)...`);
   let reports = generateSyntheticReports({ perFormat });

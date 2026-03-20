@@ -7,6 +7,7 @@ import { applyValidation } from "@/lib/import/validation/validate-transactions";
 import { normalizeTextDocument } from "@/lib/import/normalizers/normalize-text";
 import type { ColumnClassification } from "@/lib/import/heuristics/column-classifier";
 import type { ExtractionProvenance, ExtractionQuality, ImportDebug } from "@/lib/import/types";
+import { normalizeDateFormats } from "@/lib/import/normalizers/normalize-dates";
 
 // ── Exported types shared with the client component ──────────────────────────
 //
@@ -82,6 +83,18 @@ export interface ImportResult {
   };
   /** Overall quality signal for this import run. Only set by server-side imports. */
   extraction_quality?: ExtractionQuality;
+  /**
+   * Document subtype detected by the column classifier.
+   * "brokerage" triggers the review-required safeguard in the UI.
+   * undefined for tracker imports parsed client-side or vision imports.
+   */
+  document_subtype?: "tracker" | "brokerage" | "generic";
+  /**
+   * How this document was processed.
+   * "vision" triggers the PDF/image review tag in the UI.
+   * undefined for tracker imports parsed client-side.
+   */
+  import_source?: "text" | "vision";
   /** Diagnostic snapshot — only present outside production. */
   debug?: ImportDebug;
 }
@@ -222,84 +235,6 @@ CRITICAL RULES:
 6. Return ONLY the JSON — nothing before or after it.`;
 
 // TEXT_PROMPT is in lib/import-prompt.ts (shared with accuracy test runner).
-
-// ── Date normalization (pre-processes content before sending to LLM) ─────────
-// Two passes:
-//   1. Excel serial numbers → ISO dates (so LLM never has to do serial arithmetic)
-//   2. Slash dates DD/MM vs MM/DD disambiguation → ISO dates
-
-/** Convert an Excel serial number to YYYY-MM-DD using the known 2023-01-01 = 44927 anchor. */
-function excelSerialToISO(serial: number): string {
-  const ANCHOR_DATE   = new Date(Date.UTC(2023, 0, 1)); // 2023-01-01
-  const ANCHOR_SERIAL = 44927;
-  const ms  = ANCHOR_DATE.getTime() + (serial - ANCHOR_SERIAL) * 86_400_000;
-  const d   = new Date(ms);
-  const y   = d.getUTCFullYear();
-  const m   = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function normalizeDateFormats(content: string): string {
-  // Pass 1 — Excel serial numbers (5-digit integers, ~2015-2035 range)
-  //
-  // Strategy: if the content is a CSV with a labelled Date column, only convert
-  // serials in THAT column — prevents false-positives from GCI/price values that
-  // happen to fall in the 42000–47999 range (e.g. a $45,000 commission).
-  const SERIAL_RE = /^(4[2-7]\d{3}|48[0-3]\d\d)$/;
-
-  const lines = content.split("\n");
-  let dateColIdx = -1;
-  for (let i = 0; i < Math.min(lines.length, 5); i++) {
-    const cells = lines[i].split(",");
-    if (cells.length >= 3) {
-      const idx = cells.findIndex(c =>
-        /\b(?:close[\s_]?)?date\b|\bclosing\b|\bsettlement[\s_]date\b/i.test(c.trim())
-      );
-      if (idx >= 0) { dateColIdx = idx; break; }
-    }
-  }
-
-  let result: string;
-  if (dateColIdx >= 0) {
-    // Column-aware: only replace serials in the detected date column
-    result = lines.map(line => {
-      const cells = line.split(",");
-      if (cells.length > dateColIdx) {
-        const cell = cells[dateColIdx].trim();
-        if (SERIAL_RE.test(cell)) {
-          cells[dateColIdx] = excelSerialToISO(parseInt(cell, 10));
-          return cells.join(",");
-        }
-      }
-      return line;
-    }).join("\n");
-  } else {
-    // Generic: replace cell-isolated serial numbers (tab/comma/newline boundaries)
-    result = content.replace(
-      /(?<=^|[\t,\n])(4[2-7]\d{3}|48[0-3]\d\d)(?=$|[\t,\n])/gm,
-      (_, serial) => excelSerialToISO(parseInt(serial, 10)),
-    );
-  }
-
-  // Pass 2 — slash dates (DD/MM/YYYY vs MM/DD/YYYY)
-  const slashDate = /\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/g;
-  const matches = [...result.matchAll(slashDate)];
-  if (matches.length === 0) return result;
-
-  const isDDMM = matches.some(m => parseInt(m[1]) > 12);
-  const isMDY  = !isDDMM && matches.some(m => parseInt(m[2]) > 12);
-
-  if (isDDMM) {
-    return result.replace(slashDate, (_, d, m, y) =>
-      `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
-  }
-  if (isMDY) {
-    return result.replace(slashDate, (_, m, d, y) =>
-      `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
-  }
-  return result; // all ambiguous — leave for LLM
-}
 
 // ── Aggregate computation (done in code — not trusted to Groq) ───────────────
 
@@ -683,6 +618,8 @@ export async function POST(req: NextRequest) {
     const response: ImportResult = {
       ...result,
       extraction_quality,
+      document_subtype: textNormalized?.column_classification?.document_subtype,
+      import_source:    body.textContent ? "text" : "vision",
       ...(debug && { debug }),
       ...(truncated && {
         truncation_warning: {

@@ -281,9 +281,9 @@ function generateB1(year: number, deals: GroundTruthDeal[]): string {
     `Date,Property Address,Sale Price,Parties,Gross Commission,Agent Net (Taxable)`,
   ];
   for (const d of deals) {
-    const gross = Math.round(d.gci / 0.8 * 100) / 100; // back-compute gross
+    // After annotation: d.gci = Gross Commission (pre-split), d.net_income = Agent Net (post-split)
     const parties = `${d.party_a} / ${d.party_b}`;
-    lines.push(`${d.date},${d.address},${d.sale_price},${parties},${gross},${d.gci}`);
+    lines.push(`${d.date},${d.address},${d.sale_price},${parties},${d.gci},${d.net_income}`);
   }
   return lines.join("\n");
 }
@@ -321,8 +321,8 @@ function generateB3(year: number, deals: GroundTruthDeal[]): string {
     `Date,Address,Sale Price,Transaction Parties,Gross Commission,Your Net`,
   ];
   for (const d of complexDeals) {
-    const gross = Math.round(d.gci / 0.8 * 100) / 100;
-    lines.push(`${d.date},${d.address},${d.sale_price},${d.party_a} / ${d.party_b},${gross},${d.gci}`);
+    // After annotation: d.gci = Gross Commission (pre-split), d.net_income = Agent Net (post-split)
+    lines.push(`${d.date},${d.address},${d.sale_price},${d.party_a} / ${d.party_b},${d.gci},${d.net_income}`);
   }
   return lines.join("\n");
 }
@@ -412,9 +412,17 @@ export function generateSyntheticReports(
       } else if (format === "A2") {
         deals = deals.map(d => ({ ...d, net_income: Math.round(d.gci * 0.75 * 100) / 100 }));
       } else if (format === "B1" || format === "B3") {
-        // In B-format CSVs, d.gci fills the "Agent Net (Taxable)" column.
-        // The "Gross Commission" column is d.gci / 0.8 (a higher number).
-        deals = deals.map(d => ({ ...d, net_income: d.gci }));
+        // In B-format CSVs the document has two columns:
+        //   Gross Commission = d.gci / 0.8  (pre-split — what the brokerage received)
+        //   Agent Net        = d.gci         (post-split — what the agent earned)
+        // Per system semantics gci = pre-split gross, so we redefine:
+        //   d.gci      → Gross Commission (what to capture as gci)
+        //   d.net_income → Agent Net (what to capture as net_income)
+        deals = deals.map(d => ({
+          ...d,
+          net_income: d.gci,                                  // Agent Net (original d.gci value)
+          gci: Math.round(d.gci / 0.8 * 100) / 100,          // Gross Commission
+        }));
       }
 
       const groundTruth = computeGroundTruth(year, deals);

@@ -198,6 +198,8 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
   const [importSplitPct, setImportSplitPct] = useState<number | null>(settingsSplit);
   const [importIsImage,  setImportIsImage]  = useState(false); // true = PDF/image (amounts already net)
   const [batchSplitPcts, setBatchSplitPcts] = useState<Record<number, number | null>>({});
+  /** Brokerage safeguard: user must explicitly confirm before saving a brokerage report */
+  const [brokerageReviewConfirmed, setBrokerageReviewConfirmed] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -474,6 +476,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     setImportStatus("rendering");
     setImportData(null);
     setAgentSides({});
+    setBrokerageReviewConfirmed(false);
 
     try {
       let imageBase64: string | undefined;
@@ -817,6 +820,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     setImportData(null);
     setAgentSides({});
     setEditedFields({});
+    setBrokerageReviewConfirmed(false);
     setBatchImportData([]);
     setBatchProgress({ current: 0, total: 0 });
     setBatchSplitPcts({});
@@ -1292,6 +1296,33 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                 </div>
               </div>
 
+              {/* Step F — Brokerage safeguard: unconditional review banner, triggered by document_subtype */}
+              {importData.document_subtype === "brokerage" && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 flex items-start gap-3">
+                  <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-amber-800">Brokerage report — review required</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      GCI and Net Income values were extracted automatically from your brokerage statement.
+                      Verify each amount matches your source document before saving.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Step G — Vision/PDF tag: always shown when import_source === "vision" */}
+              {importData.import_source === "vision" && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 flex items-start gap-3">
+                  <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-blue-800">PDF/Image import — review required</p>
+                    <p className="text-xs text-blue-700 mt-0.5">
+                      Values extracted from image — verify against source document before saving.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Brokerage split selector */}
               <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5 flex items-center justify-between gap-3">
                 <div>
@@ -1481,8 +1512,8 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                               {/* GCI + badges row */}
                               <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                 <span className="text-[11px] text-muted-foreground">{date} ·</span>
-                                {/* Editable GCI with confidence dot */}
-                                <span className="flex items-center gap-1">
+                                {/* Editable GCI with confidence dot; amber bg highlight for brokerage imports */}
+                                <span className={cn("flex items-center gap-1 rounded", importData.document_subtype === "brokerage" && "bg-amber-50 px-1")}>
                                   <ConfidenceDot
                                     level={eff.confidence?.gci}
                                     evidence={eff.evidence?.gci ?? eff.provenance?.gci}
@@ -1515,7 +1546,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                   {eff.net_income != null && (
                                     <span
-                                      className="text-[10px] text-slate-500"
+                                      className={cn("text-[10px] rounded", importData.document_subtype === "brokerage" ? "text-amber-700 bg-amber-50 px-1" : "text-slate-500")}
                                       title={eff.evidence?.net_income ?? eff.provenance?.net_income ?? "Net income after brokerage split"}
                                     >
                                       <ConfidenceDot level={eff.confidence?.net_income} evidence={eff.evidence?.net_income ?? eff.provenance?.net_income} />
@@ -1628,8 +1659,8 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                                 )}
                               </td>
                               <td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap">{date}</td>
-                              {/* Editable GCI with inline confidence dot; net income shown below when present */}
-                              <td className="px-2 py-1.5 whitespace-nowrap">
+                              {/* Editable GCI with inline confidence dot; net income shown below when present. Amber bg for brokerage. */}
+                              <td className={cn("px-2 py-1.5 whitespace-nowrap", importData.document_subtype === "brokerage" && "bg-amber-50/60")}>
                                 <div className="flex items-center justify-end gap-1">
                                   <ConfidenceDot
                                     level={eff.confidence?.gci}
@@ -1654,10 +1685,10 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                                     )}
                                   />
                                 </div>
-                                {/* Net income below GCI — only when present */}
+                                {/* Net income below GCI — only when present; amber text for brokerage */}
                                 {eff.net_income != null && (
                                   <div
-                                    className="text-right text-[10px] text-slate-400 tabular-nums"
+                                    className={cn("text-right text-[10px] tabular-nums", importData.document_subtype === "brokerage" ? "text-amber-700 font-medium" : "text-slate-400")}
                                     title={eff.evidence?.net_income ?? eff.provenance?.net_income ?? "Net income after brokerage split"}
                                   >
                                     Net {fmtCurrency(eff.net_income)}
@@ -1711,6 +1742,21 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                 )}
               </div>
 
+              {/* Step F — Brokerage confirmation checkbox: required before save */}
+              {importData.document_subtype === "brokerage" && (
+                <label className="flex items-start gap-2.5 cursor-pointer select-none rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+                  <input
+                    type="checkbox"
+                    checked={brokerageReviewConfirmed}
+                    onChange={(e) => setBrokerageReviewConfirmed(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-amber-400 accent-amber-600 cursor-pointer shrink-0"
+                  />
+                  <span className="text-xs text-amber-800 leading-snug">
+                    I have reviewed the GCI and Net Income values against my brokerage statement and confirm they are correct.
+                  </span>
+                </label>
+              )}
+
               {/* Actions */}
               <div className="flex items-center justify-between border-t border-border/40 pt-3">
                 <Button
@@ -1723,7 +1769,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                 </Button>
                 <Button
                   onClick={handleSaveImport}
-                  disabled={importStatus === "saving"}
+                  disabled={importStatus === "saving" || (importData.document_subtype === "brokerage" && !brokerageReviewConfirmed)}
                 >
                   {importStatus === "saving" ? (
                     <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</>
