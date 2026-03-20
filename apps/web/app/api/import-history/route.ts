@@ -5,6 +5,7 @@ import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { TEXT_PROMPT } from "@/lib/import-prompt";
 import { applyValidation } from "@/lib/import/validation/validate-transactions";
 import { normalizeTextDocument } from "@/lib/import/normalizers/normalize-text";
+import type { ColumnClassification } from "@/lib/import/heuristics/column-classifier";
 import type { ExtractionProvenance } from "@/lib/import/types";
 
 // ── Exported types shared with the client component ──────────────────────────
@@ -70,6 +71,15 @@ export interface ImportResult {
   quarter_tx: [number, number, number, number];
   deals: ExtractedDeal[];
   split_pct?: number;  // detected or user-specified agent split (e.g. 0.75 = 75/25)
+  /**
+   * Present when the normalizer had to truncate the document to fit within
+   * the 20 000-character limit.  The UI should warn the user that only a
+   * portion of the file was analysed.
+   */
+  truncation_warning?: {
+    rows_kept:  number;
+    rows_total: number;
+  };
 }
 
 // ── Groq raw response (before we compute aggregates) ─────────────────────────
@@ -289,7 +299,47 @@ function normalizeDateFormats(content: string): string {
 
 // ── Aggregate computation (done in code — not trusted to Groq) ───────────────
 
-function computeAggregates(deals: GroqRawResponse["deals"], year: number): ImportResult {
+/**
+ * Build column-level provenance for LLM-extracted deals when the pre-classifier
+ * detected a column mapping.  Unlike tracker provenance (which knows the exact
+ * row), this describes WHERE the LLM was instructed to look for each field —
+ * i.e. which column header was classified as GCI, net income, etc.
+ *
+ * This is a weaker form of provenance than tracker provenance (no row number)
+ * but still more informative than nothing, and it makes the source traceable.
+ *
+ * Only called when column_classification is non-null (tabular documents).
+ * Never called for vision/OCR documents.
+ */
+function buildLlmProvenance(
+  cls:     ColumnClassification,
+  headers: string[],
+): ExtractionProvenance {
+  const colLabel = (idx: number) =>
+    idx >= 0 ? `Column "${headers[idx]?.trim() || `col ${idx}`}" (col ${idx})` : null;
+
+  return {
+    gci:                cls.gci                !== -1 ? `LLM guided to ${colLabel(cls.gci)}`                : null,
+    sale_price:         cls.sale_price         !== -1 ? `LLM guided to ${colLabel(cls.sale_price)}`         : null,
+    net_income:         cls.net_income         !== -1 ? `LLM guided to ${colLabel(cls.net_income)}`         : null,
+    commission_percent: cls.commission_percent !== -1 ? `LLM guided to ${colLabel(cls.commission_percent)}` : null,
+    names:              cls.name               !== -1 ? `LLM guided to ${colLabel(cls.name)}`               : null,
+    date:               cls.date               !== -1 ? `LLM guided to ${colLabel(cls.date)}`               : null,
+    address:            cls.address            !== -1 ? `LLM guided to ${colLabel(cls.address)}`            : null,
+  };
+}
+
+function computeAggregates(
+  deals:               GroqRawResponse["deals"],
+  year:                number,
+  columnClassification?: ColumnClassification | null,
+  rawHeaderRow?:         string[] | null,
+): ImportResult {
+  // Build column-level provenance once if classifier data is available
+  const llmProvenance: ExtractionProvenance | null =
+    columnClassification && rawHeaderRow
+      ? buildLlmProvenance(columnClassification, rawHeaderRow)
+      : null;
   const cleanDeals: ExtractedDeal[] = deals.map((d) => {
     let party_a = (d.party_a ?? "").trim();
     let party_b = (d.party_b ?? "").trim();
@@ -358,6 +408,10 @@ function computeAggregates(deals: GroqRawResponse["deals"], year: number): Impor
       side,
       confidence,
       evidence:           d.evidence ?? undefined,
+      // Column-level provenance: only set when the heuristic classifier identified
+      // which column each field came from in the source document.
+      // Absent for vision/OCR imports where no structured column layout exists.
+      provenance:         llmProvenance ?? undefined,
     };
   });
 
@@ -446,6 +500,8 @@ export async function POST(req: NextRequest) {
 
   try {
     let raw: string;
+    // Populated in the text path; used after parsing to wire provenance + truncation.
+    let textNormalized: ReturnType<typeof normalizeTextDocument> | null = null;
 
     if (body.textContent) {
       // ── Text path: Excel / CSV / TXT ─────────────────────────────────────
@@ -454,7 +510,7 @@ export async function POST(req: NextRequest) {
 
       // 2. Row cleaning + column classification (strips subtotals, blank rows,
       //    duplicate headers; detects column mapping for prompt injection)
-      const normalized = normalizeTextDocument(dateNormalized, true);
+      textNormalized = normalizeTextDocument(dateNormalized, true);
 
       const response = await groq.chat.completions.create({
         model: "llama-3.3-70b-versatile",
@@ -462,8 +518,8 @@ export async function POST(req: NextRequest) {
           {
             role: "user",
             content: TEXT_PROMPT(
-              normalized.cleaned_content,
-              normalized.column_hints ?? undefined,
+              textNormalized.cleaned_content,
+              textNormalized.column_hints ?? undefined,
             ),
           },
         ],
@@ -512,10 +568,28 @@ export async function POST(req: NextRequest) {
     // yearHint from the sheet name overrides LLM's title-row year detection
     const effectiveYear = yearHintValid ?? parsed.year;
 
-    // Compute all aggregates in code + run validators
-    const result = computeAggregates(parsed.deals, effectiveYear);
+    // Compute all aggregates in code + run validators.
+    // Pass column classification when available (text path only) so LLM deals
+    // can receive column-level provenance alongside their LLM-generated evidence.
+    const result = computeAggregates(
+      parsed.deals,
+      effectiveYear,
+      textNormalized?.column_classification ?? null,
+      textNormalized?.raw_header_row ?? null,
+    );
 
-    return NextResponse.json(result);
+    // Attach truncation warning if the normalizer had to drop rows to fit 20k chars.
+    const response: ImportResult = textNormalized?.stats.truncated
+      ? {
+          ...result,
+          truncation_warning: {
+            rows_kept:  textNormalized.stats.output_rows,
+            rows_total: textNormalized.stats.input_rows,
+          },
+        }
+      : result;
+
+    return NextResponse.json(response);
   } catch (err) {
     console.error("[import-history] error:", err);
     return NextResponse.json({ error: "Failed to extract data from document" }, { status: 422 });

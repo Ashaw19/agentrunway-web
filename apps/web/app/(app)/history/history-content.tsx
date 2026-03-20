@@ -41,6 +41,7 @@ import { fmtCurrency } from "@/lib/formatters";
 import { computeGCI, type HistoryItem, type Transaction, type UserSettings } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 import type { ImportResult, ExtractedDeal } from "@/app/api/import-history/route";
+import { applyValidation } from "@/lib/import/validation/validate-transactions";
 import { ProductionReportDialog } from "@/components/production-report-dialog";
 import { YearOverYearChart, type YoYDataPoint } from "@/components/year-over-year-chart";
 import { Download } from "lucide-react";
@@ -584,8 +585,11 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             const { deals: trackerDeals, detectedSplit } = parseTrackerSheet(rawRows, sheetYear);
 
             if (trackerDeals.length > 0) {
+              // Run deterministic validators on each tracker deal (same as server-side LLM path).
+              // applyValidation() is a pure function — safe to call client-side.
+              const validatedTrackerDeals = trackerDeals.map((d) => applyValidation(d, sheetYear));
               // No Groq needed — computed fully in-browser; pass detected split
-              const result = computeLocalAggregates(trackerDeals, sheetYear, detectedSplit ?? undefined);
+              const result = computeLocalAggregates(validatedTrackerDeals, sheetYear, detectedSplit ?? undefined);
               if (result.annual_tx > 0) {
                 results.push(result);
                 if (detectedSplit) detectedSplitMap[sheetYear] = detectedSplit;
@@ -1305,6 +1309,24 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                 </div>
               </div>
 
+              {/* Truncation warning — shown when the normalizer had to drop rows to fit 20k chars */}
+              {importData.truncation_warning && (
+                <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 flex items-start gap-2 mb-3">
+                  <AlertCircle className="h-3.5 w-3.5 text-orange-600 mt-0.5 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-orange-800 font-medium">
+                      Only part of this file was analysed
+                    </p>
+                    <p className="text-[10px] text-orange-700 mt-0.5">
+                      The document exceeded the 20 000-character limit.{" "}
+                      {importData.truncation_warning.rows_kept} of{" "}
+                      {importData.truncation_warning.rows_total} rows were sent to extraction.{" "}
+                      Deals in the later rows may be missing. Consider splitting the file into smaller sections.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Deal-by-deal review */}
               <div>
                 {/* Confidence legend + warning when uncertain fields are present */}
@@ -1458,6 +1480,36 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                                 {sideBadge && <span className={cn("text-[10px] font-semibold border rounded-full px-2.5 py-0.5", sideBadge.cls)}>{sideBadge.label}</span>}
                                 {deal.source && <span className="text-[10px] text-slate-400 bg-slate-50 border border-slate-200 rounded-full px-2.5 py-0.5">{deal.source}</span>}
                               </div>
+                              {/* Secondary line: net income · sale price · commission % — only when present */}
+                              {(eff.net_income != null || eff.sale_price != null || eff.commission_percent != null) && (
+                                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                  {eff.net_income != null && (
+                                    <span
+                                      className="text-[10px] text-slate-500"
+                                      title={eff.evidence?.net_income ?? eff.provenance?.net_income ?? "Net income after brokerage split"}
+                                    >
+                                      <ConfidenceDot level={eff.confidence?.net_income} evidence={eff.evidence?.net_income ?? eff.provenance?.net_income} />
+                                      Net {fmtCurrency(eff.net_income)}
+                                    </span>
+                                  )}
+                                  {eff.sale_price != null && (
+                                    <span
+                                      className="text-[10px] text-slate-400"
+                                      title={eff.evidence?.sale_price ?? eff.provenance?.sale_price ?? "Property sale price"}
+                                    >
+                                      · SP {fmtCurrency(eff.sale_price)}
+                                    </span>
+                                  )}
+                                  {eff.commission_percent != null && (
+                                    <span
+                                      className="text-[10px] text-slate-400"
+                                      title={eff.evidence?.commission_percent ?? eff.provenance?.commission_percent ?? "Commission rate"}
+                                    >
+                                      · {(eff.commission_percent * 100).toFixed(2)}%
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             <span className="text-[10px] font-medium text-slate-400 shrink-0 tabular-nums">#{String(i + 1).padStart(2, "0")}</span>
                           </div>
@@ -1510,7 +1562,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                           <th className="text-left px-2 py-1.5 text-[10px] font-semibold text-slate-500 w-6">#</th>
                           <th className="text-left px-2 py-1.5 text-[10px] font-semibold text-slate-500">Address</th>
                           <th className="text-left px-2 py-1.5 text-[10px] font-semibold text-slate-500 whitespace-nowrap">Date</th>
-                          <th className="text-right px-2 py-1.5 text-[10px] font-semibold text-slate-500 whitespace-nowrap">GCI ✎</th>
+                          <th className="text-right px-2 py-1.5 text-[10px] font-semibold text-slate-500 whitespace-nowrap">GCI ✎ / Net</th>
                           <th className="text-left px-2 py-1.5 text-[10px] font-semibold text-slate-500">Side</th>
                           <th className="text-left px-2 py-1.5 text-[10px] font-semibold text-slate-500">Client</th>
                         </tr>
@@ -1532,9 +1584,21 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                               gciIsUncertain ? "bg-amber-50/60" : i % 2 === 0 ? "bg-card" : "bg-muted/20",
                             )}>
                               <td className="px-2 py-1.5 text-slate-400 tabular-nums">{i + 1}</td>
-                              <td className="px-2 py-1.5 font-medium text-foreground max-w-[140px] truncate">{deal.address || <span className="text-slate-400 italic">—</span>}</td>
+                              {/* Address cell — sale price shown below when present */}
+                              <td className="px-2 py-1.5 max-w-[140px]">
+                                <div className="font-medium text-foreground truncate">{deal.address || <span className="text-slate-400 italic">—</span>}</div>
+                                {eff.sale_price != null && (
+                                  <div
+                                    className="text-[10px] text-slate-400 truncate"
+                                    title={eff.evidence?.sale_price ?? eff.provenance?.sale_price ?? "Property sale price"}
+                                  >
+                                    SP {fmtCurrency(eff.sale_price)}
+                                    {eff.commission_percent != null && ` · ${(eff.commission_percent * 100).toFixed(2)}%`}
+                                  </div>
+                                )}
+                              </td>
                               <td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap">{date}</td>
-                              {/* Editable GCI with inline confidence dot */}
+                              {/* Editable GCI with inline confidence dot; net income shown below when present */}
                               <td className="px-2 py-1.5 whitespace-nowrap">
                                 <div className="flex items-center justify-end gap-1">
                                   <ConfidenceDot
@@ -1560,6 +1624,15 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                                     )}
                                   />
                                 </div>
+                                {/* Net income below GCI — only when present */}
+                                {eff.net_income != null && (
+                                  <div
+                                    className="text-right text-[10px] text-slate-400 tabular-nums"
+                                    title={eff.evidence?.net_income ?? eff.provenance?.net_income ?? "Net income after brokerage split"}
+                                  >
+                                    Net {fmtCurrency(eff.net_income)}
+                                  </div>
+                                )}
                               </td>
                               <td className="px-2 py-1.5">
                                 {sideBadge

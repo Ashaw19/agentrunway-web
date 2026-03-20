@@ -59,14 +59,35 @@ export interface NormalizedTextResult {
 const MAX_CHARS = 20_000;
 
 /**
- * Row patterns that indicate summary/footer rows to strip.
- * Tested against the FIRST non-empty cell of a row, lower-cased.
+ * Exact labels that identify a subtotal / summary label cell.
+ *
+ * Only the first non-empty cell of a row is tested.  The match is EXACT
+ * (case-insensitive) — no prefix / substring matching — to avoid matching
+ * real client names like "Total Property Group" or addresses like "Summit Ave".
+ *
+ * A row is only discarded when this label appears in a sparse row (≤ 3
+ * non-empty cells).  A real deal row has 4+ populated fields, so it will
+ * always survive even if a client happens to be named "Total".
  */
-const SUBTOTAL_PREFIXES = [
+const SUBTOTAL_LABELS = new Set([
   "total", "totals", "grand total", "subtotal", "sub-total",
-  "sum", "average", "avg", "count", "quarterly total", "annual total",
+  "sum", "average", "avg", "count",
+  "quarterly total", "q1 total", "q2 total", "q3 total", "q4 total",
+  "annual total", "year total",
   "ytd", "year to date",
-];
+  "total gci", "total commission", "total net",
+]);
+
+/**
+ * Maximum number of non-empty cells a row may contain while still being
+ * considered a subtotal / heading row.  Deal rows in Canadian agent trackers
+ * have at minimum: name, date, GCI — that's 3 fields minimum.
+ *
+ * Using 3 here means a row must have EXACTLY 1–3 filled cells to be eligible
+ * for subtotal filtering.  Any row with 4+ filled cells is presumed to contain
+ * deal data and is never filtered, regardless of the first cell's label.
+ */
+const SUBTOTAL_MAX_POPULATED_CELLS = 3;
 
 /**
  * If a row's first cell matches one of these exactly, skip the row.
@@ -115,10 +136,23 @@ function isBlankRow(cells: string[]): boolean {
   return cells.every(c => !c || c.trim() === "");
 }
 
-/** Returns true for subtotal / summary rows we should strip. */
+/**
+ * Returns true for subtotal / summary rows that should be stripped.
+ *
+ * Two-part guard (BOTH conditions must hold):
+ *   1. The first non-empty cell is an exact match to a known subtotal label.
+ *   2. The row has ≤ SUBTOTAL_MAX_POPULATED_CELLS non-empty cells.
+ *
+ * The density check prevents false-positives on real deal rows where the
+ * client name happens to match a label (e.g. "Total Property Group").
+ * A genuine subtotal row is sparse — it has a label and maybe 1–2 totals.
+ * A deal row is dense — it has name, date, address, GCI, etc.
+ */
 function isSubtotalRow(cells: string[]): boolean {
-  const first = (cells[0] ?? "").trim().toLowerCase();
-  return SUBTOTAL_PREFIXES.some(prefix => first.startsWith(prefix));
+  const nonEmpty = cells.filter(c => c && c.trim() !== "");
+  if (nonEmpty.length > SUBTOTAL_MAX_POPULATED_CELLS) return false; // dense row → keep
+  const first = (nonEmpty[0] ?? "").trim().toLowerCase();
+  return SUBTOTAL_LABELS.has(first);
 }
 
 /**
