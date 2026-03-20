@@ -438,19 +438,20 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
   // ── PDF import handlers ──────────────────────────────────────────────────
 
-  function detectFileType(file: File): "pdf" | "image" | "excel" | "csv" | null {
+  function detectFileType(file: File): "pdf" | "image" | "excel" | "csv" | "txt" | null {
     const name = file.name.toLowerCase();
     if (file.type === "application/pdf" || name.endsWith(".pdf")) return "pdf";
     if (file.type.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|bmp|tiff?)$/.test(name)) return "image";
     if (/\.(xlsx?|xls)$/.test(name) || file.type.includes("spreadsheet")) return "excel";
     if (name.endsWith(".csv") || file.type === "text/csv") return "csv";
+    if (name.endsWith(".txt") || file.type === "text/plain") return "txt";
     return null;
   }
 
   async function handleImportFile(file: File) {
     const fileType = detectFileType(file);
     if (!fileType) {
-      toast.error("Unsupported file type. Please upload a PDF, image (JPG/PNG), Excel, or CSV file.");
+      toast.error("Unsupported file type. Please upload a PDF, image (JPG/PNG), Excel, CSV, or TXT file.");
       return;
     }
 
@@ -463,27 +464,71 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       let imageBase64: string | undefined;
       let mimeType: string | undefined;
       let textContent: string | undefined;
+      // Multi-page images for scanned PDFs (sent as images[] to the API)
+      let multiPageImages: Array<{ base64: string; mimeType: string; page: number }> | undefined;
 
       if (fileType === "pdf") {
-        // ── PDF: render page 2 (transaction report), skip page 1 (T4A) ──────
+        // ── PDF: extract text layer first (all pages); fall back to image OCR ──
+        // Strategy:
+        //   1. Try pdfjs text layer for every page → send as textContent (best quality)
+        //   2. If text layer is mostly empty (scanned PDF) → render all pages as JPEG
+        //      and send as images[] so the vision model sees the full document.
+        // This replaces the old hardcoded "render page 2 only" approach.
         const pdfjsLib = await import("pdfjs-dist");
         pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
-        const pageNum = pdf.numPages >= 2 ? 2 : 1;
-        const page = await pdf.getPage(pageNum);
 
-        const scale = 2.0;
-        const viewport = page.getViewport({ scale });
-        const canvas = document.createElement("canvas");
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        // pdfjs-dist v5: pass canvas directly
-        await page.render({ canvas, viewport }).promise;
+        // Pass 1: extract text layer from every page
+        const pageTexts: string[] = [];
+        for (let p = 1; p <= pdf.numPages; p++) {
+          const page = await pdf.getPage(p);
+          const tc   = await page.getTextContent();
+          const text = (tc.items as Array<{ str?: string }>)
+            .map((item) => item.str ?? "")
+            .join(" ")
+            .trim();
+          pageTexts.push(text);
+        }
 
-        imageBase64 = canvas.toDataURL("image/jpeg", 0.90).split(",")[1];
-        mimeType = "image/jpeg";
+        // Count non-whitespace characters across all pages to decide path
+        const combined     = pageTexts.join("\n\n--- Page Break ---\n\n");
+        const usableChars  = combined.replace(/\s/g, "").length;
+
+        if (usableChars >= 200) {
+          // Text layer is usable — send as plain text (better structured input for LLM)
+          textContent = combined;
+        } else {
+          // Scanned PDF — render all pages (up to 5) as images
+          const MAX_VISION_PAGES = 5;
+          const totalPages = Math.min(pdf.numPages, MAX_VISION_PAGES);
+          const pages: typeof multiPageImages = [];
+
+          for (let p = 1; p <= totalPages; p++) {
+            const page     = await pdf.getPage(p);
+            const scale    = 2.0;
+            const viewport = page.getViewport({ scale });
+            const canvas   = document.createElement("canvas");
+            canvas.width   = viewport.width;
+            canvas.height  = viewport.height;
+            await page.render({ canvas, viewport }).promise;
+            pages.push({
+              base64:   canvas.toDataURL("image/jpeg", 0.90).split(",")[1],
+              mimeType: "image/jpeg",
+              page:     p,
+            });
+          }
+
+          if (pages.length === 1) {
+            // Single-page scanned PDF → legacy single-image path
+            imageBase64 = pages[0].base64;
+            mimeType    = "image/jpeg";
+          } else {
+            // Multi-page scanned PDF → new images[] path
+            multiPageImages = pages;
+          }
+        }
 
       } else if (fileType === "image") {
         // ── Image: read as base64 and send directly to Groq vision ──────────
@@ -569,6 +614,10 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       } else if (fileType === "csv") {
         // ── CSV: read as plain text ──────────────────────────────────────────
         textContent = await file.text();
+
+      } else if (fileType === "txt") {
+        // ── TXT: read as plain text (freeform narrative / Format C) ─────────
+        textContent = await file.text();
       }
 
       setImportStatus("extracting");
@@ -576,7 +625,13 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       const res = await fetch("/api/import-history", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64, mimeType, textContent }),
+        body: JSON.stringify({
+          imageBase64,
+          // Multi-page images take precedence over single imageBase64
+          images: multiPageImages?.length ? multiPageImages : undefined,
+          mimeType,
+          textContent,
+        }),
       });
 
       if (!res.ok) {
@@ -850,9 +905,9 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             user_id: user.id,
             date: d.date,
             address: d.address || "",
-            sale_price: d.sale_price ?? 0,
-            commission_pct: 0,       // not available from commission reports
-            gci_override: d.gci,     // store GCI directly
+            sale_price: d.sale_price ?? null,
+            commission_pct: d.commission_percent ?? null,
+            gci_override: d.gci,     // gci = PRE-split gross commission income
             side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
             status: "closed" as const,
             client_name: d.party_a || "",
@@ -1888,14 +1943,18 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 // ═══════════════════════════════════════════════════════════════════════════════
 
 type TrackerHeaders = {
-  nameCol: number;
-  addrCol: number;
-  dateCol: number;
-  sideCol: number;
-  sourceCol: number;
-  gciCol: number;   // GCI column (pre-split) — primary dollar value
-  netCol: number;   // Net Commission (post-split) — used to detect brokerage split ratio
-  rowIdx: number;
+  nameCol:      number;
+  addrCol:      number;
+  dateCol:      number;
+  sideCol:      number;
+  sourceCol:    number;
+  /** GCI column (PRE-split gross commission income) — primary dollar value */
+  gciCol:       number;
+  /** Net Commission column (POST-split) — used to detect brokerage split ratio */
+  netCol:       number;
+  /** Sale/transaction price column — may be absent in many trackers */
+  salePriceCol: number;
+  rowIdx:       number;
 };
 
 function normaliseHeader(h: string): string {
@@ -1924,12 +1983,20 @@ function findTrackerHeaders(rows: string[][]): TrackerHeaders | null {
     if (nameCol !== -1 && (gciCol !== -1 || netCol !== -1)) {
       return {
         nameCol,
-        addrCol:   hdrs.findIndex((h) => h === "address" || h.includes("property") || h.includes("addr")),
-        dateCol:   hdrs.findIndex((h) => h.includes("date") || h.includes("close")),
+        addrCol:      hdrs.findIndex((h) => h === "address" || h.includes("property") || h.includes("addr")),
+        dateCol:      hdrs.findIndex((h) => h.includes("date") || h.includes("close")),
         sideCol,   // may be -1; all deals get side:undefined if so
-        sourceCol: hdrs.findIndex((h) => h === "source" || h.includes("leadsource") || h.includes("referral")),
+        sourceCol:    hdrs.findIndex((h) => h === "source" || h.includes("leadsource") || h.includes("referral")),
         gciCol,
         netCol,
+        // Sale price column — various labels agents use
+        salePriceCol: hdrs.findIndex((h) =>
+          h === "saleprice" || h === "salesprice" || h === "price" ||
+          h.includes("saleprice") || h.includes("salesprice") ||
+          h.includes("purchaseprice") || h.includes("transactionprice") ||
+          h.includes("listingprice") || h === "volume" || h === "amount" ||
+          (h === "saleamount") || (h.startsWith("sale") && h.includes("amount"))
+        ),
         rowIdx: i,
       };
     }
@@ -1979,7 +2046,7 @@ function parseTrackerSheet(
   const hdrs = findTrackerHeaders(rows);
   if (!hdrs) return { deals: [], detectedSplit: null };
 
-  // The primary column for GCI is the GCI column (pre-split).
+  // gci = PRE-split gross commission income. Use GCI column as primary.
   // If no dedicated GCI column exists, fall back to Net Commission.
   const moneyCol = hdrs.gciCol >= 0 ? hdrs.gciCol : hdrs.netCol;
 
@@ -1998,12 +2065,14 @@ function parseTrackerSheet(
     const gci = parseFloat(rawGCI) || 0;
     if (gci <= 0) continue;
 
-    // Collect split ratios when both GCI and Net columns exist
+    // net_income = POST-split amount. Collect for split-ratio detection.
+    let netIncome: number | null = null;
     if (hdrs.gciCol >= 0 && hdrs.netCol >= 0) {
       const rawNet = (row[hdrs.netCol] ?? "").replace(/[$,\s]/g, "");
       const netVal = parseFloat(rawNet) || 0;
-      if (netVal > 0 && netVal < gci) {
-        splitRatios.push(netVal / gci);
+      if (netVal > 0) {
+        netIncome = netVal;
+        if (netVal < gci) splitRatios.push(netVal / gci);
       }
     }
 
@@ -2018,11 +2087,20 @@ function parseTrackerSheet(
     const address = (hdrs.addrCol   >= 0 ? row[hdrs.addrCol]?.trim()   : "") ?? "";
     const rawDate = (hdrs.dateCol   >= 0 ? row[hdrs.dateCol]?.trim()   : "") ?? "";
 
+    // sale_price — null when the column is absent or has no value (NEVER use 0 as placeholder)
+    let salePrice: number | null = null;
+    if (hdrs.salePriceCol >= 0) {
+      const rawSP = (row[hdrs.salePriceCol] ?? "").replace(/[$,\s]/g, "");
+      const spVal = parseFloat(rawSP);
+      if (spVal > 0) salePrice = spVal;
+    }
+
     deals.push({
       date:       parseTrackerDate(rawDate, sheetYear),
       address,
-      sale_price: 0,  // local tracker parsing — sale price not extracted from column
+      sale_price: salePrice,
       gci,
+      net_income: netIncome,
       party_a:    name,
       party_b:    "",
       agent_side: 0 as const,
