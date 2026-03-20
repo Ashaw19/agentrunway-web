@@ -14,7 +14,7 @@
  *   • Does NOT read or write the database.
  */
 
-import type { ExtractionProvenance } from "../types.js";
+import type { ExtractionProvenance } from "../types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
