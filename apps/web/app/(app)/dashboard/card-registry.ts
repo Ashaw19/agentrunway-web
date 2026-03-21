@@ -47,8 +47,8 @@ export const CARD_REGISTRY: CardDef[] = [
 export const DEFAULT_ORDER: CardId[] = [
   "kpi_row",
   "client_briefing",
-  "business_brief",
   "tasks",
+  "business_brief",
   "insights",
   "probability",
   "corp_tax",

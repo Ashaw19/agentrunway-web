@@ -297,8 +297,8 @@ export function DashboardContent({
   // was removed from the dashboard header to reduce cognitive load on the home screen.
   // It belongs on the Forecast page where scenario planning is the primary intent.
   // The dashboard always shows the Base projection.
-  // ── Business Health Narrative expanded by default (Weekly Brief) ────────
-  const [narrativeOpen, setNarrativeOpen] = useState(true);
+  // ── Business Health Narrative collapsed by default — expand on demand ───
+  const [narrativeOpen, setNarrativeOpen] = useState(false);
 
   // ── Custom card layout ────────────────────────────────────────────────
   const [cardOrder, setCardOrder] = useState<CardId[]>(() => {
