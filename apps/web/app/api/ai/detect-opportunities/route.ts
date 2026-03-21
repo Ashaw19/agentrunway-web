@@ -666,6 +666,7 @@ export async function POST(req: NextRequest) {
   // draft_only=true: skip detection, only draft already-queued "draft" items.
   // Separate rate limit so users can unblock stuck items without burning their scan quota.
   const url = new URL(req.url);
+  const draftOnly = url.searchParams.get("draft_only") === "true";
 
   // Rate limit: 10 full scans/hour, 30 draft-only calls/hour per user
   const rlKey = draftOnly ? "draft_queue_items" : "detect_opportunities";
