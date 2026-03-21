@@ -827,7 +827,7 @@ export function DashboardContent({
               : "border-amber-200 bg-amber-50 text-amber-900"
           }`}
         >
-          <span className="text-base leading-none mt-0.5">{alert.icon}</span>
+          <AlertTriangle className={`h-4 w-4 shrink-0 mt-0.5 ${alert.type === "danger" ? "text-red-500" : "text-amber-500"}`} />
           <div>
             <p className="font-medium">{alert.title}</p>
             <p className="text-xs mt-0.5 opacity-80">{alert.body}</p>
@@ -1009,11 +1009,11 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-teal-200 bg-teal-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+      <Card className="rounded-2xl border-blue-200 bg-blue-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardDescription className="font-semibold text-teal-800">Projected Year-End</CardDescription>
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-teal-200">
-            <Target className="h-4 w-4 text-teal-700" />
+          <CardDescription className="font-semibold text-blue-800">Projected Year-End</CardDescription>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-200">
+            <Target className="h-4 w-4 text-blue-700" />
           </div>
         </CardHeader>
         <CardContent>
@@ -1344,9 +1344,10 @@ export function DashboardContent({
             </p>
           )}
           {localTasks.length === 0 && staleLeadCount > 0 && (
-            <p className="text-xs text-blue-700 text-center py-2">
-              No open tasks — <Link href="/crm" className="underline font-medium">check on your {staleLeadCount} stale lead{staleLeadCount !== 1 ? "s" : ""}</Link>
-            </p>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-center">
+              <p className="text-sm font-semibold text-amber-800">{staleLeadCount} contact{staleLeadCount !== 1 ? "s" : ""} need outreach</p>
+              <p className="text-xs text-amber-700 mt-0.5">No scheduled tasks — <Link href="/crm" className="underline font-medium">review in CRM →</Link></p>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -1366,11 +1367,11 @@ export function DashboardContent({
         </div>
       </div>
       {insights.length > 1 && (
-        <Card className="rounded-2xl border-amber-200 bg-amber-50/70 shadow-sm">
+        <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-amber-200">
-                <Sparkles className="h-3.5 w-3.5 text-amber-700" />
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100">
+                <Sparkles className="h-3.5 w-3.5 text-slate-500" />
               </div>
               <CardTitle className="text-base">Insights</CardTitle>
             </div>
@@ -2248,18 +2249,18 @@ function PersonalRecordsCard({
   if (records.length === 0) return null;
 
   return (
-    <Card className="rounded-2xl border-amber-200 bg-amber-50/70 shadow-sm">
+    <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
-          <Trophy className="h-4 w-4 text-amber-600" />
-          <CardTitle className="text-sm font-semibold text-amber-800">Personal Records</CardTitle>
+          <Trophy className="h-4 w-4 text-emerald-600" />
+          <CardTitle className="text-sm font-semibold text-slate-700">Personal Records</CardTitle>
         </div>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {records.map((r) => (
             <div key={r.label} className="text-center">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                 {r.label}
               </p>
               <p className="text-xl font-bold text-slate-800 mt-0.5 tabular-nums">{r.value}</p>
@@ -2572,7 +2573,7 @@ function InsightRow({ insight }: { insight: Insight }) {
     praise: "bg-emerald-50 border-emerald-200",
     tip: "bg-blue-50 border-blue-200",
     warning: "bg-amber-50 border-amber-200",
-    info: "border-border",
+    info: "bg-slate-50 border-slate-200",
   };
 
   return (
