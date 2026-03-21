@@ -2026,7 +2026,7 @@ export function ClientsContent({
               resetImport();
               setImportOpen(true);
             }}
-            className="gap-1.5"
+            className="gap-1.5 bg-white border-slate-300 text-slate-600 hover:text-slate-900 hover:border-slate-400"
           >
             <Upload className="h-3.5 w-3.5" />
             Import CSV
@@ -2078,7 +2078,7 @@ export function ClientsContent({
                 "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
                 tab === t
                   ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
+                  : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300",
               )}
             >
               {label}
@@ -4194,29 +4194,29 @@ function SummaryCard({
   accent: "blue" | "violet" | "emerald" | "amber";
 }) {
   const accentMap = {
-    blue:    "from-blue-50 border-blue-200",
-    violet:  "from-violet-50 border-violet-200",
-    emerald: "from-emerald-50 border-emerald-200",
-    amber:   "from-amber-50 border-amber-200",
+    blue:    { topBorder: "border-t-blue-500",    iconBg: "bg-blue-100",    iconColor: "text-blue-600" },
+    violet:  { topBorder: "border-t-violet-500",  iconBg: "bg-violet-100",  iconColor: "text-violet-600" },
+    emerald: { topBorder: "border-t-emerald-500", iconBg: "bg-emerald-100", iconColor: "text-emerald-600" },
+    amber:   { topBorder: "border-t-amber-500",   iconBg: "bg-amber-100",   iconColor: "text-amber-600" },
   };
+  const s = accentMap[accent];
   return (
-    <Card
-      className={cn(
-        "rounded-xl border shadow-sm bg-gradient-to-br to-card",
-        accentMap[accent],
-      )}
-    >
-      <CardContent className="pt-2.5 pb-2 px-3">
-        <div className="flex items-center gap-1 mb-0.5">
-          {icon}
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {label}
-          </span>
+    <Card className={cn("rounded-xl border-t-4 bg-white shadow-sm hover:shadow-md transition-shadow", s.topBorder)}>
+      <CardContent className="pt-3 pb-3 px-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              {label}
+            </span>
+            <p className="text-xl font-bold text-foreground tabular-nums leading-tight mt-0.5">
+              {value}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>
+          </div>
+          <div className={cn("rounded-lg p-2 shrink-0 mt-0.5", s.iconBg)}>
+            <span className={s.iconColor}>{icon}</span>
+          </div>
         </div>
-        <p className="text-lg font-bold text-foreground tabular-nums leading-tight">
-          {value}
-        </p>
-        <p className="text-[10px] text-muted-foreground">{sub}</p>
       </CardContent>
     </Card>
   );
