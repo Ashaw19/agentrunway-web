@@ -1911,8 +1911,31 @@ export function DashboardContent({
                     </span>
                     {marketMomentum.agentDealGrowthPct != null && marketMomentum.boardSalesYoYPct != null ? (
                       <>
+                        {/* Two-column comparison: You vs Market */}
+                        <div className="flex items-end gap-3 mt-1">
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">You</p>
+                            <p
+                              className="text-xl font-bold leading-tight"
+                              style={{
+                                color: marketMomentum.momentumTier === "gaining"  ? "#059669"
+                                     : marketMomentum.momentumTier === "trailing" ? "#DC2626"
+                                     : "#D97706",
+                              }}
+                            >
+                              {marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}{marketMomentum.agentDealGrowthPct.toFixed(0)}%
+                            </p>
+                          </div>
+                          <p className="text-slate-300 text-base font-light mb-0.5">vs</p>
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Market</p>
+                            <p className="text-xl font-bold leading-tight text-slate-600">
+                              {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}%
+                            </p>
+                          </div>
+                        </div>
                         <p
-                          className="text-xl font-bold mt-0.5"
+                          className="text-[10px] font-semibold mt-1"
                           style={{
                             color: marketMomentum.momentumTier === "gaining"  ? "#059669"
                                  : marketMomentum.momentumTier === "trailing" ? "#DC2626"
@@ -1920,24 +1943,19 @@ export function DashboardContent({
                           }}
                         >
                           {marketMomentum.momentumLabel}
-                        </p>
-                        <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
-                          You {marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}{marketMomentum.agentDealGrowthPct.toFixed(0)}% · Market {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}%
                         </p>
                       </>
                     ) : (
-                      <>
-                        <p
-                          className="text-xl font-bold mt-0.5"
-                          style={{
-                            color: marketMomentum.momentumTier === "gaining"  ? "#059669"
-                                 : marketMomentum.momentumTier === "trailing" ? "#DC2626"
-                                 : "#D97706",
-                          }}
-                        >
-                          {marketMomentum.momentumLabel}
-                        </p>
-                      </>
+                      <p
+                        className="text-xl font-bold mt-0.5"
+                        style={{
+                          color: marketMomentum.momentumTier === "gaining"  ? "#059669"
+                               : marketMomentum.momentumTier === "trailing" ? "#DC2626"
+                               : "#D97706",
+                        }}
+                      >
+                        {marketMomentum.momentumLabel}
+                      </p>
                     )}
                     <p className="text-[9px] text-slate-500 mt-1 leading-tight">
                       Source: CREA MLS® Statistics · © {new Date().getFullYear()} CREA
