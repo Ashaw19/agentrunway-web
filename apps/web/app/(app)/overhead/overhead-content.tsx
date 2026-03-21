@@ -328,7 +328,7 @@ function TaxSavingsSection({
               {capturedPct > 0 && (
                 <div
                   className="flex items-center justify-center bg-emerald-500 text-[9px] font-bold text-white transition-all"
-                  style={{ width: `${capturedPct}%` }}
+                  style={{ width: `${Math.round(capturedPct)}%` }}
                   title={`Already Capturing: ${fmtCurrency(Math.round(captured))}`}
                 >
                   {capturedPct > 12 && `${Math.round(capturedPct)}%`}
@@ -337,7 +337,7 @@ function TaxSavingsSection({
               {potentialPct > 0 && (
                 <div
                   className="flex items-center justify-center bg-blue-400 text-[9px] font-bold text-white transition-all"
-                  style={{ width: `${potentialPct}%` }}
+                  style={{ width: `${Math.round(potentialPct)}%` }}
                   title={`Untapped Potential: ${fmtCurrency(Math.round(potential))}`}
                 >
                   {potentialPct > 12 && `${Math.round(potentialPct)}%`}
