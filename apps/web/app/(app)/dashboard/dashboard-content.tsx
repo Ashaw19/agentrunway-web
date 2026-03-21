@@ -823,8 +823,8 @@ export function DashboardContent({
           key={i}
           className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
             alert.type === "danger"
-              ? "border-red-200 bg-red-50 text-red-900"
-              : "border-amber-200 bg-amber-50 text-amber-900"
+              ? "border-red-300 bg-white text-slate-800"
+              : "border-amber-300 bg-white text-slate-800"
           }`}
         >
           <AlertTriangle className={`h-4 w-4 shrink-0 mt-0.5 ${alert.type === "danger" ? "text-red-500" : "text-amber-500"}`} />
@@ -2310,9 +2310,9 @@ const STATUS_STYLES: Record<
   HealthStatus,
   { border: string; chip: string; icon: string; bg: string }
 > = {
-  Stable:    { border: "border-l-emerald-500", chip: "bg-emerald-100 text-emerald-800 border border-emerald-200",  icon: "text-emerald-600", bg: "from-emerald-50 to-emerald-50/40" },
-  Watchlist: { border: "border-l-amber-400",   chip: "bg-amber-100 text-amber-800 border border-amber-200",       icon: "text-amber-600",   bg: "from-amber-50 to-amber-50/40"    },
-  "At Risk": { border: "border-l-amber-500",   chip: "bg-amber-100 text-amber-800 border border-amber-200",       icon: "text-amber-600",   bg: "from-amber-50 to-amber-50/40"    },
+  Stable:    { border: "border-l-emerald-500", chip: "bg-emerald-100 text-emerald-800 border border-emerald-200",  icon: "text-emerald-600", bg: "from-white to-white" },
+  Watchlist: { border: "border-l-amber-400",   chip: "bg-amber-100 text-amber-800 border border-amber-200",       icon: "text-amber-600",   bg: "from-white to-white" },
+  "At Risk": { border: "border-l-amber-500",   chip: "bg-amber-100 text-amber-800 border border-amber-200",       icon: "text-amber-600",   bg: "from-white to-white" },
   Critical:  { border: "border-l-red-500",     chip: "bg-red-100 text-red-800 border border-red-200",             icon: "text-red-600",     bg: "from-red-50 to-red-50/40"        },
 };
 
