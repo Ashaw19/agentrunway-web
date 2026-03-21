@@ -2280,7 +2280,7 @@ export function ClientsContent({
                                         <AchievementBadgeIcon
                                           key={b.id}
                                           badge={b}
-                                          size={22}
+                                          size={17}
                                           rewardBudget={rewardBudget}
                                           generosity={rewardGenerosity}
                                         />
