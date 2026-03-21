@@ -950,6 +950,7 @@ export function ClientsContent({
   const [mapPhoneType, setMapPhoneType] = useState("__none__");
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number; enriched: number } | null>(null);
   const [importLoading, setImportLoading] = useState(false);
+  const [importAsNewLeads, setImportAsNewLeads] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [profileDraft, setProfileDraft] = useState<{ first_name: string; last_name: string; notes: string } | null>(null);
@@ -1908,6 +1909,9 @@ export function ClientsContent({
           country:        mapCountry   !== "__none__" ? (row[mapCountry]   ?? "").trim() || "Canada" : "Canada",
           phone_type:     mapPhoneType !== "__none__" ? normalizePhoneType(row[mapPhoneType] ?? "") : "mobile",
           imported_at:    new Date().toISOString(),
+          // Default to "cruising" (past client / sphere) so contact-recency alerts
+          // don't fire. Only set "boarding" if the user explicitly marks these as new leads.
+          status:         importAsNewLeads ? "boarding" : "cruising",
         });
       }
     }
@@ -1954,6 +1958,7 @@ export function ClientsContent({
     setImportStep("upload");
     setCsvHeaders([]);
     setCsvRows([]);
+    setImportAsNewLeads(false);
     setMapName("");
     setMapEmail("__none__");
     setMapPhone("__none__");
@@ -3654,6 +3659,7 @@ export function ClientsContent({
           setMapCountry("__none__");
           setMapPhoneType("__none__");
           setImportResult(null);
+          setImportAsNewLeads(false);
         }
       }}>
         <DialogContent className="sm:max-w-lg w-[95vw] max-h-[90vh] overflow-y-auto">
@@ -3961,6 +3967,36 @@ export function ClientsContent({
                   </div>
                 )}
               </div>
+              {/* Import intent toggle */}
+              <div
+                className={cn(
+                  "rounded-xl border p-3.5 cursor-pointer transition-colors select-none",
+                  importAsNewLeads
+                    ? "border-amber-500/40 bg-amber-500/8"
+                    : "border-border/50 bg-muted/20 hover:bg-muted/40",
+                )}
+                onClick={() => setImportAsNewLeads((v) => !v)}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={cn(
+                    "mt-0.5 h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors",
+                    importAsNewLeads ? "border-amber-500 bg-amber-500" : "border-muted-foreground/40",
+                  )}>
+                    {importAsNewLeads && <CheckCheck className="h-2.5 w-2.5 text-white" />}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground leading-tight">
+                      These are new leads I haven&apos;t contacted yet
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                      {importAsNewLeads
+                        ? "Contacts will be added as Boarding — contact alerts will apply."
+                        : "Default: contacts added as Cruising (past clients / sphere). No speed-to-lead alerts."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex gap-2">
                 <Button
                   disabled={importLoading}
