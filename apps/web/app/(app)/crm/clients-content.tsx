@@ -2093,6 +2093,7 @@ export function ClientsContent({
       {tab === "clients" && (
         <>
           {/* Search + filters */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3 flex flex-col gap-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -2113,7 +2114,7 @@ export function ClientsContent({
                     "rounded-full px-3 py-1 text-xs font-semibold border transition-colors",
                     filterSide === s
                       ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-card text-muted-foreground border-border hover:border-primary/40",
+                      : "bg-white text-slate-600 border-slate-200 hover:border-primary/40",
                   )}
                 >
                   {s === "all" ? "All Sides" : s.charAt(0).toUpperCase() + s.slice(1)}
@@ -2125,7 +2126,7 @@ export function ClientsContent({
                   <select
                     value={filterSource}
                     onChange={(e) => setFilterSource(e.target.value)}
-                    className="rounded-full px-3 py-1 text-xs font-semibold border border-border bg-card text-muted-foreground hover:border-primary/40 transition-colors cursor-pointer outline-none"
+                    className="rounded-full px-3 py-1 text-xs font-semibold border border-slate-200 bg-white text-slate-600 hover:border-primary/40 transition-colors cursor-pointer outline-none"
                   >
                     <option value="all">All Sources</option>
                     {sources.map((src) => (
@@ -2145,7 +2146,7 @@ export function ClientsContent({
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as "all" | ClientStatus)}
-              className="rounded-full px-3 py-1 text-xs font-semibold border border-border bg-card text-muted-foreground hover:border-primary/40 transition-colors cursor-pointer outline-none"
+              className="rounded-full px-3 py-1 text-xs font-semibold border border-slate-200 bg-white text-slate-600 hover:border-primary/40 transition-colors cursor-pointer outline-none"
             >
               <option value="all">All Statuses</option>
               {(Object.keys(CLIENT_STATUS_LABELS) as ClientStatus[]).map((s) => (
@@ -2159,7 +2160,7 @@ export function ClientsContent({
             <select
               value={activityFilter}
               onChange={(e) => setActivityFilter(e.target.value as "all" | "1y" | "3y" | "5y")}
-              className="rounded-full px-3 py-1 text-xs font-semibold border border-border bg-card text-muted-foreground hover:border-primary/40 transition-colors cursor-pointer outline-none"
+              className="rounded-full px-3 py-1 text-xs font-semibold border border-slate-200 bg-white text-slate-600 hover:border-primary/40 transition-colors cursor-pointer outline-none"
             >
               <option value="all">All Time</option>
               <option value="1y">Last 365 days</option>
@@ -2171,7 +2172,7 @@ export function ClientsContent({
             <select
               value={rewardGenerosity}
               onChange={(e) => setRewardGenerosity(e.target.value as RewardGenerosity)}
-              className="rounded-full px-3 py-1 text-xs font-semibold border border-border bg-card text-muted-foreground hover:border-primary/40 transition-colors cursor-pointer outline-none"
+              className="rounded-full px-3 py-1 text-xs font-semibold border border-slate-200 bg-white text-slate-600 hover:border-primary/40 transition-colors cursor-pointer outline-none"
             >
               {(Object.keys(GENEROSITY_LABELS) as RewardGenerosity[]).map((g) => (
                 <option key={g} value={g}>
@@ -2191,7 +2192,7 @@ export function ClientsContent({
                   "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold border transition-colors ml-auto",
                   showArchived
                     ? "bg-zinc-800 text-zinc-100 border-zinc-700"
-                    : "bg-card text-muted-foreground border-border hover:border-primary/40",
+                    : "bg-white text-slate-600 border-slate-200 hover:border-primary/40",
                 )}
               >
                 <Archive className="h-3 w-3" />
@@ -2199,6 +2200,7 @@ export function ClientsContent({
               </button>
             )}
           </div>
+          </div>{/* end filter panel */}
 
           {/* Client table */}
           {!hasAnyData ? (
