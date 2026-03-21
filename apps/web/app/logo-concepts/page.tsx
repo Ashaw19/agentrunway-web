@@ -1,3 +1,4 @@
+"use client";
 // Logo concepts page — internal review only
 // Navigate to /logo-concepts to view
 
@@ -11,11 +12,11 @@ export default function LogoConcepts() {
       {/* ── CONCEPT 1: THE ASCENT ── */}
       <div style={{ marginBottom: "80px" }}>
         <div style={{ marginBottom: "24px" }}>
-          <h2 style={{ color: "white", fontSize: "20px", fontWeight: 700, marginBottom: "4px" }}>Concept 1 — "The Ascent"</h2>
+          <h2 style={{ color: "white", fontSize: "20px", fontWeight: 700, marginBottom: "4px" }}>Concept 1 — &ldquo;The Ascent&rdquo;</h2>
           <p style={{ color: "#94a3b8", fontSize: "14px", maxWidth: "520px", lineHeight: 1.6 }}>
             A bold ascending flight path breaking away from a runway baseline. The horizontal line anchors the mark
             (ground / financial baseline), the diagonal suggests trajectory and growth. Uses the Runway Blue → Violet
-            gradient. The geometry subtly forms "AR" — the diagonal is the A-lean, the vertical is the R-stem.
+            gradient. The geometry subtly forms &ldquo;AR&rdquo; — the diagonal is the A-lean, the vertical is the R-stem.
             Confident, directional, unambiguous.
           </p>
         </div>
@@ -100,16 +101,16 @@ export default function LogoConcepts() {
       {/* ── CONCEPT 2: THE ALTIMETER ── */}
       <div style={{ marginBottom: "80px" }}>
         <div style={{ marginBottom: "24px" }}>
-          <h2 style={{ color: "white", fontSize: "20px", fontWeight: 700, marginBottom: "4px" }}>Concept 2 — "The Altimeter"</h2>
+          <h2 style={{ color: "white", fontSize: "20px", fontWeight: 700, marginBottom: "4px" }}>Concept 2 — &ldquo;The Altimeter&rdquo;</h2>
           <p style={{ color: "#94a3b8", fontSize: "14px", maxWidth: "520px", lineHeight: 1.6 }}>
             A gauge/altimeter dial — the instrument that tells you how high you&apos;re flying. An arc (270°) with a bold
             needle pointing to the upper-right climbing position. The Commission Gold needle on a deep navy field.
-            References both the product name ("Altimeter" page) and the core metaphor. Sophisticated, premium,
-            immediately aviation. The arc doubles as a "C" for Canada.
+            References both the product name (&ldquo;Altimeter&rdquo; page) and the core metaphor. Sophisticated, premium,
+            immediately aviation. The arc doubles as a &ldquo;C&rdquo; for Canada.
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: "40px", flexWrap: "wrap" }}>
-          {[48, 96, 192].map((size, i) => (
+          {[48, 96, 192].map((size) => (
             <div key={size} style={{ textAlign: "center" }}>
               <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect width="48" height="48" rx="11" fill="#060F1E"/>
@@ -184,7 +185,7 @@ export default function LogoConcepts() {
       {/* ── CONCEPT 3: THE WINGMARK ── */}
       <div style={{ marginBottom: "80px" }}>
         <div style={{ marginBottom: "24px" }}>
-          <h2 style={{ color: "white", fontSize: "20px", fontWeight: 700, marginBottom: "4px" }}>Concept 3 — "The Wingmark"</h2>
+          <h2 style={{ color: "white", fontSize: "20px", fontWeight: 700, marginBottom: "4px" }}>Concept 3 — &ldquo;The Wingmark&rdquo;</h2>
           <p style={{ color: "#94a3b8", fontSize: "14px", maxWidth: "520px", lineHeight: 1.6 }}>
             Two bold angular strokes in a banking configuration — one in Runway Blue, one in Commission Gold.
             Together they suggest a banking aircraft turn, momentum, and forward motion. The gold stroke
@@ -262,8 +263,9 @@ export default function LogoConcepts() {
       {/* Current mark for comparison */}
       <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "40px" }}>
         <p style={{ color: "#475569", fontSize: "12px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "16px" }}>Current mark — for comparison</p>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "16px", padding: "20px 28px", display: "inline-flex" }}>
-          <img src="/logo.svg" alt="Current logo" style={{ width: 48, height: 48 }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+        <div style={{ display: "inline-flex", alignItems: "center", gap: "16px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "16px", padding: "20px 28px" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.svg" alt="Current logo" style={{ width: 48, height: 48 }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
           <div>
             <p style={{ color: "white", fontSize: "20px", fontWeight: 800, letterSpacing: "-0.02em", margin: 0 }}>Agent Runway</p>
             <p style={{ color: "#64748b", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase", margin: "2px 0 0 0" }}>Business Analytics</p>
