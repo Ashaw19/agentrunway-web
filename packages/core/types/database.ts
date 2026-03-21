@@ -651,13 +651,22 @@ export const CLIENT_STATUS_DESCRIPTIONS: Record<ClientStatus, string> = {
   cruising:  "Past client, nurturing",
 };
 
+// ── Flight status colour arc ───────────────────────────────────────────────
+// Stages progress: boarding → taxiing → approach → in_flight → landed → cruising
+// Colour logic:   sky → slate → indigo → violet → emerald → blue
+//
+// Constraints (from colour system rules):
+//   • Amber is globally reserved for WARNING signals — never used for lifecycle stages
+//   • Orange is globally reserved for URGENCY/CRITICAL alerts — never used for stages
+//   • Indigo signals high-intent pre-close urgency without the danger connotation of orange
+//   • Emerald signals success (deal closed) — correct semantic for landed
 export const CLIENT_STATUS_COLORS: Record<ClientStatus, { bg: string; text: string; border: string; dot: string }> = {
-  boarding:  { bg: "bg-sky-50",     text: "text-sky-700",     border: "border-sky-200",     dot: "bg-sky-400"     },
-  taxiing:   { bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200",   dot: "bg-amber-400"   },
-  approach:  { bg: "bg-orange-50",  text: "text-orange-700",  border: "border-orange-200",  dot: "bg-orange-400"  },
-  in_flight: { bg: "bg-violet-50",  text: "text-violet-700",  border: "border-violet-200",  dot: "bg-violet-400"  },
-  landed:    { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", dot: "bg-emerald-400" },
-  cruising:  { bg: "bg-blue-50",    text: "text-blue-700",    border: "border-blue-200",    dot: "bg-blue-400"    },
+  boarding:  { bg: "bg-sky-50",    text: "text-sky-700",    border: "border-sky-200",    dot: "bg-sky-400"    },
+  taxiing:   { bg: "bg-slate-100", text: "text-slate-600",  border: "border-slate-200",  dot: "bg-slate-400"  },
+  approach:  { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-200", dot: "bg-indigo-500" },
+  in_flight: { bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-200", dot: "bg-violet-400" },
+  landed:    { bg: "bg-emerald-50",text: "text-emerald-700",border: "border-emerald-200",dot: "bg-emerald-400"},
+  cruising:  { bg: "bg-blue-50",   text: "text-blue-700",   border: "border-blue-200",   dot: "bg-blue-400"   },
 };
 
 // ── Listing Appointment Status (migration 00048) ─────────────────────────────

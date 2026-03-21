@@ -108,9 +108,31 @@
   /* ── Semantic chart palette (richer, higher chroma) ──────────────── */
   --chart-1: oklch(0.66 0.19 150);    /* emerald  — income / GCI     */
   --chart-2: oklch(0.56 0.24 285);    /* violet   — pipeline / forecast */
-  --chart-3: oklch(0.74 0.18 65);     /* amber    — expenses / costs  */
+  --chart-3: oklch(0.72 0.13 58);     /* ochre    — expenses / costs (deliberately NOT warning-amber) */
   --chart-4: oklch(0.60 0.17 195);    /* teal     — health / score    */
   --chart-5: oklch(0.58 0.23 15);     /* rose     — tax / warnings    */
+
+  /* ── Signal layer — globally reserved colours ─────────────────────
+     These colours carry fixed meaning across ALL surfaces and contexts.
+     They must NEVER be used for category labelling or decoration.
+     Physical proximity rule: if a signal colour and a category colour
+     would appear in the same viewport simultaneously, the category
+     colour must shift to avoid the shared hue.
+     ──────────────────────────────────────────────────────────────── */
+  --signal-warning:  oklch(0.77 0.17 65);       /* amber  — alerts, thin runway, at-risk states ONLY */
+  --signal-critical: oklch(0.577 0.245 27.325); /* red    — danger, critical health, overdue ONLY    */
+
+  /* ── Category layer — used in charts, icons, borders, small badges ──
+     NOT in large background fills. Each category token is independent
+     from its signal-layer neighbour even when the hue is similar.
+     --chart-3 (ochre/expenses) shares a hue family with --signal-warning
+     but differs in chroma and lightness — keep them visually distinct.
+     ──────────────────────────────────────────────────────────────── */
+  --category-income:   var(--chart-1); /* emerald  */
+  --category-pipeline: var(--chart-2); /* violet   */
+  --category-expenses: var(--chart-3); /* ochre    */
+  --category-health:   var(--chart-4); /* teal     */
+  --category-tax:      var(--chart-5); /* rose     */
 
   /* ── Sidebar — deep navy, richer than before ─────────────────────── */
   --sidebar: oklch(0.13 0.06 265);

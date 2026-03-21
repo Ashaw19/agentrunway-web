@@ -2270,7 +2270,7 @@ function PersonalRecordsCard({
     <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
-          <Trophy className="h-4 w-4 text-emerald-600" />
+          <Trophy className="h-4 w-4 text-brand-gold" />
           <CardTitle className="text-sm font-semibold text-slate-700">Personal Records</CardTitle>
         </div>
       </CardHeader>
@@ -2278,7 +2278,7 @@ function PersonalRecordsCard({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {records.map((r) => (
             <div key={r.label} className="text-center">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-brand-gold">
                 {r.label}
               </p>
               <p className="text-xl font-bold text-slate-800 mt-0.5 tabular-nums">{r.value}</p>
