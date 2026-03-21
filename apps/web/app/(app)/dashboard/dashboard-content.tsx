@@ -209,9 +209,9 @@ const PIPELINE_STAGE_CONFIG: Array<{
   chipClass: string;
 }> = [
   { key: "lead",        label: "Lead",        dotClass: "bg-slate-400",   chipClass: "border-slate-200 bg-slate-50 text-slate-600" },
-  { key: "showing",    label: "Showing",     dotClass: "bg-sky-500",     chipClass: "border-sky-200 bg-sky-50 text-sky-700" },
+  { key: "showing",    label: "Showing",     dotClass: "bg-blue-500",    chipClass: "border-blue-200 bg-blue-50 text-blue-700" },
   { key: "offer",      label: "Offer",       dotClass: "bg-amber-500",   chipClass: "border-amber-200 bg-amber-50 text-amber-700" },
-  { key: "conditional", label: "Conditional", dotClass: "bg-orange-500", chipClass: "border-orange-200 bg-orange-50 text-orange-700" },
+  { key: "conditional", label: "Conditional", dotClass: "bg-amber-600", chipClass: "border-amber-300 bg-amber-100 text-amber-800" },
   { key: "firm",       label: "Firm",        dotClass: "bg-emerald-500", chipClass: "border-emerald-200 bg-emerald-50 text-emerald-700" },
 ];
 
@@ -835,13 +835,13 @@ export function DashboardContent({
         </div>
       ))}
       {briefingItems.length > 0 && (
-        <div className="rounded-xl border border-sky-200/70 bg-sky-50/60 px-4 py-3">
+        <div className="rounded-xl border border-blue-200/70 bg-blue-50/60 px-4 py-3">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <Zap className="h-3.5 w-3.5 text-sky-600 shrink-0" />
-              <p className="text-xs font-semibold text-sky-800 uppercase tracking-wide">Client Briefing</p>
+              <Zap className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+              <p className="text-xs font-semibold text-blue-800 uppercase tracking-wide">Client Briefing</p>
             </div>
-            <Link href="/crm" className="text-[11px] text-sky-600 hover:text-sky-800 font-medium">
+            <Link href="/crm" className="text-[11px] text-blue-600 hover:text-blue-800 font-medium">
               View all →
             </Link>
           </div>
@@ -850,7 +850,7 @@ export function DashboardContent({
               <div key={item.id} className="flex items-start gap-2">
                 <span className={cn(
                   "mt-1 h-1.5 w-1.5 rounded-full shrink-0",
-                  item.severity === "urgent" ? "bg-red-500" : item.severity === "attention" ? "bg-amber-500" : "bg-sky-400",
+                  item.severity === "urgent" ? "bg-red-500" : item.severity === "attention" ? "bg-amber-500" : "bg-blue-400",
                 )} />
                 <div className="min-w-0">
                   <p className="text-xs font-medium text-slate-800 leading-snug">{item.title}</p>
@@ -985,16 +985,16 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-purple-200 bg-purple-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+      <Card className="rounded-2xl border-violet-200 bg-violet-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardDescription className="font-semibold text-purple-800">
+          <CardDescription className="font-semibold text-violet-800">
             <span className="flex items-center gap-1">
               Pipeline Weighted
               <MetricInfo tip="Your in-progress deals weighted by their probability of closing. A $50K deal at 60% odds counts as $30K here." />
             </span>
           </CardDescription>
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-purple-200">
-            <TrendingUp className="h-4 w-4 text-purple-700" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-200">
+            <TrendingUp className="h-4 w-4 text-violet-700" />
           </div>
         </CardHeader>
         <CardContent>
@@ -1450,7 +1450,7 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-purple-200 bg-purple-100 shadow-sm">
+      <Card className="rounded-2xl border-violet-200 bg-violet-50 shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-center gap-1.5">
             <CardTitle className="text-base">Benchmark</CardTitle>
@@ -1514,7 +1514,7 @@ export function DashboardContent({
                     ? "bg-blue-100 text-blue-800 border-blue-200"
                     : monthsElapsed <= 6
                     ? "bg-amber-200 text-amber-900 border-amber-300"
-                    : "bg-orange-100 text-orange-800 border-orange-200"
+                    : "bg-amber-100 text-amber-800 border-amber-200"
                 )}>
                   {monthsElapsed <= 3 ? "Q1 in progress" : monthsElapsed <= 6 ? "Q2 in progress" : monthsElapsed <= 9 ? "Q3 in progress" : "Q4 — year-end"}
                 </span>
@@ -1829,7 +1829,7 @@ export function DashboardContent({
       </div>
 
       {/* Runway Score Hero — always first */}
-      <Card data-tour="dashboard-score" className="rounded-2xl border-amber-200/60 bg-gradient-to-br from-amber-50/80 via-slate-50 to-blue-50/60 shadow-lg shadow-amber-100/50">
+      <Card data-tour="dashboard-score" className="rounded-2xl border-slate-200 bg-white shadow-sm">
         <CardContent className="pt-6 pb-6">
           <div className="flex flex-wrap items-center justify-between gap-6">
             {/* Left: grade circle + score */}
@@ -1908,23 +1908,35 @@ export function DashboardContent({
                       <GuideLink anchor="market-position" label="Market Momentum explained in Guide" />
                       {isPro && <ExplainButton question="How is my business growing compared to my local real estate market, and am I gaining or losing market share?" />}
                     </span>
-                    <p
-                      className="text-xl font-bold mt-0.5"
-                      style={{
-                        color: marketMomentum.momentumTier === "gaining"  ? "#059669"
-                             : marketMomentum.momentumTier === "trailing" ? "#DC2626"
-                             : "#D97706",
-                      }}
-                    >
-                      {marketMomentum.gainLossVsMarket != null
-                        ? `${marketMomentum.gainLossVsMarket >= 0 ? "+" : ""}${marketMomentum.gainLossVsMarket.toFixed(0)}pp`
-                        : "—"}
-                    </p>
-                    <p className="text-xs text-slate-400">{marketMomentum.momentumLabel}</p>
-                    {marketMomentum.agentDealGrowthPct != null && marketMomentum.boardSalesYoYPct != null && (
-                      <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
-                        You {marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}{marketMomentum.agentDealGrowthPct.toFixed(0)}% · Market {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}%
-                      </p>
+                    {marketMomentum.agentDealGrowthPct != null && marketMomentum.boardSalesYoYPct != null ? (
+                      <>
+                        <p
+                          className="text-xl font-bold mt-0.5"
+                          style={{
+                            color: marketMomentum.momentumTier === "gaining"  ? "#059669"
+                                 : marketMomentum.momentumTier === "trailing" ? "#DC2626"
+                                 : "#D97706",
+                          }}
+                        >
+                          {marketMomentum.momentumLabel}
+                        </p>
+                        <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                          You {marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}{marketMomentum.agentDealGrowthPct.toFixed(0)}% · Market {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}%
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p
+                          className="text-xl font-bold mt-0.5"
+                          style={{
+                            color: marketMomentum.momentumTier === "gaining"  ? "#059669"
+                                 : marketMomentum.momentumTier === "trailing" ? "#DC2626"
+                                 : "#D97706",
+                          }}
+                        >
+                          {marketMomentum.momentumLabel}
+                        </p>
+                      </>
                     )}
                     <p className="text-[9px] text-slate-500 mt-1 leading-tight">
                       Source: CREA MLS® Statistics · © {new Date().getFullYear()} CREA
@@ -1959,21 +1971,13 @@ export function DashboardContent({
             </div>
           </div>
           {/* Score components */}
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6 border-t border-amber-200/40 pt-4">
-            {runwayScore.components.map((c, i) => {
-              const barColors = [
-                "[&>div]:bg-blue-500",
-                "[&>div]:bg-purple-500",
-                "[&>div]:bg-teal-500",
-                "[&>div]:bg-violet-500",
-                "[&>div]:bg-emerald-500",
-                "[&>div]:bg-sky-500",
-              ];
-              // High-scoring components (≥80) earn the gold bar
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6 border-t border-slate-100 pt-4">
+            {runwayScore.components.map((c) => {
+              // High-scoring components (≥80) earn the gold bar; others use a neutral track
               const isTopScore = c.score >= 80;
               return (
               <div key={c.label} className="text-center">
-                <p className="text-[10px] font-semibold text-slate-600">{c.label}</p>
+                <p className="text-[10px] font-semibold text-slate-500">{c.label}</p>
                 <p
                   className="text-sm font-bold mt-0.5"
                   style={{ color: isTopScore ? "#D97706" : "#1e293b" }}
@@ -1982,7 +1986,7 @@ export function DashboardContent({
                 </p>
                 <Progress
                   value={c.score}
-                  className={cn("mt-1.5 h-2", isTopScore ? "[&>div]:bg-amber-500" : barColors[i % barColors.length])}
+                  className={cn("mt-1.5 h-2", isTopScore ? "[&>div]:bg-amber-500" : "[&>div]:bg-slate-300")}
                 />
               </div>
               );
@@ -2288,7 +2292,7 @@ const STATUS_STYLES: Record<
 > = {
   Stable:    { border: "border-l-emerald-500", chip: "bg-emerald-100 text-emerald-800 border border-emerald-200",  icon: "text-emerald-600", bg: "from-emerald-50 to-emerald-50/40" },
   Watchlist: { border: "border-l-amber-400",   chip: "bg-amber-100 text-amber-800 border border-amber-200",       icon: "text-amber-600",   bg: "from-amber-50 to-amber-50/40"    },
-  "At Risk": { border: "border-l-orange-500",  chip: "bg-orange-100 text-orange-800 border border-orange-200",    icon: "text-orange-600",  bg: "from-orange-50 to-orange-50/40"  },
+  "At Risk": { border: "border-l-amber-500",   chip: "bg-amber-100 text-amber-800 border border-amber-200",       icon: "text-amber-600",   bg: "from-amber-50 to-amber-50/40"    },
   Critical:  { border: "border-l-red-500",     chip: "bg-red-100 text-red-800 border border-red-200",             icon: "text-red-600",     bg: "from-red-50 to-red-50/40"        },
 };
 
@@ -2311,7 +2315,7 @@ function BusinessHealthNarrativeCard({
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className={cn("flex h-7 w-7 items-center justify-center rounded-full", styles.chip.includes("emerald") ? "bg-emerald-200" : styles.chip.includes("amber") ? "bg-amber-200" : styles.chip.includes("orange") ? "bg-orange-200" : "bg-red-200")}>
+            <div className={cn("flex h-7 w-7 items-center justify-center rounded-full", styles.chip.includes("emerald") ? "bg-emerald-200" : styles.chip.includes("amber") ? "bg-amber-200" : "bg-red-200")}>
               <BarChart2 className={cn("h-3.5 w-3.5", styles.icon)} />
             </div>
             <CardTitle className="text-xs font-bold uppercase tracking-widest text-slate-500">
@@ -2453,7 +2457,7 @@ const GRADE_RANGES = [
   { grade: "A",  range: "85–91",  label: "Strong",       textColor: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
   { grade: "B",  range: "75–84",  label: "Healthy",      textColor: "text-blue-700",    bg: "bg-blue-50 border-blue-200"       },
   { grade: "C",  range: "62–74",  label: "Developing",   textColor: "text-amber-700",   bg: "bg-amber-50 border-amber-200"     },
-  { grade: "D",  range: "50–61",  label: "Struggling",   textColor: "text-orange-700",  bg: "bg-orange-50 border-orange-200"   },
+  { grade: "D",  range: "50–61",  label: "Struggling",   textColor: "text-amber-700",   bg: "bg-amber-50 border-amber-200"     },
   { grade: "F",  range: "0–49",   label: "Danger Zone",  textColor: "text-red-700",     bg: "bg-red-50 border-red-200"         },
 ] as const;
 
