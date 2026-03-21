@@ -474,8 +474,12 @@ function ReviewDrawer({
 
   const handleOpenGmail = useCallback(async () => {
     if (!item) return;
+    const to = item.clients?.email?.trim() ?? "";
+    if (!to) {
+      toast.error("No email address on file for this client — add one in the CRM first");
+      return;
+    }
     await saveEdits();
-    const to      = item.clients?.email ?? "";
     const subject = encodeURIComponent(editSubject);
     // mailto: body truncates at ~2000 chars — acceptable
     const body    = encodeURIComponent(editBody.slice(0, 1800));

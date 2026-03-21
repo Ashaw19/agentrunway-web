@@ -635,9 +635,13 @@ function normalizePhoneType(raw: string): PhoneType {
   return "mobile";
 }
 
-function parseCsv(text: string): { headers: string[]; rows: CsvRow[] } {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (lines.length < 2) return { headers: [], rows: [] };
+const CSV_ROW_CAP = 5_000;
+
+function parseCsv(text: string): { headers: string[]; rows: CsvRow[]; truncated: boolean } {
+  // Strip UTF-8 BOM if present (common in Excel-exported CSVs)
+  const clean = text.startsWith("\uFEFF") ? text.slice(1) : text;
+  const lines = clean.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length < 2) return { headers: [], rows: [], truncated: false };
 
   function splitLine(line: string): string[] {
     const result: string[] = [];
@@ -664,16 +668,18 @@ function parseCsv(text: string): { headers: string[]; rows: CsvRow[] } {
   }
 
   const headers = splitLine(lines[0]);
+  const dataLines = lines.slice(1);
+  const truncated = dataLines.length > CSV_ROW_CAP;
   const rows: CsvRow[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const vals = splitLine(lines[i]);
+  for (let i = 0; i < Math.min(dataLines.length, CSV_ROW_CAP); i++) {
+    const vals = splitLine(dataLines[i]);
     const row: CsvRow = {};
     headers.forEach((h, idx) => {
       row[h] = vals[idx] ?? "";
     });
     rows.push(row);
   }
-  return { headers, rows };
+  return { headers, rows, truncated };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -974,10 +980,12 @@ export function ClientsContent({
     () => grouped.reduce((s, g) => s + g.totalGCI, 0),
     [grouped],
   );
-  const repeatCount = grouped.filter((g) => g.dealCount > 1).length;
+  // Only count against clients who have closed at least one transaction
+  const clientsWithDeals = grouped.filter((g) => g.dealCount >= 1);
+  const repeatCount = clientsWithDeals.filter((g) => g.dealCount > 1).length;
   const repeatRate =
-    grouped.length > 0
-      ? Math.round((repeatCount / grouped.length) * 100)
+    clientsWithDeals.length > 0
+      ? Math.round((repeatCount / clientsWithDeals.length) * 100)
       : 0;
   const totalDeals = grouped.reduce((s, g) => s + g.dealCount, 0);
 
@@ -1238,6 +1246,14 @@ export function ClientsContent({
 
       if (!error && data) {
         setLocalActivities((prev) => [data as ContactActivity, ...prev]);
+        // Keep last_contact_at in sync so the CRM card reflects the new activity immediately
+        setLocalClients((prev) =>
+          prev.map((c) =>
+            c.id === clientId
+              ? { ...c, last_contact_at: activityDate }
+              : c
+          )
+        );
       } else if (error) {
         toast.error("Failed to log activity");
       }
@@ -1796,7 +1812,10 @@ export function ClientsContent({
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      const { headers, rows } = parseCsv(text);
+      const { headers, rows, truncated } = parseCsv(text);
+      if (truncated) {
+        toast.warning(`CSV capped at ${CSV_ROW_CAP.toLocaleString()} rows — only the first ${CSV_ROW_CAP.toLocaleString()} contacts will be imported`);
+      }
       setCsvHeaders(headers);
       setCsvRows(rows);
 
@@ -1831,7 +1850,7 @@ export function ClientsContent({
 
       setImportStep("map");
     };
-    reader.readAsText(file);
+    reader.readAsText(file, "UTF-8");
   }
 
   async function handleImport() {

@@ -116,15 +116,19 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const aiProfileSaved = useSaved();
 
   async function saveVoiceProfile(profile: CommunicationProfile) {
-    setCommunicationProfile(profile);
     const supabase = createClient();
-    await supabase
+    const { error } = await supabase
       .from("user_settings")
       .update({
         communication_profile: profile as unknown as Record<string, unknown>,
         ai_voice_guide: profile.ai_voice_summary,
       })
       .eq("user_id", settings.user_id);
+    if (error) {
+      toast.error("Failed to save voice profile — please try again.");
+      return;
+    }
+    setCommunicationProfile(profile);
     router.refresh();
   }
 

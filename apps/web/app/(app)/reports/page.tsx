@@ -69,15 +69,16 @@ export default async function ReportsPage() {
     }
   }
 
-  // Build expenseAmounts for T2125 tab: receipts YTD + projected recurring
-  // Use whole-month remaining formula consistent with dashboard/forecast/reports-content
+  // Build expenseAmounts for T2125 tab: receipts YTD + recurring for completed months only.
+  // T2125 is a tax form — only include expenses actually incurred (not projected future months).
+  // completedMonths = number of fully elapsed months before the current month (e.g. March → 2).
   const now = new Date();
-  const monthsRemaining = Math.max(0, 12 - (now.getMonth() + 1));
+  const completedMonths = now.getMonth(); // 0-based: Jan=0 → 0 completed, Mar=2 → 2 completed
   const expenseAmounts: Record<string, number> = { ...receiptTotalsByKey };
   for (const item of expItemResult.data ?? []) {
-    if (item.monthly_recurring > 0) {
+    if (item.monthly_recurring > 0 && completedMonths > 0) {
       expenseAmounts[item.key] =
-        (expenseAmounts[item.key] ?? 0) + item.monthly_recurring * monthsRemaining;
+        (expenseAmounts[item.key] ?? 0) + item.monthly_recurring * completedMonths;
     }
   }
 

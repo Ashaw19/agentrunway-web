@@ -716,6 +716,11 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
   async function handleSaveImport() {
     if (!importData) return;
+    // Guard: never overwrite existing data with a zero-deal extraction
+    if (importData.deals.length === 0) {
+      toast.error("No deals were extracted — please review the document and try again.");
+      return;
+    }
     setImportStatus("saving");
 
     const supabase = createClient();
@@ -980,9 +985,11 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
         .eq("user_id", user.id).eq("year", yearData.year);
 
       // ── Upsert client identities for this year, then attach client_id ─────
-      const uniqueYearNames = [
-        ...new Set(yearData.deals.map((d) => d.party_a?.trim()).filter(Boolean) as string[]),
-      ];
+      // Use agent_side to pick the correct party — 1 = agent represented party_b
+      const agentClientNames = yearData.deals.map((d) =>
+        ((d.agent_side === 1 ? d.party_b : d.party_a) ?? "").trim()
+      );
+      const uniqueYearNames = [...new Set(agentClientNames.filter(Boolean))];
       if (uniqueYearNames.length > 0) {
         await supabase.from("clients").upsert(
           uniqueYearNames.map((name) => ({ user_id: user.id, name, name_search: name.toLowerCase() })),
@@ -996,18 +1003,22 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       const yearClientIdMap = new Map((yearClientRows ?? []).map((c) => [c.name_search, c.id]));
 
       const clientInserts = yearData.deals
-        .filter((d) => d.party_a?.trim())
-        .map((d) => ({
-          user_id: user.id,
-          name: d.party_a,
-          client_id: yearClientIdMap.get(d.party_a.toLowerCase()) ?? null,
-          side: d.side ?? null,
-          source: d.source ?? null,
-          address: d.address || null,
-          close_date: d.date || null,
-          year: yearData.year,
-          gci: d.gci,
-        }));
+        .map((d, i) => {
+          const clientName = agentClientNames[i];
+          if (!clientName) return null;
+          return {
+            user_id: user.id,
+            name: clientName,
+            client_id: yearClientIdMap.get(clientName.toLowerCase()) ?? null,
+            side: d.side ?? null,
+            source: d.source ?? null,
+            address: d.address || null,
+            close_date: d.date || null,
+            year: yearData.year,
+            gci: d.gci,
+          };
+        })
+        .filter(Boolean) as object[];
 
       if (clientInserts.length > 0) {
         await supabase.from("client_records").insert(clientInserts);
@@ -1037,8 +1048,8 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             gci_override: d.gci,     // gci = PRE-split gross commission income
             side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
             status: "closed" as const,
-            client_name: d.party_a || "",
-            notes: d.party_b ? `Other party: ${d.party_b}` : "",
+            client_name: ((d.agent_side === 1 ? d.party_b : d.party_a) ?? "").trim() || "",
+            notes: (d.agent_side === 1 ? d.party_a : d.party_b)?.trim() ? `Other party: ${(d.agent_side === 1 ? d.party_a : d.party_b)?.trim()}` : "",
             source: "imported" as const,
             date_precision: "day" as const,
           }));

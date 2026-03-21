@@ -223,7 +223,7 @@ export function computeCrmDashboard(input: CrmDashboardInput): CrmDashboardResul
     }
   }
 
-  const activeStatuses: ClientStatus[] = ["boarding", "taxiing", "in_flight"];
+  const activeStatuses: ClientStatus[] = ["boarding", "taxiing", "approach", "in_flight"];
   const overdueClients: OverdueClient[] = [];
 
   for (const client of clients) {
@@ -680,7 +680,7 @@ export function computeIntelligenceBriefing(
     if (
       !client.email &&
       !client.phone &&
-      ["boarding", "taxiing", "in_flight"].includes(client.status)
+      ["boarding", "taxiing", "approach", "in_flight"].includes(client.status)
     ) {
       items.push({
         id: `no_contact_${client.id}`,

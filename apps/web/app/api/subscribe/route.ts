@@ -1,9 +1,31 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export async function POST(request: Request) {
+// Simple in-memory rate limit: max 5 signups per IP per 15 minutes
+const ipCounts = new Map<string, { count: number; resetAt: number }>();
+const RL_MAX = 5;
+const RL_WINDOW_MS = 15 * 60 * 1000;
+
+function checkIpRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = ipCounts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    ipCounts.set(ip, { count: 1, resetAt: now + RL_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= RL_MAX) return false;
+  entry.count++;
+  return true;
+}
+
+export async function POST(request: NextRequest) {
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (!checkIpRateLimit(ip)) {
+    return NextResponse.json({ error: "Too many requests — please try again later." }, { status: 429 });
+  }
+
   const { email, source = "website", name, brokerage } = (await request.json()) as {
     email: string;
     source?: string;

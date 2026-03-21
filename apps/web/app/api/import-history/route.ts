@@ -488,12 +488,14 @@ export async function POST(req: NextRequest) {
   };
 
   // Normalise to a single image source list (backward-compat with single imageBase64)
-  const imageSources: Array<{ base64: string; mimeType: string }> =
-    body.images?.length
-      ? body.images
-      : body.imageBase64
-        ? [{ base64: body.imageBase64, mimeType: body.mimeType ?? "image/jpeg" }]
-        : [];
+  // Cap at 20 pages to prevent unbounded memory / Groq context usage
+  const MAX_IMAGES = 20;
+  const rawImages = body.images?.length
+    ? body.images.slice(0, MAX_IMAGES)
+    : body.imageBase64
+      ? [{ base64: body.imageBase64, mimeType: body.mimeType ?? "image/jpeg" }]
+      : [];
+  const imageSources: Array<{ base64: string; mimeType: string }> = rawImages;
 
   if (!body.textContent && imageSources.length === 0) {
     return NextResponse.json({ error: "No data provided" }, { status: 400 });

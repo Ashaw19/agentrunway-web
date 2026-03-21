@@ -416,10 +416,11 @@ function NewsletterReviewDrawer({
     if (!item) return;
     try {
       const supabase = createClient();
-      await supabase
+      const { error } = await supabase
         .from("newsletter_queue")
         .update({ status: "sent", sent_at: new Date().toISOString() })
         .eq("id", item.id);
+      if (error) throw error;
       onSent(item.id);
       onClose();
       toast.success("Newsletter marked as sent ✓");
