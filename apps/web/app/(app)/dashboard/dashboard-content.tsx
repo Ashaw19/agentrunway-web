@@ -835,7 +835,7 @@ export function DashboardContent({
         </div>
       ))}
       {briefingItems.length > 0 && (
-        <div className="rounded-xl border border-blue-200/70 bg-blue-50/60 px-4 py-3">
+        <div className="rounded-xl border border-blue-200/70 bg-white px-4 py-3">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Zap className="h-3.5 w-3.5 text-blue-600 shrink-0" />
@@ -871,7 +871,7 @@ export function DashboardContent({
     return (
       <div className="space-y-4">
         {periodRecap && (
-          <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 flex items-center justify-between gap-3">
+          <div className="rounded-xl border border-violet-200 bg-white px-4 py-3 flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-violet-800">
                 {periodRecap.monthName} recap — {fmtCurrency(periodRecap.monthGCI)} · {periodRecap.monthTx} deal{periodRecap.monthTx !== 1 ? "s" : ""}
@@ -900,7 +900,7 @@ export function DashboardContent({
 
   cardRenders["kpi_row"] = (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <Card className="rounded-2xl border-emerald-200 bg-emerald-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+      <Card className="rounded-2xl border-emerald-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardDescription className="font-semibold text-emerald-800">YTD GCI</CardDescription>
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-200">
@@ -945,7 +945,7 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-blue-200 bg-blue-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+      <Card className="rounded-2xl border-blue-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardDescription className="font-semibold text-blue-800">Deals Closed</CardDescription>
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-200">
@@ -985,7 +985,7 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-violet-200 bg-violet-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+      <Card className="rounded-2xl border-violet-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardDescription className="font-semibold text-violet-800">
             <span className="flex items-center gap-1">
@@ -1009,7 +1009,7 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-blue-200 bg-blue-50/70 shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+      <Card className="rounded-2xl border-blue-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardDescription className="font-semibold text-blue-800">Projected Year-End</CardDescription>
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-200">
@@ -1071,7 +1071,7 @@ export function DashboardContent({
   );
 
   cardRenders["net_takehome"] = (ytdGCI > 0 && settings) ? (
-    <Card className="rounded-2xl border-emerald-200 bg-emerald-50/70 shadow-sm">
+    <Card className="rounded-2xl border-emerald-200 bg-white shadow-sm">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-1.5">
@@ -1228,7 +1228,7 @@ export function DashboardContent({
   ) : null;
 
   cardRenders["cap_progress"] = capConfigured ? (
-    <Card className="rounded-2xl border-violet-200 bg-violet-50/70 shadow-sm">
+    <Card className="rounded-2xl border-violet-200 bg-white shadow-sm">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-1.5">
@@ -1276,7 +1276,7 @@ export function DashboardContent({
     const upcoming = localTasks.filter((t) => t.due_date > todayStr).slice(0, 3);
     const shown    = [...overdue, ...dueToday, ...upcoming].slice(0, 5);
     return (
-      <Card className="rounded-2xl border-blue-200 bg-blue-50/70 shadow-sm">
+      <Card className="rounded-2xl border-blue-200 bg-white shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold text-blue-900 flex items-center gap-2">
@@ -1408,7 +1408,7 @@ export function DashboardContent({
 
   cardRenders["probability"] = (
     <div className="grid gap-4 sm:grid-cols-2">
-      <Card className="rounded-2xl border-blue-200 bg-blue-100 shadow-sm">
+      <Card className="rounded-2xl border-blue-200 bg-white shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-center gap-1.5">
             <CardTitle className="text-base">Projection Range</CardTitle>
@@ -1451,7 +1451,7 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-violet-200 bg-violet-50 shadow-sm">
+      <Card className="rounded-2xl border-violet-200 bg-white shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-center gap-1.5">
             <CardTitle className="text-base">Benchmark</CardTitle>
@@ -1497,7 +1497,7 @@ export function DashboardContent({
     return (
       <div className="grid gap-4 sm:grid-cols-2">
         {taxResult && (
-          <Card className="rounded-2xl border-amber-200 bg-amber-100 shadow-sm">
+          <Card className="rounded-2xl border-amber-200 bg-white shadow-sm">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
@@ -1570,7 +1570,7 @@ export function DashboardContent({
         )}
 
         {goalGCI > 0 && (
-          <Card className="rounded-2xl border-emerald-200 bg-emerald-100 shadow-sm">
+          <Card className="rounded-2xl border-emerald-200 bg-white shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Goal Progress</CardTitle>
               <CardDescription>
@@ -1594,7 +1594,7 @@ export function DashboardContent({
   })();
 
   cardRenders["corp_tax"] = (corpTaxResult && settings) ? (
-    <Card className="rounded-2xl border-violet-200 bg-violet-50/70 shadow-sm">
+    <Card className="rounded-2xl border-violet-200 bg-white shadow-sm">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -1666,7 +1666,7 @@ export function DashboardContent({
   ) : null;
 
   cardRenders["tax_savings"] = (taxOptResult && taxOptResult.cardCount > 0) ? (
-    <Card className="rounded-2xl border-amber-200 bg-amber-50/40 shadow-sm">
+    <Card className="rounded-2xl border-amber-200 bg-white shadow-sm">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>
