@@ -1490,24 +1490,27 @@ export function ClientsContent({
       .select()
       .single();
 
-    if (!error && data) {
-      setLocalClients((prev) => [...prev, data as Client]);
-      setAddClientOpen(false);
-      setNewClientName("");
-      setNewClientEmail("");
-      setNewClientPhone("");
-      setNewClientStatus("boarding");
-      setNewClientSource("");
-      setNewClientTags([]);
-      setNewClientStreet("");
-      setNewClientUnit("");
-      setNewClientCity("");
-      setNewClientProvince("");
-      setNewClientPostal("");
-      setNewClientCountry("Canada");
-      setVoiceDraft(null);
-      setVoiceBanner(false);
+    if (error || !data) {
+      toast.error("Failed to add client — please try again");
+      setAddClientSaving(false);
+      return;
     }
+    setLocalClients((prev) => [...prev, data as Client]);
+    setAddClientOpen(false);
+    setNewClientName("");
+    setNewClientEmail("");
+    setNewClientPhone("");
+    setNewClientStatus("boarding");
+    setNewClientSource("");
+    setNewClientTags([]);
+    setNewClientStreet("");
+    setNewClientUnit("");
+    setNewClientCity("");
+    setNewClientProvince("");
+    setNewClientPostal("");
+    setNewClientCountry("Canada");
+    setVoiceDraft(null);
+    setVoiceBanner(false);
     setAddClientSaving(false);
   }, [newClientName, newClientEmail, newClientPhone, newClientStatus, newClientSource, newClientTags,
       newClientStreet, newClientUnit, newClientCity, newClientProvince, newClientPostal, newClientCountry]);

@@ -41,8 +41,8 @@ export default async function ForecastPage() {
         .order("year", { ascending: false }),
       // Mileage log for tax optimization engine
       supabase
-        .from("mileage_log")
-        .select("distance_km")
+        .from("mileage_logs")
+        .select("km")
         .eq("user_id", user.id),
       // CCA assets count for tax optimization engine
       supabase
@@ -70,7 +70,7 @@ export default async function ForecastPage() {
 
   // Sum mileage logs for tax optimization
   const mileageKmTotal = (mileageResult.data ?? []).reduce(
-    (sum, r) => sum + Number(r.distance_km ?? 0),
+    (sum, r) => sum + Number(r.km ?? 0),
     0,
   );
   const ccaAssetCount = (ccaResult.data ?? []).length;

@@ -818,6 +818,41 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
         await supabase.from("client_records").insert(clientInserts);
       }
 
+      // ── Write imported transactions (for tax engine, reporting, dashboard) ──
+      // Delete any previously imported rows for this year, then re-insert.
+      await supabase.from("transactions")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("source", "imported")
+        .gte("date", `${importData.year}-01-01`)
+        .lte("date", `${importData.year}-12-31`);
+
+      const txInserts = resolvedDeals
+        .filter((deal) => deal.date && deal.gci > 0)
+        .map((deal, i) => {
+          const sideSelected = agentSides[i] ?? deal.agent_side;
+          const clientName = ((sideSelected === 1 ? deal.party_b : deal.party_a) ?? "").trim();
+          const txSide: "buyer" | "seller" | "both" = deal.side ?? "buyer";
+          return {
+            user_id:        user.id,
+            date:           deal.date,
+            address:        deal.address || "",
+            sale_price:     deal.sale_price ?? 0,
+            commission_pct: deal.commission_percent ?? 0.025,
+            gci_override:   deal.gci,
+            side:           txSide,
+            status:         "closed" as const,
+            client_name:    clientName,
+            notes:          "",
+            source:         "imported" as const,
+            date_precision: "day" as const,
+          };
+        });
+
+      if (txInserts.length > 0) {
+        await supabase.from("transactions").insert(txInserts);
+      }
+
       // ── Telemetry (fire-and-forget — never blocks or fails the save) ────────
       try {
         // Derive edited-field counts from the editedFields state (field names only, no values)

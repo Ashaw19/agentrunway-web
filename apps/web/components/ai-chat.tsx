@@ -145,7 +145,6 @@ export function AiChat({ financialContext }: Props) {
               role: m.role,
               content: m.content,
             })),
-            financialContext,
             currentPage: pathname,
           }),
         });

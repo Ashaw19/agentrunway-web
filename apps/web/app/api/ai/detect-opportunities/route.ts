@@ -19,7 +19,6 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }       from "@/lib/supabase/server";
-import { createAdminClient as _createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import type { OutreachQueueItem } from "@agent-runway/core/types/database";
 import type { SupabaseClient }    from "@supabase/supabase-js";
@@ -658,31 +657,15 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Allow cron calls authenticated via CRON_SECRET Bearer token
-  const authHeader = req.headers.get("authorization") ?? "";
-  const cronSecret = process.env.CRON_SECRET;
-  const isCronCall = cronSecret && authHeader === `Bearer ${cronSecret}`;
-
-  if (!user && !isCronCall) {
+  if (!user) {
     return new Response("Unauthorized", { status: 401 });
   }
+
+  const userId = user.id;
 
   // draft_only=true: skip detection, only draft already-queued "draft" items.
   // Separate rate limit so users can unblock stuck items without burning their scan quota.
   const url = new URL(req.url);
-  const draftOnly = url.searchParams.get("draft_only") === "true";
-
-  // For cron calls running as a specific userId passed in body
-  let userId: string;
-  if (isCronCall && !user) {
-    const body = await req.json().catch(() => ({})) as { user_id?: string };
-    if (!body.user_id) {
-      return NextResponse.json({ error: "user_id required for cron calls" }, { status: 400 });
-    }
-    userId = body.user_id;
-  } else {
-    userId = user!.id;
-  }
 
   // Rate limit: 10 full scans/hour, 30 draft-only calls/hour per user
   const rlKey = draftOnly ? "draft_queue_items" : "detect_opportunities";

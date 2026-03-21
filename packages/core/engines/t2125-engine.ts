@@ -267,6 +267,7 @@ export function computeT2125(input: T2125Input): T2125Result {
     line8210_advertising +
     line8211_vehicleLeaseRental +
     line8212_motorVehicle +
+    line8213_fuel +
     line8215_officeExpenses +
     line8216_mealsEntertainment50pct +
     line8220_professionalFees +

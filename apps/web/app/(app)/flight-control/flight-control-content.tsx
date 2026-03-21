@@ -487,7 +487,7 @@ function ReviewDrawer({
   const markAsSent = useCallback(async () => {
     if (!item) return;
     try {
-      await fetch(`/api/ai/outreach-queue/${item.id}`, {
+      const res = await fetch(`/api/ai/outreach-queue/${item.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -495,6 +495,7 @@ function ReviewDrawer({
           sent_at: new Date().toISOString(),
         }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       onSent(item.id);
       onClose();
       toast.success("Marked as sent ✓");
@@ -713,14 +714,14 @@ export function FlightControlContent({
   // ── Skip ──────────────────────────────────────────────────────────────────
 
   const handleSkip = useCallback(async (id: string) => {
-    // Optimistic removal
-    setQueue((prev) => prev.filter((i) => i.id !== id));
     try {
-      await fetch(`/api/ai/outreach-queue/${id}`, {
+      const res = await fetch(`/api/ai/outreach-queue/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "skipped" }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setQueue((prev) => prev.filter((i) => i.id !== id));
     } catch {
       toast.error("Couldn't skip — try again");
     }
