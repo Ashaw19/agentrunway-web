@@ -11,14 +11,29 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import {
-  DollarSign,
   Info,
   Receipt,
   Building2,
+  PiggyBank,
+  Home,
+  Car,
+  Split,
+  ShieldCheck,
+  CalendarCheck,
+  Clock,
+  ClipboardCheck,
+  TrendingUp,
+  Lightbulb,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
+  CheckCircle2,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
 import {
   computeGCI,
   computeWeightedGCI,
@@ -47,6 +62,414 @@ import {
 } from "@/components/ui/tooltip";
 import { ExplainButton } from "@/components/explain-button";
 import { GuideLink } from "@/components/guide-link";
+
+// ── Tax Savings — icon map ─────────────────────────────────────────────────
+
+const TAX_ICON_MAP: Record<string, LucideIcon> = {
+  "piggy-bank":      PiggyBank,
+  "building-2":      Building2,
+  "home":            Home,
+  "car":             Car,
+  "receipt":         Receipt,
+  "receipt-text":    Receipt,
+  "split":           Split,
+  "shield-check":    ShieldCheck,
+  "calendar-check":  CalendarCheck,
+  "clock":           Clock,
+  "clipboard-check": ClipboardCheck,
+  "trending-up":     TrendingUp,
+};
+
+function taxIcon(iconName: string): LucideIcon {
+  return TAX_ICON_MAP[iconName] ?? Lightbulb;
+}
+
+// ── Tax Savings — action deep-links ───────────────────────────────────────
+
+const ACTION_LINKS: Record<string, { label: string; href: string }> = {
+  rrspOptimization:        { label: "Review RRSP Strategy",  href: "/overhead#tax-readiness" },
+  incorporationTiming:     { label: "Learn About PREC",      href: "/forecast" },
+  homeOfficeOptimizer:     { label: "Update Home Office",    href: "/settings" },
+  vehicleExpenseOptimizer: { label: "Log a Trip",            href: "/expenses" },
+  gstHstItcRecovery:      { label: "Update GST/HST",        href: "/settings" },
+  compensationMethod:      { label: "Review Structure",      href: "/overhead#corp-tax" },
+  cppConsiderations:       { label: "View Tax Details",      href: "/overhead" },
+  instalmentOptimization:  { label: "Update Instalments",    href: "/settings" },
+  yearEndPlanning:         { label: "Review Expenses",       href: "/expenses" },
+  missedDeductions:        { label: "Add Expenses",          href: "/expenses" },
+};
+
+// ── Tax Savings — complexity pill ─────────────────────────────────────────
+
+function ComplexityPill({ complexity }: { complexity: "easy" | "moderate" | "complex" }) {
+  const styles = {
+    easy:     "bg-emerald-100 text-emerald-700",
+    moderate: "bg-amber-100 text-amber-700",
+    complex:  "bg-slate-100 text-slate-600",
+  };
+  const labels = { easy: "Easy", moderate: "Moderate", complex: "Complex" };
+  return (
+    <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold", styles[complexity])}>
+      {labels[complexity]}
+    </span>
+  );
+}
+
+// ── Tax Savings — single opportunity card ─────────────────────────────────
+
+interface TaxCardProps {
+  card: TaxOptimizationCard;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onDismiss: (id: string) => void;
+}
+
+function TaxOpportunityCard({ card, isExpanded, onToggle, onDismiss }: TaxCardProps) {
+  const IconComp = taxIcon(card.icon);
+  const actionLink = ACTION_LINKS[card.category];
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border bg-white transition-all duration-200",
+        isExpanded ? "shadow border-slate-200" : "shadow-sm border-slate-100 hover:border-slate-200",
+      )}
+    >
+      {/* Collapsed header — always visible, full row is clickable */}
+      <button
+        type="button"
+        className="w-full text-left px-4 py-3 flex items-center gap-3"
+        onClick={onToggle}
+        aria-expanded={isExpanded}
+      >
+        <span className="shrink-0 flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+          <IconComp className="h-4 w-4" />
+        </span>
+        <span className="flex-1 min-w-0">
+          <span className="block text-sm font-semibold text-slate-800 truncate">{card.title}</span>
+          {!isExpanded && (
+            <span className="block text-xs text-muted-foreground truncate mt-0.5">{card.action}</span>
+          )}
+        </span>
+        <span className="flex items-center gap-2 shrink-0">
+          <ComplexityPill complexity={card.complexity} />
+          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs font-semibold whitespace-nowrap">
+            {card.estimatedSavingsLabel}
+          </Badge>
+          {isExpanded
+            ? <ChevronUp className="h-4 w-4 text-slate-400" />
+            : <ChevronDown className="h-4 w-4 text-slate-400" />
+          }
+        </span>
+      </button>
+
+      {/* Expanded detail panel */}
+      {isExpanded && (
+        <div className="px-4 pb-4 border-t border-slate-100">
+          {/* Evidence bullets */}
+          {card.evidence.length > 0 && (
+            <ul className="mt-3 space-y-1">
+              {card.evidence.map((bullet, i) => (
+                <li key={i} className="flex items-start gap-2 text-xs text-slate-600">
+                  <span className="mt-0.5 shrink-0 text-amber-500">•</span>
+                  <span>{bullet}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* YTD / Potential / Complexity grid */}
+          <div className="mt-3 grid grid-cols-3 gap-3">
+            <div className="rounded-lg bg-slate-50 px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Captured YTD</p>
+              <p className="mt-0.5 text-sm font-bold text-slate-600">$0</p>
+            </div>
+            <div className="rounded-lg bg-emerald-50 px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">Yr-End Potential</p>
+              <p className="mt-0.5 text-sm font-bold text-emerald-700">
+                {card.estimatedSavings > 0 ? fmtCurrency(Math.round(card.estimatedSavings)) : "—"}
+              </p>
+            </div>
+            <div className="rounded-lg bg-slate-50 px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Complexity</p>
+              <p className="mt-0.5"><ComplexityPill complexity={card.complexity} /></p>
+            </div>
+          </div>
+
+          {/* CRA reference */}
+          <p className="mt-3 text-[10px] text-slate-400 italic leading-relaxed">{card.disclaimer}</p>
+
+          {/* Action row */}
+          <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
+            {actionLink ? (
+              <Link
+                href={actionLink.href}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 transition-colors"
+              >
+                {actionLink.label} →
+              </Link>
+            ) : (
+              <span />
+            )}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDismiss(card.id); }}
+              className="text-[11px] text-slate-400 hover:text-slate-600 transition-colors underline underline-offset-2"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Tax Savings — full section component ──────────────────────────────────
+
+interface TaxSavingsSectionProps {
+  taxOptResult: { cards: TaxOptimizationCard[]; totalEstimatedSavings: number; cardCount: number };
+  annualExpenses: number;
+  marginalTaxRate: number;
+  userId: string | null;
+  initialDismissed: string[];
+}
+
+function TaxSavingsSection({
+  taxOptResult,
+  annualExpenses,
+  marginalTaxRate,
+  userId,
+  initialDismissed,
+}: TaxSavingsSectionProps) {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [dismissed, setDismissed] = useState<string[]>(initialDismissed);
+
+  function toggleCard(id: string) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  async function dismissCard(id: string) {
+    const next = [...dismissed, id];
+    setDismissed(next);
+    setExpandedIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
+    if (!userId) return;
+    const supabase = createClient();
+    await supabase
+      .from("user_settings")
+      .update({ tax_opt_dismissed: next })
+      .eq("user_id", userId);
+  }
+
+  async function resetDismissed() {
+    setDismissed([]);
+    if (!userId) return;
+    const supabase = createClient();
+    await supabase
+      .from("user_settings")
+      .update({ tax_opt_dismissed: [] })
+      .eq("user_id", userId);
+  }
+
+  // Filter visible cards (not dismissed)
+  const dismissedSet = new Set(dismissed);
+  const visibleCards = taxOptResult.cards.filter((c) => !dismissedSet.has(c.id));
+
+  // Priority tier grouping
+  const highCards   = visibleCards.filter((c) => c.priority >= 70);
+  const medCards    = visibleCards.filter((c) => c.priority >= 40 && c.priority < 70);
+  const lowCards    = visibleCards.filter((c) => c.priority < 40);
+
+  // Savings impact bar
+  const captured = annualExpenses * marginalTaxRate;
+  const potential = taxOptResult.totalEstimatedSavings;
+  const totalBar = captured + potential;
+  const capturedPct = totalBar > 0 ? (captured / totalBar) * 100 : 0;
+  const potentialPct = totalBar > 0 ? (potential / totalBar) * 100 : 0;
+
+  const allDismissed = visibleCards.length === 0 && taxOptResult.cardCount > 0;
+
+  return (
+    <Card className="rounded-2xl border-amber-200 bg-white shadow-sm">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <CardTitle className="text-base">Tax Savings Opportunities</CardTitle>
+            <CardDescription>
+              {visibleCards.length > 0
+                ? <>Estimated ~{fmtCurrency(potential)}/yr in untapped potential</>
+                : <>All opportunities reviewed</>
+              }
+            </CardDescription>
+          </div>
+          <Link
+            href="/forecast"
+            className="text-xs text-amber-700 hover:text-amber-900 font-medium transition-colors shrink-0"
+          >
+            See all on Forecast →
+          </Link>
+        </div>
+      </CardHeader>
+
+      <CardContent className="space-y-5">
+
+        {/* Savings Impact Bar */}
+        {totalBar > 0 && (
+          <div>
+            <div className="mb-1.5 flex items-center justify-between text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+              <span>Savings Impact</span>
+              <span>{fmtCurrency(Math.round(totalBar))} total scope</span>
+            </div>
+            <div className="flex h-5 w-full overflow-hidden rounded-full bg-slate-100">
+              {capturedPct > 0 && (
+                <div
+                  className="flex items-center justify-center bg-emerald-500 text-[9px] font-bold text-white transition-all"
+                  style={{ width: `${capturedPct}%` }}
+                  title={`Already Capturing: ${fmtCurrency(Math.round(captured))}`}
+                >
+                  {capturedPct > 12 && `${Math.round(capturedPct)}%`}
+                </div>
+              )}
+              {potentialPct > 0 && (
+                <div
+                  className="flex items-center justify-center bg-blue-400 text-[9px] font-bold text-white transition-all"
+                  style={{ width: `${potentialPct}%` }}
+                  title={`Untapped Potential: ${fmtCurrency(Math.round(potential))}`}
+                >
+                  {potentialPct > 12 && `${Math.round(potentialPct)}%`}
+                </div>
+              )}
+            </div>
+            <div className="mt-1.5 flex justify-between text-[10px] text-slate-500">
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                Already Capturing <strong className="text-slate-700">{fmtCurrency(Math.round(captured))}</strong>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
+                Untapped Potential <strong className="text-slate-700">{fmtCurrency(Math.round(potential))}</strong>
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* All-dismissed empty state */}
+        {allDismissed ? (
+          <div className="flex flex-col items-center gap-2 py-8 text-center">
+            <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+            <p className="font-semibold text-slate-700">You&apos;re on top of your tax game.</p>
+            <p className="text-sm text-muted-foreground">All suggestions reviewed.</p>
+            <button
+              type="button"
+              onClick={resetDismissed}
+              className="mt-1 text-xs text-amber-700 hover:text-amber-900 underline underline-offset-2 transition-colors"
+            >
+              Reset to see them again
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* HIGH tier */}
+            {highCards.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-red-600">
+                  Act Now · {highCards.length} {highCards.length === 1 ? "opportunity" : "opportunities"}
+                </p>
+                <div className="space-y-2">
+                  {highCards.map((card) => (
+                    <div key={card.id} className="border-l-4 border-red-400 bg-red-50/30 rounded-r-xl">
+                      <TaxOpportunityCard
+                        card={card}
+                        isExpanded={expandedIds.has(card.id)}
+                        onToggle={() => toggleCard(card.id)}
+                        onDismiss={dismissCard}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* MEDIUM tier */}
+            {medCards.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-600">
+                  Consider This · {medCards.length} {medCards.length === 1 ? "opportunity" : "opportunities"}
+                </p>
+                <div className="space-y-2">
+                  {medCards.map((card) => (
+                    <div key={card.id} className="border-l-4 border-amber-400 bg-amber-50/30 rounded-r-xl">
+                      <TaxOpportunityCard
+                        card={card}
+                        isExpanded={expandedIds.has(card.id)}
+                        onToggle={() => toggleCard(card.id)}
+                        onDismiss={dismissCard}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* LOW tier */}
+            {lowCards.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Worth Knowing · {lowCards.length} {lowCards.length === 1 ? "opportunity" : "opportunities"}
+                </p>
+                <div className="space-y-2">
+                  {lowCards.map((card) => (
+                    <div key={card.id} className="border-l-4 border-slate-300 bg-slate-50/30 rounded-r-xl">
+                      <TaxOpportunityCard
+                        card={card}
+                        isExpanded={expandedIds.has(card.id)}
+                        onToggle={() => toggleCard(card.id)}
+                        onDismiss={dismissCard}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Section footer */}
+        <div className="border-t border-amber-100 pt-3 flex items-start justify-between flex-wrap gap-2">
+          <p className="text-[10px] text-amber-700/70 leading-relaxed italic">
+            For educational purposes only — not tax advice. Consult a qualified accountant.
+          </p>
+          <a
+            href="https://www.canada.ca/en/revenue-agency.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 transition-colors whitespace-nowrap"
+          >
+            Canada Revenue Agency
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+
+        {/* Reset dismissed link (if any dismissed) */}
+        {dismissed.length > 0 && !allDismissed && (
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={resetDismissed}
+              className="text-[11px] text-slate-400 hover:text-slate-600 underline underline-offset-2 transition-colors"
+            >
+              Reset {dismissed.length} dismissed suggestion{dismissed.length > 1 ? "s" : ""}
+            </button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 // ── MetricInfo ────────────────────────────────────────────────────────────
 
@@ -514,41 +937,14 @@ export function OverheadContent({
       )}
 
       {/* Tax Savings Opportunities */}
-      {taxOptResult && taxOptResult.cardCount > 0 && (
-        <Card className="rounded-2xl border-amber-200 bg-white shadow-sm">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base">💰 Tax Savings Opportunities</CardTitle>
-                <CardDescription>
-                  Estimated ~{fmtCurrency(taxOptResult.totalEstimatedSavings)}/yr in potential savings
-                </CardDescription>
-              </div>
-              <Link
-                href="/forecast"
-                className="text-xs text-amber-700 hover:text-amber-900 font-medium transition-colors shrink-0"
-              >
-                See all on Forecast →
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-[10px] text-amber-700/70 leading-relaxed italic">
-              For educational purposes only — not tax advice. Consult a qualified accountant.
-            </p>
-            {taxOptResult.cards.map((card: TaxOptimizationCard) => (
-              <div key={card.id} className="rounded-lg border border-amber-100 bg-white p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold truncate">{card.title}</p>
-                  <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs shrink-0 font-semibold">
-                    {card.estimatedSavingsLabel}
-                  </Badge>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{card.action}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+      {taxOptResult && (
+        <TaxSavingsSection
+          taxOptResult={taxOptResult}
+          annualExpenses={annualExpenses}
+          marginalTaxRate={marginalTaxRate}
+          userId={settings?.user_id ?? null}
+          initialDismissed={(settings?.tax_opt_dismissed as string[]) ?? []}
+        />
       )}
 
       {/* Corporate Tax Estimate */}
