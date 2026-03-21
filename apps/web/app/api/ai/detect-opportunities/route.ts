@@ -610,10 +610,22 @@ export async function detectAndDraftForUser(
       });
   }
 
+  // ── Count truly new (undrafted) items — this is the meaningful "detected" number ──
+  // inserts.length counts re-detected duplicates too; we only want rows that
+  // actually need action (status=draft, no ai_subject yet).
+  const { count: undraftedCount } = await supabase
+    .from("outreach_queue")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("status", "draft")
+    .is("ai_subject", null);
+
+  const detected = undraftedCount ?? 0;
+
   // ── AI drafting ────────────────────────────────────────────────────────────
   const groqKey = process.env.GROQ_API_KEY;
   if (!groqKey) {
-    return { detected: inserts.length, drafted: 0 };
+    return { detected, drafted: 0 };
   }
 
   const { data: undrafted } = await supabase
@@ -625,7 +637,7 @@ export async function detectAndDraftForUser(
     .order("created_at", { ascending: true })
     .limit(MAX_DRAFTS_PER_RUN);
 
-  if (!undrafted?.length) return { detected: inserts.length, drafted: 0 };
+  if (!undrafted?.length) return { detected, drafted: 0 };
 
   const groq = new OpenAI({
     apiKey:  groqKey,
@@ -645,7 +657,7 @@ export async function detectAndDraftForUser(
     drafted++;
   }
 
-  return { detected: inserts.length, drafted };
+  return { detected, drafted };
 }
 
 // ── Vercel function timeout — allows up to 60s for sequential Groq calls ──────
