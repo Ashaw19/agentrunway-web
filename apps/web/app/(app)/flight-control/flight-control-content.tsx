@@ -646,6 +646,50 @@ interface FlightControlContentProps {
   initialNewsletters:  NewsletterQueue[];
 }
 
+// ── Flight Control dismissible banner ────────────────────────────────────────
+
+function FlightControlBanner() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    try {
+      const dismissed = localStorage.getItem("flight_control_banner_dismissed");
+      if (!dismissed) setVisible(true);
+    } catch {
+      // localStorage may not be available in some contexts
+    }
+  }, []);
+
+  function dismiss() {
+    try {
+      localStorage.setItem("flight_control_banner_dismissed", "true");
+    } catch { /* ignore */ }
+    setVisible(false);
+  }
+
+  if (!visible) return null;
+
+  return (
+    <div className="mx-6 mt-4 flex items-start justify-between gap-4 rounded-2xl border border-violet-400/40 bg-violet-600/20 px-5 py-4 text-white shadow-sm">
+      <div className="flex items-start gap-3">
+        <Sparkles className="h-5 w-5 shrink-0 mt-0.5 text-violet-300 opacity-90" />
+        <div>
+          <p className="font-semibold text-sm text-violet-100">Flight Control</p>
+          <p className="text-sm text-violet-200/80 mt-0.5 leading-relaxed">
+            AI-drafted outreach for your clients. In real aviation, Flight Control manages aircraft traffic. Here, it manages your relationship traffic. The metaphor works if you don&apos;t think about it too hard.
+          </p>
+        </div>
+      </div>
+      <button
+        onClick={dismiss}
+        className="shrink-0 rounded-lg border border-violet-400/50 bg-violet-500/40 px-3 py-1.5 text-xs font-semibold text-violet-100 hover:bg-violet-500/60 transition-colors whitespace-nowrap mt-0.5"
+      >
+        Cleared for takeoff
+      </button>
+    </div>
+  );
+}
+
 export function FlightControlContent({
   initialQueue,
   sentThisMonth: initialSentThisMonth,
@@ -791,6 +835,7 @@ export function FlightControlContent({
 
   return (
     <>
+      <FlightControlBanner />
       <div className="flex flex-col h-full">
         {/* ── Hero header with gradient ─────────────────────────────────── */}
         <div className="shrink-0 relative overflow-hidden">

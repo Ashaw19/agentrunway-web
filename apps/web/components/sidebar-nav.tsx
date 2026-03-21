@@ -17,6 +17,7 @@ import {
   Shield,
   Settings,
   Lock,
+  BarChart2,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
@@ -25,7 +26,7 @@ import type { OrgContext } from "@/lib/types/organizations";
 
 type SidebarEntry =
   | { type: "header"; label: string }
-  | { type: "item"; label: string; href: string; icon: LucideIcon; iconActive: string; iconInactive: string; borderActive: string; dataTour?: string };
+  | { type: "item"; label: string; subLabel?: string; href: string; icon: LucideIcon; iconActive: string; iconInactive: string; borderActive: string; dataTour?: string };
 
 const sidebarEntries: SidebarEntry[] = [
   // ── FINANCIALS ─────────────────────────────────────────────────
@@ -40,6 +41,14 @@ const sidebarEntries: SidebarEntry[] = [
   },
   {
     type: "item", label: "Expenses", href: "/expenses", icon: Receipt,
+    iconActive: "text-amber-300", iconInactive: "text-amber-400/60", borderActive: "border-l-amber-400",
+  },
+  {
+    type: "item", label: "Altimeter", subLabel: "Analytics", href: "/altimeter", icon: BarChart2,
+    iconActive: "text-blue-300", iconInactive: "text-blue-400/60", borderActive: "border-l-blue-400",
+  },
+  {
+    type: "item", label: "Overhead", subLabel: "Taxes", href: "/overhead", icon: Receipt,
     iconActive: "text-amber-300", iconInactive: "text-amber-400/60", borderActive: "border-l-amber-400",
   },
   {
@@ -219,7 +228,14 @@ export function SidebarNav({
                     isActive ? entry.iconActive : entry.iconInactive,
                   )}
                 />
-                <span className="tracking-[0.015em]">{entry.label}</span>
+                <span className="tracking-[0.015em] flex items-baseline gap-1.5">
+                  {entry.label}
+                  {entry.subLabel && (
+                    <span className="text-[10px] font-normal text-sidebar-foreground/35 tracking-normal">
+                      ({entry.subLabel})
+                    </span>
+                  )}
+                </span>
               </Link>
             );
           })}

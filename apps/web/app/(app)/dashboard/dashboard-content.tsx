@@ -1749,6 +1749,16 @@ export function DashboardContent({
     </Card>
   );
 
+  // ── Cards moved to dedicated pages — set to null so they are skipped ──────
+  // Monthly Performance chart, Commission Mix+Pipeline, Personal Records → Altimeter
+  // Tax Readiness, Goal Progress, Net Take-Home, Cap Progress → Overhead
+  cardRenders["trends"]           = null;
+  cardRenders["commission_mix"]   = null;
+  cardRenders["personal_records"] = null;
+  cardRenders["tax_planning"]     = null;
+  cardRenders["net_takehome"]     = null;
+  cardRenders["cap_progress"]     = null;
+
   return (
     <div className="space-y-8">
       {/* Annual Review Modal */}

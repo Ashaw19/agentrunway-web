@@ -39,20 +39,18 @@ export const CARD_REGISTRY: CardDef[] = [
   { id: "recent_activity",  label: "Recent Transactions",         description: "Latest closed deals" },
 ];
 
-// Cards shown by default. Cards NOT in this list start hidden.
+// Cards shown by default on the dashboard.
+// NOTE: trends, commission_mix, personal_records, tax_planning, net_takehome, cap_progress
+// have been moved to Altimeter (/altimeter) and Overhead (/overhead) pages.
+// They are kept in CARD_REGISTRY for saved-layout backwards compatibility but
+// are nulled at render time, so they will not appear even if in a saved order.
 export const DEFAULT_ORDER: CardId[] = [
   "kpi_row",
   "client_briefing",
   "business_brief",
-  "net_takehome",
   "tasks",
-  "commission_mix",
-  "personal_records",
-  "cap_progress",
   "insights",
-  "trends",
   "probability",
-  "tax_planning",
   "corp_tax",
   "tax_savings",
   "recent_activity",
