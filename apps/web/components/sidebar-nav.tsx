@@ -169,13 +169,13 @@ export function SidebarNav({
       {/* Brand lockup */}
       <div className="flex items-center gap-3 px-5 py-[22px]">
         <div className="shrink-0">
-          <Image src="/logo.png" alt="Agent Runway" width={42} height={42} className="rounded-lg" />
+          <Image src="/logo.png" alt="Agent Runway" width={46} height={46} className="rounded-lg" />
         </div>
         <div>
-          <span className="block text-[17px] font-bold tracking-tight text-sidebar-foreground">
+          <span className="block text-[18.5px] font-bold tracking-tight text-sidebar-foreground">
             Agent Runway
           </span>
-          <span className="block text-[10.5px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/35">
+          <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/35">
             Business Analytics
           </span>
         </div>
@@ -191,7 +191,7 @@ export function SidebarNav({
             if (entry.type === "header") {
               return (
                 <div key={entry.label} className={cn("px-3 pb-1", i === 0 ? "pt-0" : "pt-4")}>
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/35">
+                  <span className="text-[11.5px] font-semibold uppercase tracking-[0.12em] text-sidebar-foreground/35">
                     {entry.label}
                   </span>
                 </div>
@@ -204,7 +204,7 @@ export function SidebarNav({
                 href={entry.href}
                 data-tour={entry.dataTour}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14.5px] transition-all duration-150 border-l-[3px]",
+                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15.5px] transition-all duration-150 border-l-[3px]",
                   isActive
                     ? cn(
                         "bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-sm",
@@ -215,7 +215,7 @@ export function SidebarNav({
               >
                 <entry.icon
                   className={cn(
-                    "h-[18px] w-[18px] shrink-0 transition-colors duration-150",
+                    "h-[19px] w-[19px] shrink-0 transition-colors duration-150",
                     isActive ? entry.iconActive : entry.iconInactive,
                   )}
                 />
