@@ -7,7 +7,7 @@ export default function LogoConcepts() {
     <div style={{ background: "#010D1F", minHeight: "100vh", padding: "60px 40px", fontFamily: "system-ui, sans-serif" }}>
       <p style={{ color: "#64748b", fontSize: "12px", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "8px" }}>Internal — Logo Review</p>
       <h1 style={{ color: "white", fontSize: "28px", fontWeight: 800, marginBottom: "8px" }}>Agent Runway — Logo Concepts</h1>
-      <p style={{ color: "#64748b", fontSize: "14px", marginBottom: "60px" }}>Three directions. Each shown at icon size (48px), medium (96px), and large (192px) with the wordmark.</p>
+      <p style={{ color: "#64748b", fontSize: "14px", marginBottom: "60px" }}>Five directions. Each shown at icon size (48px), medium (96px), and large (192px) with the wordmark.</p>
 
       {/* ── CONCEPT 1: THE ASCENT ── */}
       <div style={{ marginBottom: "80px" }}>
@@ -260,36 +260,37 @@ export default function LogoConcepts() {
         </div>
       </div>
 
-      {/* ── CONCEPT 4: THE VECTORS ── */}
+      {/* ── CONCEPT 4: THE RUNWAY ── */}
       <div style={{ marginBottom: "80px" }}>
         <div style={{ marginBottom: "24px" }}>
-          <h2 style={{ color: "white", fontSize: "20px", fontWeight: 700, marginBottom: "4px" }}>Concept 4 — &ldquo;The Vectors&rdquo;</h2>
+          <h2 style={{ color: "white", fontSize: "20px", fontWeight: 700, marginBottom: "4px" }}>Concept 4 — &ldquo;The Runway&rdquo;</h2>
           <p style={{ color: "#94a3b8", fontSize: "14px", maxWidth: "520px", lineHeight: 1.6 }}>
-            Two nested right-pointing chevrons — blue outer, gold inner. Abstract and directional without any literal
-            aviation reference. Could read as velocity markers, radar returns, or a double-arrow forward. The
-            gold sits inside the blue like a prize inside a journey. Scales beautifully to favicon size — at 16px
-            it reads as a single bold wedge.
+            Two tapered bands — Commission Gold above, Runway Blue below — converging to a single point on the right.
+            It&apos;s the pilot&apos;s view at the moment of takeoff: runway edges stretching to the vanishing point.
+            Wide and open on the left (here, now), collapsing to a single point on the right (the horizon, the goal).
+            At favicon size it reads as two bold stripes. At large sizes the taper tells the whole story. The dark gap
+            between the bands is the runway itself.
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: "40px", flexWrap: "wrap" }}>
           {[48, 96, 192].map((size) => (
             <div key={size} style={{ textAlign: "center" }}>
               <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect width="48" height="48" rx="11" fill="#080F20"/>
-                {/* Blue outer chevron */}
-                <path d="M9 11 L39 24 L9 37 L14 24 Z" fill="url(#d_blue)"/>
-                {/* Gold inner chevron */}
-                <path d="M17 17 L33 24 L17 31 L21 24 Z" fill="url(#d_gold)"/>
                 <defs>
-                  <linearGradient id="d_blue" x1="9" y1="24" x2="39" y2="24" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="#1E3A8A"/>
-                    <stop offset="100%" stopColor="#3B82F6"/>
-                  </linearGradient>
-                  <linearGradient id="d_gold" x1="17" y1="24" x2="33" y2="24" gradientUnits="userSpaceOnUse">
+                  <linearGradient id={`f_gold_${size}`} x1="6" y1="13" x2="42" y2="22" gradientUnits="userSpaceOnUse">
                     <stop offset="0%" stopColor="#D97706"/>
-                    <stop offset="100%" stopColor="#FBB800"/>
+                    <stop offset="100%" stopColor="#F0A800"/>
+                  </linearGradient>
+                  <linearGradient id={`f_blue_${size}`} x1="6" y1="35" x2="42" y2="26" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#1E3A8A"/>
+                    <stop offset="100%" stopColor="#2563EB"/>
                   </linearGradient>
                 </defs>
+                <rect width="48" height="48" rx="11" fill="#0A1628"/>
+                {/* Gold upper band — wide on left, tapers to a point on right */}
+                <path d="M6 8 L42 20 L42 24 L6 18 Z" fill={`url(#f_gold_${size})`}/>
+                {/* Blue lower band — wide on left, converges to same point on right */}
+                <path d="M6 30 L42 24 L42 28 L6 40 Z" fill={`url(#f_blue_${size})`}/>
               </svg>
               <p style={{ color: "#475569", fontSize: "11px", marginTop: "8px" }}>{size}px</p>
             </div>
@@ -297,19 +298,19 @@ export default function LogoConcepts() {
           {/* Wordmark lockup */}
           <div style={{ display: "flex", alignItems: "center", gap: "16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "20px 28px" }}>
             <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="48" height="48" rx="11" fill="#080F20"/>
-              <path d="M9 11 L39 24 L9 37 L14 24 Z" fill="url(#dw_blue)"/>
-              <path d="M17 17 L33 24 L17 31 L21 24 Z" fill="url(#dw_gold)"/>
               <defs>
-                <linearGradient id="dw_blue" x1="9" y1="24" x2="39" y2="24" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#1E3A8A"/>
-                  <stop offset="100%" stopColor="#3B82F6"/>
-                </linearGradient>
-                <linearGradient id="dw_gold" x1="17" y1="24" x2="33" y2="24" gradientUnits="userSpaceOnUse">
+                <linearGradient id="fw_gold" x1="6" y1="13" x2="42" y2="22" gradientUnits="userSpaceOnUse">
                   <stop offset="0%" stopColor="#D97706"/>
-                  <stop offset="100%" stopColor="#FBB800"/>
+                  <stop offset="100%" stopColor="#F0A800"/>
+                </linearGradient>
+                <linearGradient id="fw_blue" x1="6" y1="35" x2="42" y2="26" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#1E3A8A"/>
+                  <stop offset="100%" stopColor="#2563EB"/>
                 </linearGradient>
               </defs>
+              <rect width="48" height="48" rx="11" fill="#0A1628"/>
+              <path d="M6 8 L42 20 L42 24 L6 18 Z" fill="url(#fw_gold)"/>
+              <path d="M6 30 L42 24 L42 28 L6 40 Z" fill="url(#fw_blue)"/>
             </svg>
             <div>
               <p style={{ color: "white", fontSize: "20px", fontWeight: 800, letterSpacing: "-0.02em", margin: 0 }}>Agent Runway</p>
@@ -319,16 +320,16 @@ export default function LogoConcepts() {
         </div>
       </div>
 
-      {/* ── CONCEPT 5: THE SPLIT ── */}
+      {/* ── CONCEPT 5: THE APEX ── */}
       <div style={{ marginBottom: "80px" }}>
         <div style={{ marginBottom: "24px" }}>
-          <h2 style={{ color: "white", fontSize: "20px", fontWeight: 700, marginBottom: "4px" }}>Concept 5 — &ldquo;The Split&rdquo;</h2>
+          <h2 style={{ color: "white", fontSize: "20px", fontWeight: 700, marginBottom: "4px" }}>Concept 5 — &ldquo;The Apex&rdquo;</h2>
           <p style={{ color: "#94a3b8", fontSize: "14px", maxWidth: "520px", lineHeight: 1.6 }}>
-            A single geometric form bisected diagonally — gold in the upper-right, blue in the lower-left. The
-            diagonal IS the runway: the trajectory cutting across the form. Gold ascends upper-right (the goal,
-            the achievement). Blue grounds lower-left (structure, reliability). From a distance it reads as one
-            unified mark. The most minimal and Swiss of the group — no decorative elements, just two colours
-            and one line doing all the work.
+            A single bold arrowhead — one unified silhouette, two colours. Commission Gold takes the upper portion
+            (the dominant face, the lit surface), Runway Blue anchors below. The divide is asymmetric: gold is the
+            larger piece, blue the counterweight. Together they form one aggressive directional mark. The outer
+            silhouette is unambiguous at any size — a pointed form moving forward. The internal colour story
+            adds the brand depth.
           </p>
         </div>
         <div style={{ display: "flex", alignItems: "flex-end", gap: "40px", flexWrap: "wrap" }}>
@@ -336,26 +337,20 @@ export default function LogoConcepts() {
             <div key={size} style={{ textAlign: "center" }}>
               <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <defs>
-                  <clipPath id={`e_clip_${size}`}>
-                    <rect width="48" height="48" rx="11"/>
-                  </clipPath>
-                  <linearGradient id={`e_gold_${size}`} x1="48" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="#FBB800"/>
-                    <stop offset="100%" stopColor="#D97706"/>
+                  <linearGradient id={`g_gold_${size}`} x1="6" y1="19" x2="42" y2="19" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#D97706"/>
+                    <stop offset="100%" stopColor="#F0A800"/>
                   </linearGradient>
-                  <linearGradient id={`e_blue_${size}`} x1="0" y1="48" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                  <linearGradient id={`g_blue_${size}`} x1="6" y1="32" x2="42" y2="32" gradientUnits="userSpaceOnUse">
                     <stop offset="0%" stopColor="#1E3A8A"/>
                     <stop offset="100%" stopColor="#2563EB"/>
                   </linearGradient>
                 </defs>
-                <g clipPath={`url(#e_clip_${size})`}>
-                  {/* Blue — lower-left triangle */}
-                  <polygon points="0,0 0,48 48,48" fill={`url(#e_blue_${size})`}/>
-                  {/* Gold — upper-right triangle */}
-                  <polygon points="0,0 48,0 48,48" fill={`url(#e_gold_${size})`}/>
-                  {/* Runway centerline — thin white diagonal */}
-                  <line x1="0" y1="0" x2="48" y2="48" stroke="white" strokeWidth="0.75" strokeOpacity="0.25"/>
-                </g>
+                <rect width="48" height="48" rx="11" fill="#0A1628"/>
+                {/* Gold — upper, larger portion */}
+                <path d="M6 12 L6 27 L42 24 Z" fill={`url(#g_gold_${size})`}/>
+                {/* Blue — lower, smaller portion */}
+                <path d="M6 27 L6 36 L42 24 Z" fill={`url(#g_blue_${size})`}/>
               </svg>
               <p style={{ color: "#475569", fontSize: "11px", marginTop: "8px" }}>{size}px</p>
             </div>
@@ -364,23 +359,18 @@ export default function LogoConcepts() {
           <div style={{ display: "flex", alignItems: "center", gap: "16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "20px 28px" }}>
             <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
               <defs>
-                <clipPath id="ew_clip">
-                  <rect width="48" height="48" rx="11"/>
-                </clipPath>
-                <linearGradient id="ew_gold" x1="48" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#FBB800"/>
-                  <stop offset="100%" stopColor="#D97706"/>
+                <linearGradient id="gw_gold" x1="6" y1="19" x2="42" y2="19" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#D97706"/>
+                  <stop offset="100%" stopColor="#F0A800"/>
                 </linearGradient>
-                <linearGradient id="ew_blue" x1="0" y1="48" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                <linearGradient id="gw_blue" x1="6" y1="32" x2="42" y2="32" gradientUnits="userSpaceOnUse">
                   <stop offset="0%" stopColor="#1E3A8A"/>
                   <stop offset="100%" stopColor="#2563EB"/>
                 </linearGradient>
               </defs>
-              <g clipPath="url(#ew_clip)">
-                <polygon points="0,0 0,48 48,48" fill="url(#ew_blue)"/>
-                <polygon points="0,0 48,0 48,48" fill="url(#ew_gold)"/>
-                <line x1="0" y1="0" x2="48" y2="48" stroke="white" strokeWidth="0.75" strokeOpacity="0.25"/>
-              </g>
+              <rect width="48" height="48" rx="11" fill="#0A1628"/>
+              <path d="M6 12 L6 27 L42 24 Z" fill="url(#gw_gold)"/>
+              <path d="M6 27 L6 36 L42 24 Z" fill="url(#gw_blue)"/>
             </svg>
             <div>
               <p style={{ color: "white", fontSize: "20px", fontWeight: 800, letterSpacing: "-0.02em", margin: 0 }}>Agent Runway</p>
