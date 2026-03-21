@@ -21,9 +21,9 @@ import { EmailCapture } from "@/components/email-capture";
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 
 export const metadata: Metadata = {
-  title: "Agent Runway | Business Analytics for Real Estate Agents",
+  title: "Agent Runway | Canada's First Agent Business Platform",
   description:
-    "Agent Runway helps real estate agents track GCI, forecast income, measure financial runway, and receive AI-powered insights about their business performance.",
+    "The world's first platform built to run a real estate agent's entire business automatically. GCI tracking, tax planning, client outreach, and income forecasting — with uploads, not spreadsheets.",
   openGraph: {
     url: "https://agentrunway.ca",
     images: [{ url: "/og-image.png", width: 1200, height: 630 }],
@@ -378,7 +378,7 @@ export default async function Home() {
               <div>
                 <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-400/10 px-4 py-1.5 text-xs font-semibold text-blue-300">
                   <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
-                  Built for Canadian Real Estate Agents
+                  Canada&apos;s First Agent Business Platform
                 </div>
 
                 <h1 className="text-6xl font-extrabold tracking-tight sm:text-7xl lg:text-[76px] lg:leading-[1.02]">
@@ -394,11 +394,15 @@ export default async function Home() {
                 </h1>
 
                 <p className="mt-4 text-2xl font-semibold text-white sm:text-3xl">
-                  Know your numbers. Own your future.
+                  Your back office. Automated.
                 </p>
 
                 <p className="mt-5 max-w-lg text-base leading-relaxed text-slate-400 sm:text-lg">
-                  Real estate agents who understand their finances close more confidently, plan smarter, and sleep better. Agent Runway puts everything — GCI, tax, runway, forecasts — in one place.
+                  The world&apos;s first platform built to run a real estate agent&apos;s entire business — automatically. GCI tracking, tax planning, client outreach, income forecasting. Most of it requires no data entry. You upload. It handles the rest.
+                </p>
+
+                <p className="mt-3 max-w-lg text-sm leading-relaxed text-slate-500">
+                  Agents who know their numbers close more confidently, plan smarter, and sleep better.
                 </p>
 
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -453,8 +457,8 @@ export default async function Home() {
           <div className="mx-auto max-w-3xl px-6 py-10 sm:px-10">
             <div className="grid grid-cols-3 divide-x text-center" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
               {[
-                { value: "13", label: "Provinces & Territories", sub: "Full tax coverage" },
-                { value: "8", label: "Calculation Engines", sub: "Built for accuracy" },
+                { value: "World's First", label: "Agent Business Platform", sub: "Nothing else like it exists" },
+                { value: "13", label: "Provinces & Territories", sub: "Full Canadian tax coverage" },
                 { value: "14-day", label: "Free Trial", sub: "No card required" },
               ].map(({ value, label, sub }) => (
                 <div key={label} className="px-4 py-2 sm:px-8">
