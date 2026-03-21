@@ -260,6 +260,136 @@ export default function LogoConcepts() {
         </div>
       </div>
 
+      {/* ── CONCEPT 4: THE VECTORS ── */}
+      <div style={{ marginBottom: "80px" }}>
+        <div style={{ marginBottom: "24px" }}>
+          <h2 style={{ color: "white", fontSize: "20px", fontWeight: 700, marginBottom: "4px" }}>Concept 4 — &ldquo;The Vectors&rdquo;</h2>
+          <p style={{ color: "#94a3b8", fontSize: "14px", maxWidth: "520px", lineHeight: 1.6 }}>
+            Two nested right-pointing chevrons — blue outer, gold inner. Abstract and directional without any literal
+            aviation reference. Could read as velocity markers, radar returns, or a double-arrow forward. The
+            gold sits inside the blue like a prize inside a journey. Scales beautifully to favicon size — at 16px
+            it reads as a single bold wedge.
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: "40px", flexWrap: "wrap" }}>
+          {[48, 96, 192].map((size) => (
+            <div key={size} style={{ textAlign: "center" }}>
+              <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="48" height="48" rx="11" fill="#080F20"/>
+                {/* Blue outer chevron */}
+                <path d="M9 11 L39 24 L9 37 L14 24 Z" fill="url(#d_blue)"/>
+                {/* Gold inner chevron */}
+                <path d="M17 17 L33 24 L17 31 L21 24 Z" fill="url(#d_gold)"/>
+                <defs>
+                  <linearGradient id="d_blue" x1="9" y1="24" x2="39" y2="24" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#1E3A8A"/>
+                    <stop offset="100%" stopColor="#3B82F6"/>
+                  </linearGradient>
+                  <linearGradient id="d_gold" x1="17" y1="24" x2="33" y2="24" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#D97706"/>
+                    <stop offset="100%" stopColor="#FBB800"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+              <p style={{ color: "#475569", fontSize: "11px", marginTop: "8px" }}>{size}px</p>
+            </div>
+          ))}
+          {/* Wordmark lockup */}
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "20px 28px" }}>
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="48" height="48" rx="11" fill="#080F20"/>
+              <path d="M9 11 L39 24 L9 37 L14 24 Z" fill="url(#dw_blue)"/>
+              <path d="M17 17 L33 24 L17 31 L21 24 Z" fill="url(#dw_gold)"/>
+              <defs>
+                <linearGradient id="dw_blue" x1="9" y1="24" x2="39" y2="24" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#1E3A8A"/>
+                  <stop offset="100%" stopColor="#3B82F6"/>
+                </linearGradient>
+                <linearGradient id="dw_gold" x1="17" y1="24" x2="33" y2="24" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#D97706"/>
+                  <stop offset="100%" stopColor="#FBB800"/>
+                </linearGradient>
+              </defs>
+            </svg>
+            <div>
+              <p style={{ color: "white", fontSize: "20px", fontWeight: 800, letterSpacing: "-0.02em", margin: 0 }}>Agent Runway</p>
+              <p style={{ color: "#64748b", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase", margin: "2px 0 0 0" }}>Flight Operations</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── CONCEPT 5: THE SPLIT ── */}
+      <div style={{ marginBottom: "80px" }}>
+        <div style={{ marginBottom: "24px" }}>
+          <h2 style={{ color: "white", fontSize: "20px", fontWeight: 700, marginBottom: "4px" }}>Concept 5 — &ldquo;The Split&rdquo;</h2>
+          <p style={{ color: "#94a3b8", fontSize: "14px", maxWidth: "520px", lineHeight: 1.6 }}>
+            A single geometric form bisected diagonally — gold in the upper-right, blue in the lower-left. The
+            diagonal IS the runway: the trajectory cutting across the form. Gold ascends upper-right (the goal,
+            the achievement). Blue grounds lower-left (structure, reliability). From a distance it reads as one
+            unified mark. The most minimal and Swiss of the group — no decorative elements, just two colours
+            and one line doing all the work.
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: "40px", flexWrap: "wrap" }}>
+          {[48, 96, 192].map((size) => (
+            <div key={size} style={{ textAlign: "center" }}>
+              <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <clipPath id={`e_clip_${size}`}>
+                    <rect width="48" height="48" rx="11"/>
+                  </clipPath>
+                  <linearGradient id={`e_gold_${size}`} x1="48" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#FBB800"/>
+                    <stop offset="100%" stopColor="#D97706"/>
+                  </linearGradient>
+                  <linearGradient id={`e_blue_${size}`} x1="0" y1="48" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#1E3A8A"/>
+                    <stop offset="100%" stopColor="#2563EB"/>
+                  </linearGradient>
+                </defs>
+                <g clipPath={`url(#e_clip_${size})`}>
+                  {/* Blue — lower-left triangle */}
+                  <polygon points="0,0 0,48 48,48" fill={`url(#e_blue_${size})`}/>
+                  {/* Gold — upper-right triangle */}
+                  <polygon points="0,0 48,0 48,48" fill={`url(#e_gold_${size})`}/>
+                  {/* Runway centerline — thin white diagonal */}
+                  <line x1="0" y1="0" x2="48" y2="48" stroke="white" strokeWidth="0.75" strokeOpacity="0.25"/>
+                </g>
+              </svg>
+              <p style={{ color: "#475569", fontSize: "11px", marginTop: "8px" }}>{size}px</p>
+            </div>
+          ))}
+          {/* Wordmark lockup */}
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "20px 28px" }}>
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <clipPath id="ew_clip">
+                  <rect width="48" height="48" rx="11"/>
+                </clipPath>
+                <linearGradient id="ew_gold" x1="48" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#FBB800"/>
+                  <stop offset="100%" stopColor="#D97706"/>
+                </linearGradient>
+                <linearGradient id="ew_blue" x1="0" y1="48" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#1E3A8A"/>
+                  <stop offset="100%" stopColor="#2563EB"/>
+                </linearGradient>
+              </defs>
+              <g clipPath="url(#ew_clip)">
+                <polygon points="0,0 0,48 48,48" fill="url(#ew_blue)"/>
+                <polygon points="0,0 48,0 48,48" fill="url(#ew_gold)"/>
+                <line x1="0" y1="0" x2="48" y2="48" stroke="white" strokeWidth="0.75" strokeOpacity="0.25"/>
+              </g>
+            </svg>
+            <div>
+              <p style={{ color: "white", fontSize: "20px", fontWeight: 800, letterSpacing: "-0.02em", margin: 0 }}>Agent Runway</p>
+              <p style={{ color: "#64748b", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase", margin: "2px 0 0 0" }}>Flight Operations</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Current mark for comparison */}
       <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: "40px" }}>
         <p style={{ color: "#475569", fontSize: "12px", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: "16px" }}>Current mark — for comparison</p>
