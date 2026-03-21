@@ -1973,21 +1973,22 @@ export function DashboardContent({
           {/* Score components */}
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6 border-t border-slate-100 pt-4">
             {runwayScore.components.map((c) => {
-              // High-scoring components (≥80) earn the gold bar; others use a neutral track
-              const isTopScore = c.score >= 80;
+              // Bar colour reflects score tier — colour carries meaning, not decoration
+              const barColor = c.score >= 80 ? "[&>div]:bg-amber-500"
+                             : c.score >= 60 ? "[&>div]:bg-emerald-500"
+                             : c.score >= 40 ? "[&>div]:bg-blue-400"
+                             :                 "[&>div]:bg-red-400";
+              const textColor = c.score >= 80 ? "#D97706"
+                              : c.score >= 60 ? "#059669"
+                              : c.score >= 40 ? "#3b82f6"
+                              :                 "#ef4444";
               return (
               <div key={c.label} className="text-center">
                 <p className="text-[10px] font-semibold text-slate-500">{c.label}</p>
-                <p
-                  className="text-sm font-bold mt-0.5"
-                  style={{ color: isTopScore ? "#D97706" : "#1e293b" }}
-                >
+                <p className="text-sm font-bold mt-0.5" style={{ color: textColor }}>
                   {c.score}
                 </p>
-                <Progress
-                  value={c.score}
-                  className={cn("mt-1.5 h-2", isTopScore ? "[&>div]:bg-amber-500" : "[&>div]:bg-slate-300")}
-                />
+                <Progress value={c.score} className={cn("mt-1.5 h-2", barColor)} />
               </div>
               );
             })}
