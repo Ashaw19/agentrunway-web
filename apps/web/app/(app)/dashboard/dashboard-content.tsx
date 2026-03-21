@@ -1805,8 +1805,8 @@ export function DashboardContent({
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all",
                 isDecember
-                  ? "border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100"
-                  : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
+                  ? "border-violet-300 bg-white text-violet-700 hover:bg-violet-50"
+                  : "border-slate-300 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-400"
               )}
             >
               <Star className="h-3 w-3" />
@@ -1820,7 +1820,7 @@ export function DashboardContent({
               "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all",
               customizeMode
                 ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
+                : "border-slate-300 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-400"
             )}
           >
             <Settings2 className="h-3.5 w-3.5" />
