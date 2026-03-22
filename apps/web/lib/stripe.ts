@@ -25,4 +25,9 @@ export const stripe = process.env.STRIPE_SECRET_KEY
 export const STRIPE_PRICES = {
   professional_monthly: process.env.STRIPE_PRICE_PROFESSIONAL_MONTHLY ?? "",
   professional_annual: process.env.STRIPE_PRICE_PROFESSIONAL_ANNUAL ?? "",
+  // Team billing: leader seat ($149/mo) + member seats ($55/mo each)
+  team_leader_monthly: process.env.STRIPE_PRICE_TEAM_LEADER_MONTHLY ?? "",
+  team_leader_annual: process.env.STRIPE_PRICE_TEAM_LEADER_ANNUAL ?? "",
+  team_member_monthly: process.env.STRIPE_PRICE_TEAM_MEMBER_MONTHLY ?? "",
+  team_member_annual: process.env.STRIPE_PRICE_TEAM_MEMBER_ANNUAL ?? "",
 } as const;

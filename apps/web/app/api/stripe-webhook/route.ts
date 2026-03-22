@@ -101,6 +101,7 @@ export async function POST(request: Request) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
       const userId = session.metadata?.userId;
+      const orgId  = session.metadata?.orgId;
       const cid = customerId(session.customer);
       const sid = subscriptionId(session.subscription);
 
@@ -117,6 +118,47 @@ export async function POST(request: Request) {
       const initStatus =
         session.payment_status === "no_payment_required" ? "trialing" : "active";
 
+      // ── Team/org checkout ──────────────────────────────────────────────────
+      if (orgId) {
+        const { error: orgErr } = await db
+          .from("organizations")
+          .update({
+            stripe_customer_id: cid,
+            stripe_subscription_id: sid,
+            subscription_status: initStatus,
+            billing_email: session.customer_details?.email ?? null,
+          })
+          .eq("id", orgId);
+
+        if (orgErr) {
+          console.error("[stripe] failed to activate team billing for org", orgId, orgErr.message);
+        } else {
+          console.log("[stripe] activated team billing for org", orgId, initStatus);
+        }
+
+        // Grant all org members professional tier
+        const { data: members } = await db
+          .from("organization_members")
+          .select("user_id")
+          .eq("org_id", orgId)
+          .eq("status", "active");
+
+        if (members?.length) {
+          const userIds = members.map((m) => m.user_id);
+          await db
+            .from("user_settings")
+            .update({
+              subscription_tier: "professional",
+              subscription_status: initStatus,
+            })
+            .in("user_id", userIds);
+
+          console.log("[stripe] granted professional to", userIds.length, "team members");
+        }
+        break;
+      }
+
+      // ── Individual checkout ────────────────────────────────────────────────
       const { error } = await db
         .from("user_settings")
         .update({
