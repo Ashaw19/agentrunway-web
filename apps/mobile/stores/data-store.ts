@@ -81,6 +81,21 @@ export interface UserSettings {
   subscription_tier: string;
 }
 
+export interface ReceiptExpense {
+  id: string;
+  vendor: string | null;
+  expense_date: string | null;
+  total_amount: number | null;
+  tax_amount: number | null;
+  subtotal: number | null;
+  currency: string;
+  category_key: string | null;
+  notes: string | null;
+  receipt_path: string | null;
+  ocr_confidence: number | null;
+  created_at: string;
+}
+
 export interface OutreachItem {
   id: string;
   client_id: string;
@@ -104,6 +119,7 @@ interface DataStore {
   tasks: ContactTask[];
   settings: UserSettings | null;
   outreachQueue: OutreachItem[];
+  receipts: ReceiptExpense[];
 
   // Loading states
   loading: boolean;
@@ -113,6 +129,7 @@ interface DataStore {
   fetchAll: () => Promise<void>;
   fetchClients: () => Promise<void>;
   fetchOutreach: () => Promise<void>;
+  fetchReceipts: () => Promise<void>;
   addTransaction: (tx: Omit<Transaction, "id" | "created_at">) => Promise<boolean>;
   addClient: (client: Omit<Client, "id" | "created_at">) => Promise<boolean>;
   addActivity: (activity: Omit<ContactActivity, "id" | "created_at">) => Promise<boolean>;
@@ -145,6 +162,7 @@ function saveCache(state: Partial<DataStore>) {
         clients: state.clients,
         tasks: state.tasks,
         settings: state.settings,
+        receipts: state.receipts,
       })
     );
   } catch {
@@ -162,6 +180,7 @@ export const useDataStore = create<DataStore>((set, get) => {
     tasks: (cached.tasks as ContactTask[]) ?? [],
     settings: (cached.settings as UserSettings | null) ?? null,
     outreachQueue: [],
+    receipts: (cached.receipts as ReceiptExpense[]) ?? [],
     loading: false,
     lastFetched: null,
 
@@ -261,6 +280,26 @@ export const useDataStore = create<DataStore>((set, get) => {
 
       if (data) {
         set({ outreachQueue: data as OutreachItem[] });
+      }
+    },
+
+    fetchReceipts: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from("receipt_expenses")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (data) {
+        set({ receipts: data as ReceiptExpense[] });
+        const current = get();
+        saveCache(current);
       }
     },
 

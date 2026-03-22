@@ -10,7 +10,11 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.agentrunway.app"
+      "bundleIdentifier": "com.agentrunway.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Agent Runway needs camera access to scan receipts for expense tracking.",
+        "NSPhotoLibraryUsageDescription": "Agent Runway needs photo library access to upload receipt images."
+      }
     },
     "android": {
       "package": "com.agentrunway.app",
@@ -29,6 +33,18 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Agent Runway needs camera access to scan receipts."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Agent Runway needs photo library access to upload receipt images."
+        }
+      ],
       [
         "expo-splash-screen",
         {
