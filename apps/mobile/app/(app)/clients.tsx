@@ -12,20 +12,35 @@ import {
   Linking,
   Alert,
   AppState,
+  StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  Phone,
+  MessageSquare,
+  Mail,
+  Plus,
+  X,
+  Users,
+  ChevronRight,
+} from "lucide-react-native";
 import { useDataStore, type Client } from "@/stores/data-store";
-
-const STATUS_COLORS: Record<string, string> = {
-  boarding: "#3B82F6",
-  taxiing: "#8B5CF6",
-  approach: "#F59E0B",
-  in_flight: "#10B981",
-  landed: "#6B7280",
-  cruising: "#06B6D4",
-};
+import { C, STATUS_COLORS, getInitials } from "@/lib/theme";
 
 type Filter = "all" | "active" | "landed";
+
+const ACTIVE_STATUSES = new Set(["boarding", "taxiing", "approach", "in_flight"]);
+
+const STATUS_LABELS: Record<string, string> = {
+  boarding:  "Boarding",
+  taxiing:   "Taxiing",
+  approach:  "Approach",
+  in_flight: "In Flight",
+  landed:    "Landed",
+  cruising:  "Cruising",
+};
+
+// ── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ClientsScreen() {
   const { clients, fetchClients, addClient, addActivity } = useDataStore();
@@ -43,7 +58,6 @@ export default function ClientsScreen() {
     if (clients.length === 0) fetchClients();
   }, []);
 
-  // Smart contact logging: detect app resume after call/text
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active" && pendingContact) {
@@ -51,11 +65,7 @@ export default function ClientsScreen() {
           "Log Activity?",
           `Did you complete the ${pendingContact.type} to ${pendingContact.clientName}?`,
           [
-            {
-              text: "No",
-              style: "cancel",
-              onPress: () => setPendingContact(null),
-            },
+            { text: "No", style: "cancel", onPress: () => setPendingContact(null) },
             {
               text: "Yes, log it",
               onPress: async () => {
@@ -66,7 +76,7 @@ export default function ClientsScreen() {
                   activity_date: new Date().toISOString(),
                 });
                 setPendingContact(null);
-                fetchClients(); // refresh last_contact_at
+                fetchClients();
               },
             },
           ]
@@ -82,29 +92,23 @@ export default function ClientsScreen() {
     setRefreshing(false);
   };
 
-  const handleCall = useCallback(
-    (client: Client) => {
-      if (!client.phone) {
-        Alert.alert("No phone number", "Add a phone number for this client first.");
-        return;
-      }
-      setPendingContact({ clientId: client.id, clientName: client.name, type: "call" });
-      Linking.openURL(`tel:${client.phone}`);
-    },
-    []
-  );
+  const handleCall = useCallback((client: Client) => {
+    if (!client.phone) {
+      Alert.alert("No phone number", "Add a phone number for this client first.");
+      return;
+    }
+    setPendingContact({ clientId: client.id, clientName: client.name, type: "call" });
+    Linking.openURL(`tel:${client.phone}`);
+  }, []);
 
-  const handleText = useCallback(
-    (client: Client) => {
-      if (!client.phone) {
-        Alert.alert("No phone number", "Add a phone number for this client first.");
-        return;
-      }
-      setPendingContact({ clientId: client.id, clientName: client.name, type: "text" });
-      Linking.openURL(`sms:${client.phone}`);
-    },
-    []
-  );
+  const handleText = useCallback((client: Client) => {
+    if (!client.phone) {
+      Alert.alert("No phone number", "Add a phone number for this client first.");
+      return;
+    }
+    setPendingContact({ clientId: client.id, clientName: client.name, type: "text" });
+    Linking.openURL(`sms:${client.phone}`);
+  }, []);
 
   const handleEmail = useCallback((client: Client) => {
     if (!client.email) {
@@ -114,59 +118,127 @@ export default function ClientsScreen() {
     Linking.openURL(`mailto:${client.email}`);
   }, []);
 
-  const activeStatuses = new Set(["boarding", "taxiing", "approach", "in_flight"]);
+  const active = clients.filter((c) => ACTIVE_STATUSES.has(c.status));
+  const landed = clients.filter(
+    (c) => c.status === "landed" || c.status === "cruising"
+  );
   const filtered =
-    filter === "active"
-      ? clients.filter((c) => activeStatuses.has(c.status))
-      : filter === "landed"
-        ? clients.filter((c) => c.status === "landed" || c.status === "cruising")
-        : clients;
+    filter === "active" ? active : filter === "landed" ? landed : clients;
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0A0A0F" }}>
-      <View style={{ padding: 20, paddingBottom: 0 }}>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <Text style={{ fontSize: 28, fontWeight: "800", color: "#FFFFFF", letterSpacing: -0.5 }}>
-            Clients
-          </Text>
-          <Pressable
-            onPress={() => setShowAdd(true)}
-            style={{ backgroundColor: "#6366F1", paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }}
-          >
-            <Text style={{ color: "#FFFFFF", fontSize: 13, fontWeight: "700" }}>+ Add</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+      {/* ── Header ── */}
+      <View
+        style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 4 }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Text style={S.screenTitle}>Clients</Text>
+          <Pressable onPress={() => setShowAdd(true)} style={S.addBtn}>
+            <Plus size={16} color="#fff" strokeWidth={2.5} />
+            <Text style={S.addBtnText}>Add</Text>
           </Pressable>
         </View>
 
-        <View style={{ flexDirection: "row", gap: 4, marginTop: 16 }}>
-          {(["all", "active", "landed"] as Filter[]).map((f) => (
+        {/* Summary chips */}
+        <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
+          <SummaryChip label="Total" value={clients.length} color={C.text} />
+          <SummaryChip label="Active" value={active.length} color={C.primary} />
+          <SummaryChip label="Landed" value={landed.length} color={C.textDim} />
+          <SummaryChip
+            label="Overdue"
+            value={
+              clients.filter((c) => {
+                if (!c.last_contact_at) return true;
+                return (
+                  (Date.now() - new Date(c.last_contact_at).getTime()) /
+                    86400000 >
+                  30
+                );
+              }).length
+            }
+            color={C.danger}
+          />
+        </View>
+
+        {/* Filter tabs */}
+        <View style={S.tabs}>
+          {(
+            [
+              { key: "all", label: "All", count: clients.length },
+              { key: "active", label: "Active", count: active.length },
+              { key: "landed", label: "Landed", count: landed.length },
+            ] as { key: Filter; label: string; count: number }[]
+          ).map((f) => (
             <Pressable
-              key={f}
-              onPress={() => setFilter(f)}
-              style={{
-                flex: 1,
-                paddingVertical: 8,
-                borderRadius: 8,
-                backgroundColor: filter === f ? "#6366F1" : "#1A1A2E",
-                alignItems: "center",
-              }}
+              key={f.key}
+              onPress={() => setFilter(f.key)}
+              style={[S.tab, filter === f.key && S.tabActive]}
             >
-              <Text style={{ color: filter === f ? "#FFFFFF" : "#9CA3AF", fontSize: 12, fontWeight: "700", textTransform: "capitalize" }}>
-                {f} ({f === "all" ? clients.length : f === "active" ? clients.filter((c) => activeStatuses.has(c.status)).length : clients.filter((c) => c.status === "landed" || c.status === "cruising").length})
+              <Text
+                style={[S.tabText, filter === f.key && S.tabTextActive]}
+              >
+                {f.label}
               </Text>
+              {f.count > 0 && (
+                <View
+                  style={[
+                    S.tabBadge,
+                    {
+                      backgroundColor:
+                        filter === f.key ? C.primary : C.textFaint,
+                    },
+                  ]}
+                >
+                  <Text style={S.tabBadgeText}>{f.count}</Text>
+                </View>
+              )}
             </Pressable>
           ))}
         </View>
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 20, gap: 8 }}
+        contentContainerStyle={{ padding: 20, paddingTop: 12, gap: 8 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366F1" />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={C.primary}
+          />
+        }
       >
         {filtered.length === 0 ? (
-          <Text style={{ color: "#6B7280", textAlign: "center", marginTop: 40, fontSize: 14 }}>
-            No clients found.
-          </Text>
+          <View style={{ alignItems: "center", paddingVertical: 56, gap: 12 }}>
+            <View
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: 20,
+                backgroundColor: C.card,
+                borderWidth: 1,
+                borderColor: C.cardBorder,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Users size={32} color={C.primary} />
+            </View>
+            <Text style={{ color: C.text, fontSize: 16, fontWeight: "700" }}>
+              No clients found
+            </Text>
+            <Text
+              style={{ color: C.textDim, fontSize: 13, textAlign: "center" }}
+            >
+              Add your first client to start tracking
+            </Text>
+          </View>
         ) : (
           filtered.map((c) => (
             <Pressable key={c.id} onPress={() => setSelectedClient(c)}>
@@ -176,9 +248,8 @@ export default function ClientsScreen() {
         )}
       </ScrollView>
 
-      {/* Client Detail Sheet */}
       {selectedClient && (
-        <ClientDetailModal
+        <ClientDetailSheet
           client={selectedClient}
           onClose={() => setSelectedClient(null)}
           onCall={handleCall}
@@ -187,7 +258,6 @@ export default function ClientsScreen() {
         />
       )}
 
-      {/* Add Client Modal */}
       <AddClientModal
         visible={showAdd}
         onClose={() => setShowAdd(false)}
@@ -201,37 +271,141 @@ export default function ClientsScreen() {
   );
 }
 
+// ── Sub-components ───────────────────────────────────────────────────────────
+
+function SummaryChip({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number;
+  color: string;
+}) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: C.card,
+        borderRadius: 10,
+        paddingVertical: 9,
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: C.cardBorder,
+      }}
+    >
+      <Text
+        style={{ color, fontSize: 17, fontWeight: "800", letterSpacing: -0.3 }}
+      >
+        {value}
+      </Text>
+      <Text
+        style={{
+          color: C.textDim,
+          fontSize: 10,
+          fontWeight: "600",
+          textTransform: "uppercase",
+          letterSpacing: 0.4,
+          marginTop: 2,
+        }}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 function ClientRow({ client }: { client: Client }) {
-  const statusColor = STATUS_COLORS[client.status] ?? "#6B7280";
-  const daysSinceContact = client.last_contact_at
-    ? Math.floor((Date.now() - new Date(client.last_contact_at).getTime()) / 86400000)
+  const statusColor = STATUS_COLORS[client.status] ?? C.textDim;
+  const statusLabel = STATUS_LABELS[client.status] ?? client.status;
+  const initials = getInitials(client.name);
+  const daysSince = client.last_contact_at
+    ? Math.floor(
+        (Date.now() - new Date(client.last_contact_at).getTime()) / 86400000
+      )
     : null;
+  const isOverdue = daysSince === null || daysSince > 30;
 
   return (
-    <View style={{ backgroundColor: "#1A1A2E", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "#2D2D44" }}>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-        <Text style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "600", flex: 1 }} numberOfLines={1}>
-          {client.name}
-        </Text>
-        <View style={{ backgroundColor: statusColor + "20", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
-          <Text style={{ color: statusColor, fontSize: 10, fontWeight: "700", textTransform: "capitalize" }}>
-            {client.status.replace("_", " ")}
-          </Text>
+    <View style={S.card}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 12,
+          padding: 14,
+        }}
+      >
+        {/* Avatar */}
+        <View
+          style={[
+            S.avatar,
+            { backgroundColor: statusColor + "22", borderColor: statusColor + "44" },
+          ]}
+        >
+          <Text style={[S.avatarText, { color: statusColor }]}>{initials}</Text>
         </View>
-      </View>
-      <View style={{ flexDirection: "row", gap: 12, marginTop: 6 }}>
-        {client.email && <Text style={{ color: "#6B7280", fontSize: 11 }}>{client.email}</Text>}
-        {daysSinceContact !== null && (
-          <Text style={{ color: daysSinceContact > 30 ? "#EF4444" : "#6B7280", fontSize: 11 }}>
-            {daysSinceContact === 0 ? "Today" : `${daysSinceContact}d ago`}
+
+        {/* Info */}
+        <View style={{ flex: 1, gap: 3 }}>
+          <Text
+            style={{ color: C.text, fontSize: 15, fontWeight: "700" }}
+            numberOfLines={1}
+          >
+            {client.name}
           </Text>
-        )}
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+            {client.email && (
+              <Text
+                style={{ color: C.textDim, fontSize: 12 }}
+                numberOfLines={1}
+              >
+                {client.email}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* Right side */}
+        <View style={{ alignItems: "flex-end", gap: 5 }}>
+          <View
+            style={{
+              backgroundColor: statusColor + "20",
+              paddingHorizontal: 8,
+              paddingVertical: 3,
+              borderRadius: 6,
+            }}
+          >
+            <Text
+              style={{ color: statusColor, fontSize: 10, fontWeight: "700" }}
+            >
+              {statusLabel}
+            </Text>
+          </View>
+          {daysSince !== null ? (
+            <Text
+              style={{
+                color: isOverdue ? C.danger : C.textDim,
+                fontSize: 11,
+                fontWeight: isOverdue ? "600" : "400",
+              }}
+            >
+              {daysSince === 0 ? "Today" : `${daysSince}d ago`}
+            </Text>
+          ) : (
+            <Text style={{ color: C.danger, fontSize: 11, fontWeight: "600" }}>
+              Never contacted
+            </Text>
+          )}
+        </View>
+
+        <ChevronRight size={14} color={C.textFaint} />
       </View>
     </View>
   );
 }
 
-function ClientDetailModal({
+function ClientDetailSheet({
   client,
   onClose,
   onCall,
@@ -244,41 +418,166 @@ function ClientDetailModal({
   onText: (c: Client) => void;
   onEmail: (c: Client) => void;
 }) {
+  const statusColor = STATUS_COLORS[client.status] ?? C.textDim;
+  const initials = getInitials(client.name);
+
   return (
     <Modal visible animationType="slide" transparent>
       <View style={{ flex: 1, justifyContent: "flex-end" }}>
         <Pressable style={{ flex: 1 }} onPress={onClose} />
-        <View style={{ backgroundColor: "#1A1A2E", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 16 }}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={{ color: "#FFFFFF", fontSize: 20, fontWeight: "700" }}>{client.name}</Text>
-            <Pressable onPress={onClose}>
-              <Text style={{ color: "#6366F1", fontSize: 14, fontWeight: "600" }}>Close</Text>
+        <View style={S.sheet}>
+          <View style={S.sheetHandle} />
+
+          {/* Client header */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 14,
+              marginBottom: 20,
+            }}
+          >
+            <View
+              style={[
+                S.avatarLarge,
+                {
+                  backgroundColor: statusColor + "22",
+                  borderColor: statusColor + "50",
+                },
+              ]}
+            >
+              <Text style={[S.avatarLargeText, { color: statusColor }]}>
+                {initials}
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{ color: C.text, fontSize: 20, fontWeight: "800" }}
+              >
+                {client.name}
+              </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  marginTop: 4,
+                }}
+              >
+                <View
+                  style={{
+                    backgroundColor: statusColor + "20",
+                    paddingHorizontal: 8,
+                    paddingVertical: 3,
+                    borderRadius: 6,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: statusColor,
+                      fontSize: 11,
+                      fontWeight: "700",
+                    }}
+                  >
+                    {STATUS_LABELS[client.status] ?? client.status}
+                  </Text>
+                </View>
+              </View>
+            </View>
+            <Pressable
+              onPress={onClose}
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 15,
+                backgroundColor: C.cardBorder,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <X size={14} color={C.textMuted} />
             </Pressable>
           </View>
 
-          {client.email && <Text style={{ color: "#9CA3AF", fontSize: 14 }}>{client.email}</Text>}
-          {client.phone && <Text style={{ color: "#9CA3AF", fontSize: 14 }}>{client.phone}</Text>}
-
-          {/* Action buttons */}
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <ActionButton label="Call" color="#10B981" onPress={() => onCall(client)} />
-            <ActionButton label="Text" color="#3B82F6" onPress={() => onText(client)} />
-            <ActionButton label="Email" color="#8B5CF6" onPress={() => onEmail(client)} />
-          </View>
-
-          {client.notes && (
-            <View style={{ backgroundColor: "#0A0A0F", borderRadius: 8, padding: 12 }}>
-              <Text style={{ color: "#9CA3AF", fontSize: 12 }}>{client.notes}</Text>
+          {/* Contact info */}
+          {(client.email || client.phone) && (
+            <View
+              style={[
+                S.card,
+                { padding: 14, gap: 8, marginBottom: 16 },
+              ]}
+            >
+              {client.email && (
+                <Text style={{ color: C.textMuted, fontSize: 14 }}>
+                  {client.email}
+                </Text>
+              )}
+              {client.phone && (
+                <Text style={{ color: C.textMuted, fontSize: 14 }}>
+                  {client.phone}
+                </Text>
+              )}
             </View>
           )}
 
+          {/* Action buttons */}
+          <View
+            style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}
+          >
+            <ActionButton
+              icon={<Phone size={18} color={C.success} />}
+              label="Call"
+              color={C.success}
+              onPress={() => onCall(client)}
+            />
+            <ActionButton
+              icon={<MessageSquare size={18} color={C.blue} />}
+              label="Text"
+              color={C.blue}
+              onPress={() => onText(client)}
+            />
+            <ActionButton
+              icon={<Mail size={18} color={C.purple} />}
+              label="Email"
+              color={C.purple}
+              onPress={() => onEmail(client)}
+            />
+          </View>
+
+          {/* Tags */}
           {client.tags.length > 0 && (
-            <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>
+            <View
+              style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}
+            >
               {client.tags.map((t) => (
-                <View key={t} style={{ backgroundColor: "#2D2D44", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
-                  <Text style={{ color: "#9CA3AF", fontSize: 11 }}>{t}</Text>
+                <View
+                  key={t}
+                  style={{
+                    backgroundColor: C.card,
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                    borderRadius: 6,
+                    borderWidth: 1,
+                    borderColor: C.cardBorder,
+                  }}
+                >
+                  <Text style={{ color: C.textMuted, fontSize: 12 }}>{t}</Text>
                 </View>
               ))}
+            </View>
+          )}
+
+          {/* Notes */}
+          {client.notes && (
+            <View
+              style={[
+                S.card,
+                { padding: 12, marginTop: 12 },
+              ]}
+            >
+              <Text style={{ color: C.textDim, fontSize: 13, lineHeight: 18 }}>
+                {client.notes}
+              </Text>
             </View>
           )}
         </View>
@@ -287,16 +586,38 @@ function ClientDetailModal({
   );
 }
 
-function ActionButton({ label, color, onPress }: { label: string; color: string; onPress: () => void }) {
+function ActionButton({
+  icon,
+  label,
+  color,
+  onPress,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  color: string;
+  onPress: () => void;
+}) {
   return (
     <Pressable
       onPress={onPress}
-      style={{ flex: 1, backgroundColor: color + "20", paddingVertical: 12, borderRadius: 10, alignItems: "center" }}
+      style={{
+        flex: 1,
+        backgroundColor: color + "18",
+        borderRadius: 12,
+        paddingVertical: 14,
+        alignItems: "center",
+        gap: 6,
+        borderWidth: 1,
+        borderColor: color + "30",
+      }}
     >
-      <Text style={{ color, fontSize: 14, fontWeight: "700" }}>{label}</Text>
+      {icon}
+      <Text style={{ color, fontSize: 13, fontWeight: "700" }}>{label}</Text>
     </Pressable>
   );
 }
+
+// ── Add Client Modal ─────────────────────────────────────────────────────────
 
 function AddClientModal({
   visible,
@@ -326,24 +647,73 @@ function AddClientModal({
       notes: null,
     });
     setSaving(false);
-    if (ok) { setName(""); setEmail(""); setPhone(""); }
+    if (ok) {
+      setName("");
+      setEmail("");
+      setPhone("");
+    }
   };
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, justifyContent: "flex-end" }}>
-        <View style={{ backgroundColor: "#1A1A2E", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, gap: 16 }}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={{ color: "#FFFFFF", fontSize: 18, fontWeight: "700" }}>Add Client</Text>
-            <Pressable onPress={onClose}>
-              <Text style={{ color: "#6366F1", fontSize: 14, fontWeight: "600" }}>Cancel</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1, justifyContent: "flex-end" }}
+      >
+        <View style={S.sheet}>
+          <View style={S.sheetHandle} />
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 20,
+            }}
+          >
+            <Text style={S.sheetTitle}>Add Client</Text>
+            <Pressable
+              onPress={onClose}
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 15,
+                backgroundColor: C.cardBorder,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <X size={14} color={C.textMuted} />
             </Pressable>
           </View>
-          <Field label="Name" value={name} onChange={setName} placeholder="Jane Smith" />
-          <Field label="Email" value={email} onChange={setEmail} placeholder="jane@example.com" keyboardType="default" />
-          <Field label="Phone" value={phone} onChange={setPhone} placeholder="+1 (555) 123-4567" keyboardType="default" />
-          <Pressable onPress={handleSubmit} disabled={saving || !name.trim()} style={{ backgroundColor: "#6366F1", paddingVertical: 14, borderRadius: 10, alignItems: "center", opacity: saving || !name.trim() ? 0.6 : 1 }}>
-            <Text style={{ color: "#FFFFFF", fontSize: 15, fontWeight: "700" }}>{saving ? "Saving..." : "Add Client"}</Text>
+          <Field
+            label="Full Name"
+            value={name}
+            onChange={setName}
+            placeholder="Jane Smith"
+          />
+          <Field
+            label="Email"
+            value={email}
+            onChange={setEmail}
+            placeholder="jane@example.com"
+          />
+          <Field
+            label="Phone"
+            value={phone}
+            onChange={setPhone}
+            placeholder="+1 (555) 123-4567"
+          />
+          <Pressable
+            onPress={handleSubmit}
+            disabled={saving || !name.trim()}
+            style={[
+              S.primaryBtn,
+              { opacity: saving || !name.trim() ? 0.6 : 1 },
+            ]}
+          >
+            <Text style={S.primaryBtnText}>
+              {saving ? "Adding…" : "Add Client"}
+            </Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -351,11 +721,179 @@ function AddClientModal({
   );
 }
 
-function Field({ label, value, onChange, placeholder, keyboardType }: { label: string; value: string; onChange: (v: string) => void; placeholder: string; keyboardType?: "numeric" | "default" }) {
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
   return (
-    <View>
-      <Text style={{ color: "#9CA3AF", fontSize: 12, fontWeight: "600", marginBottom: 4 }}>{label}</Text>
-      <TextInput value={value} onChangeText={onChange} placeholder={placeholder} placeholderTextColor="#4B5563" keyboardType={keyboardType ?? "default"} style={{ backgroundColor: "#0A0A0F", borderRadius: 8, padding: 12, color: "#FFFFFF", fontSize: 15, borderWidth: 1, borderColor: "#2D2D44" }} />
+    <View style={{ marginBottom: 14 }}>
+      <Text style={S.fieldLabel}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor={C.textFaint}
+        style={S.input}
+      />
     </View>
   );
 }
+
+// ── Styles ─────────────────────────────────────────────────────────────────
+
+const S = StyleSheet.create({
+  screenTitle: {
+    fontSize: 30,
+    fontWeight: "800",
+    color: C.text,
+    letterSpacing: -0.8,
+  },
+  addBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: C.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 10,
+  },
+  addBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  tabs: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 14,
+    marginBottom: 4,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+  },
+  tabActive: {
+    backgroundColor: C.primaryDim,
+    borderColor: C.primaryBorder,
+  },
+  tabText: {
+    color: C.textDim,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  tabTextActive: {
+    color: C.primary,
+  },
+  tabBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
+  tabBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  card: {
+    backgroundColor: C.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+    overflow: "hidden",
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  avatarText: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  avatarLarge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+  },
+  avatarLargeText: {
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  sheet: {
+    backgroundColor: "#13131E",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingTop: 14,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: C.cardBorder,
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: C.textFaint,
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: C.text,
+    letterSpacing: -0.3,
+  },
+  fieldLabel: {
+    color: C.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  input: {
+    backgroundColor: C.bg,
+    borderRadius: 12,
+    padding: 14,
+    color: C.text,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: C.cardBorder,
+  },
+  primaryBtn: {
+    backgroundColor: C.primary,
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  primaryBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+});

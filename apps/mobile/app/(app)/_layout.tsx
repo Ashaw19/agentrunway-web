@@ -1,36 +1,40 @@
 import { Tabs } from "expo-router";
-import { Platform } from "react-native";
+import { Platform, View } from "react-native";
 import {
   LayoutDashboard,
   Handshake,
   Users,
   Camera,
-  Menu,
+  MoreHorizontal,
 } from "lucide-react-native";
+import { C } from "@/lib/theme";
 
-const ACTIVE_COLOR = "#6366F1";
-const INACTIVE_COLOR = "#6B7280";
-const TAB_BAR_BG = "#0A0A0F";
-const ICON_SIZE = 24;
+const ICON_SIZE = 22;
 
 export default function AppLayout() {
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: ACTIVE_COLOR,
-        tabBarInactiveTintColor: INACTIVE_COLOR,
+        tabBarActiveTintColor: C.primary,
+        tabBarInactiveTintColor: C.textDim,
         tabBarStyle: {
-          backgroundColor: TAB_BAR_BG,
-          borderTopColor: "#1F1F2E",
+          backgroundColor: "#0D0D18",
+          borderTopColor: C.cardBorder,
           borderTopWidth: 1,
-          paddingBottom: Platform.OS === "ios" ? 24 : 8,
-          paddingTop: 8,
-          height: Platform.OS === "ios" ? 88 : 64,
+          paddingBottom: Platform.OS === "ios" ? 26 : 8,
+          paddingTop: 10,
+          height: Platform.OS === "ios" ? 90 : 66,
+          elevation: 0,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "600",
+          fontSize: 10,
+          fontWeight: "700",
+          letterSpacing: 0.2,
+          marginTop: 2,
+        },
+        tabBarIconStyle: {
+          marginBottom: -2,
         },
       }}
     >
@@ -38,8 +42,10 @@ export default function AppLayout() {
         name="index"
         options={{
           title: "Dashboard",
-          tabBarIcon: ({ color }) => (
-            <LayoutDashboard size={ICON_SIZE} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon focused={focused} color={color}>
+              <LayoutDashboard size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.8} />
+            </TabIcon>
           ),
         }}
       />
@@ -47,8 +53,10 @@ export default function AppLayout() {
         name="deals"
         options={{
           title: "Deals",
-          tabBarIcon: ({ color }) => (
-            <Handshake size={ICON_SIZE} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon focused={focused} color={color}>
+              <Handshake size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.8} />
+            </TabIcon>
           ),
         }}
       />
@@ -56,8 +64,10 @@ export default function AppLayout() {
         name="clients"
         options={{
           title: "Clients",
-          tabBarIcon: ({ color }) => (
-            <Users size={ICON_SIZE} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon focused={focused} color={color}>
+              <Users size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.8} />
+            </TabIcon>
           ),
         }}
       />
@@ -65,8 +75,10 @@ export default function AppLayout() {
         name="expenses"
         options={{
           title: "Scan",
-          tabBarIcon: ({ color }) => (
-            <Camera size={ICON_SIZE} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon focused={focused} color={color}>
+              <Camera size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.8} />
+            </TabIcon>
           ),
         }}
       />
@@ -74,24 +86,41 @@ export default function AppLayout() {
         name="profile"
         options={{
           title: "More",
-          tabBarIcon: ({ color }) => (
-            <Menu size={ICON_SIZE} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon focused={focused} color={color}>
+              <MoreHorizontal size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.8} />
+            </TabIcon>
           ),
         }}
       />
-      {/* Hidden routes — accessible via navigation, not tab bar */}
-      <Tabs.Screen
-        name="forecast"
-        options={{
-          href: null,
-        }}
-      />
-      <Tabs.Screen
-        name="outreach"
-        options={{
-          href: null,
-        }}
-      />
+      {/* Hidden routes */}
+      <Tabs.Screen name="forecast" options={{ href: null }} />
+      <Tabs.Screen name="outreach" options={{ href: null }} />
     </Tabs>
+  );
+}
+
+function TabIcon({
+  focused,
+  color,
+  children,
+}: {
+  focused: boolean;
+  color: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View
+      style={{
+        width: 40,
+        height: 32,
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: 10,
+        backgroundColor: focused ? C.primaryDim : "transparent",
+      }}
+    >
+      {children}
+    </View>
   );
 }
