@@ -210,8 +210,6 @@ export default function LogoConcepts() {
                   fill="url(#c_blue)"
                   opacity="0.85"
                 />
-                {/* Thin separator line — fuselage */}
-                <line x1="24" y1="11" x2="24" y2="37" stroke="white" strokeWidth="1" strokeOpacity="0.15" strokeLinecap="round"/>
                 <defs>
                   <linearGradient id="c_bg" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
                     <stop offset="0%" stopColor="#0D1B3E"/>
