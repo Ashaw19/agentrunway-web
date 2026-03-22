@@ -419,12 +419,15 @@ function ReviewDrawer({
   onClose,
   onSent,
   signature,
+  gmailConnected,
 }: {
   item:      QueueItemWithClient | null;
   onClose:   () => void;
   onSent:    (id: string) => void;
   signature: string;
+  gmailConnected: boolean;
 }) {
+  const [sending, setSending] = useState(false);
   const [editSubject, setEditSubject] = useState("");
   const [editBody,    setEditBody]    = useState("");
   const [saving,      setSaving]      = useState(false);
@@ -460,34 +463,6 @@ function ReviewDrawer({
     }
   }, [item, editSubject, editBody]);
 
-  const handleCopy = useCallback(async () => {
-    if (!item) return;
-    await saveEdits();
-    const text = `Subject: ${editSubject}\n\n${editBody}`;
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    toast.success("Copied to clipboard — paste into your email client");
-    setTimeout(() => setCopied(false), 2500);
-    // Ask "mark as sent?"
-    markAsSent();
-  }, [item, editSubject, editBody, saveEdits]);
-
-  const handleOpenGmail = useCallback(async () => {
-    if (!item) return;
-    const to = item.clients?.email?.trim() ?? "";
-    if (!to) {
-      toast.error("No email address on file for this client — add one in the CRM first");
-      return;
-    }
-    await saveEdits();
-    const subject = encodeURIComponent(editSubject);
-    // mailto: body truncates at ~2000 chars — acceptable
-    const body    = encodeURIComponent(editBody.slice(0, 1800));
-    const url     = `mailto:${to}?subject=${subject}&body=${body}`;
-    window.open(url, "_blank");
-    markAsSent();
-  }, [item, editSubject, editBody, saveEdits]);
-
   const markAsSent = useCallback(async () => {
     if (!item) return;
     try {
@@ -507,6 +482,67 @@ function ReviewDrawer({
       toast.error("Couldn't mark as sent — try again");
     }
   }, [item, onSent, onClose]);
+
+  const handleCopy = useCallback(async () => {
+    if (!item) return;
+    await saveEdits();
+    const text = `Subject: ${editSubject}\n\n${editBody}`;
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    toast.success("Copied to clipboard — paste into your email client");
+    setTimeout(() => setCopied(false), 2500);
+    // Ask "mark as sent?"
+    markAsSent();
+  }, [item, editSubject, editBody, saveEdits]);
+
+  const handleSendGmail = useCallback(async () => {
+    if (!item) return;
+    const to = item.clients?.email?.trim() ?? "";
+    if (!to) {
+      toast.error("No email address on file for this client — add one in the CRM first");
+      return;
+    }
+    await saveEdits();
+    setSending(true);
+    try {
+      const res = await fetch("/api/outreach/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ outreach_id: item.id }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        if (json.code === "NO_CONNECTION" || json.code === "AUTH_EXPIRED") {
+          toast.error("Gmail connection expired — reconnect in Settings");
+        } else {
+          toast.error(json.message || "Failed to send");
+        }
+        return;
+      }
+      toast.success(`Sent to ${to} via Gmail`);
+      onSent(item.id);
+      onClose();
+    } catch {
+      toast.error("Failed to send — check your connection");
+    } finally {
+      setSending(false);
+    }
+  }, [item, editSubject, editBody, saveEdits, onSent, onClose]);
+
+  const handleOpenMailto = useCallback(async () => {
+    if (!item) return;
+    const to = item.clients?.email?.trim() ?? "";
+    if (!to) {
+      toast.error("No email address on file for this client — add one in the CRM first");
+      return;
+    }
+    await saveEdits();
+    const subject = encodeURIComponent(editSubject);
+    const body    = encodeURIComponent(editBody.slice(0, 1800));
+    const url     = `mailto:${to}?subject=${subject}&body=${body}`;
+    window.open(url, "_blank");
+    markAsSent();
+  }, [item, editSubject, editBody, saveEdits, markAsSent]);
 
   if (!item) return null;
 
@@ -595,39 +631,90 @@ function ReviewDrawer({
 
         {/* Send actions */}
         <div className="px-6 pb-6 pt-4 shrink-0 space-y-3 border-t border-border/30">
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              className="flex-1 gap-2 h-10"
-              onClick={handleCopy}
-              disabled={saving}
-            >
-              {copied ? (
-                <><CheckCircle2 className="h-4 w-4 text-emerald-400" /> Copied!</>
-              ) : (
-                <><Copy className="h-4 w-4" /> Copy to Clipboard</>
-              )}
-            </Button>
-            <Button
-              className="flex-1 gap-2 h-10 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white border-0 shadow-md shadow-violet-500/20"
-              onClick={handleOpenGmail}
-              disabled={saving}
-            >
-              <Mail className="h-4 w-4" />
-              Open in Gmail
-            </Button>
-          </div>
-          <Button
-            variant="ghost"
-            className="w-full text-muted-foreground text-xs h-8"
-            onClick={markAsSent}
-            disabled={saving}
-          >
-            Mark as sent without opening
-          </Button>
-          <p className="text-[10px] text-center text-muted-foreground/50">
-            Gmail &amp; Outlook direct-send coming in the next update.
-          </p>
+          {gmailConnected ? (
+            <>
+              <Button
+                className="w-full gap-2 h-10 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white border-0 shadow-md shadow-violet-500/20"
+                onClick={handleSendGmail}
+                disabled={saving || sending}
+              >
+                {sending ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Sending...</>
+                ) : (
+                  <><Send className="h-4 w-4" /> Send via Gmail</>
+                )}
+              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 gap-2 h-9 text-xs"
+                  onClick={handleCopy}
+                  disabled={saving}
+                >
+                  {copied ? (
+                    <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Copied</>
+                  ) : (
+                    <><Copy className="h-3.5 w-3.5" /> Copy</>
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1 gap-2 h-9 text-xs"
+                  onClick={handleOpenMailto}
+                  disabled={saving}
+                >
+                  <Mail className="h-3.5 w-3.5" /> Open in Email
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="flex-1 text-muted-foreground text-xs h-9"
+                  onClick={markAsSent}
+                  disabled={saving}
+                >
+                  Mark Sent
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1 gap-2 h-10"
+                  onClick={handleCopy}
+                  disabled={saving}
+                >
+                  {copied ? (
+                    <><CheckCircle2 className="h-4 w-4 text-emerald-400" /> Copied!</>
+                  ) : (
+                    <><Copy className="h-4 w-4" /> Copy to Clipboard</>
+                  )}
+                </Button>
+                <Button
+                  className="flex-1 gap-2 h-10 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white border-0 shadow-md shadow-violet-500/20"
+                  onClick={handleOpenMailto}
+                  disabled={saving}
+                >
+                  <Mail className="h-4 w-4" />
+                  Open in Email
+                </Button>
+              </div>
+              <Button
+                variant="ghost"
+                className="w-full text-muted-foreground text-xs h-8"
+                onClick={markAsSent}
+                disabled={saving}
+              >
+                Mark as sent without opening
+              </Button>
+              <a
+                href="/api/auth/google/connect"
+                className="block text-center text-[10px] text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors"
+              >
+                Connect Gmail to send directly from Agent Runway →
+              </a>
+            </>
+          )}
         </div>
       </SheetContent>
     </Sheet>
@@ -644,6 +731,8 @@ interface FlightControlContentProps {
   initialSignature:    string;
   initialVoiceGuide:   string;
   initialNewsletters:  NewsletterQueue[];
+  gmailConnected:      boolean;
+  gmailEmail:          string | null;
 }
 
 // ── Flight Control dismissible banner ────────────────────────────────────────
@@ -696,6 +785,8 @@ export function FlightControlContent({
   initialSignature,
   initialVoiceGuide,
   initialNewsletters,
+  gmailConnected,
+  gmailEmail,
 }: FlightControlContentProps) {
   const [activeTab, setActiveTab] = useState<Tab>("outreach");
   const [queue,         setQueue]         = useState<QueueItemWithClient[]>(initialQueue);
@@ -1068,6 +1159,7 @@ export function FlightControlContent({
         onClose={() => setReviewItem(null)}
         onSent={handleSent}
         signature={signature}
+        gmailConnected={gmailConnected}
       />
     </>
   );
