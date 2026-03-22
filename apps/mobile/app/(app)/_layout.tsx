@@ -3,9 +3,9 @@ import { Platform } from "react-native";
 import {
   LayoutDashboard,
   Handshake,
-  TrendingUp,
-  Receipt,
-  User,
+  Users,
+  Camera,
+  Menu,
 } from "lucide-react-native";
 
 const ACTIVE_COLOR = "#6366F1";
@@ -53,28 +53,37 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
-        name="forecast"
+        name="clients"
         options={{
-          title: "Forecast",
+          title: "Clients",
           tabBarIcon: ({ color }) => (
-            <TrendingUp size={ICON_SIZE} color={color} />
+            <Users size={ICON_SIZE} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="expenses"
         options={{
-          title: "Expenses",
+          title: "Scan",
           tabBarIcon: ({ color }) => (
-            <Receipt size={ICON_SIZE} color={color} />
+            <Camera size={ICON_SIZE} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
-          tabBarIcon: ({ color }) => <User size={ICON_SIZE} color={color} />,
+          title: "More",
+          tabBarIcon: ({ color }) => (
+            <Menu size={ICON_SIZE} color={color} />
+          ),
+        }}
+      />
+      {/* Hide forecast tab — desktop only */}
+      <Tabs.Screen
+        name="forecast"
+        options={{
+          href: null,
         }}
       />
     </Tabs>
