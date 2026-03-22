@@ -79,9 +79,15 @@ export default function AppLayout() {
           ),
         }}
       />
-      {/* Hide forecast tab — desktop only */}
+      {/* Hidden routes — accessible via navigation, not tab bar */}
       <Tabs.Screen
         name="forecast"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="outreach"
         options={{
           href: null,
         }}

@@ -133,6 +133,8 @@ interface DataStore {
   addTransaction: (tx: Omit<Transaction, "id" | "created_at">) => Promise<boolean>;
   addClient: (client: Omit<Client, "id" | "created_at">) => Promise<boolean>;
   addActivity: (activity: Omit<ContactActivity, "id" | "created_at">) => Promise<boolean>;
+  updateOutreachDraft: (id: string, subject: string, body: string) => Promise<boolean>;
+  skipOutreach: (id: string) => Promise<boolean>;
 
   // Computed
   ytdGci: () => number;
@@ -356,6 +358,61 @@ export const useDataStore = create<DataStore>((set, get) => {
         return false;
       }
 
+      return true;
+    },
+
+    updateOutreachDraft: async (id, subject, body) => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      const { error } = await supabase
+        .from("outreach_queue")
+        .update({
+          final_subject: subject,
+          final_body: body,
+        })
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("updateOutreachDraft error:", error);
+        return false;
+      }
+
+      // Update local state without refetching
+      set({
+        outreachQueue: get().outreachQueue.map((item) =>
+          item.id === id
+            ? { ...item, final_subject: subject, final_body: body }
+            : item
+        ),
+      });
+      return true;
+    },
+
+    skipOutreach: async (id) => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      const { error } = await supabase
+        .from("outreach_queue")
+        .update({ status: "skipped" })
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("skipOutreach error:", error);
+        return false;
+      }
+
+      // Remove from local queue
+      set({
+        outreachQueue: get().outreachQueue.filter((item) => item.id !== id),
+      });
       return true;
     },
 
