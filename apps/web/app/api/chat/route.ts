@@ -96,6 +96,40 @@ export async function POST(req: NextRequest) {
         staleClientCount != null && staleClientCount > 0 ? `Stale Active Clients (no contact 30+ days): ${staleClientCount}` : null,
       ].filter(Boolean).join("\n");
     }
+
+    // ── Team context (if user belongs to an org) ────────────────────────
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("org_id, role, organizations(name)")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (membership?.org_id) {
+      const { data: teamPerf } = await supabase
+        .from("org_agent_performance")
+        .select("agent_name, role, ytd_gci, deal_count, pipeline_count, pipeline_value")
+        .eq("org_id", membership.org_id);
+
+      if (teamPerf && teamPerf.length > 1) {
+        const leader = teamPerf.find(
+          (m) => m.role === "owner" || m.role === "team_leader"
+        );
+        const leaderName = leader?.agent_name?.split(" ")[0] ?? "your team lead";
+        const orgData = membership.organizations as unknown as { name: string } | { name: string }[] | null;
+        const teamName = (Array.isArray(orgData) ? orgData[0]?.name : orgData?.name) ?? "your team";
+        const avgGci = teamPerf.reduce((s, m) => s + (m.ytd_gci ?? 0), 0) / teamPerf.length;
+        const avgDeals = teamPerf.reduce((s, m) => s + (m.deal_count ?? 0), 0) / teamPerf.length;
+        const avgPipeline = teamPerf.reduce((s, m) => s + (m.pipeline_count ?? 0), 0) / teamPerf.length;
+
+        financialContext += `\n\nTEAM CONTEXT (${teamName}, ${teamPerf.length} agents):
+Team Leader: ${leaderName}
+Team Avg YTD GCI: ${fmtCurrency(avgGci)}
+Team Avg Closed Deals: ${Math.round(avgDeals)}
+Team Avg Pipeline Deals: ${Math.round(avgPipeline)}
+IMPORTANT: When comparing this agent to team averages, always reference ${leaderName} by name (not "team lead" or "your manager"). Suggest discussions with ${leaderName} when coaching opportunities arise.`;
+      }
+    }
   } catch {
     financialContext = "Business data temporarily unavailable.";
   }
