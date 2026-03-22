@@ -7,7 +7,7 @@ export default function LogoConcepts() {
     <div style={{ background: "#010D1F", minHeight: "100vh", padding: "60px 40px", fontFamily: "system-ui, sans-serif" }}>
       <p style={{ color: "#64748b", fontSize: "12px", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "8px" }}>Internal — Logo Review</p>
       <h1 style={{ color: "white", fontSize: "28px", fontWeight: 800, marginBottom: "8px" }}>Agent Runway — Logo Concepts</h1>
-      <p style={{ color: "#64748b", fontSize: "14px", marginBottom: "60px" }}>Five directions. Each shown at icon size (48px), medium (96px), and large (192px) with the wordmark.</p>
+      <p style={{ color: "#64748b", fontSize: "14px", marginBottom: "60px" }}>Eight directions. Each shown at icon size (48px), medium (96px), and large (192px) with the wordmark.</p>
 
       {/* ── CONCEPT 1: THE ASCENT ── */}
       <div style={{ marginBottom: "80px" }}>
@@ -371,6 +371,197 @@ export default function LogoConcepts() {
               <rect width="48" height="48" rx="11" fill="#0A1628"/>
               <path d="M6 12 L6 27 L42 24 Z" fill="url(#gw_gold)"/>
               <path d="M6 27 L6 36 L42 24 Z" fill="url(#gw_blue)"/>
+            </svg>
+            <div>
+              <p style={{ color: "white", fontSize: "20px", fontWeight: 800, letterSpacing: "-0.02em", margin: 0 }}>Agent Runway</p>
+              <p style={{ color: "#64748b", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase", margin: "2px 0 0 0" }}>Flight Operations</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── CONCEPT 6: THE THREE BARS ── */}
+      <div style={{ marginBottom: "80px" }}>
+        <div style={{ marginBottom: "24px" }}>
+          <h2 style={{ color: "white", fontSize: "20px", fontWeight: 700, marginBottom: "4px" }}>Concept 6 — &ldquo;The Three Bars&rdquo;</h2>
+          <p style={{ color: "#94a3b8", fontSize: "14px", maxWidth: "520px", lineHeight: 1.6 }}>
+            Three ascending parallelogram bars — deep blue, mid blue, gold — stepping up from bottom-left to
+            top-right like flight data going vertical. Each bar is slightly inset on the left, creating a
+            staircase of momentum. The gold bar is the highest: the achievement marker. At 16px it collapses
+            to a bold triple-stripe. The colour trajectory (foundation → growth → achievement) tells the brand
+            story in three beats.
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: "40px", flexWrap: "wrap" }}>
+          {[48, 96, 192].map((size) => (
+            <div key={size} style={{ textAlign: "center" }}>
+              <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id={`h_b1_${size}`} x1="6" y1="39" x2="42" y2="35" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#1E3A8A"/>
+                    <stop offset="100%" stopColor="#1E40AF"/>
+                  </linearGradient>
+                  <linearGradient id={`h_b2_${size}`} x1="10" y1="29" x2="42" y2="25" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#1E40AF"/>
+                    <stop offset="100%" stopColor="#3B82F6"/>
+                  </linearGradient>
+                  <linearGradient id={`h_b3_${size}`} x1="14" y1="17" x2="42" y2="13" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#D97706"/>
+                    <stop offset="100%" stopColor="#F0A800"/>
+                  </linearGradient>
+                </defs>
+                <rect width="48" height="48" rx="11" fill="#0A1628"/>
+                {/* Bar 1 — deep blue, bottom */}
+                <path d="M6 36 L42 32 L42 38 L6 42 Z" fill={`url(#h_b1_${size})`}/>
+                {/* Bar 2 — mid blue, middle */}
+                <path d="M10 26 L42 22 L42 28 L10 32 Z" fill={`url(#h_b2_${size})`}/>
+                {/* Bar 3 — gold, top */}
+                <path d="M14 14 L42 10 L42 16 L14 20 Z" fill={`url(#h_b3_${size})`}/>
+              </svg>
+              <p style={{ color: "#475569", fontSize: "11px", marginTop: "8px" }}>{size}px</p>
+            </div>
+          ))}
+          {/* Wordmark lockup */}
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "20px 28px" }}>
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="hw_b1" x1="6" y1="39" x2="42" y2="35" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#1E3A8A"/>
+                  <stop offset="100%" stopColor="#1E40AF"/>
+                </linearGradient>
+                <linearGradient id="hw_b2" x1="10" y1="29" x2="42" y2="25" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#1E40AF"/>
+                  <stop offset="100%" stopColor="#3B82F6"/>
+                </linearGradient>
+                <linearGradient id="hw_b3" x1="14" y1="17" x2="42" y2="13" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#D97706"/>
+                  <stop offset="100%" stopColor="#F0A800"/>
+                </linearGradient>
+              </defs>
+              <rect width="48" height="48" rx="11" fill="#0A1628"/>
+              <path d="M6 36 L42 32 L42 38 L6 42 Z" fill="url(#hw_b1)"/>
+              <path d="M10 26 L42 22 L42 28 L10 32 Z" fill="url(#hw_b2)"/>
+              <path d="M14 14 L42 10 L42 16 L14 20 Z" fill="url(#hw_b3)"/>
+            </svg>
+            <div>
+              <p style={{ color: "white", fontSize: "20px", fontWeight: 800, letterSpacing: "-0.02em", margin: 0 }}>Agent Runway</p>
+              <p style={{ color: "#64748b", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase", margin: "2px 0 0 0" }}>Flight Operations</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── CONCEPT 7: THE DOUBLE SLASH ── */}
+      <div style={{ marginBottom: "80px" }}>
+        <div style={{ marginBottom: "24px" }}>
+          <h2 style={{ color: "white", fontSize: "20px", fontWeight: 700, marginBottom: "4px" }}>Concept 7 — &ldquo;The Double Slash&rdquo;</h2>
+          <p style={{ color: "#94a3b8", fontSize: "14px", maxWidth: "520px", lineHeight: 1.6 }}>
+            Two bold parallel diagonal strokes — Runway Blue on the left, Commission Gold on the right — rising
+            steeply from bottom to top. No background geometry: just the two shapes. The slashes read as
+            velocity markers, rate-of-climb, or a pilot&apos;s shorthand for speed. At 16px it collapses to a
+            single bold angled mark. At 192px the two strokes are clearly distinct — the gold stroke leading,
+            the blue in pursuit. Each stroke graduates dark-to-bright from base to tip: ascending.
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: "40px", flexWrap: "wrap" }}>
+          {[48, 96, 192].map((size) => (
+            <div key={size} style={{ textAlign: "center" }}>
+              <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id={`i_blue_${size}`} x1="8" y1="44" x2="18" y2="4" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#1E3A8A"/>
+                    <stop offset="100%" stopColor="#3B82F6"/>
+                  </linearGradient>
+                  <linearGradient id={`i_gold_${size}`} x1="26" y1="44" x2="36" y2="4" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#D97706"/>
+                    <stop offset="100%" stopColor="#F0A800"/>
+                  </linearGradient>
+                </defs>
+                <rect width="48" height="48" rx="11" fill="#0A1628"/>
+                {/* Blue slash — left */}
+                <path d="M4 44 L12 44 L22 4 L14 4 Z" fill={`url(#i_blue_${size})`}/>
+                {/* Gold slash — right */}
+                <path d="M22 44 L30 44 L40 4 L32 4 Z" fill={`url(#i_gold_${size})`}/>
+              </svg>
+              <p style={{ color: "#475569", fontSize: "11px", marginTop: "8px" }}>{size}px</p>
+            </div>
+          ))}
+          {/* Wordmark lockup */}
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "20px 28px" }}>
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="iw_blue" x1="8" y1="44" x2="18" y2="4" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#1E3A8A"/>
+                  <stop offset="100%" stopColor="#3B82F6"/>
+                </linearGradient>
+                <linearGradient id="iw_gold" x1="26" y1="44" x2="36" y2="4" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#D97706"/>
+                  <stop offset="100%" stopColor="#F0A800"/>
+                </linearGradient>
+              </defs>
+              <rect width="48" height="48" rx="11" fill="#0A1628"/>
+              <path d="M4 44 L12 44 L22 4 L14 4 Z" fill="url(#iw_blue)"/>
+              <path d="M22 44 L30 44 L40 4 L32 4 Z" fill="url(#iw_gold)"/>
+            </svg>
+            <div>
+              <p style={{ color: "white", fontSize: "20px", fontWeight: 800, letterSpacing: "-0.02em", margin: 0 }}>Agent Runway</p>
+              <p style={{ color: "#64748b", fontSize: "11px", letterSpacing: "0.12em", textTransform: "uppercase", margin: "2px 0 0 0" }}>Flight Operations</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── CONCEPT 8: THE LOZENGE ── */}
+      <div style={{ marginBottom: "80px" }}>
+        <div style={{ marginBottom: "24px" }}>
+          <h2 style={{ color: "white", fontSize: "20px", fontWeight: 700, marginBottom: "4px" }}>Concept 8 — &ldquo;The Lozenge&rdquo;</h2>
+          <p style={{ color: "#94a3b8", fontSize: "14px", maxWidth: "520px", lineHeight: 1.6 }}>
+            A horizontal pointed oval — the aerofoil cross-section, seen head-on. Split at the chord line:
+            Commission Gold takes the upper surface (lit, ascending), Runway Blue takes the lower (shadow,
+            structure). The only curved mark in this collection — everything else is angular. At small sizes
+            it reads as a confident oval. At large sizes the two distinct curved surfaces and the precise
+            geometry become the story. The shape is timeless: lens, wing profile, eye — always in motion.
+          </p>
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: "40px", flexWrap: "wrap" }}>
+          {[48, 96, 192].map((size) => (
+            <div key={size} style={{ textAlign: "center" }}>
+              <svg width={size} height={size} viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id={`j_gold_${size}`} x1="6" y1="16" x2="42" y2="16" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#D97706"/>
+                    <stop offset="100%" stopColor="#F0A800"/>
+                  </linearGradient>
+                  <linearGradient id={`j_blue_${size}`} x1="6" y1="32" x2="42" y2="32" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#1E3A8A"/>
+                    <stop offset="100%" stopColor="#2563EB"/>
+                  </linearGradient>
+                </defs>
+                <rect width="48" height="48" rx="11" fill="#0A1628"/>
+                {/* Gold — upper surface of aerofoil */}
+                <path d="M6 24 Q24 8 42 24 Z" fill={`url(#j_gold_${size})`}/>
+                {/* Blue — lower surface of aerofoil */}
+                <path d="M6 24 L42 24 Q24 40 6 24 Z" fill={`url(#j_blue_${size})`}/>
+              </svg>
+              <p style={{ color: "#475569", fontSize: "11px", marginTop: "8px" }}>{size}px</p>
+            </div>
+          ))}
+          {/* Wordmark lockup */}
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "16px", padding: "20px 28px" }}>
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="jw_gold" x1="6" y1="16" x2="42" y2="16" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#D97706"/>
+                  <stop offset="100%" stopColor="#F0A800"/>
+                </linearGradient>
+                <linearGradient id="jw_blue" x1="6" y1="32" x2="42" y2="32" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#1E3A8A"/>
+                  <stop offset="100%" stopColor="#2563EB"/>
+                </linearGradient>
+              </defs>
+              <rect width="48" height="48" rx="11" fill="#0A1628"/>
+              <path d="M6 24 Q24 8 42 24 Z" fill="url(#jw_gold)"/>
+              <path d="M6 24 L42 24 Q24 40 6 24 Z" fill="url(#jw_blue)"/>
             </svg>
             <div>
               <p style={{ color: "white", fontSize: "20px", fontWeight: 800, letterSpacing: "-0.02em", margin: 0 }}>Agent Runway</p>
