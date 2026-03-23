@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -269,6 +269,18 @@ export function DashboardContent({
   aiProfilePromptDismissedAt = null,
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
+
+  // Memoized so ClosingDayPrompt's useEffect doesn't reset on every re-render.
+  // Uses local date (en-CA = YYYY-MM-DD) to avoid UTC/timezone mismatch.
+  const dealsClosingToday = useMemo(() => {
+    const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local tz
+    return pipelineDeals.filter((d) => {
+      if (!d.expected_close_date) return false;
+      if (d.stage !== "firm" && d.stage !== "closed") return false;
+      return d.expected_close_date <= today;
+    });
+  }, [pipelineDeals]);
+
   const [tourComplete, setTourComplete] = useState(hasSeenTour);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [showAnnualReview, setShowAnnualReview] = useState(false);
@@ -2159,14 +2171,7 @@ export function DashboardContent({
       )}
 
       {/* Closing Day floating prompt — surfaces firm/closed pipeline deals due today */}
-      <ClosingDayPrompt
-        dealsClosingToday={pipelineDeals.filter((d) => {
-          if (!d.expected_close_date) return false;
-          if (d.stage !== "firm" && d.stage !== "closed") return false;
-          const today = new Date().toISOString().slice(0, 10);
-          return d.expected_close_date <= today;
-        })}
-      />
+      <ClosingDayPrompt dealsClosingToday={dealsClosingToday} />
 
       {/* AI Profile floating prompt */}
       {settings?.user_id && (

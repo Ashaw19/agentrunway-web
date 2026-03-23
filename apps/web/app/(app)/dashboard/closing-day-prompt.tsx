@@ -16,7 +16,7 @@ interface ClosingDayPromptProps {
  * Dismissals naturally expire when the date rolls over.
  */
 function dismissedKey(dealId: string): string {
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local tz
   return `closing_prompt_dismissed_${today}_${dealId}`;
 }
 
