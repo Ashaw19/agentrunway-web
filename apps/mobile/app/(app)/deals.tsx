@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   View,
   Text,
   ScrollView,
@@ -12,6 +13,7 @@ import {
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import Svg, {
   Defs,
   LinearGradient as SvgGrad,
@@ -29,14 +31,22 @@ const STAGE_ORDER = ["lead", "showing", "offer", "conditional", "firm"];
 // ── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function DealsScreen() {
-  const { transactions, pipeline, fetchAll, addTransaction } = useDataStore();
+  const { transactions, pipeline, fetchAll, addTransaction, isLoading } = useDataStore();
   const [tab, setTab] = useState<Tab>("pipeline");
   const [refreshing, setRefreshing] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
 
+  // Initial load
   useEffect(() => {
     if (transactions.length === 0 && pipeline.length === 0) fetchAll();
   }, []);
+
+  // Re-fetch on focus (e.g. after adding a deal)
+  useFocusEffect(
+    useCallback(() => {
+      fetchAll();
+    }, [])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -53,6 +63,27 @@ export default function DealsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+      {/* Loading overlay — shown only on initial load when no cached data */}
+      {isLoading && transactions.length === 0 && pipeline.length === 0 && (
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 10,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: C.bg,
+          }}
+        >
+          <ActivityIndicator size="large" color={C.primary} />
+          <Text style={{ color: C.textDim, marginTop: 12, fontSize: 13 }}>
+            Loading deals…
+          </Text>
+        </View>
+      )}
       {/* ── Header ── */}
       <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 4 }}>
         <View

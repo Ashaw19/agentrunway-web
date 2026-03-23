@@ -123,10 +123,20 @@ interface DataStore {
 
   // Loading states
   loading: boolean;
+  /** Alias for loading — use either */
+  isLoading: boolean;
   lastFetched: number | null;
+
+  // Derived / convenience
+  /** Soonest incomplete task (null if none) */
+  nextTask: ContactTask | null;
+  /** Count of outreach items with status = 'ready' */
+  outreachReadyCount: number;
 
   // Actions
   fetchAll: () => Promise<void>;
+  /** Alias for fetchAll */
+  fetch: () => Promise<void>;
   fetchClients: () => Promise<void>;
   fetchOutreach: () => Promise<void>;
   fetchReceipts: () => Promise<void>;
@@ -136,9 +146,21 @@ interface DataStore {
   updateOutreachDraft: (id: string, subject: string, body: string) => Promise<boolean>;
   skipOutreach: (id: string) => Promise<boolean>;
 
-  // Computed
+  // Computed methods
   ytdGci: () => number;
   ytdDealCount: () => number;
+  /** Sum of estimated_price for all pipeline deals */
+  pipelineValue: () => number;
+  /** Count of all pipeline deals */
+  pipelineCount: () => number;
+  /**
+   * 0-100 runway score:
+   *   40% pace (ytdGci vs prorated goal)
+   *   30% pipeline coverage vs remaining goal
+   *   30% client activity (contacted in last 30 days)
+   * Clamped to [0, 100].
+   */
+  runwayScore: () => number;
 }
 
 // Cache key
@@ -184,10 +206,13 @@ export const useDataStore = create<DataStore>((set, get) => {
     outreachQueue: [],
     receipts: (cached.receipts as ReceiptExpense[]) ?? [],
     loading: false,
+    isLoading: false,
     lastFetched: null,
+    nextTask: (cached.tasks as ContactTask[] | undefined)?.[0] ?? null,
+    outreachReadyCount: 0,
 
     fetchAll: async () => {
-      set({ loading: true });
+      set({ loading: true, isLoading: true });
       try {
         const {
           data: { user },
@@ -231,23 +256,29 @@ export const useDataStore = create<DataStore>((set, get) => {
               .single(),
           ]);
 
+        const tasks = (taskRes.data ?? []) as ContactTask[];
         const newState = {
           transactions: (txRes.data ?? []) as Transaction[],
           pipeline: (pipeRes.data ?? []) as PipelineDeal[],
           clients: (clientRes.data ?? []) as Client[],
-          tasks: (taskRes.data ?? []) as ContactTask[],
+          tasks,
           settings: (settingsRes.data as UserSettings) ?? null,
           loading: false,
+          isLoading: false,
           lastFetched: Date.now(),
+          // Derived values — computed eagerly so screens can read them without calling methods
+          nextTask: tasks[0] ?? null,
         };
 
         set(newState);
         saveCache(newState);
       } catch (err) {
         console.error("fetchAll error:", err);
-        set({ loading: false });
+        set({ loading: false, isLoading: false });
       }
     },
+
+    fetch: async () => get().fetchAll(),
 
     fetchClients: async () => {
       const {
@@ -281,7 +312,11 @@ export const useDataStore = create<DataStore>((set, get) => {
         .order("trigger_date", { ascending: true });
 
       if (data) {
-        set({ outreachQueue: data as OutreachItem[] });
+        const items = data as OutreachItem[];
+        set({
+          outreachQueue: items,
+          outreachReadyCount: items.filter((i) => i.status === "ready").length,
+        });
       }
     },
 
@@ -428,6 +463,57 @@ export const useDataStore = create<DataStore>((set, get) => {
 
     ytdDealCount: () => {
       return get().transactions.filter((t) => t.status === "closed").length;
+    },
+
+    pipelineValue: () => {
+      return get().pipeline.reduce((sum, d) => sum + d.estimated_price, 0);
+    },
+
+    pipelineCount: () => {
+      return get().pipeline.length;
+    },
+
+    runwayScore: () => {
+      const state = get();
+      const gci = state.ytdGci();
+      const goalGci = state.settings?.goal_gci ?? 0;
+      const pipeVal = state.pipelineValue();
+      const clients = state.clients;
+
+      // Pace component (40%): how well ytdGci tracks against prorated annual goal
+      const dayOfYear = Math.floor(
+        (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
+      );
+      const progress = Math.max(dayOfYear / 365, 0.01);
+      const expectedGci = goalGci * progress;
+      const paceScore =
+        expectedGci > 0
+          ? Math.min(gci / expectedGci, 1.5) / 1.5
+          : gci > 0
+          ? 0.7
+          : 0.4;
+
+      // Pipeline coverage component (30%): pipeline vs remaining goal (1.5x buffer)
+      const remainingGoal = Math.max((goalGci - gci) * 1.5, 1);
+      const pipelineScore =
+        goalGci > 0
+          ? Math.min(pipeVal / remainingGoal, 2) / 2
+          : pipeVal > 0
+          ? 0.8
+          : 0.4;
+
+      // Client activity component (30%): % of clients contacted in last 30 days
+      const recentlyContacted = clients.filter((c) => {
+        if (!c.last_contact_at) return false;
+        return (Date.now() - new Date(c.last_contact_at).getTime()) / 86400000 <= 30;
+      }).length;
+      const activityScore =
+        clients.length > 0
+          ? Math.min(recentlyContacted / Math.max(clients.length * 0.4, 1), 1)
+          : 0.4;
+
+      const raw = paceScore * 0.40 + pipelineScore * 0.30 + activityScore * 0.30;
+      return Math.round(Math.max(0, Math.min(100, raw * 100)));
     },
   };
 });

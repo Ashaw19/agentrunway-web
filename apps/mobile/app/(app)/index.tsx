@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   View,
   Text,
   ScrollView,
@@ -9,6 +10,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
 import { useDataStore } from "@/stores/data-store";
 import Svg, {
@@ -221,21 +223,33 @@ export default function DashboardScreen() {
   const {
     fetchAll,
     fetchOutreach,
+    isLoading,
     settings,
     transactions,
     pipeline,
     tasks,
     clients,
-    outreachQueue,
+    outreachReadyCount,
     ytdGci,
     ytdDealCount,
+    pipelineValue,
+    runwayScore,
   } = useDataStore();
   const [refreshing, setRefreshing] = useState(false);
 
+  // Fetch on mount
   useEffect(() => {
     fetchAll();
     fetchOutreach();
   }, []);
+
+  // Re-fetch whenever screen comes into focus (e.g. returning from Deals/Clients)
+  useFocusEffect(
+    useCallback(() => {
+      fetchAll();
+      fetchOutreach();
+    }, [])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -246,18 +260,18 @@ export default function DashboardScreen() {
   const gci = ytdGci();
   const deals = ytdDealCount();
   const pending = transactions.filter((t) => t.status === "pending").length;
-  const pipelineValue = pipeline.reduce((s, d) => s + d.estimated_price, 0);
+  const pipVal = pipelineValue();
   const goalGci = settings?.goal_gci ?? 0;
   const goalDeals = settings?.goal_transactions ?? 12;
   const goalPct = goalGci > 0 ? Math.round((gci / goalGci) * 100) : 0;
   const displayName =
     settings?.display_name ?? user?.email?.split("@")[0] ?? "Agent";
-  const outreachCount = outreachQueue.length;
+  const outreachCount = outreachReadyCount;
 
   const runway = computeRunwayScore({
     gci,
     goalGci,
-    pipelineValue,
+    pipelineValue: pipVal,
     clients,
     dealCount: deals,
     goalDeals,
@@ -268,6 +282,27 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+      {/* Loading indicator overlay — shown only on initial load when store is empty */}
+      {isLoading && transactions.length === 0 && pipeline.length === 0 && (
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 10,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: C.bg,
+          }}
+        >
+          <ActivityIndicator size="large" color={C.primary} />
+          <Text style={{ color: C.textDim, marginTop: 12, fontSize: 13 }}>
+            Loading your runway…
+          </Text>
+        </View>
+      )}
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
@@ -374,7 +409,7 @@ export default function DashboardScreen() {
                 />
               </Svg>
               <Text style={S.cardLabel}>PIPELINE</Text>
-              <Text style={S.cardBigNumber}>{fmtCurrency(pipelineValue)}</Text>
+              <Text style={S.cardBigNumber}>{fmtCurrency(pipVal)}</Text>
               <Text style={S.microLabel}>
                 {pipeline.length} deal{pipeline.length !== 1 ? "s" : ""}
               </Text>
