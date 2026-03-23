@@ -2172,7 +2172,13 @@ export function DashboardContent({
       )}
 
       {/* Closing Day floating prompt — surfaces firm/closed pipeline deals due today */}
-      <ClosingDayPrompt dealsClosingToday={dealsClosingToday} />
+      <ClosingDayPrompt
+        dealsClosingToday={dealsClosingToday}
+        settings={settings}
+        ytdTransactions={transactions
+          .filter((t) => t.status === "closed")
+          .map((t) => ({ sale_price: t.sale_price, commission_pct: t.commission_pct, date: t.date }))}
+      />
 
       {/* AI Profile floating prompt */}
       {settings?.user_id && (

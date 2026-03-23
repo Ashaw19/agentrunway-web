@@ -225,6 +225,13 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
         .single();
       if (!error && data) {
         setDeals((prev) => prev.map((d) => (d.id === editingId ? data : d)));
+        if (form.stage === "closed") {
+          // Auto-open the Close Deal dialog so the deal converts immediately
+          setSaving(false);
+          setDialogOpen(false);
+          setCloseTarget(data);
+          return;
+        }
         toast.success("Deal updated ✓");
       } else if (error) {
         toast.error("Couldn't save — try again");
