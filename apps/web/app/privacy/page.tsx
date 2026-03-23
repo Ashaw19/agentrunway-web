@@ -561,12 +561,24 @@ export default function PrivacyPage() {
                   Drive).
                 </li>
                 <li>
-                  <strong className="text-slate-300">Third-party AI providers</strong>{" "}
-                  — for processing AI Feature requests (see Section&nbsp;8).
+                  <strong className="text-slate-300">Groq, Inc.</strong>{" "}
+                  — AI inference processing for AI Features (United States). When
+                  you use AI features, relevant portions of your business data are
+                  transmitted to Groq. Groq operates under a Data Processing
+                  Agreement and commits to not retaining or training on customer
+                  data. See Section&nbsp;8 and Section&nbsp;11.
+                </li>
+                <li>
+                  <strong className="text-slate-300">Vercel, Inc.</strong>{" "}
+                  — application hosting and edge network infrastructure (United
+                  States). Vercel hosts the Agent Runway web application and
+                  processes HTTP requests; minimal request metadata (IP addresses,
+                  request logs) may be processed on Vercel&apos;s infrastructure.
                 </li>
                 <li>
                   <strong className="text-slate-300">Analytics providers</strong>{" "}
-                  — aggregated, non-personal usage data only.
+                  — aggregated, non-personal usage data only (only if you have
+                  accepted analytics cookies).
                 </li>
                 <li>
                   <strong className="text-slate-300">Email delivery</strong>{" "}
@@ -613,11 +625,47 @@ export default function PrivacyPage() {
               </ul>
               <p className="mt-4 leading-relaxed">
                 When data is transferred outside Canada, we ensure that
-                appropriate safeguards are in place, including contractual
-                commitments from service providers regarding data protection. By
-                using the Service and its integrations, you consent to these
-                transfers to the extent required to provide the Service features
-                you have enabled.
+                appropriate safeguards are in place through contractual
+                commitments (Data Processing Agreements) from each service
+                provider requiring them to protect personal information to a
+                standard comparable to Canadian law. By using the Service and
+                its integrations, you consent to these transfers to the extent
+                required to provide the features you have enabled.
+              </p>
+              <p className="mt-4 leading-relaxed font-semibold text-slate-200">
+                Important notice regarding US-based processing:
+              </p>
+              <p className="leading-relaxed">
+                Data processed in the United States (by Groq, Stripe, Vercel,
+                and other US-based sub-processors) is subject to United States
+                law, including the{" "}
+                <strong className="text-slate-300">
+                  Clarifying Lawful Overseas Use of Data Act (CLOUD Act)
+                </strong>{" "}
+                and other US federal and state laws. This means that US
+                authorities may, under certain circumstances, access data held
+                by US-based companies regardless of where that data was
+                originally collected or where the individual is located.{" "}
+                <strong className="text-slate-300">
+                  No contract can override a foreign government&apos;s legal
+                  authority to access data under its own laws.
+                </strong>{" "}
+                We disclose this so you can make an informed decision about
+                using integrations that involve US data processing.
+              </p>
+              <p className="mt-4 leading-relaxed">
+                <strong className="text-slate-300">Alberta residents:</strong>{" "}
+                If you have questions about Agent Runway&apos;s use of service
+                providers outside Canada, you may contact our Privacy Officer at{" "}
+                <a
+                  href="mailto:privacy@agentrunway.ca"
+                  className="text-blue-400 hover:text-blue-300"
+                >
+                  privacy@agentrunway.ca
+                </a>{" "}
+                (Andrew Shaw, New Brunswick, Canada), who is the designated
+                representative responsible for answering questions about
+                cross-border data transfers.
               </p>
             </section>
 
@@ -734,12 +782,30 @@ export default function PrivacyPage() {
                 </li>
                 <li>
                   <strong className="text-slate-300">
-                    Automated decision-making
+                    Automated decision-making (Law 25, s. 12.1)
                   </strong>{" "}
-                  — the right to be informed of and object to certain automated
-                  decision-making processes. Agent Runway does not currently make
-                  automated decisions with legal or significant effects without
-                  human review.
+                  — Agent Runway&apos;s AI Advisor feature uses automated
+                  processing of your personal business data (GCI, pipeline
+                  metrics, expense ratios, activity data) to generate
+                  insights and recommendations presented to you. Under
+                  Quebec&apos;s Law 25, you have the right to: (a) be informed
+                  that a decision or recommendation was generated using
+                  automated processing; (b) request a list of the personal
+                  information used and the principal factors and parameters
+                  that influenced the output; and (c) submit your observations
+                  to a human representative at Agent Runway and request that
+                  the decision be reconsidered by a person. All AI outputs in
+                  Agent Runway are clearly labeled as AI-generated and are
+                  presented for your review — no automated action is taken
+                  without your explicit approval. To exercise these rights,
+                  contact{" "}
+                  <a
+                    href="mailto:privacy@agentrunway.ca"
+                    className="text-blue-400 hover:text-blue-300"
+                  >
+                    privacy@agentrunway.ca
+                  </a>
+                  .
                 </li>
                 <li>
                   <strong className="text-slate-300">
@@ -992,7 +1058,19 @@ export default function PrivacyPage() {
                   remediate the incident
                 </li>
                 <li>
-                  Maintain records of all breaches as required by PIPEDA
+                  Maintain records of all breaches — including breaches that do
+                  not meet the threshold for notification — for a minimum of{" "}
+                  <strong className="text-slate-300">24 months</strong>, as
+                  required under PIPEDA
+                </li>
+                <li>
+                  For Quebec residents: additionally report to the{" "}
+                  <strong className="text-slate-300">
+                    Commission d&apos;acc&egrave;s &agrave; l&apos;information
+                    (CAI)
+                  </strong>{" "}
+                  if the breach creates a risk of serious injury, and maintain
+                  an incident register as required under Law 25
                 </li>
               </ul>
             </section>

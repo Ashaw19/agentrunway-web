@@ -21,6 +21,9 @@ const FOOTER_LINKS = {
     { label: "Privacy Policy", href: "/privacy" },
     { label: "Terms of Service", href: "/terms" },
     { label: "Security", href: "/security" },
+    { label: "Cookie Policy", href: "/cookie-policy" },
+    { label: "Acceptable Use", href: "/acceptable-use" },
+    { label: "AI Disclaimer", href: "/ai-disclaimer" },
   ],
 } as const;
 

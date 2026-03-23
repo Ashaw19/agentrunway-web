@@ -227,7 +227,15 @@ export default function TermsPage() {
                 <li>
                   <strong className="text-slate-300">Auto-renewal.</strong>{" "}
                   Subscriptions automatically renew at the end of each billing
-                  period unless you cancel before the renewal date. You will
+                  period unless you cancel before the renewal date. For annual
+                  subscriptions, we will provide you with at least{" "}
+                  <strong className="text-slate-300">
+                    30 days&apos; advance written notice
+                  </strong>{" "}
+                  of the upcoming renewal date and amount before your subscription
+                  auto-renews, sent to the email address on your account. For
+                  monthly subscriptions, renewal reminders are reflected in your
+                  recurring billing schedule confirmed at checkout. You will
                   receive a receipt for each charge.
                 </li>
                 <li>
@@ -599,13 +607,19 @@ export default function TermsPage() {
                     AI-generated content.
                   </li>
                   <li>
-                    <strong className="text-white">Third-party AI providers.</strong>{" "}
-                    Customer Data processed by AI Features may be transmitted to
-                    third-party AI service providers for the purpose of generating
-                    AI outputs. We select providers that commit to not retaining
-                    or training on customer data, but we cannot guarantee the
-                    practices of third-party providers. Sensitive or confidential
+                    <strong className="text-white">Third-party AI providers (Groq).</strong>{" "}
+                    Customer Data processed by AI Features is transmitted to{" "}
+                    <strong className="text-white">Groq, Inc.</strong>, a third-party
+                    large language model inference provider based in the United States,
+                    for the purpose of generating AI outputs. Data transmitted to Groq
+                    is processed on Groq&apos;s servers located in the United States
+                    and is subject to US jurisdiction, including potential access by US
+                    law enforcement authorities under applicable US law. We have a Data
+                    Processing Agreement with Groq. Groq commits to not retaining or
+                    training on customer data after processing, but we cannot independently
+                    verify third-party provider compliance. Sensitive or confidential
                     information should not be included in AI prompts or interactions.
+                    See Section&nbsp;12 for the full professional advice disclaimer.
                   </li>
                   <li>
                     <strong className="text-white">AI model ownership.</strong>{" "}
@@ -1100,6 +1114,28 @@ export default function TermsPage() {
                   THIS LIMITATION OF LIABILITY IS CUMULATIVE AND NOT PER-INCIDENT.
                   THIS CAP DOES NOT LIMIT YOUR INDEMNIFICATION OBLIGATIONS TO US
                   UNDER SECTION&nbsp;25.
+                </p>
+                <p>
+                  <strong className="text-white">Carve-outs.</strong>{" "}
+                  Notwithstanding the foregoing, the liability cap and exclusion of
+                  consequential damages set out in this Section&nbsp;24 do{" "}
+                  <strong className="text-white">not</strong> apply to: (a) damages
+                  caused by{" "}
+                  <strong className="text-white">
+                    gross negligence or wilful misconduct
+                  </strong>{" "}
+                  by Agent Runway; (b) damages arising from Agent Runway&apos;s
+                  breach of its confidentiality obligations under Section&nbsp;22;
+                  (c) Agent Runway&apos;s liability for{" "}
+                  <strong className="text-white">
+                    data breaches caused by Agent Runway&apos;s own failure
+                  </strong>{" "}
+                  to implement reasonable security safeguards; or (d) any liability
+                  that cannot be excluded or limited under applicable Canadian law.
+                  In these carve-out circumstances, liability shall be limited to
+                  actual direct damages only and shall not include indirect,
+                  consequential, or punitive damages except to the extent required
+                  by law.
                 </p>
                 <p>
                   SOME JURISDICTIONS DO NOT ALLOW THE EXCLUSION OR LIMITATION OF
