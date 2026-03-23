@@ -4,100 +4,99 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { X, CalendarCheck, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import type { PipelineDeal } from "@/lib/types/database";
 
-interface ClosingDayPromptProps {
-  dealsClosingToday: PipelineDeal[];
+// ── localStorage helpers ───────────────────────────────────────────────────────
+
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/**
- * Returns a localStorage key that is unique to today's date.
- * Dismissals naturally expire when the date rolls over.
- */
 function dismissedKey(dealId: string): string {
-  const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local tz
-  return `closing_prompt_dismissed_${today}_${dealId}`;
+  return `closing_prompt_dismissed_${localToday()}_${dealId}`;
 }
 
 function isDismissed(dealId: string): boolean {
-  try {
-    return localStorage.getItem(dismissedKey(dealId)) === "1";
-  } catch {
-    return false;
-  }
+  try { return localStorage.getItem(dismissedKey(dealId)) === "1"; } catch { return false; }
 }
 
-function dismiss(dealId: string) {
-  try {
-    localStorage.setItem(dismissedKey(dealId), "1");
-  } catch { /* ignore */ }
+function markDismissed(dealId: string) {
+  try { localStorage.setItem(dismissedKey(dealId), "1"); } catch { /* ignore */ }
 }
 
-export function ClosingDayPrompt({ dealsClosingToday }: ClosingDayPromptProps) {
+// ── Component ──────────────────────────────────────────────────────────────────
+
+interface Props {
+  dealsClosingToday: PipelineDeal[];
+}
+
+export function ClosingDayPrompt({ dealsClosingToday }: Props) {
   const router = useRouter();
-  // Filter out any deals the user already dismissed today
+  const [show, setShow] = useState(false);
   const [queue, setQueue] = useState<PipelineDeal[]>([]);
-  const [visible, setVisible] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    // Filter out already-dismissed deals (localStorage — client-only)
     const pending = dealsClosingToday.filter((d) => !isDismissed(d.id));
-    if (pending.length > 0) {
-      setQueue(pending);
-      const t = setTimeout(() => setVisible(true), 2000);
-      return () => clearTimeout(t);
-    }
+    if (pending.length === 0) return;
+
+    setQueue(pending);
+    // Short delay so the prompt doesn't fire during the page-load paint
+    const t = setTimeout(() => setShow(true), 400);
+    return () => clearTimeout(t);
   }, [dealsClosingToday]);
 
-  // Current deal at the front of the queue
   const current = queue[0] ?? null;
+
+  // Don't render anything until ready — avoids any hydration / SSR mismatch
+  if (!show || !current) return null;
+
+  function next(action: "register" | "delay") {
+    if (!current) return;
+    markDismissed(current.id);
+    const remaining = queue.slice(1);
+    if (remaining.length > 0) {
+      setQueue(remaining);
+    } else {
+      setShow(false);
+      setQueue([]);
+    }
+    router.push("/transactions?tab=pipeline");
+  }
 
   function handleDismiss() {
     if (!current) return;
-    dismiss(current.id);
-    const next = queue.slice(1);
-    if (next.length === 0) {
-      setVisible(false);
-      setTimeout(() => setQueue([]), 500); // wait for fade-out
+    markDismissed(current.id);
+    const remaining = queue.slice(1);
+    if (remaining.length > 0) {
+      setQueue(remaining);
     } else {
-      setQueue(next);
+      setShow(false);
+      setQueue([]);
     }
   }
-
-  function handleRegister() {
-    if (!current) return;
-    dismiss(current.id);
-    // Navigate to pipeline tab — the user will click the checkmark to register
-    router.push("/transactions?tab=pipeline");
-  }
-
-  function handleDelayed() {
-    if (!current) return;
-    dismiss(current.id);
-    // Navigate to pipeline tab so they can update the expected close date
-    router.push("/transactions?tab=pipeline");
-  }
-
-  if (!mounted || !current) return null;
 
   const remaining = queue.length;
 
   return (
+    // z-[9999] ensures this floats above FABs, toasts, modals
     <div
-      className={cn(
-        "fixed bottom-6 right-6 z-50 w-80 rounded-2xl border border-border/80 bg-card shadow-xl transition-all duration-500",
-        visible
-          ? "translate-y-0 opacity-100"
-          : "translate-y-8 opacity-0 pointer-events-none",
-      )}
+      className="fixed bottom-24 right-6 z-[9999] w-80 rounded-2xl border border-border/80 bg-card shadow-2xl"
+      style={{ animation: "slideUpFade 0.35s ease-out forwards" }}
     >
+      <style>{`
+        @keyframes slideUpFade {
+          from { opacity: 0; transform: translateY(16px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
       {/* Emerald accent bar */}
       <div className="h-1 rounded-t-2xl bg-gradient-to-r from-emerald-500 to-teal-400" />
 
       <div className="p-4">
-        {/* Header row */}
+        {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="flex items-center gap-1.5">
             <CalendarCheck className="h-4 w-4 text-emerald-600" />
@@ -125,14 +124,11 @@ export function ClosingDayPrompt({ dealsClosingToday }: ClosingDayPromptProps) {
           {current.address || "Unnamed deal"}
         </p>
 
-        {/* Client + stage context */}
+        {/* Context */}
         <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-          {current.client_name ? (
-            <>
-              <span className="font-medium text-foreground">{current.client_name}</span>
-              {" · "}
-            </>
-          ) : null}
+          {current.client_name && (
+            <><span className="font-medium text-foreground">{current.client_name}</span>{" · "}</>
+          )}
           This deal was scheduled to close today. Did everything go through?
         </p>
 
@@ -141,7 +137,7 @@ export function ClosingDayPrompt({ dealsClosingToday }: ClosingDayPromptProps) {
           <Button
             size="sm"
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8"
-            onClick={handleRegister}
+            onClick={() => next("register")}
           >
             <CalendarCheck className="mr-1.5 h-3.5 w-3.5" />
             Yes — register as closed
@@ -150,14 +146,13 @@ export function ClosingDayPrompt({ dealsClosingToday }: ClosingDayPromptProps) {
             size="sm"
             variant="outline"
             className="w-full text-xs h-8 border-amber-300 text-amber-700 hover:bg-amber-50"
-            onClick={handleDelayed}
+            onClick={() => next("delay")}
           >
             <Clock className="mr-1.5 h-3.5 w-3.5" />
             It&apos;s been delayed — update date
           </Button>
         </div>
 
-        {/* Multi-deal hint */}
         {remaining > 1 && (
           <p className="mt-2 text-center text-[10px] text-muted-foreground">
             {remaining - 1} more deal{remaining - 1 !== 1 ? "s" : ""} closing today
