@@ -6,9 +6,9 @@ import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 import { Check, Sparkles, ArrowRight } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Join the Waitlist | Agent Runway",
+  title: "Charter Member Access | Agent Runway",
   description:
-    "Be first in line when Agent Runway launches. The only all-in-one business platform built exclusively for Canadian real estate agents.",
+    "First 50 agents get 3 months free, lifetime price lock, and a referral bonus. Charter Member spots are limited — offer closes September 30, 2026.",
   openGraph: {
     url: "https://agentrunway.ca/waitlist",
     images: [{ url: "/og-image.png", width: 1200, height: 630 }],
@@ -60,10 +60,18 @@ const PILLARS = [
   },
 ] as const;
 
-const FOUNDING_CHECKLIST = [
-  "Founding member pricing — locked in before public launch",
-  "First access when we go live",
-  "Direct line to the team — your feedback shapes the product",
+// ── Charter Member offer ──────────────────────────────────────────────────────
+// Update CHARTER_SPOTS_CLAIMED manually as spots fill up.
+const CHARTER_SPOTS_TOTAL   = 50;
+const CHARTER_SPOTS_CLAIMED = 8;   // ← update this number as spots fill
+const CHARTER_SPOTS_LEFT    = CHARTER_SPOTS_TOTAL - CHARTER_SPOTS_CLAIMED;
+const CHARTER_PCT           = Math.round((CHARTER_SPOTS_CLAIMED / CHARTER_SPOTS_TOTAL) * 100);
+
+const CHARTER_CHECKLIST = [
+  "3 months free on any paid plan — no credit card at signup",
+  "Your price locked for life — never pay more as the product grows",
+  "Earn 3 extra free months for every referral who starts a paid plan",
+  "Direct line to the founder — your feedback shapes the roadmap",
 ];
 
 const SCORE_BARS = [
@@ -367,7 +375,7 @@ export default function WaitlistPage() {
                 {/* Pill badge */}
                 <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs font-semibold text-amber-300">
                   <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                  ✈ Founding Member Access — Limited Spots
+                  ✈ Charter Member Access — {CHARTER_SPOTS_LEFT} of {CHARTER_SPOTS_TOTAL} Spots Left
                 </div>
 
                 {/* Headline */}
@@ -397,9 +405,9 @@ export default function WaitlistPage() {
                 {/* Inline trust signals */}
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-6 sm:gap-y-2">
                   {[
+                    "3 months free — Charter Members only",
+                    "Price locked for life at launch rate",
                     "Priced in Canadian dollars",
-                    "Founding member rates — locked in",
-                    "First access at launch",
                   ].map((item) => (
                     <div key={item} className="flex items-center gap-2">
                       <Check className="h-4 w-4 shrink-0 text-emerald-400" />
@@ -462,14 +470,55 @@ export default function WaitlistPage() {
               {/* Section label */}
               <div className="mb-10 text-center">
                 <p className="text-xs font-semibold uppercase tracking-widest text-amber-400/70">
-                  Join the waitlist
+                  Charter Member Offer
                 </p>
                 <h2 className="mt-2 text-3xl font-bold text-white sm:text-4xl">
-                  Secure your spot today.
+                  Claim your spot before takeoff.
                 </h2>
                 <p className="mt-3 text-slate-400">
-                  Founding member pricing closes before public launch.
+                  First 50 agents only. Offer expires September 30, 2026.
                 </p>
+
+                {/* Spot counter + progress bar */}
+                <div className="mt-6 mx-auto max-w-xs">
+                  <div className="flex justify-between mb-1.5 text-xs">
+                    <span className="font-semibold text-amber-300">{CHARTER_SPOTS_CLAIMED} spots claimed</span>
+                    <span className="text-slate-500">{CHARTER_SPOTS_LEFT} remaining</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${CHARTER_PCT}%`,
+                        background: "linear-gradient(90deg, #F0A800 0%, #D97706 100%)",
+                        boxShadow: "0 0 8px rgba(240,168,0,0.6)",
+                      }}
+                    />
+                  </div>
+                  <p className="mt-2 text-[10px] text-slate-600">
+                    of {CHARTER_SPOTS_TOTAL} Charter Member spots
+                  </p>
+                </div>
+
+                {/* Charter Member benefits */}
+                <div className="mt-6 rounded-xl border border-amber-400/20 bg-amber-400/5 p-4 text-left">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-amber-400/80 text-center">
+                    What Charter Members get
+                  </p>
+                  <div className="space-y-2">
+                    {CHARTER_CHECKLIST.map((item) => (
+                      <div key={item} className="flex items-start gap-2.5">
+                        <div
+                          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full mt-0.5"
+                          style={{ background: "rgba(16,185,129,0.20)", border: "1px solid rgba(16,185,129,0.35)" }}
+                        >
+                          <Check className="h-2.5 w-2.5 text-emerald-400" />
+                        </div>
+                        <span className="text-xs leading-relaxed text-slate-300">{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Form card */}
@@ -503,10 +552,10 @@ export default function WaitlistPage() {
                   </div>
 
                   <h3 className="text-2xl font-bold text-white text-center mb-1">
-                    Get early access
+                    Become a Charter Member
                   </h3>
                   <p className="text-sm text-slate-400 text-center mb-8">
-                    Be first in line. No spam — just a heads-up when we launch.
+                    Leave your details and we&apos;ll reach out with your 3-month free access before the public launch.
                   </p>
 
                   <WaitlistForm />
@@ -655,7 +704,7 @@ export default function WaitlistPage() {
               {/* Badge */}
               <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-xs font-semibold text-amber-300">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                Limited founding spots available
+                {CHARTER_SPOTS_LEFT} Charter Member spots remaining
               </div>
 
               {/* Headline */}
@@ -674,12 +723,12 @@ export default function WaitlistPage() {
               </h2>
 
               <p className="mt-6 text-lg leading-relaxed text-slate-400 max-w-xl mx-auto">
-                Founding member rates are set before public launch. Join now — your spot holds your price.
+                Charter Members get 3 months free, lifetime price lock, and a referral bonus — available to the first 50 agents only. Offer closes September 30, 2026.
               </p>
 
               {/* Checklist */}
               <div className="mt-8 flex flex-col items-start gap-3 max-w-sm mx-auto text-left">
-                {FOUNDING_CHECKLIST.map((item) => (
+                {CHARTER_CHECKLIST.map((item) => (
                   <div key={item} className="flex items-start gap-3">
                     <div
                       className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full mt-0.5"
