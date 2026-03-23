@@ -10,6 +10,7 @@ const FOOTER_LINKS = {
     { label: "Demo", href: "/demo" },
   ],
   Resources: [
+    { label: "Blog", href: "/blog" },
     { label: "Metrics Library", href: "/real-estate-metrics" },
     { label: "GCI Tracking Guide", href: "/how-real-estate-agents-track-gci" },
     { label: "Real Estate Analytics", href: "/real-estate-business-analytics" },

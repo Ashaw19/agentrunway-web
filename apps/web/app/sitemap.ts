@@ -1,11 +1,27 @@
 import { MetadataRoute } from "next";
+import { getAllPosts } from "@/lib/blog";
 
 const BASE_URL = "https://agentrunway.ca";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
 
+  // Dynamically include all blog posts
+  const blogEntries: MetadataRoute.Sitemap = getAllPosts().map((post) => ({
+    url:             `${BASE_URL}/blog/${post.slug}`,
+    lastModified:    new Date(post.date),
+    changeFrequency: "monthly" as const,
+    priority:        0.7,
+  }));
+
   return [
+    ...blogEntries,
+    {
+      url:             `${BASE_URL}/blog`,
+      lastModified:    now,
+      changeFrequency: "weekly" as const,
+      priority:        0.8,
+    },
     {
       url: `${BASE_URL}/`,
       lastModified: now,
