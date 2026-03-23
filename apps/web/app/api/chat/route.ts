@@ -6,6 +6,7 @@ import { log } from "@/lib/logger";
 import { KNOWLEDGE_BASE } from "@/lib/knowledge-base";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
+import { generateTeamComparativeInsights } from "@agent-runway/core/engines";
 
 export async function POST(req: NextRequest) {
   const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
@@ -106,10 +107,13 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (membership?.org_id) {
-      const { data: teamPerf } = await supabase
-        .from("org_agent_performance")
-        .select("agent_name, role, ytd_gci, deal_count, pipeline_count, pipeline_value")
-        .eq("org_id", membership.org_id);
+      const [{ data: teamPerf }, { data: activityData }] = await Promise.all([
+        supabase
+          .from("org_agent_performance")
+          .select("user_id, agent_name, role, ytd_gci, deal_count, pipeline_count, pipeline_value, goal_gci")
+          .eq("org_id", membership.org_id),
+        supabase.rpc("fn_org_crm_activity_summary", { p_org_id: membership.org_id }),
+      ]);
 
       if (teamPerf && teamPerf.length > 1) {
         const leader = teamPerf.find(
@@ -118,9 +122,18 @@ export async function POST(req: NextRequest) {
         const leaderName = leader?.agent_name?.split(" ")[0] ?? "your team lead";
         const orgData = membership.organizations as unknown as { name: string } | { name: string }[] | null;
         const teamName = (Array.isArray(orgData) ? orgData[0]?.name : orgData?.name) ?? "your team";
-        const avgGci = teamPerf.reduce((s, m) => s + (m.ytd_gci ?? 0), 0) / teamPerf.length;
-        const avgDeals = teamPerf.reduce((s, m) => s + (m.deal_count ?? 0), 0) / teamPerf.length;
+
+        const avgGci    = teamPerf.reduce((s, m) => s + (m.ytd_gci ?? 0), 0) / teamPerf.length;
+        const avgDeals  = teamPerf.reduce((s, m) => s + (m.deal_count ?? 0), 0) / teamPerf.length;
         const avgPipeline = teamPerf.reduce((s, m) => s + (m.pipeline_count ?? 0), 0) / teamPerf.length;
+        const avgPipelineValue = teamPerf.reduce((s, m) => s + (m.pipeline_value ?? 0), 0) / teamPerf.length;
+
+        // Find this user's row in the team view
+        const myRow = teamPerf.find((m) => m.user_id === user.id);
+        const myActivity = (activityData ?? []).find((a: { user_id: string }) => a.user_id === user.id);
+        const avgTouchpoints = activityData && (activityData as { total_activities: number }[]).length > 0
+          ? (activityData as { total_activities: number }[]).reduce((s, a) => s + (a.total_activities ?? 0), 0) / (activityData as unknown[]).length
+          : 0;
 
         financialContext += `\n\nTEAM CONTEXT (${teamName}, ${teamPerf.length} agents):
 Team Leader: ${leaderName}
@@ -128,6 +141,45 @@ Team Avg YTD GCI: ${fmtCurrency(avgGci)}
 Team Avg Closed Deals: ${Math.round(avgDeals)}
 Team Avg Pipeline Deals: ${Math.round(avgPipeline)}
 IMPORTANT: When comparing this agent to team averages, always reference ${leaderName} by name (not "team lead" or "your manager"). Suggest discussions with ${leaderName} when coaching opportunities arise.`;
+
+        // ── T5: Team comparative insights ─────────────────────────────────
+        if (myRow) {
+          const dayOfYear = Math.floor(
+            (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
+          );
+          const seasonalFraction = Math.max(dayOfYear / 365, 0.01);
+
+          const comparativeInsights = generateTeamComparativeInsights({
+            agent: {
+              ytd_gci:        myRow.ytd_gci ?? 0,
+              deal_count:     myRow.deal_count ?? 0,
+              pipeline_count: myRow.pipeline_count ?? 0,
+              pipeline_value: myRow.pipeline_value ?? 0,
+              goal_gci:       myRow.goal_gci ?? null,
+              expense_ratio:  null, // Tier 3 — not exposed
+              ytd_touchpoints: myActivity?.total_activities ?? 0,
+            },
+            team: {
+              avg_ytd_gci:        avgGci,
+              avg_deal_count:     avgDeals,
+              avg_pipeline_count: avgPipeline,
+              avg_pipeline_value: avgPipelineValue,
+              avg_expense_ratio:  null,
+              avg_ytd_touchpoints: avgTouchpoints,
+              member_count:       teamPerf.length,
+            },
+            leaderFirstName: leaderName,
+            teamName,
+            seasonalFraction,
+          }, 3);
+
+          if (comparativeInsights.length > 0) {
+            financialContext += `\n\nTEAM COMPARATIVE INSIGHTS (pre-computed — surface these when relevant):\n` +
+              comparativeInsights
+                .map((i) => `[${i.severity.toUpperCase()}] ${i.title}: ${i.message}`)
+                .join("\n");
+          }
+        }
       }
     }
   } catch {
