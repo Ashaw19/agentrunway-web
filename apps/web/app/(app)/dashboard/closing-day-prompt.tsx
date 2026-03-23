@@ -43,13 +43,7 @@ export function ClosingDayPrompt({ dealsClosingToday }: ClosingDayPromptProps) {
 
   useEffect(() => {
     setMounted(true);
-    console.log("[ClosingDayPrompt] received deals:", dealsClosingToday.length);
-    const pending = dealsClosingToday.filter((d) => {
-      const dismissed = isDismissed(d.id);
-      console.log("[ClosingDayPrompt] deal", d.id, d.address, "dismissed?", dismissed);
-      return !dismissed;
-    });
-    console.log("[ClosingDayPrompt] pending after localStorage filter:", pending.length);
+    const pending = dealsClosingToday.filter((d) => !isDismissed(d.id));
     if (pending.length > 0) {
       setQueue(pending);
       const t = setTimeout(() => setVisible(true), 2000);
@@ -93,7 +87,7 @@ export function ClosingDayPrompt({ dealsClosingToday }: ClosingDayPromptProps) {
   return (
     <div
       className={cn(
-        "fixed bottom-6 left-6 z-50 w-80 rounded-2xl border border-border/80 bg-card shadow-xl transition-all duration-500",
+        "fixed bottom-6 right-6 z-50 w-80 rounded-2xl border border-border/80 bg-card shadow-xl transition-all duration-500",
         visible
           ? "translate-y-0 opacity-100"
           : "translate-y-8 opacity-0 pointer-events-none",

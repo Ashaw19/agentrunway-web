@@ -275,17 +275,11 @@ export function DashboardContent({
   const dealsClosingToday = useMemo(() => {
     const now = new Date();
     const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    console.log("[ClosingDay] today =", today, "| pipeline deals =", pipelineDeals.length);
-    pipelineDeals.forEach((d) => {
-      console.log("[ClosingDay] deal:", d.address, "| stage:", d.stage, "| close_date:", d.expected_close_date);
-    });
-    const result = pipelineDeals.filter((d) => {
+    return pipelineDeals.filter((d) => {
       if (!d.expected_close_date) return false;
       if (d.stage !== "firm" && d.stage !== "closed") return false;
       return d.expected_close_date <= today;
     });
-    console.log("[ClosingDay] deals passing filter:", result.length);
-    return result;
   }, [pipelineDeals]);
 
   const [tourComplete, setTourComplete] = useState(hasSeenTour);
