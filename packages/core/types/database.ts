@@ -13,7 +13,7 @@ export type TransactionStatus = "closed" | "pending" | "fallen";
 export type TxDatePrecision = "day" | "month" | "quarter" | "year";
 export type TxSource = "manual" | "imported";
 
-export type PipelineStage = "lead" | "showing" | "offer" | "conditional" | "firm";
+export type PipelineStage = "lead" | "showing" | "offer" | "conditional" | "firm" | "closed";
 
 export const PIPELINE_STAGE_DEFAULTS: Record<PipelineStage, number> = {
   lead: 0.1,
@@ -21,6 +21,7 @@ export const PIPELINE_STAGE_DEFAULTS: Record<PipelineStage, number> = {
   offer: 0.5,
   conditional: 0.75,
   firm: 0.9,
+  closed: 1.0,
 };
 
 export type MilestoneType =

@@ -75,7 +75,7 @@ type FormState = {
   estimated_price: string;
   estimated_commission_pct: string;
   side: "buyer" | "seller" | "both";
-  stage: "lead" | "showing" | "offer" | "conditional" | "firm";
+  stage: "lead" | "showing" | "offer" | "conditional" | "firm" | "closed";
   expected_close_date: string;
   probability_override: string;
   notes: string;
@@ -99,6 +99,7 @@ const STAGE_LABELS: Record<string, string> = {
   offer: "Offer",
   conditional: "Conditional",
   firm: "Firm",
+  closed: "Closed",
 };
 
 const STAGE_CHIP: Record<string, string> = {
@@ -107,6 +108,7 @@ const STAGE_CHIP: Record<string, string> = {
   offer:       "bg-amber-100 text-amber-800 border border-amber-200",
   conditional: "bg-purple-100 text-purple-800 border border-purple-200",
   firm:        "bg-emerald-100 text-emerald-800 border border-emerald-200",
+  closed:      "bg-green-600 text-white border border-green-700",
 };
 
 const SIDE_CHIP: Record<string, string> = {
@@ -540,6 +542,7 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
                     <SelectItem value="offer">Offer (50%)</SelectItem>
                     <SelectItem value="conditional">Conditional (75%)</SelectItem>
                     <SelectItem value="firm">Firm (90%)</SelectItem>
+                    <SelectItem value="closed">Closed (100%)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

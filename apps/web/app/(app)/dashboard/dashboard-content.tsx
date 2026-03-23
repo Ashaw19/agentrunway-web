@@ -123,6 +123,7 @@ import { ExplainButton } from "@/components/explain-button";
 import { WelcomeTour } from "@/components/welcome-tour";
 import { GuideLink } from "@/components/guide-link";
 import { AiProfilePrompt } from "./ai-profile-prompt";
+import { ClosingDayPrompt } from "./closing-day-prompt";
 import type { CommunicationProfile, BusinessIdentity } from "@/lib/types/database";
 
 function MetricInfo({ tip }: { tip: string }) {
@@ -2156,6 +2157,16 @@ export function DashboardContent({
           }}
         />
       )}
+
+      {/* Closing Day floating prompt — surfaces firm/closed pipeline deals due today */}
+      <ClosingDayPrompt
+        dealsClosingToday={pipelineDeals.filter((d) => {
+          if (!d.expected_close_date) return false;
+          if (d.stage !== "firm" && d.stage !== "closed") return false;
+          const today = new Date().toISOString().slice(0, 10);
+          return d.expected_close_date <= today;
+        })}
+      />
 
       {/* AI Profile floating prompt */}
       {settings?.user_id && (
