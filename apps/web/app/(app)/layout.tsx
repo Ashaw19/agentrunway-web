@@ -80,7 +80,19 @@ export default async function AppLayout({
 
     // ── Subscription tier ────────────────────────────────────────────────────
     const tier = settings?.subscription_tier ?? "starter";
-    isPro = tier === "professional" || tier === "team";
+    const hasIndividualPro = tier === "professional" || tier === "team";
+
+    // Check if user belongs to an active or beta org (grants pro access)
+    const hasOrgAccess = (memberships ?? []).some((m: Record<string, unknown>) => {
+      const org = m.organizations as Record<string, unknown> | null;
+      return (
+        org?.subscription_status === "active" ||
+        org?.subscription_status === "trialing" ||
+        org?.is_beta === true
+      );
+    });
+
+    isPro = hasIndividualPro || hasOrgAccess;
 
     // ── Org context ──────────────────────────────────────────────────────────
     if (memberships && memberships.length > 0) {

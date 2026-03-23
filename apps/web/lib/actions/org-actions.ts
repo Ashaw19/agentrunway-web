@@ -18,6 +18,20 @@ import { CURRENT_CONSENT_VERSION } from "@/lib/types/organizations";
 
 type ActionResult<T> = { data: T; error: null } | { data: null; error: string };
 
+// Sync Stripe seat count after member changes — non-fatal
+async function syncOrgSeats(orgId: string): Promise<void> {
+  try {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://agentrunway.ca";
+    await fetch(`${appUrl}/api/team-billing/update-seats`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ org_id: orgId }),
+    });
+  } catch {
+    // Non-fatal — billing sync failure doesn't block UX
+  }
+}
+
 async function getAuthUserId(): Promise<string | null> {
   const supabase = await createClient();
   const {
@@ -210,6 +224,9 @@ export async function inviteMembers(
     });
   }
 
+  // Sync Stripe seat count (fire-and-forget, non-fatal)
+  void syncOrgSeats(orgId);
+
   return { data: (created ?? []) as OrganizationInvitation[], error: null };
 }
 
@@ -294,6 +311,9 @@ export async function acceptInvitation(
     metadata: { email: invitation.email, role: invitation.role },
   });
 
+  // Sync Stripe seat count (fire-and-forget, non-fatal)
+  void syncOrgSeats(invitation.org_id);
+
   return { data: member as OrganizationMember, error: null };
 }
 
@@ -332,6 +352,9 @@ export async function removeMember(
   if (error) return { data: null, error: error.message };
 
   await logAudit(orgId, userId, "member_removed", targetUserId);
+
+  // Sync Stripe seat count (fire-and-forget, non-fatal)
+  void syncOrgSeats(orgId);
 
   return { data: { success: true }, error: null };
 }
@@ -554,6 +577,9 @@ export async function leaveOrganization(
   if (error) return { data: null, error: error.message };
 
   await logAudit(orgId, userId, "member_departed", userId);
+
+  // Sync Stripe seat count (fire-and-forget, non-fatal)
+  void syncOrgSeats(orgId);
 
   return { data: { success: true }, error: null };
 }

@@ -232,6 +232,22 @@ export async function POST(request: Request) {
     case "customer.subscription.updated": {
       const sub = event.data.object as Stripe.Subscription;
       const cid = customerId(sub.customer);
+      const orgId = sub.metadata?.orgId;
+
+      // ── Team/org subscription update ──────────────────────────────────────
+      if (orgId) {
+        const { error: orgErr } = await db
+          .from("organizations")
+          .update({ subscription_status: sub.status })
+          .eq("stripe_subscription_id", sub.id);
+
+        if (orgErr) {
+          console.error("[stripe] failed to sync org subscription status", orgId, orgErr.message);
+        } else {
+          console.log("[stripe] synced org subscription", sub.id, sub.status);
+        }
+        break;
+      }
 
       if (!cid) {
         console.error("[stripe] subscription.updated — no customer ID", sub.id);
@@ -333,6 +349,25 @@ export async function POST(request: Request) {
     case "customer.subscription.deleted": {
       const sub = event.data.object as Stripe.Subscription;
       const cid = customerId(sub.customer);
+      const orgId = sub.metadata?.orgId;
+
+      // ── Team/org subscription canceled ────────────────────────────────────
+      if (orgId) {
+        const { error: orgErr } = await db
+          .from("organizations")
+          .update({
+            subscription_status: "canceled",
+            stripe_subscription_id: null,
+          })
+          .eq("stripe_subscription_id", sub.id);
+
+        if (orgErr) {
+          console.error("[stripe] failed to cancel org subscription", orgId, orgErr.message);
+        } else {
+          console.log("[stripe] canceled org subscription", sub.id);
+        }
+        break;
+      }
 
       if (!cid) {
         console.error("[stripe] subscription.deleted — no customer ID", sub.id);
