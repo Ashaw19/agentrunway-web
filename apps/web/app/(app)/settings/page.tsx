@@ -17,7 +17,7 @@ export default async function SettingsPage() {
   );
 
   // Run upsert and both selects in parallel
-  const [, { data: settings }, { data: plaidItems }] = await Promise.all([
+  const [, { data: settings }, { data: plaidItems }, { data: googleConnection }] = await Promise.all([
     supabase
       .from("user_settings")
       .upsert({ user_id: user.id }, { onConflict: "user_id", ignoreDuplicates: true }),
@@ -32,6 +32,11 @@ export default async function SettingsPage() {
       .select("id, user_id, plaid_item_id, institution_id, institution_name, sync_cursor, last_synced_at, created_at, updated_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("google_connections")
+      .select("id, email_address, display_name, gmail_send_enabled, calendar_sync_enabled, drive_read_enabled, connected_at")
+      .eq("user_id", user.id)
+      .maybeSingle(),
   ]);
 
   if (!settings) redirect("/dashboard");
@@ -41,6 +46,7 @@ export default async function SettingsPage() {
       settings={settings as UserSettings}
       plaidItems={(plaidItems ?? []) as PlaidItem[]}
       plaidConfigured={plaidConfigured}
+      googleConnection={googleConnection ?? null}
     />
   );
 }

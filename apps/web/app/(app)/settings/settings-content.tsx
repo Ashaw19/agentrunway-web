@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check, Sparkles, ExternalLink, Loader2, Car, Landmark, RefreshCw, Trash2, Clock, Info, AlertCircle, XCircle, Building2, User, TrendingDown, Home } from "lucide-react";
+import { Check, Sparkles, ExternalLink, Loader2, Car, Landmark, RefreshCw, Trash2, Clock, Info, AlertCircle, XCircle, Building2, User, TrendingDown, Home, Mail } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,7 +33,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PlaidLinkButton } from "@/components/plaid-link";
 import {
   PROVINCE_LABELS,
@@ -56,10 +56,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { VoiceQuizModal } from "./voice-quiz-modal";
 import { cn } from "@/lib/utils";
 
+type GoogleConnection = {
+  id: string;
+  email_address: string;
+  display_name: string | null;
+  gmail_send_enabled: boolean;
+  calendar_sync_enabled: boolean;
+  drive_read_enabled: boolean;
+  connected_at: string;
+} | null;
+
 interface Props {
   settings: UserSettings;
   plaidItems?: PlaidItem[];
   plaidConfigured?: boolean;
+  googleConnection?: GoogleConnection;
 }
 
 const SPLIT_OPTIONS: { value: SplitPreset; label: string }[] = [
@@ -81,8 +92,32 @@ function useSaved() {
   return { saved, flash };
 }
 
-export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], plaidConfigured = false }: Props) {
+export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], plaidConfigured = false, googleConnection = null }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [googleConn, setGoogleConn] = useState<GoogleConnection>(googleConnection);
+  const [googleDisconnecting, setGoogleDisconnecting] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("google_connected") === "true") {
+      toast.success("Google account connected successfully!");
+      router.replace("/settings");
+    }
+  }, [searchParams, router]);
+
+  async function handleGoogleDisconnect() {
+    setGoogleDisconnecting(true);
+    try {
+      const res = await fetch("/api/auth/google/disconnect", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to disconnect");
+      setGoogleConn(null);
+      toast.success("Google account disconnected.");
+    } catch {
+      toast.error("Could not disconnect. Please try again.");
+    } finally {
+      setGoogleDisconnecting(false);
+    }
+  }
 
   // ── Section AI: AI Voice Profile ─────────────────────────────────────────
   const [voiceQuizOpen, setVoiceQuizOpen] = useState(false);
@@ -1707,6 +1742,128 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
                   </div>
                 );
               })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Card — Google Integrations */}
+      <Card className="rounded-2xl border-l-4 border-l-rose-400 shadow-sm">
+        <CardHeader>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-rose-500" />
+              <div>
+                <CardTitle>Google Integrations</CardTitle>
+                <CardDescription className="mt-0.5">
+                  Connect your Google account to send outreach emails directly from{" "}
+                  <Link href="/flight-control" className="underline underline-offset-2">
+                    Flight Control
+                  </Link>
+                  , sync your calendar, and analyse Drive documents.
+                </CardDescription>
+              </div>
+            </div>
+            {googleConn ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={googleDisconnecting}
+                    className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0"
+                  >
+                    {googleDisconnecting ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    ) : (
+                      <XCircle className="h-3.5 w-3.5 mr-1.5" />
+                    )}
+                    Disconnect
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Disconnect Google Account?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This removes your Google connection. You won&apos;t be able to send
+                      emails from Flight Control until you reconnect.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleGoogleDisconnect}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Disconnect
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : (
+              <a href="/api/auth/google/connect">
+                <Button size="sm" className="shrink-0">
+                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                  Connect Google
+                </Button>
+              </a>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {googleConn ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 rounded-xl border bg-card p-4">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-950/30 shrink-0">
+                  <Mail className="h-4 w-4 text-rose-500" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">
+                    {googleConn.display_name ?? googleConn.email_address}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {googleConn.email_address}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {googleConn.gmail_send_enabled && (
+                  <Badge className="gap-1 bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400 hover:bg-rose-100">
+                    <Check className="h-3 w-3" /> Gmail Send
+                  </Badge>
+                )}
+                {googleConn.calendar_sync_enabled && (
+                  <Badge className="gap-1 bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 hover:bg-blue-100">
+                    <Check className="h-3 w-3" /> Calendar Sync
+                  </Badge>
+                )}
+                {googleConn.drive_read_enabled && (
+                  <Badge className="gap-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 hover:bg-emerald-100">
+                    <Check className="h-3 w-3" /> Drive Access
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Connected{" "}
+                {new Date(googleConn.connected_at).toLocaleDateString("en-CA", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <Mail className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-medium">No Google account connected</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Connect your Google account to send outreach emails directly from Flight Control,
+                  sync your calendar, and let AI analyse your Drive documents.
+                </p>
+              </div>
             </div>
           )}
         </CardContent>
