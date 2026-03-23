@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -118,7 +119,9 @@ export function ClosingDayPrompt({ dealsClosingToday }: Props) {
 
   const gci = computeEstimatedGCI(current);
 
-  return (
+  // Portal renders directly into document.body, bypassing any CSS transform
+  // stacking contexts (e.g. .page-enter animation) that break fixed positioning.
+  return createPortal(
     <>
       {/* ── Backdrop ─────────────────────────────────────────────────────── */}
       <div
@@ -293,7 +296,8 @@ export function ClosingDayPrompt({ dealsClosingToday }: Props) {
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }
 
