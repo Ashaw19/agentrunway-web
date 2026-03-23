@@ -43,10 +43,15 @@ export function ClosingDayPrompt({ dealsClosingToday }: ClosingDayPromptProps) {
 
   useEffect(() => {
     setMounted(true);
-    const pending = dealsClosingToday.filter((d) => !isDismissed(d.id));
+    console.log("[ClosingDayPrompt] received deals:", dealsClosingToday.length);
+    const pending = dealsClosingToday.filter((d) => {
+      const dismissed = isDismissed(d.id);
+      console.log("[ClosingDayPrompt] deal", d.id, d.address, "dismissed?", dismissed);
+      return !dismissed;
+    });
+    console.log("[ClosingDayPrompt] pending after localStorage filter:", pending.length);
     if (pending.length > 0) {
       setQueue(pending);
-      // Small delay so it doesn't pop immediately on page load (stagger with AI prompt)
       const t = setTimeout(() => setVisible(true), 2000);
       return () => clearTimeout(t);
     }
