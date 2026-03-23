@@ -382,7 +382,13 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
 
       {/* Pipeline tab */}
       {tab === "pipeline" && (
-        <TransactionsPipelineTab pipelineDeals={initialPipelineDeals} />
+        <TransactionsPipelineTab
+          pipelineDeals={initialPipelineDeals}
+          settings={settings}
+          closedTransactions={initialTransactions
+            .filter((t) => t.status === "closed")
+            .map((t) => ({ sale_price: t.sale_price, commission_pct: t.commission_pct, date: t.date }))}
+        />
       )}
 
       {/* History tab */}

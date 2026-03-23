@@ -62,11 +62,18 @@ import {
   computeProbability,
   PIPELINE_STAGE_DEFAULTS,
   type PipelineDeal,
+  type UserSettings,
 } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
+import { useConfetti } from "@/hooks/use-confetti";
+import { marginalRate } from "@/lib/engines/canadian-tax-engine";
+import { DealCloseCelebration, type CelebrationData } from "./deal-close-celebration";
 
 interface Props {
   pipelineDeals: PipelineDeal[];
+  settings?: UserSettings | null;
+  /** Closed transactions this year — used for YTD GCI + streak calculations */
+  closedTransactions?: { sale_price: number; commission_pct: number; date: string }[];
 }
 
 type FormState = {
@@ -125,7 +132,7 @@ type CloseForm = {
   date: string;
 };
 
-export function TransactionsPipelineTab({ pipelineDeals }: Props) {
+export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransactions = [] }: Props) {
   const [deals, setDeals] = useState(pipelineDeals);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -141,6 +148,8 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
     side: "buyer",
     date: new Date().toISOString().split("T")[0],
   });
+  const [celebration, setCelebration] = useState<CelebrationData | null>(null);
+  const { fire: fireConfetti } = useConfetti();
 
   useEffect(() => {
     if (closeTarget) {
@@ -257,12 +266,16 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setClosing(false); return; }
 
+    const salePrice  = parseFloat(closeForm.sale_price) || 0;
+    const commPct    = (parseFloat(closeForm.commission_pct) || 0) / 100;
+    const gci        = salePrice * commPct;
+
     const { error: txErr } = await supabase.from("transactions").insert({
       user_id: user.id,
       address: closeTarget.address,
       client_name: closeForm.client_name || null,
-      sale_price: parseFloat(closeForm.sale_price) || 0,
-      commission_pct: (parseFloat(closeForm.commission_pct) || 0) / 100,
+      sale_price: salePrice,
+      commission_pct: commPct,
       side: closeForm.side,
       status: "closed",
       date: closeForm.date,
@@ -278,11 +291,53 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
       .from("pipeline_deals")
       .delete()
       .eq("id", closeTarget.id);
+
     if (!delErr) {
       setDeals((prev) => prev.filter((d) => d.id !== closeTarget.id));
-      const address = closeTarget.address;
+
+      // ── Compute celebration data ──────────────────────────────────────────
+      const province = settings?.province ?? "ontario";
+      const goalGCI  = settings?.goal_gci ?? 0;
+      const thisYear = new Date().getFullYear().toString();
+      const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+
+      // YTD GCI from passed-in closed transactions (before this deal)
+      const ytdGCIBefore = closedTransactions
+        .filter((t) => t.date?.startsWith(thisYear))
+        .reduce((sum, t) => sum + t.sale_price * t.commission_pct, 0);
+
+      // Deals this month (from passed-in list + 1 for this deal)
+      const dealsThisMonthBefore = closedTransactions.filter(
+        (t) => t.date?.startsWith(thisMonth)
+      ).length;
+      const dealsThisMonth = dealsThisMonthBefore + 1;
+
+      // Total deals this year
+      const totalDealsThisYear = closedTransactions.filter(
+        (t) => t.date?.startsWith(thisYear)
+      ).length + 1;
+
+      // Estimated marginal rate at projected annual income
+      const projectedAnnual = ytdGCIBefore + gci;
+      const estMarginalRate = marginalRate(projectedAnnual > 0 ? projectedAnnual : goalGCI, province);
+
+      setCelebration({
+        address: closeTarget.address ?? "",
+        clientName: closeForm.client_name ?? "",
+        gci,
+        ytdGCIBefore,
+        goalGCI,
+        province,
+        dealsThisMonth,
+        totalDealsThisYear,
+        estimatedMarginalRate: estMarginalRate,
+      });
+
       setCloseTarget(null);
-      toast.success(`${address} closed and added to transactions. 🎉`);
+
+      // Fire confetti after a short delay so the modal is visible first
+      setTimeout(() => fireConfetti("goal"), 150);
+
     } else {
       toast.error("Deal closed but couldn't remove from pipeline — refresh the page.");
     }
@@ -600,6 +655,15 @@ export function TransactionsPipelineTab({ pipelineDeals }: Props) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Deal Close Celebration */}
+      {celebration && (
+        <DealCloseCelebration
+          open={!!celebration}
+          onClose={() => setCelebration(null)}
+          data={celebration}
+        />
+      )}
 
       {/* Close Deal Dialog */}
       <Dialog open={!!closeTarget} onOpenChange={(o) => !o && setCloseTarget(null)}>
