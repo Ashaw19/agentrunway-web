@@ -34,7 +34,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url:           `https://agentrunway.ca/blog/${slug}`,
       type:          "article",
       publishedTime: post.date,
-      images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+      images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
     },
     alternates: {
       canonical: `https://agentrunway.ca/blog/${slug}`,

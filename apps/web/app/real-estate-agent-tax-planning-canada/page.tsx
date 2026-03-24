@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "A practical guide to tax planning for Canadian real estate agents — quarterly instalments, deductible expenses, CPP contributions, and HST/GST.",
   openGraph: {
     url: "https://agentrunway.ca/real-estate-agent-tax-planning-canada",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: {
     canonical: "https://agentrunway.ca/real-estate-agent-tax-planning-canada",

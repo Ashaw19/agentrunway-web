@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     "First 50 agents get 3 months free, lifetime price lock, and a referral bonus. Charter Member spots are limited — offer closes September 30, 2026.",
   openGraph: {
     url: "https://agentrunway.ca/waitlist",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
 };
 

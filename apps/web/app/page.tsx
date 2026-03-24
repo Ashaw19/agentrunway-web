@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     "The world's first platform built to run a real estate agent's entire business automatically. GCI tracking, tax planning, client outreach, and income forecasting — with uploads, not spreadsheets.",
   openGraph: {
     url: "https://agentrunway.ca",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
 };
 
@@ -41,7 +41,7 @@ const JSON_LD = {
   applicationCategory: "BusinessApplication",
   operatingSystem: "Web",
   url: "https://agentrunway.ca",
-  image: "https://agentrunway.ca/og-image.png",
+  image: "https://agentrunway.ca/og-image-v2.png",
   creator: { "@type": "Organization", name: "Agent Runway" },
 };
 

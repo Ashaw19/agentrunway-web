@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     "Answers to common questions about Agent Runway — pricing, features, data privacy, and the accuracy of tax estimates and income projections.",
   openGraph: {
     url: "https://agentrunway.ca/faq",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: {
     canonical: "https://agentrunway.ca/faq",

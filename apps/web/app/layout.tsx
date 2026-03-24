@@ -39,7 +39,7 @@ export const metadata: Metadata = {
       "Agent Runway helps real estate agents track GCI, forecast income, measure financial runway, and receive AI-powered insights about their business performance.",
     images: [
       {
-        url: "/og-image.png",
+        url: "/og-image-v2.png",
         width: 1200,
         height: 630,
         alt: "Agent Runway — Business Analytics for Real Estate Agents",
@@ -52,7 +52,7 @@ export const metadata: Metadata = {
     title: "Agent Runway | Business Analytics for Real Estate Agents",
     description:
       "Agent Runway helps real estate agents track GCI, forecast income, measure financial runway, and receive AI-powered insights about their business performance.",
-    images: ["/og-image.png"],
+    images: ["/og-image-v2.png"],
   },
 
   icons: {

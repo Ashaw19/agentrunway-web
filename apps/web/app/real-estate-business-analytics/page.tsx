@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     "Agent Runway gives real estate agents a better way to track GCI, forecast income, measure financial runway, and understand business performance.",
   openGraph: {
     url: "https://agentrunway.ca/real-estate-business-analytics",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: {
     canonical: "https://agentrunway.ca/real-estate-business-analytics",

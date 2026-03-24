@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     "Practical insights for Canadian real estate agents — GCI tracking, income forecasting, tax planning, and business analytics tips.",
   openGraph: {
     url: "https://agentrunway.ca/blog",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: {
     canonical: "https://agentrunway.ca/blog",

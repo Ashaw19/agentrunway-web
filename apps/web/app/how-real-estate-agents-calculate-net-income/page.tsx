@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Learn how to calculate net income as a real estate agent — from GCI through commission splits, brokerage fees, expenses, and tax obligations.",
   openGraph: {
     url: "https://agentrunway.ca/how-real-estate-agents-calculate-net-income",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: {
     canonical:

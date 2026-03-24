@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     "Learn how top real estate agents track gross commission income (GCI), forecast annual income, and measure business performance.",
   openGraph: {
     url: "https://agentrunway.ca/how-real-estate-agents-track-gci",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: {
     canonical: "https://agentrunway.ca/how-real-estate-agents-track-gci",

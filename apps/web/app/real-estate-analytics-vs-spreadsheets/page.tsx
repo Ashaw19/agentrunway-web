@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     "Comparing spreadsheets vs dedicated analytics software for real estate agents — and why purpose-built tools give serious agents a real edge.",
   openGraph: {
     url: "https://agentrunway.ca/real-estate-analytics-vs-spreadsheets",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: {
     canonical: "https://agentrunway.ca/real-estate-analytics-vs-spreadsheets",

@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     "View pricing for Agent Runway, business analytics software for real estate agents with forecasting, runway tracking, and AI insights.",
   openGraph: {
     url: "https://agentrunway.ca/pricing",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: {
     canonical: "https://agentrunway.ca/pricing",

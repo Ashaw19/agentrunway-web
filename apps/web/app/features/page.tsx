@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     "Explore the features of Agent Runway, including GCI tracking, income forecasting, financial runway analysis, and AI insights for real estate agents.",
   openGraph: {
     url: "https://agentrunway.ca/features",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: {
     canonical: "https://agentrunway.ca/features",

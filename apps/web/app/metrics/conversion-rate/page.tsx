@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Understand conversion rate for real estate agents — from lead to client, and client to closed deal. Learn how to calculate and improve yours.",
   openGraph: {
     url: "https://agentrunway.ca/metrics/conversion-rate",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: {
     canonical: "https://agentrunway.ca/metrics/conversion-rate",

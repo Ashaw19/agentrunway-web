@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Learn how to calculate your average commission per deal and why it's a critical input for income forecasting and goal setting as a real estate agent.",
   openGraph: {
     url: "https://agentrunway.ca/metrics/average-commission",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: {
     canonical: "https://agentrunway.ca/metrics/average-commission",

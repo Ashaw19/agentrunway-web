@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Understand net income for real estate agents — what it is, how to calculate it from GCI, and why it matters more than gross commissions.",
   openGraph: {
     url: "https://agentrunway.ca/metrics/net-income",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: {
     canonical: "https://agentrunway.ca/metrics/net-income",

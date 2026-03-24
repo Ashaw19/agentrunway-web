@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Learn what financial runway means for real estate agents, how to calculate it, and why it's the most important resilience metric for a commission-based business.",
   openGraph: {
     url: "https://agentrunway.ca/metrics/financial-runway",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: {
     canonical: "https://agentrunway.ca/metrics/financial-runway",

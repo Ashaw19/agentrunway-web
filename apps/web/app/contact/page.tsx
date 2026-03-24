@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Get in touch with the Agent Runway team. We're here to help Canadian real estate agents get the most out of their analytics dashboard.",
   openGraph: {
     url: "https://agentrunway.ca/contact",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: {
     canonical: "https://agentrunway.ca/contact",

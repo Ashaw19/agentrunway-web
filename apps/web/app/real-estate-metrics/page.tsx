@@ -18,7 +18,7 @@ export const metadata: Metadata = {
     "Learn the key metrics real estate agents use to track GCI, conversion rate, expenses, and financial performance.",
   openGraph: {
     url: "https://agentrunway.ca/real-estate-metrics",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: {
     canonical: "https://agentrunway.ca/real-estate-metrics",
