@@ -46,6 +46,8 @@ import { applyValidation } from "@/lib/import/validation/validate-transactions";
 import { ProductionReportDialog } from "@/components/production-report-dialog";
 import { YearOverYearChart, type YoYDataPoint } from "@/components/year-over-year-chart";
 import { Download } from "lucide-react";
+import { guardSandboxWrite } from "@/lib/sandbox-guard";
+import { useSandboxMode } from "@/lib/sandbox-mode-context";
 
 interface Props {
   historyItems: HistoryItem[];
@@ -165,6 +167,7 @@ function ConfidenceDot({
 
 export function HistoryContent({ historyItems: initial, transactions, settingsSplit, settings }: Props) {
   const [items, setItems] = useState(initial);
+  const sandbox = useSandboxMode();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [addYear, setAddYear] = useState(new Date().getFullYear() - 1);
@@ -270,6 +273,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
   }
 
   async function toggleLock(item: HistoryItem) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const supabase = createClient();
     const { error } = await supabase
       .from("history_items")
@@ -290,6 +294,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
   // ── Inline edit helpers ──────────────────────────────────────────────────
 
   async function updateAnnualGCI(item: HistoryItem, value: string) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const num = parseFloat(value) || 0;
     const prev_gci = item.annual_gci;
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, annual_gci: num } : i));
@@ -304,6 +309,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
   }
 
   async function updateAnnualTx(item: HistoryItem, value: string) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const num = parseInt(value) || 0;
     const prev_tx = item.annual_tx;
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, annual_tx: num } : i));
@@ -318,6 +324,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
   }
 
   async function updateQuarterGCI(item: HistoryItem, qi: number, value: string) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const num = parseFloat(value) || 0;
     const prevArr = [...(item.quarter_gci as number[])];
     const newArr = [...prevArr];
@@ -334,6 +341,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
   }
 
   async function updateQuarterTx(item: HistoryItem, qi: number, value: string) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const num = parseInt(value) || 0;
     const prevArr = [...(item.quarter_tx as number[])];
     const newArr = [...prevArr];
@@ -350,6 +358,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
   }
 
   async function handleAddYear() {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -381,6 +390,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
   }
 
   async function handleDeleteYear(item: HistoryItem) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -715,6 +725,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
   }
 
   async function handleSaveImport() {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (!importData) return;
     // Guard: never overwrite existing data with a zero-deal extraction
     if (importData.deals.length === 0) {
@@ -938,6 +949,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
   // ── Batch save: save all years from a multi-sheet Excel ──────────────────
   async function handleBatchSave() {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (batchImportData.length === 0) return;
     setImportStatus("saving");
 
