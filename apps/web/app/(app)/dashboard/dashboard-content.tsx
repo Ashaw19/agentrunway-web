@@ -389,6 +389,7 @@ export function DashboardContent({
   );
 
   async function persistLayout(order: CardId[], hidden: Set<CardId>) {
+    if (sandbox.sandboxMode) return; // Don't persist layout changes in sandbox
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -541,6 +542,7 @@ export function DashboardContent({
 
   // Persist current score once per month (fire-and-forget)
   useEffect(() => {
+    if (sandbox.sandboxMode) return; // Don't persist score snapshot in sandbox
     if (runwayScoreSnapshot?.month === currentMonthKey) return;
     const supabase = createClient();
     (async () => {
