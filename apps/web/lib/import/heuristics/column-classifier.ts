@@ -63,15 +63,17 @@ export interface ColumnClassification {
 const KEYWORDS: Record<keyof Omit<ColumnClassification, "header_row_index" | "prompt_hint" | "document_subtype">, string[]> = {
   name: [
     "name", "client", "client name", "buyer", "buyer name", "seller", "seller name",
-    "party", "contact", "customer",
+    "party", "contact", "customer", "buyer/seller", "buyer / seller",
+    "commissions earned",
   ],
   address: [
     "address", "property", "property address", "street", "location", "civic",
-    "unit", "suite", "civic address",
+    "unit", "suite", "civic address", "trade#",
   ],
   date: [
     "date", "close date", "closing date", "closed", "close", "payment date",
     "paid", "settled", "possession", "completion", "transaction date",
+    "firm date", "settlement date", "entry date",
   ],
   side: [
     "buy", "sell", "buy | sell", "buy/sell", "side", "role", "type", "transaction type",
@@ -83,16 +85,18 @@ const KEYWORDS: Record<keyof Omit<ColumnClassification, "header_row_index" | "pr
   gci: [
     "gci", "gross commission income", "gross commission", "commission income",
     "co-op", "co-op commission", "coop", "coop commission", "gross", "commission",
-    "agent commission", "your gross", "pre-split",
+    "agent commission", "your gross", "pre-split", "gross earnings", "agent base",
   ],
   net_income: [
     "net", "net commission", "net income", "net commission income",
     "net commission (taxable)", "taxable", "agent net", "your net", "your commission",
     "net amount", "commission earned", "after split", "post-split",
+    "net earnings", "net pay", "net commissions earned",
   ],
   sale_price: [
     "sale price", "price", "purchase price", "sold price", "list price",
     "transaction amount", "amount", "volume", "value", "consideration",
+    "selling price",
   ],
   commission_percent: [
     "%", "rate", "commission %", "commission rate", "commission pct",

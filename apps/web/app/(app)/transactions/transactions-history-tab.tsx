@@ -391,27 +391,68 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       let imageBase64: string | undefined;
       let mimeType: string | undefined;
       let textContent: string | undefined;
+      // Multi-page images for scanned PDFs (sent as images[] to the API)
+      let multiPageImages: Array<{ base64: string; mimeType: string; page: number }> | undefined;
 
       if (fileType === "pdf") {
-        // ── PDF: render page 2 (transaction report), skip page 1 (T4A) ──────
+        // ── PDF: extract text layer first (all pages); fall back to image OCR ──
+        // Strategy:
+        //   1. Try pdfjs text layer for every page → send as textContent (best quality)
+        //   2. If text layer is mostly empty (scanned PDF) → render all pages as JPEG
+        //      and send as images[] so the vision model sees the full document.
         const pdfjsLib = await import("pdfjs-dist");
         pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
-        const pageNum = pdf.numPages >= 2 ? 2 : 1;
-        const page = await pdf.getPage(pageNum);
 
-        const scale = 2.0;
-        const viewport = page.getViewport({ scale });
-        const canvas = document.createElement("canvas");
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        // pdfjs-dist v5: pass canvas directly
-        await page.render({ canvas, viewport }).promise;
+        // Pass 1: extract text layer from every page
+        const pageTexts: string[] = [];
+        for (let p = 1; p <= pdf.numPages; p++) {
+          const page = await pdf.getPage(p);
+          const tc   = await page.getTextContent();
+          const text = (tc.items as Array<{ str?: string }>)
+            .map((item) => item.str ?? "")
+            .join(" ")
+            .trim();
+          pageTexts.push(text);
+        }
 
-        imageBase64 = canvas.toDataURL("image/jpeg", 0.90).split(",")[1];
-        mimeType = "image/jpeg";
+        // Count non-whitespace characters across all pages to decide path
+        const combined     = pageTexts.join("\n\n--- Page Break ---\n\n");
+        const usableChars  = combined.replace(/\s/g, "").length;
+
+        if (usableChars >= 200) {
+          // Text layer is usable — send as plain text (better structured input for LLM)
+          textContent = combined;
+        } else {
+          // Scanned PDF — render all pages (up to 5) as images
+          const MAX_VISION_PAGES = 5;
+          const totalPages = Math.min(pdf.numPages, MAX_VISION_PAGES);
+          const pages: typeof multiPageImages = [];
+
+          for (let p = 1; p <= totalPages; p++) {
+            const page     = await pdf.getPage(p);
+            const scale    = 2.0;
+            const viewport = page.getViewport({ scale });
+            const canvas   = document.createElement("canvas");
+            canvas.width   = viewport.width;
+            canvas.height  = viewport.height;
+            await page.render({ canvas, viewport }).promise;
+            pages.push({
+              base64:   canvas.toDataURL("image/jpeg", 0.90).split(",")[1],
+              mimeType: "image/jpeg",
+              page:     p,
+            });
+          }
+
+          if (pages.length === 1) {
+            imageBase64 = pages[0].base64;
+            mimeType    = "image/jpeg";
+          } else {
+            multiPageImages = pages;
+          }
+        }
 
       } else if (fileType === "image") {
         // ── Image: read as base64 and send directly to Groq vision ──────────
@@ -504,7 +545,12 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       const res = await fetch("/api/import-history", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64, mimeType, textContent }),
+        body: JSON.stringify({
+          imageBase64,
+          mimeType,
+          textContent,
+          ...(multiPageImages && { images: multiPageImages }),
+        }),
       });
 
       if (!res.ok) {
@@ -525,9 +571,10 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       setImportData(data);
       // Priority: auto-detected from spreadsheet → user's Settings split → null (user must choose)
       setImportSplitPct(data.split_pct ?? settingsSplit ?? null);
-      const isImage = fileType === "pdf" || fileType === "image";
+      // Vision-based imports (image upload or scanned PDF) have net amounts already baked in
+      const isImage = fileType === "image" || !!(imageBase64 || multiPageImages);
       setImportIsImage(isImage);
-      // PDF/image = brokerage report with net amounts already; default split to 100%
+      // Vision/image = brokerage report with net amounts already; default split to 100%
       if (isImage) setImportSplitPct(1.00);
       setAgentSides(sides);
       setImportStatus("preview");

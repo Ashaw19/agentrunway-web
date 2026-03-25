@@ -231,8 +231,17 @@ CRITICAL RULES:
    the agent probably represented the individual. Set 0 or 1 accordingly.
 
 5. IGNORE expenses, fees, advances, T4A summaries, or any non-commission section.
+   Focus ONLY on the "Commissions Earned" rows (transactions with dates, names, and dollar amounts).
 
-6. Return ONLY the JSON — nothing before or after it.`;
+6. LONE WOLF / BACK OFFICE REPORTS:
+   These brokerage reports (Royal LePage, Coldwell Banker, etc.) use "Lone Wolf Back Office" software.
+   - "Tax Worksheet" format has: Trade#, Address, Date, Buyer/Seller, Commission (=GCI), Deductions, Taxable (=net_income), HST
+   - "Trade Sheet" / "Cheque Summary" format has: Trade#, Property Address, Gross (=GCI), Buyer, Seller, Net Pay (=net_income), Selling Price (=sale_price)
+   - The "Commission" column in a Tax Worksheet IS the gross commission (GCI), not net.
+   - The "Taxable" column IS the net income after deductions/split.
+   - "PLAN 75/25" or similar means the brokerage split — ignore for extraction, just capture the amounts.
+
+7. Return ONLY the JSON — nothing before or after it.`;
 
 // TEXT_PROMPT is in lib/import-prompt.ts (shared with accuracy test runner).
 
