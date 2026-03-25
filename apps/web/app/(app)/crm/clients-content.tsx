@@ -1799,7 +1799,7 @@ export function ClientsContent({
 
   // ── Form handlers ────────────────────────────────────────────────────────────
 
-  function openDetailPanel(clientId: string) {
+  async function openDetailPanel(clientId: string) {
     setSelectedClientId(clientId);
     setDetailPanelOpen(true);
     setShowLogActivity(false);
@@ -1811,6 +1811,22 @@ export function ClientsContent({
     setTaskDueDate(todayIso());
     setTaskPriority("normal");
     setTaskNotes("");
+
+    // Lazy-load full client data (initial query only fetches list-view fields)
+    const existing = localClients.find((c) => c.id === clientId);
+    if (existing && existing.street_address === undefined) {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("clients")
+        .select("*")
+        .eq("id", clientId)
+        .single();
+      if (data) {
+        setLocalClients((prev) =>
+          prev.map((c) => (c.id === clientId ? { ...c, ...data } : c)),
+        );
+      }
+    }
   }
 
   async function handleLogActivity() {

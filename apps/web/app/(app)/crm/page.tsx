@@ -45,7 +45,7 @@ export default async function ClientsPage() {
   const [clientsResult, recordsResult, activitiesResult, tasksResult, expensesResult, relationshipsResult, flightPlansResult, flightPlanStepsResult, showingsResult, listingApptsResult] = await Promise.all([
     supabase
       .from("clients")
-      .select("*")
+      .select("id, user_id, name, name_search, first_name, last_name, email, phone, status, tags, last_contact_at, lead_source, archived_at, archive_reason")
       .eq("user_id", user.id)
       .order("name")
       .limit(10000),
