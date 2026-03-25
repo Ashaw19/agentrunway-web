@@ -60,6 +60,16 @@ async function verifyAdminRole(
   };
 }
 
+async function isUserInSandboxMode(userId: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("user_settings")
+    .select("sandbox_mode")
+    .eq("user_id", userId)
+    .single();
+  return data?.sandbox_mode === true;
+}
+
 async function logAudit(
   orgId: string,
   actorId: string,
@@ -86,6 +96,10 @@ export async function createOrganization(
 ): Promise<ActionResult<Organization>> {
   const userId = await getAuthUserId();
   if (!userId) return { data: null, error: "Not authenticated" };
+
+  if (await isUserInSandboxMode(userId)) {
+    return { data: null, error: "Blocked in Sandbox Mode" };
+  }
 
   const supabase = await createClient();
 
@@ -171,6 +185,10 @@ export async function inviteMembers(
   const userId = await getAuthUserId();
   if (!userId) return { data: null, error: "Not authenticated" };
 
+  if (await isUserInSandboxMode(userId)) {
+    return { data: null, error: "Blocked in Sandbox Mode" };
+  }
+
   const { isAdmin } = await verifyAdminRole(orgId, userId);
   if (!isAdmin) return { data: null, error: "Only admins can invite members" };
 
@@ -237,6 +255,10 @@ export async function acceptInvitation(
 ): Promise<ActionResult<OrganizationMember>> {
   const userId = await getAuthUserId();
   if (!userId) return { data: null, error: "Not authenticated" };
+
+  if (await isUserInSandboxMode(userId)) {
+    return { data: null, error: "Blocked in Sandbox Mode" };
+  }
 
   // Use admin client to read invitation (not RLS-protected for the invitee)
   const admin = createAdminClient();
@@ -326,6 +348,10 @@ export async function removeMember(
   const userId = await getAuthUserId();
   if (!userId) return { data: null, error: "Not authenticated" };
 
+  if (await isUserInSandboxMode(userId)) {
+    return { data: null, error: "Blocked in Sandbox Mode" };
+  }
+
   const { isAdmin } = await verifyAdminRole(orgId, userId);
   if (!isAdmin) return { data: null, error: "Only admins can remove members" };
 
@@ -369,6 +395,10 @@ export async function updateMemberRole(
   const userId = await getAuthUserId();
   if (!userId) return { data: null, error: "Not authenticated" };
 
+  if (await isUserInSandboxMode(userId)) {
+    return { data: null, error: "Blocked in Sandbox Mode" };
+  }
+
   if (newRole === "owner") {
     return { data: null, error: "Cannot assign owner role. Use transfer ownership instead." };
   }
@@ -410,6 +440,10 @@ export async function updateConsent(
 ): Promise<ActionResult<OrganizationMember>> {
   const userId = await getAuthUserId();
   if (!userId) return { data: null, error: "Not authenticated" };
+
+  if (await isUserInSandboxMode(userId)) {
+    return { data: null, error: "Blocked in Sandbox Mode" };
+  }
 
   const supabase = await createClient();
 
@@ -464,6 +498,10 @@ export async function updateOrgSettings(
 ): Promise<ActionResult<Organization>> {
   const userId = await getAuthUserId();
   if (!userId) return { data: null, error: "Not authenticated" };
+
+  if (await isUserInSandboxMode(userId)) {
+    return { data: null, error: "Blocked in Sandbox Mode" };
+  }
 
   const { isAdmin } = await verifyAdminRole(orgId, userId);
   if (!isAdmin) return { data: null, error: "Only admins can update settings" };
@@ -552,6 +590,10 @@ export async function leaveOrganization(
   const userId = await getAuthUserId();
   if (!userId) return { data: null, error: "Not authenticated" };
 
+  if (await isUserInSandboxMode(userId)) {
+    return { data: null, error: "Blocked in Sandbox Mode" };
+  }
+
   const supabase = await createClient();
 
   // Check role — owners cannot leave (must transfer first)
@@ -627,6 +669,10 @@ export async function revokeInvitation(
 ): Promise<ActionResult<{ success: true }>> {
   const userId = await getAuthUserId();
   if (!userId) return { data: null, error: "Not authenticated" };
+
+  if (await isUserInSandboxMode(userId)) {
+    return { data: null, error: "Blocked in Sandbox Mode" };
+  }
 
   const { isAdmin } = await verifyAdminRole(orgId, userId);
   if (!isAdmin) return { data: null, error: "Only admins can revoke invitations" };
