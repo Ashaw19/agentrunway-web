@@ -125,6 +125,10 @@ import { GuideLink } from "@/components/guide-link";
 import { AiProfilePrompt } from "./ai-profile-prompt";
 import { ClosingDayPrompt } from "./closing-day-prompt";
 import type { CommunicationProfile, BusinessIdentity } from "@/lib/types/database";
+import { useSandboxMode } from "@/lib/sandbox-mode-context";
+import { guardSandboxWrite } from "@/lib/sandbox-guard";
+import { SandboxActivationModal } from "@/components/sandbox-activation-modal";
+import { SandboxExpiryModal } from "@/components/sandbox-expiry-modal";
 
 function MetricInfo({ tip }: { tip: string }) {
   return (
@@ -243,12 +247,12 @@ const INSIGHT_ICONS: Record<string, React.ElementType> = {
 };
 
 export function DashboardContent({
-  transactions,
-  pipelineDeals,
-  settings,
-  expenseCategories,
+  transactions: _propTransactions,
+  pipelineDeals: _propPipelineDeals,
+  settings: _propSettings,
+  expenseCategories: _propExpenseCategories,
   receiptYTD = 0,
-  historyItems = [],
+  historyItems: _propHistoryItems = [],
   initialDashboardView: _initialDashboardView,
   subscriptionTier = "starter",
   showUpgradeBanner = false,
@@ -270,6 +274,50 @@ export function DashboardContent({
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
 
+  // ── Sandbox Mode ──────────────────────────────────────────────────────
+  const sandbox = useSandboxMode();
+  const [showSandboxModal, setShowSandboxModal] = useState(false);
+  const [showExpiryModal, setShowExpiryModal] = useState(sandbox.isExpired);
+
+  // ── Sandbox Data Resolution ──────────────────────────────────────────
+  // When sandbox mode is active, swap real data for the fictional dataset.
+  // Variables named to match the original prop names so every downstream
+  // calculation and card works without modification.
+  const transactions = useMemo(() =>
+    sandbox.sandboxMode && sandbox.sandboxData
+      ? sandbox.sandboxData.transactions : _propTransactions,
+    [sandbox.sandboxMode, sandbox.sandboxData, _propTransactions],
+  );
+  const pipelineDeals = useMemo(() =>
+    sandbox.sandboxMode && sandbox.sandboxData
+      ? sandbox.sandboxData.pipelineDeals : _propPipelineDeals,
+    [sandbox.sandboxMode, sandbox.sandboxData, _propPipelineDeals],
+  );
+  const expenseCategories = useMemo(() =>
+    sandbox.sandboxMode && sandbox.sandboxData
+      ? sandbox.sandboxData.expenseCategories : _propExpenseCategories,
+    [sandbox.sandboxMode, sandbox.sandboxData, _propExpenseCategories],
+  );
+  const historyItems = useMemo(() =>
+    sandbox.sandboxMode && sandbox.sandboxData
+      ? sandbox.sandboxData.historyItems : _propHistoryItems,
+    [sandbox.sandboxMode, sandbox.sandboxData, _propHistoryItems],
+  );
+  const settings = useMemo(() =>
+    sandbox.sandboxMode && sandbox.sandboxData?.settingsOverrides
+      ? { ..._propSettings, ...sandbox.sandboxData.settingsOverrides } as UserSettings
+      : _propSettings,
+    [sandbox.sandboxMode, sandbox.sandboxData, _propSettings],
+  );
+
+  // Show activation modal on first visit if sandbox never activated and user has no data
+  useEffect(() => {
+    if (!sandbox.isActivated && _propTransactions.length === 0 && _propPipelineDeals.length === 0) {
+      const timer = setTimeout(() => setShowSandboxModal(true), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [sandbox.isActivated, _propTransactions.length, _propPipelineDeals.length]);
+
   // Memoized so ClosingDayPrompt's useEffect doesn't reset on every re-render.
   // Bulletproof local date — no locale dependency, no UTC offset issues.
   const dealsClosingToday = useMemo(() => {
@@ -288,6 +336,7 @@ export function DashboardContent({
   // ── CRM task widget state ───────────────────────────────────────────────
   const [localTasks, setLocalTasks] = useState<ContactTask[]>(openTasks);
   async function completeTaskFromDashboard(taskId: string) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const prevTasks = localTasks;
     setLocalTasks((prev) => prev.filter((t) => t.id !== taskId));
     const supabase = createClient();
@@ -1808,6 +1857,39 @@ export function DashboardContent({
         </div>
       )}
 
+      {/* Sandbox Mode Indicator */}
+      {sandbox.sandboxMode && (
+        <div className="flex items-center justify-between rounded-lg border border-amber-300/60 bg-amber-50/80 px-4 py-2.5">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+            </span>
+            <p className="text-sm font-medium text-amber-800">
+              Sandbox Mode
+              {sandbox.daysRemaining > 0 && (
+                <span className="ml-2 text-xs font-normal text-amber-600">
+                  {sandbox.daysRemaining} days remaining
+                </span>
+              )}
+            </p>
+          </div>
+          <button
+            onClick={() => sandbox.toggle()}
+            disabled={sandbox.loading}
+            className="text-xs font-medium text-amber-700 hover:text-amber-900 transition-colors"
+          >
+            Switch to real data
+          </button>
+        </div>
+      )}
+
+      {/* Sandbox Activation Modal */}
+      <SandboxActivationModal open={showSandboxModal} onOpenChange={setShowSandboxModal} />
+
+      {/* Sandbox Expiry Modal */}
+      <SandboxExpiryModal open={showExpiryModal} onDismiss={() => setShowExpiryModal(false)} />
+
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-5">
         <div>
@@ -1835,6 +1917,23 @@ export function DashboardContent({
             >
               <Star className="h-3 w-3" />
               {currentYear} Review
+            </button>
+          )}
+          {/* Sandbox — always visible when not in sandbox mode */}
+          {!sandbox.sandboxMode && (
+            <button
+              onClick={() => {
+                if (sandbox.isActivated && !sandbox.isExpired) {
+                  sandbox.toggle();
+                } else {
+                  setShowSandboxModal(true);
+                }
+              }}
+              disabled={sandbox.loading}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-all"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              Sandbox
             </button>
           )}
           {/* Customize button */}
