@@ -20,7 +20,8 @@ export default async function OrgPage() {
   const { data: performance } = await supabase
     .from("org_agent_performance")
     .select("*")
-    .eq("org_id", orgContext.org.id);
+    .eq("org_id", orgContext.org.id)
+    .limit(10000);
 
   // Fetch member count
   const { count: memberCount } = await supabase

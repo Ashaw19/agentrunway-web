@@ -1974,6 +1974,7 @@ export function ClientsContent({
         newClients.push(...(batchData as Client[]));
         imported += batchData.length;
       } else {
+        console.error(`[CSV Import] Batch ${Math.floor(i / BATCH_SIZE) + 1} failed (${batch.length} rows):`, batchError?.message ?? "unknown error");
         skipped += batch.length;
       }
     }

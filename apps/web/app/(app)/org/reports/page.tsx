@@ -24,7 +24,8 @@ export default async function OrgReportsPage() {
     supabase
       .from("org_agent_performance")
       .select("*")
-      .eq("org_id", orgContext.org.id),
+      .eq("org_id", orgContext.org.id)
+      .limit(10000),
     supabase.rpc("fn_org_crm_activity_summary", {
       p_org_id: orgContext.org.id,
     }),

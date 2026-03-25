@@ -25,7 +25,8 @@ export default async function MembersPage() {
     .select("*, user_settings(display_name, avatar_url)")
     .eq("org_id", orgContext.org.id)
     .neq("status", "departed")
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .limit(10000);
 
   // Fetch pending invitations
   const { data: invitations } = await supabase
@@ -33,7 +34,8 @@ export default async function MembersPage() {
     .select("*")
     .eq("org_id", orgContext.org.id)
     .is("accepted_at", null)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(10000);
 
   return (
     <MembersContent

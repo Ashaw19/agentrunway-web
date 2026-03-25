@@ -1,60 +1,109 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ForecastContent } from "./forecast-content";
+import {
+  isSandboxActive,
+  getSandboxData,
+  mergeSandboxSettings,
+  getSandboxReceiptYTD,
+  getSandboxMileageTotal,
+} from "@/lib/sandbox-resolver";
 
 export default async function ForecastPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // Always fetch settings first to check sandbox mode
+  const settingsResult = await supabase
+    .from("user_settings")
+    .select("*")
+    .eq("user_id", user.id)
+    .single();
+
+  const rawSettings = settingsResult.data;
+
+  if (isSandboxActive(rawSettings)) {
+    // ── Sandbox path ──────────────────────────────────────────────
+    const sb = getSandboxData(rawSettings);
+    const settings = mergeSandboxSettings(rawSettings);
+
+    const transactions = sb.transactions
+      .filter((t) => t.status === "closed")
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    const expenseCategories = sb.expenseCategories;
+    const receiptYTD = getSandboxReceiptYTD(sb);
+    const mileageKmTotal = getSandboxMileageTotal(sb);
+    const ccaAssetCount = sb.ccaAssets.length;
+
+    return (
+      <ForecastContent
+        settings={settings}
+        transactions={transactions}
+        pipelineDeals={sb.pipelineDeals}
+        expenseCategories={expenseCategories}
+        historyItems={sb.historyItems}
+        subscriptionTier={settings?.subscription_tier ?? "starter"}
+        receiptYTD={receiptYTD}
+        mileageKmTotal={mileageKmTotal}
+        ccaAssetCount={ccaAssetCount}
+      />
+    );
+  }
+
+  // ── Normal path ───────────────────────────────────────────────
   const year = new Date().getFullYear();
-  const [settingsResult, txResult, pipelineResult, expCatResult, expItemResult, historyResult, mileageResult, ccaResult, receiptTotalsResult] =
+  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, mileageResult, ccaResult, receiptTotalsResult] =
     await Promise.all([
-      supabase
-        .from("user_settings")
-        .select("*")
-        .eq("user_id", user.id)
-        .single(),
       supabase
         .from("transactions")
         .select("*")
         .eq("user_id", user.id)
         .eq("status", "closed")
-        .order("date", { ascending: false }),
+        .order("date", { ascending: false })
+        .limit(10000),
       supabase
         .from("pipeline_deals")
         .select("*")
-        .eq("user_id", user.id),
+        .eq("user_id", user.id)
+        .limit(10000),
       supabase
         .from("expense_categories")
         .select("*")
         .eq("user_id", user.id)
-        .order("sort_order"),
+        .order("sort_order")
+        .limit(10000),
       supabase
         .from("expense_items")
         .select("*")
-        .eq("user_id", user.id),
+        .eq("user_id", user.id)
+        .limit(10000),
       supabase
         .from("history_items")
         .select("*")
         .eq("user_id", user.id)
-        .order("year", { ascending: false }),
+        .order("year", { ascending: false })
+        .limit(10000),
       // Mileage log for tax optimization engine
       supabase
         .from("mileage_logs")
         .select("km")
-        .eq("user_id", user.id),
+        .eq("user_id", user.id)
+        .limit(10000),
       // CCA assets count for tax optimization engine
       supabase
         .from("t2125_cca_assets")
         .select("id")
-        .eq("user_id", user.id),
+        .eq("user_id", user.id)
+        .limit(10000),
       // Current-year receipt totals for accurate YTD expense calculation
       supabase
         .from("receipt_expenses")
         .select("total_amount")
         .eq("user_id", user.id)
-        .gte("expense_date", `${year}-01-01`),
+        .gte("expense_date", `${year}-01-01`)
+        .limit(10000),
     ]);
 
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
@@ -77,12 +126,12 @@ export default async function ForecastPage() {
 
   return (
     <ForecastContent
-      settings={settingsResult.data}
+      settings={rawSettings}
       transactions={txResult.data ?? []}
       pipelineDeals={pipelineResult.data ?? []}
       expenseCategories={expenseCategories}
       historyItems={historyResult.data ?? []}
-      subscriptionTier={settingsResult.data?.subscription_tier ?? "starter"}
+      subscriptionTier={rawSettings?.subscription_tier ?? "starter"}
       receiptYTD={receiptYTD}
       mileageKmTotal={mileageKmTotal}
       ccaAssetCount={ccaAssetCount}

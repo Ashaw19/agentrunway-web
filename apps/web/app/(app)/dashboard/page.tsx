@@ -1,9 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardContent } from "./dashboard-content";
-import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord } from "@/lib/types/database";
+import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord, UserSettings } from "@/lib/types/database";
 import { CREA_BOARDS, fetchBoardData, type LocalMarketData } from "@/lib/crea-board";
 import { computeIntelligenceBriefing, type BriefingItem } from "@/lib/engines/crm-analytics-engine";
+import { isSandboxActive, getSandboxData, mergeSandboxSettings, getSandboxReceiptYTD, getSandboxMileageTotal } from "@/lib/sandbox-resolver";
 
 export default async function DashboardPage({
   searchParams,
@@ -15,23 +16,112 @@ export default async function DashboardPage({
   if (!user) redirect("/login");
 
   // Check if user has completed onboarding (has settings row)
-  const { data: settings } = await supabase
+  const { data: onboardCheck } = await supabase
     .from("user_settings")
     .select("user_id, goal_gci, display_name, province, split_preset, dashboard_layout, communication_profile, business_identity, ai_profile_prompt_dismissed_at")
     .eq("user_id", user.id)
     .single();
 
-  // Redirect to onboarding if user hasn't completed it yet.
-  // We check goal_gci === 0 AND display_name is empty — belt-and-suspenders guard
-  // so users who set their name but skipped goals (legacy accounts) are not bounced.
-  if (settings && settings.goal_gci === 0 && settings.display_name === '') {
+  if (onboardCheck && onboardCheck.goal_gci === 0 && onboardCheck.display_name === '') {
     redirect("/onboarding");
   }
 
   const dashYear = new Date().getFullYear();
 
-  // Fetch dashboard data in parallel
-  const [txResult, pipelineResult, settingsResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult] =
+  // ── Step 1: Fetch settings (full row) to check sandbox mode ─────────────
+  const { data: settingsRow } = await supabase
+    .from("user_settings")
+    .select("*")
+    .eq("user_id", user.id)
+    .single();
+
+  const sandboxActive = isSandboxActive(settingsRow as UserSettings | null);
+
+  // ── Step 2: Resolve all data ────────────────────────────────────────────
+  if (sandboxActive) {
+    const sb = getSandboxData(settingsRow as UserSettings);
+    const mergedSettings = mergeSandboxSettings(settingsRow as UserSettings);
+
+    // Intelligence Briefing from sandbox clients
+    const briefingResult = sb.clients.length > 0 && sb.contactActivities.length > 0
+      ? computeIntelligenceBriefing(
+          sb.clients as Client[],
+          sb.contactActivities as ContactActivity[],
+          sb.clientRecords as ClientRecord[],
+        )
+      : null;
+    const topBriefingItems: BriefingItem[] = briefingResult
+      ? [...briefingResult.items]
+          .sort((a, b) => {
+            const sev: Record<string, number> = { urgent: 0, attention: 1, upcoming: 2 };
+            return (sev[a.severity] ?? 3) - (sev[b.severity] ?? 3);
+          })
+          .slice(0, 3)
+      : [];
+
+    // CRM summary from sandbox data
+    const activeStatuses = new Set(["boarding", "taxiing", "approach", "in_flight"]);
+    const sandboxActiveClients = sb.clients.filter(c => activeStatuses.has(c.status));
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10);
+    const recentlyContactedIds = new Set(
+      sb.contactActivities
+        .filter(a => a.activity_date >= fourteenDaysAgo)
+        .map(a => a.client_id)
+    );
+    const sandboxStaleCount = Math.max(0, sandboxActiveClients.length - recentlyContactedIds.size);
+
+    // Open tasks from sandbox
+    const sandboxTasks = sb.contactTasks
+      .filter(t => t.completed_at === null)
+      .slice(0, 10) as ContactTask[];
+
+    // Fetch live CREA board data (always real — external market data)
+    let boardMarketData: LocalMarketData | null = null;
+    const boardCode = mergedSettings.board_code ?? "";
+    if (boardCode) {
+      const board = CREA_BOARDS.find((b) => b.slug === boardCode);
+      if (board) {
+        try { boardMarketData = await fetchBoardData(board); } catch { /* non-critical */ }
+      }
+    }
+
+    const params = await searchParams;
+    const isAdmin = mergedSettings.is_admin ?? false;
+    const showUpgradeBanner = params.upgraded === "true" && !isAdmin;
+    const userName = mergedSettings.display_name || user.email?.split("@")[0] || undefined;
+
+    return (
+      <DashboardContent
+        transactions={sb.transactions}
+        pipelineDeals={sb.pipelineDeals}
+        settings={mergedSettings}
+        expenseCategories={sb.expenseCategories}
+        receiptYTD={getSandboxReceiptYTD(sb)}
+        historyItems={sb.historyItems as HistoryItem[]}
+        initialDashboardView={mergedSettings.dashboard_view ?? "standard"}
+        subscriptionTier={mergedSettings.subscription_tier ?? "starter"}
+        showUpgradeBanner={showUpgradeBanner}
+        userName={userName}
+        openTasks={sandboxTasks}
+        mileageKmTotal={getSandboxMileageTotal(sb)}
+        ccaAssetCount={sb.ccaAssets.length}
+        activeClientCount={sandboxActiveClients.length}
+        staleLeadCount={sandboxStaleCount}
+        hasSeenTour={settingsRow?.has_seen_tour ?? true}
+        boardMarketData={boardMarketData}
+        boardSubregion={mergedSettings.board_subregion ?? ""}
+        briefingItems={topBriefingItems}
+        runwayScoreSnapshot={(settingsRow?.runway_score_snapshot as { score: number; month: string } | null) ?? null}
+        dashboardLayout={(settingsRow?.dashboard_layout as import("./card-registry").DashboardLayout | null) ?? null}
+        communicationProfile={(settingsRow?.communication_profile as import("@/lib/types/database").CommunicationProfile | null) ?? null}
+        businessIdentity={(settingsRow?.business_identity as import("@/lib/types/database").BusinessIdentity | null) ?? null}
+        aiProfilePromptDismissedAt={settingsRow?.ai_profile_prompt_dismissed_at ?? null}
+      />
+    );
+  }
+
+  // ── Step 3: Live Supabase queries (no sandbox) ──────────────────────────
+  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -39,38 +129,37 @@ export default async function DashboardPage({
         .eq("user_id", user.id)
         .eq("status", "closed")
         .gte("date", `${dashYear}-01-01`)
-        .order("date", { ascending: false }),
+        .order("date", { ascending: false })
+        .limit(10000),
       supabase
         .from("pipeline_deals")
         .select("*")
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("user_settings")
-        .select("*")
-        .eq("user_id", user.id)
-        .single(),
+        .order("created_at", { ascending: false })
+        .limit(10000),
       supabase
         .from("expense_categories")
         .select("*")
         .eq("user_id", user.id)
-        .order("sort_order"),
+        .order("sort_order")
+        .limit(10000),
       supabase
         .from("expense_items")
         .select("*")
-        .eq("user_id", user.id),
+        .eq("user_id", user.id)
+        .limit(10000),
       supabase
         .from("history_items")
         .select("*")
         .eq("user_id", user.id)
-        .order("year", { ascending: false }),
-      // Current-year receipt totals for accurate YTD expense calculation
+        .order("year", { ascending: false })
+        .limit(10000),
       supabase
         .from("receipt_expenses")
         .select("total_amount")
         .eq("user_id", user.id)
-        .gte("expense_date", `${dashYear}-01-01`),
-      // Open follow-up tasks (for dashboard widget)
+        .gte("expense_date", `${dashYear}-01-01`)
+        .limit(10000),
       supabase
         .from("contact_tasks")
         .select("*")
@@ -78,30 +167,27 @@ export default async function DashboardPage({
         .is("completed_at", null)
         .order("due_date", { ascending: true })
         .limit(10),
-      // Mileage log for tax optimization engine
       supabase
         .from("mileage_logs")
         .select("km")
-        .eq("user_id", user.id),
-      // CCA assets count for tax optimization engine
+        .eq("user_id", user.id)
+        .limit(10000),
       supabase
         .from("t2125_cca_assets")
         .select("id")
-        .eq("user_id", user.id),
-      // Active clients (boarding/taxiing/approach/in_flight) — for CRM summary
+        .eq("user_id", user.id)
+        .limit(10000),
       supabase
         .from("clients")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
         .in("status", ["boarding", "taxiing", "approach", "in_flight"]),
-      // Distinct clients contacted in last 14 days — for stale lead detection
       supabase
         .from("contact_activities")
         .select("client_id")
         .eq("user_id", user.id)
         .gte("activity_date", new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10)),
-      // Intelligence Briefing — lightweight client/activity/record fetch
-      supabase.from("clients").select("*").eq("user_id", user.id),
+      supabase.from("clients").select("*").eq("user_id", user.id).limit(10000),
       supabase
         .from("contact_activities")
         .select("*")
@@ -111,7 +197,8 @@ export default async function DashboardPage({
       supabase
         .from("client_records")
         .select("*")
-        .eq("user_id", user.id),
+        .eq("user_id", user.id)
+        .limit(10000),
     ]);
 
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
@@ -119,20 +206,17 @@ export default async function DashboardPage({
     items: (expItemResult.data ?? []).filter((i) => i.category_id === cat.id),
   }));
 
-  // Sum all current-year receipt totals for the dashboard's expense YTD figure
   const receiptYTD = (receiptTotalsResult.data ?? []).reduce(
     (sum, r) => sum + Number(r.total_amount ?? 0),
     0,
   );
 
-  // Mileage + CCA data for tax optimization engine
   const mileageKmTotal = (mileageResult.data ?? []).reduce(
     (sum, r) => sum + Number(r.km ?? 0),
     0,
   );
   const ccaAssetCount = (ccaResult.data ?? []).length;
 
-  // Intelligence Briefing — compute top alerts for dashboard widget
   const briefingResult = briefingClientsResult.data && briefingActivitiesResult.data && briefingRecordsResult.data
     ? computeIntelligenceBriefing(
         briefingClientsResult.data as Client[],
@@ -149,43 +233,36 @@ export default async function DashboardPage({
         .slice(0, 3)
     : [];
 
-  // CRM summary: stale leads = active clients NOT contacted in 14 days
   const activeClientCount = activeClientsResult.count ?? 0;
   const recentlyContactedIds = new Set(
     (recentActivitiesResult.data ?? []).map((a) => a.client_id)
   );
   const staleLeadCount = Math.max(0, activeClientCount - recentlyContactedIds.size);
 
-  // Fetch live CREA board data if the user has selected a board
   let boardMarketData: LocalMarketData | null = null;
-  const boardCode = settingsResult.data?.board_code ?? "";
+  const boardCode = settingsRow?.board_code ?? "";
   if (boardCode) {
     const board = CREA_BOARDS.find((b) => b.slug === boardCode);
     if (board) {
-      try {
-        boardMarketData = await fetchBoardData(board);
-      } catch {
-        // Board data is non-critical — continue without it
-      }
+      try { boardMarketData = await fetchBoardData(board); } catch { /* non-critical */ }
     }
   }
 
   const params = await searchParams;
-  const isAdmin = settingsResult.data?.is_admin ?? false;
+  const isAdmin = settingsRow?.is_admin ?? false;
   const showUpgradeBanner = params.upgraded === "true" && !isAdmin;
-
-  const userName = settingsResult.data?.display_name || user.email?.split("@")[0] || undefined;
+  const userName = settingsRow?.display_name || user.email?.split("@")[0] || undefined;
 
   return (
     <DashboardContent
       transactions={txResult.data ?? []}
       pipelineDeals={pipelineResult.data ?? []}
-      settings={settingsResult.data}
+      settings={settingsRow}
       expenseCategories={expenseCategories}
       receiptYTD={receiptYTD}
       historyItems={(historyResult.data ?? []) as HistoryItem[]}
-      initialDashboardView={settingsResult.data?.dashboard_view ?? "standard"}
-      subscriptionTier={settingsResult.data?.subscription_tier ?? "starter"}
+      initialDashboardView={settingsRow?.dashboard_view ?? "standard"}
+      subscriptionTier={settingsRow?.subscription_tier ?? "starter"}
       showUpgradeBanner={showUpgradeBanner}
       userName={userName}
       openTasks={(tasksResult.data ?? []) as ContactTask[]}
@@ -193,15 +270,15 @@ export default async function DashboardPage({
       ccaAssetCount={ccaAssetCount}
       activeClientCount={activeClientCount}
       staleLeadCount={staleLeadCount}
-      hasSeenTour={settingsResult.data?.has_seen_tour ?? true}
+      hasSeenTour={settingsRow?.has_seen_tour ?? true}
       boardMarketData={boardMarketData}
-      boardSubregion={settingsResult.data?.board_subregion ?? ""}
+      boardSubregion={settingsRow?.board_subregion ?? ""}
       briefingItems={topBriefingItems}
-      runwayScoreSnapshot={(settingsResult.data?.runway_score_snapshot as { score: number; month: string } | null) ?? null}
-      dashboardLayout={(settingsResult.data?.dashboard_layout as import("./card-registry").DashboardLayout | null) ?? null}
-      communicationProfile={(settingsResult.data?.communication_profile as import("@/lib/types/database").CommunicationProfile | null) ?? null}
-      businessIdentity={(settingsResult.data?.business_identity as import("@/lib/types/database").BusinessIdentity | null) ?? null}
-      aiProfilePromptDismissedAt={settingsResult.data?.ai_profile_prompt_dismissed_at ?? null}
+      runwayScoreSnapshot={(settingsRow?.runway_score_snapshot as { score: number; month: string } | null) ?? null}
+      dashboardLayout={(settingsRow?.dashboard_layout as import("./card-registry").DashboardLayout | null) ?? null}
+      communicationProfile={(settingsRow?.communication_profile as import("@/lib/types/database").CommunicationProfile | null) ?? null}
+      businessIdentity={(settingsRow?.business_identity as import("@/lib/types/database").BusinessIdentity | null) ?? null}
+      aiProfilePromptDismissedAt={settingsRow?.ai_profile_prompt_dismissed_at ?? null}
     />
   );
 }

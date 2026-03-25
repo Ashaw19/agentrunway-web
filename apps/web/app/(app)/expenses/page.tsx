@@ -176,12 +176,14 @@ export default async function ExpensesPage() {
       .from("expense_categories")
       .select("*")
       .eq("user_id", user.id)
-      .order("sort_order"),
+      .order("sort_order")
+      .limit(10000),
     supabase
       .from("expense_items")
       .select("*")
       .eq("user_id", user.id)
-      .order("sort_order"),
+      .order("sort_order")
+      .limit(10000),
     supabase
       .from("user_settings")
       .select("*")
@@ -192,13 +194,15 @@ export default async function ExpensesPage() {
       .select("*")
       .eq("user_id", user.id)
       .eq("status", "closed")
-      .gte("date", `${new Date().getFullYear()}-01-01`),
+      .gte("date", `${new Date().getFullYear()}-01-01`)
+      .limit(10000),
     // All current-year receipts for YTD totals (lightweight — just the two fields we need)
     supabase
       .from("receipt_expenses")
       .select("category_key, total_amount")
       .eq("user_id", user.id)
-      .gte("expense_date", `${year}-01-01`),
+      .gte("expense_date", `${year}-01-01`)
+      .limit(10000),
     // Last 50 receipts for the display log (full row)
     supabase
       .from("receipt_expenses")
@@ -221,14 +225,16 @@ export default async function ExpensesPage() {
       .select("*")
       .eq("user_id", user.id)
       .gte("trip_date", `${year}-01-01`)
-      .order("trip_date", { ascending: false }),
+      .order("trip_date", { ascending: false })
+      .limit(10000),
     // Connected bank accounts for the Bank Imports tab
     supabase
       .from("plaid_items")
       // access_token is intentionally excluded — server-only credential
       .select("id, user_id, plaid_item_id, institution_id, institution_name, sync_cursor, last_synced_at, created_at, updated_at")
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false })
+      .limit(10000),
     // Plaid transactions (last 500) for the Bank Imports tab
     supabase
       .from("plaid_transactions")
@@ -241,13 +247,15 @@ export default async function ExpensesPage() {
       .from("expense_items")
       .select("id, key, title, category_id")
       .eq("user_id", user.id)
-      .order("sort_order"),
+      .order("sort_order")
+      .limit(10000),
     // Expense categories for grouping the dropdown
     supabase
       .from("expense_categories")
       .select("id, key, title, sort_order")
       .eq("user_id", user.id)
-      .order("sort_order"),
+      .order("sort_order")
+      .limit(10000),
   ]);
 
   // Aggregate receipt totals per sub-category key for the current year
