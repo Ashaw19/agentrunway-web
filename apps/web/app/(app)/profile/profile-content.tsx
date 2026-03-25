@@ -40,6 +40,8 @@ import {
   type HistoryItem,
 } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
+import { guardSandboxWrite } from "@/lib/sandbox-guard";
+import { useSandboxMode } from "@/lib/sandbox-mode-context";
 
 // ── Theme config ──────────────────────────────────────────────────────────────
 
@@ -142,6 +144,9 @@ export function ProfileContent({
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Sandbox ──────────────────────────────────────────────────────────────
+  const sandbox = useSandboxMode();
+
   // ── Derived ───────────────────────────────────────────────────────────────
   const initials = getInitials(displayName || email.split("@")[0]);
   const currentTheme = COLOR_THEMES.find((t) => t.value === colorTheme) ?? COLOR_THEMES[0];
@@ -158,6 +163,7 @@ export function ProfileContent({
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   async function saveIdentity() {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingIdentity(true);
     try {
       const supabase = createClient();
@@ -180,6 +186,7 @@ export function ProfileContent({
   }
 
   async function saveBusinessIdentity() {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingBusiness(true);
     try {
       const supabase = createClient();
@@ -202,6 +209,7 @@ export function ProfileContent({
   }
 
   async function saveTheme(theme: string) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setColorTheme(theme);
     setSavingTheme(true);
     try {
@@ -222,6 +230,7 @@ export function ProfileContent({
   }
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingAvatar(true);
@@ -256,6 +265,7 @@ export function ProfileContent({
   }
 
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadingLogo(true);
