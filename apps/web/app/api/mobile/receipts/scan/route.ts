@@ -63,6 +63,19 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // ── Block in sandbox mode (avoid wasting OCR credits + storage) ────────
+    const { data: sbCheck } = await admin
+      .from("user_settings")
+      .select("sandbox_mode")
+      .eq("user_id", user.id)
+      .single();
+    if (sbCheck?.sandbox_mode === true) {
+      return NextResponse.json(
+        { ok: false, error: "Receipt scanning is blocked in sandbox mode." },
+        { status: 403 },
+      );
+    }
+
     // ── 2. Parse multipart form data ──────────────────────────────────────
     let file: File;
     try {
