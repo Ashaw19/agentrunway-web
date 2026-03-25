@@ -54,6 +54,7 @@ export default async function ReportsPage() {
         receiptTotalsByKey={receiptTotalsByKey}
         ccaAssets={(sb.ccaAssets ?? []) as CcaAsset[]}
         expenseAmounts={expenseAmounts}
+        mileageLogs={[]}
         taxYear={year}
         userId={user.id}
       />
@@ -61,7 +62,7 @@ export default async function ReportsPage() {
   }
 
   // ── Normal branch ───────────────────────────────────────────────────
-  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, ccaAssetsResult] =
+  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, ccaAssetsResult, mileageResult] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -106,6 +107,13 @@ export default async function ReportsPage() {
         .eq("user_id", user.id)
         .order("acquisition_date", { ascending: false })
         .limit(10000),
+      // Mileage logs for T2125 PDF Page 3
+      supabase
+        .from("mileage_logs")
+        .select("km, deduction, trip_date")
+        .eq("user_id", user.id)
+        .order("trip_date", { ascending: false })
+        .limit(10000),
     ]);
 
   const categories = (expCatResult.data ?? []).map((cat) => ({
@@ -146,6 +154,11 @@ export default async function ReportsPage() {
       receiptTotalsByKey={receiptTotalsByKey}
       ccaAssets={(ccaAssetsResult.data ?? []) as CcaAsset[]}
       expenseAmounts={expenseAmounts}
+      mileageLogs={(mileageResult.data ?? []).map((r) => ({
+        km: Number(r.km),
+        deduction: Number(r.deduction),
+        trip_date: r.trip_date,
+      }))}
       taxYear={year}
       userId={user.id}
     />

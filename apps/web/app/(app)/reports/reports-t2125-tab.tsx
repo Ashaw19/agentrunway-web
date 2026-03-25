@@ -21,6 +21,7 @@ import { PROVINCE_LABELS, CCA_CLASSES } from "@/lib/types/database";
 import type { UserSettings, Transaction, CcaAsset } from "@/lib/types/database";
 import { computeT2125 } from "@/lib/engines/t2125-engine";
 import type { T2125Result } from "@/lib/engines/t2125-engine";
+import { generateTaxOptimizations } from "@/lib/engines/tax-optimization-engine";
 import { T2125Pdf } from "@/components/pdf/t2125-pdf";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -29,11 +30,18 @@ import { guardSandboxWrite } from "@/lib/sandbox-guard";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
+interface MileageLogRow {
+  km: number;
+  deduction: number;
+  trip_date: string;
+}
+
 interface Props {
   settings: UserSettings | null;
   transactions: Transaction[];
   expenseAmounts: Record<string, number>;
   ccaAssets: CcaAsset[];
+  mileageLogs: MileageLogRow[];
   taxYear: number;
   userId: string;
 }
@@ -144,6 +152,7 @@ export function ReportsT2125Tab({
   transactions,
   expenseAmounts,
   ccaAssets: initialCcaAssets,
+  mileageLogs,
   taxYear,
   userId,
 }: Props) {
@@ -250,8 +259,76 @@ export function ReportsT2125Tab({
     if (!result || !localSettings) return;
     setExportingPdf(true);
     try {
+      // Compute mileage summary from logs for this tax year
+      const yearLogs = mileageLogs.filter((l) => l.trip_date.startsWith(String(taxYear)));
+      const totalKm = yearLogs.reduce((sum, l) => sum + l.km, 0);
+      const totalDeduction = yearLogs.reduce((sum, l) => sum + l.deduction, 0);
+      const mileageSummary = yearLogs.length > 0 ? {
+        totalKm,
+        totalDeduction,
+        tripCount: yearLogs.length,
+        businessUsePct: localSettings.vehicle_business_use_pct ?? 1,
+      } : undefined;
+
+      // Compute tax optimization cards
+      const projectedGCI = result.totalGrossIncome;
+      const totalExpenses = result.line8250_totalExpenses + result.line8260_totalCca + result.line8330_homeOfficeDeduction;
+      const netIncome = result.line8270_netBusinessIncome;
+      const gstRemitted = (localSettings.gst_hst_remitted_q1 ?? 0) +
+        (localSettings.gst_hst_remitted_q2 ?? 0) +
+        (localSettings.gst_hst_remitted_q3 ?? 0) +
+        (localSettings.gst_hst_remitted_q4 ?? 0);
+      const taxInstalments = (localSettings.tax_instalment_paid_q1 ?? 0) +
+        (localSettings.tax_instalment_paid_q2 ?? 0) +
+        (localSettings.tax_instalment_paid_q3 ?? 0) +
+        (localSettings.tax_instalment_paid_q4 ?? 0);
+
+      const optResult = generateTaxOptimizations({
+        netIncome,
+        projectedGCI,
+        annualExpenses: totalExpenses,
+        dealCount: transactions.length,
+        province: localSettings.province,
+        experienceYears: localSettings.experience_years ?? null,
+        isIncorporated: localSettings.is_incorporated ?? false,
+        corpType: (localSettings.corp_type as "prec" | "general" | null) ?? null,
+        compensationMethod: (localSettings.compensation_method as "salary" | "dividends" | "mixed") ?? "salary",
+        homeOfficeMethod: (localSettings.home_office_method as "simplified" | "detailed") ?? "simplified",
+        homeOfficeSqFootage: localSettings.home_office_sq_footage ?? null,
+        homeOfficeBusinessUsePct: localSettings.home_office_business_use_pct ?? 0,
+        homeOfficeRentMonthly: localSettings.home_office_rent_monthly ?? 0,
+        homeOfficeUtilitiesMonthly: localSettings.home_office_utilities_monthly ?? 0,
+        homeOfficePropertyTaxAnnual: localSettings.home_office_property_tax_annual ?? 0,
+        homeOfficeInsuranceMonthly: localSettings.home_office_insurance_monthly ?? 0,
+        homeOfficeMaintenanceAnnual: localSettings.home_office_maintenance_annual ?? 0,
+        homeOfficeCondoFeesMonthly: localSettings.home_office_condo_fees_monthly ?? 0,
+        vehicleType: (localSettings.vehicle_type as "own" | "lease" | "none") ?? "own",
+        vehicleBusinessUsePct: localSettings.vehicle_business_use_pct ?? 0,
+        hasTrackedMileage: totalKm > 0,
+        annualMileageKm: totalKm,
+        gstHstRegistered: localSettings.gst_hst_registered ?? false,
+        gstHstPaidOnExpenses: localSettings.gst_hst_paid_on_expenses ?? 0,
+        gstHstRemitted: gstRemitted,
+        taxInstalmentsPaid: taxInstalments,
+        cppInstalmentPaidYTD: localSettings.cpp_instalment_paid_ytd ?? 0,
+        hasProfDevExpenses: (expenseAmounts["professional_development"] ?? 0) > 0,
+        hasMarketingExpenses: (expenseAmounts["marketing"] ?? 0) > 0,
+        hasClientGiftExpenses: (expenseAmounts["client_gifts"] ?? 0) > 0,
+        hasMealExpenses: (expenseAmounts["meals_entertainment"] ?? 0) > 0,
+        hasLicensingExpenses: (expenseAmounts["licenses_dues"] ?? 0) > 0,
+        ccaAssetCount: ccaAssets.length,
+        dismissed: [],
+      });
+
       const blob = await pdf(
-        <T2125Pdf result={result} settings={localSettings} taxYear={taxYear} />
+        <T2125Pdf
+          result={result}
+          settings={localSettings}
+          taxYear={taxYear}
+          mileageSummary={mileageSummary}
+          taxOptCards={optResult.cards}
+          totalEstimatedSavings={optResult.totalEstimatedSavings}
+        />
       ).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

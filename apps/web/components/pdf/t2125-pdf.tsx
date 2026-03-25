@@ -13,7 +13,8 @@ import {
   Document, Page, Text, View, StyleSheet,
 } from "@react-pdf/renderer";
 import type { T2125Result } from "@/lib/engines/t2125-engine";
-import type { UserSettings } from "@/lib/types/database";
+import type { TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
+import type { UserSettings, MileageLog } from "@/lib/types/database";
 import { PROVINCE_LABELS } from "@/lib/types/database";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -313,13 +314,23 @@ function Footer({ year, agentName }: { year: number; agentName: string }) {
 
 // ── Main PDF component ─────────────────────────────────────────────────────────
 
+interface MileageSummary {
+  totalKm: number;
+  totalDeduction: number;
+  tripCount: number;
+  businessUsePct: number;
+}
+
 interface Props {
   result: T2125Result;
   settings: UserSettings;
   taxYear: number;
+  mileageSummary?: MileageSummary;
+  taxOptCards?: TaxOptimizationCard[];
+  totalEstimatedSavings?: number;
 }
 
-export function T2125Pdf({ result, settings, taxYear }: Props) {
+export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCards, totalEstimatedSavings }: Props) {
   const generatedDate = new Date().toLocaleDateString("en-CA");
 
   return (
@@ -561,6 +572,106 @@ export function T2125Pdf({ result, settings, taxYear }: Props) {
 
         <Footer year={taxYear} agentName={result.agentName} />
       </Page>
+
+      {/* ── PAGE 3: Mileage Summary + Tax Optimization Suggestions ── */}
+      {(mileageSummary || (taxOptCards && taxOptCards.length > 0)) && (
+        <Page size="LETTER" style={s.page}>
+          <View style={s.headerBar} />
+          <Text style={[s.headerTitle, { marginBottom: 12 }]}>T2125 Summary · Page 3 · {taxYear}</Text>
+
+          {/* Mileage Summary */}
+          {mileageSummary && mileageSummary.tripCount > 0 && (
+            <>
+              <SectionHeader title="Vehicle Mileage Summary" subtitle="CRA-compliant mileage log totals for vehicle expense deduction" color="#7C3AED" />
+              <View style={s.kpiRow}>
+                <View style={s.kpiTile}>
+                  <Text style={s.kpiLabel}>Total Kilometres</Text>
+                  <Text style={s.kpiValue}>{mileageSummary.totalKm.toLocaleString("en-CA")} km</Text>
+                  <Text style={s.kpiSub}>{mileageSummary.tripCount} trips logged</Text>
+                </View>
+                <View style={s.kpiTile}>
+                  <Text style={s.kpiLabel}>Business Use</Text>
+                  <Text style={s.kpiValue}>{fmtPct(mileageSummary.businessUsePct)}</Text>
+                  <Text style={s.kpiSub}>of total driving</Text>
+                </View>
+                <View style={s.kpiTile}>
+                  <Text style={s.kpiLabel}>Total Deduction</Text>
+                  <Text style={s.kpiValue}>{fmt(mileageSummary.totalDeduction)}</Text>
+                  <Text style={s.kpiSub}>at CRA per-km rate</Text>
+                </View>
+              </View>
+              <View style={[s.disclaimer, { marginTop: 8, backgroundColor: "#F5F3FF", borderColor: "#C4B5FD" }]}>
+                <Text style={{ color: "#5B21B6" }}>
+                  CRA requires a logbook tracking each business trip with date, destination, purpose, and
+                  kilometres. Keep this mileage log with your tax records for at least 6 years.
+                </Text>
+              </View>
+            </>
+          )}
+
+          {/* Tax Optimization Suggestions */}
+          {taxOptCards && taxOptCards.length > 0 && (
+            <>
+              <SectionHeader
+                title="Tax Optimization Opportunities"
+                subtitle={totalEstimatedSavings ? `${taxOptCards.length} opportunities · Est. ${fmt(totalEstimatedSavings)} total potential savings` : `${taxOptCards.length} opportunities identified`}
+                color="#059669"
+              />
+              {taxOptCards.map((card, i) => (
+                <View key={card.id} style={{
+                  backgroundColor: i % 2 === 0 ? "#F8FAFC" : "#FFFFFF",
+                  borderWidth: 1,
+                  borderColor: "#E2E8F0",
+                  borderRadius: 4,
+                  padding: 8,
+                  marginBottom: 4,
+                }}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
+                    <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: "#1E3A5F", flex: 1 }}>
+                      {card.title}
+                    </Text>
+                    {card.estimatedSavings > 0 && (
+                      <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: "#059669" }}>
+                        {card.estimatedSavingsLabel}
+                      </Text>
+                    )}
+                  </View>
+                  {card.evidence.length > 0 && (
+                    <Text style={{ fontSize: 7.5, color: "#64748b", marginBottom: 2, lineHeight: 1.4 }}>
+                      {card.evidence.join(" · ")}
+                    </Text>
+                  )}
+                  <Text style={{ fontSize: 8, color: "#334155", lineHeight: 1.4 }}>
+                    {card.action}
+                  </Text>
+                  <View style={{ flexDirection: "row", gap: 6, marginTop: 3 }}>
+                    <Text style={{
+                      fontSize: 6.5,
+                      color: card.complexity === "easy" ? "#059669" : card.complexity === "moderate" ? "#D97706" : "#DC2626",
+                      backgroundColor: card.complexity === "easy" ? "#ECFDF5" : card.complexity === "moderate" ? "#FFFBEB" : "#FEF2F2",
+                      paddingHorizontal: 4,
+                      paddingVertical: 1,
+                      borderRadius: 2,
+                    }}>
+                      {card.complexity.toUpperCase()}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+
+              <View style={[s.disclaimer, { marginTop: 8 }]}>
+                <Text>
+                  Tax optimization suggestions are generated algorithmically from your Agent Runway data.
+                  They are NOT tax advice. Discuss these opportunities with your accountant before taking action.
+                  Estimated savings are approximate and depend on your specific tax situation.
+                </Text>
+              </View>
+            </>
+          )}
+
+          <Footer year={taxYear} agentName={result.agentName} />
+        </Page>
+      )}
     </Document>
   );
 }

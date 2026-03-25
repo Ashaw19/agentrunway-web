@@ -93,6 +93,7 @@ interface Props {
   /** T2125 tab data */
   ccaAssets?: CcaAsset[];
   expenseAmounts?: Record<string, number>;
+  mileageLogs?: { km: number; deduction: number; trip_date: string }[];
   taxYear?: number;
   userId?: string;
 }
@@ -252,6 +253,7 @@ export function ReportsContent({
   receiptTotalsByKey = {},
   ccaAssets = [],
   expenseAmounts = {},
+  mileageLogs = [],
   taxYear,
   userId = "",
 }: Props) {
@@ -667,6 +669,7 @@ export function ReportsContent({
           transactions={transactions.filter((tx) => tx.date.startsWith(String(taxYear ?? new Date().getFullYear())))}
           expenseAmounts={expenseAmounts}
           ccaAssets={ccaAssets}
+          mileageLogs={mileageLogs}
           taxYear={taxYear ?? new Date().getFullYear()}
           userId={userId}
         />
