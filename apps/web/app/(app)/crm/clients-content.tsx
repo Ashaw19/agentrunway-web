@@ -861,7 +861,7 @@ export function ClientsContent({
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [tab, setTab] = useState<TabId>("clients");
   const [clientsPage, setClientsPage] = useState(0);
-  const CLIENTS_PAGE_SIZE = 100;
+  const CLIENTS_PAGE_SIZE = 200;
 
   // Detail panel state
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
