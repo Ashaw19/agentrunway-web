@@ -860,6 +860,8 @@ export function ClientsContent({
   const [sortCol, setSortCol] = useState<SortCol>("gci");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [tab, setTab] = useState<TabId>("clients");
+  const [clientsPage, setClientsPage] = useState(0);
+  const CLIENTS_PAGE_SIZE = 100;
 
   // Detail panel state
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -1106,6 +1108,14 @@ export function ClientsContent({
     });
     return sortTableGroups(f, sortCol, sortDir);
   }, [grouped, search, filterSide, filterSource, filterStatus, activityFilter, sortCol, sortDir, localClients, showArchived, archivedClientIds]);
+
+  // Reset to first page when filters change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setClientsPage(0); }, [search, filterSide, filterSource, filterStatus, activityFilter, sortCol, sortDir, showArchived]);
+
+  // Paginate the filtered list
+  const totalPages = Math.ceil(filtered.length / CLIENTS_PAGE_SIZE);
+  const paginatedFiltered = filtered.slice(clientsPage * CLIENTS_PAGE_SIZE, (clientsPage + 1) * CLIENTS_PAGE_SIZE);
 
   // Max GCI across all clients (for proportional bar)
   const maxGCI = useMemo(
@@ -2261,7 +2271,7 @@ export function ClientsContent({
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filtered.map((group) => {
+                        paginatedFiltered.map((group) => {
                           const badges      = computeAchievements(group, firstClassThreshold);
                           const side        = dominantSide(group.deals);
                           const sideStyle   = SIDE_STYLES[side];
@@ -2376,6 +2386,33 @@ export function ClientsContent({
                     </TableBody>
                   </Table>
                 </div>
+                {/* ── Pagination ── */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200">
+                    <span className="text-sm text-muted-foreground">
+                      Showing {clientsPage * CLIENTS_PAGE_SIZE + 1}–{Math.min((clientsPage + 1) * CLIENTS_PAGE_SIZE, filtered.length)} of {filtered.length} clients
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setClientsPage((p) => Math.max(0, p - 1))}
+                        disabled={clientsPage === 0}
+                        className="px-3 py-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        ← Previous
+                      </button>
+                      <span className="text-sm text-muted-foreground">
+                        Page {clientsPage + 1} of {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setClientsPage((p) => Math.min(totalPages - 1, p + 1))}
+                        disabled={clientsPage >= totalPages - 1}
+                        className="px-3 py-1.5 text-sm rounded-md border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Next →
+                      </button>
+                    </div>
+                  </div>
+                )}
               </Card>
           )}
         </>
