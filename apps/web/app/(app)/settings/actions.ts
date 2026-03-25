@@ -1,8 +1,10 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { isUserInSandbox } from "@/lib/sandbox-guard";
 
 export async function dismissAiProfilePrompt() {
+  if (await isUserInSandbox()) return;
   const supabase = await createClient();
   const {
     data: { user },
