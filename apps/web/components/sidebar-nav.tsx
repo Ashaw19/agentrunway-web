@@ -18,6 +18,7 @@ import {
   Settings,
   Lock,
   BarChart2,
+  Handshake,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
@@ -68,6 +69,10 @@ const sidebarEntries: SidebarEntry[] = [
   {
     type: "item", label: "Flight Control", href: "/flight-control", icon: Sparkles,
     iconActive: "text-violet-300", iconInactive: "text-violet-400/60", borderActive: "border-l-violet-400",
+  },
+  {
+    type: "item", label: "Referrals", href: "/referrals", icon: Handshake,
+    iconActive: "text-orange-300", iconInactive: "text-orange-400/60", borderActive: "border-l-orange-400",
   },
   // ── TOOLS ──────────────────────────────────────────────────────
   { type: "header", label: "TOOLS" },
