@@ -161,6 +161,16 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
 
+  // Block in sandbox mode (saves Groq + Google Places credits)
+  const { data: sbCheck } = await supabase
+    .from("user_settings")
+    .select("sandbox_mode")
+    .eq("user_id", user.id)
+    .single();
+  if (sbCheck?.sandbox_mode === true) {
+    return NextResponse.json({ error: "Blocked in sandbox mode." }, { status: 403 });
+  }
+
   // Rate limit: 20 suggestions per hour per user
   const rl = await checkRateLimit(user.id, "reward_suggestion", 20, 60);
   if (!rl.allowed) {

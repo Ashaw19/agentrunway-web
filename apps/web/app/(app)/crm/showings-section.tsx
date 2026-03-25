@@ -52,6 +52,8 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { useSandboxMode } from "@/lib/sandbox-mode-context";
+import { guardSandboxWrite } from "@/lib/sandbox-guard";
 import type { PropertyShowing, BuyerDNA } from "@/lib/types/database";
 
 // ── Props ────────────────────────────────────────────────────────────────────
@@ -83,6 +85,7 @@ const STAR_LABELS = ["", "Not interested", "Below average", "Average", "Good fit
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function ShowingsSection({ clientId, clientName, showings, onShowingsChange }: Props) {
+  const sandbox = useSandboxMode();
   // ── State ────────────────────────────────────────────────────────────────
   const [expanded, setExpanded] = useState(showings.length > 0);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -139,6 +142,7 @@ export function ShowingsSection({ clientId, clientName, showings, onShowingsChan
   }, []);
 
   const handleSave = useCallback(async () => {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (!address.trim()) {
       toast.error("Property address is required");
       return;
@@ -281,6 +285,7 @@ export function ShowingsSection({ clientId, clientName, showings, onShowingsChan
 
   // Delete showing
   const handleDelete = useCallback(async (id: string) => {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const supabase = createClient();
     const { error } = await supabase.from("property_showings").delete().eq("id", id);
     if (error) {

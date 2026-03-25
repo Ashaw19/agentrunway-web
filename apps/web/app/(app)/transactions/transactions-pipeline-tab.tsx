@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { useSandboxMode } from "@/lib/sandbox-mode-context";
+import { guardSandboxWrite } from "@/lib/sandbox-guard";
 import {
   Card,
   CardContent,
@@ -133,6 +135,7 @@ type CloseForm = {
 };
 
 export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransactions = [] }: Props) {
+  const sandbox = useSandboxMode();
   const [deals, setDeals] = useState(pipelineDeals);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -197,6 +200,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
   }
 
   async function handleSave() {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -255,6 +259,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
   }
 
   async function handleDelete(id: string) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const supabase = createClient();
     const { error } = await supabase.from("pipeline_deals").delete().eq("id", id);
     if (!error) {
@@ -267,6 +272,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
   }
 
   async function handleClose() {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (!closeTarget || closing) return;
     setClosing(true);
     const supabase = createClient();

@@ -27,6 +27,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Block in sandbox mode (saves Groq credits)
+  const { data: sbCheck } = await supabase
+    .from("user_settings")
+    .select("sandbox_mode")
+    .eq("user_id", user.id)
+    .single();
+  if (sbCheck?.sandbox_mode === true) {
+    return NextResponse.json({ error: "Blocked in sandbox mode." }, { status: 403 });
+  }
+
   const rl = await checkRateLimit(user.id, "buyer_analysis", 15, 60);
   if (!rl.allowed) {
     return NextResponse.json(
