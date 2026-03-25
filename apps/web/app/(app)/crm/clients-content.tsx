@@ -175,6 +175,8 @@ interface Props {
   flightPlanSteps: FlightPlanStep[];
   showings: PropertyShowing[];
   listingAppointments: ListingAppointment[];
+  /** User ID — used for client-side data fetching when server passes empty clients */
+  userId?: string;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -818,6 +820,7 @@ export function ClientsContent({
   flightPlanSteps: initialFlightPlanSteps,
   showings: initialShowings,
   listingAppointments: initialListingAppointments,
+  userId,
 }: Props) {
   const router = useRouter();
   const sandbox = useSandboxMode();
@@ -827,6 +830,29 @@ export function ClientsContent({
     useState<ContactActivity[]>(initialActivities);
   const [localTasks, setLocalTasks] = useState<ContactTask[]>(initialTasks);
   const [localClients, setLocalClients] = useState<Client[]>(initialClients);
+  const [clientsLoading, setClientsLoading] = useState(initialClients.length === 0 && !!userId);
+
+  // Client-side fetch: when server passes empty clients (to avoid large RSC payload),
+  // fetch directly via Supabase client SDK
+  useEffect(() => {
+    if (initialClients.length > 0 || !userId) return;
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("clients")
+        .select("*")
+        .eq("user_id", userId)
+        .order("name")
+        .limit(10000);
+      if (!cancelled) {
+        if (data) setLocalClients(data as Client[]);
+        if (error) console.error("[CRM] Client-side fetch failed:", error.message);
+        setClientsLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [initialClients.length, userId]);
   const [localRelationships, setLocalRelationships] =
     useState<ClientRelationship[]>(initialRelationships);
   const [localFlightPlans, setLocalFlightPlans] =
@@ -1799,7 +1825,7 @@ export function ClientsContent({
 
   // ── Form handlers ────────────────────────────────────────────────────────────
 
-  async function openDetailPanel(clientId: string) {
+  function openDetailPanel(clientId: string) {
     setSelectedClientId(clientId);
     setDetailPanelOpen(true);
     setShowLogActivity(false);
@@ -1811,22 +1837,6 @@ export function ClientsContent({
     setTaskDueDate(todayIso());
     setTaskPriority("normal");
     setTaskNotes("");
-
-    // Lazy-load full client data (initial query only fetches list-view fields)
-    const existing = localClients.find((c) => c.id === clientId);
-    if (existing && existing.street_address === undefined) {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("clients")
-        .select("*")
-        .eq("id", clientId)
-        .single();
-      if (data) {
-        setLocalClients((prev) =>
-          prev.map((c) => (c.id === clientId ? { ...c, ...data } : c)),
-        );
-      }
-    }
   }
 
   async function handleLogActivity() {
@@ -2090,7 +2100,7 @@ export function ClientsContent({
         <SummaryCard
           icon={<Users className="h-4 w-4 text-blue-500" />}
           label="Total Clients"
-          value={String(grouped.length)}
+          value={clientsLoading ? "Loading…" : String(grouped.length)}
           sub="unique relationships"
           accent="blue"
         />
@@ -2280,7 +2290,25 @@ export function ClientsContent({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filtered.length === 0 ? (
+                      {clientsLoading ? (
+                        Array.from({ length: 8 }).map((_, i) => (
+                          <TableRow key={i} className="border-b border-border/20">
+                            <TableCell className="p-0"><div className="w-1 min-h-[46px] bg-border/30" /></TableCell>
+                            <TableCell className="pl-3 pr-2 py-2.5">
+                              <div className="flex items-center gap-1.5">
+                                <div className="h-7 w-7 rounded-full bg-muted animate-pulse" />
+                                <div className="h-4 w-28 bg-muted rounded animate-pulse" />
+                              </div>
+                            </TableCell>
+                            <TableCell><div className="h-4 w-16 bg-muted rounded animate-pulse ml-auto" /></TableCell>
+                            <TableCell><div className="h-4 w-8 bg-muted rounded animate-pulse ml-auto" /></TableCell>
+                            <TableCell><div className="h-4 w-16 bg-muted rounded animate-pulse ml-auto" /></TableCell>
+                            <TableCell><div className="h-4 w-16 bg-muted rounded animate-pulse ml-auto" /></TableCell>
+                            <TableCell><div className="h-4 w-16 bg-muted rounded animate-pulse" /></TableCell>
+                            <TableCell><div className="h-4 w-12 bg-muted rounded animate-pulse" /></TableCell>
+                          </TableRow>
+                        ))
+                      ) : filtered.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
                             No clients match your search.

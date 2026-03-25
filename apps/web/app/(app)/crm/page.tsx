@@ -4,6 +4,13 @@ import { ClientsContent } from "./clients-content";
 import type { Client, ClientRecord, ContactActivity, ContactTask, UserSettings, ExpenseItem, ClientRelationship, FlightPlan, FlightPlanStep, PropertyShowing, ListingAppointment } from "@/lib/types/database";
 import { isSandboxActive, getSandboxData, mergeSandboxSettings, getSandboxExpenseItems } from "@/lib/sandbox-resolver";
 
+/**
+ * Threshold: if a user has more than this many clients, skip sending them
+ * in the RSC payload and let the client component fetch them directly.
+ * This avoids massive RSC payloads that can crash the browser or timeout.
+ */
+const CLIENT_SIDE_FETCH_THRESHOLD = 500;
+
 export default async function ClientsPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -41,14 +48,25 @@ export default async function ClientsPage() {
     );
   }
 
-  // ── Step 3: Live Supabase queries ───────────────────────────────────────
-  const [clientsResult, recordsResult, activitiesResult, tasksResult, expensesResult, relationshipsResult, flightPlansResult, flightPlanStepsResult, showingsResult, listingApptsResult] = await Promise.all([
-    supabase
-      .from("clients")
-      .select("id, user_id, name, name_search, first_name, last_name, email, phone, status, tags, last_contact_at, lead_source, archived_at, archive_reason")
-      .eq("user_id", user.id)
-      .order("name")
-      .limit(10000),
+  // ── Step 3: Check client count to decide fetch strategy ─────────────────
+  const { count: clientCount } = await supabase
+    .from("clients")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id);
+
+  const useClientSideFetch = (clientCount ?? 0) > CLIENT_SIDE_FETCH_THRESHOLD;
+
+  // ── Step 4: Live Supabase queries ───────────────────────────────────────
+  const queries = [
+    // Only fetch clients server-side if below threshold
+    useClientSideFetch
+      ? Promise.resolve({ data: [], error: null })
+      : supabase
+          .from("clients")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("name")
+          .limit(10000),
     supabase
       .from("client_records")
       .select("*")
@@ -104,7 +122,9 @@ export default async function ClientsPage() {
       .eq("user_id", user.id)
       .order("appointment_date", { ascending: false })
       .limit(10000),
-  ]);
+  ] as const;
+
+  const [clientsResult, recordsResult, activitiesResult, tasksResult, expensesResult, relationshipsResult, flightPlansResult, flightPlanStepsResult, showingsResult, listingApptsResult] = await Promise.all(queries);
 
   return (
     <ClientsContent
@@ -119,6 +139,7 @@ export default async function ClientsPage() {
       flightPlanSteps={(flightPlanStepsResult.data ?? []) as FlightPlanStep[]}
       showings={(showingsResult.data ?? []) as PropertyShowing[]}
       listingAppointments={(listingApptsResult.data ?? []) as ListingAppointment[]}
+      userId={useClientSideFetch ? user.id : undefined}
     />
   );
 }
