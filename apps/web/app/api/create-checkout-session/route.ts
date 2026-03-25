@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { stripe, STRIPE_PRICES } from "@/lib/stripe";
+import { stripe, getCurrentPricingTier, getIndividualPriceId } from "@/lib/stripe";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
   // ── Stripe not yet configured ────────────────────────────────────────────────
@@ -41,15 +42,20 @@ export async function POST(request: Request) {
     );
   }
 
-  // ── Resolve price ID ──────────────────────────────────────────────────────────
+  // ── Resolve price ID based on current pricing tier ───────────────────────────
   const { billing } = (await request.json()) as {
     billing: "monthly" | "annual";
   };
 
-  const priceId =
-    billing === "annual"
-      ? STRIPE_PRICES.professional_annual
-      : STRIPE_PRICES.professional_monthly;
+  // Count paid individual subscribers to determine tier
+  const admin = createAdminClient();
+  const { count: paidCount } = await admin
+    .from("user_settings")
+    .select("user_id", { count: "exact", head: true })
+    .eq("subscription_tier", "professional");
+
+  const tier = getCurrentPricingTier(paidCount ?? 0);
+  const priceId = getIndividualPriceId(tier, billing);
 
   if (!priceId) {
     return NextResponse.json(

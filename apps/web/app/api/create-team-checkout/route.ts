@@ -8,8 +8,9 @@
  */
 
 import { NextResponse } from "next/server";
-import { stripe, STRIPE_PRICES } from "@/lib/stripe";
+import { stripe, getCurrentPricingTier, getLeaderPriceId, getMemberPriceId } from "@/lib/stripe";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
   if (!stripe) {
@@ -94,16 +95,16 @@ export async function POST(request: Request) {
     );
   }
 
-  // ── Resolve prices ──────────────────────────────────────────────────────
-  const leaderPriceId =
-    billing === "annual"
-      ? STRIPE_PRICES.team_leader_annual
-      : STRIPE_PRICES.team_leader_monthly;
+  // ── Resolve prices based on current pricing tier ────────────────────────
+  const admin = createAdminClient();
+  const { count: paidCount } = await admin
+    .from("user_settings")
+    .select("user_id", { count: "exact", head: true })
+    .eq("subscription_tier", "professional");
 
-  const memberPriceId =
-    billing === "annual"
-      ? STRIPE_PRICES.team_member_annual
-      : STRIPE_PRICES.team_member_monthly;
+  const tier = getCurrentPricingTier(paidCount ?? 0);
+  const leaderPriceId = getLeaderPriceId(tier, billing);
+  const memberPriceId = getMemberPriceId(tier, billing);
 
   if (!leaderPriceId || !memberPriceId) {
     return NextResponse.json(
