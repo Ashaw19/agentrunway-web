@@ -9,7 +9,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe";
+import { stripe, STRIPE_PRICES } from "@/lib/stripe";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 
@@ -115,11 +115,20 @@ export async function POST(request: Request) {
       org.stripe_subscription_id
     );
 
-    // Find the member seat line item (the one that's NOT the leader price)
-    const leaderPriceIds = new Set([
-      process.env.STRIPE_PRICE_TEAM_LEADER_MONTHLY ?? "",
-      process.env.STRIPE_PRICE_TEAM_LEADER_ANNUAL ?? "",
-    ]);
+    // Find the member seat line item (the one that's NOT a leader price)
+    // Include ALL tier leader prices + legacy leader prices
+    const leaderPriceIds = new Set(
+      [
+        STRIPE_PRICES.charter_leader_monthly,
+        STRIPE_PRICES.charter_leader_annual,
+        STRIPE_PRICES.early_adopter_leader_monthly,
+        STRIPE_PRICES.early_adopter_leader_annual,
+        STRIPE_PRICES.standard_leader_monthly,
+        STRIPE_PRICES.standard_leader_annual,
+        STRIPE_PRICES.team_leader_monthly,
+        STRIPE_PRICES.team_leader_annual,
+      ].filter(Boolean)
+    );
 
     const memberItem = subscription.items.data.find(
       (item) => !leaderPriceIds.has(item.price.id)
@@ -128,10 +137,31 @@ export async function POST(request: Request) {
     if (!memberItem) {
       // No member seat item exists yet — need to add one
       if (newMemberQuantity > 0) {
-        const memberPriceId =
-          process.env.STRIPE_PRICE_TEAM_MEMBER_MONTHLY ??
-          process.env.STRIPE_PRICE_TEAM_MEMBER_ANNUAL ??
-          "";
+        // Detect member price from the leader's price in the subscription
+        const leaderItem = subscription.items.data.find(
+          (item) => leaderPriceIds.has(item.price.id)
+        );
+        // Derive member price from same tier/billing period as leader
+        let memberPriceId = "";
+        if (leaderItem) {
+          const leaderPid = leaderItem.price.id;
+          // Map leader → member for each tier + billing period
+          const leaderToMember: Record<string, string> = {
+            [STRIPE_PRICES.charter_leader_monthly]: STRIPE_PRICES.charter_member_monthly,
+            [STRIPE_PRICES.charter_leader_annual]: STRIPE_PRICES.charter_member_annual,
+            [STRIPE_PRICES.early_adopter_leader_monthly]: STRIPE_PRICES.early_adopter_member_monthly,
+            [STRIPE_PRICES.early_adopter_leader_annual]: STRIPE_PRICES.early_adopter_member_annual,
+            [STRIPE_PRICES.standard_leader_monthly]: STRIPE_PRICES.standard_member_monthly,
+            [STRIPE_PRICES.standard_leader_annual]: STRIPE_PRICES.standard_member_annual,
+            [STRIPE_PRICES.team_leader_monthly]: STRIPE_PRICES.team_member_monthly,
+            [STRIPE_PRICES.team_leader_annual]: STRIPE_PRICES.team_member_annual,
+          };
+          memberPriceId = leaderToMember[leaderPid] || "";
+        }
+        // Fallback to legacy env vars
+        if (!memberPriceId) {
+          memberPriceId = STRIPE_PRICES.team_member_monthly || STRIPE_PRICES.team_member_annual || "";
+        }
 
         if (memberPriceId) {
           await stripe.subscriptionItems.create({

@@ -129,16 +129,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Increment application count
+    // Increment application count (atomic via RPC-style count query)
+    const { count: appCount } = await admin
+      .from("recruitment_applications")
+      .select("id", { count: "exact", head: true })
+      .eq("recruitment_page_id", page.id);
+
     await admin
       .from("recruitment_pages")
-      .update({
-        application_count: (await admin
-          .from("recruitment_applications")
-          .select("id", { count: "exact", head: true })
-          .eq("recruitment_page_id", page.id)
-          .then(r => r.count)) ?? 0,
-      })
+      .update({ application_count: appCount ?? 0 })
       .eq("id", page.id);
 
     return NextResponse.json({ ok: true });

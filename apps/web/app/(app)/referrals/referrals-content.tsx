@@ -133,7 +133,7 @@ interface ReferralForm {
   referral_fee_pct: number;
   estimated_value: number;
   actual_fee_paid: number;
-  fee_paid_date: string;
+  fee_paid_date: string | null;
   transaction_id: string;
   notes: string;
 }
@@ -154,7 +154,7 @@ const EMPTY_FORM: ReferralForm = {
   referral_fee_pct: 25,
   estimated_value: 0,
   actual_fee_paid: 0,
-  fee_paid_date: "",
+  fee_paid_date: null,
   transaction_id: "",
   notes: "",
 };

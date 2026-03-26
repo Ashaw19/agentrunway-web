@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Sparkles, Clock, Users } from "lucide-react";
 
+import type { PricingTier } from "@/lib/stripe";
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Billing = "monthly" | "annual";
 type CheckoutStatus = "idle" | "loading" | "unavailable";
-type PricingTier = "charter" | "early_adopter" | "standard";
 
 interface TierInfo {
   tier: PricingTier;

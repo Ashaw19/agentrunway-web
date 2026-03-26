@@ -77,6 +77,12 @@ export interface Organization {
   max_seats: number;
   subscription_status: string;
   org_goal_gci: number | null;
+  /** Stripe billing fields (added by migration 00059) */
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
+  stripe_price_id: string | null;
+  billing_email: string | null;
+  is_beta: boolean;
   created_at: string;
   updated_at: string;
 }

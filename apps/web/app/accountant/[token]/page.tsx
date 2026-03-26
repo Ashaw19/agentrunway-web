@@ -40,8 +40,8 @@ interface AccountantData {
   }[];
   expenseCategories?: {
     id: string;
-    name: string;
-    cra_line: string;
+    key: string;
+    title: string;
     items: {
       key: string;
       title: string;
@@ -345,7 +345,7 @@ export default function AccountantPage() {
                         Category
                       </th>
                       <th className="pb-2 font-medium text-muted-foreground">
-                        CRA Line
+                        Key
                       </th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">
                         Receipts
@@ -373,9 +373,9 @@ export default function AccountantPage() {
                       if (total === 0) return null;
                       return (
                         <tr key={cat.id} className="border-b last:border-0">
-                          <td className="py-2 font-medium">{cat.name}</td>
+                          <td className="py-2 font-medium">{cat.title}</td>
                           <td className="py-2 text-muted-foreground">
-                            {cat.cra_line}
+                            {cat.key}
                           </td>
                           <td className="py-2 text-right">
                             {fmtCurrency(receiptTotal)}

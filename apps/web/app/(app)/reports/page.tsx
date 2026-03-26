@@ -57,6 +57,7 @@ export default async function ReportsPage() {
         mileageLogs={[]}
         taxYear={year}
         userId={user.id}
+        referralSummary={undefined}
       />
     );
   }

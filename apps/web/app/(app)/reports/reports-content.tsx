@@ -685,6 +685,7 @@ export function ReportsContent({
           mileageLogs={mileageLogs}
           taxYear={taxYear ?? new Date().getFullYear()}
           userId={userId}
+          referralSummary={referralSummary}
         />
       )}
 

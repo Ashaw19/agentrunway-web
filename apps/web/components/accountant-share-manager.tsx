@@ -43,14 +43,21 @@ export function AccountantShareManager() {
   const [newLabel, setNewLabel] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
 
+  const [loadError, setLoadError] = useState(false);
+
   useEffect(() => {
     const supabase = createClient();
     supabase
       .from("accountant_shares")
       .select("*")
       .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setShares((data ?? []) as AccountantShare[]);
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("[accountant-share-manager] Load error:", error);
+          setLoadError(true);
+        } else {
+          setShares((data ?? []) as AccountantShare[]);
+        }
         setLoading(false);
       });
   }, []);
@@ -129,6 +136,11 @@ export function AccountantShareManager() {
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
+        {loadError && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            Failed to load share links. Please refresh the page.
+          </div>
+        )}
         {/* Create new */}
         <div className="flex gap-2">
           <Input

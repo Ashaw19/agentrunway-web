@@ -44,6 +44,7 @@ interface Props {
   mileageLogs: MileageLogRow[];
   taxYear: number;
   userId: string;
+  referralSummary?: { inboundCount: number; outboundCount: number; feesEarned: number; feesPaid: number };
 }
 
 // ── Section header ─────────────────────────────────────────────────────────
@@ -155,6 +156,7 @@ export function ReportsT2125Tab({
   mileageLogs,
   taxYear,
   userId,
+  referralSummary: _referralSummary,
 }: Props) {
   const router = useRouter();
   const supabase = createClient();
