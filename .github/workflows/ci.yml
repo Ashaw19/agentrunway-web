@@ -31,5 +31,15 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
           NEXT_PUBLIC_SENTRY_DSN: https://placeholder@sentry.io/0
 
+      - name: Check bundle size
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          echo "## Bundle Size Report" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          du -sh apps/web/.next/static/chunks/*.js 2>/dev/null | sort -rh | head -20 >> $GITHUB_STEP_SUMMARY || echo "No chunks found" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          TOTAL=$(du -sh apps/web/.next 2>/dev/null | cut -f1)
+          echo "**Total .next size: $TOTAL**" >> $GITHUB_STEP_SUMMARY
+
       - name: Type check
         run: pnpm turbo typecheck --filter=agentrunway-web
