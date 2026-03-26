@@ -160,7 +160,12 @@ async function verifyPlaidWebhook(
         ? { name: "ECDSA", hash: "SHA-256" }
         : { name: "RSASSA-PKCS1-v1_5" };
 
-    const valid = await crypto.subtle.verify(cryptoAlg, key, signature, data);
+    const valid = await crypto.subtle.verify(
+      cryptoAlg,
+      key,
+      signature as unknown as ArrayBuffer,
+      data as unknown as ArrayBuffer,
+    );
     if (!valid) return false;
 
     // 5. Decode the payload and verify the body hash
