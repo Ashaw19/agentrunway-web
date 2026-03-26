@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SettingsContent } from "./settings-content";
+import { AccountantShareManager } from "@/components/accountant-share-manager";
 import { type UserSettings, type PlaidItem } from "@/lib/types/database";
+import { isSandboxActive, mergeSandboxSettings } from "@/lib/sandbox-resolver";
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -17,7 +19,7 @@ export default async function SettingsPage() {
   );
 
   // Run upsert and both selects in parallel
-  const [, { data: settings }, { data: plaidItems }, { data: googleConnection }] = await Promise.all([
+  const [, { data: settingsRaw }, { data: plaidItems }, { data: googleConnection }] = await Promise.all([
     supabase
       .from("user_settings")
       .upsert({ user_id: user.id }, { onConflict: "user_id", ignoreDuplicates: true }),
@@ -39,14 +41,27 @@ export default async function SettingsPage() {
       .maybeSingle(),
   ]);
 
-  if (!settings) redirect("/dashboard");
+  if (!settingsRaw) redirect("/dashboard");
+
+  // When sandbox is active, merge sandbox settings overrides so the user sees
+  // the fictional agent's brokerage split, fees, goals, etc.
+  const settings = isSandboxActive(settingsRaw)
+    ? mergeSandboxSettings(settingsRaw)
+    : settingsRaw;
 
   return (
-    <SettingsContent
-      settings={settings as UserSettings}
-      plaidItems={(plaidItems ?? []) as PlaidItem[]}
-      plaidConfigured={plaidConfigured}
-      googleConnection={googleConnection ?? null}
-    />
+    <div className="space-y-8">
+      <SettingsContent
+        settings={settings as UserSettings}
+        plaidItems={(plaidItems ?? []) as PlaidItem[]}
+        plaidConfigured={plaidConfigured}
+        googleConnection={googleConnection ?? null}
+      />
+      {(settings as UserSettings).subscription_tier === "professional" ||
+      (settings as UserSettings).subscription_tier === "team" ||
+      (settings as UserSettings).is_admin ? (
+        <AccountantShareManager />
+      ) : null}
+    </div>
   );
 }
