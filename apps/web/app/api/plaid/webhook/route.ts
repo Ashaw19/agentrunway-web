@@ -35,8 +35,11 @@ function buildPlaidClient() {
 }
 
 // ── JWK cache (Plaid rotates keys periodically; cache for 5 min) ─────────────
+// Bridge Node.js webcrypto.CryptoKey and global CryptoKey for @types/node ≥ 25
+type SubtleCryptoKey = Awaited<ReturnType<typeof crypto.subtle.importKey>>;
+
 interface JWKCacheEntry {
-  keys: Record<string, { key: CryptoKey; alg: string }>;
+  keys: Record<string, { key: SubtleCryptoKey; alg: string }>;
   fetchedAt: number;
 }
 let jwkCache: JWKCacheEntry | null = null;
@@ -46,7 +49,7 @@ const JWK_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
  * Fetches Plaid's public JWK set and returns a map of kid → CryptoKey.
  * Keys are cached for 5 minutes to avoid repeated round-trips.
  */
-async function getPlaidJWKs(): Promise<Record<string, { key: CryptoKey; alg: string }>> {
+async function getPlaidJWKs(): Promise<Record<string, { key: SubtleCryptoKey; alg: string }>> {
   const now = Date.now();
   if (jwkCache && now - jwkCache.fetchedAt < JWK_CACHE_TTL_MS) {
     return jwkCache.keys;
@@ -69,7 +72,7 @@ async function getPlaidJWKs(): Promise<Record<string, { key: CryptoKey; alg: str
   // Use a wider type to access JWK fields not present in TypeScript's JsonWebKey
   type RawJWK = JsonWebKey & { kid?: string; alg?: string };
   const { keys } = (await res.json()) as { keys: RawJWK[] };
-  const result: Record<string, { key: CryptoKey; alg: string }> = {};
+  const result: Record<string, { key: SubtleCryptoKey; alg: string }> = {};
 
   for (const jwk of keys) {
     const kid = jwk.kid;

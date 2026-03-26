@@ -26,12 +26,10 @@ import {
   Download,
   ChevronLeft,
   ChevronRight,
-  Instagram,
   Copy,
   Check,
   CheckCircle,
   Sparkles,
-  Facebook,
   Link2,
   RefreshCw,
   Loader2,
@@ -43,6 +41,7 @@ import {
   ImagePlus,
   X as XIcon,
 } from "lucide-react";
+import { Instagram, Facebook } from "@/components/icons/brand-icons";
 import {
   computeGCI,
   type Transaction,
