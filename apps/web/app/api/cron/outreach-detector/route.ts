@@ -97,6 +97,9 @@ async function transitionLandedClients(supabaseAdmin: SupabaseClient): Promise<n
   return ids.length;
 }
 
+// Allow up to 120 seconds — iterates over all active users with AI detection
+export const maxDuration = 120;
+
 // ── Route handler ──────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {

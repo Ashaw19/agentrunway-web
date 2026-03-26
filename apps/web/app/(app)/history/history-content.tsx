@@ -531,21 +531,30 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
           // Text layer is usable — send as plain text (better structured input for LLM)
           textContent = combined;
         } else {
-          // Scanned PDF — render all pages (up to 5) as images
-          const MAX_VISION_PAGES = 5;
+          // Scanned PDF — render all pages (up to cap) as images
+          const MAX_VISION_PAGES = 10;
           const totalPages = Math.min(pdf.numPages, MAX_VISION_PAGES);
+          if (pdf.numPages > MAX_VISION_PAGES) {
+            toast.warning(
+              `This PDF has ${pdf.numPages} pages but only the first ${MAX_VISION_PAGES} will be analyzed. For best results, split large reports into smaller files.`,
+              { duration: 8000 },
+            );
+          }
           const pages: typeof multiPageImages = [];
+
+          // Use lower scale + quality for multi-page to stay under Vercel's 4.5MB body limit
+          const scale   = totalPages > 3 ? 1.5 : 2.0;
+          const quality = totalPages > 3 ? 0.70 : 0.90;
 
           for (let p = 1; p <= totalPages; p++) {
             const page     = await pdf.getPage(p);
-            const scale    = 2.0;
             const viewport = page.getViewport({ scale });
             const canvas   = document.createElement("canvas");
             canvas.width   = viewport.width;
             canvas.height  = viewport.height;
             await page.render({ canvas, viewport }).promise;
             pages.push({
-              base64:   canvas.toDataURL("image/jpeg", 0.90).split(",")[1],
+              base64:   canvas.toDataURL("image/jpeg", quality).split(",")[1],
               mimeType: "image/jpeg",
               page:     p,
             });

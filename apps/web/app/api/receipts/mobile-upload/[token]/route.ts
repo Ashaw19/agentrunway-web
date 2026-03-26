@@ -17,6 +17,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { extractReceiptData }        from "@/lib/receipts/extract";
 
+// Allow up to 30 seconds for Groq vision OCR extraction
+export const maxDuration = 30;
+
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 const ALLOWED_MIME = new Set([

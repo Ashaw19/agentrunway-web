@@ -18,6 +18,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+// Allow up to 45 seconds for Instagram media container creation + polling
+export const maxDuration = 45;
+
 const IG_GRAPH = "https://graph.instagram.com/v21.0";
 
 export async function POST(req: NextRequest) {
@@ -28,6 +31,12 @@ export async function POST(req: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // ── Sandbox guard ────────────────────────────────────────────────────────
+  const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();
+  if (sandboxCheck?.sandbox_mode === true) {
+    return NextResponse.json({ error: "Action blocked in Sandbox Mode" }, { status: 403 });
   }
 
   // ── Parse body ──────────────────────────────────────────────────────────────

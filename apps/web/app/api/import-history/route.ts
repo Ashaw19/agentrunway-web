@@ -466,6 +466,10 @@ function computeImportDebug(
   };
 }
 
+// Allow up to 60 seconds for LLM extraction (default 10-15s is too short for
+// large documents, especially vision-based extraction of multi-page PDFs).
+export const maxDuration = 60;
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -641,8 +645,17 @@ export async function POST(req: NextRequest) {
     };
 
     return NextResponse.json(response);
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("[import-history] error:", err);
-    return NextResponse.json({ error: "Failed to extract data from document" }, { status: 422 });
+    // Provide specific error messages instead of generic "Failed to extract"
+    const message =
+      err instanceof Error && err.message?.includes("body size")
+        ? "Document too large. Try uploading fewer pages or a smaller file."
+        : err instanceof Error && err.message?.includes("timeout")
+        ? "Processing timed out. Try a smaller document or split into multiple files."
+        : err instanceof Error && err.message?.includes("rate")
+        ? "The AI service is busy. Please try again in a moment."
+        : "Failed to extract data from document. Try uploading a clearer image or a different file format.";
+    return NextResponse.json({ error: message }, { status: 422 });
   }
 }

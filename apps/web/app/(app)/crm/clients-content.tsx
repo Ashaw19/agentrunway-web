@@ -985,8 +985,9 @@ export function ClientsContent({
   const [mapPostal, setMapPostal] = useState("__none__");
   const [mapCountry, setMapCountry] = useState("__none__");
   const [mapPhoneType, setMapPhoneType] = useState("__none__");
-  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; enriched: number } | null>(null);
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; enriched: number; errors: string[] } | null>(null);
   const [importLoading, setImportLoading] = useState(false);
+  const [importProgress, setImportProgress] = useState<{ current: number; total: number; phase: string } | null>(null);
   const [importAsNewLeads, setImportAsNewLeads] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1868,13 +1869,43 @@ export function ClientsContent({
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // File size guard — 10MB is generous for a CSV
+    const MAX_CSV_MB = 10;
+    if (file.size > MAX_CSV_MB * 1024 * 1024) {
+      toast.error(`File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum size is ${MAX_CSV_MB} MB.`);
+      return;
+    }
+
     const reader = new FileReader();
+    reader.onerror = () => {
+      toast.error("Failed to read file. Please try again or use a different file.");
+    };
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
       const { headers, rows, truncated } = parseCsv(text);
       if (truncated) {
         toast.warning(`CSV capped at ${CSV_ROW_CAP.toLocaleString()} rows — only the first ${CSV_ROW_CAP.toLocaleString()} contacts will be imported`);
       }
+
+      // Auto-detect first_name + last_name columns and concatenate them
+      const lowerHeaders = headers.map((h) => h.toLowerCase().trim());
+      const firstNameIdx = lowerHeaders.findIndex((h) => h === "first name" || h === "first_name" || h === "firstname");
+      const lastNameIdx = lowerHeaders.findIndex((h) => h === "last name" || h === "last_name" || h === "lastname");
+      if (firstNameIdx !== -1 && lastNameIdx !== -1 && !lowerHeaders.includes("name")) {
+        // Concatenate first + last into a synthetic "Name" column
+        const firstH = headers[firstNameIdx];
+        const lastH = headers[lastNameIdx];
+        const syntheticHeader = "__full_name__";
+        headers.push(syntheticHeader);
+        for (const row of rows) {
+          const first = (row[firstH] ?? "").trim();
+          const last = (row[lastH] ?? "").trim();
+          row[syntheticHeader] = [first, last].filter(Boolean).join(" ");
+        }
+        toast.info('Auto-merged "First Name" + "Last Name" into a single Name column.');
+      }
+
       setCsvHeaders(headers);
       setCsvRows(rows);
 
@@ -1890,21 +1921,68 @@ export function ClientsContent({
       setMapCountry("__none__");
       setMapPhoneType("__none__");
 
-      // Auto-detect Follow Up Boss column names (case-insensitive)
-      const FUB_AUTOMAP: Record<string, (v: string) => void> = {
+      // Auto-detect common CRM column names (case-insensitive)
+      // Covers: Follow Up Boss, kvCORE, Sierra Interactive, generic CRMs
+      const AUTOMAP: Record<string, (v: string) => void> = {
+        // Name variants
         "name":                 setMapName,
+        "full name":            setMapName,
+        "full_name":            setMapName,
+        "contact name":         setMapName,
+        "contact_name":         setMapName,
+        "__full_name__":        setMapName,   // synthetic from first+last merge
+        // Email variants
+        "email":                setMapEmail,
         "email 1":              setMapEmail,
+        "email address":        setMapEmail,
+        "email_address":        setMapEmail,
+        "e-mail":               setMapEmail,
+        "primary email":        setMapEmail,
+        // Phone variants
+        "phone":                setMapPhone,
         "phone 1":              setMapPhone,
+        "phone number":         setMapPhone,
+        "mobile":               setMapPhone,
+        "mobile phone":         setMapPhone,
+        "cell":                 setMapPhone,
+        "cell phone":           setMapPhone,
+        "primary phone":        setMapPhone,
+        // Phone type
         "phone 1 - type":       setMapPhoneType,
+        "phone type":           setMapPhoneType,
+        // Source variants
+        "source":               setMapSource,
+        "lead source":          setMapSource,
+        "lead_source":          setMapSource,
+        "referral source":      setMapSource,
+        // Address variants
         "address 1 - street":   setMapStreet,
+        "street":               setMapStreet,
+        "street address":       setMapStreet,
+        "address":              setMapStreet,
         "address 1 - city":     setMapCity,
+        "city":                 setMapCity,
         "address 1 - state":    setMapProvince,
+        "state":                setMapProvince,
+        "province":             setMapProvince,
+        "state/province":       setMapProvince,
         "address 1 - zip":      setMapPostal,
+        "zip":                  setMapPostal,
+        "postal code":          setMapPostal,
+        "postal_code":          setMapPostal,
+        "zip code":             setMapPostal,
         "address 1 - country":  setMapCountry,
+        "country":              setMapCountry,
       };
+
+      // Apply auto-mapping (first match wins per setter to avoid overwrite)
+      const appliedSetters = new Set<(v: string) => void>();
       headers.forEach((h) => {
-        const fn = FUB_AUTOMAP[h.toLowerCase().trim()];
-        if (fn) fn(h);
+        const fn = AUTOMAP[h.toLowerCase().trim()];
+        if (fn && !appliedSetters.has(fn)) {
+          fn(h);
+          appliedSetters.add(fn);
+        }
       });
 
       setImportStep("map");
@@ -1916,13 +1994,16 @@ export function ClientsContent({
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (!mapName) return;
     setImportLoading(true);
+    setImportProgress({ current: 0, total: csvRows.length, phase: "Preparing..." });
 
     const supabase = createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) {
+      toast.error("Session expired. Please refresh the page and try again.");
       setImportLoading(false);
+      setImportProgress(null);
       return;
     }
 
@@ -1931,6 +2012,7 @@ export function ClientsContent({
     let imported = 0;
     let skipped = 0;
     let enriched = 0;
+    const errorMessages: string[] = [];
     const newClients: Client[] = [];
 
     // Pass 1: separate rows into enrichments (existing clients) and inserts (new)
@@ -1998,43 +2080,64 @@ export function ClientsContent({
       }
     }
 
-    // Pass 2: batch insert new clients in groups of 50
-    const BATCH_SIZE = 50;
+    // Pass 2: batch upsert new clients in groups of 200
+    // Using upsert with ignoreDuplicates prevents one bad row from killing an entire batch
+    const BATCH_SIZE = 200;
+    const totalOps = toInsert.length + toEnrich.length;
+    let completedOps = 0;
+
+    setImportProgress({ current: 0, total: totalOps, phase: "Importing contacts..." });
+
     for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
       const batch = toInsert.slice(i, i + BATCH_SIZE);
       const { data: batchData, error: batchError } = await supabase
         .from("clients")
-        .insert(batch)
+        .upsert(batch, { onConflict: "user_id,name_search", ignoreDuplicates: true })
         .select();
       if (!batchError && batchData) {
         newClients.push(...(batchData as Client[]));
         imported += batchData.length;
       } else {
-        console.error(`[CSV Import] Batch ${Math.floor(i / BATCH_SIZE) + 1} failed (${batch.length} rows):`, batchError?.message ?? "unknown error");
+        const msg = batchError?.message ?? "unknown error";
+        console.error(`[CSV Import] Batch ${Math.floor(i / BATCH_SIZE) + 1} failed (${batch.length} rows):`, msg);
+        errorMessages.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${msg}`);
         skipped += batch.length;
       }
+      completedOps += batch.length;
+      setImportProgress({ current: completedOps, total: totalOps, phase: "Importing contacts..." });
     }
 
-    // Pass 3: apply enrichments individually (different fields per row)
-    for (const { existingId, updates } of toEnrich) {
-      const { error: enrichError } = await supabase
-        .from("clients")
-        .update(updates)
-        .eq("id", existingId);
-      if (!enrichError) {
-        setLocalClients((prev) =>
-          prev.map((c) => (c.id === existingId ? { ...c, ...updates } : c)),
-        );
-        enriched++;
-      } else {
-        skipped++;
+    // Pass 3: apply enrichments in parallel batches of 10
+    setImportProgress({ current: completedOps, total: totalOps, phase: "Enriching existing contacts..." });
+    const ENRICH_CONCURRENCY = 10;
+    for (let i = 0; i < toEnrich.length; i += ENRICH_CONCURRENCY) {
+      const chunk = toEnrich.slice(i, i + ENRICH_CONCURRENCY);
+      const results = await Promise.allSettled(
+        chunk.map(({ existingId, updates }) =>
+          supabase.from("clients").update(updates).eq("id", existingId),
+        ),
+      );
+      for (let j = 0; j < results.length; j++) {
+        const r = results[j];
+        if (r.status === "fulfilled" && !r.value.error) {
+          const { existingId, updates } = chunk[j];
+          setLocalClients((prev) =>
+            prev.map((c) => (c.id === existingId ? { ...c, ...updates } : c)),
+          );
+          enriched++;
+        } else {
+          skipped++;
+        }
       }
+      completedOps += chunk.length;
+      setImportProgress({ current: completedOps, total: totalOps, phase: "Enriching existing contacts..." });
     }
 
     setLocalClients((prev) => [...prev, ...newClients]);
-    setImportResult({ imported, skipped, enriched });
+    setImportResult({ imported, skipped, enriched, errors: errorMessages });
     setImportStep("done");
     setImportLoading(false);
+    setImportProgress(null);
   }
 
   function resetImport() {
@@ -4127,6 +4230,22 @@ export function ClientsContent({
                 </div>
               </div>
 
+              {/* Progress bar */}
+              {importProgress && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{importProgress.phase}</span>
+                    <span>{importProgress.current.toLocaleString()} / {importProgress.total.toLocaleString()}</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-blue-500 transition-all duration-300"
+                      style={{ width: `${importProgress.total > 0 ? Math.round((importProgress.current / importProgress.total) * 100) : 0}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-2">
                 <Button
                   disabled={importLoading}
@@ -4134,7 +4253,7 @@ export function ClientsContent({
                 >
                   {importLoading ? "Importing…" : "Import Contacts"}
                 </Button>
-                <Button variant="ghost" onClick={() => setImportStep("map")}>
+                <Button variant="ghost" onClick={() => setImportStep("map")} disabled={importLoading}>
                   Back
                 </Button>
               </div>
@@ -4154,7 +4273,7 @@ export function ClientsContent({
                     ? `, ${importResult.enriched} enriched`
                     : ""}
                   {importResult.skipped > 0
-                    ? `, ${importResult.skipped} skipped`
+                    ? `, ${importResult.skipped} skipped (duplicates or errors)`
                     : ""}
                   .
                 </p>
