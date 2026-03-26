@@ -1,14 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
-import { ThemeProvider as NextThemeProvider } from "next-themes";
-
-/* next-themes 0.4.6 declares ThemeProvider as a plain function rather than
-   React.FC, so @types/react 19.x doesn't forward `children`.  This thin
-   wrapper re-exports it with the correct signature. */
-const ThemeProvider = NextThemeProvider as React.FC<
-  React.ComponentProps<typeof NextThemeProvider>
->;
+import { ThemeProvider } from "@/components/theme-provider";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { CookieConsent } from "@/components/cookie-consent";
