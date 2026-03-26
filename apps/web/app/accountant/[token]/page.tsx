@@ -44,7 +44,7 @@ interface AccountantData {
     cra_line: string;
     items: {
       key: string;
-      label: string;
+      title: string;
       monthly_recurring: number;
     }[];
   }[];

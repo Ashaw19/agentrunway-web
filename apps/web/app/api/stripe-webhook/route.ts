@@ -365,6 +365,29 @@ export async function POST(request: Request) {
           console.error("[stripe] failed to cancel org subscription", orgId, orgErr.message);
         } else {
           console.log("[stripe] canceled org subscription", sub.id);
+
+          // Downgrade all team members to starter tier
+          const { data: members } = await db
+            .from("organization_members")
+            .select("user_id")
+            .eq("org_id", orgId);
+
+          if (members?.length) {
+            const memberIds = members.map((m) => m.user_id);
+            const { error: downgradeErr } = await db
+              .from("user_settings")
+              .update({
+                subscription_tier: "starter",
+                subscription_status: "canceled",
+              })
+              .in("user_id", memberIds);
+
+            if (downgradeErr) {
+              console.error("[stripe] failed to downgrade team members", orgId, downgradeErr.message);
+            } else {
+              console.log(`[stripe] downgraded ${memberIds.length} team members for org ${orgId}`);
+            }
+          }
         }
         break;
       }

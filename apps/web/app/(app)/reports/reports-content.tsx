@@ -96,6 +96,8 @@ interface Props {
   mileageLogs?: { km: number; deduction: number; trip_date: string }[];
   taxYear?: number;
   userId?: string;
+  /** Referral summary for PDF Page 7 */
+  referralSummary?: { inboundCount: number; outboundCount: number; feesEarned: number; feesPaid: number };
 }
 
 // ── Local helpers (mirrors dashboard-content.tsx) ─────────────────────────────
@@ -256,6 +258,7 @@ export function ReportsContent({
   mileageLogs = [],
   taxYear,
   userId = "",
+  referralSummary,
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const [downloading, setDownloading] = useState(false);
@@ -576,8 +579,10 @@ export function ReportsContent({
           year: h.year,
           gci: h.annual_gci,
           transactions: h.annual_tx,
-          volume: 0, // volume not tracked in history
         })),
+
+        // Referral summary for Page 7
+        referralSummary,
       };
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

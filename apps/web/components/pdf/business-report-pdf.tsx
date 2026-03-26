@@ -1180,7 +1180,6 @@ export interface BusinessReportPDFProps {
     year: number;
     gci: number;
     transactions: number;
-    volume: number;
   }[];
   referralSummary?: {
     inboundCount: number;
@@ -1821,8 +1820,8 @@ export function BusinessReportPDF({
                 <Text style={[s.tCell, s.tCellMuted, { flex: 1.4 }]}>
                   {tx.client_name || "—"}
                 </Text>
-                <Text style={[s.tCell, { flex: 0.5, textTransform: "capitalize" }]}>
-                  {tx.side}
+                <Text style={[s.tCell, { flex: 0.5 }]}>
+                  {tx.side ? tx.side.charAt(0).toUpperCase() + tx.side.slice(1) : "—"}
                 </Text>
                 <Text style={[s.tCell, s.tCellRight, s.tCellBold, { flex: 0.8 }]}>
                   {fmtCurrency(gci)}
@@ -1957,20 +1956,20 @@ export function BusinessReportPDF({
         {/* History table */}
         {hasHistory && historyYears && (
           <>
-            <View style={s.sectionTitle}>
+            <Text style={s.sectionTitle}>
               <Text style={{ color: C.violet, fontSize: 11, fontFamily: "Helvetica-Bold" }}>Annual Performance History</Text>
-            </View>
+            </Text>
 
             {/* Table header */}
             <View style={[s.tRow, { backgroundColor: C.navy, borderRadius: 4, marginTop: 6 }]}>
               <Text style={[s.tCell, { color: C.white, width: "20%", fontFamily: "Helvetica-Bold" }]}>Year</Text>
               <Text style={[s.tCell, { color: C.white, width: "30%", fontFamily: "Helvetica-Bold", textAlign: "right" }]}>GCI</Text>
               <Text style={[s.tCell, { color: C.white, width: "20%", fontFamily: "Helvetica-Bold", textAlign: "right" }]}>Deals</Text>
-              <Text style={[s.tCell, { color: C.white, width: "30%", fontFamily: "Helvetica-Bold", textAlign: "right" }]}>Volume</Text>
+              <Text style={[s.tCell, { color: C.white, width: "30%", fontFamily: "Helvetica-Bold", textAlign: "right" }]}>Avg Deal</Text>
             </View>
 
             {/* Table rows */}
-            {historyYears.sort((a, b) => b.year - a.year).map((h, i) => {
+            {[...historyYears].sort((a, b) => b.year - a.year).map((h, i) => {
               const prevYear = historyYears.find((hy) => hy.year === h.year - 1);
               const gciChange = prevYear && prevYear.gci > 0 ? ((h.gci - prevYear.gci) / prevYear.gci) : null;
               return (
@@ -1985,7 +1984,7 @@ export function BusinessReportPDF({
                     )}
                   </View>
                   <Text style={[s.tCell, { width: "20%", textAlign: "right" }]}>{h.transactions}</Text>
-                  <Text style={[s.tCell, { width: "30%", textAlign: "right" }]}>{fmtCurrency(h.volume)}</Text>
+                  <Text style={[s.tCell, { width: "30%", textAlign: "right" }]}>{h.transactions > 0 ? fmtCurrency(h.gci / h.transactions) : "—"}</Text>
                 </View>
               );
             })}
@@ -2031,9 +2030,9 @@ export function BusinessReportPDF({
         {/* Referral Summary */}
         {hasReferrals && referralSummary && (
           <>
-            <View style={[s.sectionTitle, { marginTop: hasHistory ? 20 : 0 }]}>
+            <Text style={[s.sectionTitle, { marginTop: hasHistory ? 20 : 0 }]}>
               <Text style={{ color: C.orange, fontSize: 11, fontFamily: "Helvetica-Bold" }}>Referral Network Summary</Text>
-            </View>
+            </Text>
 
             <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
               <View style={{ flex: 1, backgroundColor: "#EFF6FF", borderRadius: 6, padding: 12, borderWidth: 1, borderColor: "#BFDBFE" }}>

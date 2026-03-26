@@ -9,8 +9,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { computeT2125 } from "@/lib/engines/t2125-engine";
-import type { T2125Input } from "@/lib/engines/t2125-engine";
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");

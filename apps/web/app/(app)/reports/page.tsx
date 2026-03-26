@@ -62,7 +62,7 @@ export default async function ReportsPage() {
   }
 
   // ── Normal branch ───────────────────────────────────────────────────
-  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, ccaAssetsResult, mileageResult] =
+  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, ccaAssetsResult, mileageResult, referralsResult] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -114,6 +114,11 @@ export default async function ReportsPage() {
         .eq("user_id", user.id)
         .order("trip_date", { ascending: false })
         .limit(10000),
+      // Referrals for PDF Page 7
+      supabase
+        .from("referrals")
+        .select("direction, actual_fee_paid, status")
+        .eq("user_id", user.id),
     ]);
 
   const categories = (expCatResult.data ?? []).map((cat) => ({
@@ -143,6 +148,19 @@ export default async function ReportsPage() {
     }
   }
 
+  // Build referral summary for PDF Page 7
+  const referrals = referralsResult.data ?? [];
+  const referralSummary = referrals.length > 0 ? {
+    inboundCount: referrals.filter((r) => r.direction === "inbound").length,
+    outboundCount: referrals.filter((r) => r.direction === "outbound").length,
+    feesEarned: referrals
+      .filter((r) => r.direction === "inbound" && r.status === "closed")
+      .reduce((sum, r) => sum + Number(r.actual_fee_paid ?? 0), 0),
+    feesPaid: referrals
+      .filter((r) => r.direction === "outbound" && r.status === "closed")
+      .reduce((sum, r) => sum + Number(r.actual_fee_paid ?? 0), 0),
+  } : undefined;
+
   return (
     <ReportsContent
       settings={settingsRaw}
@@ -161,6 +179,7 @@ export default async function ReportsPage() {
       }))}
       taxYear={year}
       userId={user.id}
+      referralSummary={referralSummary}
     />
   );
 }

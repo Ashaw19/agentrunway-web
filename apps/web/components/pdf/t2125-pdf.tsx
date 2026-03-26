@@ -14,7 +14,7 @@ import {
 } from "@react-pdf/renderer";
 import type { T2125Result } from "@/lib/engines/t2125-engine";
 import type { TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
-import type { UserSettings, MileageLog } from "@/lib/types/database";
+import type { UserSettings } from "@/lib/types/database";
 import { PROVINCE_LABELS } from "@/lib/types/database";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

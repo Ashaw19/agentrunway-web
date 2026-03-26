@@ -156,7 +156,7 @@ export async function GET(req: NextRequest) {
         .from("contact_tasks")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.user_id)
-        .eq("completed", false)
+        .is("completed_at", null)
         .lte("due_date", nextWeek.toISOString().slice(0, 10));
 
       // Monthly expenses (receipt_expenses for current month)

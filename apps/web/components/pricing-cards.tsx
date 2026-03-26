@@ -316,7 +316,7 @@ export function PricingCards() {
             <div className="mt-3 flex items-center gap-2">
               <Users className="h-3.5 w-3.5 text-slate-400" />
               <p className="text-xs text-slate-500">
-                + <span className="font-semibold text-slate-700">${memberPrice.monthly}/mo</span>{" "}
+                + <span className="font-semibold text-slate-700">${billing === "annual" ? Math.round(memberPrice.annual / 12) : memberPrice.monthly}/mo</span>{" "}
                 per team member
                 {billing === "annual" && (
                   <span className="text-slate-400">

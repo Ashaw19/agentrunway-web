@@ -81,32 +81,7 @@ export function weeklyDigestEmail(data: WeeklyDigestData): { subject: string; ht
           <!-- Header -->
           <tr>
             <td style="padding:32px 40px 24px;text-align:center;background-color:#0d1f44;">
-              <div style="display:inline-block;margin-bottom:12px;">
-                <svg width="44" height="44" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <defs>
-                    <linearGradient id="e-bg" x1="20" y1="0" x2="20" y2="40" gradientUnits="userSpaceOnUse">
-                      <stop offset="0%" stop-color="#1e2f5e"/>
-                      <stop offset="100%" stop-color="#0d1526"/>
-                    </linearGradient>
-                    <linearGradient id="e-l" x1="3" y1="9" x2="16" y2="31" gradientUnits="userSpaceOnUse">
-                      <stop offset="0%" stop-color="#6cb4ff"/>
-                      <stop offset="55%" stop-color="#2e7be6"/>
-                      <stop offset="100%" stop-color="#1452a8"/>
-                    </linearGradient>
-                    <linearGradient id="e-r" x1="37" y1="9" x2="24" y2="31" gradientUnits="userSpaceOnUse">
-                      <stop offset="0%" stop-color="#6cb4ff"/>
-                      <stop offset="55%" stop-color="#2e7be6"/>
-                      <stop offset="100%" stop-color="#1452a8"/>
-                    </linearGradient>
-                  </defs>
-                  <rect width="40" height="40" rx="9" fill="url(#e-bg)"/>
-                  <path d="M3 9 L17.5 9 L14.5 31 L3 31 Z" fill="url(#e-l)"/>
-                  <path d="M22.5 9 L37 9 L37 31 L25.5 31 Z" fill="url(#e-r)"/>
-                  <rect x="15" y="9" width="10" height="22" fill="#0a1020" fill-opacity="0.5"/>
-                  <circle cx="20" cy="14" r="5" fill="#F97316" fill-opacity="0.35"/>
-                  <circle cx="20" cy="14" r="1.8" fill="#F97316"/>
-                </svg>
-              </div>
+              <img src="https://agentrunway.ca/logo-email.png" alt="Agent Runway" width="44" height="44" style="display:block;margin:0 auto 12px;" />
               <div style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-0.3px;line-height:1.2;">Weekly Business Digest</div>
               <div style="color:#8ba8d4;font-size:10px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;margin-top:3px;">${data.weekLabel}</div>
             </td>
