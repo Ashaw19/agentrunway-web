@@ -673,6 +673,11 @@ export async function POST(req: NextRequest) {
     return new Response("Unauthorized", { status: 401 });
   }
 
+  const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();
+  if (sandboxCheck?.sandbox_mode === true) {
+    return NextResponse.json({ error: "Action blocked in Sandbox Mode" }, { status: 403 });
+  }
+
   const userId = user.id;
 
   // draft_only=true: skip detection, only draft already-queued "draft" items.

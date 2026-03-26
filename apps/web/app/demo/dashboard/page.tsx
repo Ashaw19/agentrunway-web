@@ -279,6 +279,12 @@ const DEMO_SETTINGS: UserSettings = {
   business_identity: null,
   agent_goals: null,
   ai_profile_prompt_dismissed_at: null,
+  // Sandbox mode (not applicable in public demo)
+  sandbox_mode: false,
+  sandbox_activated_at: null,
+  sandbox_expires_at: null,
+  sandbox_tier: null,
+  sandbox_data: null,
   created_at: "2025-01-10T09:00:00Z",
   updated_at: "2026-03-07T09:00:00Z",
 };

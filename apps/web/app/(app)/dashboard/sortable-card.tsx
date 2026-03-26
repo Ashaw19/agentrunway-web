@@ -4,6 +4,8 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MetricTooltip } from "@/components/metric-tooltip";
+import type { CardId } from "./card-registry";
 
 interface SortableCardProps {
   id: string;
@@ -11,9 +13,13 @@ interface SortableCardProps {
   customizeMode: boolean;
   onHide: () => void;
   children: React.ReactNode;
+  /** Optional metric value for threshold-based tooltip actions */
+  metricValue?: number;
+  /** Optional context for complex threshold checks */
+  metricContext?: Record<string, number>;
 }
 
-export function SortableCard({ id, label, customizeMode, onHide, children }: SortableCardProps) {
+export function SortableCard({ id, label, customizeMode, onHide, children, metricValue, metricContext }: SortableCardProps) {
   const {
     attributes,
     listeners,
@@ -53,7 +59,13 @@ export function SortableCard({ id, label, customizeMode, onHide, children }: Sor
           </button>
         </div>
       )}
-      <div className={cn(customizeMode && "[&>*:first-child]:rounded-t-none [&_.rounded-2xl:first-child]:rounded-t-none [&_.rounded-xl:first-child]:rounded-t-none")}>
+      <div className={cn("relative group", customizeMode && "[&>*:first-child]:rounded-t-none [&_.rounded-2xl:first-child]:rounded-t-none [&_.rounded-xl:first-child]:rounded-t-none")}>
+        {/* Contextual tooltip — top-right corner, visible on hover */}
+        {!customizeMode && (
+          <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+            <MetricTooltip metricKey={id as CardId} value={metricValue} context={metricContext} />
+          </div>
+        )}
         {children}
       </div>
     </div>

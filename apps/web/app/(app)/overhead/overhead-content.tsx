@@ -34,6 +34,8 @@ import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { guardSandboxWrite } from "@/lib/sandbox-guard";
+import { useSandboxMode } from "@/lib/sandbox-mode-context";
 import {
   computeGCI,
   computeWeightedGCI,
@@ -242,6 +244,7 @@ function TaxSavingsSection({
   userId,
   initialDismissed,
 }: TaxSavingsSectionProps) {
+  const sandbox = useSandboxMode();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [dismissed, setDismissed] = useState<string[]>(initialDismissed);
 
@@ -254,6 +257,7 @@ function TaxSavingsSection({
   }
 
   async function dismissCard(id: string) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const next = [...dismissed, id];
     setDismissed(next);
     setExpandedIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
@@ -266,6 +270,7 @@ function TaxSavingsSection({
   }
 
   async function resetDismissed() {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setDismissed([]);
     if (!userId) return;
     const supabase = createClient();

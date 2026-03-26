@@ -40,6 +40,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // ── Sandbox guard ───────────────────────────────────────────────────────
+    const { data: sandboxCheck } = await admin.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();
+    if (sandboxCheck?.sandbox_mode === true) {
+      return NextResponse.json({ ok: false, error: "Action blocked in Sandbox Mode" }, { status: 403 });
+    }
+
     // ── 2. Parse body ─────────────────────────────────────────────────────
     const body = (await req.json()) as { outreach_id?: string };
     const outreachId = body.outreach_id;

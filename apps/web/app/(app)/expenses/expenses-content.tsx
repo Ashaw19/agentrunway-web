@@ -45,6 +45,8 @@ import {
   RECEIPT_CATEGORY_GROUPS,
   type ReceiptExpense,
 } from "@/lib/types/receipt";
+import { guardSandboxWrite } from "@/lib/sandbox-guard";
+import { useSandboxMode } from "@/lib/sandbox-mode-context";
 import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
 import type { VoiceDraft } from "@/lib/voice/types";
 import {
@@ -128,6 +130,7 @@ export function ExpensesContent({
   mileageLogs = [], plaidItems = [], plaidTransactions = [],
   plaidExpenseItems = [], plaidExpenseCategories = [], plaidConfigured = false,
 }: Props) {
+  const sandbox = useSandboxMode();
   const thisYear = currentYear ?? new Date().getFullYear();
   const isPro = settings?.subscription_tier === "professional" || settings?.subscription_tier === "team";
   const [categories, setCategories] = useState(initialCategories);
@@ -197,6 +200,7 @@ export function ExpensesContent({
     voiceFilledFields.has(field) ? "bg-amber-50/60 border-amber-200/80" : "";
 
   async function handleQuickExpenseSave() {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setQeSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -371,6 +375,7 @@ export function ExpensesContent({
     field: "monthly_recurring",
     value: string,
   ) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const numValue = parseFloat(value) || 0;
     const supabase = createClient();
     const { error } = await supabase.from("expense_items").update({ [field]: numValue }).eq("id", itemId);
@@ -389,6 +394,7 @@ export function ExpensesContent({
   }
 
   async function addItem(categoryId: string) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const title = newItemTitle.trim();
     if (!title) return;
 
@@ -429,6 +435,7 @@ export function ExpensesContent({
   }
 
   async function deleteItem(categoryId: string, itemId: string) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const supabase = createClient();
     const { error } = await supabase.from("expense_items").delete().eq("id", itemId);
     if (error) {
@@ -446,6 +453,7 @@ export function ExpensesContent({
   }
 
   async function saveVehiclePct(raw: string) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const pct = Math.min(1, Math.max(0, parseFloat(raw) / 100));
     if (isNaN(pct)) return;
     const supabase = createClient();
@@ -513,6 +521,7 @@ export function ExpensesContent({
   const [savingYoy, setSavingYoy] = useState<number | null>(null); // year being saved
 
   async function saveYoyExpenses(yr: number, field: "annual_expenses" | "annual_mileage_km" | "annual_mileage_deduct", rawValue: string) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const val = parseFloat(rawValue) || 0;
     setPriorRows((prev) => prev.map((r) => r.year === yr ? { ...r, [field]: val } : r));
     setSavingYoy(yr);

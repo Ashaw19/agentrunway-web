@@ -65,6 +65,8 @@ import {
 import { fmtCurrency } from "@/lib/formatters";
 import { createClient } from "@/lib/supabase/client";
 import { useUser } from "@/hooks/use-user";
+import { guardSandboxWrite, guardSandboxExternalAction } from "@/lib/sandbox-guard";
+import { useSandboxMode } from "@/lib/sandbox-mode-context";
 import { PhotoCropDialog } from "@/components/photo-crop-dialog";
 import JSZip from "jszip";
 
@@ -88,6 +90,7 @@ interface Props {
 export function SocialContent({ settings, transactions, connections }: Props) {
   const now = new Date();
   const { user } = useUser();
+  const sandbox = useSandboxMode();
 
   // ── Post setup state ───────────────────────────────────────────────────────
   const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1); // 1-12
@@ -247,6 +250,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
 
   async function handlePhotoCropped(blob: Blob) {
     if (!cropTxId || !user) return;
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const txId = cropTxId;
     setCropOpen(false);
     setCropFile(null);
@@ -286,6 +290,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   async function handleCutoutUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !user) return;
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (file.size > 5 * 1024 * 1024) {
       alert("Cutout photo must be under 5 MB");
       e.target.value = "";
@@ -323,6 +328,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   // Supabase bucket limit while staying sharp on Retina displays.
   async function handleRemoveBackground() {
     if (!cutoutUrl || !user) return;
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setRemovingBg(true);
     setBgError(null);
     try {
@@ -439,6 +445,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   // ── Post to Instagram ──────────────────────────────────────────────────────
   async function handlePublish() {
     if (!selectedTx.length) return;
+    if (guardSandboxExternalAction(sandbox.sandboxMode, "Publishing to Instagram")) return;
     setPublishing(true);
     setPublishResult(null);
     try {

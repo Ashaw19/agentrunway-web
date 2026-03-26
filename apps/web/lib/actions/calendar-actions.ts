@@ -69,6 +69,10 @@ export async function createCalendarEvent(input: CreateCalendarEventInput) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized" };
 
+  // Check sandbox mode
+  const { data: sbCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();
+  if (sbCheck?.sandbox_mode === true) return { error: "Blocked in Sandbox Mode" };
+
   // 1. Insert local record
   const { data: localEvent, error: insertErr } = await supabase
     .from("calendar_events")
@@ -140,6 +144,10 @@ export async function updateCalendarEvent(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized" };
 
+  // Check sandbox mode
+  const { data: sbCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();
+  if (sbCheck?.sandbox_mode === true) return { error: "Blocked in Sandbox Mode" };
+
   // Fetch existing record (to get google_event_id)
   const { data: existing } = await supabase
     .from("calendar_events")
@@ -196,6 +204,10 @@ export async function deleteCalendarEvent(id: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized" };
+
+  // Check sandbox mode
+  const { data: sbCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();
+  if (sbCheck?.sandbox_mode === true) return { error: "Blocked in Sandbox Mode" };
 
   const { data: existing } = await supabase
     .from("calendar_events")

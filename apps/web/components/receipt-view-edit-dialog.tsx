@@ -40,6 +40,8 @@ import {
 import { RECEIPT_CATEGORY_GROUPS } from "@/lib/types/receipt";
 import type { ReceiptExpense } from "@/lib/types/receipt";
 import { cn } from "@/lib/utils";
+import { guardSandboxWrite } from "@/lib/sandbox-guard";
+import { useSandboxMode } from "@/lib/sandbox-mode-context";
 
 interface Props {
   receipt: ReceiptExpense | null;
@@ -54,6 +56,8 @@ interface Props {
 export function ReceiptViewEditDialog({
   receipt, open, onClose, onSaved, onDeleted,
 }: Props) {
+  const sandbox = useSandboxMode();
+
   // ── Image panel state ──────────────────────────────────────────────────────
   const [imageUrl,     setImageUrl]     = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
@@ -106,6 +110,7 @@ export function ReceiptViewEditDialog({
   // ── Save ───────────────────────────────────────────────────────────────────
   async function handleSave() {
     if (!receipt) return;
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSaving(true);
     const supabase = createClient();
     const { data, error } = await supabase
@@ -135,6 +140,7 @@ export function ReceiptViewEditDialog({
   // ── Delete ─────────────────────────────────────────────────────────────────
   async function handleDelete() {
     if (!receipt) return;
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setDeleting(true);
     const supabase = createClient();
     await supabase.from("receipt_expenses").delete().eq("id", receipt.id);

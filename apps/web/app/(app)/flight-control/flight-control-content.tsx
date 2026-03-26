@@ -26,6 +26,8 @@ import {
   RefreshCw, Timer,
 } from "lucide-react";
 import type { OutreachQueueItem, OutreachOpportunityType, NewsletterQueue } from "@/lib/types/database";
+import { guardSandboxWrite, guardSandboxExternalAction } from "@/lib/sandbox-guard";
+import { useSandboxMode } from "@/lib/sandbox-mode-context";
 import { NewsletterSection } from "./newsletter-section";
 
 // ── Extended type with joined client fields ────────────────────────────────────
@@ -427,6 +429,7 @@ function ReviewDrawer({
   signature: string;
   gmailConnected: boolean;
 }) {
+  const sandbox = useSandboxMode();
   const [sending, setSending] = useState(false);
   const [editSubject, setEditSubject] = useState("");
   const [editBody,    setEditBody]    = useState("");
@@ -449,6 +452,7 @@ function ReviewDrawer({
 
   const saveEdits = useCallback(async () => {
     if (!item) return;
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSaving(true);
     try {
       await fetch(`/api/ai/outreach-queue/${item.id}`, {
@@ -461,10 +465,11 @@ function ReviewDrawer({
     } finally {
       setSaving(false);
     }
-  }, [item, editSubject, editBody]);
+  }, [item, editSubject, editBody, sandbox.sandboxMode]);
 
   const markAsSent = useCallback(async () => {
     if (!item) return;
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     try {
       const res = await fetch(`/api/ai/outreach-queue/${item.id}`, {
         method: "PATCH",
@@ -481,7 +486,7 @@ function ReviewDrawer({
     } catch {
       toast.error("Couldn't mark as sent — try again");
     }
-  }, [item, onSent, onClose]);
+  }, [item, onSent, onClose, sandbox.sandboxMode]);
 
   const handleCopy = useCallback(async () => {
     if (!item) return;
@@ -497,6 +502,7 @@ function ReviewDrawer({
 
   const handleSendGmail = useCallback(async () => {
     if (!item) return;
+    if (guardSandboxExternalAction(sandbox.sandboxMode, "Sending emails")) return;
     const to = item.clients?.email?.trim() ?? "";
     if (!to) {
       toast.error("No email address on file for this client — add one in the CRM first");
@@ -527,7 +533,7 @@ function ReviewDrawer({
     } finally {
       setSending(false);
     }
-  }, [item, editSubject, editBody, saveEdits, onSent, onClose]);
+  }, [item, editSubject, editBody, saveEdits, onSent, onClose, sandbox.sandboxMode]);
 
   const handleOpenMailto = useCallback(async () => {
     if (!item) return;
@@ -788,6 +794,7 @@ export function FlightControlContent({
   gmailConnected,
   gmailEmail,
 }: FlightControlContentProps) {
+  const sandbox = useSandboxMode();
   const [activeTab, setActiveTab] = useState<Tab>("outreach");
   const [queue,         setQueue]         = useState<QueueItemWithClient[]>(initialQueue);
   const [reviewItem,    setReviewItem]    = useState<QueueItemWithClient | null>(null);
@@ -802,6 +809,7 @@ export function FlightControlContent({
 
   const saveSignature = useCallback((value: string) => {
     setSignature(value);
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (sigDebounce.current) clearTimeout(sigDebounce.current);
     sigDebounce.current = setTimeout(async () => {
       setSigSaving(true);
@@ -820,7 +828,7 @@ export function FlightControlContent({
         setSigSaving(false);
       }
     }, 800);
-  }, []);
+  }, [sandbox.sandboxMode]);
 
   // ── AI Voice Guide ───────────────────────────────────────────────────────────
   const [voiceGuide,    setVoiceGuide]    = useState(initialVoiceGuide);
@@ -830,6 +838,7 @@ export function FlightControlContent({
 
   const saveVoiceGuide = useCallback((value: string) => {
     setVoiceGuide(value);
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (guideDebounce.current) clearTimeout(guideDebounce.current);
     guideDebounce.current = setTimeout(async () => {
       setGuideSaving(true);
@@ -848,11 +857,12 @@ export function FlightControlContent({
         setGuideSaving(false);
       }
     }, 800);
-  }, []);
+  }, [sandbox.sandboxMode]);
 
   // ── Skip ──────────────────────────────────────────────────────────────────
 
   const handleSkip = useCallback(async (id: string) => {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     try {
       const res = await fetch(`/api/ai/outreach-queue/${id}`, {
         method: "PATCH",
@@ -864,7 +874,7 @@ export function FlightControlContent({
     } catch {
       toast.error("Couldn't skip — try again");
     }
-  }, []);
+  }, [sandbox.sandboxMode]);
 
   // ── Mark as sent ──────────────────────────────────────────────────────────
 
@@ -876,6 +886,7 @@ export function FlightControlContent({
   // ── Scan Now ──────────────────────────────────────────────────────────────
 
   const handleScan = useCallback(async () => {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setScanning(true);
     try {
       const res  = await fetch("/api/ai/detect-opportunities", { method: "POST" });
@@ -899,11 +910,12 @@ export function FlightControlContent({
     } finally {
       setScanning(false);
     }
-  }, []);
+  }, [sandbox.sandboxMode]);
 
   // ── Generate messages for stuck draft items ───────────────────────────────
 
   const handleGenerate = useCallback(async () => {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     try {
       const res  = await fetch("/api/ai/detect-opportunities?draft_only=true", { method: "POST" });
       const data = await res.json();
@@ -917,7 +929,7 @@ export function FlightControlContent({
     } catch {
       toast.error("Couldn't generate message — try again");
     }
-  }, []);
+  }, [sandbox.sandboxMode]);
 
   // ── Stats ─────────────────────────────────────────────────────────────────
 

@@ -68,6 +68,74 @@ export type Province =
   | "saskatchewan"
   | "yukon";
 
+// ── Sandbox Mode ──────────────────────────────────────────────────────────────
+
+export type SandboxTier = "building" | "established" | "high_producer";
+
+export const SANDBOX_TIER_LABELS: Record<SandboxTier, string> = {
+  building:      "Building (0–8 deals/yr)",
+  established:   "Established (8–20 deals/yr)",
+  high_producer: "High Producer (20+ deals/yr)",
+};
+
+/**
+ * Complete fictional-agent dataset stored in user_settings.sandbox_data.
+ * Every field mirrors the real data props that DashboardContent receives,
+ * so engines can consume sandbox data with zero modifications.
+ */
+export interface SandboxDataset {
+  /** Generated fictional transactions (closed deals, YTD) */
+  transactions: Transaction[];
+  /** Generated fictional pipeline deals (active) */
+  pipelineDeals: PipelineDeal[];
+  /** Generated fictional expense categories with items */
+  expenseCategories: ExpenseCategoryWithItems[];
+  /** Generated fictional historical performance (3 prior years) */
+  historyItems: HistoryItem[];
+  /** Settings overrides for sandbox (goal_gci, cash_reserve, etc.) */
+  settingsOverrides: Partial<UserSettings>;
+
+  // ── Full-App Data (CRM, Overhead, Flight Control, etc.) ────────────────
+  /** Fictional CRM clients covering all statuses */
+  clients: Client[];
+  /** Historical contact activities for each client */
+  contactActivities: ContactActivity[];
+  /** Open follow-up tasks */
+  contactTasks: ContactTask[];
+  /** Historical client deal records (linked to history years) */
+  clientRecords: ClientRecord[];
+  /** Client-to-client relationships (spouse, referrer, etc.) */
+  clientRelationships: ClientRelationship[];
+  /** CRM flight plans (system templates) */
+  flightPlans: FlightPlan[];
+  /** Steps for each flight plan */
+  flightPlanSteps: FlightPlanStep[];
+  /** Property showings for active buyer clients */
+  propertyShowings: PropertyShowing[];
+  /** Listing appointments for active seller clients */
+  listingAppointments: ListingAppointment[];
+  /** Outreach queue items (draft/ready) */
+  outreachQueue: OutreachQueueItem[];
+  /** Newsletter queue items */
+  newsletterQueue: NewsletterQueue[];
+  /** Mileage logs (YTD trips) */
+  mileageLogs: MileageLog[];
+  /** CCA capital assets */
+  ccaAssets: CcaAsset[];
+  /** Receipt expense totals (supplements category expenses) */
+  receiptExpenses: { total_amount: number; expense_date: string; category_key: string }[];
+
+  /** Metadata about how the dataset was generated */
+  meta: {
+    generatedAt: string;      // ISO timestamp
+    boardCode: string;        // CREA board used for generation
+    boardName: string;        // Human-readable board name
+    tier: SandboxTier;        // Production tier selected
+    avgBoardPrice: number;    // Board average price used
+    dealsPerAgent: number;    // Board deals-per-agent used
+  };
+}
+
 export const PROVINCE_LABELS: Record<Province, string> = {
   alberta: "Alberta",
   britishColumbia: "British Columbia",
@@ -305,6 +373,13 @@ export interface UserSettings {
   business_identity: BusinessIdentity | null;
   agent_goals: AgentGoals | null;
   ai_profile_prompt_dismissed_at: string | null;
+
+  // Sandbox mode
+  sandbox_mode: boolean;
+  sandbox_activated_at: string | null;
+  sandbox_expires_at: string | null;
+  sandbox_tier: SandboxTier | null;
+  sandbox_data: SandboxDataset | null;
 
   // Timestamps
   created_at: string;
