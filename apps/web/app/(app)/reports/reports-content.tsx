@@ -570,6 +570,14 @@ export function ReportsContent({
 
         // Transactions
         transactions: ytdTx,
+
+        // Year-over-year (from history items)
+        historyYears: (historyItems ?? []).map((h) => ({
+          year: h.year,
+          gci: h.annual_gci,
+          transactions: h.annual_tx,
+          volume: 0, // volume not tracked in history
+        })),
       };
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

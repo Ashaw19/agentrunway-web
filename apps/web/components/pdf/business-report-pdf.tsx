@@ -1174,6 +1174,20 @@ export interface BusinessReportPDFProps {
 
   // Transactions
   transactions: Transaction[];
+
+  // Year-over-year comparison (optional — Page 7)
+  historyYears?: {
+    year: number;
+    gci: number;
+    transactions: number;
+    volume: number;
+  }[];
+  referralSummary?: {
+    inboundCount: number;
+    outboundCount: number;
+    feesEarned: number;
+    feesPaid: number;
+  };
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -1219,6 +1233,8 @@ export function BusinessReportPDF({
   runwayScore,
   advisorCards,
   transactions,
+  historyYears,
+  referralSummary,
 }: BusinessReportPDFProps) {
 
   const generatedDate = new Date().toLocaleDateString("en-CA", {
@@ -1928,6 +1944,133 @@ export function BusinessReportPDF({
     </Page>
   );
 
+  // ── PAGE 7: Year-Over-Year + Referrals (conditional) ────────────────────
+
+  const hasHistory = historyYears && historyYears.length > 1;
+  const hasReferrals = referralSummary && (referralSummary.inboundCount > 0 || referralSummary.outboundCount > 0);
+
+  const yoyPage = (hasHistory || hasReferrals) ? (
+    <Page key="yoy" size="LETTER" style={s.contentPage}>
+      <PageHeaderComp agentName={agentName} brokerage={headerBrokerage} year={year} logoUrl={logoUrl} avatarUrl={avatarUrl} />
+      <View style={s.content}>
+
+        {/* History table */}
+        {hasHistory && historyYears && (
+          <>
+            <View style={s.sectionTitle}>
+              <Text style={{ color: C.violet, fontSize: 11, fontFamily: "Helvetica-Bold" }}>Annual Performance History</Text>
+            </View>
+
+            {/* Table header */}
+            <View style={[s.tRow, { backgroundColor: C.navy, borderRadius: 4, marginTop: 6 }]}>
+              <Text style={[s.tCell, { color: C.white, width: "20%", fontFamily: "Helvetica-Bold" }]}>Year</Text>
+              <Text style={[s.tCell, { color: C.white, width: "30%", fontFamily: "Helvetica-Bold", textAlign: "right" }]}>GCI</Text>
+              <Text style={[s.tCell, { color: C.white, width: "20%", fontFamily: "Helvetica-Bold", textAlign: "right" }]}>Deals</Text>
+              <Text style={[s.tCell, { color: C.white, width: "30%", fontFamily: "Helvetica-Bold", textAlign: "right" }]}>Volume</Text>
+            </View>
+
+            {/* Table rows */}
+            {historyYears.sort((a, b) => b.year - a.year).map((h, i) => {
+              const prevYear = historyYears.find((hy) => hy.year === h.year - 1);
+              const gciChange = prevYear && prevYear.gci > 0 ? ((h.gci - prevYear.gci) / prevYear.gci) : null;
+              return (
+                <View key={h.year} style={[s.tRow, { backgroundColor: i % 2 === 0 ? C.stripe : C.white }]}>
+                  <Text style={[s.tCell, { width: "20%", fontFamily: "Helvetica-Bold" }]}>{h.year}</Text>
+                  <View style={{ width: "30%", flexDirection: "row", justifyContent: "flex-end", alignItems: "center", padding: 6 }}>
+                    <Text style={{ fontSize: 8, color: C.ink }}>{fmtCurrency(h.gci)}</Text>
+                    {gciChange !== null && (
+                      <Text style={{ fontSize: 7, color: gciChange >= 0 ? C.emerald : C.rose, marginLeft: 4 }}>
+                        {gciChange >= 0 ? "+" : ""}{fmtPct(gciChange)}
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={[s.tCell, { width: "20%", textAlign: "right" }]}>{h.transactions}</Text>
+                  <Text style={[s.tCell, { width: "30%", textAlign: "right" }]}>{fmtCurrency(h.volume)}</Text>
+                </View>
+              );
+            })}
+
+            {/* Growth summary */}
+            {historyYears.length >= 2 && (() => {
+              const sorted = [...historyYears].sort((a, b) => a.year - b.year);
+              const first = sorted[0];
+              const last = sorted[sorted.length - 1];
+              const yearsSpan = last.year - first.year;
+              const totalGrowth = first.gci > 0 ? (last.gci - first.gci) / first.gci : 0;
+              const cagr = yearsSpan > 0 && first.gci > 0 ? Math.pow(last.gci / first.gci, 1 / yearsSpan) - 1 : 0;
+              return (
+                <View style={{ flexDirection: "row", gap: 12, marginTop: 10 }}>
+                  <View style={{ flex: 1, backgroundColor: C.offwhite, borderRadius: 6, padding: 10 }}>
+                    <Text style={{ fontSize: 7, color: C.muted, fontFamily: "Helvetica-Bold", letterSpacing: 0.5 }}>
+                      {yearsSpan}-Year Growth
+                    </Text>
+                    <Text style={{ fontSize: 16, fontFamily: "Helvetica-Bold", color: totalGrowth >= 0 ? C.emerald : C.rose, marginTop: 3 }}>
+                      {totalGrowth >= 0 ? "+" : ""}{fmtPct(totalGrowth)}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, backgroundColor: C.offwhite, borderRadius: 6, padding: 10 }}>
+                    <Text style={{ fontSize: 7, color: C.muted, fontFamily: "Helvetica-Bold", letterSpacing: 0.5 }}>CAGR</Text>
+                    <Text style={{ fontSize: 16, fontFamily: "Helvetica-Bold", color: cagr >= 0 ? C.emerald : C.rose, marginTop: 3 }}>
+                      {cagr >= 0 ? "+" : ""}{fmtPct(cagr)}
+                    </Text>
+                    <Text style={{ fontSize: 7, color: C.muted, marginTop: 2 }}>compound annual growth rate</Text>
+                  </View>
+                  <View style={{ flex: 1, backgroundColor: C.offwhite, borderRadius: 6, padding: 10 }}>
+                    <Text style={{ fontSize: 7, color: C.muted, fontFamily: "Helvetica-Bold", letterSpacing: 0.5 }}>Avg Deal Size</Text>
+                    <Text style={{ fontSize: 16, fontFamily: "Helvetica-Bold", color: C.ink, marginTop: 3 }}>
+                      {fmtCurrency(last.transactions > 0 ? last.gci / last.transactions : 0)}
+                    </Text>
+                    <Text style={{ fontSize: 7, color: C.muted, marginTop: 2 }}>{last.year} average</Text>
+                  </View>
+                </View>
+              );
+            })()}
+          </>
+        )}
+
+        {/* Referral Summary */}
+        {hasReferrals && referralSummary && (
+          <>
+            <View style={[s.sectionTitle, { marginTop: hasHistory ? 20 : 0 }]}>
+              <Text style={{ color: C.orange, fontSize: 11, fontFamily: "Helvetica-Bold" }}>Referral Network Summary</Text>
+            </View>
+
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
+              <View style={{ flex: 1, backgroundColor: "#EFF6FF", borderRadius: 6, padding: 12, borderWidth: 1, borderColor: "#BFDBFE" }}>
+                <Text style={{ fontSize: 7, color: C.muted, fontFamily: "Helvetica-Bold", letterSpacing: 0.5 }}>Inbound Referrals</Text>
+                <Text style={{ fontSize: 20, fontFamily: "Helvetica-Bold", color: C.blue, marginTop: 3 }}>{referralSummary.inboundCount}</Text>
+                <Text style={{ fontSize: 7, color: C.muted, marginTop: 2 }}>clients referred to you</Text>
+              </View>
+              <View style={{ flex: 1, backgroundColor: "#F5F3FF", borderRadius: 6, padding: 12, borderWidth: 1, borderColor: "#DDD6FE" }}>
+                <Text style={{ fontSize: 7, color: C.muted, fontFamily: "Helvetica-Bold", letterSpacing: 0.5 }}>Outbound Referrals</Text>
+                <Text style={{ fontSize: 20, fontFamily: "Helvetica-Bold", color: C.violet, marginTop: 3 }}>{referralSummary.outboundCount}</Text>
+                <Text style={{ fontSize: 7, color: C.muted, marginTop: 2 }}>clients you referred out</Text>
+              </View>
+              <View style={{ flex: 1, backgroundColor: "#ECFDF5", borderRadius: 6, padding: 12, borderWidth: 1, borderColor: "#A7F3D0" }}>
+                <Text style={{ fontSize: 7, color: C.muted, fontFamily: "Helvetica-Bold", letterSpacing: 0.5 }}>Net Referral Income</Text>
+                <Text style={{ fontSize: 20, fontFamily: "Helvetica-Bold", color: C.emerald, marginTop: 3 }}>
+                  {fmtCurrency(referralSummary.feesEarned - referralSummary.feesPaid)}
+                </Text>
+                <Text style={{ fontSize: 7, color: C.muted, marginTop: 2 }}>
+                  earned {fmtCurrency(referralSummary.feesEarned)} · paid {fmtCurrency(referralSummary.feesPaid)}
+                </Text>
+              </View>
+            </View>
+          </>
+        )}
+
+        {/* Closing note */}
+        <View style={[s.gstNote, { marginTop: 16 }]}>
+          <Text>
+            Year-over-year data is based on transaction history entered into Agent Runway.
+            Ensure all prior years are complete for accurate trend analysis.
+          </Text>
+        </View>
+      </View>
+      <FooterComp />
+    </Page>
+  ) : null;
+
   // ── Document ──────────────────────────────────────────────────────────────
 
   return (
@@ -1943,6 +2086,7 @@ export function BusinessReportPDF({
       {expensePage}
       {txPage}
       {healthPage}
+      {yoyPage}
     </Document>
   );
 }
