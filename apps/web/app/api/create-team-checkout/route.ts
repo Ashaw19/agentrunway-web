@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     billing: "monthly" | "annual";
   };
 
-  if (!org_id || !member_count || member_count < 0) {
+  if (!org_id || member_count == null || member_count < 0) {
     return NextResponse.json(
       { error: "Missing or invalid org_id / member_count" },
       { status: 400 }

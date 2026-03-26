@@ -69,7 +69,7 @@ interface Referral {
 
 interface Transaction {
   id: string;
-  property_address: string;
+  address: string;
   date: string;
   status: string;
 }
@@ -846,7 +846,7 @@ export function ReferralsContent({
                     <SelectItem value="none">None</SelectItem>
                     {transactions.map((tx) => (
                       <SelectItem key={tx.id} value={tx.id}>
-                        {tx.property_address || "Untitled"} ({tx.date})
+                        {tx.address || "Untitled"} ({tx.date})
                       </SelectItem>
                     ))}
                   </SelectContent>

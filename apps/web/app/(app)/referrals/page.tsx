@@ -29,7 +29,7 @@ export default async function ReferralsPage() {
 
   const { data: transactions } = await supabase
     .from("transactions")
-    .select("id, property_address, date, status")
+    .select("id, address, date, status")
     .eq("user_id", user.id)
     .eq("status", "closed")
     .order("date", { ascending: false })

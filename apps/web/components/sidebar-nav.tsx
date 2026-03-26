@@ -160,8 +160,8 @@ export function SidebarNav({
   const allEntries: SidebarEntry[] = [];
   for (const entry of sidebarEntries) {
     allEntries.push(entry);
-    // Insert org entries after the CRM item
-    if (entry.type === "item" && entry.href === "/crm") {
+    // Insert org entries after the Referrals item (end of CRM section)
+    if (entry.type === "item" && entry.href === "/referrals") {
       allEntries.push(...orgEntries);
     }
   }

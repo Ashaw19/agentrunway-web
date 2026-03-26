@@ -69,9 +69,15 @@ export function AccountantShareManager() {
     }
     setCreating(true);
     const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Not authenticated");
+      setCreating(false);
+      return;
+    }
     const { data, error } = await supabase
       .from("accountant_shares")
-      .insert({ label: newLabel.trim() })
+      .insert({ label: newLabel.trim(), user_id: user.id })
       .select()
       .single();
 

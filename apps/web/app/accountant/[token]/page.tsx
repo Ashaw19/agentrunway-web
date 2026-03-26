@@ -30,10 +30,10 @@ interface AccountantData {
   label: string;
   transactions?: {
     id: string;
-    property_address: string;
+    address: string;
     date: string;
     sale_price: number;
-    commission_rate: number;
+    commission_pct: number;
     gci_override: number | null;
     side: string;
     status: string;
@@ -119,7 +119,7 @@ export default function AccountantPage() {
 
   const year = data.year;
   const now = new Date();
-  const completedMonths = now.getMonth();
+  const completedMonths = Math.max(1, now.getMonth() + 1);
 
   // Compute expense totals
   const expenseTotal = data.expenseCategories
@@ -140,7 +140,7 @@ export default function AccountantPage() {
     ? data.transactions.reduce((sum, tx) => {
         const gci =
           tx.gci_override ??
-          tx.sale_price * (tx.commission_rate / 100);
+          tx.sale_price * tx.commission_pct;
         return sum + gci;
       }, 0)
     : 0;
@@ -284,14 +284,14 @@ export default function AccountantPage() {
                     {data.transactions.map((tx) => {
                       const gci =
                         tx.gci_override ??
-                        tx.sale_price * (tx.commission_rate / 100);
+                        tx.sale_price * tx.commission_pct;
                       return (
                         <tr key={tx.id} className="border-b last:border-0">
                           <td className="py-2 text-muted-foreground">
                             {tx.date}
                           </td>
                           <td className="py-2">
-                            {tx.property_address || "—"}
+                            {tx.address || "—"}
                           </td>
                           <td className="py-2">
                             <Badge variant="outline" className="text-[10px]">

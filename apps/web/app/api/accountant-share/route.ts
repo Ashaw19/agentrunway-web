@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
   if (share.share_transactions) {
     const { data: transactions } = await admin
       .from("transactions")
-      .select("id, property_address, date, sale_price, commission_rate, gci_override, side, status")
+      .select("id, address, date, sale_price, commission_pct, gci_override, side, status")
       .eq("user_id", userId)
       .eq("status", "closed")
       .gte("date", `${year}-01-01`)

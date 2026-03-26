@@ -39,7 +39,7 @@ const FAQS = [
   },
   {
     q: "How does billing work?",
-    a: "The Professional plan is billed monthly. You can upgrade, downgrade, or cancel at any time from your account settings. Team plan pricing is scoped per team size and agreed at setup.",
+    a: "The Professional plan can be billed monthly or annually (save ~17% with annual billing). You can upgrade, downgrade, or cancel at any time from your account settings. Team plan pricing is scoped per team size and agreed at setup.",
   },
   {
     q: "What's the difference between Starter and Professional?",
