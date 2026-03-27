@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import React, { useState, useRef } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -1175,6 +1175,20 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
                 </div>
               </div>
 
+              {/* Low-confidence summary hint */}
+              {importData.deals.some((d) => d.confidence && (
+                d.confidence.gci === "missing" || d.confidence.gci === "low" ||
+                d.confidence.sale_price === "missing" ||
+                d.confidence.address === "missing" || d.confidence.address === "low"
+              )) && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 flex items-start gap-2">
+                  <Info className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
+                  <p className="text-[11px] text-amber-700">
+                    Some deals are missing details (marked below). Don&apos;t worry — you can edit any field after saving.
+                  </p>
+                </div>
+              )}
+
               {/* Deal-by-deal review */}
               <div>
                 {/* Only show party-selection header when party_b data is present */}
@@ -1278,6 +1292,22 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
                               {deal.party_b}
                             </button>
                           </div>
+                          {/* Low-confidence helper hints */}
+                          {deal.confidence && (() => {
+                            const hints: string[] = [];
+                            if (deal.confidence.gci === "missing" || deal.confidence.gci === "low") hints.push("Missing or uncertain GCI");
+                            if (deal.confidence.sale_price === "missing") hints.push("Missing sale price");
+                            if (deal.confidence.address === "missing" || deal.confidence.address === "low") hints.push("Missing or uncertain address");
+                            if (deal.confidence.date === "low") hints.push("Uncertain closing date");
+                            if (deal.confidence.names === "low") hints.push("Uncertain client name");
+                            if (hints.length === 0) return null;
+                            return (
+                              <p className="text-[10px] text-amber-600 flex items-start gap-1">
+                                <AlertCircle className="h-3 w-3 mt-px shrink-0" />
+                                {hints.join(" · ")} — you can edit this after saving
+                              </p>
+                            );
+                          })()}
                         </div>
                       );
                     })}
@@ -1304,8 +1334,17 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
                             : deal.side === "seller" ? { label: "Seller", cls: "text-amber-700" }
                             : deal.side === "both"   ? { label: "Both",   cls: "text-violet-700" }
                             : null;
+                          const hints: string[] = [];
+                          if (deal.confidence) {
+                            if (deal.confidence.gci === "missing" || deal.confidence.gci === "low") hints.push("Missing or uncertain GCI");
+                            if (deal.confidence.sale_price === "missing") hints.push("Missing sale price");
+                            if (deal.confidence.address === "missing" || deal.confidence.address === "low") hints.push("Missing or uncertain address");
+                            if (deal.confidence.date === "low") hints.push("Uncertain closing date");
+                            if (deal.confidence.names === "low") hints.push("Uncertain client name");
+                          }
                           return (
-                            <tr key={i} className={cn("border-b border-border/40 last:border-0", i % 2 === 0 ? "bg-card" : "bg-muted/20")}>
+                            <React.Fragment key={i}>
+                            <tr className={cn("border-b border-border/40 last:border-0", i % 2 === 0 ? "bg-card" : "bg-muted/20")}>
                               <td className="px-2 py-1.5 text-slate-400 tabular-nums">{i + 1}</td>
                               <td className="px-2 py-1.5 font-medium text-foreground max-w-[140px] truncate">{deal.address || <span className="text-slate-400 italic">—</span>}</td>
                               <td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap">{date}</td>
@@ -1317,6 +1356,17 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
                               </td>
                               <td className="px-2 py-1.5 text-foreground max-w-[120px] truncate">{deal.party_a || <span className="text-slate-400 italic">—</span>}</td>
                             </tr>
+                            {hints.length > 0 && (
+                              <tr className="bg-amber-50/50">
+                                <td colSpan={6} className="px-2 py-1 text-[10px] text-amber-600">
+                                  <span className="flex items-center gap-1">
+                                    <AlertCircle className="h-2.5 w-2.5 shrink-0" />
+                                    {hints.join(" · ")} — you can edit this after saving
+                                  </span>
+                                </td>
+                              </tr>
+                            )}
+                            </React.Fragment>
                           );
                         })}
                       </tbody>
