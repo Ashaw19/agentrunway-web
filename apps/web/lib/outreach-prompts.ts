@@ -20,6 +20,18 @@
  *   - Under 200 words — agents send these, not read them
  */
 
+// ── Subject line standard (shared across all prompts) ─────────────────────────
+
+export const SUBJECT_LINE_RULES = `SUBJECT LINE RULES (apply strictly):
+- 2–6 words max. Lowercase unless a proper noun.
+- Must sound like a human typed it on their phone — not a marketing team.
+- NEVER start with "checking in", "just following up", "quick note", or "touching base".
+- NEVER use "[action] at [address]" patterns like "all done at 123 Main St" — these sound robotic.
+- NEVER use exclamation marks, emojis, or ALL CAPS words.
+- NEVER use cheesy marketing language: "exciting update", "big news", "important reminder".
+- Good examples: "the saxon drive anniversary", "thinking of you", "quick question for you", "saw something interesting", "your neighbourhood lately"
+- Bad examples: "Checking In!", "Spring Market Update", "Congratulations!", "All Done at 10 Wasson Court", "Happy Birthday!"`;
+
 // ── Tone system ───────────────────────────────────────────────────────────────
 
 export type Tone = "casual" | "friendly" | "professional" | "formal";
@@ -112,8 +124,9 @@ Write a ${years}-year sale anniversary email (3–4 short paragraphs, under 180 
 - Sign off with just "${agentFirst}" — no formal closing.
 - Vary sentence length. Short sentences are powerful. Mix them in.
 
+${SUBJECT_LINE_RULES}
 On the very last line of your response, write exactly:
-SUBJECT: [your subject line — keep it short, personal, not clickbaity]`;
+SUBJECT: [your subject line]`;
   }
 
   return `You are ghostwriting a personal email from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}.
@@ -133,8 +146,9 @@ Write a ${years}-year closing anniversary email (3–4 short paragraphs, under 1
 - This should read like a real person wrote it in 2 minutes, not like ChatGPT generated it.
 - Vary sentence length. Short sentences are powerful. Mix them in.
 
+${SUBJECT_LINE_RULES}
 On the very last line of your response, write exactly:
-SUBJECT: [your subject line — keep it short, personal, not clickbaity]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildIdlePrompt(
@@ -171,8 +185,9 @@ Write a natural 2–3 paragraph check-in email (under 150 words) that:
 - Sign off with just "${agentFirst}" — no formal closing line
 - Vary sentence length. Keep it human. One-word sentences are fine.
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [short, casual subject — not "Checking In!" or anything generic]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildBirthdayPrompt(
@@ -192,8 +207,9 @@ Write a brief 2-paragraph birthday message (under 80 words) that:
 - Sign off with just "${agentFirst}" — no formal closing
 - Keep it real. A birthday message that sounds like AI is worse than no message at all.
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [short personal birthday subject — not "Happy Birthday!" which screams auto-generated]`;
+SUBJECT: [your subject line]`;
 }
 
 // ── Batch 1: Post-Close Nurture ───────────────────────────────────────────────
@@ -214,6 +230,7 @@ Context:
 - Property SOLD: ${prop}
 - CRITICAL: ${clientName} was the SELLER. They sold this property. Do NOT say anything about moving in, settling in, or life at the new house — there is no new house in this context.
 - This is a post-sale check-in, not a move-in note.
+- The agent was there through the whole process — inspections, negotiations, the emotional weight of letting go of a place. Reference something real about the experience you shared.
 
 ${TONE_INSTRUCTIONS[tone]}
 
@@ -223,9 +240,11 @@ Write a brief 2-paragraph note (under 100 words) that:
 - Offers to help with whatever comes next — whether that's finding their next place, a rental, or just having a resource
 - Sign off with just "${agentFirst}"
 - Vary sentence length. Keep it warm and real.
+- The opening line should reference something SPECIFIC — the property name, the neighbourhood, or the journey — not a generic "closing day is behind you."
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [short, personal subject — not "Congratulations!" which screams automated]`;
+SUBJECT: [your subject line]`;
   }
 
   const { propLabel, contextNote } = buyerPropertyContext(propertyUse, address);
@@ -242,12 +261,14 @@ Write a brief 2-paragraph post-close check-in (under 100 words) that:
 - Feels like a warm text from a friend, not a corporate follow-up
 - DO NOT open with "I hope this email finds you well" or similar clichés
 - DO NOT start with "Subject:"${!contextNote ? "\n- Acknowledge the excitement of the first few days in a new home" : ""}
+- The opening line should reference something SPECIFIC — the property, the neighbourhood, or a moment from the deal
 - Offer to help with anything — local recommendations, tradespeople, questions
 - Sign off with just "${agentFirst}"
 - Vary sentence length. Keep it warm and real.
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [short, personal subject — not "Congratulations!" which screams automated]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildPostClose14Prompt(
@@ -275,8 +296,9 @@ Write a 2-paragraph check-in (under 100 words) that:
 - Keeps it light — no agenda, no ask
 - Sign off with just "${agentFirst}"
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [casual, personal subject — a reference to the sale or simply checking in on them]`;
+SUBJECT: [your subject line]`;
   }
 
   const { propLabel, contextNote } = buyerPropertyContext(propertyUse, address ?? "the property");
@@ -295,8 +317,9 @@ Write a 2-paragraph check-in (under 100 words) that:
 - DO NOT start with "Subject:"${!contextNote ? "\n- Reference that it's been about two weeks — the chaos of moving should be clearing up\n- Ask a simple open question: how are they finding the neighbourhood, the commute, anything" : "\n- Reference that it's been about two weeks since the purchase closed\n- Ask a natural open question relevant to their property type"}
 - Sign off with just "${agentFirst}"
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [casual, personal subject — could be as simple as their street name or a reference to the closing]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildPostClose90Prompt(
@@ -329,8 +352,9 @@ Write a warm 2–3 paragraph check-in (under 150 words) that:
 - Sign off with just "${agentFirst}"
 - Vary sentence length. One or two short punchy sentences work well.
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [personal, not sales-y — reference the timeline naturally without implying they still own the home]`;
+SUBJECT: [your subject line]`;
   }
 
   const { propLabel, contextNote } = buyerPropertyContext(propertyUse, location);
@@ -361,8 +385,9 @@ ${isInvestment
 - Sign off with just "${agentFirst}"
 - Vary sentence length. One or two short punchy sentences work well.
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [personal, not sales-y — reference the property or the timeline naturally]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildReviewRequestPrompt(
@@ -392,8 +417,9 @@ Write a short 2-paragraph review request (under 120 words) that:
 - Sign off with just "${agentFirst}"
 - The tone should feel like asking a favour from a friend, not a business transaction
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [short, genuine subject — not "Quick Favour!" or "Review Request"]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildReferralAskPrompt(
@@ -423,8 +449,9 @@ Write a brief 2-paragraph referral ask (under 120 words) that:
 - Does NOT use corporate phrases like "I'd appreciate any referrals you can send my way"
 - Sign off with just "${agentFirst}"
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [casual, warm subject — not "Referral Request" which nobody opens]`;
+SUBJECT: [your subject line]`;
 }
 
 // ── Batch 2: Relationship Milestones ─────────────────────────────────────────
@@ -446,8 +473,9 @@ Write a warm 2-paragraph welcome (under 100 words) that:
 - One line about what to expect from working together
 - Sign off with just "${agentFirst}"
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [personal, low-key subject — could just reference their first conversation or their goal]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildContactAnniversaryPrompt(
@@ -495,8 +523,9 @@ Write a genuine 2-paragraph note (under 110 words) that:
 - Ends with a forward-looking note: here whenever they need anything next
 - Sign off with just "${agentFirst}"
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [concise, warm subject that references working together again]`;
+SUBJECT: [your subject line]`;
 }
 
 // ── Batch 3: Seasonal Campaigns ───────────────────────────────────────────────
@@ -524,8 +553,9 @@ Write a 3-paragraph spring market note (under 160 words) that:
 - Does NOT feel like a mass newsletter — reads like it's written specifically for them
 - Sign off with just "${agentFirst}"
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [conversational spring market subject — not "Spring Market Update" which screams newsletter]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildSeasonalFallPrompt(
@@ -551,8 +581,9 @@ Write a 2–3 paragraph fall note (under 150 words) that:
 - Feels personal, not mass-blasted
 - Sign off with just "${agentFirst}"
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [casual fall subject — something that doesn't scream "seasonal real estate email"]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildSeasonalYearEndPrompt(
@@ -572,8 +603,9 @@ Write a short 2-paragraph year-end message (under 120 words) that:
 - Does NOT mention real estate, listings, or market trends — this is a pure relationship touchpoint
 - Sign off with just "${agentFirst}"
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [warm year-end subject that doesn't feel like a corporate holiday card]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildSeasonalTaxPrompt(
@@ -595,8 +627,9 @@ Write a 2–3 paragraph tax-season note (under 150 words) that:
 - Ends with a low-pressure offer to answer any real estate–related tax questions
 - Sign off with just "${agentFirst}"
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [practical, approachable subject about tax season — not "Important Tax Reminder!"]`;
+SUBJECT: [your subject line]`;
 }
 
 // ── Batch 4: Intelligent Outreach (briefing-triggered) ────────────────────────
@@ -637,8 +670,9 @@ Write a genuine 2–3 paragraph email (under 150 words) that:
 - Sign off with just "${agentFirst}"
 - Vary sentence length. This should feel like someone genuinely thought of them.
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [timely, personal subject — references the timing naturally without being alarmist]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildMortgageRenewalWindowPrompt(
@@ -669,8 +703,9 @@ Write a brief 2-paragraph email (under 130 words) that:
 - Offers to connect them with a trusted broker when the time feels right
 - Sign off with just "${agentFirst}"
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [casual subject — could reference their home, neighbourhood, or upcoming milestone naturally]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildPastClientCheckInPrompt(
@@ -705,8 +740,9 @@ Write a natural 2-paragraph check-in (under 130 words) that:
 - Sign off with just "${agentFirst}"
 - Short sentences. Real language. No corporate warmth.
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [casual, personal subject — not "Checking In!" — something that looks like it came from a real person]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildTimeframeApproachingPrompt(
@@ -744,8 +780,9 @@ Write a focused 2-paragraph email (under 130 words) that:
 - Keeps the tone collaborative — the agent is a partner, not a closer
 - Sign off with just "${agentFirst}"
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [direct, caring subject that references their timeline — not "Just Checking In!"]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildPropertyValueMilestonePrompt(
@@ -782,8 +819,9 @@ Write a 2–3 paragraph email (under 150 words) that:
 - Sign off with just "${agentFirst}"
 - Vary sentence length. This should feel like the agent genuinely thought of them.
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [warm subject that references the milestone or neighbourhood naturally — NOT implying they still own the property]`;
+SUBJECT: [your subject line]`;
   }
 
   return `You are ghostwriting a genuine, value-driven email from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}.
@@ -804,8 +842,9 @@ Write a 2–3 paragraph email (under 150 words) that:
 - Sign off with just "${agentFirst}"
 - Vary sentence length. This should feel like the agent pulled up their file and genuinely thought of them.
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [warm subject that references the milestone or property naturally — not "Your Home's Value Update"]`;
+SUBJECT: [your subject line]`;
 }
 
 // ── Batch 5: Memory-Powered Triggers ──────────────────────────────────────────
@@ -838,8 +877,9 @@ Write a genuine 2–3 paragraph email (under 150 words) that:
 - Sign off with just "${agentFirst}"
 - Vary sentence length. One short sentence hits harder than three long ones.
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [personal, relevant subject — references their situation without being clinical]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildBuyerInventoryMatchPrompt(
@@ -870,8 +910,9 @@ Write a focused 2–3 paragraph email (under 150 words) that:
 - Sign off with just "${agentFirst}"
 - Keep it punchy. Buyers want signal, not noise.
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [direct, relevant subject — references their search area or what caught your eye]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildSellerTimingHesitationPrompt(
@@ -902,8 +943,9 @@ Write a genuine 2–3 paragraph email (under 150 words) that:
 - Sign off with just "${agentFirst}"
 - Vary sentence length. This should feel like a conversation, not a pitch.
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [warm, no-pressure subject — NOT "Ready to List?" or anything pushy]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildMortgageRenewalFinancePrompt(
@@ -936,8 +978,9 @@ Write a genuine 2–3 paragraph email (under 150 words) that:
 - Sign off with just "${agentFirst}"
 - Vary sentence length. Make it feel like a friend who happens to know a great broker.
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [timely, personal subject — references their home or the financial topic naturally]`;
+SUBJECT: [your subject line]`;
 }
 
 export function buildEducationalValuePrompt(
@@ -966,6 +1009,7 @@ Write a genuine 2–3 paragraph email (under 150 words) that:
 - Sign off with just "${agentFirst}"
 - Keep it conversational. Educational doesn't mean lecturing.
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
-SUBJECT: [topical, interesting subject that references ${topic} — something they'd actually open]`;
+SUBJECT: [your subject line]`;
 }

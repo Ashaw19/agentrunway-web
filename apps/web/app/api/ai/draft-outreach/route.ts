@@ -589,6 +589,10 @@ export async function POST(req: NextRequest) {
       "just checking in",
       "per our conversation",
       "i wanted to reach out",
+      "exciting update",
+      "big news",
+      "important reminder",
+      "all done at",
     ];
     const rawLower = raw.toLowerCase();
     const hasBanned = BANNED_PHRASES.some((p) => rawLower.includes(p));

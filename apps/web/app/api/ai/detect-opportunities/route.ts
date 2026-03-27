@@ -57,7 +57,7 @@ import {
 const ANNIVERSARY_YEARS  = [1, 2, 3, 5, 10];
 const WINDOW_DAYS        = 14;   // detect N days in advance
 const IDLE_MONTHS        = 18;   // flag clients idle > this many months
-const MAX_DRAFTS_PER_RUN = 3;    // max Groq calls per invocation (keeps total < 20s)
+const MAX_DRAFTS_PER_RUN = 10;   // max Groq calls per invocation (~2-3s each, within 60s timeout)
 const SEASONAL_TOP_N     = 25;   // max clients for seasonal campaigns
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -259,6 +259,10 @@ const BANNED_PHRASES = [
   "just checking in",
   "per our conversation",
   "i wanted to reach out",
+  "exciting update",
+  "big news",
+  "important reminder",
+  "all done at",
 ];
 
 async function draftItem(
