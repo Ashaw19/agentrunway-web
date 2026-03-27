@@ -709,14 +709,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(buildResponse(result));
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[import] FAIL msg=" + msg.slice(0, 200));
+    // Include status code if available (OpenAI SDK attaches it)
+    const status = (err as { status?: number })?.status;
+    console.error("[import] FAIL status=" + status + " msg=" + msg.slice(0, 300));
     const message =
       msg.includes("body size")
         ? "Document too large. Try uploading fewer pages or a smaller file."
         : msg.includes("timeout")
         ? "Processing timed out. Try a smaller document or split into multiple files."
-        : msg.includes("rate") || msg.includes("429")
-        ? "The AI service is busy. Please try again in a moment."
+        : msg.includes("rate") || msg.includes("429") || status === 429
+        ? `AI rate limited (${status}). Detail: ${msg.slice(0, 120)}`
         : msg.includes("JSON parse")
         ? "The AI could not produce structured data from this file. Try a different format or simpler layout."
         : "Failed to extract data from document. Try uploading a clearer image or a different file format.";
