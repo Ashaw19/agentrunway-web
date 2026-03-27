@@ -368,8 +368,8 @@ describe("GST/HST Rates", () => {
     expect(gstHstRate("ontario")).toBe(0.13);
   });
 
-  it("returns 15% for Atlantic provinces (HST)", () => {
-    expect(gstHstRate("novaScotia")).toBe(0.15);
+  it("returns correct HST for Atlantic provinces", () => {
+    expect(gstHstRate("novaScotia")).toBe(0.14); // reduced Apr 1, 2025
     expect(gstHstRate("newBrunswick")).toBe(0.15);
     expect(gstHstRate("newfoundland")).toBe(0.15);
     expect(gstHstRate("princeEdwardIsland")).toBe(0.15);

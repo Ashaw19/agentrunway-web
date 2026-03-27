@@ -175,7 +175,7 @@ export const PROVINCE_GST_HST_RATES: Record<Province, number> = {
   newBrunswick: 0.15,
   newfoundland: 0.15,
   northwestTerritories: 0.05,
-  novaScotia: 0.15,
+  novaScotia: 0.14, // reduced from 15% Apr 1, 2025 (CRA Notice 342)
   nunavut: 0.05,
   ontario: 0.13,
   princeEdwardIsland: 0.15,
