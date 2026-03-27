@@ -82,6 +82,7 @@ interface GatheredClientData {
     property_interest_type: string;
     last_contact_at: string | null;
   };
+  transactions: { side: string | null; source: string | null; address: string | null; close_date: string | null; gci: number | null }[];
   activities: { type: string; description: string; activity_date: string }[];
   showings: { property_address: string; showing_date: string; client_rating: number | null; notes: string | null }[];
   listing_appointments: { property_address: string | null; appointment_date: string; status: string; estimated_list_price: number | null; notes: string | null }[];
@@ -105,8 +106,15 @@ async function gatherClientData(
 
   if (!client) return null;
 
-  // Parallel fetches for related data (last 50 of each to keep token budget)
-  const [activitiesRes, showingsRes, listingRes, tasksRes, outreachRes, memoryRes] = await Promise.all([
+  // Parallel fetches for related data (capped per table to keep token budget)
+  const [transactionsRes, activitiesRes, showingsRes, listingRes, tasksRes, outreachRes, memoryRes] = await Promise.all([
+    supabase
+      .from("client_records")
+      .select("side, source, address, close_date, gci")
+      .eq("client_id", clientId)
+      .eq("user_id", userId)
+      .order("close_date", { ascending: false })
+      .limit(20),
     supabase
       .from("contact_activities")
       .select("type, description, activity_date")
@@ -152,6 +160,7 @@ async function gatherClientData(
 
   return {
     client: client as GatheredClientData["client"],
+    transactions: (transactionsRes.data ?? []) as GatheredClientData["transactions"],
     activities: (activitiesRes.data ?? []) as GatheredClientData["activities"],
     showings: (showingsRes.data ?? []) as GatheredClientData["showings"],
     listing_appointments: (listingRes.data ?? []) as GatheredClientData["listing_appointments"],
@@ -181,6 +190,18 @@ function buildMemoryPrompt(data: GatheredClientData): string {
 - Birthday: ${c.birthdate ?? "unknown"}
 - Last Contact: ${c.last_contact_at ?? "never"}
 `;
+
+  if (data.transactions.length > 0) {
+    prompt += `\n## Transaction History (${data.transactions.length} closed deals)\n`;
+    for (const tx of data.transactions) {
+      const parts = [tx.close_date ?? "date unknown"];
+      if (tx.side) parts.push(tx.side);
+      if (tx.address) parts.push(tx.address);
+      if (tx.gci) parts.push(`GCI $${Number(tx.gci).toLocaleString()}`);
+      if (tx.source) parts.push(`source: ${tx.source}`);
+      prompt += `- [${parts.join(" — ")}]\n`;
+    }
+  }
 
   if (data.activities.length > 0) {
     prompt += `\n## Contact Activities (${data.activities.length} most recent)\n`;

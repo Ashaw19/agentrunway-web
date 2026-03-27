@@ -4,8 +4,9 @@
  * Manual compute/read endpoint for client memory profiles.
  *
  * Actions:
- *   { action: "compute", client_id: string }  — (Re)compute the memory profile
- *   { action: "read",    client_id: string }  — Read existing profile (no AI call)
+ *   { action: "compute",    client_id: string }  — (Re)compute the memory profile
+ *   { action: "read",       client_id: string }  — Read existing profile (no AI call)
+ *   { action: "mark-stale", client_id: string }  — Mark profile as stale (no AI call)
  *
  * Failure-safe: AI errors return { success: false, error } with status 200
  * so the caller can handle gracefully without toast-level error handling.
@@ -17,6 +18,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import {
   updateClientMemory,
   getClientMemory,
+  markMemoryStale,
 } from "@/lib/ai/client-memory-engine";
 
 export async function POST(req: NextRequest) {
@@ -42,9 +44,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing client_id" }, { status: 400 });
   }
 
-  if (!action || !["compute", "read"].includes(action)) {
+  if (!action || !["compute", "read", "mark-stale"].includes(action)) {
     return NextResponse.json(
-      { error: 'Invalid action — use "compute" or "read"' },
+      { error: 'Invalid action — use "compute", "read", or "mark-stale"' },
       { status: 400 },
     );
   }
@@ -53,6 +55,12 @@ export async function POST(req: NextRequest) {
   if (action === "read") {
     const profile = await getClientMemory(supabase, user.id, client_id);
     return NextResponse.json({ success: true, profile });
+  }
+
+  // ── Mark-stale action (no AI, no rate limit) ─────────────────────────────
+  if (action === "mark-stale") {
+    await markMemoryStale(supabase, user.id, client_id);
+    return NextResponse.json({ success: true });
   }
 
   // ── Compute action ────────────────────────────────────────────────────────

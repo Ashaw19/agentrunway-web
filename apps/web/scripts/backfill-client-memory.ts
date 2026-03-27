@@ -70,7 +70,8 @@ async function gatherAndComputeMemory(userId: string, clientId: string, clientNa
     return false;
   }
 
-  const [activitiesRes, showingsRes, listingRes, tasksRes, outreachRes] = await Promise.all([
+  const [transactionsRes, activitiesRes, showingsRes, listingRes, tasksRes, outreachRes] = await Promise.all([
+    supabase.from("client_records").select("side, source, address, close_date, gci").eq("client_id", clientId).eq("user_id", userId).order("close_date", { ascending: false }).limit(20),
     supabase.from("contact_activities").select("type, description, activity_date").eq("client_id", clientId).eq("user_id", userId).order("activity_date", { ascending: false }).limit(50),
     supabase.from("property_showings").select("property_address, showing_date, client_rating, notes").eq("client_id", clientId).eq("user_id", userId).order("showing_date", { ascending: false }).limit(30),
     supabase.from("listing_appointments").select("property_address, appointment_date, status, estimated_list_price, notes").eq("client_id", clientId).eq("user_id", userId).order("appointment_date", { ascending: false }).limit(20),
@@ -80,6 +81,7 @@ async function gatherAndComputeMemory(userId: string, clientId: string, clientNa
 
   // Build a minimal prompt context
   const c = client as Record<string, unknown>;
+  const transactions = transactionsRes.data ?? [];
   const activities = activitiesRes.data ?? [];
   const showings = showingsRes.data ?? [];
   const listings = listingRes.data ?? [];
@@ -94,6 +96,17 @@ async function gatherAndComputeMemory(userId: string, clientId: string, clientNa
 - Notes: ${c.notes ?? "none"}, Timeframe: ${c.timeframe ?? "?"}, Last Contact: ${c.last_contact_at ?? "never"}
 `;
 
+  if (transactions.length) {
+    prompt += `\n## Transactions (${transactions.length})\n`;
+    for (const tx of (transactions as Array<{ close_date: string | null; side: string | null; address: string | null; gci: number | null; source: string | null }>)) {
+      const parts = [tx.close_date ?? "date unknown"];
+      if (tx.side) parts.push(tx.side);
+      if (tx.address) parts.push(tx.address);
+      if (tx.gci) parts.push(`GCI $${Number(tx.gci).toLocaleString()}`);
+      if (tx.source) parts.push(`source: ${tx.source}`);
+      prompt += `- [${parts.join(" — ")}]\n`;
+    }
+  }
   if (activities.length) {
     prompt += `\n## Activities (${activities.length})\n`;
     for (const a of (activities as Array<{ activity_date: string; type: string; description: string }>).slice(0, 20)) {

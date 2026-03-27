@@ -160,6 +160,7 @@ import type { VoiceDraft } from "@/lib/voice/types";
 import { toast } from "sonner";
 import { guardSandboxWrite } from "@/lib/sandbox-guard";
 import { useSandboxMode } from "@/lib/sandbox-mode-context";
+import { markMemoryStaleClient } from "@/lib/ai/mark-memory-stale";
 import * as XLSX from "xlsx";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -1314,6 +1315,7 @@ export function ClientsContent({
               : c
           )
         );
+        markMemoryStaleClient(clientId);
       } else if (error) {
         toast.error("Failed to log activity");
       }
@@ -1351,6 +1353,7 @@ export function ClientsContent({
 
       if (!error && data) {
         setLocalTasks((prev) => [data as ContactTask, ...prev]);
+        if (clientId) markMemoryStaleClient(clientId);
       } else if (error) {
         toast.error("Failed to add task");
       }
@@ -1377,6 +1380,8 @@ export function ClientsContent({
         );
       }
       toast.error("Failed to complete task");
+    } else if (removedTask?.client_id) {
+      markMemoryStaleClient(removedTask.client_id);
     }
   }, []);
 
@@ -1398,6 +1403,7 @@ export function ClientsContent({
         toast.error("Failed to save changes");
         return;
       }
+      markMemoryStaleClient(clientId);
 
       // Flight Plan execution: fire matching plans on status change
       if (field === "status" && typeof value === "string") {
