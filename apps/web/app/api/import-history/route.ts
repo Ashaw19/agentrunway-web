@@ -556,7 +556,7 @@ export async function POST(req: NextRequest) {
       //    duplicate headers; detects column mapping for prompt injection)
       textNormalized = normalizeTextDocument(dateNormalized, true);
 
-      const textModels = ["llama-3.3-70b-versatile", "llama-3.3-70b-specdec"];
+      const textModels = ["llama-3.3-70b-versatile", "qwen/qwen3-32b"];
       const promptContent = TEXT_PROMPT(
         textNormalized.cleaned_content,
         textNormalized.column_hints ?? undefined,
