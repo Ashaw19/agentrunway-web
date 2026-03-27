@@ -455,11 +455,12 @@ function ReviewDrawer({
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSaving(true);
     try {
-      await fetch(`/api/ai/outreach-queue/${item.id}`, {
+      const res = await fetch(`/api/ai/outreach-queue/${item.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ final_subject: editSubject, final_body: editBody }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch {
       toast.error("Couldn't save edits — your changes may not persist");
     } finally {
@@ -492,10 +493,15 @@ function ReviewDrawer({
     if (!item) return;
     await saveEdits();
     const text = `Subject: ${editSubject}\n\n${editBody}`;
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    toast.success("Copied to clipboard — paste into your email client");
-    setTimeout(() => setCopied(false), 2500);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast.success("Copied to clipboard — paste into your email client");
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      toast.error("Couldn't access clipboard — copy the text manually");
+      return;
+    }
     // Ask "mark as sent?"
     markAsSent();
   }, [item, editSubject, editBody, saveEdits]);

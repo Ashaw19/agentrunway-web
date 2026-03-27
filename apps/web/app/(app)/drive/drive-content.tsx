@@ -26,6 +26,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -92,12 +93,17 @@ export function DriveContent({ isDriveConnected, connectedEmail, documents }: Pr
   const handleIndexDrive = () => {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     startIndexing(async () => {
-      await fetch("/api/ai/drive-analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "index_all" }),
-      });
-      router.refresh();
+      try {
+        const res = await fetch("/api/ai/drive-analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "index_all" }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        router.refresh();
+      } catch {
+        toast.error("Failed to index Drive documents. Please try again.");
+      }
     });
   };
 
@@ -105,12 +111,15 @@ export function DriveContent({ isDriveConnected, connectedEmail, documents }: Pr
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setAnalyzing(docId);
     try {
-      await fetch("/api/ai/drive-analyze", {
+      const res = await fetch("/api/ai/drive-analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "analyze", document_id: docId }),
       });
+      if (!res.ok) throw new Error(await res.text());
       router.refresh();
+    } catch {
+      toast.error("Failed to analyze document. Please try again.");
     } finally {
       setAnalyzing(null);
     }
