@@ -610,9 +610,61 @@ export async function POST(req: NextRequest) {
     // yearHint from the sheet name overrides LLM's title-row year detection
     const effectiveYear = yearHintValid ?? parsed.year;
 
-    // Compute all aggregates in code + run validators.
-    // Pass column classification when available (text path only) so LLM deals
-    // can receive column-level provenance alongside their LLM-generated evidence.
+    const truncated = textNormalized?.stats.truncated ?? false;
+    const importPath: ImportDebug["import_path"] =
+      body.textContent ? "text-llm" :
+      imageSources.length > 1 ? "vision-multi" : "vision-single";
+    const columnSubtype = textNormalized?.column_classification?.document_subtype ?? null;
+    const hintsInjected = !!(textNormalized?.column_hints);
+    const importSource: "text" | "vision" = body.textContent ? "text" : "vision";
+
+    // Helper to build a full ImportResult from aggregates
+    const buildResponse = (result: ReturnType<typeof computeAggregates>): ImportResult => {
+      const extraction_quality = computeExtractionQuality(result.deals, truncated);
+      const debug: ImportDebug | undefined =
+        process.env.NODE_ENV !== "production"
+          ? computeImportDebug(result.deals, importPath, textNormalized?.stats ?? null, columnSubtype, hintsInjected)
+          : undefined;
+      return {
+        ...result,
+        extraction_quality,
+        document_subtype: textNormalized?.column_classification?.document_subtype,
+        import_source: importSource,
+        ...(debug && { debug }),
+        ...(truncated && {
+          truncation_warning: {
+            rows_kept:  textNormalized!.stats.output_rows,
+            rows_total: textNormalized!.stats.input_rows,
+          },
+        }),
+      };
+    };
+
+    // ── Multi-year detection: group deals by year when they span 2+ years ────
+    const dealYears = new Set<number>();
+    for (const d of parsed.deals) {
+      const m = /^(\d{4})/.exec(d.date);
+      if (m) dealYears.add(Number(m[1]));
+    }
+
+    // If yearHint was provided (e.g. sheet name), don't split — trust the hint
+    if (!yearHintValid && dealYears.size > 1) {
+      // Split deals by year and return array
+      const yearResults: ImportResult[] = [];
+      for (const yr of Array.from(dealYears).sort()) {
+        const yearDeals = parsed.deals.filter((d) => d.date.startsWith(String(yr)));
+        if (yearDeals.length === 0) continue;
+        const result = computeAggregates(
+          yearDeals, yr,
+          textNormalized?.column_classification ?? null,
+          textNormalized?.raw_header_row ?? null,
+        );
+        yearResults.push(buildResponse(result));
+      }
+      return NextResponse.json({ multi_year: true, years: yearResults });
+    }
+
+    // Single-year path (original behavior)
     const result = computeAggregates(
       parsed.deals,
       effectiveYear,
@@ -620,47 +672,7 @@ export async function POST(req: NextRequest) {
       textNormalized?.raw_header_row ?? null,
     );
 
-    const truncated = textNormalized?.stats.truncated ?? false;
-
-    // Determine import path for debug metadata
-    const importPath: ImportDebug["import_path"] =
-      body.textContent ? "text-llm" :
-      imageSources.length > 1 ? "vision-multi" : "vision-single";
-
-    const columnSubtype = textNormalized?.column_classification?.document_subtype ?? null;
-    const hintsInjected = !!(textNormalized?.column_hints);
-
-    // Compute quality signal
-    const extraction_quality = computeExtractionQuality(result.deals, truncated);
-
-    // Compute debug snapshot (non-production only)
-    const debug: ImportDebug | undefined =
-      process.env.NODE_ENV !== "production"
-        ? computeImportDebug(
-            result.deals,
-            importPath,
-            textNormalized?.stats ?? null,
-            columnSubtype,
-            hintsInjected,
-          )
-        : undefined;
-
-    // Attach truncation warning if the normalizer had to drop rows to fit 20k chars.
-    const response: ImportResult = {
-      ...result,
-      extraction_quality,
-      document_subtype: textNormalized?.column_classification?.document_subtype,
-      import_source:    body.textContent ? "text" : "vision",
-      ...(debug && { debug }),
-      ...(truncated && {
-        truncation_warning: {
-          rows_kept:  textNormalized!.stats.output_rows,
-          rows_total: textNormalized!.stats.input_rows,
-        },
-      }),
-    };
-
-    return NextResponse.json(response);
+    return NextResponse.json(buildResponse(result));
   } catch (err: unknown) {
     console.error("[import-history] error:", err);
     // Provide specific error messages instead of generic "Failed to extract"

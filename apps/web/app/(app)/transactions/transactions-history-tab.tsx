@@ -565,26 +565,39 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
         throw new Error((err as { error?: string }).error ?? "Extraction failed");
       }
 
-      const data = await res.json() as ImportResult;
+      const rawData = await res.json();
 
-      // Pre-populate agent_side selections from Groq's best guess
-      const sides: Record<number, 0 | 1> = {};
-      data.deals.forEach((deal, i) => {
-        if (deal.agent_side === 0 || deal.agent_side === 1) {
-          sides[i] = deal.agent_side;
-        }
-      });
+      // ── Multi-year response: API splits deals by year automatically ──
+      if (rawData.multi_year && Array.isArray(rawData.years)) {
+        const years = rawData.years as ImportResult[];
+        setBatchImportData(years);
+        const pcts: Record<number, number | null> = {};
+        years.forEach((yr) => { pcts[yr.year] = yr.split_pct ?? settingsSplit ?? null; });
+        setBatchSplitPcts(pcts);
+        setImportStatus("preview");
+      } else {
+        // Single-year response (original behavior)
+        const data = rawData as ImportResult;
 
-      setImportData(data);
-      // Priority: auto-detected from spreadsheet → user's Settings split → null (user must choose)
-      setImportSplitPct(data.split_pct ?? settingsSplit ?? null);
-      // Vision-based imports (image upload or scanned PDF) have net amounts already baked in
-      const isImage = fileType === "image" || !!(imageBase64 || multiPageImages);
-      setImportIsImage(isImage);
-      // Vision/image = brokerage report with net amounts already; default split to 100%
-      if (isImage) setImportSplitPct(1.00);
-      setAgentSides(sides);
-      setImportStatus("preview");
+        // Pre-populate agent_side selections from Groq's best guess
+        const sides: Record<number, 0 | 1> = {};
+        data.deals.forEach((deal, i) => {
+          if (deal.agent_side === 0 || deal.agent_side === 1) {
+            sides[i] = deal.agent_side;
+          }
+        });
+
+        setImportData(data);
+        // Priority: auto-detected from spreadsheet → user's Settings split → null (user must choose)
+        setImportSplitPct(data.split_pct ?? settingsSplit ?? null);
+        // Vision-based imports (image upload or scanned PDF) have net amounts already baked in
+        const isImage = fileType === "image" || !!(imageBase64 || multiPageImages);
+        setImportIsImage(isImage);
+        // Vision/image = brokerage report with net amounts already; default split to 100%
+        if (isImage) setImportSplitPct(1.00);
+        setAgentSides(sides);
+        setImportStatus("preview");
+      }
     } catch (err) {
       console.error("[import] error:", err);
       toast.error("Couldn't read the file — please try again.");
