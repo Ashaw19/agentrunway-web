@@ -233,6 +233,10 @@ IMPORTANT: On the very first message from the agent, if their data shows a notab
 
 
   try {
+    // Abort if Groq doesn't respond within 15 seconds
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+
     const stream = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       stream: true,
@@ -242,20 +246,22 @@ IMPORTANT: On the very first message from the agent, if their data shows a notab
       ],
       max_tokens: 600,
       temperature: 0.7,
-    });
+    }, { signal: controller.signal });
+
+    clearTimeout(timeout);
 
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
-      async start(controller) {
+      async start(ctrl) {
         try {
           for await (const chunk of stream) {
             const text = chunk.choices[0]?.delta?.content ?? "";
             if (text) {
-              controller.enqueue(encoder.encode(text));
+              ctrl.enqueue(encoder.encode(text));
             }
           }
         } finally {
-          controller.close();
+          ctrl.close();
         }
       },
     });

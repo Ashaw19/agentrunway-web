@@ -15,16 +15,7 @@ export default async function DashboardPage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Check if user has completed onboarding (has settings row)
-  const { data: onboardCheck } = await supabase
-    .from("user_settings")
-    .select("user_id, goal_gci, display_name, province, split_preset, dashboard_layout, communication_profile, business_identity, ai_profile_prompt_dismissed_at")
-    .eq("user_id", user.id)
-    .single();
-
-  if (onboardCheck && onboardCheck.goal_gci === 0 && onboardCheck.display_name === '') {
-    redirect("/onboarding");
-  }
+  // Onboarding guard now runs in the (app) layout — no need to check here.
 
   const dashYear = new Date().getFullYear();
 

@@ -108,6 +108,7 @@ export default async function ClientsPage() {
     supabase
       .from("flight_plan_steps")
       .select("*")
+      .eq("user_id", user.id)
       .order("step_order", { ascending: true })
       .limit(10000),
     supabase

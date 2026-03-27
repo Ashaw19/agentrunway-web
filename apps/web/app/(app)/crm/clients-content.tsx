@@ -1882,7 +1882,23 @@ export function ClientsContent({
       toast.error("Failed to read file. Please try again or use a different file.");
     };
     reader.onload = (ev) => {
-      const text = ev.target?.result as string;
+      let text = ev.target?.result as string;
+
+      // If UTF-8 produced replacement characters, retry as Windows-1252 (common for older CRM exports)
+      if (text.includes("\uFFFD")) {
+        const fallbackReader = new FileReader();
+        fallbackReader.onload = (ev2) => {
+          const retryText = ev2.target?.result as string;
+          processImportText(retryText);
+        };
+        fallbackReader.readAsText(file, "windows-1252");
+        return;
+      }
+
+      processImportText(text);
+    };
+
+    function processImportText(text: string) {
       const { headers, rows, truncated } = parseCsv(text);
       if (truncated) {
         toast.warning(`CSV capped at ${CSV_ROW_CAP.toLocaleString()} rows — only the first ${CSV_ROW_CAP.toLocaleString()} contacts will be imported`);
@@ -1986,7 +2002,7 @@ export function ClientsContent({
       });
 
       setImportStep("map");
-    };
+    }
     reader.readAsText(file, "UTF-8");
   }
 

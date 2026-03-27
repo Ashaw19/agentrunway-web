@@ -159,14 +159,23 @@ export function AiChat({ financialContext }: Props) {
         let assistantText = "";
 
         if (reader) {
+          let streamCompleted = false;
           while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
+            if (done) { streamCompleted = true; break; }
             assistantText += decoder.decode(value, { stream: true });
             const captured = assistantText;
             setMessages([
               ...newMessages,
               { role: "assistant", content: captured },
+            ]);
+          }
+          // Warn if stream ended without completing (timeout, network drop)
+          if (!streamCompleted && assistantText.length > 0) {
+            assistantText += "\n\n_(Response may be incomplete — please try again.)_";
+            setMessages([
+              ...newMessages,
+              { role: "assistant", content: assistantText },
             ]);
           }
         }

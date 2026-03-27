@@ -7,6 +7,9 @@
 
 import type { Province } from "../types/database";
 
+/** Round to the nearest cent (CRA rounds to the penny). */
+const cents = (n: number) => Math.round(n * 100) / 100;
+
 // ── Result ──────────────────────────────────────────────────────────────────
 
 export interface CanadianTaxResult {
@@ -95,17 +98,17 @@ export function calculate(
   const effRate = totalBurden / netIncome;
 
   return {
-    grossIncome: netIncome,
-    cpp1Contribution: cpp1,
-    cpp2Contribution: cpp2,
-    totalCPP,
-    federalTax: fedTax,
-    provincialTax: provTax,
-    totalTax,
-    totalBurden,
-    effectiveRate: effRate,
-    quarterlyEstimate: totalBurden / 4,
-    perDealSetAside: dealCount > 0 ? totalBurden / dealCount : 0,
+    grossIncome: cents(netIncome),
+    cpp1Contribution: cents(cpp1),
+    cpp2Contribution: cents(cpp2),
+    totalCPP: cents(totalCPP),
+    federalTax: cents(fedTax),
+    provincialTax: cents(provTax),
+    totalTax: cents(totalTax),
+    totalBurden: cents(totalBurden),
+    effectiveRate: Math.round(effRate * 10000) / 10000, // 4 decimal places for rate
+    quarterlyEstimate: cents(totalBurden / 4),
+    perDealSetAside: cents(dealCount > 0 ? totalBurden / dealCount : 0),
     projectedDealCount: dealCount,
     provinceName: province,
     taxYear: TAX_YEAR,

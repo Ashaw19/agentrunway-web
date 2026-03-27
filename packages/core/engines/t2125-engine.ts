@@ -252,7 +252,7 @@ export function computeT2125(input: T2125Input): T2125Result {
   const line8211_vehicleLeaseRental =
     expenseLines.filter((l) => l.key === "vehicle_payment").reduce((s, l) => s + l.deductibleAmount, 0);
   const line8212_motorVehicle =
-    expenseLines.filter((l) => l.isVehicle && l.key !== "vehicle_payment").reduce((s, l) => s + l.deductibleAmount, 0);
+    expenseLines.filter((l) => l.isVehicle && l.key !== "vehicle_payment" && l.key !== "vehicle_fuel").reduce((s, l) => s + l.deductibleAmount, 0);
   const line8213_fuel =
     expenseLines.filter((l) => l.key === "vehicle_fuel").reduce((s, l) => s + l.deductibleAmount, 0);
   const line8215_officeExpenses = lineSum(["8215"]);

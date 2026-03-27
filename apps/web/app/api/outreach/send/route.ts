@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email-sender";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   // ── Auth ────────────────────────────────────────────────────────────────
@@ -25,6 +26,15 @@ export async function POST(req: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // ── Rate limit (50 sends per hour) ──────────────────────────────────────
+  const rl = await checkRateLimit(user.id, "outreach-send", 50, 60);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Send limit reached — try again later", code: "RATE_LIMITED" },
+      { status: 429 },
+    );
   }
 
   // ── Sandbox guard ────────────────────────────────────────────────────────
@@ -72,18 +82,10 @@ export async function POST(req: NextRequest) {
     const subject = item.final_subject || item.ai_subject || "Hello";
     let messageBody  = item.final_body  || item.ai_body  || "";
 
-    // ── 2. Append email signature ───────────────────────────────────────
-    const { data: settings } = await supabase
-      .from("user_settings")
-      .select("email_signature")
-      .eq("user_id", user.id)
-      .single();
+    // Signature is already appended at draft time (detect-opportunities / draft-outreach).
+    // Do NOT append again here to avoid duplication.
 
-    if (settings?.email_signature) {
-      messageBody += `\n\n${settings.email_signature}`;
-    }
-
-    // ── 3. Send via unified provider routing ────────────────────────────
+    // ── 2. Send via unified provider routing ─────────────────────────────
     const result = await sendEmail(supabase, user.id, {
       to: toEmail,
       subject,

@@ -479,6 +479,12 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
   }
 
   async function handleImportFile(file: File) {
+    const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20 MB
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("File is too large (max 20 MB). Try splitting into smaller files.");
+      return;
+    }
+
     const fileType = detectFileType(file);
     if (!fileType) {
       toast.error("Unsupported file type. Please upload a PDF, image (JPG/PNG), Excel, CSV, or TXT file.");
@@ -656,11 +662,11 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
       } else if (fileType === "csv") {
         // ── CSV: read as plain text ──────────────────────────────────────────
-        textContent = await file.text();
+        textContent = (await file.text()).replace(/^\uFEFF/, ""); // strip UTF-8 BOM
 
       } else if (fileType === "txt") {
         // ── TXT: read as plain text (freeform narrative / Format C) ─────────
-        textContent = await file.text();
+        textContent = (await file.text()).replace(/^\uFEFF/, ""); // strip UTF-8 BOM
       }
 
       setImportStatus("extracting");

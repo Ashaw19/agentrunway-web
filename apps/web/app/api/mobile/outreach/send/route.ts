@@ -128,17 +128,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .eq("id", conn.id);
     }
 
-    // ── 6. Append email signature if available ────────────────────────────
-    const { data: settings } = await admin
-      .from("user_settings")
-      .select("email_signature")
-      .eq("user_id", user.id)
-      .single();
-
-    let fullBody = messageBody;
-    if (settings?.email_signature) {
-      fullBody += `\n\n${settings.email_signature}`;
-    }
+    // Signature is already appended at draft time — do NOT append again here.
+    const fullBody = messageBody;
 
     // ── 7. Send via Gmail ─────────────────────────────────────────────────
     const gmailMessageId = await sendGmail({

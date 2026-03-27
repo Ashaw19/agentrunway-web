@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { MobileNav } from "@/components/mobile-nav";
 import { TopBar } from "@/components/top-bar";
@@ -81,6 +82,11 @@ export default async function AppLayout({
 
     // Capture for sandbox provider (outside if-block scope)
     userSettings = settings;
+
+    // ── Onboarding guard — redirect if user hasn't completed setup ──────────
+    if (settings && settings.goal_gci === 0 && settings.display_name === "") {
+      redirect("/onboarding");
+    }
 
     // ── Color theme ──────────────────────────────────────────────────────────
     const rawTheme = settings?.color_theme ?? "blue";
