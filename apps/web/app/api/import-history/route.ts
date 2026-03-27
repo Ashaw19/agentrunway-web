@@ -556,7 +556,7 @@ export async function POST(req: NextRequest) {
       //    duplicate headers; detects column mapping for prompt injection)
       textNormalized = normalizeTextDocument(dateNormalized, true);
 
-      const textModels = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"];
+      const textModels = ["llama-3.3-70b-versatile", "llama-3.3-70b-specdec"];
       const promptContent = TEXT_PROMPT(
         textNormalized.cleaned_content,
         textNormalized.column_hints ?? undefined,
@@ -725,7 +725,7 @@ export async function POST(req: NextRequest) {
         ? "The AI service is busy. Please try again in a moment."
         : msg.includes("JSON parse")
         ? "The AI could not produce structured data from this file. Try a different format or simpler layout."
-        : `[DEBUG] ${status ?? "?"}: ${msg.slice(0, 200)}`;
+        : "Failed to extract data from document. Try uploading a clearer image or a different file format.";
     return NextResponse.json({ error: message }, { status: 422 });
   }
 }
