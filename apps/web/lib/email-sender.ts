@@ -75,7 +75,7 @@ export async function sendEmail(
         to: input.to,
         fromEmail: googleConn.email_address,
         subject: input.subject,
-        body: input.bodyText ?? input.body,
+        body: input.body,
       });
 
       return { ok: true, provider: "gmail" };
@@ -208,6 +208,7 @@ async function sendSmtpEmail(
     to: input.to,
     subject: input.subject,
     html: input.body,
+    text: input.body.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]*>/g, ""),
   });
 
   return { ok: true, provider: "smtp" };

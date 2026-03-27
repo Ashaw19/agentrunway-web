@@ -644,39 +644,57 @@ const CSV_ROW_CAP = 5_000;
 function parseCsv(text: string): { headers: string[]; rows: CsvRow[]; truncated: boolean } {
   // Strip UTF-8 BOM if present (common in Excel-exported CSVs)
   const clean = text.startsWith("\uFEFF") ? text.slice(1) : text;
-  const lines = clean.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (lines.length < 2) return { headers: [], rows: [], truncated: false };
 
-  function splitLine(line: string): string[] {
-    const result: string[] = [];
+  // Parse CSV properly handling quoted fields that contain embedded newlines.
+  // We can't just split by \n because "John\nSmith" is a single field.
+  function parseAllRows(input: string): string[][] {
+    const rows: string[][] = [];
     let current = "";
     let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
+    const fields: string[] = [];
+
+    for (let i = 0; i < input.length; i++) {
+      const ch = input[i];
       if (ch === '"') {
-        if (inQuotes && line[i + 1] === '"') {
+        if (inQuotes && input[i + 1] === '"') {
           current += '"';
           i++;
         } else {
           inQuotes = !inQuotes;
         }
       } else if (ch === "," && !inQuotes) {
-        result.push(current.trim());
+        fields.push(current.trim());
         current = "";
+      } else if ((ch === "\r" || ch === "\n") && !inQuotes) {
+        // End of row (skip \n after \r)
+        if (ch === "\r" && input[i + 1] === "\n") i++;
+        fields.push(current.trim());
+        current = "";
+        if (fields.some((f) => f.length > 0)) {
+          rows.push([...fields]);
+        }
+        fields.length = 0;
       } else {
         current += ch;
       }
     }
-    result.push(current.trim());
-    return result;
+    // Last row (no trailing newline)
+    fields.push(current.trim());
+    if (fields.some((f) => f.length > 0)) {
+      rows.push([...fields]);
+    }
+    return rows;
   }
 
-  const headers = splitLine(lines[0]);
-  const dataLines = lines.slice(1);
-  const truncated = dataLines.length > CSV_ROW_CAP;
+  const allRows = parseAllRows(clean);
+  if (allRows.length < 2) return { headers: [], rows: [], truncated: false };
+
+  const headers = allRows[0];
+  const dataRows = allRows.slice(1);
+  const truncated = dataRows.length > CSV_ROW_CAP;
   const rows: CsvRow[] = [];
-  for (let i = 0; i < Math.min(dataLines.length, CSV_ROW_CAP); i++) {
-    const vals = splitLine(dataLines[i]);
+  for (let i = 0; i < Math.min(dataRows.length, CSV_ROW_CAP); i++) {
+    const vals = dataRows[i];
     const row: CsvRow = {};
     headers.forEach((h, idx) => {
       row[h] = vals[idx] ?? "";

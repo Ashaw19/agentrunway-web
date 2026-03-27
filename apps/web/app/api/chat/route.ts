@@ -186,11 +186,22 @@ IMPORTANT: When comparing this agent to team averages, always reference ${leader
     financialContext = "Business data temporarily unavailable.";
   }
 
-  // Strip any system-role messages from the client — only user/assistant allowed
-  const safeMessages = messages
+  // Strip any system-role messages from the client — only user/assistant allowed.
+  // Cap each message to 4000 chars and limit total conversation to ~80K chars
+  // to leave room for the system prompt (~30K) within Groq's 128K context.
+  const MAX_CONVERSATION_CHARS = 80_000;
+  const filtered = messages
     .filter((m) => m.role === "user" || m.role === "assistant")
-    .slice(-20) // cap conversation history to last 20 messages
     .map((m) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
+  // Keep the most recent messages that fit within the budget
+  let totalChars = 0;
+  let startIdx = filtered.length;
+  for (let i = filtered.length - 1; i >= 0; i--) {
+    totalChars += filtered[i].content.length;
+    if (totalChars > MAX_CONVERSATION_CHARS) break;
+    startIdx = i;
+  }
+  const safeMessages = filtered.slice(startIdx);
 
   // Sanitize currentPage to a plain path segment — prevents prompt injection
   const safePage = typeof currentPage === "string"

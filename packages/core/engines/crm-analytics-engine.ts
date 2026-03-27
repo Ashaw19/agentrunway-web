@@ -836,15 +836,36 @@ export function computeIntelligenceBriefing(
     return (a.daysValue ?? 999) - (b.daysValue ?? 999);
   });
 
-  // Cap uncontacted_lead alerts to 5 per briefing. After a bulk CSV import (once
-  // the 7-day grace period expires) the agent could have hundreds of these. Show
-  // the oldest 5 so the briefing stays actionable and not overwhelming.
+  // Cap repetitive alert types so the briefing stays actionable.
+  // After a bulk CSV import (once the 7-day grace period expires) the agent
+  // could have hundreds of uncontacted leads. Closing anniversaries and
+  // property milestones can also flood for clients with multiple records.
   const UNCONTACTED_CAP = 5;
+  const ANNIVERSARY_CAP_PER_CLIENT = 1; // one closing anniversary per client
+  const MILESTONE_CAP_PER_CLIENT = 1;   // one property milestone per client
+  const CHECKIN_CAP = 10;               // past client check-ins
   let uncontactedSeen = 0;
+  let checkinSeen = 0;
+  const anniversarySeen = new Map<string, number>();
+  const milestoneSeen = new Map<string, number>();
   const cappedItems = items.filter((item) => {
     if (item.type === "uncontacted_lead") {
       if (uncontactedSeen >= UNCONTACTED_CAP) return false;
       uncontactedSeen++;
+    }
+    if (item.type === "past_client_check_in") {
+      if (checkinSeen >= CHECKIN_CAP) return false;
+      checkinSeen++;
+    }
+    if (item.type === "closing_anniversary" && item.clientId) {
+      const cnt = anniversarySeen.get(item.clientId) ?? 0;
+      if (cnt >= ANNIVERSARY_CAP_PER_CLIENT) return false;
+      anniversarySeen.set(item.clientId, cnt + 1);
+    }
+    if (item.type === "property_value_milestone" && item.clientId) {
+      const cnt = milestoneSeen.get(item.clientId) ?? 0;
+      if (cnt >= MILESTONE_CAP_PER_CLIENT) return false;
+      milestoneSeen.set(item.clientId, cnt + 1);
     }
     return true;
   });

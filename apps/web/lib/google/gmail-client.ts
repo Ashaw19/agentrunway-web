@@ -25,12 +25,12 @@ export async function sendGmail(params: GmailSendParams): Promise<string> {
   const { accessToken, to, subject, body, fromName, fromEmail, replyTo } =
     params;
 
-  // Build MIME headers
+  // Build MIME headers — send as HTML so formatting matches Outlook/SMTP
   const headers = [
     `To: ${to}`,
     `Subject: ${subject}`,
     `MIME-Version: 1.0`,
-    `Content-Type: text/plain; charset="UTF-8"`,
+    `Content-Type: text/html; charset="UTF-8"`,
   ];
 
   if (fromEmail) {
