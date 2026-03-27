@@ -42,10 +42,11 @@
 //                    so the LLM knows which columns map to which fields.
 export const TEXT_PROMPT = (content: string, columnHints?: string) => `You are extracting real estate commission transaction data from a document.
 
-The data below may be in any of three formats:
+The data below may be in any of these formats:
   (A) An agent's own deal tracker — tabular rows with columns like Name, Address, Close Date, Buy | Sell, Source, GCI, Net Commission
   (B) A brokerage commission report — tabular rows where party names are joined by "/"
   (C) Freeform narrative / bullet-point text — prose paragraphs or bullet lists describing closed deals
+  (E) An agent production report — MLS-style with Buyer Agent / Seller Agent columns, "Your Commission", MLS#, DOM, etc.
 
 ${columnHints ? `COLUMN MAPPING (pre-detected by heuristic scanner — use these to identify columns accurately):\n${columnHints}\n\n` : ""}DOCUMENT CONTENT:
 ---
@@ -217,6 +218,39 @@ TRADE SHEET / CHEQUE SUMMARY format:
 - "PLAN 75/25" means 25% brokerage split — ignore for extraction, amounts are already calculated
 
 EXPENSES PAGE: SKIP entirely — contains personal expenses, office charges, etc.
+
+══════════════════════════════════════════════════════════════════
+FORMAT E — Agent Production Report (MLS-style with agent columns)
+══════════════════════════════════════════════════════════════════
+Detected when columns include: "Buyer Agent", "Seller Agent", "Listing Agent", "Selling Agent",
+"Your Commission", "MLS#", "MLS", "DOM", "SP/LP%", or the header identifies an agent
+(e.g. "Agent: Sarah Mitchell", "Production Report for John Smith").
+
+These reports show WHO REPRESENTED each side (agent names), NOT client names.
+
+KEY RULES:
+- The agent named in the document header/title is THE USER — they are NOT a client.
+- "Buyer Agent" / "Seller Agent" columns contain AGENT names, not client names.
+- party_a = "" (empty — these reports do not contain client names)
+- party_b = "" (empty)
+- agent_side = null
+- side: determine from which column the user's agent name appears:
+  → User in "Seller Agent" / "Listing Agent" column → "seller"
+  → User in "Buyer Agent" / "Selling Agent" column → "buyer"
+  → User appears in BOTH columns → "both"
+  → "Other Agent" or different name in column → that's the cooperating agent, not the user's side.
+- "Your Commission" / "Agent Commission" / "Your Gross" = gci (pre-split)
+- "Net to Agent" / "Agent Net" / "Net Pay" = net_income (post-split)
+- "Total Commission" = the FULL commission on the deal (both sides) — do NOT use as gci
+- "Cooperating Comm" / "Co-op Commission" = the other agent's share — do NOT use as gci
+- sale_price: use "Sale Price" or "Price" column
+- Extract ALL rows — do not skip any transactions
+
+WORKED EXAMPLE:
+  Header: "Agent: Sarah Mitchell"
+  Row: M156234,2024-01-18,45 Elm St,325000,Other Agent,Sarah Mitchell,16250.00,8125.00,7312.50,1095.94,6216.56
+  (Columns: MLS#, Close Date, Address, Sale Price, Buyer Agent, Seller Agent, Total Comm, Coop Comm, Your Comm, HST, Net)
+  → side="seller" (Sarah is Seller Agent), gci=7312.50, net_income=6216.56, sale_price=325000, party_a="", party_b=""
 
 ══════════════════════════════════════════════════════════════════
 UNIVERSAL RULES (apply to ALL formats)
