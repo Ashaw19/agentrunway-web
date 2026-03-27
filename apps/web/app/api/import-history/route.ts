@@ -601,7 +601,7 @@ export async function POST(req: NextRequest) {
     let parsed: GroqRawResponse;
     {
       // Strategy 1: strip markdown fences
-      let cleaned = raw
+      const cleaned = raw
         .replace(/^```(?:json)?\s*/m, "")
         .replace(/\s*```\s*$/m, "")
         .trim();
