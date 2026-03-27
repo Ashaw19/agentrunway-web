@@ -461,7 +461,7 @@ function ReviewDrawer({
         body: JSON.stringify({ final_subject: editSubject, final_body: editBody }),
       });
     } catch {
-      // Non-critical — user can still copy the text
+      toast.error("Couldn't save edits — your changes may not persist");
     } finally {
       setSaving(false);
     }
@@ -544,6 +544,9 @@ function ReviewDrawer({
     }
     await saveEdits();
     const subject = encodeURIComponent(editSubject);
+    if (editBody.length > 1800) {
+      toast.warning("Message was trimmed for the email link — paste the full text from above if needed");
+    }
     const body    = encodeURIComponent(editBody.slice(0, 1800));
     const url     = `mailto:${to}?subject=${subject}&body=${body}`;
     window.open(url, "_blank");
