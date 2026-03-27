@@ -949,7 +949,40 @@ export async function detectAndDraftForUser(
     return sb - sa;
   });
 
+  // ── Clear skipped rows so they can be re-detected as fresh drafts ──────────
+  // Why: The UNIQUE constraint (user_id, client_id, opportunity_type, trigger_date)
+  // combined with ignoreDuplicates silently blocks re-insertion of opportunities
+  // the user previously skipped. If the system re-detects the same opportunity
+  // (still in window, still valid), the user should get another chance to act on it.
+  // This only removes "skipped" rows — draft, ready, and sent rows are preserved.
+  if (inserts.length > 0) {
+    const skippedKeys = inserts.map((ins) => {
+      const i = ins as { client_id: string; opportunity_type: string; trigger_date: string };
+      return { client_id: i.client_id, opportunity_type: i.opportunity_type, trigger_date: i.trigger_date };
+    });
+
+    // Batch delete: remove skipped rows that match any candidate we're about to insert.
+    // Supabase doesn't support compound IN clauses, so we use OR filters per unique key.
+    // To avoid excessive query size, process in chunks.
+    const CHUNK_SIZE = 100;
+    for (let i = 0; i < skippedKeys.length; i += CHUNK_SIZE) {
+      const chunk = skippedKeys.slice(i, i + CHUNK_SIZE);
+      for (const key of chunk) {
+        await supabase
+          .from("outreach_queue")
+          .delete()
+          .eq("user_id", userId)
+          .eq("client_id", key.client_id)
+          .eq("opportunity_type", key.opportunity_type)
+          .eq("trigger_date", key.trigger_date)
+          .eq("status", "skipped");
+      }
+    }
+  }
+
   // ── Upsert (UNIQUE constraint on user_id, client_id, type, trigger_date) ───
+  // ignoreDuplicates: true ensures we never overwrite active draft/ready/sent rows.
+  // Skipped rows were cleared above, so they no longer block re-detection.
   if (inserts.length > 0) {
     await supabase
       .from("outreach_queue")
