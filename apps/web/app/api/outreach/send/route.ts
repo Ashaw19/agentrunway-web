@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
 
     // Use edited fields if present, fall back to AI-generated
     const subject = item.final_subject || item.ai_subject || "Hello";
-    let messageBody  = item.final_body  || item.ai_body  || "";
+    const messageBody  = item.final_body  || item.ai_body  || "";
 
     // Signature is already appended at draft time (detect-opportunities / draft-outreach).
     // Do NOT append again here to avoid duplication.

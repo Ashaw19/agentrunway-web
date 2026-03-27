@@ -1898,7 +1898,7 @@ export function ClientsContent({
       toast.error("Failed to read file. Please try again or use a different file.");
     };
     reader.onload = (ev) => {
-      let text = ev.target?.result as string;
+      const text = ev.target?.result as string;
 
       // If UTF-8 produced replacement characters, retry as Windows-1252 (common for older CRM exports)
       if (text.includes("\uFFFD")) {
