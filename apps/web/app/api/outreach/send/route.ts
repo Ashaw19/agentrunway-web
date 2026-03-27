@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email-sender";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { markMemoryStale } from "@/lib/ai/client-memory-engine";
 
 export async function POST(req: NextRequest) {
   // ── Auth ────────────────────────────────────────────────────────────────
@@ -113,6 +114,11 @@ export async function POST(req: NextRequest) {
       })
       .eq("id", outreachId)
       .eq("user_id", user.id);
+
+    // ── 5. Mark client memory as stale (fire-and-forget) ────────────────
+    if (item.client_id) {
+      markMemoryStale(supabase, user.id, item.client_id).catch(() => {});
+    }
 
     return NextResponse.json({ ok: true, provider: result.provider });
   } catch (err) {
