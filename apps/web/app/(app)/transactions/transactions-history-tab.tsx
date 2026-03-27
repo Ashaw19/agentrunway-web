@@ -600,7 +600,8 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       }
     } catch (err) {
       console.error("[import] error:", err);
-      toast.error("Couldn't read the file — please try again.");
+      const msg = err instanceof Error ? err.message : "Couldn't read the file";
+      toast.error(msg || "Couldn't read the file — please try again.");
       setImportStatus("idle");
       setImportOpen(false);
     } finally {

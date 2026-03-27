@@ -556,20 +556,28 @@ export async function POST(req: NextRequest) {
       //    duplicate headers; detects column mapping for prompt injection)
       textNormalized = normalizeTextDocument(dateNormalized, true);
 
-      const response = await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          {
-            role: "user",
-            content: TEXT_PROMPT(
-              textNormalized.cleaned_content,
-              textNormalized.column_hints ?? undefined,
-            ),
-          },
-        ],
-        temperature: 0.1,
-        max_tokens: 8000,
-      });
+      console.log("[import] step=groq-call model=llama-3.3-70b cleaned-len=" + textNormalized.cleaned_content.length);
+      let response;
+      try {
+        response = await groq.chat.completions.create({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            {
+              role: "user",
+              content: TEXT_PROMPT(
+                textNormalized.cleaned_content,
+                textNormalized.column_hints ?? undefined,
+              ),
+            },
+          ],
+          temperature: 0.1,
+          max_tokens: 8000,
+        });
+      } catch (groqErr: unknown) {
+        const gMsg = groqErr instanceof Error ? groqErr.message : String(groqErr);
+        console.error("[import] GROQ-ERR=" + gMsg.slice(0, 300));
+        throw groqErr;
+      }
       raw = response.choices[0]?.message?.content ?? "";
       console.log("[import] step=llm-done raw-len=" + raw.length);
     } else {
