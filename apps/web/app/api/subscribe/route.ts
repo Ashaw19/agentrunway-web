@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
+  if (typeof email === "string") email = email.trim();
   if (!email || !EMAIL_RE.test(email)) {
     return NextResponse.json(
       { error: "A valid email address is required." },

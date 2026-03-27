@@ -182,10 +182,11 @@ export function AiChat({ financialContext }: Props) {
         if (!isOpen) setUnread((n) => n + 1);
       } catch (err) {
         console.error("Chat error:", err);
+        const raw = err instanceof Error ? err.message : "";
         const errMsg =
-          err instanceof Error && err.message && !err.message.startsWith("HTTP ")
-            ? err.message
-            : "Sorry, I couldn't connect right now. Try again in a moment.";
+          raw.includes("Too many") ? "You're sending messages too quickly. Please wait a moment." :
+          raw.includes("not configured") ? "AI advisor is not set up yet. Check your Groq API key in Settings." :
+          "Sorry, I couldn't connect right now. Try again in a moment.";
         setMessages([
           ...newMessages,
           { role: "assistant", content: errMsg },

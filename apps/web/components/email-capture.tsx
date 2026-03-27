@@ -92,6 +92,7 @@ export function EmailCapture({
           onChange={(e) => setEmail(e.target.value)}
           placeholder={placeholder}
           required
+          maxLength={254}
           className={`w-full max-w-xs rounded-lg border px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 sm:w-72 ${
             isDark
               ? "border-slate-700 bg-slate-800 text-white placeholder-slate-500"

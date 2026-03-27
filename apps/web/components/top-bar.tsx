@@ -60,6 +60,7 @@ export function TopBar() {
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         >
           {theme === "dark" ? (
             <Sun className="h-4 w-4" />
@@ -72,7 +73,7 @@ export function TopBar() {
       {/* Avatar dropdown */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex h-8 w-8 items-center justify-center rounded-full ring-2 ring-border hover:ring-primary/50 transition-all overflow-hidden focus:outline-none">
+          <button className="flex h-8 w-8 items-center justify-center rounded-full ring-2 ring-border hover:ring-primary/50 transition-all overflow-hidden focus:outline-none" aria-label="Account menu">
             {avatarUrl ? (
               <Image
                 src={avatarUrl}

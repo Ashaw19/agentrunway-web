@@ -620,28 +620,28 @@ export function ShowingsSection({ clientId, clientName, showings, onShowingsChan
                   {/* Bed / Bath / Sqft */}
                   <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
-                      <Label className="text-xs">Bedrooms</Label>
-                      <Input placeholder="3" value={bedrooms} onChange={(e) => setBedrooms(e.target.value)} className="h-8 text-sm" />
+                      <Label htmlFor="showing-bedrooms" className="text-xs">Bedrooms</Label>
+                      <Input id="showing-bedrooms" placeholder="3" value={bedrooms} onChange={(e) => setBedrooms(e.target.value)} className="h-8 text-sm" />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Bathrooms</Label>
-                      <Input placeholder="2.5" value={bathrooms} onChange={(e) => setBathrooms(e.target.value)} className="h-8 text-sm" />
+                      <Label htmlFor="showing-bathrooms" className="text-xs">Bathrooms</Label>
+                      <Input id="showing-bathrooms" placeholder="2.5" value={bathrooms} onChange={(e) => setBathrooms(e.target.value)} className="h-8 text-sm" />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Sqft</Label>
-                      <Input placeholder="1,800" value={sqft} onChange={(e) => setSqft(e.target.value)} className="h-8 text-sm" />
+                      <Label htmlFor="showing-sqft" className="text-xs">Sqft</Label>
+                      <Input id="showing-sqft" placeholder="1,800" value={sqft} onChange={(e) => setSqft(e.target.value)} className="h-8 text-sm" />
                     </div>
                   </div>
 
                   {/* MLS + Realtor URL */}
                   <div className="grid grid-cols-2 gap-2">
                     <div className="space-y-1">
-                      <Label className="text-xs">MLS #</Label>
-                      <Input placeholder="W5012345" value={mlsNumber} onChange={(e) => setMlsNumber(e.target.value)} className="h-8 text-sm" />
+                      <Label htmlFor="showing-mls" className="text-xs">MLS #</Label>
+                      <Input id="showing-mls" placeholder="W5012345" value={mlsNumber} onChange={(e) => setMlsNumber(e.target.value)} className="h-8 text-sm" />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Realtor.ca Link</Label>
-                      <Input placeholder="https://..." value={realtorUrl} onChange={(e) => setRealtorUrl(e.target.value)} className="h-8 text-sm" />
+                      <Label htmlFor="showing-realtor-url" className="text-xs">Realtor.ca Link</Label>
+                      <Input id="showing-realtor-url" placeholder="https://..." value={realtorUrl} onChange={(e) => setRealtorUrl(e.target.value)} className="h-8 text-sm" />
                     </div>
                   </div>
 
