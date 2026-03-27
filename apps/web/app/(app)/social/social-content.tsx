@@ -42,6 +42,7 @@ import {
   X as XIcon,
 } from "lucide-react";
 import { Instagram, Facebook } from "@/components/icons/brand-icons";
+import { toast } from "sonner";
 import {
   computeGCI,
   type Transaction,
@@ -405,7 +406,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(objUrl);
-    } catch (err) { console.error("Download failed:", err); }
+    } catch (err) { console.error("Download failed:", err); toast.error("Download failed — please try again."); }
     finally { setDownloading(false); }
   }
 
@@ -437,7 +438,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(objUrl);
-    } catch (err) { console.error("Canva export failed:", err); }
+    } catch (err) { console.error("Canva export failed:", err); toast.error("Canva export failed — please try again."); }
     finally { setExporting(false); }
   }
 
