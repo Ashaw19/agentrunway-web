@@ -91,6 +91,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (applicant_name.length > 255 || applicant_email.length > 320 ||
+        (applicant_phone && applicant_phone.length > 30) ||
+        (current_brokerage && current_brokerage.length > 255) ||
+        (message && message.length > 5000)) {
+      return NextResponse.json(
+        { error: "One or more fields exceed maximum length" },
+        { status: 400 }
+      );
+    }
+
     const admin = createAdminClient();
 
     // Validate token

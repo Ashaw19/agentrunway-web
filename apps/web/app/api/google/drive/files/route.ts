@@ -71,10 +71,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       50
     );
 
-    // Build Drive query
+    // Build Drive query — sanitize to prevent query injection
     let driveQuery: string | undefined;
     if (searchQ) {
-      driveQuery = `name contains '${searchQ.replace(/'/g, "\\'")}'`;
+      const safe = searchQ.replace(/[\\'"]/g, "").slice(0, 200);
+      if (safe) driveQuery = `name contains '${safe}'`;
     }
 
     const result = await listFiles(tokenResult.accessToken, {

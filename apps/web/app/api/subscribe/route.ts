@@ -26,12 +26,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Too many requests — please try again later." }, { status: 429 });
   }
 
-  const { email, source = "website", name, brokerage } = (await request.json()) as {
-    email: string;
-    source?: string;
-    name?: string;
-    brokerage?: string;
-  };
+  let email: string;
+  let source = "website";
+  let name: string | undefined;
+  let brokerage: string | undefined;
+  try {
+    const body = await request.json();
+    email = body.email;
+    source = body.source ?? "website";
+    name = body.name;
+    brokerage = body.brokerage;
+  } catch {
+    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+  }
 
   if (!email || !EMAIL_RE.test(email)) {
     return NextResponse.json(

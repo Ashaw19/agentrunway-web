@@ -157,9 +157,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "GROQ_API_KEY is not configured" }, { status: 503 });
   }
 
-  const body = await req.json() as { transcript?: string };
+  let body: { transcript?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
   if (!body.transcript?.trim()) {
     return NextResponse.json({ error: "No transcript provided" }, { status: 400 });
+  }
+  if (body.transcript.length > 10_000) {
+    return NextResponse.json({ error: "Transcript too long (max 10,000 chars)" }, { status: 400 });
   }
 
   const groq = new OpenAI({
