@@ -68,7 +68,15 @@ Return ONLY a raw JSON object (no markdown, no code fences). Required structure:
         • Format A (agent tracker): use the "GCI" column. This is pre-split gross. Do NOT use "Net Commission".
         • Format B (brokerage report): use "Gross Commission", "Commission", "Co-op Commission", or the
           column that represents the agent's side BEFORE the brokerage split. Do NOT use "Net" or "Taxable".
-        • Format C (narrative): use amounts labeled "GCI" or "Commission" (pre-split when both are mentioned).>,
+        • Format C (narrative): use amounts labeled "GCI" or "Commission" (pre-split when both are mentioned).
+
+        CRITICAL — AGENT vs TOTAL COMMISSION:
+        When BOTH a "Total Commission" / "Total Comm" column AND an "Agent Comm" / "Agent Commission" /
+        "Your Commission" / "Agent Split" column exist:
+        → gci = the AGENT column (what the agent actually earned), NOT the total commission on the deal.
+        → "Total Commission" includes BOTH sides (listing + buyer agent) — it is NOT the agent's GCI.
+        This is common in Keller Williams cap trackers, RE/MAX production reports, and similar formats
+        where the agent's split percentage may vary per deal (e.g. pre-cap vs post-cap).>,
       "net_income": <number or null — the agent's NET income AFTER the brokerage split.
         • Format A (agent tracker): use the "Net Commission" or "Net Income" column.
         • Format B (brokerage report): use "Net Commission (Taxable)", "Agent Net", "Your Net", "Taxable".
