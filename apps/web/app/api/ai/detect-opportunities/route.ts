@@ -22,6 +22,7 @@ import { createClient }       from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import type { OutreachQueueItem } from "@agent-runway/core/types/database";
 import type { SupabaseClient }    from "@supabase/supabase-js";
+import type { ClientMemoryFacts, ClientMemoryProfile } from "@/lib/ai/client-memory-engine";
 import {
   type Tone,
   buildAnniversaryPrompt,
@@ -44,6 +45,11 @@ import {
   buildPastClientCheckInPrompt,
   buildTimeframeApproachingPrompt,
   buildPropertyValueMilestonePrompt,
+  buildPainPointInactivePrompt,
+  buildBuyerInventoryMatchPrompt,
+  buildSellerTimingHesitationPrompt,
+  buildMortgageRenewalFinancePrompt,
+  buildEducationalValuePrompt,
 } from "@/lib/outreach-prompts";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -96,6 +102,135 @@ function nextBirthdayDate(birthdate: string): Date {
   if (isNaN(candidate.getTime())) return candidate; // guard malformed dates
   if (candidate < today) candidate.setFullYear(today.getFullYear() + 1);
   return candidate;
+}
+
+// ── Memory-powered scoring & value selection ─────────────────────────────────
+
+/** Lightweight relevance score (0–100) for ranking outreach candidates. */
+function scoreCandidate(
+  opportunityType: string,
+  memory: ClientMemoryFacts | null,
+  ctx: Record<string, unknown>,
+): number {
+  let score = 50; // base score — all existing triggers start at 50
+
+  // Boost: memory available at all
+  if (memory) score += 5;
+
+  // Boost: memory has a specific angle for this client
+  if (memory?.next_best_angle) score += 10;
+  if (memory?.pain_point) score += 5;
+  if (memory?.motivation) score += 5;
+
+  // Boost: high engagement = more likely to reply
+  const eng = memory?.engagement_level?.toLowerCase() ?? "";
+  if (eng.includes("highly active") || eng.includes("responsive")) score += 10;
+  else if (eng.includes("going cold") || eng.includes("ghost")) score -= 5;
+
+  // Type-specific bonuses
+  if (opportunityType === "pain_point_inactive" && memory?.pain_point) score += 15;
+  if (opportunityType === "buyer_inventory_match" && memory?.areas_of_interest) score += 10;
+  if (opportunityType === "seller_timing_hesitation" && memory?.objection) score += 10;
+  if (opportunityType === "educational_value_inactive" && memory?.last_key_topic) score += 10;
+
+  // Recency: post-close triggers are time-sensitive
+  if (opportunityType.startsWith("post_close_")) score += 15;
+  if (opportunityType === "birthday") score += 10;
+
+  // GCI history = higher-value client
+  if (ctx.gci && Number(ctx.gci) > 10000) score += 5;
+
+  return Math.min(100, Math.max(0, score));
+}
+
+type ValueType = "listing_bundle" | "market_note" | "educational_resource" | "financing_scenario" | "custom_explanation" | null;
+
+/** Select the best value type to include with outreach based on trigger + memory. */
+function selectValueType(
+  opportunityType: string,
+  memory: ClientMemoryFacts | null,
+): { value_type: ValueType; value_summary: string | null } {
+  // Memory-informed selection
+  if (memory) {
+    if (memory.budget_context?.toLowerCase().includes("mortgage") || memory.pain_point?.toLowerCase().includes("rate")) {
+      return { value_type: "financing_scenario", value_summary: "Mortgage rate context or renewal scenario" };
+    }
+    if (memory.areas_of_interest && (opportunityType.includes("idle") || opportunityType.includes("check_in"))) {
+      return { value_type: "market_note", value_summary: `Market update for areas of interest: ${memory.areas_of_interest}` };
+    }
+    if (memory.pain_point && opportunityType === "pain_point_inactive") {
+      return { value_type: "custom_explanation", value_summary: `Address pain point: ${memory.pain_point}` };
+    }
+  }
+
+  // Fallback: type-based defaults
+  switch (opportunityType) {
+    case "closing_anniversary":
+    case "property_value_milestone":
+      return { value_type: "listing_bundle", value_summary: "Home value update / CMA snapshot" };
+    case "seasonal_spring":
+    case "seasonal_fall":
+      return { value_type: "market_note", value_summary: "Seasonal market conditions overview" };
+    case "seasonal_tax":
+      return { value_type: "educational_resource", value_summary: "Tax season real estate tips" };
+    case "mortgage_renewal_due":
+    case "mortgage_renewal_window":
+    case "mortgage_renewal_finance":
+      return { value_type: "financing_scenario", value_summary: "Mortgage renewal rate comparison" };
+    case "educational_value_inactive":
+      return { value_type: "educational_resource", value_summary: memory?.last_key_topic ? `Educational content on: ${memory.last_key_topic}` : "General real estate education" };
+    default:
+      return { value_type: null, value_summary: null };
+  }
+}
+
+/** Build enriched context by merging existing context with memory-derived fields. */
+function enrichContext(
+  baseCtx: Record<string, unknown>,
+  opportunityType: string,
+  memory: ClientMemoryFacts | null,
+  reasonWhy: string,
+): Record<string, unknown> {
+  const { value_type, value_summary } = selectValueType(opportunityType, memory);
+  const confidence = memory ? (memory.engagement_level ? "high" : "medium") : "low";
+
+  // Determine which memory fields were used
+  const memoryFieldsUsed: string[] = [];
+  if (memory) {
+    for (const [key, val] of Object.entries(memory)) {
+      if (val && val !== "null") memoryFieldsUsed.push(key);
+    }
+  }
+
+  return {
+    ...baseCtx,
+    // Memory-enrichment fields (additive — never overwrite existing keys)
+    ...(reasonWhy && !baseCtx.selected_reason ? { selected_reason: reasonWhy } : {}),
+    ...(opportunityType && !baseCtx.reason_category ? { reason_category: categorizeReason(opportunityType) } : {}),
+    ...(reasonWhy && !baseCtx.reason_why_now ? { reason_why_now: reasonWhy } : {}),
+    ...(memory?.likely_cold_reason && !baseCtx.likely_cold_reason ? { likely_cold_reason: memory.likely_cold_reason } : {}),
+    ...(value_type && !baseCtx.selected_value_type ? { selected_value_type: value_type } : {}),
+    ...(value_summary && !baseCtx.selected_value_summary ? { selected_value_summary: value_summary } : {}),
+    ...(memoryFieldsUsed.length > 0 && !baseCtx.memory_fields_used ? { memory_fields_used: memoryFieldsUsed } : {}),
+    ...(confidence && !baseCtx.confidence ? { confidence } : {}),
+    // Memory narrative for drafting (truncated to avoid bloating JSONB)
+    ...(memory?.memory_summary && !baseCtx.memory_summary ? { memory_summary: memory.memory_summary.slice(0, 500) } : {}),
+    ...(memory?.next_best_angle && !baseCtx.next_best_angle ? { next_best_angle: memory.next_best_angle } : {}),
+    ...(memory?.pain_point && !baseCtx.memory_pain_point ? { memory_pain_point: memory.pain_point } : {}),
+    ...(memory?.motivation && !baseCtx.memory_motivation ? { memory_motivation: memory.motivation } : {}),
+  };
+}
+
+function categorizeReason(opportunityType: string): string {
+  if (opportunityType.startsWith("post_close_")) return "post_close_nurture";
+  if (opportunityType.startsWith("seasonal_")) return "seasonal";
+  if (opportunityType.includes("mortgage")) return "financial";
+  if (opportunityType.includes("anniversary")) return "milestone";
+  if (opportunityType === "birthday") return "personal";
+  if (opportunityType.includes("idle") || opportunityType.includes("check_in")) return "re_engagement";
+  if (opportunityType.includes("pain_point") || opportunityType.includes("educational")) return "value_add";
+  if (opportunityType.includes("buyer") || opportunityType.includes("seller")) return "active_pipeline";
+  return "relationship";
 }
 
 function monthsIdleLabel(lastDeal: string): string {
@@ -248,14 +383,70 @@ async function draftItem(
         (ctx.side as "buyer" | "seller" | "both" | null) ?? null,
       );
       break;
+    // ── Batch 5: Memory-Powered Triggers ────────────────────────────────────
+    case "pain_point_inactive":
+      prompt = buildPainPointInactivePrompt(
+        agentFirst, clientName,
+        (ctx.pain_point as string) ?? (ctx.memory_pain_point as string) ?? "unspecified concern",
+        (ctx.memory_summary as string) ?? null,
+        (ctx.next_best_angle as string) ?? null,
+        tone,
+      );
+      break;
+    case "buyer_inventory_match":
+      prompt = buildBuyerInventoryMatchPrompt(
+        agentFirst, clientName,
+        (ctx.areas_of_interest as string) ?? "their target areas",
+        (ctx.budget_context as string) ?? null,
+        (ctx.memory_summary as string) ?? null,
+        tone,
+      );
+      break;
+    case "seller_timing_hesitation":
+      prompt = buildSellerTimingHesitationPrompt(
+        agentFirst, clientName,
+        (ctx.objection as string) ?? "timing uncertainty",
+        (ctx.memory_motivation as string) ?? (ctx.motivation as string) ?? null,
+        (ctx.memory_summary as string) ?? null,
+        tone,
+      );
+      break;
+    case "mortgage_renewal_finance":
+      prompt = buildMortgageRenewalFinancePrompt(
+        agentFirst, clientName,
+        (ctx.close_date as string) ?? "",
+        (ctx.budget_context as string) ?? null,
+        (ctx.memory_pain_point as string) ?? (ctx.pain_point as string) ?? null,
+        tone,
+      );
+      break;
+    case "educational_value_inactive":
+      prompt = buildEducationalValuePrompt(
+        agentFirst, clientName,
+        (ctx.last_key_topic as string) ?? "real estate",
+        (ctx.memory_summary as string) ?? null,
+        tone,
+      );
+      break;
     default:
       return;
   }
 
   try {
-    // Build full prompt with client context and agent voice guide
+    // Build full prompt with client context, memory enrichment, and agent voice guide
+    const memoryContextBlock = ctx.memory_summary || ctx.next_best_angle || ctx.memory_motivation
+      ? [
+          "CLIENT MEMORY (use to personalize — do not mention the CRM or memory system):",
+          ctx.memory_summary ? `- Summary: ${(ctx.memory_summary as string).slice(0, 300)}` : null,
+          ctx.next_best_angle ? `- Recommended angle: ${ctx.next_best_angle}` : null,
+          ctx.memory_motivation ? `- Known motivation: ${ctx.memory_motivation}` : null,
+          ctx.memory_pain_point ? `- Known concern: ${ctx.memory_pain_point}` : null,
+        ].filter(Boolean).join("\n")
+      : null;
+
     const contextSuffix = [
       clientContextBlock,
+      memoryContextBlock,
       agentStyleGuide
         ? `AGENT VOICE GUIDE (follow closely — message must sound like the agent personally wrote it):\n${agentStyleGuide}`
         : null,
@@ -325,7 +516,7 @@ export async function detectAndDraftForUser(
   supabase: SupabaseClient,
 ): Promise<{ detected: number; drafted: number }> {
   // ── Fetch data ─────────────────────────────────────────────────────────────
-  const [settingsRes, clientsRes, recordsRes] = await Promise.all([
+  const [settingsRes, clientsRes, recordsRes, memoryRes] = await Promise.all([
     supabase
       .from("user_settings")
       .select("display_name, email_signature, ai_voice_guide")
@@ -333,7 +524,7 @@ export async function detectAndDraftForUser(
       .single(),
     supabase
       .from("clients")
-      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes")
+      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes, status")
       .eq("user_id", userId)
       .is("archived_at", null),
     supabase
@@ -342,6 +533,12 @@ export async function detectAndDraftForUser(
       .eq("user_id", userId)
       .not("close_date", "is", null)
       .not("client_id", "is", null),
+    // Batch-fetch all memory profiles for this user (optional — failures are non-fatal)
+    supabase
+      .from("client_memory_profiles")
+      .select("client_id, memory_summary, structured_facts, stale")
+      .eq("user_id", userId)
+      .eq("stale", false),
   ]);
 
   const agentFirst      = extractFirstName(settingsRes.data?.display_name ?? null, "");
@@ -351,6 +548,17 @@ export async function detectAndDraftForUser(
   const clients    = clientsRes.data ?? [];
   const records    = recordsRes.data ?? [];
   const _clientMap = new Map(clients.map((c) => [c.id, c]));
+
+  // Memory lookup — graceful degradation if fetch failed
+  const memoryMap = new Map<string, { memory_summary: string | null; structured_facts: ClientMemoryFacts }>();
+  if (memoryRes.data) {
+    for (const m of memoryRes.data) {
+      memoryMap.set(m.client_id, {
+        memory_summary: m.memory_summary,
+        structured_facts: m.structured_facts as ClientMemoryFacts,
+      });
+    }
+  }
 
   // Suppression: clients contacted within 14 days should not receive non-birthday outreach
   // Birthday messages are always appropriate regardless of recent contact
@@ -598,6 +806,148 @@ export async function detectAndDraftForUser(
       });
     }
   }
+
+  // ── 9. Memory-powered triggers (only fire when memory is available) ────────
+  const MEMORY_IDLE_MONTHS = 6; // lower threshold than idle_client (18mo) since memory gives us angle
+  const memoryIdleCutoff = monthsAgoDate(MEMORY_IDLE_MONTHS);
+
+  for (const client of clients) {
+    if (recentlyContactedIds.has(client.id)) continue;
+    const mem = memoryMap.get(client.id);
+    if (!mem?.structured_facts) continue; // no memory → skip memory-powered triggers
+    const facts = mem.structured_facts;
+
+    const lastContact = client.last_contact_at ? new Date(client.last_contact_at) : null;
+    const isIdle = !lastContact || lastContact < memoryIdleCutoff;
+    const triggerDateStr = firstOfMonth(); // group by month to avoid duplicates
+
+    // 9a. Pain point + inactive: client has a known pain point and has gone quiet
+    if (facts.pain_point && isIdle) {
+      inserts.push({
+        user_id:          userId,
+        client_id:        client.id,
+        opportunity_type: "pain_point_inactive",
+        trigger_date:     triggerDateStr,
+        context: enrichContext(
+          { pain_point: facts.pain_point, engagement_level: facts.engagement_level },
+          "pain_point_inactive", facts,
+          `Client has a known pain point ("${facts.pain_point}") and hasn't been contacted in ${MEMORY_IDLE_MONTHS}+ months`,
+        ),
+        status: "draft",
+      });
+    }
+
+    // 9b. Buyer inventory match: active buyer with known areas of interest
+    if (
+      facts.areas_of_interest &&
+      facts.goal?.toLowerCase().includes("buy") &&
+      (client.status === "boarding" || client.status === "taxiing")
+    ) {
+      inserts.push({
+        user_id:          userId,
+        client_id:        client.id,
+        opportunity_type: "buyer_inventory_match",
+        trigger_date:     triggerDateStr,
+        context: enrichContext(
+          { areas_of_interest: facts.areas_of_interest, budget_context: facts.budget_context, goal: facts.goal },
+          "buyer_inventory_match", facts,
+          `Active buyer interested in ${facts.areas_of_interest} — proactive inventory update`,
+        ),
+        status: "draft",
+      });
+    }
+
+    // 9c. Seller timing hesitation: known objection or hesitation for potential sellers
+    if (
+      facts.objection &&
+      (facts.goal?.toLowerCase().includes("sell") || facts.motivation?.toLowerCase().includes("sell"))
+    ) {
+      inserts.push({
+        user_id:          userId,
+        client_id:        client.id,
+        opportunity_type: "seller_timing_hesitation",
+        trigger_date:     triggerDateStr,
+        context: enrichContext(
+          { objection: facts.objection, motivation: facts.motivation, timeline: facts.timeline },
+          "seller_timing_hesitation", facts,
+          `Potential seller with known hesitation: "${facts.objection}"`,
+        ),
+        status: "draft",
+      });
+    }
+
+    // 9d. Mortgage renewal + finance concern: mortgage coming up AND memory shows financial concern
+    if (
+      (facts.budget_context?.toLowerCase().includes("mortgage") ||
+       facts.pain_point?.toLowerCase().includes("rate") ||
+       facts.pain_point?.toLowerCase().includes("payment")) &&
+      clientLastDeal.has(client.id)
+    ) {
+      const deal = clientLastDeal.get(client.id)!;
+      const dealDate = new Date(deal + "T12:00:00");
+      const yearsSinceDeal = (Date.now() - dealDate.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+      // Only fire if within 3.5–5.5 year window (approaching 5-year renewal)
+      if (yearsSinceDeal >= 3.5 && yearsSinceDeal <= 5.5) {
+        inserts.push({
+          user_id:          userId,
+          client_id:        client.id,
+          opportunity_type: "mortgage_renewal_finance",
+          trigger_date:     triggerDateStr,
+          context: enrichContext(
+            { close_date: deal, budget_context: facts.budget_context, pain_point: facts.pain_point },
+            "mortgage_renewal_finance", facts,
+            `Mortgage renewal approaching and client has financial concerns in memory`,
+          ),
+          status: "draft",
+        });
+      }
+    }
+
+    // 9e. Educational value for inactive: client has a known interest topic and is idle
+    if (facts.last_key_topic && isIdle && !facts.pain_point) {
+      // Don't double-fire if pain_point_inactive already covers this client
+      inserts.push({
+        user_id:          userId,
+        client_id:        client.id,
+        opportunity_type: "educational_value_inactive",
+        trigger_date:     triggerDateStr,
+        context: enrichContext(
+          { last_key_topic: facts.last_key_topic, areas_of_interest: facts.areas_of_interest },
+          "educational_value_inactive", facts,
+          `Idle client with known interest in "${facts.last_key_topic}" — educational touchpoint`,
+        ),
+        status: "draft",
+      });
+    }
+  }
+
+  // ── Enrich all candidates with memory context + score ────────────────────
+  for (const insert of inserts) {
+    const ins = insert as { client_id: string; opportunity_type: string; context: Record<string, unknown> };
+    const mem = memoryMap.get(ins.client_id);
+    const facts = mem?.structured_facts ?? null;
+
+    // Enrich existing triggers with memory fields (additive — won't overwrite existing keys)
+    if (facts && !ins.context.memory_summary) {
+      ins.context = enrichContext(
+        ins.context,
+        ins.opportunity_type,
+        facts,
+        ins.context.selected_reason as string ?? "",
+      );
+    }
+
+    // Attach score for ranking
+    const score = scoreCandidate(ins.opportunity_type, facts, ins.context);
+    ins.context = { ...ins.context, outreach_score: score };
+  }
+
+  // Sort by score descending — highest-value opportunities first
+  inserts.sort((a, b) => {
+    const sa = ((a as { context: { outreach_score?: number } }).context.outreach_score ?? 50);
+    const sb = ((b as { context: { outreach_score?: number } }).context.outreach_score ?? 50);
+    return sb - sa;
+  });
 
   // ── Upsert (UNIQUE constraint on user_id, client_id, type, trigger_date) ───
   if (inserts.length > 0) {

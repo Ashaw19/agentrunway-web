@@ -807,3 +807,165 @@ Write a 2–3 paragraph email (under 150 words) that:
 On the very last line, write exactly:
 SUBJECT: [warm subject that references the milestone or property naturally — not "Your Home's Value Update"]`;
 }
+
+// ── Batch 5: Memory-Powered Triggers ──────────────────────────────────────────
+
+export function buildPainPointInactivePrompt(
+  agentFirst:  string,
+  clientName:  string,
+  painPoint:   string,
+  memorySummary: string | null,
+  nextBestAngle: string | null,
+  tone:        Tone = "friendly",
+): string {
+  return `You are ghostwriting a thoughtful re-engagement email from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}, who has been quiet for a while.
+
+Context:
+- The agent's CRM notes suggest this client's key concern: "${painPoint}"
+${nextBestAngle ? `- Recommended approach: ${nextBestAngle}` : ""}
+${memorySummary ? `- Background: ${memorySummary}` : ""}
+- The client hasn't been in touch recently — this is a warm, value-first touchpoint
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a genuine 2–3 paragraph email (under 150 words) that:
+- Opens by referencing something relevant to the client's situation — NOT "I've been thinking about you"
+- DO NOT start with "Subject:" — just write the email body
+- Addresses or acknowledges the concern/pain point naturally — shows you remember and care
+- Offers something genuinely useful: a resource, a connection, or a perspective that helps
+- Keeps the CTA soft: a quick call, a coffee, or just "happy to chat whenever"
+- Does NOT lecture, diagnose, or assume — just shows awareness and availability
+- Sign off with just "${agentFirst}"
+- Vary sentence length. One short sentence hits harder than three long ones.
+
+On the very last line, write exactly:
+SUBJECT: [personal, relevant subject — references their situation without being clinical]`;
+}
+
+export function buildBuyerInventoryMatchPrompt(
+  agentFirst:      string,
+  clientName:      string,
+  areasOfInterest: string,
+  budgetContext:   string | null,
+  memorySummary:   string | null,
+  tone:            Tone = "friendly",
+): string {
+  return `You are ghostwriting a proactive, helpful email from a Canadian real estate agent named ${agentFirst} to their active buyer client ${clientName}.
+
+Context:
+- The client is interested in: ${areasOfInterest}
+${budgetContext ? `- Budget context: ${budgetContext}` : ""}
+${memorySummary ? `- Background: ${memorySummary}` : ""}
+- The agent is reaching out proactively with a market/inventory update for their areas of interest
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a focused 2–3 paragraph email (under 150 words) that:
+- Opens with energy — something is happening in the areas they care about
+- DO NOT start with "Subject:" — just write the email body
+- References their specific areas of interest naturally — shows you're actively watching
+- Mentions that a few interesting things have come up (or the market is shifting) and you wanted to flag it
+- Offers a clear next step: a quick list of options, a showing, or a 10-minute call to review
+- Feels like a trusted scout reporting back — not a salesperson pushing listings
+- Sign off with just "${agentFirst}"
+- Keep it punchy. Buyers want signal, not noise.
+
+On the very last line, write exactly:
+SUBJECT: [direct, relevant subject — references their search area or what caught your eye]`;
+}
+
+export function buildSellerTimingHesitationPrompt(
+  agentFirst:  string,
+  clientName:  string,
+  objection:   string,
+  motivation:  string | null,
+  memorySummary: string | null,
+  tone:        Tone = "friendly",
+): string {
+  return `You are ghostwriting a thoughtful, low-pressure email from a Canadian real estate agent named ${agentFirst} to their client ${clientName}, who has been considering selling but hasn't pulled the trigger.
+
+Context:
+- Known hesitation: "${objection}"
+${motivation ? `- Their motivation for potentially selling: ${motivation}` : ""}
+${memorySummary ? `- Background: ${memorySummary}` : ""}
+- The agent is NOT pushing — just providing helpful context that addresses the hesitation
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a genuine 2–3 paragraph email (under 150 words) that:
+- Opens with a natural check-in — how have things been?
+- DO NOT start with "Subject:" — just write the email body
+- Gently acknowledges that timing is everything — without pressure or judgment
+- Shares one genuinely useful data point or perspective related to their hesitation
+- Makes it clear the agent is here when they're ready — no timeline, no pressure
+- Does NOT say "the market won't wait" or use scarcity tactics
+- Sign off with just "${agentFirst}"
+- Vary sentence length. This should feel like a conversation, not a pitch.
+
+On the very last line, write exactly:
+SUBJECT: [warm, no-pressure subject — NOT "Ready to List?" or anything pushy]`;
+}
+
+export function buildMortgageRenewalFinancePrompt(
+  agentFirst:    string,
+  clientName:    string,
+  closeDate:     string,
+  budgetContext: string | null,
+  painPoint:     string | null,
+  tone:          Tone = "friendly",
+): string {
+  const closeYear = closeDate.slice(0, 4);
+  return `You are ghostwriting a helpful, financially-aware email from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}.
+
+Context:
+- The client purchased their home in ${closeYear} — their 5-year mortgage term may be approaching renewal
+${budgetContext ? `- Financial context from their profile: ${budgetContext}` : ""}
+${painPoint ? `- Known concern: ${painPoint}` : ""}
+- The agent has noticed from their CRM that this client may have financial concerns around their renewal
+- The goal: be the trusted advisor who reaches out BEFORE the bank's generic renewal letter
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a genuine 2–3 paragraph email (under 150 words) that:
+- Opens naturally — NOT with "Your mortgage renewal is coming up!"
+- DO NOT start with "Subject:" — just write the email body
+- Acknowledges that renewal time can feel stressful with rates where they are
+- Notes that many clients just auto-renew without shopping — this often costs them
+- Offers to connect them with a trusted mortgage broker who can review their options
+- Keeps it warm and helpful — the agent is looking out for them, not selling anything
+- Sign off with just "${agentFirst}"
+- Vary sentence length. Make it feel like a friend who happens to know a great broker.
+
+On the very last line, write exactly:
+SUBJECT: [timely, personal subject — references their home or the financial topic naturally]`;
+}
+
+export function buildEducationalValuePrompt(
+  agentFirst:    string,
+  clientName:    string,
+  topic:         string,
+  memorySummary: string | null,
+  tone:          Tone = "friendly",
+): string {
+  return `You are ghostwriting a value-first educational email from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}, who has been quiet for a while.
+
+Context:
+- Topic of interest from their history: "${topic}"
+${memorySummary ? `- Background: ${memorySummary}` : ""}
+- The agent is re-engaging with something genuinely useful — not a sales pitch
+- The goal: provide real value that reminds them why ${agentFirst} is a good person to know
+
+${TONE_INSTRUCTIONS[tone]}
+
+Write a genuine 2–3 paragraph email (under 150 words) that:
+- Opens with something topical and relevant to their interest — a recent development, a common question, or a useful perspective
+- DO NOT start with "Subject:" — just write the email body
+- Shares one clear, useful insight about "${topic}" — something they can actually use
+- Does NOT try to be a newsletter — this is one person sharing something with another person
+- Ends with an open invitation: happy to dig deeper on this, or just catch up
+- Sign off with just "${agentFirst}"
+- Keep it conversational. Educational doesn't mean lecturing.
+
+On the very last line, write exactly:
+SUBJECT: [topical, interesting subject that references ${topic} — something they'd actually open]`;
+}
