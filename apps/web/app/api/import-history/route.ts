@@ -548,6 +548,7 @@ export async function POST(req: NextRequest) {
 
     if (body.textContent) {
       // ── Text path: Excel / CSV / TXT ─────────────────────────────────────
+      console.log("[import] step=text-start len=" + body.textContent.length);
       // 1. Date normalization (Excel serials, slash-date disambiguation)
       const dateNormalized = normalizeDateFormats(body.textContent);
 
@@ -570,6 +571,7 @@ export async function POST(req: NextRequest) {
         max_tokens: 8000,
       });
       raw = response.choices[0]?.message?.content ?? "";
+      console.log("[import] step=llm-done raw-len=" + raw.length);
     } else {
       // ── Vision path: PDF pages or uploaded image(s) ───────────────────────
       // Build message content: all images first, then the prompt text.
@@ -618,6 +620,7 @@ export async function POST(req: NextRequest) {
 
       try {
         parsed = JSON.parse(jsonCandidate) as GroqRawResponse;
+        console.log("[import] step=parsed year=" + parsed.year + " deals=" + parsed.deals?.length);
       } catch {
         // Log the raw response so we can diagnose in Vercel logs
         console.error("[import-history] JSON parse failed. Raw LLM response (first 2000 chars):", raw.slice(0, 2000));
@@ -687,6 +690,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Single-year path (original behavior)
+    console.log("[import] step=aggregating year=" + effectiveYear);
     const result = computeAggregates(
       parsed.deals,
       effectiveYear,
@@ -696,8 +700,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(buildResponse(result));
   } catch (err: unknown) {
-    console.error("[import-history] error:", err);
-    const msg = err instanceof Error ? err.message : "";
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[import] FAIL msg=" + msg.slice(0, 200));
     const message =
       msg.includes("body size")
         ? "Document too large. Try uploading fewer pages or a smaller file."
