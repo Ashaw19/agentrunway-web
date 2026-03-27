@@ -265,7 +265,21 @@ export function normalizeTextDocument(
     charCount += row.length + 1; // +1 for newline
   }
 
-  const cleaned_content = outputRows.join("\n");
+  // ── 5. Normalize French/European number formats ─────────────────────────
+  // French-Canadian formats: "9 750,00 $" or "325 000 $"
+  // Convert to standard: "9750.00" or "325000"
+  // Pattern: digits with spaces as thousands separators, comma as decimal, optional trailing $
+  const normalizedRows = outputRows.map((row) =>
+    row.replace(
+      /(\d{1,3}(?:\s\d{3})+)(?:,(\d{2}))?\s*\$/g,
+      (_match, intPart: string, decimals: string | undefined) => {
+        const cleaned = intPart.replace(/\s/g, "");
+        return decimals ? `$${cleaned}.${decimals}` : `$${cleaned}`;
+      },
+    ),
+  );
+
+  const cleaned_content = normalizedRows.join("\n");
 
   return {
     cleaned_content,
