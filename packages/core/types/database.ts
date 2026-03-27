@@ -1126,6 +1126,8 @@ export interface PlaidItem {
   institution_name: string | null;
   sync_cursor:      string | null;
   last_synced_at:   string | null;
+  error_code:       string | null;
+  error_message:    string | null;
   created_at:       string;
   updated_at:       string;
 }

@@ -450,6 +450,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
         id: item_id, user_id: "", plaid_item_id: "",
         institution_id: null, institution_name, sync_cursor: null,
         last_synced_at: new Date().toISOString(),
+        error_code: null, error_message: null,
         created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       },
       ...prev,
@@ -1721,6 +1722,12 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
                         </p>
                       </div>
                     </div>
+                    {item.error_code && (
+                      <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
+                        <p className="font-medium">Connection issue — please reconnect</p>
+                        <p className="text-destructive/70 mt-0.5">{item.error_message ?? item.error_code}</p>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2">
                       <Button
                         size="sm"

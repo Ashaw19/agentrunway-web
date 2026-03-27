@@ -31,7 +31,7 @@ export default async function SettingsPage() {
     supabase
       .from("plaid_items")
       // access_token is intentionally excluded — server-only credential
-      .select("id, user_id, plaid_item_id, institution_id, institution_name, sync_cursor, last_synced_at, created_at, updated_at")
+      .select("id, user_id, plaid_item_id, institution_id, institution_name, sync_cursor, last_synced_at, created_at, updated_at, error_code, error_message")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false }),
     supabase

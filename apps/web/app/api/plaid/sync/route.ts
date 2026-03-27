@@ -189,12 +189,39 @@ export async function POST(req: NextRequest) {
     // ── 6. Update cursor + last_synced_at ─────────────────────────────────────
     await admin
       .from("plaid_items")
-      .update({ sync_cursor: cursor, last_synced_at: new Date().toISOString() })
+      .update({
+        sync_cursor: cursor,
+        last_synced_at: new Date().toISOString(),
+        error_code: null,
+        error_message: null,
+      })
       .eq("id", item_id);
 
     return NextResponse.json({ added: addedCount, modified: modifiedCount, removed: removedCount });
   } catch (err) {
     log.error({ err, requestId }, "[plaid/sync] Plaid sync error");
+
+    // Detect Plaid token/login errors and flag the item for reconnection
+    const plaidCode = (err as { response?: { data?: { error_code?: string; error_message?: string } } })
+      ?.response?.data?.error_code;
+    const plaidMsg = (err as { response?: { data?: { error_message?: string } } })
+      ?.response?.data?.error_message;
+
+    if (plaidCode === "ITEM_LOGIN_REQUIRED" || plaidCode === "INVALID_ACCESS_TOKEN") {
+      await admin
+        .from("plaid_items")
+        .update({
+          error_code: plaidCode,
+          error_message: plaidMsg ?? "Please reconnect this bank account.",
+        })
+        .eq("id", item_id);
+
+      return NextResponse.json(
+        { error: "Bank connection expired. Please reconnect in Settings.", code: plaidCode },
+        { status: 401 },
+      );
+    }
+
     const message = err instanceof Error ? err.message : "Plaid sync error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

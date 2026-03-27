@@ -343,8 +343,16 @@ export async function POST(req: NextRequest) {
 
   // ── 6. Handle ITEM webhooks ────────────────────────────────────────────────
   if (webhook_type === "ITEM" && webhook_code === "ERROR") {
-    log.error({ plaid_item_id, error: payload.error, requestId }, "[plaid/webhook] ITEM ERROR");
-    // Could update a status flag in plaid_items here for UX display
+    const plaidErr = payload.error as { error_code?: string; error_message?: string } | undefined;
+    log.error({ plaid_item_id, error: plaidErr, requestId }, "[plaid/webhook] ITEM ERROR");
+
+    await admin
+      .from("plaid_items")
+      .update({
+        error_code: plaidErr?.error_code ?? "UNKNOWN_ERROR",
+        error_message: plaidErr?.error_message ?? "An error occurred with this bank connection.",
+      })
+      .eq("plaid_item_id", plaid_item_id);
   }
 
   // Always return 200 to acknowledge receipt
