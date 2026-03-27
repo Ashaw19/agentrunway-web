@@ -495,7 +495,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // ── Rate limit: 10 document imports per 60-minute window ─────────────────
-  const rl = await checkRateLimit(user.id, "import-history", 10, 60);
+  const rl = await checkRateLimit(user.id, "import-history", 30, 60);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many imports. Please wait before uploading another document." },
@@ -595,13 +595,34 @@ export async function POST(req: NextRequest) {
       raw = response.choices[0]?.message?.content ?? "";
     }
 
-    // Strip markdown fences if the model wraps output
-    const cleaned = raw
-      .replace(/^```(?:json)?\s*/m, "")
-      .replace(/\s*```\s*$/m, "")
-      .trim();
+    // Extract JSON from the LLM response — handles markdown fences, preamble text,
+    // and trailing commentary that would break a naive JSON.parse.
+    let parsed: GroqRawResponse;
+    {
+      // Strategy 1: strip markdown fences
+      let cleaned = raw
+        .replace(/^```(?:json)?\s*/m, "")
+        .replace(/\s*```\s*$/m, "")
+        .trim();
 
-    const parsed = JSON.parse(cleaned) as GroqRawResponse;
+      // Strategy 2: if that didn't yield valid JSON, find the first { … } block
+      let jsonCandidate = cleaned;
+      if (!cleaned.startsWith("{")) {
+        const firstBrace = cleaned.indexOf("{");
+        const lastBrace  = cleaned.lastIndexOf("}");
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+          jsonCandidate = cleaned.slice(firstBrace, lastBrace + 1);
+        }
+      }
+
+      try {
+        parsed = JSON.parse(jsonCandidate) as GroqRawResponse;
+      } catch {
+        // Log the raw response so we can diagnose in Vercel logs
+        console.error("[import-history] JSON parse failed. Raw LLM response (first 2000 chars):", raw.slice(0, 2000));
+        throw new Error("JSON parse failed");
+      }
+    }
 
     if (typeof parsed.year !== "number" || !Array.isArray(parsed.deals)) {
       return NextResponse.json({ error: "Malformed response", raw }, { status: 422 });
@@ -675,14 +696,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(buildResponse(result));
   } catch (err: unknown) {
     console.error("[import-history] error:", err);
-    // Provide specific error messages instead of generic "Failed to extract"
+    const msg = err instanceof Error ? err.message : "";
     const message =
-      err instanceof Error && err.message?.includes("body size")
+      msg.includes("body size")
         ? "Document too large. Try uploading fewer pages or a smaller file."
-        : err instanceof Error && err.message?.includes("timeout")
+        : msg.includes("timeout")
         ? "Processing timed out. Try a smaller document or split into multiple files."
-        : err instanceof Error && err.message?.includes("rate")
+        : msg.includes("rate") || msg.includes("429")
         ? "The AI service is busy. Please try again in a moment."
+        : msg.includes("JSON parse")
+        ? "The AI could not produce structured data from this file. Try a different format or simpler layout."
         : "Failed to extract data from document. Try uploading a clearer image or a different file format.";
     return NextResponse.json({ error: message }, { status: 422 });
   }
