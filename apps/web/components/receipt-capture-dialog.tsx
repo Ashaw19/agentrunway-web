@@ -512,7 +512,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,application/pdf"
+              accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf"
               className="hidden"
               onChange={(e) => handleFile(e.target.files?.[0])}
             />

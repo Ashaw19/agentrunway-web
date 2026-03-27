@@ -67,8 +67,10 @@ export function compute(
   survivalMonths: number,
 ): RunwayScoreResult {
   // Convert survival months to 0–100 score
+  // -1 means "not configured" — use neutral 50 instead of punitive 10
   let survivalScore: number;
-  if (survivalMonths >= 6) survivalScore = 95;
+  if (survivalMonths < 0) survivalScore = 50;
+  else if (survivalMonths >= 6) survivalScore = 95;
   else if (survivalMonths >= 4) survivalScore = 75;
   else if (survivalMonths >= 2) survivalScore = 50;
   else if (survivalMonths >= 1) survivalScore = 25;

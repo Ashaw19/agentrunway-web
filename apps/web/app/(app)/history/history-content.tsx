@@ -850,14 +850,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       }
 
       // ── Write imported transactions (for tax engine, reporting, dashboard) ──
-      // Delete any previously imported rows for this year, then re-insert.
-      await supabase.from("transactions")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("source", "imported")
-        .gte("date", `${importData.year}-01-01`)
-        .lte("date", `${importData.year}-12-31`);
-
+      // Build the inserts first, then delete old rows only if inserts succeed.
       const txInserts = resolvedDeals
         .filter((deal) => deal.date && deal.gci > 0)
         .map((deal, i) => {
@@ -880,8 +873,20 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
           };
         });
 
+      // Delete previous imports for this year, then insert new ones
       if (txInserts.length > 0) {
-        await supabase.from("transactions").insert(txInserts);
+        await supabase.from("transactions")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("source", "imported")
+          .gte("date", `${importData.year}-01-01`)
+          .lte("date", `${importData.year}-12-31`);
+
+        const { error: txError } = await supabase.from("transactions").insert(txInserts);
+        if (txError) {
+          toast.error("Failed to save transactions — your previous data is intact.");
+          throw txError;
+        }
       }
 
       // ── Telemetry (fire-and-forget — never blocks or fails the save) ────────

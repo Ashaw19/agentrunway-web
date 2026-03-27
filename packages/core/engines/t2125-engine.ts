@@ -299,7 +299,7 @@ export function computeT2125(input: T2125Input): T2125Result {
 
   // ── 4. Home office ─────────────────────────────────────────────────────────
   const homeOfficePct = Math.min(1, Math.max(0, settings.home_office_business_use_pct ?? 0));
-  const sqFt = settings.home_office_sq_footage ?? 0;
+  const sqFt = Math.max(0, settings.home_office_sq_footage ?? 0);
   const simplifiedDeduction = Math.min(sqFt * 5, 1500); // CRA caps at $1,500 (300 sq ft × $5)
 
   const annualRent = (settings.home_office_rent_monthly ?? 0) * 12;

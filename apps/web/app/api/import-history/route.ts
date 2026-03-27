@@ -313,10 +313,15 @@ function computeAggregates(
       sale_price?: number | string | null;
     };
 
-    // Parse numeric fields safely
-    const salePrice        = d.sale_price != null ? (Number(d.sale_price) || null) : null;
-    const gci              = Number(d.gci) || 0;
-    const netIncome        = d.net_income != null ? (Number(d.net_income) || null) : null;
+    // Parse numeric fields safely — strip currency symbols/commas the LLM may include
+    const toNum = (v: unknown): number | null => {
+      if (v == null) return null;
+      const n = Number(String(v).replace(/[$,\s]/g, ""));
+      return isNaN(n) ? null : n;
+    };
+    const salePrice        = toNum(d.sale_price);
+    const gci              = toNum(d.gci) ?? 0;
+    const netIncome        = toNum(d.net_income);
     const commissionPct    = d.commission_percent != null ? (Number(d.commission_percent) || null) : null;
     const address          = (d.address ?? "").trim();
 

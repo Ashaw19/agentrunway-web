@@ -25,13 +25,12 @@ export const maxDuration = 30;
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 
+// HEIC/HEIF removed — Groq vision can't process them and most browsers can't decode them
 const ALLOWED_MIME = new Set([
   "image/jpeg",
   "image/jpg",
   "image/png",
   "image/webp",
-  "image/heic",
-  "image/heif",
 ]);
 
 function extForMime(mime: string): string {
@@ -40,8 +39,6 @@ function extForMime(mime: string): string {
     "image/jpg":  "jpg",
     "image/png":  "png",
     "image/webp": "webp",
-    "image/heic": "heic",
-    "image/heif": "heif",
   };
   return map[mime] ?? "jpg";
 }

@@ -35,7 +35,8 @@ export function probabilityBands(
     monthCount,
   );
 
-  const base = baseProjectedGCI;
+  // Floor at 0 — negative projections (clawbacks) produce nonsensical bands
+  const base = Math.max(0, baseProjectedGCI);
   return {
     p10: Math.max(0, base * (1.0 - highBand)),
     p25: Math.max(0, base * (1.0 - lowBand)),
@@ -61,9 +62,10 @@ function varianceBands(
     return { lowBand: 0.15, highBand: 0.3, confidence: "low" };
   }
 
+  // Bessel's correction (N-1) for small sample sizes
   const variance =
     monthlyTotals.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) /
-    monthCount;
+    Math.max(1, monthCount - 1);
   const stdDev = Math.sqrt(variance);
   const cv = stdDev / mean; // coefficient of variation
 

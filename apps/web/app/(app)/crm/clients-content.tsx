@@ -1537,12 +1537,28 @@ export function ClientsContent({
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setAddClientSaving(false); return; }
 
+    // Check for existing client with same name (case-insensitive)
+    const nameSearch = newClientName.trim().toLowerCase();
+    const { data: existing } = await supabase
+      .from("clients")
+      .select("id, name")
+      .eq("user_id", user.id)
+      .eq("name_search", nameSearch)
+      .limit(1)
+      .single();
+
+    if (existing) {
+      toast.error(`A client named "${existing.name}" already exists`);
+      setAddClientSaving(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("clients")
       .insert({
         user_id: user.id,
         name: newClientName.trim(),
-        name_search: newClientName.trim().toLowerCase(),
+        name_search: nameSearch,
         email: newClientEmail.trim() || null,
         phone: newClientPhone.trim() || null,
         status: newClientStatus,

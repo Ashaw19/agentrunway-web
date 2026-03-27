@@ -246,6 +246,25 @@ export async function POST(request: Request) {
         } else {
           console.log("[stripe] synced org subscription", sub.id, sub.status);
         }
+
+        // If org subscription is no longer active, downgrade member tiers
+        const orgIsActive = sub.status === "active" || sub.status === "trialing";
+        if (!orgIsActive) {
+          const { data: members } = await db
+            .from("organization_members")
+            .select("user_id")
+            .eq("organization_id", orgId)
+            .eq("status", "active");
+
+          if (members && members.length > 0) {
+            const memberIds = members.map((m: { user_id: string }) => m.user_id);
+            await db
+              .from("user_settings")
+              .update({ subscription_tier: "starter" })
+              .in("user_id", memberIds);
+            console.log("[stripe] downgraded", memberIds.length, "org members to starter");
+          }
+        }
         break;
       }
 
