@@ -376,6 +376,13 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
   }
 
   async function handleImportFile(file: File) {
+    // 20 MB limit — generous for PDFs and high-res scans
+    const MAX_MB = 20;
+    if (file.size > MAX_MB * 1024 * 1024) {
+      toast.error(`File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum size is ${MAX_MB} MB.`);
+      return;
+    }
+
     const fileType = detectFileType(file);
     if (!fileType) {
       toast.error("Unsupported file type. Please upload a PDF, image (JPG/PNG), Excel, or CSV file.");
