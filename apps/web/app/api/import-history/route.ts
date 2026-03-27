@@ -320,10 +320,21 @@ function computeAggregates(
       return isNaN(n) ? null : n;
     };
     const salePrice        = toNum(d.sale_price);
-    const gci              = toNum(d.gci) ?? 0;
+    let   gci              = toNum(d.gci) ?? 0;
     const netIncome        = toNum(d.net_income);
     const commissionPct    = d.commission_percent != null ? (Number(d.commission_percent) || null) : null;
     const address          = (d.address ?? "").trim();
+
+    // GCI arithmetic fix: when the LLM had to compute GCI from sale_price × commission_percent,
+    // it may introduce rounding errors. Recalculate in code when the values are available and
+    // the LLM's GCI is close (within 5%) to the expected product — proving it was derived, not read.
+    if (salePrice != null && salePrice > 0 && commissionPct != null && commissionPct > 0 && gci > 0) {
+      const computed = Math.round(salePrice * commissionPct * 100) / 100;
+      const diff = Math.abs(gci - computed);
+      if (diff > 0.5 && diff / computed < 0.05) {
+        gci = computed;
+      }
+    }
 
     // If party_a had a "/" that we just split, confidence for names is medium
     const namesWereSplit = party_a !== (d.party_a ?? "").trim();
