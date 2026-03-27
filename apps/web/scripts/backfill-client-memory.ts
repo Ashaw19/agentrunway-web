@@ -76,7 +76,7 @@ async function gatherAndComputeMemory(userId: string, clientId: string, clientNa
     supabase.from("property_showings").select("property_address, showing_date, client_rating, notes").eq("client_id", clientId).eq("user_id", userId).order("showing_date", { ascending: false }).limit(30),
     supabase.from("listing_appointments").select("property_address, appointment_date, status, estimated_list_price, notes").eq("client_id", clientId).eq("user_id", userId).order("appointment_date", { ascending: false }).limit(20),
     supabase.from("contact_tasks").select("title, due_date, priority, notes, completed_at").eq("client_id", clientId).eq("user_id", userId).order("due_date", { ascending: false }).limit(30),
-    supabase.from("outreach_queue").select("trigger_type, status, ai_subject, created_at").eq("client_id", clientId).eq("user_id", userId).order("created_at", { ascending: false }).limit(20),
+    supabase.from("outreach_queue").select("opportunity_type, status, ai_subject, created_at").eq("client_id", clientId).eq("user_id", userId).order("created_at", { ascending: false }).limit(20),
   ]);
 
   // Build a minimal prompt context
@@ -133,8 +133,8 @@ async function gatherAndComputeMemory(userId: string, clientId: string, clientNa
   }
   if (outreach.length) {
     prompt += `\n## Outreach (${outreach.length})\n`;
-    for (const o of (outreach as Array<{ created_at: string; trigger_type: string; status: string }>).slice(0, 10)) {
-      prompt += `- [${o.created_at}] ${o.trigger_type} — ${o.status}\n`;
+    for (const o of (outreach as Array<{ created_at: string; opportunity_type: string; status: string }>).slice(0, 10)) {
+      prompt += `- [${o.created_at}] ${o.opportunity_type} — ${o.status}\n`;
     }
   }
 

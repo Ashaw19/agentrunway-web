@@ -87,7 +87,7 @@ interface GatheredClientData {
   showings: { property_address: string; showing_date: string; client_rating: number | null; notes: string | null }[];
   listing_appointments: { property_address: string | null; appointment_date: string; status: string; estimated_list_price: number | null; notes: string | null }[];
   tasks: { title: string; due_date: string; priority: string; notes: string | null; completed_at: string | null }[];
-  outreach_history: { trigger_type: string; status: string; ai_subject: string | null; created_at: string }[];
+  outreach_history: { opportunity_type: string; status: string; ai_subject: string | null; created_at: string }[];
   existing_memory: { memory_summary: string | null; structured_facts: Record<string, unknown> } | null;
 }
 
@@ -145,7 +145,7 @@ async function gatherClientData(
       .limit(30),
     supabase
       .from("outreach_queue")
-      .select("trigger_type, status, ai_subject, created_at")
+      .select("opportunity_type, status, ai_subject, created_at")
       .eq("client_id", clientId)
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
@@ -175,7 +175,18 @@ async function gatherClientData(
 function buildMemoryPrompt(data: GatheredClientData): string {
   const c = data.client;
 
+  const today = new Date().toISOString().slice(0, 10);
+
   let prompt = `You are a memory engine for a Canadian real estate agent's CRM system. Analyze ALL available data about this client and produce a structured memory profile.
+
+Today's date: ${today}
+
+CRM pipeline status definitions:
+- boarding = new lead, no engagement yet
+- taxiing = early engagement, initial conversations
+- in_flight = active deal in progress
+- landed = recently closed a deal
+- cruising = long-term past client relationship
 
 ## Client Record
 - Name: ${c.name}
@@ -235,7 +246,7 @@ function buildMemoryPrompt(data: GatheredClientData): string {
   if (data.outreach_history.length > 0) {
     prompt += `\n## Outreach History (${data.outreach_history.length})\n`;
     for (const o of data.outreach_history.slice(0, 10)) {
-      prompt += `- [${o.created_at}] ${o.trigger_type} — ${o.status}${o.ai_subject ? ` — "${o.ai_subject}"` : ""}\n`;
+      prompt += `- [${o.created_at}] ${o.opportunity_type} — ${o.status}${o.ai_subject ? ` — "${o.ai_subject}"` : ""}\n`;
     }
   }
 
@@ -272,6 +283,12 @@ Synthesize ALL the above into a memory profile. Return valid JSON with exactly t
 Rules:
 - Use null for any field you cannot confidently infer. Do NOT fabricate.
 - Keep strings concise (1-2 sentences max per field).
+- engagement_level rules (use today's date ${today} to judge recency):
+  • "boarding" status clients are NEW LEADS — classify as "not yet engaged", never "going cold".
+  • "in_flight" status means an active deal — classify as "highly active" or "responsive", never "going cold".
+  • "landed" status with a close_date within the last 60 days = "responsive" (recently closed).
+  • Only use "going cold" when there is a meaningful lapse: last_contact_at or most recent close_date is 90+ days ago AND no recent activities.
+  • Use "ghost" only when last_contact_at is 6+ months ago or the client is known to be unreachable.
 - Return ONLY the JSON object, no markdown, no explanation.`;
 
   return prompt;
