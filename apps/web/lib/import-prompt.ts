@@ -255,9 +255,21 @@ WORKED EXAMPLE:
 ══════════════════════════════════════════════════════════════════
 UNIVERSAL RULES (apply to ALL formats)
 ══════════════════════════════════════════════════════════════════
-- SKIP rows/lines where party_a is empty, "Totals", "Name", or a section heading with no deal data
+- Extract ALL rows that represent real transactions — do NOT skip rows just because some fields are empty.
+  A row with a date and an amount is a valid deal even if address or client name is missing.
+- SKIP rows/lines where party_a is "Totals", "Name", or a section heading with no deal data
 - SKIP subtotals, quarterly summary lines, and expense entries
+- NEVER return 0 for gci — use null when no commission amount can be determined
 - NEVER return 0 for sale_price — use null when the sale price is not in the document
 - NEVER hallucinate values — if a field is not in the document, return null
+
+AMBIGUOUS AMOUNT COLUMNS:
+When there is only ONE monetary column and it is labelled "Amount", "Earned", "Income", "Payment",
+"Total", "Received", or similar generic name:
+→ If the values are in the range typical for real estate commissions (roughly $1,000–$100,000),
+  treat it as GCI (pre-split commission).
+→ If the values are in the range typical for property prices ($100,000+), treat it as sale_price.
+→ When in doubt, treat it as GCI — it is more important to capture commission data than sale price.
+
 - year: read from the document title/heading or infer from the dates
 - Return ONLY the JSON — nothing before or after it`;
