@@ -391,6 +391,13 @@ function computeAggregates(
     const d = new Date(deal.date + "T12:00:00");
     const dealYear = d.getFullYear();
 
+    // Deals with invalid/missing dates: still count in annual totals but not quarterly
+    if (isNaN(dealYear)) {
+      quarter_gci[0] += deal.gci; // bucket into Q1 as fallback
+      quarter_tx[0]++;
+      continue;
+    }
+
     // Only count deals that actually fall in the reported year
     if (dealYear !== year) continue;
 
@@ -644,8 +651,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Malformed response", raw }, { status: 422 });
     }
 
-    // yearHint from the sheet name overrides LLM's title-row year detection
-    const effectiveYear = yearHintValid ?? parsed.year;
+    // yearHint from the sheet name overrides LLM's title-row year detection.
+    // If no hint and LLM returned an implausible year, default to current year.
+    const currentYear = new Date().getFullYear();
+    const llmYear = parsed.year > 2000 && parsed.year <= currentYear + 1 ? parsed.year : currentYear;
+    const effectiveYear = yearHintValid ?? llmYear;
 
     const truncated = textNormalized?.stats.truncated ?? false;
     const importPath: ImportDebug["import_path"] =

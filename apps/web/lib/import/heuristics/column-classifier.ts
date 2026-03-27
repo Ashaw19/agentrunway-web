@@ -86,12 +86,13 @@ const KEYWORDS: Record<keyof Omit<ColumnClassification, "header_row_index" | "pr
     "gci", "gross commission income", "gross commission", "commission income",
     "co-op", "co-op commission", "coop", "coop commission", "gross", "commission",
     "agent commission", "your gross", "pre-split", "gross earnings", "agent base",
+    "your commission", "your comm",
   ],
   net_income: [
     "net", "net commission", "net income", "net commission income",
-    "net commission (taxable)", "taxable", "agent net", "your net", "your commission",
+    "net commission (taxable)", "taxable", "agent net", "your net",
     "net amount", "commission earned", "after split", "post-split",
-    "net earnings", "net pay", "net commissions earned",
+    "net earnings", "net pay", "net commissions earned", "net to agent",
   ],
   sale_price: [
     "sale price", "price", "purchase price", "sold price", "list price",
@@ -207,15 +208,29 @@ export function classifyColumns(
   }
 
   // GCI and net_income must be claimed before generic "commission" to avoid collisions
-  const gci                = claim("gci");
+  let   gci                = claim("gci");
   const net_income         = claim("net_income");
   const name               = claim("name");
   const date               = claim("date");
   const address            = claim("address");
   const side               = claim("side");
   const source             = claim("source");
-  const sale_price         = claim("sale_price");
+  let   sale_price         = claim("sale_price");
   const commission_percent = claim("commission_percent");
+
+  // Heuristic: if there's no GCI column but sale_price was claimed on an
+  // ambiguous header like "Amount" / "Value", remap it to GCI.  A file with
+  // addresses + a single dollar column is far more likely to contain
+  // commission amounts than sale prices.
+  if (gci === -1 && sale_price !== -1 && net_income === -1 && commission_percent === -1) {
+    const spHeader = normalize(headers[sale_price]);
+    if (["amount", "value", "total", "volume"].includes(spHeader)) {
+      taken.delete(sale_price);
+      gci = sale_price;
+      taken.add(gci);
+      sale_price = -1;
+    }
+  }
 
   // ── Detect document subtype ───────────────────────────────────────────────
   const hasTrackerShape =
