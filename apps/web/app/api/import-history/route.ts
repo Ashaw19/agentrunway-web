@@ -556,27 +556,31 @@ export async function POST(req: NextRequest) {
       //    duplicate headers; detects column mapping for prompt injection)
       textNormalized = normalizeTextDocument(dateNormalized, true);
 
-      console.log("[import] step=groq-call model=llama-3.3-70b cleaned-len=" + textNormalized.cleaned_content.length);
+      const textModels = ["llama-3.3-70b-versatile", "llama-3.1-70b-versatile"];
+      const promptContent = TEXT_PROMPT(
+        textNormalized.cleaned_content,
+        textNormalized.column_hints ?? undefined,
+      );
       let response;
-      try {
-        response = await groq.chat.completions.create({
-          model: "llama-3.3-70b-versatile",
-          messages: [
-            {
-              role: "user",
-              content: TEXT_PROMPT(
-                textNormalized.cleaned_content,
-                textNormalized.column_hints ?? undefined,
-              ),
-            },
-          ],
-          temperature: 0.1,
-          max_tokens: 8000,
-        });
-      } catch (groqErr: unknown) {
-        const gMsg = groqErr instanceof Error ? groqErr.message : String(groqErr);
-        console.error("[import] GROQ-ERR=" + gMsg.slice(0, 300));
-        throw groqErr;
+      for (let mi = 0; mi < textModels.length; mi++) {
+        const model = textModels[mi];
+        console.log("[import] step=groq-call model=" + model + " cleaned-len=" + textNormalized.cleaned_content.length);
+        try {
+          response = await groq.chat.completions.create({
+            model,
+            messages: [{ role: "user", content: promptContent }],
+            temperature: 0.1,
+            max_tokens: 8000,
+          });
+          break; // success
+        } catch (groqErr: unknown) {
+          const gMsg = groqErr instanceof Error ? groqErr.message : String(groqErr);
+          const gStatus = (groqErr as { status?: number })?.status;
+          console.error("[import] GROQ-ERR model=" + model + " status=" + gStatus + " msg=" + gMsg.slice(0, 200));
+          // If rate limited and we have a fallback, try next model
+          if (gStatus === 429 && mi < textModels.length - 1) continue;
+          throw groqErr;
+        }
       }
       raw = response.choices[0]?.message?.content ?? "";
       console.log("[import] step=llm-done raw-len=" + raw.length);
@@ -718,7 +722,7 @@ export async function POST(req: NextRequest) {
         : msg.includes("timeout")
         ? "Processing timed out. Try a smaller document or split into multiple files."
         : msg.includes("rate") || msg.includes("429") || status === 429
-        ? `AI rate limited (${status}). Detail: ${msg.slice(0, 120)}`
+        ? "The AI service is busy. Please try again in a moment."
         : msg.includes("JSON parse")
         ? "The AI could not produce structured data from this file. Try a different format or simpler layout."
         : "Failed to extract data from document. Try uploading a clearer image or a different file format.";
