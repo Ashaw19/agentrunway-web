@@ -209,7 +209,7 @@ export function classifyColumns(
 
   // GCI and net_income must be claimed before generic "commission" to avoid collisions
   let   gci                = claim("gci");
-  const net_income         = claim("net_income");
+  let   net_income         = claim("net_income");
   const name               = claim("name");
   const date               = claim("date");
   const address            = claim("address");
@@ -218,17 +218,24 @@ export function classifyColumns(
   let   sale_price         = claim("sale_price");
   const commission_percent = claim("commission_percent");
 
-  // Heuristic: if there's no GCI column but sale_price was claimed on an
-  // ambiguous header like "Amount" / "Value", remap it to GCI.  A file with
-  // addresses + a single dollar column is far more likely to contain
-  // commission amounts than sale prices.
-  if (gci === -1 && sale_price !== -1 && net_income === -1 && commission_percent === -1) {
-    const spHeader = normalize(headers[sale_price]);
-    if (["amount", "value", "total", "volume"].includes(spHeader)) {
+  // Heuristic: if there's no GCI column and the only monetary column was
+  // claimed on an ambiguous header like "Amount" / "Value", remap it to GCI.
+  // A file with addresses + a single dollar column is far more likely to
+  // contain commission amounts than sale prices or net income.
+  if (gci === -1 && commission_percent === -1) {
+    const ambiguous = ["amount", "value", "total", "volume"];
+    // Check sale_price first
+    if (sale_price !== -1 && ambiguous.includes(normalize(headers[sale_price]))) {
       taken.delete(sale_price);
       gci = sale_price;
       taken.add(gci);
       sale_price = -1;
+    // Then check if net_income grabbed it via loose substring match
+    } else if (net_income !== -1 && sale_price === -1 && ambiguous.includes(normalize(headers[net_income]))) {
+      taken.delete(net_income);
+      gci = net_income;
+      taken.add(gci);
+      net_income = -1;
     }
   }
 
