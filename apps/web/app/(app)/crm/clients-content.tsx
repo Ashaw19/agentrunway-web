@@ -160,6 +160,7 @@ import type { VoiceDraft } from "@/lib/voice/types";
 import { toast } from "sonner";
 import { guardSandboxWrite } from "@/lib/sandbox-guard";
 import { useSandboxMode } from "@/lib/sandbox-mode-context";
+import * as XLSX from "xlsx";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -1904,13 +1905,37 @@ export function ClientsContent({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // File size guard — 10MB is generous for a CSV
-    const MAX_CSV_MB = 10;
-    if (file.size > MAX_CSV_MB * 1024 * 1024) {
-      toast.error(`File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum size is ${MAX_CSV_MB} MB.`);
+    // File size guard — 10MB is generous for a CSV/spreadsheet
+    const MAX_FILE_MB = 10;
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      toast.error(`File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum size is ${MAX_FILE_MB} MB.`);
       return;
     }
 
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    const isExcel = ext === "xlsx" || ext === "xls";
+
+    if (isExcel) {
+      // Parse Excel with SheetJS
+      const reader = new FileReader();
+      reader.onerror = () => toast.error("Failed to read file. Please try again or use a different file.");
+      reader.onload = (ev) => {
+        try {
+          const data = new Uint8Array(ev.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: "array" });
+          const sheetName = workbook.SheetNames[0];
+          if (!sheetName) { toast.error("Spreadsheet has no sheets."); return; }
+          const csvText = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]);
+          processImportText(csvText);
+        } catch {
+          toast.error("Could not parse spreadsheet. Make sure it's a valid .xlsx or .xls file.");
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      return;
+    }
+
+    // CSV path
     const reader = new FileReader();
     reader.onerror = () => {
       toast.error("Failed to read file. Please try again or use a different file.");
@@ -1934,8 +1959,12 @@ export function ClientsContent({
 
     function processImportText(text: string) {
       const { headers, rows, truncated } = parseCsv(text);
+      if (headers.length === 0 || rows.length === 0) {
+        toast.error("No data found. Make sure the first row contains column headers and there's at least one data row.");
+        return;
+      }
       if (truncated) {
-        toast.warning(`CSV capped at ${CSV_ROW_CAP.toLocaleString()} rows — only the first ${CSV_ROW_CAP.toLocaleString()} contacts will be imported`);
+        toast.warning(`File capped at ${CSV_ROW_CAP.toLocaleString()} rows — only the first ${CSV_ROW_CAP.toLocaleString()} contacts will be imported`);
       }
 
       // Auto-detect first_name + last_name columns and concatenate them
@@ -2072,12 +2101,19 @@ export function ClientsContent({
     const toInsert: InsertRow[] = [];
 
     for (const row of csvRows) {
+      const rowNum = csvRows.indexOf(row) + 2; // +2 for 1-indexed header row
       const rawName = (row[mapName] ?? "").trim();
-      if (!rawName) { skipped++; continue; }
+      if (!rawName) { skipped++; errorMessages.push(`Row ${rowNum}: skipped — no name`); continue; }
       const nameSearch = rawName.toLowerCase();
 
-      const email    = mapEmail    !== "__none__" ? (row[mapEmail]    ?? "").trim() || null : null;
+      let email    = mapEmail    !== "__none__" ? (row[mapEmail]    ?? "").trim() || null : null;
       const phone    = mapPhone    !== "__none__" ? (row[mapPhone]    ?? "").trim() || null : null;
+
+      // Basic email format check — warn but don't reject
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errorMessages.push(`Row ${rowNum} (${rawName}): invalid email "${email}" — skipped field`);
+        email = null;
+      }
       const city     = mapCity     !== "__none__" ? (row[mapCity]     ?? "").trim() || null : null;
       const street   = mapStreet   !== "__none__" ? (row[mapStreet]   ?? "").trim() || null : null;
       const postal   = mapPostal   !== "__none__" ? (row[mapPostal]   ?? "").trim() || null : null;
@@ -3949,7 +3985,7 @@ export function ClientsContent({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Upload className="h-4 w-4" />
-              Import Contacts from CSV
+              Import Contacts
             </DialogTitle>
           </DialogHeader>
 
@@ -3982,7 +4018,21 @@ export function ClientsContent({
           {importStep === "upload" && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Upload a CSV file with your contacts. The first row should be column headers.
+                Upload a CSV or Excel file with your contacts. The first row should be column headers.
+                {" "}
+                <button
+                  type="button"
+                  className="text-primary underline underline-offset-2 hover:text-primary/80"
+                  onClick={() => {
+                    const csv = "Name,Email,Phone,Street Address,City,Province,Postal Code,Country,Lead Source\nJane Smith,jane@example.com,902-555-0123,123 Main St,Halifax,NS,B3H 1A1,Canada,Referral\n";
+                    const blob = new Blob([csv], { type: "text/csv" });
+                    const url = URL.createObjectURL(blob);
+                    const a = Object.assign(document.createElement("a"), { href: url, download: "agent-runway-import-template.csv" });
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+                  }}
+                >
+                  Download template
+                </button>
               </p>
               <div
                 className="border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-primary/40 transition-colors"
@@ -3990,15 +4040,15 @@ export function ClientsContent({
               >
                 <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                 <p className="text-sm font-medium text-foreground">
-                  Click to upload CSV
+                  Click to upload contacts
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  .csv files only
+                  .csv or .xlsx files
                 </p>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv"
+                  accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                   className="hidden"
                   onChange={handleFileChange}
                 />
@@ -4328,6 +4378,21 @@ export function ClientsContent({
                   .
                 </p>
               </div>
+              {importResult.errors.length > 0 && (
+                <details className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <summary className="text-xs font-medium text-amber-800 cursor-pointer">
+                    {importResult.errors.length} warning{importResult.errors.length !== 1 ? "s" : ""} — click to expand
+                  </summary>
+                  <ul className="mt-2 space-y-0.5 max-h-40 overflow-y-auto text-xs text-amber-700">
+                    {importResult.errors.slice(0, 50).map((msg, i) => (
+                      <li key={i}>{msg}</li>
+                    ))}
+                    {importResult.errors.length > 50 && (
+                      <li className="font-medium">…and {importResult.errors.length - 50} more</li>
+                    )}
+                  </ul>
+                </details>
+              )}
               <div className="flex gap-2">
                 <Button
                   onClick={() => {
