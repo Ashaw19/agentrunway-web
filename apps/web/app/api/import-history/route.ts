@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+// Import rate limit: 30 per 60 min
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { TEXT_PROMPT } from "@/lib/import-prompt";
 import { applyValidation } from "@/lib/import/validation/validate-transactions";
