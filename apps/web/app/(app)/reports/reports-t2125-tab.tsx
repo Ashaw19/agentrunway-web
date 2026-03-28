@@ -274,7 +274,7 @@ export function ReportsT2125Tab({
 
       // Compute tax optimization cards
       const projectedGCI = result.totalGrossIncome;
-      const totalExpenses = result.line8250_totalExpenses + result.line8260_totalCca + result.line8330_homeOfficeDeduction;
+      const totalExpenses = result.line9369_totalExpenses + result.line9936_totalCca + result.line9945_homeOfficeDeduction;
       const netIncome = result.line8270_netBusinessIncome;
       const gstRemitted = (localSettings.gst_hst_remitted_q1 ?? 0) +
         (localSettings.gst_hst_remitted_q2 ?? 0) +
@@ -501,13 +501,13 @@ export function ReportsT2125Tab({
           <div className="flex items-center justify-between">
             <SectionHeader
               icon={CreditCard}
-              label="Deductible Expenses (Lines 8210–8228)"
+              label="Deductible Expenses (Lines 8521–9369)"
               subtitle="Auto-filled from your expense tracking"
               color="text-violet-600"
             />
             <div className="flex items-center gap-2">
               <span className="text-lg font-bold text-violet-700">
-                {fmtCurrency(result.line8250_totalExpenses)}
+                {fmtCurrency(result.line9369_totalExpenses)}
               </span>
               {expandedSections.expenses ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
             </div>
@@ -515,23 +515,25 @@ export function ReportsT2125Tab({
         </CardHeader>
         {expandedSections.expenses && (
           <CardContent className="pt-0 space-y-1">
-            <LineRow lineNum="8210" label="Advertising & Marketing" value={result.line8210_advertising} />
-            <LineRow lineNum="8215" label="Office Expenses & Software" value={result.line8215_officeExpenses} />
-            <LineRow lineNum="8220" label="Office Expenses (Phone, Internet)" value={result.line8220_officeExpensesMisc} />
-            <LineRow lineNum="8228" label="Other Expenses (Gifts, Education)" value={result.line8228_otherExpenses} />
-            <LineRow lineNum="8860" label="Professional Fees & Licensing" value={result.line8860_professionalFees} />
+            <LineRow lineNum="8521" label="Advertising & Marketing" value={result.line8521_advertising} />
+            <LineRow lineNum="8811" label="Office Supplies & Software" value={result.line8811_officeSupplies} />
+            <LineRow lineNum="9220" label="Utilities (Phone, Internet)" value={result.line9220_utilities} />
+            <LineRow lineNum="9270" label="Other Expenses (Gifts, Education)" value={result.line9270_otherExpenses} />
+            <LineRow lineNum="8760" label="Licences, Memberships & Dues" value={result.line8760_licencesMemberships} />
+            {result.line8690_insurance > 0 && (
+              <LineRow lineNum="8690" label="Insurance (E&O)" value={result.line8690_insurance} />
+            )}
+            <LineRow lineNum="8860" label="Professional Fees (Accounting & Legal)" value={result.line8860_professionalFees} />
 
             {/* Vehicle sub-section */}
             <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
               <div className="flex items-center gap-2 mb-2">
                 <Car className="h-3.5 w-3.5 text-slate-500" />
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Motor Vehicle — {fmtPct(localSettings.vehicle_business_use_pct)} business use applied
+                  Motor Vehicle (Line 9281) — {fmtPct(localSettings.vehicle_business_use_pct)} business use applied
                 </p>
               </div>
-              <LineRow indent lineNum="8211" label="Lease / Rental payments" value={result.line8211_vehicleLeaseRental} />
-              <LineRow indent lineNum="8212" label="Insurance, Repairs & Maintenance" value={result.line8212_motorVehicle} />
-              <LineRow indent lineNum="8213" label="Fuel" value={result.line8213_fuel} />
+              <LineRow indent lineNum="9281" label="All Vehicle Expenses (lease, insurance, fuel, maintenance)" value={result.line9281_motorVehicle} />
               <p className="mt-2 text-[10px] text-muted-foreground">
                 Vehicle business-use % set in <a href="/settings" className="underline">Settings</a> ·
                 {localSettings.vehicle_type === "own" ? " Owned vehicle" : localSettings.vehicle_type === "lease" ? " Leased vehicle" : " No vehicle"}
@@ -548,18 +550,18 @@ export function ReportsT2125Tab({
               </div>
               <div className="flex justify-between text-xs text-amber-800 mb-1 px-3">
                 <span>Gross receipts</span>
-                <span>{fmtCurrency(result.line8216_mealsEntertainmentGross)}</span>
+                <span>{fmtCurrency(result.line8523_mealsEntertainmentGross)}</span>
               </div>
               <LineRow
-                lineNum="8216"
+                lineNum="8523"
                 label="Deductible amount (50% of gross)"
-                value={result.line8216_mealsEntertainment50pct}
+                value={result.line8523_mealsEntertainment50pct}
                 note="CRA allows only 50% of meals & entertainment expenses — pre-applied"
               />
             </div>
 
             <Separator className="my-2" />
-            <LineRow lineNum="8250" label="Total Deductible Expenses" value={result.line8250_totalExpenses} bold highlight />
+            <LineRow lineNum="9369" label="Total Deductible Expenses" value={result.line9369_totalExpenses} bold highlight />
           </CardContent>
         )}
       </Card>
@@ -573,13 +575,13 @@ export function ReportsT2125Tab({
           <div className="flex items-center justify-between">
             <SectionHeader
               icon={Calculator}
-              label="Capital Cost Allowance (Line 8260)"
+              label="Capital Cost Allowance (Line 9936)"
               subtitle="Depreciation on business assets — vehicle, equipment, computers"
               color="text-orange-600"
             />
             <div className="flex items-center gap-2">
               <span className="text-lg font-bold text-orange-700">
-                {fmtCurrency(result.line8260_totalCca)}
+                {fmtCurrency(result.line9936_totalCca)}
               </span>
               {expandedSections.cca ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
             </div>
@@ -720,7 +722,7 @@ export function ReportsT2125Tab({
             )}
 
             <Separator />
-            <LineRow lineNum="8260" label="Total CCA Deduction" value={result.line8260_totalCca} bold highlight />
+            <LineRow lineNum="9936" label="Total CCA Deduction" value={result.line9936_totalCca} bold highlight />
           </CardContent>
         )}
       </Card>
@@ -734,13 +736,13 @@ export function ReportsT2125Tab({
           <div className="flex items-center justify-between">
             <SectionHeader
               icon={Home}
-              label="Home Office (Line 8330)"
+              label="Home Office (Line 9945)"
               subtitle="Business-use-of-home deduction"
               color="text-teal-600"
             />
             <div className="flex items-center gap-2">
               <span className="text-lg font-bold text-teal-700">
-                {fmtCurrency(result.line8330_homeOfficeDeduction)}
+                {fmtCurrency(result.line9945_homeOfficeDeduction)}
               </span>
               {expandedSections.homeOffice ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
             </div>
@@ -804,7 +806,7 @@ export function ReportsT2125Tab({
             </div>
 
             <Separator />
-            <LineRow lineNum="8330" label="Home Office Deduction" value={result.line8330_homeOfficeDeduction} bold highlight />
+            <LineRow lineNum="9945" label="Home Office Deduction" value={result.line9945_homeOfficeDeduction} bold highlight />
           </CardContent>
         )}
       </Card>
@@ -827,16 +829,16 @@ export function ReportsT2125Tab({
               <span>{fmtCurrency(result.totalGrossIncome)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">− Deductible Expenses (8250)</span>
-              <span className="text-red-600">−{fmtCurrency(result.line8250_totalExpenses)}</span>
+              <span className="text-muted-foreground">− Deductible Expenses (9369)</span>
+              <span className="text-red-600">−{fmtCurrency(result.line9369_totalExpenses)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">− CCA (8260)</span>
-              <span className="text-red-600">−{fmtCurrency(result.line8260_totalCca)}</span>
+              <span className="text-muted-foreground">− CCA (9936)</span>
+              <span className="text-red-600">−{fmtCurrency(result.line9936_totalCca)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">− Home Office (8330)</span>
-              <span className="text-red-600">−{fmtCurrency(result.line8330_homeOfficeDeduction)}</span>
+              <span className="text-muted-foreground">− Home Office (9945)</span>
+              <span className="text-red-600">−{fmtCurrency(result.line9945_homeOfficeDeduction)}</span>
             </div>
             <Separator />
             <div className="flex justify-between text-base font-bold text-emerald-800">

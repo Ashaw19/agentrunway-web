@@ -34,43 +34,43 @@ export interface T2125LineMap {
 }
 
 export const EXPENSE_KEY_TO_T2125: Record<string, T2125LineMap> = {
-  // Vehicle expenses — multiplied by vehicle_business_use_pct
-  vehicle_payment:   { lineNumber: "8211", lineName: "Vehicle lease / rental",      deductiblePct: 1.0, applyVehicleUse: true,  t2125Part: "vehicle" },
-  vehicle_insurance: { lineNumber: "8212", lineName: "Motor vehicle insurance",      deductiblePct: 1.0, applyVehicleUse: true,  t2125Part: "vehicle" },
-  vehicle_fuel:      { lineNumber: "8213", lineName: "Motor vehicle fuel",           deductiblePct: 1.0, applyVehicleUse: true,  t2125Part: "vehicle" },
-  vehicle_service:   { lineNumber: "8212", lineName: "Motor vehicle repairs/maint.", deductiblePct: 1.0, applyVehicleUse: true,  t2125Part: "vehicle" },
+  // Vehicle expenses (CRA T2125 line 9281) — multiplied by vehicle_business_use_pct
+  vehicle_payment:   { lineNumber: "9281", lineName: "Vehicle lease / rental",      deductiblePct: 1.0, applyVehicleUse: true,  t2125Part: "vehicle" },
+  vehicle_insurance: { lineNumber: "9281", lineName: "Motor vehicle insurance",      deductiblePct: 1.0, applyVehicleUse: true,  t2125Part: "vehicle" },
+  vehicle_fuel:      { lineNumber: "9281", lineName: "Motor vehicle fuel",           deductiblePct: 1.0, applyVehicleUse: true,  t2125Part: "vehicle" },
+  vehicle_service:   { lineNumber: "9281", lineName: "Motor vehicle repairs/maint.", deductiblePct: 1.0, applyVehicleUse: true,  t2125Part: "vehicle" },
 
-  // Marketing / advertising
-  marketing_ads:         { lineNumber: "8210", lineName: "Advertising",        deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
-  marketing_photography: { lineNumber: "8210", lineName: "Photography & video", deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
-  marketing_print:       { lineNumber: "8210", lineName: "Print / signage",     deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
-  marketing_gifts:       { lineNumber: "8228", lineName: "Business gifts",      deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
+  // Marketing / advertising (CRA T2125 line 8521)
+  marketing_ads:         { lineNumber: "8521", lineName: "Advertising",        deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
+  marketing_photography: { lineNumber: "8521", lineName: "Photography & video", deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
+  marketing_print:       { lineNumber: "8521", lineName: "Print / signage",     deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
+  marketing_gifts:       { lineNumber: "9270", lineName: "Business gifts",      deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
 
-  // Office & tech
-  office_supplies:  { lineNumber: "8215", lineName: "Office supplies",         deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
-  office_software:  { lineNumber: "8215", lineName: "Software subscriptions",  deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
-  office_phone:     { lineNumber: "8220", lineName: "Phone & internet",        deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
-  office_hardware:  { lineNumber: "8215", lineName: "Hardware & equipment",    deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
+  // Office & tech (CRA T2125 line 8811 office supplies, 9220 utilities/phone)
+  office_supplies:  { lineNumber: "8811", lineName: "Office supplies",         deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
+  office_software:  { lineNumber: "8811", lineName: "Software subscriptions",  deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
+  office_phone:     { lineNumber: "9220", lineName: "Phone & internet",        deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
+  office_hardware:  { lineNumber: "8811", lineName: "Hardware & equipment",    deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
 
-  // Professional fees — CRA T2125 line 8860
-  prof_board_mls:  { lineNumber: "8860", lineName: "Board / MLS dues",         deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
-  prof_licensing:  { lineNumber: "8860", lineName: "Licensing & renewals",     deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
-  prof_eo:         { lineNumber: "8860", lineName: "E&O insurance",            deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
+  // Professional fees — CRA T2125 lines: 8760 licences/memberships, 8690 insurance, 8860 professional fees
+  prof_board_mls:  { lineNumber: "8760", lineName: "Board / MLS dues",         deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
+  prof_licensing:  { lineNumber: "8760", lineName: "Licensing & renewals",     deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
+  prof_eo:         { lineNumber: "8690", lineName: "E&O insurance",            deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
   prof_accounting: { lineNumber: "8860", lineName: "Accounting & legal",       deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
 
-  // Education (professional development) — CRA T2125 line 8228 (Other expenses)
-  edu_courses:     { lineNumber: "8228", lineName: "Courses & coaching",       deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
-  edu_conferences: { lineNumber: "8228", lineName: "Conferences",              deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
-  edu_books:       { lineNumber: "8228", lineName: "Books & materials",        deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
+  // Education (professional development) — CRA T2125 line 9270 (Other expenses)
+  edu_courses:     { lineNumber: "9270", lineName: "Courses & coaching",       deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
+  edu_conferences: { lineNumber: "9270", lineName: "Conferences",              deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
+  edu_books:       { lineNumber: "9270", lineName: "Books & materials",        deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
 
-  // Meals & entertainment — 50% deductible
-  meals_client: { lineNumber: "8216", lineName: "Client meals",            deductiblePct: 0.5, applyVehicleUse: false, t2125Part: "expenses" },
-  meals_team:   { lineNumber: "8216", lineName: "Team / staff meals",      deductiblePct: 0.5, applyVehicleUse: false, t2125Part: "expenses" },
-  ent_client:   { lineNumber: "8216", lineName: "Client entertainment",    deductiblePct: 0.5, applyVehicleUse: false, t2125Part: "expenses" },
-  ent_events:   { lineNumber: "8216", lineName: "Events & tickets",        deductiblePct: 0.5, applyVehicleUse: false, t2125Part: "expenses" },
+  // Meals & entertainment — 50% deductible (CRA T2125 line 8523)
+  meals_client: { lineNumber: "8523", lineName: "Client meals",            deductiblePct: 0.5, applyVehicleUse: false, t2125Part: "expenses" },
+  meals_team:   { lineNumber: "8523", lineName: "Team / staff meals",      deductiblePct: 0.5, applyVehicleUse: false, t2125Part: "expenses" },
+  ent_client:   { lineNumber: "8523", lineName: "Client entertainment",    deductiblePct: 0.5, applyVehicleUse: false, t2125Part: "expenses" },
+  ent_events:   { lineNumber: "8523", lineName: "Events & tickets",        deductiblePct: 0.5, applyVehicleUse: false, t2125Part: "expenses" },
 
-  // Other
-  other_misc: { lineNumber: "8228", lineName: "Other expenses",           deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "other" },
+  // Other (CRA T2125 line 9270)
+  other_misc: { lineNumber: "9270", lineName: "Other expenses",           deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "other" },
 };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -152,29 +152,29 @@ export interface T2125Result {
   // ── Part 3: Detailed expense line items
   expenseLines: ExpenseLineItem[];
 
-  // ── Part 4: Expense subtotals by T2125 line
-  line8210_advertising: number;
-  line8211_vehicleLeaseRental: number;
-  line8212_motorVehicle: number;
-  line8213_fuel: number;
-  line8215_officeExpenses: number;
-  line8216_mealsEntertainment50pct: number;
-  line8216_mealsEntertainmentGross: number;  // before 50% reduction
-  line8220_officeExpensesMisc: number;
-  line8228_otherExpenses: number;
+  // ── Part 4: Expense subtotals by T2125 line (CRA 2025 line numbers)
+  line8521_advertising: number;
+  line9281_motorVehicle: number;             // all vehicle expenses combined
+  line8811_officeSupplies: number;
+  line8523_mealsEntertainment50pct: number;
+  line8523_mealsEntertainmentGross: number;  // before 50% reduction
+  line9220_utilities: number;
+  line9270_otherExpenses: number;
+  line8760_licencesMemberships: number;
+  line8690_insurance: number;
   line8860_professionalFees: number;
-  line8250_totalExpenses: number;            // sum of all lines 8210–8228
+  line9369_totalExpenses: number;            // sum of all expense lines
 
-  // ── Part 5: CCA
+  // ── Part 5: CCA (CRA T2125 line 9936)
   ccaLines: CcaLineItem[];
-  line8260_totalCca: number;
+  line9936_totalCca: number;
 
-  // ── Part 6: Home office
+  // ── Part 6: Home office (CRA T2125 line 9945)
   homeOffice: HomeOfficeResult;
-  line8330_homeOfficeDeduction: number;
+  line9945_homeOfficeDeduction: number;
 
   // ── Net income
-  line8270_netBusinessIncome: number;  // 8200 − 8250 − 8260 − 8330
+  line8270_netBusinessIncome: number;  // 8200 − 9369 − 9936 − 9945
 
   // ── CPP
   cppContribution: number;    // total self-employed CPP (cpp1 + cpp2)
@@ -242,42 +242,55 @@ export function computeT2125(input: T2125Input): T2125Result {
       .filter((l) => lineNumbers.includes(l.lineNumber))
       .reduce((s, l) => s + l.deductibleAmount, 0);
 
-  const line8210_advertising = lineSum(["8210"]);
-  const line8211_vehicleLeaseRental =
-    expenseLines.filter((l) => l.key === "vehicle_payment").reduce((s, l) => s + l.deductibleAmount, 0);
-  const line8212_motorVehicle =
-    expenseLines.filter((l) => l.isVehicle && l.key !== "vehicle_payment" && l.key !== "vehicle_fuel").reduce((s, l) => s + l.deductibleAmount, 0);
-  const line8213_fuel =
-    expenseLines.filter((l) => l.key === "vehicle_fuel").reduce((s, l) => s + l.deductibleAmount, 0);
-  const line8215_officeExpenses = lineSum(["8215"]);
+  // CRA T2125 line subtotals (2025 line numbers)
+  const line8521_advertising = lineSum(["8521"]);
+  const line9281_motorVehicle = lineSum(["9281"]); // all vehicle expenses combined
+  const line8811_officeSupplies = lineSum(["8811"]);
   const mealsLines = expenseLines.filter((l) => l.isMeals);
-  const line8216_mealsEntertainmentGross = mealsLines.reduce((s, l) => s + l.rawAmount, 0);
-  const line8216_mealsEntertainment50pct = mealsLines.reduce((s, l) => s + l.deductibleAmount, 0);
-  const line8220_officeExpensesMisc = lineSum(["8220"]);
-  const line8228_otherExpenses = lineSum(["8228"]);
+  const line8523_mealsEntertainmentGross = mealsLines.reduce((s, l) => s + l.rawAmount, 0);
+  const line8523_mealsEntertainment50pct = mealsLines.reduce((s, l) => s + l.deductibleAmount, 0);
+  const line9220_utilities = lineSum(["9220"]);
+  const line9270_otherExpenses = lineSum(["9270"]);
+  const line8760_licencesMemberships = lineSum(["8760"]);
+  const line8690_insurance = lineSum(["8690"]);
   const line8860_professionalFees = lineSum(["8860"]);
 
-  const line8250_totalExpenses =
-    line8210_advertising +
-    line8211_vehicleLeaseRental +
-    line8212_motorVehicle +
-    line8213_fuel +
-    line8215_officeExpenses +
-    line8216_mealsEntertainment50pct +
-    line8220_officeExpensesMisc +
-    line8228_otherExpenses +
+  const line9369_totalExpenses =
+    line8521_advertising +
+    line9281_motorVehicle +
+    line8811_officeSupplies +
+    line8523_mealsEntertainment50pct +
+    line9220_utilities +
+    line9270_otherExpenses +
+    line8760_licencesMemberships +
+    line8690_insurance +
     line8860_professionalFees;
 
-  // ── 3. CCA ─────────────────────────────────────────────────────────────────
+  // ── 3. CCA (CRA T2125 line 9936) ───────────────────────────────────────────
   const ccaLines: CcaLineItem[] = ccaAssets.map((asset) => {
     const adjustedCost = asset.original_cost * asset.business_use_pct;
+    // UCC after additions and disposals
     const ucc = asset.opening_ucc + asset.additions_this_year - asset.disposals_this_year;
-    // CRA half-year rule: applies to NET additions (additions − disposals), not gross
+
+    // If UCC <= 0, no CCA can be claimed (potential recapture situation)
+    if (ucc <= 0) {
+      return {
+        asset,
+        adjustedCost,
+        ucc: Math.max(0, ucc),
+        ccaRate: asset.class_rate,
+        halfYearAdditions: 0,
+        ccaClaimed: 0,
+        closingUcc: Math.max(0, ucc),
+      };
+    }
+
+    // CRA half-year rule: applies to NET additions (additions - disposals) when positive
     const netAdditions = Math.max(0, asset.additions_this_year - asset.disposals_this_year);
-    const halfYearNetAdditions = asset.class_half_year
-      ? netAdditions * 0.5
-      : netAdditions;
-    const ccaBase = asset.opening_ucc + halfYearNetAdditions;
+    const halfYearAdjustment = asset.class_half_year ? netAdditions * 0.5 : 0;
+
+    // CCA base = UCC minus half-year adjustment on net additions
+    const ccaBase = ucc - halfYearAdjustment;
     const ccaClaimed = Math.max(0, ccaBase * asset.class_rate * asset.business_use_pct);
     const closingUcc = Math.max(0, ucc - ccaClaimed);
     return {
@@ -285,12 +298,12 @@ export function computeT2125(input: T2125Input): T2125Result {
       adjustedCost,
       ucc,
       ccaRate: asset.class_rate,
-      halfYearAdditions,
+      halfYearAdditions: netAdditions,
       ccaClaimed,
       closingUcc,
     };
   });
-  const line8260_totalCca = ccaLines.reduce((s, l) => s + l.ccaClaimed, 0);
+  const line9936_totalCca = ccaLines.reduce((s, l) => s + l.ccaClaimed, 0);
 
   // ── 4. Home office (CRA actual-cost method) ────────────────────────────────
   // Canada does NOT have an IRS-style simplified method. CRA T2125 uses
@@ -323,7 +336,7 @@ export function computeT2125(input: T2125Input): T2125Result {
   // ── 5. Net business income ─────────────────────────────────────────────────
   const line8270_netBusinessIncome = Math.max(
     0,
-    totalGrossIncome - line8250_totalExpenses - line8260_totalCca - homeOfficeDeduction,
+    totalGrossIncome - line9369_totalExpenses - line9936_totalCca - homeOfficeDeduction,
   );
 
   // ── 6. Tax engine (on net income after T2125 deductions) ──────────────────
@@ -389,23 +402,23 @@ export function computeT2125(input: T2125Input): T2125Result {
     totalGrossIncome,
 
     expenseLines,
-    line8210_advertising,
-    line8211_vehicleLeaseRental,
-    line8212_motorVehicle,
-    line8213_fuel,
-    line8215_officeExpenses,
-    line8216_mealsEntertainment50pct,
-    line8216_mealsEntertainmentGross,
-    line8220_officeExpensesMisc,
-    line8228_otherExpenses,
+    line8521_advertising,
+    line9281_motorVehicle,
+    line8811_officeSupplies,
+    line8523_mealsEntertainment50pct,
+    line8523_mealsEntertainmentGross,
+    line9220_utilities,
+    line9270_otherExpenses,
+    line8760_licencesMemberships,
+    line8690_insurance,
     line8860_professionalFees,
-    line8250_totalExpenses,
+    line9369_totalExpenses,
 
     ccaLines,
-    line8260_totalCca,
+    line9936_totalCca,
 
     homeOffice,
-    line8330_homeOfficeDeduction: homeOfficeDeduction,
+    line9945_homeOfficeDeduction: homeOfficeDeduction,
 
     line8270_netBusinessIncome,
 

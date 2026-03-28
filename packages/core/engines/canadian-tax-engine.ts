@@ -89,9 +89,9 @@ export function calculate(
   // Quebec Abatement: 16.5% off federal tax
   if (province === "quebec") fedTax *= 1.0 - 0.165;
 
-  // Step 3: Provincial income tax
+  // Step 3: Provincial income tax (includes provincial CPP credit)
   const provTaxable = fedTaxable;
-  const provTax = provincialTax(provTaxable, province);
+  const provTax = provincialTax(provTaxable, province, cppEmployeeHalf);
 
   const totalTax = fedTax + provTax;
   const totalBurden = totalTax + totalCPP;
@@ -141,7 +141,7 @@ function cppContributions(
 
 // ── Provincial tax dispatcher ───────────────────────────────────────────────
 
-function provincialTax(income: number, province: Province): number {
+function provincialTax(income: number, province: Province, cppEmployeeHalf: number = 0): number {
   const info = provincialInfo(province);
   let tax = bracketTax(income, info.brackets);
 
@@ -149,7 +149,14 @@ function provincialTax(income: number, province: Province): number {
   const bpaCredit = info.basicPersonalAmount * info.lowestRate;
   tax = Math.max(0, tax - bpaCredit);
 
-  // Ontario surtax
+  // Provincial CPP/QPP employee-portion non-refundable credit
+  // Each province gives a credit at its lowest marginal rate on the employee half of CPP1
+  if (cppEmployeeHalf > 0) {
+    const cppProvCredit = cppEmployeeHalf * info.lowestRate;
+    tax = Math.max(0, tax - cppProvCredit);
+  }
+
+  // Ontario surtax (applied after all credits)
   if (province === "ontario") {
     tax = Math.max(0, tax + ontarioSurtax(tax));
   }

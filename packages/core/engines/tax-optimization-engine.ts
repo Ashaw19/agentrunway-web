@@ -290,7 +290,7 @@ export function generateTaxOptimizations(
             `At your ${fmtPct(mRate)} marginal rate, this could reduce tax by ${savingsLabel(savings).replace("/yr", "")}`,
           ],
           action:
-            "Enter your actual home costs (rent/mortgage interest, utilities, property tax, insurance, maintenance) and business-use percentage in Settings. CRA allows deducting the business-use portion of actual home costs on T2125 Line 9270.",
+            "Enter your actual home costs (rent/mortgage interest, utilities, property tax, insurance, maintenance) and business-use percentage in Settings. CRA allows deducting the business-use portion of actual home costs on T2125 Line 9945.",
           disclaimer:
             "Home office eligibility requires the space to be your principal place of business or used exclusively and regularly for meeting clients. CRA Form T2125 requires supporting documentation. Deduction is based on actual costs multiplied by business-use percentage. See Terms of Service.",
           estimatedSavings: savings,

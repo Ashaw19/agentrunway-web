@@ -387,25 +387,26 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
         <LineHighlight lineNum="8200" label="Total Gross Business Income" value={result.totalGrossIncome} />
 
         {/* Expenses */}
-        <SectionHeader title="Part 3B — Deductible Expenses" subtitle="Lines 8210–8250 · Auto-filled from expense tracking" color="#7C3AED" />
-        <LineRow lineNum="8210" label="Advertising & Marketing" value={result.line8210_advertising} />
-        {result.line8211_vehicleLeaseRental > 0 && (
-          <LineRow lineNum="8211" label={`Vehicle Lease/Rental (${fmtPct(settings.vehicle_business_use_pct)} business use)`} value={result.line8211_vehicleLeaseRental} />
-        )}
-        <LineRow lineNum="8212–13" label={`Motor Vehicle (${fmtPct(settings.vehicle_business_use_pct)} business use)`} value={result.line8212_motorVehicle + result.line8213_fuel} />
-        <LineRow lineNum="8215" label="Office Expenses & Software" value={result.line8215_officeExpenses} />
+        <SectionHeader title="Part 3B — Deductible Expenses" subtitle="CRA T2125 lines 8521–9369 · Auto-filled from expense tracking" color="#7C3AED" />
+        <LineRow lineNum="8521" label="Advertising & Marketing" value={result.line8521_advertising} />
+        <LineRow lineNum="9281" label={`Motor Vehicle Expenses (${fmtPct(settings.vehicle_business_use_pct)} business use)`} value={result.line9281_motorVehicle} />
+        <LineRow lineNum="8811" label="Office Supplies & Software" value={result.line8811_officeSupplies} />
         <LineRow
-          lineNum="8216"
+          lineNum="8523"
           label="Meals & Entertainment (50% rule applied)"
-          value={result.line8216_mealsEntertainment50pct}
-          note={`Gross: ${fmt(result.line8216_mealsEntertainmentGross)} × 50%`}
+          value={result.line8523_mealsEntertainment50pct}
+          note={`Gross: ${fmt(result.line8523_mealsEntertainmentGross)} × 50%`}
         />
-        <LineRow lineNum="8220" label="Office Expenses (Phone, Internet)" value={result.line8220_officeExpensesMisc} />
-        {result.line8228_otherExpenses > 0 && (
-          <LineRow lineNum="8228" label="Other Expenses (Gifts, Education)" value={result.line8228_otherExpenses} />
+        <LineRow lineNum="9220" label="Utilities (Phone, Internet)" value={result.line9220_utilities} />
+        {result.line9270_otherExpenses > 0 && (
+          <LineRow lineNum="9270" label="Other Expenses (Gifts, Education)" value={result.line9270_otherExpenses} />
         )}
-        <LineRow lineNum="8860" label="Professional Fees & Licensing" value={result.line8860_professionalFees} />
-        <LineHighlight lineNum="8250" label="Total Deductible Expenses" value={result.line8250_totalExpenses} />
+        <LineRow lineNum="8760" label="Licences, Memberships & Dues" value={result.line8760_licencesMemberships} />
+        {result.line8690_insurance > 0 && (
+          <LineRow lineNum="8690" label="Insurance (E&O)" value={result.line8690_insurance} />
+        )}
+        <LineRow lineNum="8860" label="Professional Fees (Accounting & Legal)" value={result.line8860_professionalFees} />
+        <LineHighlight lineNum="9369" label="Total Deductible Expenses" value={result.line9369_totalExpenses} />
 
         <Footer year={taxYear} agentName={result.agentName} />
       </Page>
@@ -416,7 +417,7 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
         <Text style={[s.headerTitle, { marginBottom: 12 }]}>T2125 Summary · Page 2 · {taxYear}</Text>
 
         {/* CCA */}
-        <SectionHeader title="Capital Cost Allowance (Line 8260)" subtitle="Depreciation on business assets" color="#EA580C" />
+        <SectionHeader title="Capital Cost Allowance (Line 9936)" subtitle="Depreciation on business assets" color="#EA580C" />
         {result.ccaLines.length === 0 ? (
           <Text style={{ fontSize: 8, color: "#94A3B8", padding: 8 }}>No CCA assets recorded.</Text>
         ) : (
@@ -441,10 +442,10 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
             ))}
           </>
         )}
-        <LineHighlight lineNum="8260" label="Total CCA Deduction" value={result.line8260_totalCca} />
+        <LineHighlight lineNum="9936" label="Total CCA Deduction" value={result.line9936_totalCca} />
 
         {/* Home Office */}
-        <SectionHeader title="Home Office — Line 8330" subtitle={`Actual costs × ${fmtPct(result.homeOffice.businessUsePct)} business use`} color="#0D9488" />
+        <SectionHeader title="Home Office — Line 9945" subtitle={`Actual costs × ${fmtPct(result.homeOffice.businessUsePct)} business use`} color="#0D9488" />
         <LineRow label="Annual rent / mortgage interest" value={result.homeOffice.annualRent} />
         <LineRow label="Annual utilities" value={result.homeOffice.annualUtilities} />
         <LineRow label="Annual property tax" value={result.homeOffice.annualPropertyTax} />
@@ -452,7 +453,7 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
         <LineRow label="Annual maintenance" value={result.homeOffice.annualMaintenance} />
         {result.homeOffice.annualCondoFees > 0 && <LineRow label="Annual condo fees" value={result.homeOffice.annualCondoFees} />}
         <LineRow label={`Total × ${fmtPct(result.homeOffice.businessUsePct)} business use`} value={result.homeOffice.deduction} />
-        <LineHighlight lineNum="8330" label="Home Office Deduction" value={result.line8330_homeOfficeDeduction} />
+        <LineHighlight lineNum="9945" label="Home Office Deduction" value={result.line9945_homeOfficeDeduction} />
 
         {/* Net Business Income */}
         <SectionHeader title="Net Business Income — Line 8270" subtitle="T1 General Line 10400 — Reportable self-employment income" color="#059669" />
@@ -463,16 +464,16 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
             <Text style={s.netWaterfallValue}>{fmt(result.totalGrossIncome)}</Text>
           </View>
           <View style={s.netWaterfallRow}>
-            <Text style={s.netWaterfallLabel}>− Deductible Expenses (8250)</Text>
-            <Text style={s.netWaterfallValue}>−{fmt(result.line8250_totalExpenses)}</Text>
+            <Text style={s.netWaterfallLabel}>− Deductible Expenses (9369)</Text>
+            <Text style={s.netWaterfallValue}>−{fmt(result.line9369_totalExpenses)}</Text>
           </View>
           <View style={s.netWaterfallRow}>
-            <Text style={s.netWaterfallLabel}>− Capital Cost Allowance (8260)</Text>
-            <Text style={s.netWaterfallValue}>−{fmt(result.line8260_totalCca)}</Text>
+            <Text style={s.netWaterfallLabel}>− Capital Cost Allowance (9936)</Text>
+            <Text style={s.netWaterfallValue}>−{fmt(result.line9936_totalCca)}</Text>
           </View>
           <View style={s.netWaterfallRow}>
-            <Text style={s.netWaterfallLabel}>− Home Office Deduction (8330)</Text>
-            <Text style={s.netWaterfallValue}>−{fmt(result.line8330_homeOfficeDeduction)}</Text>
+            <Text style={s.netWaterfallLabel}>− Home Office Deduction (9945)</Text>
+            <Text style={s.netWaterfallValue}>−{fmt(result.line9945_homeOfficeDeduction)}</Text>
           </View>
           <View style={s.netTotal}>
             <Text style={s.netTotalLabel}>Net Business Income (8270)</Text>

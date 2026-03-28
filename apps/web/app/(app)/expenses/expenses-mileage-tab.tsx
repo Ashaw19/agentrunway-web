@@ -174,7 +174,7 @@ export function ExpensesMileageTab({ mileageLogs, year, settings: _settings }: P
       {/* Sub-header + actions */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          CRA {year} rates: ${RATE_FIRST}/km (first {THRESHOLD.toLocaleString()} km) · ${RATE_BEYOND}/km thereafter
+          CRA {year} allowance rates: ${RATE_FIRST}/km (first {THRESHOLD.toLocaleString()} km) · ${RATE_BEYOND}/km after
         </p>
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={() => setAdding(true)} className="gap-1.5">
@@ -224,7 +224,7 @@ export function ExpensesMileageTab({ mileageLogs, year, settings: _settings }: P
             <div className="text-3xl font-bold tracking-tight text-emerald-700">
               {fmtCurrency(totalDeduction)}
             </div>
-            <p className="mt-1 text-xs text-emerald-600/80">At CRA {year} approved rates</p>
+            <p className="mt-1 text-xs text-emerald-600/80">Planning estimate at CRA allowance rates</p>
           </CardContent>
         </Card>
 
@@ -421,14 +421,21 @@ export function ExpensesMileageTab({ mileageLogs, year, settings: _settings }: P
       <Card className="border-amber-200 bg-amber-50/40">
         <CardContent className="flex items-start gap-3 py-3">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-          <p className="text-xs text-amber-800">
-            <strong>Per-km mileage vs. actual vehicle expenses:</strong> This log tracks the CRA per-km method.
-            If you claim actual vehicle costs (insurance, fuel, depreciation), set your{" "}
-            <Link href="/settings" className="underline underline-offset-2 font-medium">
-              vehicle business use %
-            </Link>{" "}
-            in Settings instead. The CRA allows only one method per year.
-          </p>
+          <div className="text-xs text-amber-800 space-y-1.5">
+            <p>
+              <strong>Important:</strong> The CRA per-km rates shown ($0.72/$0.66) are <em>reasonable automobile allowance</em> benchmarks
+              (employer-to-employee). Your actual T2125 vehicle deduction is based on your <strong>logged expenses</strong> (fuel,
+              insurance, maintenance, CCA/lease) prorated by business-use percentage, not a per-km calculation.
+            </p>
+            <p>
+              This mileage log helps substantiate your business-use percentage and provides a planning estimate.
+              If you claim actual vehicle costs (insurance, fuel, depreciation), set your{" "}
+              <Link href="/settings" className="underline underline-offset-2 font-medium">
+                vehicle business use %
+              </Link>{" "}
+              in Settings. Discuss the best method with your accountant.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

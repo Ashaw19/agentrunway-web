@@ -20,6 +20,14 @@ import {
   provincialInfo,
 } from "./canadian-tax-engine";
 
+// Ontario surtax (mirrors canadian-tax-engine.ts — applied to ALL provincial tax including dividends)
+function ontarioSurtax(provTax: number): number {
+  let surtax = 0;
+  if (provTax > 5_710) surtax += (provTax - 5_710) * 0.20;
+  if (provTax > 7_307) surtax += (provTax - 7_307) * 0.36;
+  return surtax;
+}
+
 // ── Result type ──────────────────────────────────────────────────────────────
 
 export interface CorporateTaxResult {
@@ -364,6 +372,11 @@ function calcPersonalTaxOnDividend(
   let provTax = bracketTax(grossedUp, pInfo.brackets);
   provTax = Math.max(0, provTax - pInfo.basicPersonalAmount * pInfo.lowestRate); // BPA
   provTax = Math.max(0, provTax - grossedUp * pCorpInfo.nelDTCRate);              // Prov DTC
+
+  // Ontario surtax applies to ALL provincial tax, including on dividends
+  if (province === "ontario") {
+    provTax = Math.max(0, provTax + ontarioSurtax(provTax));
+  }
 
   return Math.max(0, fedTax + provTax);
 }
