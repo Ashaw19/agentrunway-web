@@ -1377,11 +1377,17 @@ function suggestAngle(
     case "birthday":
       return "Personal birthday note — no business pitch";
     case "post_close_3":
-      return "Settling-in check — anything they need help with";
+      return ctx.side === "listing" || ctx.side === "seller"
+        ? "Post-closing check-in — how are things going"
+        : "Settling-in check — anything they need help with";
     case "post_close_14":
-      return "Two-week follow-up — how's the new place";
+      return ctx.side === "listing" || ctx.side === "seller"
+        ? "Two-week follow-up — any loose ends from the sale"
+        : "Two-week follow-up — how's the new place";
     case "post_close_90":
-      return "Three-month milestone — value check-in";
+      return ctx.side === "listing" || ctx.side === "seller"
+        ? "Three-month check-in — stay connected for what's next"
+        : "Three-month milestone — value check-in";
     case "review_request":
       return "Ask for a review or testimonial";
     case "referral_ask":
@@ -1590,11 +1596,17 @@ function buildWhyNow(
     case "birthday":
       return `Birthday is ${daysUntilLabel(triggerDate)} — best to reach out a day or two before.`;
     case "post_close_3":
-      return "3 days since closing — the client is still in the emotional high of a new home.";
+      return ctx.side === "listing" || ctx.side === "seller"
+        ? "3 days since closing — the transaction is still fresh and your follow-through sets the tone for the ongoing relationship."
+        : "3 days since closing — the client is still in the emotional high of a new home.";
     case "post_close_14":
-      return "2 weeks since closing — they've settled in enough to reflect on the experience.";
+      return ctx.side === "listing" || ctx.side === "seller"
+        ? "2 weeks since closing — enough time for the dust to settle. A check-in now reinforces that you're more than a transaction."
+        : "2 weeks since closing — they've settled in enough to reflect on the experience.";
     case "post_close_90":
-      return "3 months since closing — long enough to feel established, soon enough to remember you.";
+      return ctx.side === "listing" || ctx.side === "seller"
+        ? "3 months since closing — long enough that life has moved on, soon enough to stay connected for their next move."
+        : "3 months since closing — long enough to feel established, soon enough to remember you.";
     case "review_request":
       return "21 days post-close — the ideal window for an authentic review request.";
     case "referral_ask":
@@ -1678,7 +1690,15 @@ function buildFinancialImpact(
   const gciLabel = gci > 0 ? `$${(gci / 1000).toFixed(0)}k` : null;
 
   // ── Post-close 3/14: foundation moments ───────────────────────────────────
+  const isSeller = ctx.side === "listing" || ctx.side === "seller";
+
   if (opportunityType === "post_close_3") {
+    if (isSeller && isHighValue && gciLabel) {
+      return `This was a ${gciLabel} GCI listing — your follow-through after closing shapes whether this seller refers you to their network or moves on.`;
+    }
+    if (isSeller) {
+      return "The first few days after a listing closes are when sellers decide if you're someone they'd recommend. A brief check-in now cements that impression.";
+    }
     if (isHighValue && gciLabel) {
       return `This was a ${gciLabel} GCI deal — your follow-through in the first week directly shapes whether this client becomes a long-term referral source or a one-time transaction.`;
     }
@@ -1686,6 +1706,12 @@ function buildFinancialImpact(
   }
 
   if (opportunityType === "post_close_14") {
+    if (isSeller && pipelineLight) {
+      return "Two weeks after their listing closed — the transaction stress has faded and they're ready to reflect on the experience. With your pipeline light, this relationship is worth nurturing.";
+    }
+    if (isSeller) {
+      return "Two weeks out from closing their property — the deal is behind them but you're still top of mind. A check-in here keeps you positioned as their go-to agent.";
+    }
     if (pipelineLight) {
       return "Two weeks post-close is when the referral seed gets planted. With your pipeline needing attention, nurturing this relationship now could directly generate your next lead.";
     }
@@ -1710,6 +1736,12 @@ function buildFinancialImpact(
   }
 
   if (opportunityType === "post_close_90") {
+    if (isSeller && isRepeat) {
+      return "Three months since their listing closed — with a repeat client, this check-in keeps the relationship active for their next transaction or referral.";
+    }
+    if (isSeller) {
+      return "Three months since their property sold. Most agents vanish after closing — a check-in now keeps you positioned for referrals and future business.";
+    }
     if (isRepeat) {
       return "Three months out with a repeat client — this is the point where the relationship either deepens or drifts. A brief check-in now protects a significant asset in your business.";
     }
