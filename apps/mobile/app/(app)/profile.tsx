@@ -34,7 +34,7 @@ import {
   Radius,
   Type,
 } from "@/lib/theme";
-import { Card, Badge, Button, SectionHeader, Avatar } from "@/components/ui";
+import { Card, Badge, Button, Avatar } from "@/components/ui";
 
 // ── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -68,7 +68,7 @@ export default function ProfileScreen() {
       <ScrollView
         contentContainerStyle={{
           paddingHorizontal: Space.xl,
-          paddingBottom: Space.hero,
+          paddingBottom: 120,
         }}
         showsVerticalScrollIndicator={false}
       >
@@ -97,13 +97,14 @@ export default function ProfileScreen() {
             sh.cardLg,
           ]}
         >
+          {/* SVG background — sized to fill container */}
           <Svg
+            width="100%"
+            height="100%"
             style={{
               position: "absolute",
               top: 0,
               left: 0,
-              right: 0,
-              bottom: 0,
             }}
           >
             <Defs>
@@ -112,12 +113,7 @@ export default function ProfileScreen() {
                 <Stop offset="1" stopColor={gradEnd} stopOpacity="1" />
               </SvgGrad>
             </Defs>
-            <Rect
-              width="100%"
-              height="100%"
-              fill="url(#profileGrad)"
-              rx={Radius.xl}
-            />
+            <Rect width="100%" height="100%" fill="url(#profileGrad)" />
           </Svg>
 
           {/* User info row */}
@@ -130,10 +126,20 @@ export default function ProfileScreen() {
             }}
           >
             <Avatar name={displayName} size="lg" color={c.primary} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ ...Type.h2, color: c.text }}>{displayName}</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text
-                style={{ ...Type.caption, color: c.textMuted, marginTop: Space.xs }}
+                style={{ ...Type.h2, color: c.text }}
+                numberOfLines={1}
+              >
+                {displayName}
+              </Text>
+              <Text
+                style={{
+                  ...Type.caption,
+                  color: c.textMuted,
+                  marginTop: Space.xs,
+                }}
+                numberOfLines={1}
               >
                 {user?.email ?? ""}
               </Text>
@@ -144,6 +150,7 @@ export default function ProfileScreen() {
                     color: c.textDim,
                     marginTop: Space.xs,
                   }}
+                  numberOfLines={1}
                 >
                   {settings.province} · {settings.experience_years ?? "?"} yrs
                   exp
@@ -207,8 +214,16 @@ export default function ProfileScreen() {
         </View>
 
         {/* ── Tools Section ── */}
-        <View style={{ marginTop: Space.xxxl }}>
-          <SectionHeader title="Tools" />
+        <View style={{ marginTop: Space.section }}>
+          <Text
+            style={{
+              ...Type.h3,
+              color: c.text,
+              marginBottom: Space.md,
+            }}
+          >
+            Tools
+          </Text>
           <Card style={{ padding: 0, marginHorizontal: 0 }}>
             <MenuItem
               icon={<Plane size={18} color={c.primary} />}
@@ -240,8 +255,16 @@ export default function ProfileScreen() {
         </View>
 
         {/* ── Account Section ── */}
-        <View style={{ marginTop: Space.xxxl }}>
-          <SectionHeader title="Account" />
+        <View style={{ marginTop: Space.section }}>
+          <Text
+            style={{
+              ...Type.h3,
+              color: c.text,
+              marginBottom: Space.md,
+            }}
+          >
+            Account
+          </Text>
           <Card style={{ padding: 0, marginHorizontal: 0 }}>
             {/* Theme Toggle */}
             <View
@@ -260,6 +283,7 @@ export default function ProfileScreen() {
                   backgroundColor: isDark ? c.purpleDim : c.warningDim,
                   alignItems: "center",
                   justifyContent: "center",
+                  overflow: "hidden",
                 }}
               >
                 {isDark ? (
@@ -268,8 +292,11 @@ export default function ProfileScreen() {
                   <Sun size={18} color={c.warning} />
                 )}
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ ...Type.bodyBold, color: c.text }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text
+                  style={{ ...Type.bodyBold, color: c.text }}
+                  numberOfLines={1}
+                >
                   Appearance
                 </Text>
                 <Text
@@ -278,6 +305,7 @@ export default function ProfileScreen() {
                     color: c.textDim,
                     marginTop: 2,
                   }}
+                  numberOfLines={1}
                 >
                   {isDark ? "Dark" : "Light"} mode
                 </Text>
@@ -335,8 +363,13 @@ export default function ProfileScreen() {
         </View>
 
         {/* ── Sign Out ── */}
-        <View style={{ marginTop: Space.xxxl }}>
-          <Button variant="danger" label="Sign Out" onPress={signOut} icon="log-out-outline" />
+        <View style={{ marginTop: Space.section }}>
+          <Button
+            variant="danger"
+            label="Sign Out"
+            onPress={signOut}
+            icon="log-out-outline"
+          />
         </View>
 
         {/* ── Version ── */}
@@ -374,6 +407,7 @@ function StatCell({
         flex: 1,
         alignItems: "center",
         paddingVertical: Space.lg,
+        overflow: "hidden",
       }}
     >
       <Text
@@ -381,6 +415,7 @@ function StatCell({
           ...Type.h3,
           color,
         }}
+        numberOfLines={1}
       >
         {value}
       </Text>
@@ -390,6 +425,7 @@ function StatCell({
           color: textDim,
           marginTop: Space.xs,
         }}
+        numberOfLines={1}
       >
         {label}
       </Text>
@@ -433,18 +469,25 @@ function MenuItem({
           backgroundColor: iconBg,
           alignItems: "center",
           justifyContent: "center",
+          overflow: "hidden",
         }}
       >
         {icon}
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={{ ...Type.bodyBold, color: c.text }}>{label}</Text>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text
+          style={{ ...Type.bodyBold, color: c.text }}
+          numberOfLines={1}
+        >
+          {label}
+        </Text>
         <Text
           style={{
             ...Type.caption,
             color: c.textDim,
             marginTop: 2,
           }}
+          numberOfLines={1}
         >
           {description}
         </Text>
