@@ -95,6 +95,7 @@ import {
   Save,
   X,
   CalendarDays,
+  Sparkles,
 } from "lucide-react";
 import { ShowingsSection } from "./showings-section";
 import { fmtCurrency } from "@/lib/formatters";
@@ -3397,6 +3398,138 @@ export function ClientsContent({
                   )}
                 </div>
 
+                {/* AI Actions */}
+                <div className="rounded-2xl border border-indigo-200/60 bg-indigo-50/30 dark:bg-indigo-950/10 p-4 space-y-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-2">
+                    <div className="h-5 w-5 rounded-md bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
+                      <Sparkles className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                    AI Actions
+                  </h3>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      className="h-8 rounded-lg text-[11px] font-medium border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-100/50 hover:border-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors flex items-center justify-center gap-1.5"
+                      onClick={async () => {
+                        if (!selectedClient?.email) {
+                          toast.error("Add an email address first");
+                          return;
+                        }
+                        toast.info("Drafting referral ask…");
+                        try {
+                          const res = await fetch("/api/ai/draft-outreach", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              client_id: selectedClient.id,
+                              opportunity_type: "referral_ask",
+                            }),
+                          });
+                          if (res.ok) {
+                            toast.success("Referral ask drafted — check Flight Control");
+                          } else {
+                            const err = await res.json().catch(() => ({}));
+                            toast.error(err.error || "Failed to draft referral ask");
+                          }
+                        } catch {
+                          toast.error("Failed to draft referral ask");
+                        }
+                      }}
+                    >
+                      🤝 Ask for Referral
+                    </button>
+                    <button
+                      className="h-8 rounded-lg text-[11px] font-medium border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-100/50 hover:border-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors flex items-center justify-center gap-1.5"
+                      onClick={async () => {
+                        if (!selectedClient?.email) {
+                          toast.error("Add an email address first");
+                          return;
+                        }
+                        toast.info("Drafting check-in…");
+                        try {
+                          const res = await fetch("/api/ai/draft-outreach", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              client_id: selectedClient.id,
+                              opportunity_type: "past_client_check_in",
+                            }),
+                          });
+                          if (res.ok) {
+                            toast.success("Check-in drafted — check Flight Control");
+                          } else {
+                            const err = await res.json().catch(() => ({}));
+                            toast.error(err.error || "Failed to draft check-in");
+                          }
+                        } catch {
+                          toast.error("Failed to draft check-in");
+                        }
+                      }}
+                    >
+                      👋 Check In
+                    </button>
+                    <button
+                      className="h-8 rounded-lg text-[11px] font-medium border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-100/50 hover:border-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors flex items-center justify-center gap-1.5"
+                      onClick={async () => {
+                        if (!selectedClient?.email) {
+                          toast.error("Add an email address first");
+                          return;
+                        }
+                        toast.info("Drafting review request…");
+                        try {
+                          const res = await fetch("/api/ai/draft-outreach", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              client_id: selectedClient.id,
+                              opportunity_type: "review_request",
+                            }),
+                          });
+                          if (res.ok) {
+                            toast.success("Review request drafted — check Flight Control");
+                          } else {
+                            const err = await res.json().catch(() => ({}));
+                            toast.error(err.error || "Failed to draft review request");
+                          }
+                        } catch {
+                          toast.error("Failed to draft review request");
+                        }
+                      }}
+                    >
+                      ⭐ Request Review
+                    </button>
+                    <button
+                      className="h-8 rounded-lg text-[11px] font-medium border border-dashed border-indigo-200 text-indigo-600 hover:bg-indigo-100/50 hover:border-indigo-300 dark:text-indigo-400 dark:hover:bg-indigo-900/30 transition-colors flex items-center justify-center gap-1.5"
+                      onClick={async () => {
+                        if (!selectedClient?.email) {
+                          toast.error("Add an email address first");
+                          return;
+                        }
+                        toast.info("Drafting anniversary message…");
+                        try {
+                          const res = await fetch("/api/ai/draft-outreach", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              client_id: selectedClient.id,
+                              opportunity_type: "closing_anniversary",
+                            }),
+                          });
+                          if (res.ok) {
+                            toast.success("Anniversary message drafted — check Flight Control");
+                          } else {
+                            const err = await res.json().catch(() => ({}));
+                            toast.error(err.error || "Failed to draft message");
+                          }
+                        } catch {
+                          toast.error("Failed to draft message");
+                        }
+                      }}
+                    >
+                      🎉 Anniversary Note
+                    </button>
+                  </div>
+                </div>
+
                 {/* Notes Log */}
                 <div className="rounded-2xl border border-slate-200/60 bg-slate-50/40 dark:bg-slate-900/20 p-4 space-y-3">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center gap-2">
@@ -4047,6 +4180,42 @@ export function ClientsContent({
                                 </Select>
                               </div>
                             </div>
+
+                            {/* AI listing description generator */}
+                            {(deal.bedrooms != null || deal.bathrooms != null || deal.square_feet != null) && (
+                              <div className="pt-1">
+                                <button
+                                  className="w-full h-7 rounded text-[10px] border border-dashed text-violet-600 hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors flex items-center justify-center gap-1"
+                                  onClick={async () => {
+                                    toast.info("Generating listing description…");
+                                    try {
+                                      const res = await fetch("/api/ai/listing-description", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({
+                                          client_record_id: deal.id,
+                                          client_id: selectedClient?.id,
+                                        }),
+                                      });
+                                      if (!res.ok) {
+                                        const err = await res.json().catch(() => ({}));
+                                        toast.error(err.error || "Failed to generate description");
+                                        return;
+                                      }
+                                      const result = await res.json();
+                                      // Copy to clipboard
+                                      const fullText = `${result.description}\n\n---\n\nSocial Media Post:\n${result.social_post}`;
+                                      await navigator.clipboard.writeText(fullText);
+                                      toast.success("Listing description copied to clipboard!");
+                                    } catch {
+                                      toast.error("Failed to generate description");
+                                    }
+                                  }}
+                                >
+                                  ✨ Generate Listing Description
+                                </button>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>

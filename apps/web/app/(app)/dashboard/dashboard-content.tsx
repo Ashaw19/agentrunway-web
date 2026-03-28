@@ -76,6 +76,9 @@ import {
   Settings2,
   RotateCcw,
   Eye,
+  Calendar,
+  Clock,
+  Crosshair,
 } from "lucide-react";
 import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
@@ -166,6 +169,7 @@ interface Props {
   boardMarketData?: LocalMarketData | null;
   boardSubregion?: string;
   briefingItems?: BriefingItem[];
+  upcomingConditions?: Array<{ address: string; condition_date: string; client_name: string; days_until: number }>;
   runwayScoreSnapshot?: { score: number; month: string } | null;
   dashboardLayout?: DashboardLayout | null;
   communicationProfile?: CommunicationProfile | null;
@@ -260,12 +264,13 @@ export function DashboardContent({
   openTasks = [],
   mileageKmTotal = 0,
   ccaAssetCount = 0,
-  activeClientCount: _activeClientCount = 0,
+  activeClientCount: activeClients = 0,
   staleLeadCount = 0,
   hasSeenTour = true,
   boardMarketData = null,
   boardSubregion = "",
   briefingItems = [],
+  upcomingConditions = [],
   runwayScoreSnapshot = null,
   dashboardLayout = null,
   communicationProfile = null,
@@ -881,8 +886,29 @@ export function DashboardContent({
   // ── Card render map — build all card JSX (null = card has no data to show) ──
   const cardRenders: Partial<Record<CardId, React.ReactNode>> = {};
 
-  cardRenders["client_briefing"] = (smartAlerts.length > 0 || briefingItems.length > 0) ? (
+  // ── Daily Briefing — comprehensive morning intelligence card ──────────
+  const dailyBriefingPipelineLabel =
+    activeClients === 0 ? "Empty" : activeClients <= 2 ? "Light" : `${activeClients} active`;
+  const dailyBriefingPaceLabel =
+    paceStatus === "ahead" ? "Ahead" : paceStatus === "behind" ? "Behind" : goalGCI > 0 ? "On track" : "";
+  const dailyBriefingMarketLabel = (() => {
+    if (!boardMarketData) return null;
+    const cond = boardMarketData.marketCondition;
+    const condLabel = cond === "seller" ? "Seller's" : cond === "buyer" ? "Buyer's" : "Balanced";
+    const yoy = boardMarketData.quarterlyUnitSalesYoY;
+    const yoyStr = yoy != null ? ` · Sales ${yoy >= 0 ? "+" : ""}${yoy.toFixed(0)}% YoY` : "";
+    return `${condLabel} market${yoyStr}`;
+  })();
+
+  const urgentBriefingItems = briefingItems.filter(i => i.severity === "urgent");
+  const attentionBriefingItems = briefingItems.filter(i => i.severity === "attention" || i.severity === "upcoming");
+  const startHereItem = briefingItems[0] ?? null;
+
+  const dateLabel = new Date().toLocaleDateString("en-CA", { weekday: "long", month: "long", day: "numeric" });
+
+  cardRenders["client_briefing"] = (smartAlerts.length > 0 || briefingItems.length > 0 || upcomingConditions.length > 0) ? (
     <div className="space-y-2">
+      {/* Smart alerts (cash runway, pace, expenses) */}
       {smartAlerts.map((alert, i) => (
         <div
           key={i}
@@ -899,33 +925,142 @@ export function DashboardContent({
           </div>
         </div>
       ))}
-      {briefingItems.length > 0 && (
-        <div className="rounded-xl border border-blue-200/70 bg-white px-4 py-3">
-          <div className="flex items-center justify-between mb-2">
+
+      {/* Daily Briefing card */}
+      <div className="rounded-xl border border-blue-200/70 bg-white overflow-hidden">
+        {/* Header */}
+        <div className="px-4 pt-3 pb-2 border-b border-blue-100/50">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Zap className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-              <p className="text-xs font-semibold text-blue-800 uppercase tracking-wide">Client Briefing</p>
+              <p className="text-xs font-semibold text-blue-800 uppercase tracking-wide">Daily Briefing</p>
             </div>
-            <Link href="/crm" className="text-[11px] text-blue-600 hover:text-blue-800 font-medium">
-              View all →
-            </Link>
+            <p className="text-[11px] text-slate-400">{dateLabel}</p>
           </div>
-          <div className="space-y-1.5">
-            {briefingItems.map((item) => (
-              <div key={item.id} className="flex items-start gap-2">
-                <span className={cn(
-                  "mt-1 h-1.5 w-1.5 rounded-full shrink-0",
-                  item.severity === "urgent" ? "bg-red-500" : item.severity === "attention" ? "bg-amber-500" : "bg-blue-400",
-                )} />
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-slate-800 leading-snug">{item.title}</p>
-                  <p className="text-[11px] text-slate-500 leading-snug">{item.detail}</p>
-                </div>
-              </div>
-            ))}
+          {/* Status strip */}
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            <span className={cn(
+              "inline-flex items-center gap-1 rounded-full text-[10px] font-semibold px-2 py-0.5 border",
+              activeClients === 0
+                ? "bg-red-50 text-red-700 border-red-200"
+                : activeClients <= 2
+                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                  : "bg-green-50 text-green-700 border-green-200"
+            )}>
+              <Layers className="h-2.5 w-2.5" />
+              Pipeline: {dailyBriefingPipelineLabel}
+            </span>
+            {dailyBriefingPaceLabel && (
+              <span className={cn(
+                "inline-flex items-center gap-1 rounded-full text-[10px] font-semibold px-2 py-0.5 border",
+                paceStatus === "ahead"
+                  ? "bg-green-50 text-green-700 border-green-200"
+                  : paceStatus === "behind"
+                    ? "bg-red-50 text-red-700 border-red-200"
+                    : "bg-slate-50 text-slate-600 border-slate-200"
+              )}>
+                {paceStatus === "ahead" ? <TrendingUp className="h-2.5 w-2.5" /> : paceStatus === "behind" ? <TrendingDown className="h-2.5 w-2.5" /> : <Target className="h-2.5 w-2.5" />}
+                Pace: {dailyBriefingPaceLabel}
+              </span>
+            )}
+            {dailyBriefingMarketLabel && (
+              <span className="inline-flex items-center gap-1 rounded-full text-[10px] font-semibold px-2 py-0.5 border bg-violet-50 text-violet-700 border-violet-200">
+                <BarChart2 className="h-2.5 w-2.5" />
+                {dailyBriefingMarketLabel}
+              </span>
+            )}
           </div>
         </div>
-      )}
+
+        {/* Start Here — primary action */}
+        {startHereItem && (
+          <div className="px-4 py-2.5 bg-blue-50/60 border-b border-blue-100/50">
+            <div className="flex items-start gap-2">
+              <Crosshair className="h-3.5 w-3.5 text-blue-600 shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-0.5">Start here</p>
+                <p className="text-xs font-medium text-slate-800 leading-snug">{startHereItem.title}</p>
+                <p className="text-[11px] text-slate-500 leading-snug">{startHereItem.detail}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Condition dates this week */}
+        {upcomingConditions.length > 0 && (
+          <div className="px-4 py-2 border-b border-blue-100/50">
+            <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              Condition dates
+            </p>
+            <div className="space-y-0.5">
+              {upcomingConditions.map((c, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className={cn(
+                    "h-1.5 w-1.5 rounded-full shrink-0",
+                    c.days_until <= 1 ? "bg-red-500" : c.days_until <= 3 ? "bg-amber-500" : "bg-blue-400"
+                  )} />
+                  <p className="text-[11px] text-slate-700 truncate">
+                    <span className="font-medium">{c.address}</span>
+                    <span className="text-slate-400"> — {c.client_name} — </span>
+                    <span className={cn(
+                      "font-semibold",
+                      c.days_until <= 1 ? "text-red-600" : c.days_until <= 3 ? "text-amber-600" : "text-slate-600"
+                    )}>
+                      {c.days_until === 0 ? "today" : c.days_until === 1 ? "tomorrow" : `in ${c.days_until}d`}
+                    </span>
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Needs attention — remaining urgent + attention items */}
+        {((startHereItem ? briefingItems.slice(1) : briefingItems).length > 0 || staleLeadCount > 0) && (
+          <div className="px-4 py-2">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              Needs attention
+            </p>
+            <div className="space-y-1">
+              {(startHereItem ? briefingItems.slice(1) : briefingItems).slice(0, 5).map((item) => (
+                <div key={item.id} className="flex items-start gap-2">
+                  <span className={cn(
+                    "mt-1 h-1.5 w-1.5 rounded-full shrink-0",
+                    item.severity === "urgent" ? "bg-red-500" : item.severity === "attention" ? "bg-amber-500" : "bg-blue-400",
+                  )} />
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-medium text-slate-700 leading-snug">{item.title}</p>
+                    <p className="text-[10px] text-slate-400 leading-snug">{item.detail}</p>
+                  </div>
+                </div>
+              ))}
+              {staleLeadCount > 10 && (
+                <div className="flex items-center gap-2 pt-0.5">
+                  <Building2 className="h-3 w-3 text-amber-500 shrink-0" />
+                  <p className="text-[11px] text-amber-700 font-medium">{staleLeadCount} clients need outreach</p>
+                </div>
+              )}
+            </div>
+            <div className="mt-2 pt-1.5 border-t border-blue-100/50">
+              <Link href="/crm" className="text-[11px] text-blue-600 hover:text-blue-800 font-medium">
+                View full briefing in CRM →
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Empty state — no items at all */}
+        {briefingItems.length === 0 && upcomingConditions.length === 0 && staleLeadCount <= 10 && (
+          <div className="px-4 py-3">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+              <p className="text-xs text-slate-500">All clear — no urgent actions today.</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   ) : null;
 

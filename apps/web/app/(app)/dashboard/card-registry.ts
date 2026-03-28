@@ -23,7 +23,7 @@ export interface CardDef {
 
 export const CARD_REGISTRY: CardDef[] = [
   { id: "kpi_row",          label: "Performance KPIs",            description: "YTD GCI, Deals Closed, Pipeline, and Projected Year-End" },
-  { id: "client_briefing",  label: "Client Briefing",             description: "Smart alerts and top CRM action items" },
+  { id: "client_briefing",  label: "Daily Briefing",               description: "Pipeline status, pace, market conditions, and priority actions" },
   { id: "business_brief",   label: "Weekly Business Brief",       description: "AI-generated health narrative and month recap" },
   { id: "net_takehome",     label: "Net Take-Home",               description: "After-split, after-tax estimated take-home" },
   { id: "personal_records", label: "Personal Records",            description: "Best deal, best month, best year" },

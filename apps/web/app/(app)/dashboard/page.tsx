@@ -102,6 +102,7 @@ export default async function DashboardPage({
         boardMarketData={boardMarketData}
         boardSubregion={mergedSettings.board_subregion ?? ""}
         briefingItems={topBriefingItems}
+        upcomingConditions={[]}
         runwayScoreSnapshot={(settingsRow?.runway_score_snapshot as { score: number; month: string } | null) ?? null}
         dashboardLayout={(settingsRow?.dashboard_layout as import("./card-registry").DashboardLayout | null) ?? null}
         communicationProfile={(settingsRow?.communication_profile as import("@/lib/types/database").CommunicationProfile | null) ?? null}
@@ -221,8 +222,28 @@ export default async function DashboardPage({
           const sev: Record<string, number> = { urgent: 0, attention: 1, upcoming: 2 };
           return (sev[a.severity] ?? 3) - (sev[b.severity] ?? 3);
         })
-        .slice(0, 3)
+        .slice(0, 8)
     : [];
+
+  // ── Upcoming condition dates (next 14 days, pending only) ──────────────
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const twoWeeksStr = new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10);
+  const clientRecordsAll = briefingRecordsResult.data ?? [];
+  const clientsAll = briefingClientsResult.data ?? [];
+  const clientNameMap = new Map(clientsAll.map((c: Client) => [c.id, c.name ?? "Unknown"]));
+  const upcomingConditions = clientRecordsAll
+    .filter((r: ClientRecord) =>
+      r.condition_date && r.condition_status === "pending" &&
+      r.condition_date >= todayStr && r.condition_date <= twoWeeksStr
+    )
+    .map((r: ClientRecord) => ({
+      address: r.address ?? "Unknown address",
+      condition_date: r.condition_date!,
+      client_name: clientNameMap.get(r.client_id) ?? "Unknown",
+      days_until: Math.round((new Date(r.condition_date + "T12:00:00").getTime() - new Date(todayStr + "T12:00:00").getTime()) / 86_400_000),
+    }))
+    .sort((a: { days_until: number }, b: { days_until: number }) => a.days_until - b.days_until)
+    .slice(0, 5);
 
   const activeClientCount = activeClientsResult.count ?? 0;
   const recentlyContactedIds = new Set(
@@ -265,6 +286,7 @@ export default async function DashboardPage({
       boardMarketData={boardMarketData}
       boardSubregion={settingsRow?.board_subregion ?? ""}
       briefingItems={topBriefingItems}
+      upcomingConditions={upcomingConditions}
       runwayScoreSnapshot={(settingsRow?.runway_score_snapshot as { score: number; month: string } | null) ?? null}
       dashboardLayout={(settingsRow?.dashboard_layout as import("./card-registry").DashboardLayout | null) ?? null}
       communicationProfile={(settingsRow?.communication_profile as import("@/lib/types/database").CommunicationProfile | null) ?? null}
