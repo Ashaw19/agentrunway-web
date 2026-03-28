@@ -160,6 +160,7 @@ function generateIdentityLine(
   hasPriorYear: boolean,
   tooEarly: boolean,
   boardName: string | null,
+  marketNotDeclining: boolean,
 ): string {
   // Early-career softening
   const isEarlyCareer = experienceYears != null && experienceYears <= 2;
@@ -208,12 +209,15 @@ function generateIdentityLine(
     return `You're tracking the market — not behind, not ahead. This is where most agents stay.`;
   }
 
-  // Below market
+  // Below market — sharper language when losing + market isn't the problem
   if (momentum === "gaining") {
     return `You're below the board average, but your pace is picking up. The trend is in your favor.`;
   }
+  if (momentum === "losing" && marketNotDeclining) {
+    return `You're falling behind your market. Pipeline is the priority right now.`;
+  }
   if (momentum === "losing") {
-    return `You're below average and losing ground. This needs attention.`;
+    return `You're below average and the market is pulling away. Time to increase activity.`;
   }
   return `You're producing below the typical agent ${board}. Your pace hasn't changed.`;
 }
@@ -302,7 +306,7 @@ function generateDistanceLine(
   const next = nextBand(band);
   if (!next) {
     return {
-      line: "You're in the top tier. Maintain your pace through the rest of the year.",
+      line: "You're in the top tier. The goal now is to stay there.",
       deals: null,
       nextLabel: null,
     };
@@ -320,6 +324,14 @@ function generateDistanceLine(
     const dealsNeeded = Math.ceil(gciGap / avgDealGCI);
     const qLabel = `Q${currentQuarter + 1}`;
 
+    // Monthly cadence hint — only when math divides cleanly
+    const monthsLeftInQ = 3 - (new Date().getMonth() % 3);
+    const perMonth = monthsLeftInQ > 0 ? dealsNeeded / monthsLeftInQ : 0;
+    const cadenceHint =
+      dealsNeeded >= 2 && monthsLeftInQ >= 2 && perMonth === Math.round(perMonth) && perMonth <= 3
+        ? ` — about ${Math.round(perMonth)}/month`
+        : "";
+
     // Quarterly framing
     if (currentQuarter <= 2) {
       // Q1-Q3: frame as deals this quarter
@@ -331,7 +343,7 @@ function generateDistanceLine(
         };
       }
       return {
-        line: `${dealsNeeded} more closings by end of ${qLabel} would move you into ${nextLabel}.`,
+        line: `${dealsNeeded} more closings by end of ${qLabel} would move you into ${nextLabel}${cadenceHint}.`,
         deals: dealsNeeded,
         nextLabel,
       };
@@ -369,13 +381,15 @@ function generateMomentumDetail(
   if (momentum === "no_data") return null;
   if (gainLossVsMarket == null) return null;
 
-  const pts = Math.abs(Math.round(gainLossVsMarket));
+  const magnitude = Math.abs(gainLossVsMarket);
 
   if (momentum === "gaining") {
-    return `Your pace is outrunning the market by ${pts} points.`;
+    if (magnitude > 20) return "You're significantly outpacing the market right now.";
+    return "You're outpacing the market.";
   }
   if (momentum === "losing") {
-    return `The market is outpacing you by ${pts} points.`;
+    if (magnitude > 20) return "The market is moving and you're not keeping up. Activity is the lever.";
+    return "The market is outpacing you. More pipeline would close this gap.";
   }
   return "Your growth is tracking closely with the market.";
 }
@@ -383,8 +397,11 @@ function generateMomentumDetail(
 // ── Bridge Line ────────────────────────────────────────────────────────────────
 
 function generateBridgeLine(band: PerformanceBand, momentum: MomentumDirection): string {
-  if (band === "leading" && momentum !== "losing") {
-    return "Here's where to focus to maintain your position ↓";
+  if (band === "leading" && momentum === "losing") {
+    return "Your next move to hold your position ↓";
+  }
+  if (band === "leading") {
+    return "Stay sharp — your next focus ↓";
   }
   if (momentum === "losing" || band === "launching" || band === "climbing") {
     return "This is how you close the gap ↓";
@@ -418,10 +435,14 @@ export function computeWhereYouStand(input: WhereYouStandInput): WhereYouStandRe
   // Position vs market (for identity line)
   const position = getPositionVsMarket(marketMomentum);
 
+  // Market not declining = market is flat or up (boardSalesYoYPct >= -2)
+  const marketNotDeclining = marketMomentum?.boardSalesYoYPct == null
+    || marketMomentum.boardSalesYoYPct >= -2;
+
   // Identity line
   const identityLine = generateIdentityLine(
     position, momentum, experienceYears, hasPriorYearData, tooEarlyToProject,
-    marketMomentum?.boardName ?? null,
+    marketMomentum?.boardName ?? null, marketNotDeclining,
   );
 
   // Diagnosis
