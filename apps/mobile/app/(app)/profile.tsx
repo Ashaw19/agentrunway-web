@@ -1,4 +1,9 @@
-import { View, Text, Pressable, ScrollView, StyleSheet } from "react-native";
+/**
+ * Profile / More Screen
+ * Premium, theme-aware with light/dark toggle.
+ */
+
+import { View, Text, Pressable, ScrollView, Switch, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
@@ -13,14 +18,23 @@ import {
   Plane,
   TrendingUp,
   ChevronRight,
-  LogOut,
   Receipt,
   Target,
-  Settings,
-  HelpCircle,
   Zap,
+  Sun,
+  Moon,
 } from "lucide-react-native";
-import { C, fmtCurrency, getInitials } from "@/lib/theme";
+import {
+  useColors,
+  useTheme,
+  shadows,
+  fmtCurrency,
+  getInitials,
+  Space,
+  Radius,
+  Type,
+} from "@/lib/theme";
+import { Card, Badge, Button, SectionHeader, Avatar } from "@/components/ui";
 
 // ── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -29,6 +43,10 @@ export default function ProfileScreen() {
   const store = useDataStore();
   const settings = store.settings;
   const router = useRouter();
+
+  const { mode, toggle } = useTheme();
+  const c = useColors();
+  const sh = shadows(mode);
 
   const displayName =
     settings?.display_name ?? user?.email?.split("@")[0] ?? "Agent";
@@ -39,55 +57,114 @@ export default function ProfileScreen() {
   const goalGci = settings?.goal_gci ?? 0;
   const goalPct = goalGci > 0 ? Math.round((ytdGci / goalGci) * 100) : null;
 
+  const isDark = mode === "dark";
+
+  // SVG gradient stops — theme-aware
+  const gradStart = isDark ? "#1C1C3E" : "#E8E6FF";
+  const gradEnd = isDark ? "#0D0D1A" : "#F4F3FF";
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+        contentContainerStyle={{
+          paddingHorizontal: Space.xl,
+          paddingBottom: Space.hero,
+        }}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[S.screenTitle, { paddingTop: 20 }]}>More</Text>
+        {/* ── Screen Title ── */}
+        <Text
+          style={{
+            ...Type.hero,
+            color: c.text,
+            paddingTop: Space.xl,
+            paddingBottom: Space.sm,
+          }}
+        >
+          More
+        </Text>
 
-        {/* ── User Card ── */}
-        <View style={[S.card, { marginTop: 20, overflow: "hidden" }]}>
-          <Svg style={StyleSheet.absoluteFill}>
+        {/* ── User Card (SVG gradient) ── */}
+        <View
+          style={[
+            {
+              borderRadius: Radius.xl,
+              overflow: "hidden",
+              marginTop: Space.lg,
+              borderWidth: 1,
+              borderColor: c.cardBorder,
+            },
+            sh.cardLg,
+          ]}
+        >
+          <Svg
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
+          >
             <Defs>
               <SvgGrad id="profileGrad" x1="0" y1="0" x2="1" y2="1">
-                <Stop offset="0" stopColor="#1C1C3E" stopOpacity="1" />
-                <Stop offset="1" stopColor="#0D0D1A" stopOpacity="1" />
+                <Stop offset="0" stopColor={gradStart} stopOpacity="1" />
+                <Stop offset="1" stopColor={gradEnd} stopOpacity="1" />
               </SvgGrad>
             </Defs>
-            <Rect width="100%" height="100%" fill="url(#profileGrad)" rx="16" />
+            <Rect
+              width="100%"
+              height="100%"
+              fill="url(#profileGrad)"
+              rx={Radius.xl}
+            />
           </Svg>
+
+          {/* User info row */}
           <View
             style={{
               flexDirection: "row",
               alignItems: "center",
-              gap: 14,
-              padding: 20,
+              gap: Space.lg,
+              padding: Space.xl,
             }}
           >
-            <View style={S.avatar}>
-              <Text style={S.avatarText}>{initials}</Text>
-            </View>
+            <Avatar name={displayName} size="lg" color={c.primary} />
             <View style={{ flex: 1 }}>
+              <Text style={{ ...Type.h2, color: c.text }}>{displayName}</Text>
               <Text
-                style={{ color: C.text, fontSize: 18, fontWeight: "800" }}
-              >
-                {displayName}
-              </Text>
-              <Text
-                style={{ color: C.textDim, fontSize: 13, marginTop: 3 }}
+                style={{ ...Type.caption, color: c.textMuted, marginTop: Space.xs }}
               >
                 {user?.email ?? ""}
               </Text>
               {settings?.province && (
                 <Text
-                  style={{ color: C.textDim, fontSize: 12, marginTop: 2 }}
+                  style={{
+                    ...Type.micro,
+                    color: c.textDim,
+                    marginTop: Space.xs,
+                  }}
                 >
-                  {settings.province} · {settings.experience_years ?? "?"} yrs exp
+                  {settings.province} · {settings.experience_years ?? "?"} yrs
+                  exp
                 </Text>
               )}
             </View>
+            {settings?.subscription_tier && (
+              <Badge
+                label={
+                  settings.subscription_tier === "professional"
+                    ? "Pro"
+                    : "Free"
+                }
+                color={
+                  settings.subscription_tier === "professional"
+                    ? c.gold
+                    : c.textDim
+                }
+                size="sm"
+              />
+            )}
           </View>
 
           {/* Stats row */}
@@ -95,119 +172,183 @@ export default function ProfileScreen() {
             style={{
               flexDirection: "row",
               borderTopWidth: 1,
-              borderTopColor: C.cardBorder,
+              borderTopColor: c.cardBorder,
             }}
           >
             <StatCell
               label="YTD GCI"
               value={fmtCurrency(ytdGci)}
-              color={C.success}
+              color={c.success}
+              textDim={c.textDim}
             />
-            <View style={{ width: 1, backgroundColor: C.cardBorder }} />
+            <View style={{ width: 1, backgroundColor: c.cardBorder }} />
             <StatCell
               label="Deals Closed"
               value={String(ytdDeals)}
-              color={C.text}
+              color={c.text}
+              textDim={c.textDim}
             />
-            <View style={{ width: 1, backgroundColor: C.cardBorder }} />
+            <View style={{ width: 1, backgroundColor: c.cardBorder }} />
             <StatCell
               label="Goal"
-              value={goalPct !== null ? `${goalPct}%` : "—"}
+              value={goalPct !== null ? `${goalPct}%` : "\u2014"}
               color={
                 goalPct === null
-                  ? C.textDim
+                  ? c.textDim
                   : goalPct >= 100
-                  ? C.success
-                  : goalPct >= 50
-                  ? C.primary
-                  : C.warning
+                    ? c.success
+                    : goalPct >= 50
+                      ? c.primary
+                      : c.warning
               }
+              textDim={c.textDim}
             />
           </View>
         </View>
 
         {/* ── Tools Section ── */}
-        <View style={{ marginTop: 28 }}>
-          <Text style={S.sectionLabel}>TOOLS</Text>
-          <View style={[S.card, { marginTop: 8 }]}>
+        <View style={{ marginTop: Space.xxxl }}>
+          <SectionHeader title="Tools" />
+          <Card style={{ padding: 0, marginHorizontal: 0 }}>
             <MenuItem
-              icon={<Plane size={18} color={C.primary} />}
-              iconBg={C.primaryDim}
+              icon={<Plane size={18} color={c.primary} />}
+              iconBg={c.primaryDim}
               label="Flight Control"
               description="Review and send AI-drafted outreach"
               onPress={() => router.push("/outreach")}
+              c={c}
             />
-            <Divider />
+            <Divider c={c} />
             <MenuItem
-              icon={<TrendingUp size={18} color={C.cyan} />}
-              iconBg={C.cyanDim}
+              icon={<TrendingUp size={18} color={c.cyan} />}
+              iconBg={c.cyanDim}
               label="Income Forecast"
               description="Year-end projections and pacing"
               onPress={() => router.push("/forecast")}
+              c={c}
             />
-            <Divider />
+            <Divider c={c} />
             <MenuItem
-              icon={<Receipt size={18} color={C.success} />}
-              iconBg={C.successDim}
+              icon={<Receipt size={18} color={c.success} />}
+              iconBg={c.successDim}
               label="Scan Receipt"
               description="Capture and log business expenses"
               onPress={() => router.push("/expenses")}
+              c={c}
             />
-          </View>
+          </Card>
         </View>
 
         {/* ── Account Section ── */}
-        <View style={{ marginTop: 28 }}>
-          <Text style={S.sectionLabel}>ACCOUNT</Text>
-          <View style={[S.card, { marginTop: 8 }]}>
+        <View style={{ marginTop: Space.xxxl }}>
+          <SectionHeader title="Account" />
+          <Card style={{ padding: 0, marginHorizontal: 0 }}>
+            {/* Theme Toggle */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                padding: Space.lg,
+                gap: Space.lg,
+              }}
+            >
+              <View
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: Radius.md,
+                  backgroundColor: isDark ? c.purpleDim : c.warningDim,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {isDark ? (
+                  <Moon size={18} color={c.purple} />
+                ) : (
+                  <Sun size={18} color={c.warning} />
+                )}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ ...Type.bodyBold, color: c.text }}>
+                  Appearance
+                </Text>
+                <Text
+                  style={{
+                    ...Type.caption,
+                    color: c.textDim,
+                    marginTop: 2,
+                  }}
+                >
+                  {isDark ? "Dark" : "Light"} mode
+                </Text>
+              </View>
+              <Switch
+                value={isDark}
+                onValueChange={toggle}
+                trackColor={{
+                  false: c.textFaint,
+                  true: c.primary,
+                }}
+                thumbColor="#FFFFFF"
+                ios_backgroundColor={c.textFaint}
+              />
+            </View>
+
+            <Divider c={c} />
+
             <MenuItem
-              icon={<Zap size={18} color={C.warning} />}
-              iconBg={C.warningDim}
+              icon={<Zap size={18} color={c.warning} />}
+              iconBg={c.warningDim}
               label="Subscription"
               description={
                 settings?.subscription_tier === "professional"
-                  ? "Professional · Active"
+                  ? "Professional \u00B7 Active"
                   : "Free plan"
               }
-              onPress={() => {}}
+              onPress={() =>
+                Alert.alert(
+                  "Subscription",
+                  "Manage your subscription on the web dashboard."
+                )
+              }
+              c={c}
             />
-            <Divider />
+            <Divider c={c} />
             <MenuItem
-              icon={<Target size={18} color={C.purple} />}
-              iconBg={C.purpleDim}
+              icon={<Target size={18} color={c.purple} />}
+              iconBg={c.purpleDim}
               label="Goals & Settings"
               description={
                 goalGci > 0
                   ? `GCI goal: ${fmtCurrency(goalGci)}`
                   : "Set your annual targets"
               }
-              onPress={() => {}}
+              onPress={() =>
+                Alert.alert(
+                  "Coming Soon",
+                  "Goals & Settings will be available in the next update."
+                )
+              }
+              c={c}
             />
-          </View>
+          </Card>
         </View>
 
         {/* ── Sign Out ── */}
-        <Pressable
-          onPress={signOut}
-          style={({ pressed }) => [
-            S.signOutBtn,
-            { opacity: pressed ? 0.7 : 1 },
-          ]}
-        >
-          <LogOut size={17} color={C.danger} />
-          <Text style={S.signOutText}>Sign Out</Text>
-        </Pressable>
+        <View style={{ marginTop: Space.xxxl }}>
+          <Button variant="danger" label="Sign Out" onPress={signOut} icon="log-out-outline" />
+        </View>
 
-        {/* Version */}
+        {/* ── Version ── */}
         <Text
           style={{
-            color: C.textFaint,
-            fontSize: 11,
+            ...Type.micro,
+            color: c.textFaint,
             textAlign: "center",
-            marginTop: 24,
+            marginTop: Space.xxl,
           }}
         >
-          Agent Runway · v1.0
+          Agent Runway · v1.0.0
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -220,22 +361,34 @@ function StatCell({
   label,
   value,
   color,
+  textDim,
 }: {
   label: string;
   value: string;
   color: string;
+  textDim: string;
 }) {
   return (
-    <View style={{ flex: 1, alignItems: "center", paddingVertical: 14 }}>
-      <Text style={{ color, fontSize: 17, fontWeight: "800" }}>{value}</Text>
+    <View
+      style={{
+        flex: 1,
+        alignItems: "center",
+        paddingVertical: Space.lg,
+      }}
+    >
       <Text
         style={{
-          color: C.textDim,
-          fontSize: 10,
-          fontWeight: "600",
-          textTransform: "uppercase",
-          letterSpacing: 0.5,
-          marginTop: 3,
+          ...Type.h3,
+          color,
+        }}
+      >
+        {value}
+      </Text>
+      <Text
+        style={{
+          ...Type.label,
+          color: textDim,
+          marginTop: Space.xs,
         }}
       >
         {label}
@@ -250,12 +403,14 @@ function MenuItem({
   label,
   description,
   onPress,
+  c,
 }: {
   icon: React.ReactNode;
   iconBg: string;
   label: string;
   description: string;
   onPress: () => void;
+  c: ReturnType<typeof useColors>;
 }) {
   return (
     <Pressable
@@ -264,8 +419,8 @@ function MenuItem({
         {
           flexDirection: "row",
           alignItems: "center",
-          padding: 16,
-          gap: 14,
+          padding: Space.lg,
+          gap: Space.lg,
           opacity: pressed ? 0.7 : 1,
         },
       ]}
@@ -274,7 +429,7 @@ function MenuItem({
         style={{
           width: 38,
           height: 38,
-          borderRadius: 10,
+          borderRadius: Radius.md,
           backgroundColor: iconBg,
           alignItems: "center",
           justifyContent: "center",
@@ -283,79 +438,30 @@ function MenuItem({
         {icon}
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ color: C.text, fontSize: 15, fontWeight: "600" }}>
-          {label}
-        </Text>
-        <Text style={{ color: C.textDim, fontSize: 12, marginTop: 2 }}>
+        <Text style={{ ...Type.bodyBold, color: c.text }}>{label}</Text>
+        <Text
+          style={{
+            ...Type.caption,
+            color: c.textDim,
+            marginTop: 2,
+          }}
+        >
           {description}
         </Text>
       </View>
-      <ChevronRight size={16} color={C.textFaint} />
+      <ChevronRight size={16} color={c.textFaint} />
     </Pressable>
   );
 }
 
-function Divider() {
+function Divider({ c }: { c: ReturnType<typeof useColors> }) {
   return (
     <View
-      style={{ height: 1, backgroundColor: C.cardBorder, marginLeft: 68 }}
+      style={{
+        height: 1,
+        backgroundColor: c.cardBorder,
+        marginLeft: 38 + Space.lg * 2,
+      }}
     />
   );
 }
-
-// ── Styles ─────────────────────────────────────────────────────────────────
-
-const S = StyleSheet.create({
-  screenTitle: {
-    fontSize: 30,
-    fontWeight: "800",
-    color: C.text,
-    letterSpacing: -0.8,
-  },
-  card: {
-    backgroundColor: C.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    overflow: "hidden",
-  },
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: C.primaryDim,
-    borderWidth: 2,
-    borderColor: C.primaryBorder,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: {
-    color: C.primary,
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  sectionLabel: {
-    color: C.textDim,
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  signOutBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: C.dangerDim,
-    borderRadius: 12,
-    padding: 15,
-    marginTop: 28,
-    borderWidth: 1,
-    borderColor: C.danger + "30",
-  },
-  signOutText: {
-    color: C.danger,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-});
