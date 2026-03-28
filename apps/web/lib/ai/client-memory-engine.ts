@@ -89,6 +89,7 @@ interface GatheredClientData {
   tasks: { title: string; due_date: string; priority: string; notes: string | null; completed_at: string | null }[];
   outreach_history: { opportunity_type: string; status: string; ai_subject: string | null; created_at: string }[];
   existing_memory: { memory_summary: string | null; structured_facts: Record<string, unknown> } | null;
+  client_notes: { content: string; created_at: string }[];
 }
 
 async function gatherClientData(
@@ -107,7 +108,7 @@ async function gatherClientData(
   if (!client) return null;
 
   // Parallel fetches for related data (capped per table to keep token budget)
-  const [transactionsRes, activitiesRes, showingsRes, listingRes, tasksRes, outreachRes, memoryRes] = await Promise.all([
+  const [transactionsRes, activitiesRes, showingsRes, listingRes, tasksRes, outreachRes, memoryRes, clientNotesRes] = await Promise.all([
     supabase
       .from("client_records")
       .select("side, source, address, close_date, gci")
@@ -156,6 +157,13 @@ async function gatherClientData(
       .eq("client_id", clientId)
       .eq("user_id", userId)
       .single(),
+    supabase
+      .from("client_notes")
+      .select("content, created_at")
+      .eq("client_id", clientId)
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(30),
   ]);
 
   return {
@@ -167,6 +175,7 @@ async function gatherClientData(
     tasks: (tasksRes.data ?? []) as GatheredClientData["tasks"],
     outreach_history: (outreachRes.data ?? []) as GatheredClientData["outreach_history"],
     existing_memory: memoryRes.data as GatheredClientData["existing_memory"],
+    client_notes: (clientNotesRes.data ?? []) as GatheredClientData["client_notes"],
   };
 }
 
@@ -195,7 +204,7 @@ CRM pipeline status definitions:
 - Lead Source: ${c.lead_source ?? "unknown"}
 - Communication Tone: ${c.communication_tone}
 - Tags: ${c.tags?.length ? c.tags.join(", ") : "none"}
-- Notes: ${c.notes ?? "none"}
+- Legacy Notes: ${c.notes ?? "none"}
 - Timeframe: ${c.timeframe ?? "unknown"}
 - Property Interest: ${c.property_interest ? `$${c.property_interest.toLocaleString()} (${c.property_interest_type})` : "unknown"}
 - Birthday: ${c.birthdate ?? "unknown"}
@@ -218,6 +227,13 @@ CRM pipeline status definitions:
     prompt += `\n## Contact Activities (${data.activities.length} most recent)\n`;
     for (const a of data.activities.slice(0, 30)) {
       prompt += `- [${a.activity_date}] ${a.type}: ${a.description || "(no description)"}\n`;
+    }
+  }
+
+  if (data.client_notes.length > 0) {
+    prompt += `\n## Agent Notes (${data.client_notes.length} entries — most recent first)\n`;
+    for (const n of data.client_notes.slice(0, 20)) {
+      prompt += `- [${n.created_at.slice(0, 10)}] ${n.content}\n`;
     }
   }
 

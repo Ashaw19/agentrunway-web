@@ -904,6 +904,14 @@ export interface ContactTask {
   updated_at:   string;
 }
 
+export interface ClientNote {
+  id:         string;
+  user_id:    string;
+  client_id:  string;
+  content:    string;
+  created_at: string;
+}
+
 // ── Client identity (master record, one per unique client per agent) ──────────
 export interface Client {
   id: string;

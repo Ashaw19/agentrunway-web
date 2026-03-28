@@ -124,6 +124,7 @@ import type {
   ListingAppointment,
   ListingStatus,
   BuyerFinancingType,
+  ClientNote,
 } from "@/lib/types/database";
 import {
   LISTING_STATUS_LABELS,
@@ -849,6 +850,8 @@ export function ClientsContent({
   const [localActivities, setLocalActivities] =
     useState<ContactActivity[]>(initialActivities);
   const [localTasks, setLocalTasks] = useState<ContactTask[]>(initialTasks);
+  const [clientNotes, setClientNotes] = useState<ClientNote[]>([]);
+  const [newNoteText, setNewNoteText] = useState("");
   const [localClients, setLocalClients] = useState<Client[]>(initialClients);
   const [clientsLoading, setClientsLoading] = useState(initialClients.length === 0 && !!userId);
 
@@ -1205,6 +1208,22 @@ export function ClientsContent({
       notes:      selectedClient.notes      ?? "",
     });
   }, [selectedClient?.id]);
+
+  // Fetch client notes log when a client is selected
+  useEffect(() => {
+    if (!selectedClientId) { setClientNotes([]); setNewNoteText(""); return; }
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("client_notes")
+        .select("*")
+        .eq("client_id", selectedClientId)
+        .order("created_at", { ascending: false });
+      if (!cancelled && data) setClientNotes(data as ClientNote[]);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedClientId]);
 
   const clientActivities = useMemo(
     () =>
@@ -1737,7 +1756,6 @@ export function ClientsContent({
       updateClientField(selectedClient.id, "last_name",  last  || null),
       updateClientField(selectedClient.id, "name",       fullName),
       updateClientField(selectedClient.id, "name_search", fullName.toLowerCase()),
-      updateClientField(selectedClient.id, "notes", profileDraft.notes.trim() || null),
     ]);
     setProfileSaving(false);
     toast.success("Profile saved");
@@ -3379,21 +3397,110 @@ export function ClientsContent({
                   )}
                 </div>
 
-                {/* Notes */}
-                <div className="rounded-2xl border border-slate-200/60 bg-slate-50/40 dark:bg-slate-900/20 p-4 space-y-2">
+                {/* Notes Log */}
+                <div className="rounded-2xl border border-slate-200/60 bg-slate-50/40 dark:bg-slate-900/20 p-4 space-y-3">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 flex items-center gap-2">
                     <div className="h-5 w-5 rounded-md bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
                       <FileText className="h-3 w-3 text-slate-500 dark:text-slate-400" />
                     </div>
                     Notes
                   </h3>
-                  <Textarea
-                    placeholder="Add notes about this client…"
-                    value={profileDraft?.notes ?? ""}
-                    onChange={(e) => setProfileDraft((d) => d ? { ...d, notes: e.target.value } : d)}
-                    rows={3}
-                    className="text-sm resize-none bg-white/60 dark:bg-slate-900/40"
-                  />
+
+                  {/* Add note input */}
+                  <div className="flex gap-2">
+                    <Textarea
+                      placeholder="Add a note…"
+                      value={newNoteText}
+                      onChange={(e) => setNewNoteText(e.target.value)}
+                      rows={2}
+                      className="text-sm resize-none bg-white/60 dark:bg-slate-900/40 flex-1"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && newNoteText.trim()) {
+                          e.preventDefault();
+                          (async () => {
+                            if (!selectedClient || guardSandboxWrite(sandbox.sandboxMode)) return;
+                            const supabase = createClient();
+                            const { data: { user } } = await supabase.auth.getUser();
+                            if (!user) return;
+                            const { data, error } = await supabase
+                              .from("client_notes")
+                              .insert({ user_id: user.id, client_id: selectedClient.id, content: newNoteText.trim() })
+                              .select()
+                              .single();
+                            if (!error && data) {
+                              setClientNotes((prev) => [data as ClientNote, ...prev]);
+                              setNewNoteText("");
+                              markMemoryStaleClient(selectedClient.id);
+                            }
+                          })();
+                        }
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="self-end shrink-0"
+                      disabled={!newNoteText.trim()}
+                      onClick={async () => {
+                        if (!selectedClient || guardSandboxWrite(sandbox.sandboxMode)) return;
+                        const supabase = createClient();
+                        const { data: { user } } = await supabase.auth.getUser();
+                        if (!user) return;
+                        const { data, error } = await supabase
+                          .from("client_notes")
+                          .insert({ user_id: user.id, client_id: selectedClient.id, content: newNoteText.trim() })
+                          .select()
+                          .single();
+                        if (!error && data) {
+                          setClientNotes((prev) => [data as ClientNote, ...prev]);
+                          setNewNoteText("");
+                          markMemoryStaleClient(selectedClient.id);
+                        }
+                      }}
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      Save
+                    </Button>
+                  </div>
+
+                  {/* Notes log */}
+                  {clientNotes.length > 0 && (
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {clientNotes.map((note) => (
+                        <div
+                          key={note.id}
+                          className="group flex items-start gap-2 rounded-lg border border-slate-200/50 dark:border-slate-700/50 bg-white/60 dark:bg-slate-900/40 px-3 py-2"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{note.content}</p>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                              {new Date(note.created_at).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" })}
+                              {" · "}
+                              {new Date(note.created_at).toLocaleTimeString("en-CA", { hour: "numeric", minute: "2-digit" })}
+                            </p>
+                          </div>
+                          <button
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/30 text-slate-400 hover:text-red-500"
+                            title="Delete note"
+                            onClick={async () => {
+                              if (guardSandboxWrite(sandbox.sandboxMode)) return;
+                              const supabase = createClient();
+                              const { error } = await supabase
+                                .from("client_notes")
+                                .delete()
+                                .eq("id", note.id);
+                              if (!error) {
+                                setClientNotes((prev) => prev.filter((n) => n.id !== note.id));
+                                if (selectedClient) markMemoryStaleClient(selectedClient.id);
+                              }
+                            }}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Activity section */}
