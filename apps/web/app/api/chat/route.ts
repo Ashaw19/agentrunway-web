@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { KNOWLEDGE_BASE } from "@/lib/knowledge-base";
+import { AGENT_RUNWAY_VOICE } from "@/lib/outreach-prompts";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
 import { generateTeamComparativeInsights } from "@agent-runway/core/engines";
@@ -240,7 +241,9 @@ When the agent's data shows any of these patterns, surface them naturally in you
 - Cash / survival runway under 3 months → treat as urgent, name it clearly
 - If they're close to hitting their annual goal → acknowledge momentum positively
 
-IMPORTANT: On the very first message from the agent, if their data shows a notable pattern (behind pace, high expenses, stale clients), proactively open with that insight rather than waiting to be asked. Frame it conversationally: "Looking at your numbers, I noticed..." A good advisor doesn't wait to be asked — they lead with what matters.`;
+IMPORTANT: On the very first message from the agent, if their data shows a notable pattern (behind pace, high expenses, stale clients), proactively open with that insight rather than waiting to be asked. Frame it conversationally: "Looking at your numbers, I noticed..." A good advisor doesn't wait to be asked — they lead with what matters.
+
+${AGENT_RUNWAY_VOICE}`;
 
 
   try {

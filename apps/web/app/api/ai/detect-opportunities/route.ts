@@ -25,6 +25,7 @@ import type { SupabaseClient }    from "@supabase/supabase-js";
 import type { ClientMemoryFacts, ClientMemoryProfile } from "@/lib/ai/client-memory-engine";
 import {
   type Tone,
+  AGENT_RUNWAY_VOICE,
   buildAnniversaryPrompt,
   buildIdlePrompt,
   buildBirthdayPrompt,
@@ -671,6 +672,7 @@ async function draftItem(
       : null;
 
     const contextSuffix = [
+      AGENT_RUNWAY_VOICE,
       clientContextBlock,
       contextLevelBlock,
       VALUE_FIRST_RULE,

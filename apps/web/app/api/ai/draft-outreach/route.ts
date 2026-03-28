@@ -28,6 +28,7 @@ import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import type { OutreachOpportunityType } from "@agent-runway/core/types/database";
 import {
   type Tone,
+  AGENT_RUNWAY_VOICE,
   buildAnniversaryPrompt,
   buildBirthdayPrompt,
   buildMortgageRenewalDuePrompt,
@@ -666,6 +667,7 @@ export async function POST(req: NextRequest) {
                                     SPARSE_CONTEXT_INSTRUCTIONS;
 
     const contextSuffix = [
+      AGENT_RUNWAY_VOICE,
       clientContextBlock,
       contextLevelBlock,
       VALUE_FIRST_RULE,
@@ -693,6 +695,7 @@ export async function POST(req: NextRequest) {
 
     // ── Self-review: check for banned phrases and retry once if found ─────────
     const BANNED_PHRASES = [
+      // Classic cliche openers
       "i hope this email finds you well",
       "i hope you're doing well",
       "hope this finds you",
@@ -702,6 +705,7 @@ export async function POST(req: NextRequest) {
       "just checking in",
       "per our conversation",
       "i wanted to reach out",
+      // Marketing-speak
       "exciting update",
       "big news",
       "important reminder",
@@ -712,6 +716,19 @@ export async function POST(req: NextRequest) {
       "i have some market insights",
       "exciting things happening",
       "some exciting",
+      // AI dead giveaways
+      "thrilled to",
+      "excited to announce",
+      "excited to share",
+      "proud to present",
+      "don't miss out",
+      "won't last long",
+      "once-in-a-lifetime",
+      "dream home",
+      "in today's competitive market",
+      "in today's real estate landscape",
+      "whether you're a first-time buyer",
+      "your real estate journey",
     ];
     const rawLower = raw.toLowerCase();
     const hasBanned = BANNED_PHRASES.some((p) => rawLower.includes(p));

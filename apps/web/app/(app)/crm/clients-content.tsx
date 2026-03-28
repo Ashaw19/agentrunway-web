@@ -4183,9 +4183,9 @@ export function ClientsContent({
 
                             {/* AI listing description generator */}
                             {(deal.bedrooms != null || deal.bathrooms != null || deal.square_feet != null) && (
-                              <div className="pt-1">
+                              <div className="pt-1 flex gap-1">
                                 <button
-                                  className="w-full h-7 rounded text-[10px] border border-dashed text-violet-600 hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors flex items-center justify-center gap-1"
+                                  className="flex-1 h-7 rounded text-[10px] border border-dashed text-violet-600 hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors flex items-center justify-center gap-1"
                                   onClick={async () => {
                                     toast.info("Generating listing description…");
                                     try {
@@ -4203,7 +4203,6 @@ export function ClientsContent({
                                         return;
                                       }
                                       const result = await res.json();
-                                      // Copy to clipboard
                                       const fullText = `${result.description}\n\n---\n\nSocial Media Post:\n${result.social_post}`;
                                       await navigator.clipboard.writeText(fullText);
                                       toast.success("Listing description copied to clipboard!");
@@ -4212,7 +4211,38 @@ export function ClientsContent({
                                     }
                                   }}
                                 >
-                                  ✨ Generate Listing Description
+                                  ✨ Generate Description
+                                </button>
+                                <button
+                                  className="h-7 px-2 rounded text-[9px] border border-dashed text-slate-500 hover:border-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors whitespace-nowrap"
+                                  title="Generate without emojis"
+                                  onClick={async () => {
+                                    toast.info("Generating (no emojis)…");
+                                    try {
+                                      const res = await fetch("/api/ai/listing-description", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({
+                                          client_record_id: deal.id,
+                                          client_id: selectedClient?.id,
+                                          no_emoji: true,
+                                        }),
+                                      });
+                                      if (!res.ok) {
+                                        const err = await res.json().catch(() => ({}));
+                                        toast.error(err.error || "Failed to generate description");
+                                        return;
+                                      }
+                                      const result = await res.json();
+                                      const fullText = `${result.description}\n\n---\n\nSocial Media Post:\n${result.social_post}`;
+                                      await navigator.clipboard.writeText(fullText);
+                                      toast.success("Description (no emojis) copied to clipboard!");
+                                    } catch {
+                                      toast.error("Failed to generate description");
+                                    }
+                                  }}
+                                >
+                                  No emoji
                                 </button>
                               </div>
                             )}

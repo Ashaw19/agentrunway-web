@@ -11,6 +11,7 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { AGENT_RUNWAY_VOICE } from "@/lib/outreach-prompts";
 
 export const maxDuration = 30;
 
@@ -46,6 +47,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
+  const noEmoji = body.no_emoji === true;
   let specs: PropertySpecs;
 
   if (body.client_record_id) {
@@ -111,22 +113,27 @@ export async function POST(req: NextRequest) {
     .single();
   const agentName = settings?.display_name || "";
 
-  const prompt = `You are a professional real estate copywriter in Canada. Generate TWO things from this property data:
+  const prompt = `You are writing property copy for a Canadian real estate agent. Generate TWO things from this property data.
+
+${AGENT_RUNWAY_VOICE}
 
 PROPERTY DETAILS:
 ${features.join("\n")}
 
-1. **LISTING DESCRIPTION** (2-3 paragraphs, ~150 words)
-- Professional, warm, compelling
-- Highlight key features naturally
-- End with a call to action
-- Do NOT fabricate features not in the data
-- Canadian English spelling (colour, centre, etc.)
+1. **LISTING DESCRIPTION** (2-3 short paragraphs, ~120-150 words)
+- Write like a person who walked through the house and is telling a friend about it. Not like a brochure.
+- Lead with what makes this property actually interesting — not generic praise.
+- Describe what's there. Let the reader decide it's great. Don't announce it.
+- Do NOT fabricate features not listed above. If you only have basics, keep it brief and honest.
+- Canadian English spelling (colour, centre, neighbourhood, etc.)
+- No stacked adjectives. "Bright kitchen with a gas range" beats "beautiful, spacious, updated chef's kitchen."
+- End with something specific the agent can offer — not "contact me today!"
 
-2. **SOCIAL MEDIA POST** (~80 words)
-- Engaging, casual-professional tone
-- Include relevant emojis (2-3 max)
-- End with "DM for details" or similar CTA
+2. **SOCIAL MEDIA POST** (~60-80 words)
+- Write like a real person sharing something they're genuinely proud of — not a marketing template.
+- ${noEmoji ? "Do NOT use any emojis." : "Use 1-2 emojis maximum, only if they feel natural. Skip them entirely if the tone doesn't call for it."}
+- Don't open with "Just listed!" or "Exciting news!" — find a more interesting hook.
+- End with a natural CTA, not "Don't miss out!" Something like "Send me a message if you want the details."
 ${agentName ? `- Agent name: ${agentName}` : ""}
 
 Respond in this exact JSON format:
@@ -144,7 +151,7 @@ Respond in this exact JSON format:
     const completion = await groq.chat.completions.create({
       model: "llama-3.1-70b-versatile",
       messages: [
-        { role: "system", content: "You are a Canadian real estate copywriter. Always respond with valid JSON only." },
+        { role: "system", content: "You write property copy that sounds like a real person, not a marketing team. You avoid AI-sounding language — no 'stunning', 'nestled', 'dream home', 'don't miss out'. You describe what's actually there and let quality speak for itself. Canadian English. Always respond with valid JSON only." },
         { role: "user", content: prompt },
       ],
       temperature: 0.7,

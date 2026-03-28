@@ -14,7 +14,7 @@
  *   - /api/ai/draft-newsletter  (on-demand, agent-triggered)
  */
 
-import { type Tone, TONE_INSTRUCTIONS } from "@/lib/outreach-prompts";
+import { type Tone, TONE_INSTRUCTIONS, AGENT_RUNWAY_VOICE } from "@/lib/outreach-prompts";
 export type { Tone };
 
 // ── Market stats shape (mirrors market_data_points columns) ──────────────────
@@ -80,7 +80,9 @@ Write a 3–4 paragraph newsletter-style email (300–380 words) that:
 - Vary sentence length. Numbers and specifics make it credible.
 
 On the very last line of your response, write exactly:
-SUBJECT: [concise, informative subject — references the rate change specifically, not generic "Market Update"]`;
+SUBJECT: [concise, informative subject — references the rate change specifically, not generic "Market Update"]
+
+${AGENT_RUNWAY_VOICE}`;
 }
 
 // ── Market Update Newsletter ───────────────────────────────────────────────────
@@ -142,7 +144,9 @@ Write a 3–4 paragraph market update email (300–400 words) that:
 - Vary sentence length. Specific numbers are more credible than vague claims.
 
 On the very last line of your response, write exactly:
-SUBJECT: [concise subject that references the market or month — not just "Market Update"]`;
+SUBJECT: [concise subject that references the market or month — not just "Market Update"]
+
+${AGENT_RUNWAY_VOICE}`;
 }
 
 // ── Custom Newsletter ─────────────────────────────────────────────────────────
@@ -175,5 +179,7 @@ Write a 3–4 paragraph newsletter email (280–380 words) that:
 - Vary sentence length. Short punchy sentences are powerful. Mix them in.
 
 On the very last line of your response, write exactly:
-SUBJECT: [clear, engaging subject that reflects the specific topic — not clickbaity, not generic]`;
+SUBJECT: [clear, engaging subject that reflects the specific topic — not clickbaity, not generic]
+
+${AGENT_RUNWAY_VOICE}`;
 }
