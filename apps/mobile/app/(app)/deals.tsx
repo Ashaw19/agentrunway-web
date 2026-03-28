@@ -1,28 +1,48 @@
-import { useCallback, useEffect, useState } from "react";
+/**
+ * Deals Screen — Premium, theme-aware pipeline & transaction tracker.
+ * Uses shared UI components, design tokens, and subtle animations.
+ */
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   View,
   Text,
   ScrollView,
   Pressable,
   RefreshControl,
-  Modal,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
 import Svg, {
   Defs,
   LinearGradient as SvgGrad,
   Stop,
   Rect,
 } from "react-native-svg";
-import { TrendingUp, Plus, X } from "lucide-react-native";
+import { TrendingUp, Plus } from "lucide-react-native";
 import { useDataStore, type Transaction, type PipelineDeal } from "@/stores/data-store";
-import { C, STAGE_COLORS, fmtCurrency } from "@/lib/theme";
+import {
+  useColors,
+  useTheme,
+  shadows,
+  gradients,
+  Space,
+  Radius,
+  Type,
+  Motion,
+  STAGE_COLORS,
+  fmtCurrency,
+} from "@/lib/theme";
+import { Card } from "@/components/ui/Card";
+import { Sheet } from "@/components/ui/Sheet";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
 
 type Tab = "pipeline" | "closed" | "pending";
 
@@ -32,6 +52,11 @@ const STAGE_ORDER = ["lead", "showing", "offer", "conditional", "firm"];
 
 export default function DealsScreen() {
   const { transactions, pipeline, fetchAll, addTransaction, isLoading } = useDataStore();
+  const c = useColors();
+  const { mode } = useTheme();
+  const sh = shadows(mode);
+  const g = gradients(mode);
+
   const [tab, setTab] = useState<Tab>("pipeline");
   const [refreshing, setRefreshing] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -62,30 +87,29 @@ export default function DealsScreen() {
   const pipelineValue = pipeline.reduce((s, d) => s + d.estimated_price, 0);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
       {/* Loading overlay — shown only on initial load when no cached data */}
       {isLoading && transactions.length === 0 && pipeline.length === 0 && (
         <View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 10,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: C.bg,
-          }}
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              zIndex: 10,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: c.bg,
+            },
+          ]}
         >
-          <ActivityIndicator size="large" color={C.primary} />
-          <Text style={{ color: C.textDim, marginTop: 12, fontSize: 13 }}>
-            Loading deals…
+          <ActivityIndicator size="large" color={c.primary} />
+          <Text style={{ color: c.textDim, marginTop: Space.md, ...Type.caption }}>
+            Loading deals...
           </Text>
         </View>
       )}
+
       {/* ── Header ── */}
-      <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 4 }}>
+      <View style={{ paddingHorizontal: Space.xl, paddingTop: Space.xl, paddingBottom: Space.xs }}>
         <View
           style={{
             flexDirection: "row",
@@ -93,142 +117,131 @@ export default function DealsScreen() {
             alignItems: "center",
           }}
         >
-          <Text style={S.screenTitle}>Deals</Text>
-          <Pressable onPress={() => setShowAdd(true)} style={S.addBtn}>
-            <Plus size={16} color="#fff" strokeWidth={2.5} />
-            <Text style={S.addBtnText}>Add</Text>
-          </Pressable>
+          <Text style={{ ...Type.hero, color: c.text }}>Deals</Text>
+          <Button
+            label="Add"
+            icon="add"
+            variant="primary"
+            onPress={() => setShowAdd(true)}
+          />
         </View>
 
         {/* Summary stats */}
-        <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-          <StatPill
-            label="GCI Closed"
-            value={fmtCurrency(totalGci)}
-            color={C.success}
-          />
-          <StatPill
-            label="Pipeline"
-            value={fmtCurrency(pipelineValue)}
-            color={C.primary}
-          />
-          <StatPill
-            label="Pending"
-            value={String(pending.length)}
-            color={C.warning}
-          />
+        <View style={{ flexDirection: "row", gap: Space.sm, marginTop: Space.lg }}>
+          <StatPill label="GCI Closed" value={fmtCurrency(totalGci)} color={c.success} />
+          <StatPill label="Pipeline" value={fmtCurrency(pipelineValue)} color={c.primary} />
+          <StatPill label="Pending" value={String(pending.length)} color={c.warning} />
         </View>
 
         {/* Tabs */}
-        <View style={S.tabs}>
+        <View style={{ flexDirection: "row", gap: Space.sm, marginTop: Space.lg, marginBottom: Space.xs }}>
           {(
             [
               { key: "pipeline", label: "Pipeline", count: pipeline.length },
               { key: "closed", label: "Closed", count: closed.length },
               { key: "pending", label: "Pending", count: pending.length },
             ] as { key: Tab; label: string; count: number }[]
-          ).map((t) => (
-            <Pressable
-              key={t.key}
-              onPress={() => setTab(t.key)}
-              style={[S.tab, tab === t.key && S.tabActive]}
-            >
-              <Text
-                style={[S.tabText, tab === t.key && S.tabTextActive]}
+          ).map((t) => {
+            const isActive = tab === t.key;
+            return (
+              <Pressable
+                key={t.key}
+                onPress={() => setTab(t.key)}
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: Space.xs,
+                  minHeight: 44,
+                  borderRadius: Radius.md,
+                  backgroundColor: isActive ? c.primaryDim : c.card,
+                  borderWidth: 1,
+                  borderColor: isActive ? c.primaryBorder : c.cardBorder,
+                }}
               >
-                {t.label}
-              </Text>
-              {t.count > 0 && (
-                <View
-                  style={[
-                    S.tabBadge,
-                    {
-                      backgroundColor:
-                        tab === t.key ? C.primary : C.textFaint,
-                    },
-                  ]}
+                <Text
+                  style={{
+                    ...Type.caption,
+                    fontWeight: "700",
+                    color: isActive ? c.primary : c.textDim,
+                  }}
                 >
-                  <Text style={S.tabBadgeText}>{t.count}</Text>
-                </View>
-              )}
-            </Pressable>
-          ))}
+                  {t.label}
+                </Text>
+                {t.count > 0 && (
+                  <View
+                    style={{
+                      minWidth: 20,
+                      height: 20,
+                      borderRadius: Radius.pill,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingHorizontal: Space.xs,
+                      backgroundColor: isActive ? c.primary : c.textFaint,
+                    }}
+                  >
+                    <Text style={{ ...Type.micro, color: "#fff" }}>{t.count}</Text>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 20, paddingTop: 12, gap: 10 }}
+        contentContainerStyle={{
+          padding: Space.xl,
+          paddingTop: Space.md,
+          gap: Space.sm,
+        }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={C.primary}
+            tintColor={c.primary}
           />
         }
       >
         {tab === "pipeline" ? (
           pipeline.length === 0 ? (
             <EmptyState
-              icon={<TrendingUp size={32} color={C.primary} />}
+              icon="trending-up-outline"
               title="No pipeline deals"
               subtitle="Add deals to track your upcoming commissions"
+              actionLabel="Add Deal"
+              onAction={() => setShowAdd(true)}
             />
           ) : (
             <>
               {/* Stage summary bar */}
-              <View style={[S.card, { padding: 16, marginBottom: 4 }]}>
-                <Text style={S.cardLabel}>STAGE BREAKDOWN</Text>
+              <Card variant="default">
+                <Text style={{ ...Type.label, color: c.textDim }}>STAGE BREAKDOWN</Text>
                 <View
                   style={{
                     flexDirection: "row",
-                    gap: 6,
-                    marginTop: 10,
+                    gap: Space.sm,
+                    marginTop: Space.sm,
                     flexWrap: "wrap",
                   }}
                 >
                   {STAGE_ORDER.map((stage) => {
-                    const count = pipeline.filter(
-                      (d) => d.stage === stage
-                    ).length;
+                    const count = pipeline.filter((d) => d.stage === stage).length;
                     if (count === 0) return null;
-                    const c = STAGE_COLORS[stage] ?? C.textDim;
+                    const stageColor = STAGE_COLORS[stage] ?? c.textDim;
                     return (
-                      <View
+                      <Badge
                         key={stage}
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 5,
-                          backgroundColor: c + "18",
-                          paddingHorizontal: 10,
-                          paddingVertical: 5,
-                          borderRadius: 20,
-                        }}
-                      >
-                        <View
-                          style={{
-                            width: 6,
-                            height: 6,
-                            borderRadius: 3,
-                            backgroundColor: c,
-                          }}
-                        />
-                        <Text
-                          style={{
-                            color: c,
-                            fontSize: 12,
-                            fontWeight: "600",
-                            textTransform: "capitalize",
-                          }}
-                        >
-                          {stage} · {count}
-                        </Text>
-                      </View>
+                        label={`${stage.charAt(0).toUpperCase() + stage.slice(1)} \u00b7 ${count}`}
+                        color={stageColor}
+                        size="sm"
+                      />
                     );
                   })}
                 </View>
-              </View>
+              </Card>
               {pipeline.map((d) => (
                 <PipelineCard key={d.id} deal={d} />
               ))}
@@ -237,7 +250,7 @@ export default function DealsScreen() {
         ) : tab === "closed" ? (
           closed.length === 0 ? (
             <EmptyState
-              icon={<TrendingUp size={32} color={C.success} />}
+              icon="checkmark-circle-outline"
               title="No closed deals this year"
               subtitle="Closed transactions will appear here"
             />
@@ -246,7 +259,7 @@ export default function DealsScreen() {
           )
         ) : pending.length === 0 ? (
           <EmptyState
-            icon={<TrendingUp size={32} color={C.warning} />}
+            icon="time-outline"
             title="No pending deals"
             subtitle="Deals awaiting close will appear here"
           />
@@ -279,260 +292,328 @@ function StatPill({
   value: string;
   color: string;
 }) {
+  const c = useColors();
+  const { mode } = useTheme();
+  const dark = mode === "dark";
+
   return (
     <View
       style={{
         flex: 1,
-        backgroundColor: color + "14",
-        borderRadius: 10,
-        paddingVertical: 10,
-        paddingHorizontal: 10,
-        borderWidth: 1,
-        borderColor: color + "30",
+        borderRadius: Radius.md,
+        overflow: "hidden",
       }}
     >
-      <Text
+      <LinearGradient
+        colors={
+          dark
+            ? [color + "1A", color + "08"] as [string, string]
+            : [color + "14", color + "06"] as [string, string]
+        }
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={{
-          color: C.textDim,
-          fontSize: 9,
-          fontWeight: "700",
-          textTransform: "uppercase",
-          letterSpacing: 0.8,
+          paddingVertical: Space.sm,
+          paddingHorizontal: Space.sm,
+          borderRadius: Radius.md,
+          borderWidth: 1,
+          borderColor: color + "30",
         }}
       >
-        {label}
-      </Text>
-      <Text
-        style={{
-          color,
-          fontSize: 15,
-          fontWeight: "800",
-          marginTop: 2,
-          letterSpacing: -0.3,
-        }}
-      >
-        {value}
-      </Text>
+        <Text style={{ ...Type.label, color: c.textDim, fontSize: 9 }}>
+          {label}
+        </Text>
+        <Text
+          style={{
+            ...Type.bodyBold,
+            fontWeight: "800",
+            color,
+            marginTop: 2,
+            letterSpacing: -0.3,
+          }}
+        >
+          {value}
+        </Text>
+      </LinearGradient>
     </View>
   );
 }
 
 function PipelineCard({ deal }: { deal: PipelineDeal }) {
-  const sc = STAGE_COLORS[deal.stage] ?? C.textDim;
-  const defaultProb = { lead: 10, showing: 25, offer: 50, conditional: 75, firm: 90 }[deal.stage] ?? 50;
-  const prob = deal.probability_override != null
-    ? Math.round(deal.probability_override * 100)
-    : defaultProb;
+  const c = useColors();
+  const { mode } = useTheme();
+  const sh = shadows(mode);
+  const scale = useRef(new Animated.Value(1)).current;
+
+  const sc = STAGE_COLORS[deal.stage] ?? c.textDim;
+  const defaultProb =
+    { lead: 10, showing: 25, offer: 50, conditional: 75, firm: 90 }[deal.stage] ?? 50;
+  const prob =
+    deal.probability_override != null
+      ? Math.round(deal.probability_override * 100)
+      : defaultProb;
+
+  const handlePressIn = () => {
+    Animated.timing(scale, {
+      toValue: Motion.pressScale,
+      duration: Motion.durationFast,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.timing(scale, {
+      toValue: 1,
+      duration: Motion.durationFast,
+      useNativeDriver: true,
+    }).start();
+  };
+
   return (
-    <View style={S.card}>
-      <View style={{ padding: 16 }}>
+    <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut}>
+      <Animated.View style={{ transform: [{ scale }] }}>
         <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-          }}
+          style={[
+            {
+              backgroundColor: c.card,
+              borderRadius: Radius.lg,
+              borderWidth: 1,
+              borderColor: c.cardBorder,
+              overflow: "hidden",
+              flexDirection: "row",
+            },
+            sh.card,
+          ]}
         >
-          <View style={{ flex: 1, marginRight: 12 }}>
-            <Text
-              style={{ color: C.text, fontSize: 15, fontWeight: "700" }}
-              numberOfLines={1}
-            >
-              {deal.address ?? deal.client_name ?? "Untitled Deal"}
-            </Text>
-            {deal.client_name && deal.address && (
-              <Text
-                style={{ color: C.textDim, fontSize: 12, marginTop: 2 }}
-                numberOfLines={1}
-              >
-                {deal.client_name}
-              </Text>
-            )}
+          {/* Left accent bar with gradient tint */}
+          <View style={{ width: Space.xs }}>
+            <LinearGradient
+              colors={[sc, sc + "66"] as [string, string]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={{ flex: 1 }}
+            />
           </View>
-          <View style={{ alignItems: "flex-end", gap: 4 }}>
-            <Text
-              style={{ color: C.success, fontSize: 16, fontWeight: "800" }}
-            >
-              {fmtCurrency(deal.estimated_price)}
-            </Text>
+
+          {/* Subtle stage-colored gradient tint on left edge */}
+          <LinearGradient
+            colors={[sc + "0C", "transparent"] as [string, string]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: Space.xs,
+              bottom: 0,
+              width: 80,
+            }}
+          />
+
+          <View style={{ flex: 1, padding: Space.lg }}>
             <View
               style={{
-                backgroundColor: sc + "22",
-                paddingHorizontal: 8,
-                paddingVertical: 3,
-                borderRadius: 6,
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
               }}
             >
-              <Text
-                style={{
-                  color: sc,
-                  fontSize: 10,
-                  fontWeight: "700",
-                  textTransform: "uppercase",
-                  letterSpacing: 0.5,
-                }}
-              >
-                {deal.stage}
+              <View style={{ flex: 1, marginRight: Space.md }}>
+                <Text
+                  style={{ ...Type.bodyBold, color: c.text }}
+                  numberOfLines={1}
+                >
+                  {deal.address ?? deal.client_name ?? "Untitled Deal"}
+                </Text>
+                {deal.client_name && deal.address && (
+                  <Text
+                    style={{ ...Type.caption, color: c.textDim, marginTop: 2 }}
+                    numberOfLines={1}
+                  >
+                    {deal.client_name}
+                  </Text>
+                )}
+              </View>
+              <View style={{ alignItems: "flex-end", gap: Space.xs }}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "800",
+                    color: c.success,
+                    letterSpacing: -0.3,
+                  }}
+                >
+                  {fmtCurrency(deal.estimated_price)}
+                </Text>
+                <Badge
+                  label={deal.stage.toUpperCase()}
+                  color={sc}
+                  size="sm"
+                />
+              </View>
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                gap: Space.lg,
+                marginTop: Space.md,
+                alignItems: "center",
+              }}
+            >
+              {deal.expected_close_date && (
+                <Text style={{ ...Type.caption, color: c.textDim }}>
+                  Close:{" "}
+                  {new Date(deal.expected_close_date).toLocaleDateString(
+                    "en-CA",
+                    { month: "short", day: "numeric" }
+                  )}
+                </Text>
+              )}
+              <Text style={{ ...Type.caption, color: sc, fontWeight: "600" }}>
+                {prob}% probability
               </Text>
+            </View>
+
+            {/* Probability bar — 4px with rounded ends */}
+            <View
+              style={{
+                height: 4,
+                borderRadius: Radius.pill,
+                backgroundColor: c.textFaint,
+                overflow: "hidden",
+                marginTop: Space.sm,
+              }}
+            >
+              <View
+                style={{
+                  height: 4,
+                  borderRadius: Radius.pill,
+                  width: `${prob}%` as any,
+                  backgroundColor: sc,
+                }}
+              />
             </View>
           </View>
         </View>
-
-        <View
-          style={{
-            flexDirection: "row",
-            gap: 14,
-            marginTop: 12,
-            alignItems: "center",
-          }}
-        >
-          {deal.expected_close_date && (
-            <Text style={{ color: C.textDim, fontSize: 12 }}>
-              Close:{" "}
-              {new Date(deal.expected_close_date).toLocaleDateString("en-CA", {
-                month: "short",
-                day: "numeric",
-              })}
-            </Text>
-          )}
-          <Text style={{ color: sc, fontSize: 12, fontWeight: "600" }}>
-            {prob}% probability
-          </Text>
-        </View>
-
-        {/* Probability bar */}
-        <View style={[S.progressTrack, { marginTop: 10 }]}>
-          <View
-            style={[
-              S.progressFill,
-              { width: `${prob}%` as any, backgroundColor: sc },
-            ]}
-          />
-        </View>
-      </View>
-    </View>
+      </Animated.View>
+    </Pressable>
   );
 }
 
 function TransactionCard({ tx }: { tx: Transaction }) {
+  const c = useColors();
+  const { mode } = useTheme();
+  const sh = shadows(mode);
+  const scale = useRef(new Animated.Value(1)).current;
+
   const gci = tx.gci_override ?? tx.sale_price * tx.commission_pct;
   const isPending = tx.status === "pending";
+  const accentColor = isPending ? c.warning : c.success;
+
+  const handlePressIn = () => {
+    Animated.timing(scale, {
+      toValue: Motion.pressScale,
+      duration: Motion.durationFast,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.timing(scale, {
+      toValue: 1,
+      duration: Motion.durationFast,
+      useNativeDriver: true,
+    }).start();
+  };
+
   return (
-    <View style={[S.card, { overflow: "hidden" }]}>
-      <Svg style={StyleSheet.absoluteFill}>
-        <Defs>
-          <SvgGrad id={`txGrad${tx.id}`} x1="0" y1="0" x2="1" y2="0">
-            <Stop
-              offset="0"
-              stopColor={isPending ? C.warning : C.success}
-              stopOpacity="0.06"
-            />
-            <Stop offset="1" stopColor={C.bg} stopOpacity="0" />
-          </SvgGrad>
-        </Defs>
-        <Rect width="100%" height="100%" fill={`url(#txGrad${tx.id})`} />
-      </Svg>
-      <View style={{ padding: 16 }}>
+    <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut}>
+      <Animated.View style={{ transform: [{ scale }] }}>
         <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "flex-start",
-          }}
+          style={[
+            {
+              backgroundColor: c.card,
+              borderRadius: Radius.lg,
+              borderWidth: 1,
+              borderColor: c.cardBorder,
+              overflow: "hidden",
+            },
+            sh.card,
+          ]}
         >
-          <View style={{ flex: 1, marginRight: 12 }}>
-            <Text
-              style={{ color: C.text, fontSize: 15, fontWeight: "700" }}
-              numberOfLines={1}
-            >
-              {tx.address ?? tx.client_name ?? "Transaction"}
-            </Text>
-            {tx.client_name && tx.address && (
-              <Text style={{ color: C.textDim, fontSize: 12, marginTop: 2 }}>
-                {tx.client_name}
-              </Text>
-            )}
-          </View>
-          <View style={{ alignItems: "flex-end", gap: 4 }}>
-            <Text
+          {/* SVG gradient background */}
+          <Svg style={StyleSheet.absoluteFill}>
+            <Defs>
+              <SvgGrad id={`txGrad${tx.id}`} x1="0" y1="0" x2="1" y2="0">
+                <Stop offset="0" stopColor={accentColor} stopOpacity="0.06" />
+                <Stop offset="1" stopColor={c.bg} stopOpacity="0" />
+              </SvgGrad>
+            </Defs>
+            <Rect width="100%" height="100%" fill={`url(#txGrad${tx.id})`} />
+          </Svg>
+
+          <View style={{ padding: Space.lg }}>
+            <View
               style={{
-                color: isPending ? C.warning : C.success,
-                fontSize: 17,
-                fontWeight: "800",
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
               }}
             >
-              {fmtCurrency(gci)}
-            </Text>
-            <Text style={{ color: C.textDim, fontSize: 11 }}>
-              GCI · {tx.side}
-            </Text>
+              <View style={{ flex: 1, marginRight: Space.md }}>
+                <Text
+                  style={{ ...Type.bodyBold, color: c.text }}
+                  numberOfLines={1}
+                >
+                  {tx.address ?? tx.client_name ?? "Transaction"}
+                </Text>
+                {tx.client_name && tx.address && (
+                  <Text style={{ ...Type.caption, color: c.textDim, marginTop: 2 }}>
+                    {tx.client_name}
+                  </Text>
+                )}
+              </View>
+              <View style={{ alignItems: "flex-end", gap: Space.xs }}>
+                <Text
+                  style={{
+                    ...Type.h3,
+                    fontWeight: "800",
+                    color: accentColor,
+                  }}
+                >
+                  {fmtCurrency(gci)}
+                </Text>
+                <Text style={{ ...Type.micro, color: c.textDim }}>
+                  GCI \u00b7 {tx.side}
+                </Text>
+              </View>
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                gap: Space.lg,
+                marginTop: Space.sm,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ ...Type.caption, color: c.textDim }}>
+                Sale: {fmtCurrency(tx.sale_price)}
+              </Text>
+              <Text style={{ ...Type.caption, color: c.textDim }}>
+                {(tx.commission_pct * 100).toFixed(1)}% commission
+              </Text>
+              <Text style={{ ...Type.caption, color: c.textDim }}>
+                {new Date(tx.date).toLocaleDateString("en-CA", {
+                  month: "short",
+                  day: "numeric",
+                })}
+              </Text>
+            </View>
           </View>
         </View>
-        <View
-          style={{
-            flexDirection: "row",
-            gap: 14,
-            marginTop: 10,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: C.textDim, fontSize: 12 }}>
-            Sale: {fmtCurrency(tx.sale_price)}
-          </Text>
-          <Text style={{ color: C.textDim, fontSize: 12 }}>
-            {(tx.commission_pct * 100).toFixed(1)}% commission
-          </Text>
-          <Text style={{ color: C.textDim, fontSize: 12 }}>
-            {new Date(tx.date).toLocaleDateString("en-CA", {
-              month: "short",
-              day: "numeric",
-            })}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function EmptyState({
-  icon,
-  title,
-  subtitle,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
-}) {
-  return (
-    <View style={{ alignItems: "center", paddingVertical: 56, gap: 12 }}>
-      <View
-        style={{
-          width: 64,
-          height: 64,
-          borderRadius: 20,
-          backgroundColor: C.card,
-          borderWidth: 1,
-          borderColor: C.cardBorder,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        {icon}
-      </View>
-      <Text style={{ color: C.text, fontSize: 16, fontWeight: "700" }}>
-        {title}
-      </Text>
-      <Text
-        style={{
-          color: C.textDim,
-          fontSize: 13,
-          textAlign: "center",
-          lineHeight: 20,
-        }}
-      >
-        {subtitle}
-      </Text>
-    </View>
+      </Animated.View>
+    </Pressable>
   );
 }
 
@@ -547,6 +628,8 @@ function AddTransactionModal({
   onClose: () => void;
   onAdd: (tx: Omit<Transaction, "id" | "created_at">) => Promise<boolean>;
 }) {
+  const c = useColors();
+
   const [address, setAddress] = useState("");
   const [price, setPrice] = useState("");
   const [commPct, setCommPct] = useState("2.5");
@@ -578,281 +661,73 @@ function AddTransactionModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1, justifyContent: "flex-end" }}
-      >
-        <View style={S.sheet}>
-          <View style={S.sheetHandle} />
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 20,
-            }}
-          >
-            <Text style={S.sheetTitle}>Log Transaction</Text>
-            <Pressable
-              onPress={onClose}
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 15,
-                backgroundColor: C.cardBorder,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <X size={14} color={C.textMuted} />
-            </Pressable>
-          </View>
+    <Sheet visible={visible} onClose={onClose} title="Log Transaction">
+      <View style={{ gap: Space.lg }}>
+        <Input
+          label="Address"
+          value={address}
+          onChange={setAddress}
+          placeholder="123 Main St"
+        />
+        <Input
+          label="Sale Price"
+          value={price}
+          onChange={setPrice}
+          placeholder="650,000"
+          keyboardType="numeric"
+        />
+        <Input
+          label="Commission %"
+          value={commPct}
+          onChange={setCommPct}
+          placeholder="2.5"
+          keyboardType="numeric"
+        />
 
-          <Field
-            label="Address"
-            value={address}
-            onChange={setAddress}
-            placeholder="123 Main St"
-          />
-          <Field
-            label="Sale Price"
-            value={price}
-            onChange={setPrice}
-            placeholder="650,000"
-            keyboardType="numeric"
-          />
-          <Field
-            label="Commission %"
-            value={commPct}
-            onChange={setCommPct}
-            placeholder="2.5"
-            keyboardType="numeric"
-          />
-
-          <Text style={[S.fieldLabel, { marginBottom: 8 }]}>Side</Text>
-          <View style={{ flexDirection: "row", gap: 8, marginBottom: 20 }}>
-            {(["buyer", "seller"] as const).map((s) => (
-              <Pressable
-                key={s}
-                onPress={() => setSide(s)}
-                style={[
-                  S.segmentBtn,
-                  side === s && {
-                    backgroundColor: C.primary,
-                    borderColor: C.primary,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    S.segmentText,
-                    side === s && { color: "#fff" },
-                  ]}
+        <View>
+          <Text style={{ ...Type.caption, color: c.textMuted, marginLeft: Space.xs, marginBottom: Space.xs }}>
+            Side
+          </Text>
+          <View style={{ flexDirection: "row", gap: Space.sm }}>
+            {(["buyer", "seller"] as const).map((s) => {
+              const isActive = side === s;
+              return (
+                <Pressable
+                  key={s}
+                  onPress={() => setSide(s)}
+                  style={{
+                    flex: 1,
+                    minHeight: 44,
+                    borderRadius: Radius.md,
+                    backgroundColor: isActive ? c.primary : c.card,
+                    borderWidth: 1.5,
+                    borderColor: isActive ? c.primary : c.cardBorder,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
                 >
-                  {s.charAt(0).toUpperCase() + s.slice(1)}
-                </Text>
-              </Pressable>
-            ))}
+                  <Text
+                    style={{
+                      ...Type.bodyBold,
+                      color: isActive ? "#fff" : c.textMuted,
+                    }}
+                  >
+                    {s.charAt(0).toUpperCase() + s.slice(1)}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
-
-          <Pressable
-            onPress={handleSubmit}
-            disabled={saving}
-            style={[S.primaryBtn, { opacity: saving ? 0.7 : 1 }]}
-          >
-            <Text style={S.primaryBtnText}>
-              {saving ? "Saving…" : "Save Transaction"}
-            </Text>
-          </Pressable>
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
+
+        <Button
+          label={saving ? "Saving..." : "Save Transaction"}
+          onPress={handleSubmit}
+          loading={saving}
+          variant="primary"
+          icon="checkmark"
+        />
+      </View>
+    </Sheet>
   );
 }
-
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-  keyboardType,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-  keyboardType?: "numeric" | "default";
-}) {
-  return (
-    <View style={{ marginBottom: 14 }}>
-      <Text style={S.fieldLabel}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={C.textFaint}
-        keyboardType={keyboardType ?? "default"}
-        style={S.input}
-      />
-    </View>
-  );
-}
-
-// ── Styles ─────────────────────────────────────────────────────────────────
-
-const S = StyleSheet.create({
-  screenTitle: {
-    fontSize: 30,
-    fontWeight: "800",
-    color: C.text,
-    letterSpacing: -0.8,
-  },
-  addBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: C.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
-  },
-  addBtnText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  tabs: {
-    flexDirection: "row",
-    gap: 6,
-    marginTop: 16,
-    marginBottom: 4,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    paddingVertical: 9,
-    borderRadius: 10,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-  },
-  tabActive: {
-    backgroundColor: C.primaryDim,
-    borderColor: C.primaryBorder,
-  },
-  tabText: {
-    color: C.textDim,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  tabTextActive: {
-    color: C.primary,
-  },
-  tabBadge: {
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  tabBadgeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "800",
-  },
-  card: {
-    backgroundColor: C.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    overflow: "hidden",
-  },
-  cardLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: C.textDim,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
-  progressTrack: {
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: C.textFaint,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: 3,
-    borderRadius: 2,
-  },
-  sheet: {
-    backgroundColor: "#13131E",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingTop: 14,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: C.cardBorder,
-  },
-  sheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: C.textFaint,
-    alignSelf: "center",
-    marginBottom: 20,
-  },
-  sheetTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: C.text,
-    letterSpacing: -0.3,
-  },
-  fieldLabel: {
-    color: C.textMuted,
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 6,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  input: {
-    backgroundColor: C.bg,
-    borderRadius: 12,
-    padding: 14,
-    color: C.text,
-    fontSize: 15,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-  },
-  segmentBtn: {
-    flex: 1,
-    paddingVertical: 11,
-    borderRadius: 10,
-    backgroundColor: C.card,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    alignItems: "center",
-  },
-  segmentText: {
-    color: C.textMuted,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  primaryBtn: {
-    backgroundColor: C.primary,
-    paddingVertical: 15,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  primaryBtnText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-});
