@@ -12,6 +12,7 @@
  */
 
 import type { BenchmarkResult, Cohort } from "./benchmark-engine";
+import { BENCHMARKS } from "./benchmark-engine";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -296,12 +297,29 @@ function generateDiagnosis(
 
 // ── Distance to Next Tier ──────────────────────────────────────────────────────
 
+/**
+ * Compute the GCI threshold for entering a given band within a cohort.
+ * Band boundaries correspond to percentile thresholds:
+ *   Climbing = 10th, Competitive = 25th, Advancing = 50th, Leading = 75th
+ * These map to the cohort's p25/median/p75 breakpoints.
+ */
+function bandThresholdGCI(targetBand: PerformanceBand, cohort: Cohort): number {
+  const b = BENCHMARKS[cohort];
+  switch (targetBand) {
+    case "climbing":    return Math.round(b.p25GCI * (10 / 25));   // 10th percentile
+    case "competitive": return b.p25GCI;                            // 25th percentile
+    case "advancing":   return b.medianGCI;                         // 50th percentile
+    case "leading":     return b.p75GCI;                            // 75th percentile
+    default:            return 0;
+  }
+}
+
 function generateDistanceLine(
   band: PerformanceBand,
-  benchmark: BenchmarkResult,
+  cohort: Cohort,
+  projectedGCI: number,
   avgDealGCI: number,
   currentQuarter: number,
-  projectedGCI: number,
 ): { line: string | null; deals: number | null; nextLabel: string | null } {
   const next = nextBand(band);
   if (!next) {
@@ -312,8 +330,9 @@ function generateDistanceLine(
     };
   }
 
-  const gciGap = benchmark.distanceToNextTier;
-  if (gciGap == null || gciGap <= 0) {
+  const threshold = bandThresholdGCI(next, cohort);
+  const gciGap = Math.max(0, threshold - projectedGCI);
+  if (gciGap <= 0) {
     return { line: null, deals: null, nextLabel: BAND_LABELS[next] };
   }
 
@@ -453,9 +472,9 @@ export function computeWhereYouStand(input: WhereYouStandInput): WhereYouStandRe
     goalGCI, ytdGCI, fraction, tooEarlyToProject,
   );
 
-  // Distance to next tier
+  // Distance to next tier — uses cohort-specific band thresholds, NOT cross-cohort distance
   const { line: distanceLine, deals: dealsToNextTier, nextLabel: nextBandLabel } =
-    generateDistanceLine(band, benchmark, avgDealGCI, currentQuarter, projectedGCI);
+    generateDistanceLine(band, input.cohort, projectedGCI, avgDealGCI, currentQuarter);
 
   // Bridge to action
   const bridgeLine = generateBridgeLine(band, momentum);

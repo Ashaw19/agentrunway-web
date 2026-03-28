@@ -442,10 +442,14 @@ export function computeMarketMomentum(
   const yearFraction   = dayOfYear / 365;
 
   // ── Metric 1 ───────────────────────────────────────────────────────────────
+  // Compare YTD deals against prorated prior-year pace (not full-year total).
+  // Without this adjustment, every agent looks like they're trailing in Q1/Q2
+  // because we'd be comparing 3 YTD deals against 12 full-year deals.
   const agentPriorYearDeals  = priorHistory?.annual_tx ?? null;
+  const priorYearPaceDeals   = agentPriorYearDeals != null ? agentPriorYearDeals * yearFraction : null;
   const agentDealGrowthPct   =
-    agentPriorYearDeals != null && agentPriorYearDeals > 0
-      ? ((ytdDealCount - agentPriorYearDeals) / agentPriorYearDeals) * 100
+    priorYearPaceDeals != null && priorYearPaceDeals >= 0.5
+      ? ((ytdDealCount - priorYearPaceDeals) / priorYearPaceDeals) * 100
       : null;
 
   // CREA provides YoY as a decimal or percentage depending on the field;
@@ -487,10 +491,13 @@ export function computeMarketMomentum(
       : null;
 
   // ── Metric 3 ───────────────────────────────────────────────────────────────
+  // Same prorated comparison for GCI — compare YTD against where they should
+  // be at this point in the year based on last year's full-year GCI.
   const agentPriorYearGCI  = priorHistory?.annual_gci ?? null;
+  const priorYearPaceGCI   = agentPriorYearGCI != null ? agentPriorYearGCI * yearFraction : null;
   const agentGCIGrowthPct  =
-    agentPriorYearGCI != null && agentPriorYearGCI > 0
-      ? ((ytdGCI - agentPriorYearGCI) / agentPriorYearGCI) * 100
+    priorYearPaceGCI != null && priorYearPaceGCI > 0
+      ? ((ytdGCI - priorYearPaceGCI) / priorYearPaceGCI) * 100
       : null;
   const boardPriceYoYPct   = marketData.medianSalePriceYoY ?? null;
   const gciVsPriceGrowthDiff =
