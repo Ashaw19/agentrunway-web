@@ -1642,6 +1642,142 @@ function daysUntilLabel(triggerDate: string): string {
   return `in ${days} days`;
 }
 
+/** Build a 1-2 sentence financial impact explanation using heuristics + available data. */
+function buildFinancialImpact(
+  opportunityType: string,
+  ctx: Record<string, unknown>,
+  memory: ClientMemoryFacts | null,
+  clientStatus: string | null,
+  clientDealCount: number,
+  portfolioStats: {
+    avgGci: number;
+    totalDeals: number;
+    repeatRate: number;
+    activeClients: number;
+  },
+): string {
+  const gci = ctx.gci ? Number(ctx.gci) : 0;
+  const isHighValue = gci > 15000;
+  const isRepeat = clientDealCount >= 2;
+  const pipelineLight = portfolioStats.activeClients < 3;
+  const hasRepeatHistory = portfolioStats.repeatRate > 15;
+
+  // ── Post-close window: referral economics ─────────────────────────────────
+  if (opportunityType === "referral_ask" || opportunityType === "post_close_90") {
+    if (isHighValue) {
+      return "Referrals from high-value clients tend to be high-value themselves. This is one of the most efficient paths to your next deal.";
+    }
+    return "Most agents' referral pipeline comes from the 60-day post-close window. Staying present here directly feeds future closings.";
+  }
+
+  if (opportunityType === "post_close_3" || opportunityType === "post_close_14") {
+    return "Strong post-close follow-through is the foundation of repeat business and referrals — most of your future pipeline starts with these moments.";
+  }
+
+  if (opportunityType === "review_request") {
+    return "Online reviews directly influence how many inbound leads you receive. One strong review from a recent client can generate multiple future conversations.";
+  }
+
+  // ── Closing anniversary: re-engagement and referral trigger ───────────────
+  if (opportunityType === "closing_anniversary") {
+    if (isHighValue) {
+      return `This client represented a significant deal. Anniversary check-ins with high-value past clients are one of the most reliable sources of repeat business and quality referrals.`;
+    }
+    if (isRepeat) {
+      return "This is a repeat client — they've already chosen you more than once. Anniversary touchpoints with repeat clients have the highest conversion potential in your book.";
+    }
+    return "Closing anniversaries are among the most natural re-engagement moments in real estate. Agents who consistently use them see measurably higher referral rates.";
+  }
+
+  // ── Idle client: database reactivation ────────────────────────────────────
+  if (opportunityType === "idle_client" || opportunityType === "past_client_check_in") {
+    if (pipelineLight) {
+      return "Your active pipeline is light right now. Re-engaging past clients is your fastest path to adding near-term deals — they already trust you.";
+    }
+    if (isHighValue) {
+      return "This was a high-value transaction. Past clients who've seen strong results are significantly more likely to return or refer than cold leads.";
+    }
+    if (hasRepeatHistory) {
+      return `You already have a track record of repeat business. Reconnecting with dormant clients is how you keep that pattern going.`;
+    }
+    return "Past clients are one of your highest-converting sources of new deals. A well-timed check-in can reopen a relationship that's been quietly waiting.";
+  }
+
+  // ── Birthday: relationship depth ──────────────────────────────────────────
+  if (opportunityType === "birthday") {
+    if (isHighValue) {
+      return "Personal touches with high-value clients strengthen loyalty. Agents who consistently remember milestones see higher lifetime value per client.";
+    }
+    return "Birthday messages build the kind of personal loyalty that turns a past client into a long-term referral source.";
+  }
+
+  // ── Mortgage renewal: re-transaction opportunity ──────────────────────────
+  if (opportunityType.includes("mortgage")) {
+    return "Mortgage renewal is one of the few moments where past clients actively reconsider their housing situation. Being present here positions you for their next move.";
+  }
+
+  // ── Multi-deal milestone: loyalty compounding ─────────────────────────────
+  if (opportunityType === "multi_deal_milestone") {
+    return `Repeat clients are the most valuable segment of any agent's business — they close faster, refer more, and cost nothing to acquire. Nurturing this relationship compounds over time.`;
+  }
+
+  // ── Active buyer/seller: direct pipeline value ────────────────────────────
+  if (opportunityType === "buyer_inventory_match") {
+    if (portfolioStats.avgGci > 0) {
+      return "Active buyers who receive relevant inventory updates are more likely to move forward. This directly supports your near-term closing pipeline.";
+    }
+    return "Showing buyers you're actively watching for them builds urgency and trust — both of which shorten time to close.";
+  }
+
+  if (opportunityType === "seller_timing_hesitation") {
+    return "Sellers sitting on the fence often just need a well-timed data point. Converting a hesitant seller into a listing is one of the highest-impact actions you can take.";
+  }
+
+  // ── Pain point / educational: trust-building ──────────────────────────────
+  if (opportunityType === "pain_point_inactive" || opportunityType === "educational_value_inactive") {
+    if (pipelineLight) {
+      return "Your pipeline could use more activity. Re-engaging clients with known interests is a low-effort way to generate conversations that can lead to deals.";
+    }
+    return "Clients who feel understood are more likely to act when the time is right. Addressing their specific interest keeps you top of mind for their next move.";
+  }
+
+  // ── Timeframe approaching: urgency ────────────────────────────────────────
+  if (opportunityType === "timeframe_approaching") {
+    return "This client gave you a timeline — and it's arriving. Reaching out now shows you were listening and positions you to capture the deal before they look elsewhere.";
+  }
+
+  // ── Property milestone: equity conversation ───────────────────────────────
+  if (opportunityType === "property_value_milestone") {
+    return "Property anniversaries are natural openings for equity conversations. Clients who understand their home's value are more likely to consider their next move.";
+  }
+
+  // ── Seasonal ──────────────────────────────────────────────────────────────
+  if (opportunityType.startsWith("seasonal_")) {
+    if (pipelineLight) {
+      return "Seasonal touchpoints keep you visible to your database. When your pipeline is light, consistent outreach is what generates the next conversation.";
+    }
+    return "Seasonal market updates maintain top-of-mind awareness across your client base — this is how future deals start, even when no one is actively looking today.";
+  }
+
+  // ── Welcome / contact anniversary ─────────────────────────────────────────
+  if (opportunityType === "new_client_welcome") {
+    return "First impressions set the tone for the entire relationship. Clients who feel well-onboarded are significantly more likely to follow through and refer.";
+  }
+
+  if (opportunityType === "contact_anniversary") {
+    if (isRepeat) {
+      return "Recognizing your working relationship with a repeat client reinforces the loyalty that drives future business.";
+    }
+    return "Relationship milestones remind clients you value them beyond the transaction — a small gesture that pays forward in referrals and repeat business.";
+  }
+
+  // ── Fallback ──────────────────────────────────────────────────────────────
+  if (pipelineLight) {
+    return "Your active pipeline is light. Every meaningful touchpoint with a past or potential client increases the probability of your next deal.";
+  }
+  return "Consistent, well-timed outreach is how top agents maintain a steady pipeline. Each quality interaction compounds over time.";
+}
+
 /**
  * Get Top Opportunities — detection + scoring without persistence.
  * Returns the highest-value opportunities as structured insight cards.
@@ -1908,6 +2044,27 @@ export async function getTopOpportunities(
     if (topCandidates.length >= MAX_TOP_OPPORTUNITIES) break;
   }
 
+  // ── Compute portfolio-level stats for financial impact reasoning ──────────
+  const allGcis = records
+    .filter((r) => r.gci && Number(r.gci) > 0)
+    .map((r) => Number(r.gci));
+  const avgGci = allGcis.length > 0
+    ? Math.round(allGcis.reduce((sum, g) => sum + g, 0) / allGcis.length)
+    : 0;
+  const totalDeals = records.length;
+
+  // Clients with multiple deals (repeat rate proxy)
+  const clientsWithDeals = new Set(records.map((r) => r.client_id).filter(Boolean));
+  const repeatClients = [...clientDealDates.entries()].filter(([, dates]) => dates.length >= 2).length;
+  const repeatRate = clientsWithDeals.size > 0
+    ? Math.round((repeatClients / clientsWithDeals.size) * 100)
+    : 0;
+
+  // Pipeline depth
+  const activeClients = clients.filter((c) =>
+    c.status === "boarding" || c.status === "taxiing" || c.status === "in_flight",
+  ).length;
+
   // ── Build structured response ───────────────────────────────────────────────
   return topCandidates.map((ins) => {
     const typed = ins as {
@@ -1935,6 +2092,14 @@ export async function getTopOpportunities(
       context_level:    contextLevel,
       client_record_id: typed.client_record_id ?? null,
       context:          typed.context,
+      financial_impact: buildFinancialImpact(
+        typed.opportunity_type,
+        typed.context,
+        facts,
+        client?.status ?? null,
+        (clientDealDates.get(typed.client_id) ?? []).length,
+        { avgGci, totalDeals, repeatRate, activeClients },
+      ),
     };
   });
 }

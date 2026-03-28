@@ -163,6 +163,15 @@ function OpportunityCard({
         </p>
       </div>
 
+      {/* Financial impact — always visible */}
+      <div className="flex items-start gap-2 pl-0.5">
+        <TrendingUp className="h-3.5 w-3.5 mt-0.5 shrink-0 text-emerald-400" />
+        <p className="text-[13px] text-foreground/80 leading-relaxed">
+          <span className="font-semibold text-foreground/90">Impact:</span>{" "}
+          {opportunity.financial_impact}
+        </p>
+      </div>
+
       {/* Expandable: why this matters */}
       <button
         onClick={() => setExpanded(!expanded)}

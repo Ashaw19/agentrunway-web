@@ -650,6 +650,7 @@ export interface TopOpportunity {
   context_level:     "sensitive" | "sparse" | "rich";
   client_record_id:  string | null;
   context:           Record<string, unknown>; // pass-through for optional drafting
+  financial_impact:  string;                  // 1-2 sentence business impact explanation
 }
 
 export interface EmailConnection {
