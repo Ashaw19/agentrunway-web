@@ -9,7 +9,7 @@
  * CRA References:
  *   T2125 form: https://www.canada.ca/en/revenue-agency/services/forms-publications/forms/t2125.html
  *   Industry Code 531210: Real Estate Agents
- *   Simplified home office: $5/sq ft (max 300 sq ft = $1,500)
+ *   Home office: actual-cost method (business-use % of home costs)
  *   Meals & Entertainment: 50% deductible
  *   Half-year CCA rule applies to most asset classes
  *
@@ -44,7 +44,7 @@ export const EXPENSE_KEY_TO_T2125: Record<string, T2125LineMap> = {
   marketing_ads:         { lineNumber: "8210", lineName: "Advertising",        deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
   marketing_photography: { lineNumber: "8210", lineName: "Photography & video", deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
   marketing_print:       { lineNumber: "8210", lineName: "Print / signage",     deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
-  marketing_gifts:       { lineNumber: "8226", lineName: "Business gifts",      deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
+  marketing_gifts:       { lineNumber: "8228", lineName: "Business gifts",      deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
 
   // Office & tech
   office_supplies:  { lineNumber: "8215", lineName: "Office supplies",         deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
@@ -52,16 +52,16 @@ export const EXPENSE_KEY_TO_T2125: Record<string, T2125LineMap> = {
   office_phone:     { lineNumber: "8220", lineName: "Phone & internet",        deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
   office_hardware:  { lineNumber: "8215", lineName: "Hardware & equipment",    deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "expenses" },
 
-  // Professional fees
-  prof_board_mls:  { lineNumber: "8220", lineName: "Board / MLS dues",         deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
-  prof_licensing:  { lineNumber: "8220", lineName: "Licensing & renewals",     deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
-  prof_eo:         { lineNumber: "8220", lineName: "E&O insurance",            deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
-  prof_accounting: { lineNumber: "8220", lineName: "Accounting & legal",       deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
+  // Professional fees — CRA T2125 line 8860
+  prof_board_mls:  { lineNumber: "8860", lineName: "Board / MLS dues",         deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
+  prof_licensing:  { lineNumber: "8860", lineName: "Licensing & renewals",     deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
+  prof_eo:         { lineNumber: "8860", lineName: "E&O insurance",            deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
+  prof_accounting: { lineNumber: "8860", lineName: "Accounting & legal",       deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
 
-  // Education (professional development)
-  edu_courses:     { lineNumber: "8220", lineName: "Courses & coaching",       deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
-  edu_conferences: { lineNumber: "8220", lineName: "Conferences",              deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
-  edu_books:       { lineNumber: "8220", lineName: "Books & materials",        deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
+  // Education (professional development) — CRA T2125 line 8228 (Other expenses)
+  edu_courses:     { lineNumber: "8228", lineName: "Courses & coaching",       deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
+  edu_conferences: { lineNumber: "8228", lineName: "Conferences",              deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
+  edu_books:       { lineNumber: "8228", lineName: "Books & materials",        deductiblePct: 1.0, applyVehicleUse: false, t2125Part: "professional" },
 
   // Meals & entertainment — 50% deductible
   meals_client: { lineNumber: "8216", lineName: "Client meals",            deductiblePct: 0.5, applyVehicleUse: false, t2125Part: "expenses" },
@@ -98,11 +98,7 @@ export interface CcaLineItem {
 }
 
 export interface HomeOfficeResult {
-  method: "simplified" | "detailed";
-  // Simplified
-  sqFootage: number;
-  simplifiedDeduction: number;   // sq_ft × $5
-  // Detailed
+  // CRA actual-cost method (only method available in Canada)
   annualRent: number;
   annualUtilities: number;
   annualPropertyTax: number;
@@ -111,9 +107,7 @@ export interface HomeOfficeResult {
   annualCondoFees: number;
   totalAnnualHomeCosts: number;
   businessUsePct: number;
-  detailedDeduction: number;     // totalAnnualHomeCosts × businessUsePct
-  // Final
-  deduction: number;             // whichever method applies
+  deduction: number;             // totalAnnualHomeCosts × businessUsePct
 }
 
 export interface GstHstResult {
@@ -166,9 +160,9 @@ export interface T2125Result {
   line8215_officeExpenses: number;
   line8216_mealsEntertainment50pct: number;
   line8216_mealsEntertainmentGross: number;  // before 50% reduction
-  line8220_professionalFees: number;
-  line8226_clientGifts: number;
+  line8220_officeExpensesMisc: number;
   line8228_otherExpenses: number;
+  line8860_professionalFees: number;
   line8250_totalExpenses: number;            // sum of all lines 8210–8228
 
   // ── Part 5: CCA
@@ -259,9 +253,9 @@ export function computeT2125(input: T2125Input): T2125Result {
   const mealsLines = expenseLines.filter((l) => l.isMeals);
   const line8216_mealsEntertainmentGross = mealsLines.reduce((s, l) => s + l.rawAmount, 0);
   const line8216_mealsEntertainment50pct = mealsLines.reduce((s, l) => s + l.deductibleAmount, 0);
-  const line8220_professionalFees = lineSum(["8220"]);
-  const line8226_clientGifts = lineSum(["8226"]);
+  const line8220_officeExpensesMisc = lineSum(["8220"]);
   const line8228_otherExpenses = lineSum(["8228"]);
+  const line8860_professionalFees = lineSum(["8860"]);
 
   const line8250_totalExpenses =
     line8210_advertising +
@@ -270,19 +264,20 @@ export function computeT2125(input: T2125Input): T2125Result {
     line8213_fuel +
     line8215_officeExpenses +
     line8216_mealsEntertainment50pct +
-    line8220_professionalFees +
-    line8226_clientGifts +
-    line8228_otherExpenses;
+    line8220_officeExpensesMisc +
+    line8228_otherExpenses +
+    line8860_professionalFees;
 
   // ── 3. CCA ─────────────────────────────────────────────────────────────────
   const ccaLines: CcaLineItem[] = ccaAssets.map((asset) => {
     const adjustedCost = asset.original_cost * asset.business_use_pct;
     const ucc = asset.opening_ucc + asset.additions_this_year - asset.disposals_this_year;
-    // CRA half-year rule: only 50% of net additions eligible in year of acquisition
-    const halfYearAdditions = asset.class_half_year
-      ? asset.additions_this_year * 0.5
-      : asset.additions_this_year;
-    const ccaBase = asset.opening_ucc + halfYearAdditions - asset.disposals_this_year;
+    // CRA half-year rule: applies to NET additions (additions − disposals), not gross
+    const netAdditions = Math.max(0, asset.additions_this_year - asset.disposals_this_year);
+    const halfYearNetAdditions = asset.class_half_year
+      ? netAdditions * 0.5
+      : netAdditions;
+    const ccaBase = asset.opening_ucc + halfYearNetAdditions;
     const ccaClaimed = Math.max(0, ccaBase * asset.class_rate * asset.business_use_pct);
     const closingUcc = Math.max(0, ucc - ccaClaimed);
     return {
@@ -297,10 +292,10 @@ export function computeT2125(input: T2125Input): T2125Result {
   });
   const line8260_totalCca = ccaLines.reduce((s, l) => s + l.ccaClaimed, 0);
 
-  // ── 4. Home office ─────────────────────────────────────────────────────────
+  // ── 4. Home office (CRA actual-cost method) ────────────────────────────────
+  // Canada does NOT have an IRS-style simplified method. CRA T2125 uses
+  // actual home costs × business-use percentage.
   const homeOfficePct = Math.min(1, Math.max(0, settings.home_office_business_use_pct ?? 0));
-  const sqFt = Math.max(0, settings.home_office_sq_footage ?? 0);
-  const simplifiedDeduction = Math.min(sqFt * 5, 1500); // CRA caps at $1,500 (300 sq ft × $5)
 
   const annualRent = (settings.home_office_rent_monthly ?? 0) * 12;
   const annualUtilities = (settings.home_office_utilities_monthly ?? 0) * 12;
@@ -311,15 +306,9 @@ export function computeT2125(input: T2125Input): T2125Result {
   const totalAnnualHomeCosts =
     annualRent + annualUtilities + annualPropertyTax +
     annualInsurance + annualMaintenance + annualCondoFees;
-  const detailedDeduction = totalAnnualHomeCosts * homeOfficePct;
-
-  const isDetailed = (settings.home_office_method ?? "simplified") === "detailed";
-  const homeOfficeDeduction = isDetailed ? detailedDeduction : simplifiedDeduction;
+  const homeOfficeDeduction = totalAnnualHomeCosts * homeOfficePct;
 
   const homeOffice: HomeOfficeResult = {
-    method: isDetailed ? "detailed" : "simplified",
-    sqFootage: sqFt,
-    simplifiedDeduction,
     annualRent,
     annualUtilities,
     annualPropertyTax,
@@ -328,7 +317,6 @@ export function computeT2125(input: T2125Input): T2125Result {
     annualCondoFees,
     totalAnnualHomeCosts,
     businessUsePct: homeOfficePct,
-    detailedDeduction,
     deduction: homeOfficeDeduction,
   };
 
@@ -408,9 +396,9 @@ export function computeT2125(input: T2125Input): T2125Result {
     line8215_officeExpenses,
     line8216_mealsEntertainment50pct,
     line8216_mealsEntertainmentGross,
-    line8220_professionalFees,
-    line8226_clientGifts,
+    line8220_officeExpensesMisc,
     line8228_otherExpenses,
+    line8860_professionalFees,
     line8250_totalExpenses,
 
     ccaLines,

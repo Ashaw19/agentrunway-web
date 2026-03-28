@@ -24,9 +24,15 @@ import { calculateCorporateTax } from "./corporate-tax-engine";
 const RRSP_LIMIT_2025 = 32_490;
 const RRSP_CONTRIBUTION_RATE = 0.18;
 
-/** CRA: canada.ca/en/revenue-agency/services/tax/businesses/topics/automobile-motor-vehicle-benefits/automobile-allowance-rates.html */
-const CRA_MILEAGE_RATE_FIRST_5K = 0.72; // $/km for first 5,000 km
-const CRA_MILEAGE_RATE_AFTER = 0.66;    // $/km beyond 5,000 km
+/**
+ * CRA per-km rates for reasonable automobile allowances (employer → employee).
+ * These are NOT the T2125 deduction method — T2125 uses actual cost or CCA.
+ * Used here as a planning estimate to help agents understand the scale of
+ * vehicle deductions they might claim via the actual-expense method.
+ * CRA: canada.ca/en/revenue-agency/services/tax/businesses/topics/automobile-motor-vehicle-benefits/automobile-allowance-rates.html
+ */
+const CRA_MILEAGE_RATE_FIRST_5K = 0.72; // $/km for first 5,000 km (employer allowance benchmark)
+const CRA_MILEAGE_RATE_AFTER = 0.66;    // $/km beyond 5,000 km (employer allowance benchmark)
 const CRA_MILEAGE_THRESHOLD = 5_000;
 
 /** Estimated annual accounting cost for incorporated agents */
@@ -37,10 +43,6 @@ const GST_REGISTRATION_THRESHOLD = 30_000;
 
 /** CRA prescribed interest rate on instalment shortfalls (approximate as of 2025 — CRA adjusts quarterly) */
 const CRA_INSTALMENT_INTEREST_RATE = 0.06;
-
-/** CRA: Home office simplified method — $5/sq ft, max 300 sq ft */
-const HOME_OFFICE_SIMPLIFIED_RATE = 5;
-const HOME_OFFICE_SIMPLIFIED_MAX_SQFT = 300;
 
 /** Minimum estimated savings to display a card */
 const MIN_SAVINGS_THRESHOLD = 100;
@@ -88,8 +90,7 @@ export interface TaxOptimizationInput {
   isIncorporated: boolean;
   corpType: "prec" | "general" | null;
   compensationMethod: "salary" | "dividends" | "mixed";
-  // Home office
-  homeOfficeMethod: "simplified" | "detailed";
+  // Home office (CRA actual-cost method only — no simplified method in Canada)
   homeOfficeSqFootage: number | null;
   homeOfficeBusinessUsePct: number;
   homeOfficeRentMonthly: number;
@@ -209,14 +210,31 @@ export function generateTaxOptimizations(
       input.province,
       Math.max(input.dealCount, 1),
     );
-    const corpResult = calculateCorporateTax({
+    // Test all three compensation methods and pick the best
+    const corpSalary = calculateCorporateTax({
+      corporateIncome: input.netIncome,
+      province: input.province,
+      compensationMethod: "salary",
+      dealCount: Math.max(input.dealCount, 1),
+    });
+    const corpDividends = calculateCorporateTax({
       corporateIncome: input.netIncome,
       province: input.province,
       compensationMethod: "dividends",
       dealCount: Math.max(input.dealCount, 1),
     });
+    const corpMixed = calculateCorporateTax({
+      corporateIncome: input.netIncome,
+      province: input.province,
+      compensationMethod: "mixed",
+      dealCount: Math.max(input.dealCount, 1),
+    });
+    // Find the lowest combined tax across all three methods
+    const bestCorp = [corpSalary, corpDividends, corpMixed].reduce((best, r) =>
+      r.totalCombinedTax < best.totalCombinedTax ? r : best,
+    );
 
-    const grossSaving = soleResult.totalBurden - corpResult.totalCombinedTax;
+    const grossSaving = soleResult.totalBurden - bestCorp.totalCombinedTax;
     const netSaving = grossSaving - ESTIMATED_ACCOUNTING_COST;
 
     if (netSaving > 2_000) {
@@ -228,7 +246,7 @@ export function generateTaxOptimizations(
         title: "Incorporation May Reduce Your Tax",
         evidence: [
           `As a sole proprietor at ${fmtCurrency(input.netIncome)} net income, estimated tax burden is ${fmtCurrency(soleResult.totalBurden)}`,
-          `Incorporated (dividends), estimated combined tax is ${fmtCurrency(corpResult.totalCombinedTax)}`,
+          `Incorporated (optimal method), estimated combined tax is ${fmtCurrency(bestCorp.totalCombinedTax)}`,
           `After ~${fmtCurrency(ESTIMATED_ACCOUNTING_COST)}/yr accounting costs, potential net savings: ${savingsLabel(netSaving).replace("/yr", "")}`,
         ],
         action:
@@ -243,12 +261,10 @@ export function generateTaxOptimizations(
     }
   }
 
-  // ── Rule 3: Home Office Deduction Optimizer ──────────────────────────────
+  // ── Rule 3: Home Office Deduction (CRA actual-cost method) ──────────────
+  // Canada does NOT have an IRS-style simplified method ($5/sq ft).
+  // CRA T2125 home office deduction = actual home costs × business-use %.
   {
-    const sqFt = input.homeOfficeSqFootage ?? 0;
-    const simplifiedDeduction =
-      Math.min(sqFt, HOME_OFFICE_SIMPLIFIED_MAX_SQFT) * HOME_OFFICE_SIMPLIFIED_RATE;
-
     const annualHomeCosts =
       input.homeOfficeRentMonthly * 12 +
       input.homeOfficeUtilitiesMonthly * 12 +
@@ -256,11 +272,9 @@ export function generateTaxOptimizations(
       input.homeOfficeInsuranceMonthly * 12 +
       input.homeOfficeMaintenanceAnnual +
       input.homeOfficeCondoFeesMonthly * 12;
-    const detailedDeduction = annualHomeCosts * input.homeOfficeBusinessUsePct;
+    const deduction = annualHomeCosts * input.homeOfficeBusinessUsePct;
 
-    const hasAnyData = sqFt > 0 || annualHomeCosts > 0;
-
-    if (!hasAnyData && input.netIncome > 0) {
+    if (annualHomeCosts === 0 && input.netIncome > 0) {
       // Nudge: no home office data entered
       const estimatedDeduction = 1_000; // conservative average
       const savings = estimatedDeduction * mRate;
@@ -276,49 +290,41 @@ export function generateTaxOptimizations(
             `At your ${fmtPct(mRate)} marginal rate, this could reduce tax by ${savingsLabel(savings).replace("/yr", "")}`,
           ],
           action:
-            "Research the CRA home office deduction methods. Enter your home office details in Settings to see which method \u2014 simplified or detailed \u2014 may yield a larger deduction.",
+            "Enter your actual home costs (rent/mortgage interest, utilities, property tax, insurance, maintenance) and business-use percentage in Settings. CRA allows deducting the business-use portion of actual home costs on T2125 Line 9270.",
           disclaimer:
-            "Home office eligibility requires the space to be your principal place of business or used exclusively and regularly for meeting clients. CRA Form T2125 requires supporting documentation. The $5/sq ft simplified method has a 300 sq ft maximum. See Terms of Service.",
+            "Home office eligibility requires the space to be your principal place of business or used exclusively and regularly for meeting clients. CRA Form T2125 requires supporting documentation. Deduction is based on actual costs multiplied by business-use percentage. See Terms of Service.",
           estimatedSavings: savings,
           estimatedSavingsLabel: savingsLabel(savings),
           priority: 65,
           complexity: "easy",
         });
       }
-    } else if (hasAnyData && input.netIncome > 0) {
-      // Compare methods
-      const currentDeduction =
-        input.homeOfficeMethod === "simplified" ? simplifiedDeduction : detailedDeduction;
-      const betterDeduction = Math.max(simplifiedDeduction, detailedDeduction);
-      const betterMethod =
-        simplifiedDeduction >= detailedDeduction ? "simplified" : "detailed";
-      const extraSavings = (betterDeduction - currentDeduction) * mRate;
-
-      if (
-        extraSavings >= MIN_SAVINGS_THRESHOLD &&
-        betterMethod !== input.homeOfficeMethod
-      ) {
+    } else if (annualHomeCosts > 0 && input.homeOfficeBusinessUsePct > 0 && input.netIncome > 0) {
+      // Show current deduction summary and nudge if business-use % seems low
+      const savings = deduction * mRate;
+      if (savings >= MIN_SAVINGS_THRESHOLD && input.homeOfficeBusinessUsePct < 0.15) {
         cards.push({
           id: "homeOfficeOptimizer",
           category: "homeOfficeOptimizer",
           icon: "home",
-          title: "Home Office Method Comparison",
+          title: "Home Office Deduction — Review Business-Use %",
           evidence: [
-            `Simplified method: ${fmtCurrency(simplifiedDeduction)} (${sqFt} sq ft \u00d7 $5, max 300 sq ft)`,
-            `Detailed method: ${fmtCurrency(Math.round(detailedDeduction))} (${fmtPct(input.homeOfficeBusinessUsePct)} of ${fmtCurrency(annualHomeCosts)} home costs)`,
-            `Switching to ${betterMethod} could add ${fmtCurrency(betterDeduction - currentDeduction)} in deductions`,
+            `Annual home costs: ${fmtCurrency(annualHomeCosts)}`,
+            `Current business-use: ${fmtPct(input.homeOfficeBusinessUsePct)} → deduction of ${fmtCurrency(Math.round(deduction))}`,
+            `Ensure your business-use % reflects the actual area used exclusively for business (office area ÷ total home area)`,
           ],
-          action: `Research whether the ${betterMethod} method would yield a larger deduction for your situation. The difference could reduce tax by ${savingsLabel(extraSavings).replace("/yr", "")}.`,
+          action: `Verify your business-use percentage is accurate. CRA calculates this as the area of your home office divided by the total area of your home. A larger dedicated workspace could increase your deduction.`,
           disclaimer:
-            "Home office eligibility requires the space to be your principal place of business or used exclusively and regularly for meeting clients. CRA Form T2125 requires supporting documentation. The $5/sq ft simplified method has a 300 sq ft maximum. See Terms of Service.",
-          estimatedSavings: extraSavings,
-          estimatedSavingsLabel: savingsLabel(extraSavings),
+            "Home office eligibility requires the space to be your principal place of business or used exclusively and regularly for meeting clients. Business-use percentage must be reasonable and supportable. See Terms of Service.",
+          estimatedSavings: savings,
+          estimatedSavingsLabel: savingsLabel(savings),
           priority: 50,
           complexity: "easy",
         });
       }
     }
   }
+
 
   // ── Rule 4: Vehicle Expense Optimization ─────────────────────────────────
   if (input.vehicleType !== "none" && input.netIncome > 0) {
@@ -343,7 +349,7 @@ export function generateTaxOptimizations(
           ? "Vehicle Deduction \u2014 Start Logging Trips"
           : "Vehicle Deduction Summary",
         evidence: [
-          `CRA 2025 rates: $${CRA_MILEAGE_RATE_FIRST_5K}/km (first ${CRA_MILEAGE_THRESHOLD.toLocaleString()} km) + $${CRA_MILEAGE_RATE_AFTER}/km after`,
+          `CRA 2025 reasonable allowance rates (planning benchmark): $${CRA_MILEAGE_RATE_FIRST_5K}/km (first ${CRA_MILEAGE_THRESHOLD.toLocaleString()} km) + $${CRA_MILEAGE_RATE_AFTER}/km after`,
           isEstimate
             ? `Estimated ${businessKm.toLocaleString()} business km (typical agent average at ${fmtPct(input.vehicleBusinessUsePct)} business use)`
             : `${businessKm.toLocaleString()} logged business km at ${fmtPct(input.vehicleBusinessUsePct)} business use`,
@@ -353,7 +359,7 @@ export function generateTaxOptimizations(
           ? "Start logging your business trips to substantiate vehicle deductions. CRA requires a contemporaneous log \u2014 the estimate shown is based on typical agent mileage, not your actual driving."
           : `Discuss with your accountant whether the CRA per-km method or actual expense method yields a larger deduction for your ${fmtCurrency(Math.round(craDeduction))} in business driving.`,
         disclaimer:
-          "CRA requires a detailed, contemporaneous vehicle log recording date, destination, purpose, and kilometres for each business trip. Estimates based on averages are not valid for filing. The CRA per-km rates shown are for the 2025 tax year and may change. See Terms of Service.",
+          "CRA requires a detailed, contemporaneous vehicle log recording date, destination, purpose, and kilometres for each business trip. Estimates based on averages are not valid for filing. The CRA per-km rates shown are employer allowance benchmarks used for planning only \u2014 T2125 vehicle deductions use the actual-expense or CCA method. See Terms of Service.",
         estimatedSavings: savings,
         estimatedSavingsLabel: savingsLabel(savings),
         priority,
@@ -612,7 +618,7 @@ export function generateTaxOptimizations(
     if (!input.hasMarketingExpenses)
       missing.push({ label: "Marketing and advertising", estimate: 2_000 });
     if (!input.hasClientGiftExpenses)
-      missing.push({ label: "Client appreciation gifts ($25/person CRA limit)", estimate: 500 });
+      missing.push({ label: "Client appreciation gifts (must be reasonable)", estimate: 500 });
     if (!input.hasMealExpenses)
       missing.push({ label: "Meals with clients (50% deductible)", estimate: 800 });
     if (input.ccaAssetCount === 0 && (input.experienceYears ?? 0) > 1)
@@ -636,7 +642,7 @@ export function generateTaxOptimizations(
             ),
           ],
           action:
-            "Review whether you\u2019re tracking all eligible business expenses. Common deductions for real estate agents include: professional development, licensing/board fees, marketing, client appreciation (limited to $25/person per CRA), and meals with clients (50% deductible).",
+            "Review whether you\u2019re tracking all eligible business expenses. Common deductions for real estate agents include: professional development, licensing/board fees, marketing, client appreciation gifts (must be reasonable per CRA), and meals with clients (50% deductible).",
           disclaimer:
             "All business expenses must be reasonable, incurred to earn income, and supported by receipts or documentation. Client gift deductions are limited. Meal deductions are generally limited to 50% of the amount paid. CRA may request supporting documentation during a review or audit. See Terms of Service.",
           estimatedSavings: savings,

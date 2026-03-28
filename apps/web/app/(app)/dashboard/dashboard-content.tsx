@@ -664,7 +664,6 @@ export function DashboardContent({
         isIncorporated: settings.is_incorporated,
         corpType: (settings.corp_type as "prec" | "general" | null) ?? null,
         compensationMethod: (settings.compensation_method as "salary" | "dividends" | "mixed") ?? "salary",
-        homeOfficeMethod: (settings.home_office_method as "simplified" | "detailed") ?? "simplified",
         homeOfficeSqFootage: settings.home_office_sq_footage,
         homeOfficeBusinessUsePct: settings.home_office_business_use_pct,
         homeOfficeRentMonthly: settings.home_office_rent_monthly,

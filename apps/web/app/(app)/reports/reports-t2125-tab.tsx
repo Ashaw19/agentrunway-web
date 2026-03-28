@@ -295,7 +295,6 @@ export function ReportsT2125Tab({
         isIncorporated: localSettings.is_incorporated ?? false,
         corpType: (localSettings.corp_type as "prec" | "general" | null) ?? null,
         compensationMethod: (localSettings.compensation_method as "salary" | "dividends" | "mixed") ?? "salary",
-        homeOfficeMethod: (localSettings.home_office_method as "simplified" | "detailed") ?? "simplified",
         homeOfficeSqFootage: localSettings.home_office_sq_footage ?? null,
         homeOfficeBusinessUsePct: localSettings.home_office_business_use_pct ?? 0,
         homeOfficeRentMonthly: localSettings.home_office_rent_monthly ?? 0,
@@ -518,9 +517,9 @@ export function ReportsT2125Tab({
           <CardContent className="pt-0 space-y-1">
             <LineRow lineNum="8210" label="Advertising & Marketing" value={result.line8210_advertising} />
             <LineRow lineNum="8215" label="Office Expenses & Software" value={result.line8215_officeExpenses} />
-            <LineRow lineNum="8220" label="Professional Fees, Licensing & Education" value={result.line8220_professionalFees} />
-            <LineRow lineNum="8226" label="Business Gifts" value={result.line8226_clientGifts} />
-            <LineRow lineNum="8228" label="Other Expenses" value={result.line8228_otherExpenses} />
+            <LineRow lineNum="8220" label="Office Expenses (Phone, Internet)" value={result.line8220_officeExpensesMisc} />
+            <LineRow lineNum="8228" label="Other Expenses (Gifts, Education)" value={result.line8228_otherExpenses} />
+            <LineRow lineNum="8860" label="Professional Fees & Licensing" value={result.line8860_professionalFees} />
 
             {/* Vehicle sub-section */}
             <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
@@ -749,96 +748,60 @@ export function ReportsT2125Tab({
         </CardHeader>
         {expandedSections.homeOffice && (
           <CardContent className="pt-0 space-y-4">
-            {/* Method selector */}
-            <div className="flex gap-2">
-              {(["simplified", "detailed"] as const).map((method) => (
-                <button
-                  key={method}
-                  onClick={() => saveSettings({ home_office_method: method })}
-                  className={cn(
-                    "flex-1 rounded-lg border py-2 text-sm font-medium transition-colors",
-                    (localSettings.home_office_method ?? "simplified") === method
-                      ? "border-teal-400 bg-teal-50 text-teal-800"
-                      : "border-border text-muted-foreground hover:border-muted-foreground",
-                  )}
-                >
-                  {method === "simplified" ? "Simplified ($5/sq ft)" : "Detailed (actual costs)"}
-                </button>
-              ))}
+            {/* CRA actual-cost method — no simplified method in Canada */}
+            <div className="space-y-3">
+              <p className="text-xs text-muted-foreground">
+                CRA home office deduction uses actual costs multiplied by your business-use percentage (office area ÷ total home area).
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <EditableAmount
+                  label="Business-use %"
+                  value={localSettings.home_office_business_use_pct}
+                  onChange={(v) => saveSettings({ home_office_business_use_pct: Math.min(1, Math.max(0, v)) })}
+                  note="Office area ÷ total home area"
+                />
+                <EditableAmount
+                  label="Monthly rent or mortgage interest ($)"
+                  value={localSettings.home_office_rent_monthly}
+                  onChange={(v) => saveSettings({ home_office_rent_monthly: v })}
+                />
+                <EditableAmount
+                  label="Monthly utilities — heat, hydro, water ($)"
+                  value={localSettings.home_office_utilities_monthly}
+                  onChange={(v) => saveSettings({ home_office_utilities_monthly: v })}
+                />
+                <EditableAmount
+                  label="Annual property tax ($)"
+                  value={localSettings.home_office_property_tax_annual}
+                  onChange={(v) => saveSettings({ home_office_property_tax_annual: v })}
+                />
+                <EditableAmount
+                  label="Monthly home insurance ($)"
+                  value={localSettings.home_office_insurance_monthly}
+                  onChange={(v) => saveSettings({ home_office_insurance_monthly: v })}
+                />
+                <EditableAmount
+                  label="Annual maintenance & repairs ($)"
+                  value={localSettings.home_office_maintenance_annual}
+                  onChange={(v) => saveSettings({ home_office_maintenance_annual: v })}
+                />
+                <EditableAmount
+                  label="Monthly condo fees (if applicable)"
+                  value={localSettings.home_office_condo_fees_monthly}
+                  onChange={(v) => saveSettings({ home_office_condo_fees_monthly: v })}
+                />
+              </div>
+              <div className="rounded-lg bg-teal-50 border border-teal-200 px-4 py-3 text-sm space-y-1">
+                <div className="flex justify-between text-teal-800">
+                  <span>Total annual home costs</span>
+                  <span>{fmtCurrency(result.homeOffice.totalAnnualHomeCosts)}</span>
+                </div>
+                <div className="flex justify-between text-teal-800">
+                  <span>× Business use {fmtPct(localSettings.home_office_business_use_pct)}</span>
+                  <strong>{fmtCurrency(result.homeOffice.deduction)}</strong>
+                </div>
+              </div>
             </div>
-
-            {(localSettings.home_office_method ?? "simplified") === "simplified" ? (
-              <div className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <EditableAmount
-                    label="Office square footage"
-                    value={localSettings.home_office_sq_footage ?? 0}
-                    onChange={(v) => saveSettings({ home_office_sq_footage: Math.round(v) })}
-                    note="CRA caps simplified method at 300 sq ft ($1,500 max)"
-                  />
-                  <EditableAmount
-                    label="Business-use % (from Settings)"
-                    value={localSettings.home_office_business_use_pct}
-                    onChange={(v) => saveSettings({ home_office_business_use_pct: Math.min(1, Math.max(0, v)) })}
-                    note="Used for the detailed method only — not the simplified $5/sq ft calculation"
-                  />
-                </div>
-                <div className="rounded-lg bg-teal-50 border border-teal-200 px-4 py-3 text-sm">
-                  <p className="text-teal-800">
-                    Simplified deduction: {localSettings.home_office_sq_footage ?? 0} sq ft × $5 ={" "}
-                    <strong>{fmtCurrency(result.homeOffice.simplifiedDeduction)}</strong>
-                    {(localSettings.home_office_sq_footage ?? 0) > 300 && (
-                      <span className="ml-1 text-amber-700">(capped at $1,500 — max 300 sq ft)</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <EditableAmount
-                    label="Monthly rent or mortgage interest ($)"
-                    value={localSettings.home_office_rent_monthly}
-                    onChange={(v) => saveSettings({ home_office_rent_monthly: v })}
-                  />
-                  <EditableAmount
-                    label="Monthly utilities — heat, hydro, water ($)"
-                    value={localSettings.home_office_utilities_monthly}
-                    onChange={(v) => saveSettings({ home_office_utilities_monthly: v })}
-                  />
-                  <EditableAmount
-                    label="Annual property tax ($)"
-                    value={localSettings.home_office_property_tax_annual}
-                    onChange={(v) => saveSettings({ home_office_property_tax_annual: v })}
-                  />
-                  <EditableAmount
-                    label="Monthly home insurance ($)"
-                    value={localSettings.home_office_insurance_monthly}
-                    onChange={(v) => saveSettings({ home_office_insurance_monthly: v })}
-                  />
-                  <EditableAmount
-                    label="Annual maintenance & repairs ($)"
-                    value={localSettings.home_office_maintenance_annual}
-                    onChange={(v) => saveSettings({ home_office_maintenance_annual: v })}
-                  />
-                  <EditableAmount
-                    label="Monthly condo fees (if applicable)"
-                    value={localSettings.home_office_condo_fees_monthly}
-                    onChange={(v) => saveSettings({ home_office_condo_fees_monthly: v })}
-                  />
-                </div>
-                <div className="rounded-lg bg-teal-50 border border-teal-200 px-4 py-3 text-sm space-y-1">
-                  <div className="flex justify-between text-teal-800">
-                    <span>Total annual home costs</span>
-                    <span>{fmtCurrency(result.homeOffice.totalAnnualHomeCosts)}</span>
-                  </div>
-                  <div className="flex justify-between text-teal-800">
-                    <span>× Business use {fmtPct(localSettings.home_office_business_use_pct)}</span>
-                    <strong>{fmtCurrency(result.homeOffice.detailedDeduction)}</strong>
-                  </div>
-                </div>
-              </div>
-            )}
 
             <Separator />
             <LineRow lineNum="8330" label="Home Office Deduction" value={result.line8330_homeOfficeDeduction} bold highlight />
@@ -846,6 +809,7 @@ export function ReportsT2125Tab({
         )}
       </Card>
 
+      {/* ── Net Business Income ── */}
       {/* ── Net Business Income ── */}
       <Card className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/50">
         <CardHeader className="pb-2">

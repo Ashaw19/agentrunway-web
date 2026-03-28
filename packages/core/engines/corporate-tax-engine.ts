@@ -282,10 +282,14 @@ export function calculateCorporateTax(input: CorporateTaxInput): CorporateTaxRes
   // All-salary scenario: no corp tax on salary; personal tax on full income
   const allSalaryTotalTax = calcPersonalTax(corporateIncome, province, dealCount).totalBurden;
 
-  // All-dividends scenario: corp pays tax on full income; remainder distributed
-  // Use the same split SBD logic for the all-dividends comparison
-  const allDivFedCorpTax  = fedSbdIncome * FED_SBD_RATE      + fedGeneralIncome * FED_GENERAL_RATE;
-  const allDivProvCorpTax = provSbdIncome * provInfo.sbdRate  + provGeneralIncome * provInfo.generalRate;
+  // All-dividends scenario: corp pays tax on full corporateIncome; remainder distributed
+  // IMPORTANT: Recompute SBD splits on full corporateIncome (not salary-adjusted corpTaxableIncome)
+  const allDivFedSbdIncome     = Math.min(corporateIncome, sbdLimit);
+  const allDivFedGeneralIncome = Math.max(0, corporateIncome - sbdLimit);
+  const allDivProvSbdIncome    = Math.min(corporateIncome, provSbdLimit);
+  const allDivProvGenIncome    = Math.max(0, corporateIncome - provSbdLimit);
+  const allDivFedCorpTax  = allDivFedSbdIncome * FED_SBD_RATE      + allDivFedGeneralIncome * FED_GENERAL_RATE;
+  const allDivProvCorpTax = allDivProvSbdIncome * provInfo.sbdRate  + allDivProvGenIncome * provInfo.generalRate;
   const allDivCorpTax     = allDivFedCorpTax + allDivProvCorpTax;
   const allDivAfterCorpTax = Math.max(0, corporateIncome - allDivCorpTax);
   const allDivPersonalTax  = calcPersonalTaxOnDividend(allDivAfterCorpTax, province, provInfo);

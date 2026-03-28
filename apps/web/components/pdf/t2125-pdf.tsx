@@ -400,13 +400,11 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
           value={result.line8216_mealsEntertainment50pct}
           note={`Gross: ${fmt(result.line8216_mealsEntertainmentGross)} × 50%`}
         />
-        <LineRow lineNum="8220" label="Professional Fees, Licensing, Education" value={result.line8220_professionalFees} />
-        {result.line8226_clientGifts > 0 && (
-          <LineRow lineNum="8226" label="Business Gifts" value={result.line8226_clientGifts} />
-        )}
+        <LineRow lineNum="8220" label="Office Expenses (Phone, Internet)" value={result.line8220_officeExpensesMisc} />
         {result.line8228_otherExpenses > 0 && (
-          <LineRow lineNum="8228" label="Other Expenses" value={result.line8228_otherExpenses} />
+          <LineRow lineNum="8228" label="Other Expenses (Gifts, Education)" value={result.line8228_otherExpenses} />
         )}
+        <LineRow lineNum="8860" label="Professional Fees & Licensing" value={result.line8860_professionalFees} />
         <LineHighlight lineNum="8250" label="Total Deductible Expenses" value={result.line8250_totalExpenses} />
 
         <Footer year={taxYear} agentName={result.agentName} />
@@ -446,20 +444,14 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
         <LineHighlight lineNum="8260" label="Total CCA Deduction" value={result.line8260_totalCca} />
 
         {/* Home Office */}
-        <SectionHeader title="Home Office — Line 8330" subtitle={`Method: ${result.homeOffice.method === "simplified" ? `Simplified ($5/sq ft × ${result.homeOffice.sqFootage} sq ft)` : `Detailed (actual costs × ${fmtPct(result.homeOffice.businessUsePct)} business use)`}`} color="#0D9488" />
-        {result.homeOffice.method === "simplified" ? (
-          <LineRow label={`${result.homeOffice.sqFootage} sq ft × $5 (max 300 sq ft)`} value={result.homeOffice.simplifiedDeduction} />
-        ) : (
-          <>
-            <LineRow label="Annual rent / mortgage interest" value={result.homeOffice.annualRent} />
-            <LineRow label="Annual utilities" value={result.homeOffice.annualUtilities} />
-            <LineRow label="Annual property tax" value={result.homeOffice.annualPropertyTax} />
-            <LineRow label="Annual home insurance" value={result.homeOffice.annualInsurance} />
-            <LineRow label="Annual maintenance" value={result.homeOffice.annualMaintenance} />
-            {result.homeOffice.annualCondoFees > 0 && <LineRow label="Annual condo fees" value={result.homeOffice.annualCondoFees} />}
-            <LineRow label={`Total × ${fmtPct(result.homeOffice.businessUsePct)} business use`} value={result.homeOffice.detailedDeduction} />
-          </>
-        )}
+        <SectionHeader title="Home Office — Line 8330" subtitle={`Actual costs × ${fmtPct(result.homeOffice.businessUsePct)} business use`} color="#0D9488" />
+        <LineRow label="Annual rent / mortgage interest" value={result.homeOffice.annualRent} />
+        <LineRow label="Annual utilities" value={result.homeOffice.annualUtilities} />
+        <LineRow label="Annual property tax" value={result.homeOffice.annualPropertyTax} />
+        <LineRow label="Annual home insurance" value={result.homeOffice.annualInsurance} />
+        <LineRow label="Annual maintenance" value={result.homeOffice.annualMaintenance} />
+        {result.homeOffice.annualCondoFees > 0 && <LineRow label="Annual condo fees" value={result.homeOffice.annualCondoFees} />}
+        <LineRow label={`Total × ${fmtPct(result.homeOffice.businessUsePct)} business use`} value={result.homeOffice.deduction} />
         <LineHighlight lineNum="8330" label="Home Office Deduction" value={result.line8330_homeOfficeDeduction} />
 
         {/* Net Business Income */}

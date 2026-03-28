@@ -375,9 +375,9 @@ function zeroResult(province: Province, dealCount: number): CanadianTaxResult {
 /** GST/HST/QST/PST rate agents charge on commissions, by province.
  *  HST provinces (harmonised): ON 13%, NB/NL/PE 15%, NS 14% (reduced Apr 1, 2025)
  *  QST province: QC GST 5% + QST 9.975% = 14.975%
- *  PST on agent commissions: SK only — GST 5% + PST 6% = 11%
- *    (BC/MB PST does NOT apply to residential real estate commissions;
- *     BC commercial PST expansion is Oct 2026 and excludes residential)
+ *  PST: SK PST does not apply to real estate commission services (not in SK PST
+ *    enumerated taxable services list). BC/MB PST also does NOT apply to
+ *    residential real estate commissions.
  *  All others: GST 5% only
  *
  *  CRA: canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html
@@ -390,7 +390,7 @@ export function gstHstRate(province: string): number {
     case "newfoundland":            return 0.15;
     case "princeEdwardIsland":      return 0.15;
     case "quebec":                  return 0.14975; // GST + QST
-    case "saskatchewan":            return 0.11;    // GST + PST 6%
+    case "saskatchewan":            return 0.05;    // GST only — SK PST does not apply to real estate commission services
     default:                        return 0.05;    // GST only (AB, BC, MB, territories)
   }
 }
@@ -407,7 +407,7 @@ export function gstHstLabel(province: string): string {
     case "quebec":
       return "GST + QST";
     case "saskatchewan":
-      return "GST + PST";
+      return "GST";
     default:
       return "GST";
   }
