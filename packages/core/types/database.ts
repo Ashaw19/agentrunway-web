@@ -1058,6 +1058,21 @@ export interface ClientRecord {
   // Property use for AI post-close context (migration 00043)
   property_use: PropertyUse | null;
 
+  // Property specs (migration 00075)
+  bedrooms:     number | null;
+  bathrooms:    number | null;
+  garage:       boolean | null;
+  lot_acres:    number | null;
+  waterfront:   boolean | null;
+  square_feet:  number | null;
+
+  // MLS / listing URL (migration 00075)
+  listing_url:  string | null;
+
+  // Condition tracking (migration 00075)
+  condition_date:   string | null;  // ISO date
+  condition_status: "pending" | "waived" | "firmed" | "collapsed" | null;
+
   created_at: string;
   updated_at: string;
 }

@@ -3875,6 +3875,178 @@ export function ClientsContent({
                                 </SelectContent>
                               </Select>
                             )}
+
+                            {/* Listing URL + MLS auto-populate */}
+                            <div className="pt-1 flex gap-1">
+                              <Input
+                                type="url"
+                                placeholder="MLS / listing URL…"
+                                className="h-6 text-[10px] px-2 border-dashed flex-1"
+                                defaultValue={deal.listing_url ?? ""}
+                                id={`listing-url-${deal.id}`}
+                                onBlur={(e) => {
+                                  const v = e.target.value.trim() || null;
+                                  if (v !== (deal.listing_url ?? null)) updateClientRecordField(deal.id, "listing_url", v);
+                                }}
+                              />
+                              <button
+                                className="h-6 px-2 rounded text-[9px] border border-dashed text-muted-foreground hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors whitespace-nowrap"
+                                onClick={async () => {
+                                  const urlInput = document.getElementById(`listing-url-${deal.id}`) as HTMLInputElement | null;
+                                  const listingUrl = urlInput?.value?.trim();
+                                  if (!listingUrl) {
+                                    toast.error("Enter a Realtor.ca URL first");
+                                    return;
+                                  }
+                                  toast.info("Looking up listing…");
+                                  try {
+                                    const res = await fetch("/api/mls-lookup", {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ url: listingUrl }),
+                                    });
+                                    if (!res.ok) {
+                                      const err = await res.json().catch(() => ({}));
+                                      toast.error(err.error || "Could not fetch listing data");
+                                      return;
+                                    }
+                                    const specs = await res.json();
+                                    // Auto-fill any returned specs that have values
+                                    const updates: Record<string, unknown> = {};
+                                    if (specs.bedrooms != null) updates.bedrooms = specs.bedrooms;
+                                    if (specs.bathrooms != null) updates.bathrooms = specs.bathrooms;
+                                    if (specs.square_feet != null) updates.square_feet = specs.square_feet;
+                                    if (specs.lot_acres != null) updates.lot_acres = specs.lot_acres;
+                                    if (specs.garage != null) updates.garage = specs.garage;
+                                    if (specs.waterfront != null) updates.waterfront = specs.waterfront;
+
+                                    if (Object.keys(updates).length > 0) {
+                                      // Save listing URL too
+                                      updates.listing_url = listingUrl;
+                                      const { error } = await supabase
+                                        .from("client_records")
+                                        .update(updates)
+                                        .eq("id", deal.id);
+                                      if (!error) {
+                                        toast.success(`Auto-filled ${Object.keys(updates).length - 1} property fields`);
+                                        router.refresh();
+                                      } else {
+                                        toast.error("Saved lookup data partially");
+                                      }
+                                    } else {
+                                      toast.info("No property data found — enter details manually");
+                                    }
+                                  } catch {
+                                    toast.error("Failed to look up listing");
+                                  }
+                                }}
+                              >
+                                Fetch
+                              </button>
+                            </div>
+
+                            {/* Property specs */}
+                            <div className="grid grid-cols-3 gap-1.5 pt-1">
+                              <div>
+                                <span className="text-[9px] text-muted-foreground block mb-0.5">Beds</span>
+                                <Input
+                                  type="number" min={0}
+                                  className="h-6 text-[10px] px-2"
+                                  defaultValue={deal.bedrooms ?? ""}
+                                  onBlur={(e) => {
+                                    const v = e.target.value ? Number(e.target.value) : null;
+                                    if (v !== (deal.bedrooms ?? null)) updateClientRecordField(deal.id, "bedrooms", v);
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-muted-foreground block mb-0.5">Baths</span>
+                                <Input
+                                  type="number" min={0} step={0.5}
+                                  className="h-6 text-[10px] px-2"
+                                  defaultValue={deal.bathrooms ?? ""}
+                                  onBlur={(e) => {
+                                    const v = e.target.value ? Number(e.target.value) : null;
+                                    if (v !== (deal.bathrooms ?? null)) updateClientRecordField(deal.id, "bathrooms", v);
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-muted-foreground block mb-0.5">Sq Ft</span>
+                                <Input
+                                  type="number" min={0}
+                                  className="h-6 text-[10px] px-2"
+                                  defaultValue={deal.square_feet ?? ""}
+                                  onBlur={(e) => {
+                                    const v = e.target.value ? Number(e.target.value) : null;
+                                    if (v !== (deal.square_feet ?? null)) updateClientRecordField(deal.id, "square_feet", v);
+                                  }}
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-1.5">
+                              <div>
+                                <span className="text-[9px] text-muted-foreground block mb-0.5">Lot (acres)</span>
+                                <Input
+                                  type="number" min={0} step={0.01}
+                                  className="h-6 text-[10px] px-2"
+                                  defaultValue={deal.lot_acres ?? ""}
+                                  onBlur={(e) => {
+                                    const v = e.target.value ? Number(e.target.value) : null;
+                                    if (v !== (deal.lot_acres ?? null)) updateClientRecordField(deal.id, "lot_acres", v);
+                                  }}
+                                />
+                              </div>
+                              <div className="flex items-end gap-1.5 pb-0.5">
+                                <button
+                                  className={cn("h-6 px-2 rounded text-[10px] border transition-colors", deal.garage ? "bg-green-100 dark:bg-green-900/40 border-green-300 dark:border-green-700 text-green-700 dark:text-green-400" : "border-dashed text-muted-foreground hover:border-slate-400")}
+                                  onClick={() => updateClientRecordField(deal.id, "garage", !deal.garage)}
+                                >
+                                  Garage
+                                </button>
+                              </div>
+                              <div className="flex items-end gap-1.5 pb-0.5">
+                                <button
+                                  className={cn("h-6 px-2 rounded text-[10px] border transition-colors", deal.waterfront ? "bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-400" : "border-dashed text-muted-foreground hover:border-slate-400")}
+                                  onClick={() => updateClientRecordField(deal.id, "waterfront", !deal.waterfront)}
+                                >
+                                  Waterfront
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Condition tracking — only for deals without a close date yet, or recent deals */}
+                            <div className="grid grid-cols-2 gap-1.5 pt-1">
+                              <div>
+                                <span className="text-[9px] text-muted-foreground block mb-0.5">Condition date</span>
+                                <Input
+                                  type="date"
+                                  className="h-6 text-[10px] px-2"
+                                  defaultValue={deal.condition_date ?? ""}
+                                  onBlur={(e) => {
+                                    const v = e.target.value || null;
+                                    if (v !== (deal.condition_date ?? null)) updateClientRecordField(deal.id, "condition_date", v);
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-muted-foreground block mb-0.5">Status</span>
+                                <Select
+                                  value={deal.condition_status ?? "pending"}
+                                  onValueChange={(v) => updateClientRecordField(deal.id, "condition_status", v)}
+                                >
+                                  <SelectTrigger className="h-6 text-[10px] border-dashed bg-transparent">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="pending" className="text-xs">Pending</SelectItem>
+                                    <SelectItem value="waived" className="text-xs">Waived</SelectItem>
+                                    <SelectItem value="firmed" className="text-xs">Firmed</SelectItem>
+                                    <SelectItem value="collapsed" className="text-xs">Collapsed</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
                           </div>
                         ))}
                       </div>

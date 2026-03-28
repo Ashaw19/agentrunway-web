@@ -118,7 +118,7 @@ const MAX_PER_CLIENT_PER_SCAN = 2;
 const STRONG_TIMING_TYPES = new Set([
   "birthday", "closing_anniversary", "post_close_3", "post_close_14",
   "post_close_90", "mortgage_renewal_due", "timeframe_approaching",
-  "property_value_milestone", "new_client_welcome",
+  "property_value_milestone", "new_client_welcome", "condition_firming",
 ]);
 
 /** Types that are relationship-maintenance (weaker signal, need support from data). */
@@ -1416,6 +1416,8 @@ function suggestAngle(
       return `Educational content on ${(ctx.last_key_topic as string) ?? "their area of interest"}`;
     case "pain_point_inactive":
       return "Re-engage by addressing their known concern";
+    case "condition_firming":
+      return "Check in on condition status — confirm next steps toward firming";
     default:
       if (opportunityType.startsWith("seasonal_")) return "Seasonal market update — keep it relevant";
       return "General relationship touchpoint";
@@ -1493,6 +1495,10 @@ function buildTopLabel(
     case "educational_value_inactive":
       parts.push("Topic interest + inactive");
       break;
+    case "condition_firming":
+      parts.push("Condition date approaching");
+      if (ctx.address) parts.push(String(ctx.address));
+      break;
     default:
       if (opportunityType.startsWith("seasonal_")) parts.push("Seasonal touchpoint");
       else parts.push("Outreach opportunity");
@@ -1567,6 +1573,9 @@ function buildWhyThisMatters(
     case "seller_timing_hesitation":
       lines.push("Addressing objections directly shows you're paying attention, not just following up.");
       break;
+    case "condition_firming":
+      lines.push("Condition dates are deal-defining moments — staying on top of them demonstrates professionalism and protects the transaction.");
+      break;
     default:
       if (lines.length === 0) lines.push("Maintaining regular contact strengthens the relationship.");
   }
@@ -1635,6 +1644,12 @@ function buildWhyNow(
       return "Seller with timing objection — current market data could shift their thinking.";
     case "educational_value_inactive":
       return `Client showed interest in "${ctx.last_key_topic ?? "a topic"}" — educational value re-engages without pressure.`;
+    case "condition_firming": {
+      const dUntil = ctx.days_until_condition ? Number(ctx.days_until_condition) : 0;
+      if (dUntil <= 0) return "The condition date has arrived — this deal needs to firm, be waived, or collapse today. Advance the pipeline stage now.";
+      if (dUntil <= 3) return `Condition date is ${dUntil === 1 ? "tomorrow" : `in ${dUntil} days`} — confirm with all parties and prepare to advance this deal to the next stage.`;
+      return `Condition date is ${daysUntilLabel(triggerDate)} — stay ahead of it so the deal can progress on time.`;
+    }
     default:
       if (opportunityType.startsWith("seasonal_")) {
         return "Seasonal timing — relevant touchpoint that doesn't need a specific reason.";
@@ -1882,6 +1897,17 @@ function buildFinancialImpact(
     return "Re-engaging a client through their specific concern converts better than broad check-ins. This is targeted, not generic — and that difference matters.";
   }
 
+  // ── Condition firming ─────────────────────────────────────────────────────
+  if (opportunityType === "condition_firming") {
+    if (gciLabel) {
+      return `This is a ${gciLabel} GCI deal with an approaching condition date. Missing it could collapse the transaction entirely — protecting this closing is your highest-value action.`;
+    }
+    if (pipelineLight) {
+      return "With your pipeline light, every pending deal matters more. This condition date determines whether this deal advances or falls apart.";
+    }
+    return "Condition dates are binary moments — the deal either moves forward or it doesn't. Staying on top of this protects income that's already in your pipeline.";
+  }
+
   // ── Educational value ─────────────────────────────────────────────────────
   if (opportunityType === "educational_value_inactive") {
     if (pipelineLight) {
@@ -2038,9 +2064,8 @@ export async function getTopOpportunities(
       .is("archived_at", null),
     supabase
       .from("client_records")
-      .select("id, client_id, address, close_date, gci, side, property_use")
+      .select("id, client_id, address, close_date, gci, side, property_use, condition_date, condition_status")
       .eq("user_id", userId)
-      .not("close_date", "is", null)
       .not("client_id", "is", null),
     supabase
       .from("client_memory_profiles")
@@ -2150,6 +2175,23 @@ export async function getTopOpportunities(
           context: { address: rec.address, close_date: rec.close_date, gci: rec.gci, days_after_close: cfg.days, side: rec.side, property_use: rec.property_use },
         });
       }
+    }
+  }
+
+  // 4b. Condition date approaching — deal about to firm or needs action
+  for (const rec of records) {
+    if (!rec.client_id) continue;
+    const condDate = (rec as Record<string, unknown>).condition_date as string | null;
+    const condStatus = (rec as Record<string, unknown>).condition_status as string | null;
+    if (!condDate || condStatus === "firmed" || condStatus === "waived" || condStatus === "collapsed") continue;
+    const d = daysUntil(condDate);
+    if (d >= -3 && d <= WINDOW_DAYS) {
+      inserts.push({
+        user_id: userId, client_id: rec.client_id, client_record_id: rec.id,
+        opportunity_type: "condition_firming" as string,
+        trigger_date: condDate,
+        context: { address: rec.address, gci: rec.gci, side: rec.side, condition_date: condDate, days_until_condition: d },
+      });
     }
   }
 
@@ -2519,6 +2561,14 @@ function buildPrimaryReason(
     return "This client gave you a deadline and it's approaching. Following through now is the single most important trust signal you can send.";
   }
 
+  // ── Condition firming ────────────────────────────────────────────────────
+  if (opportunityType === "condition_firming") {
+    if (gciLabel) {
+      return `A ${gciLabel} deal with an approaching condition date — this is the most time-sensitive action on your list. Confirm the condition status and advance the pipeline stage.`;
+    }
+    return "This deal has a condition date coming up. Confirming the status and advancing the pipeline stage is the most impactful thing you can do right now.";
+  }
+
   // ── Post-close / referral window ──────────────────────────────────────────
   if (opportunityType === "referral_ask" || opportunityType === "post_close_90") {
     return "You're in the peak referral window with this client. This has the highest multiplier potential — one action here could generate your next client.";
@@ -2679,6 +2729,14 @@ function buildRiskIfIgnored(
   // ── Contact anniversary ───────────────────────────────────────────────────
   if (opportunityType === "contact_anniversary") {
     return "Relationship milestones that pass unnoticed gradually reduce the warmth that makes future outreach effective.";
+  }
+
+  // ── Condition firming ────────────────────────────────────────────────────
+  if (opportunityType === "condition_firming") {
+    if (gciLabel) {
+      return `A ${gciLabel} deal left unmanaged through its condition date could collapse — and once a condition expires without action, recovering the deal is significantly harder.`;
+    }
+    return "Missing a condition date can collapse a deal that was otherwise on track. This is the most avoidable loss in your pipeline.";
   }
 
   // ── Seasonal ──────────────────────────────────────────────────────────────

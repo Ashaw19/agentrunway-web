@@ -105,6 +105,106 @@ const TIMEFRAME_DAYS: Record<string, number> = {
   "6_12_months": 365,
 };
 
+// ── Context classification ────────────────────────────────────────────────────
+
+type ContextLevel = "sensitive" | "sparse" | "rich";
+
+function classifyClientContext(
+  tags: string[],
+  notes: string | null,
+  ctx: Record<string, unknown>,
+): ContextLevel {
+  const sensitiveKeywords = [
+    "estate", "executor", "deceased", "divorce", "separation", "legal",
+    "foreclosure", "bankruptcy", "illness", "passing", "death", "widow",
+    "sensitive", "careful", "bereavement", "probate", "power of attorney",
+  ];
+  const searchText = [
+    ...(tags ?? []),
+    notes ?? "",
+    (ctx.memory_summary as string) ?? "",
+    (ctx.memory_pain_point as string) ?? "",
+  ].join(" ").toLowerCase();
+
+  if (sensitiveKeywords.some((kw) => searchText.includes(kw))) {
+    return "sensitive";
+  }
+
+  const memoryFields = [
+    "memory_summary", "next_best_angle", "memory_pain_point", "memory_motivation",
+    "budget_context", "areas_of_interest", "last_key_topic", "objection",
+  ];
+  const populatedCount = memoryFields.filter((f) => {
+    const val = ctx[f];
+    return val && val !== "null" && val !== "";
+  }).length;
+
+  const hasNotes = notes && notes.length > 10;
+  const hasTags = tags && tags.length > 0;
+  const dataPoints = populatedCount + (hasNotes ? 1 : 0) + (hasTags ? 1 : 0);
+
+  if (dataPoints >= 3) return "rich";
+  return "sparse";
+}
+
+// ── Context-aware drafting instructions ──────────────────────────────────────
+
+const SENSITIVE_INSTRUCTIONS = `SENSITIVITY NOTICE:
+This client may be in a sensitive situation (estate, legal matter, life transition).
+- Keep the tone respectful, neutral, and brief.
+- Avoid strong emotional assumptions or overly personal references.
+- Do NOT speculate about their circumstances.
+- Focus on being helpful and available without being presumptuous.
+- Shorter is better. When in doubt, leave it out.
+- Value nugget must remain neutral: a seasonal observation or general neighbourhood note is safe.
+  GOOD: "a few things have shifted in the area recently — happy to fill you in whenever you're ready"
+  BAD: "exciting changes happening in your neighbourhood!"`;
+
+const SPARSE_CONTEXT_INSTRUCTIONS = `CONTEXT NOTICE — LIMITED CLIENT DATA:
+You have minimal information about this client. Do NOT attempt deep personalization.
+- Focus on being useful and relevant, not personal.
+- Avoid filler language like "just reaching out", "wanted to touch base", or "hope all is well".
+- Keep it concise and confident — a short, useful message beats a long, vague one.
+- Do NOT fabricate personal details or assume preferences you don't have evidence for.
+- Write as if the agent is sharing something genuinely worth reading, not filling a CRM checkbox.
+- Your value nugget MUST be concrete and grounded. Use soft specificity:
+  GOOD: "a couple of homes came up this week that caught my eye" or "inventory has picked up a bit this month"
+  GOOD: "rates shifted a little recently — could change what buyers qualify for"
+  GOOD: "I can walk you through what your price range looks like in today's market"
+  BAD: "I have a market insight to share" or "thought this might be helpful" (says nothing)
+  BAD: "there have been some changes in the market" (too vague — WHAT changes?)`;
+
+const RICH_CONTEXT_INSTRUCTIONS = `CONTEXT NOTICE — RICH CLIENT DATA AVAILABLE:
+Use the available memory and client data to personalize meaningfully.
+- Reference specific preferences, history, areas of interest, or past conversations when natural.
+- Show that the agent remembers and pays attention — this is what separates good agents from forgettable ones.
+- Still keep it concise. Personalization should sharpen the message, not inflate it.
+- Tailor value to what you know: if they're a buyer, mention inventory in their areas. If a seller, mention demand or pricing trends. If a past client, mention neighbourhood developments or equity.`;
+
+const VALUE_FIRST_RULE = `VALUE-FIRST RULE (mandatory):
+Every message MUST include at least one concrete, specific piece of value. Abstract claims do not count.
+
+WHAT COUNTS AS VALUE (pick one, make it specific):
+- A market observation with direction: "inventory has picked up a bit this month" or "homes under $X are still moving quickly"
+- A seasonal/timing note: "spring listings tend to get more eyes — this month is usually when things heat up"
+- A practical offer: "I can walk you through what $X looks like in today's market" or "I put together a quick snapshot of your neighbourhood — happy to share"
+- A neighbourhood note: "a couple homes came up this week in [area] that caught my eye"
+- A rate/financing note: "rates have shifted a bit recently, which could change what buyers qualify for"
+
+WHAT DOES NOT COUNT (banned — never write these):
+- "just wanted to share an update" (what update? say it)
+- "thought this might be helpful" without specifying WHAT
+- "there have been some changes" (what changes? be specific)
+- "I have some market insights" (what insights? say one)
+- "exciting things happening" (what things?)
+- Any sentence that claims value exists without delivering it
+
+SPECIFICITY RULES:
+- Anchor to at least one of: area/neighbourhood, approximate price range, or timing (this week, this month, recently, this season)
+- Use soft specificity when you lack exact data: "a couple", "a few", "recently", "this month"
+- Do NOT fabricate exact numbers, addresses, or statistics you don't have
+- A single concrete sentence beats three vague ones`;
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -558,9 +658,17 @@ export async function POST(req: NextRequest) {
       baseURL: "https://api.groq.com/openai/v1",
     });
 
-    // Append client context and agent voice guide to prompt when available
+    // Classify context level and build appropriate instruction blocks
+    const contextLevel = classifyClientContext(clientTags, clientNotes, context as Record<string, unknown>);
+    const contextLevelBlock =
+      contextLevel === "sensitive" ? SENSITIVE_INSTRUCTIONS :
+      contextLevel === "rich"     ? RICH_CONTEXT_INSTRUCTIONS :
+                                    SPARSE_CONTEXT_INSTRUCTIONS;
+
     const contextSuffix = [
       clientContextBlock,
+      contextLevelBlock,
+      VALUE_FIRST_RULE,
       agentStyleGuide
         ? `AGENT VOICE GUIDE (follow closely — message must sound like the agent personally wrote it):\n${agentStyleGuide}`
         : null,
@@ -568,12 +676,17 @@ export async function POST(req: NextRequest) {
 
     const fullPrompt = contextSuffix ? `${prompt}\n\n${contextSuffix}` : prompt;
 
-    const completion = await groq.chat.completions.create({
-      model:       "llama-3.3-70b-versatile",
-      max_tokens:  400,
-      temperature: 0.85,
-      messages:    [{ role: "user", content: fullPrompt }],
-    });
+    // Groq call with 15s timeout to prevent hanging
+    const GROQ_TIMEOUT = 15_000;
+    const completion = await Promise.race([
+      groq.chat.completions.create({
+        model:       "llama-3.3-70b-versatile",
+        max_tokens:  400,
+        temperature: 0.85,
+        messages:    [{ role: "user", content: fullPrompt }],
+      }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Groq timeout (15s)")), GROQ_TIMEOUT)),
+    ]);
 
     let raw = completion.choices[0]?.message?.content?.trim() ?? "";
     if (!raw) throw new Error("Empty Groq response");
@@ -593,6 +706,12 @@ export async function POST(req: NextRequest) {
       "big news",
       "important reminder",
       "all done at",
+      "just wanted to share an update",
+      "thought this might be helpful",
+      "there have been some changes",
+      "i have some market insights",
+      "exciting things happening",
+      "some exciting",
     ];
     const rawLower = raw.toLowerCase();
     const hasBanned = BANNED_PHRASES.some((p) => rawLower.includes(p));
@@ -605,14 +724,22 @@ export async function POST(req: NextRequest) {
         tooLong   ? `IMPORTANT: The previous draft was ${wordCount} words. Keep it under 200 words.` : null,
       ].filter(Boolean).join(" ");
 
-      const retryCompletion = await groq.chat.completions.create({
-        model:       "llama-3.3-70b-versatile",
-        max_tokens:  400,
-        temperature: 0.85,
-        messages:    [{ role: "user", content: `${fullPrompt}\n\n${retryNote}` }],
-      });
-      const retryRaw = retryCompletion.choices[0]?.message?.content?.trim();
-      if (retryRaw) raw = retryRaw;
+      try {
+        const retryCompletion = await Promise.race([
+          groq.chat.completions.create({
+            model:       "llama-3.3-70b-versatile",
+            max_tokens:  400,
+            temperature: 0.85,
+            messages:    [{ role: "user", content: `${fullPrompt}\n\n${retryNote}` }],
+          }),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Groq retry timeout (15s)")), GROQ_TIMEOUT)),
+        ]);
+        const retryRaw = retryCompletion.choices[0]?.message?.content?.trim();
+        if (retryRaw) raw = retryRaw;
+      } catch (retryErr) {
+        // Retry failed — use original draft rather than failing entirely
+        console.warn("[draft-outreach] Self-review retry failed:", retryErr);
+      }
     }
 
     // Parse: last line starting with "SUBJECT:" is the subject
@@ -620,11 +747,21 @@ export async function POST(req: NextRequest) {
     const subjIdx   = [...lines].reverse().findIndex((l) =>
       l.trimStart().toUpperCase().startsWith("SUBJECT:"),
     );
-    if (subjIdx === -1) throw new Error("No SUBJECT line in response");
 
-    const realSubjIdx = lines.length - 1 - subjIdx;
-    const ai_subject  = lines[realSubjIdx].replace(/^SUBJECT:\s*/i, "").trim();
-    let   ai_body     = lines.slice(0, realSubjIdx).join("\n").trim();
+    let ai_subject: string;
+    let ai_body: string;
+
+    if (subjIdx === -1) {
+      // No SUBJECT line — synthesize one instead of failing
+      console.warn(`[draft-outreach] No SUBJECT line in Groq response for item ${queueItemId} — synthesizing`);
+      const firstSentence = raw.split(/[.!?\n]/)[0]?.trim() ?? "";
+      ai_subject = firstSentence.slice(0, 50).toLowerCase().replace(/^(hi|hey|hello)\s+\w+,?\s*/i, "").trim() || "quick note";
+      ai_body = raw.trim();
+    } else {
+      const realSubjIdx = lines.length - 1 - subjIdx;
+      ai_subject = lines[realSubjIdx].replace(/^SUBJECT:\s*/i, "").trim();
+      ai_body    = lines.slice(0, realSubjIdx).join("\n").trim();
+    }
 
     if (emailSignature) {
       ai_body += `\n\n${emailSignature}`;
@@ -640,10 +777,11 @@ export async function POST(req: NextRequest) {
       { status: 201, headers: rateLimitHeaders(rl) },
     );
   } catch (err) {
-    console.error("[draft-outreach] Groq drafting error:", err);
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error(`[draft-outreach] Groq drafting error for item ${queueItemId}:`, errMsg);
     // Item was upserted but draft failed — cron will retry on next scan
     return NextResponse.json(
-      { queue_item_id: queueItemId, status: "queued" },
+      { queue_item_id: queueItemId, status: "queued", error: errMsg },
       { status: 202, headers: rateLimitHeaders(rl) },
     );
   }
