@@ -189,6 +189,16 @@ function OpportunityCard({
         </p>
       </div>
 
+      {/* Risk if ignored — primary only */}
+      {isPrimary && opportunity.risk_if_ignored && (
+        <div className="flex items-start gap-2 pl-0.5">
+          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-400/70" />
+          <p className="text-[12px] text-muted-foreground leading-relaxed italic">
+            {opportunity.risk_if_ignored}
+          </p>
+        </div>
+      )}
+
       {/* Expandable: why this matters */}
       <button
         onClick={() => setExpanded(!expanded)}

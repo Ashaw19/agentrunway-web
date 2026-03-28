@@ -653,6 +653,7 @@ export interface TopOpportunity {
   financial_impact:  string;                  // 1-2 sentence business impact explanation
   is_primary:        boolean;                 // true for exactly ONE opportunity — "start here"
   primary_reason:    string | null;           // why this is the best use of time right now (primary only)
+  risk_if_ignored:   string | null;           // consequence of inaction (required for primary, optional for secondary)
 }
 
 export interface EmailConnection {

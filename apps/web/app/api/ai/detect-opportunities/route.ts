@@ -2217,6 +2217,7 @@ export async function getTopOpportunities(
       ),
       is_primary:     false,
       primary_reason: null as string | null,
+      risk_if_ignored: null as string | null,
     };
   });
 
@@ -2273,6 +2274,13 @@ export async function getTopOpportunities(
       primary.trigger_date,
       primary.score,
       _clientMap.get(primary.client_id)?.status ?? null,
+      (clientDealDates.get(primary.client_id) ?? []).length,
+      { activeClients, pipelineLight },
+    );
+    primary.risk_if_ignored = buildRiskIfIgnored(
+      primary.opportunity_type,
+      primary.context,
+      primary.trigger_date,
       (clientDealDates.get(primary.client_id) ?? []).length,
       { activeClients, pipelineLight },
     );
@@ -2378,6 +2386,146 @@ function buildPrimaryReason(
     return "With your pipeline needing attention, this is the strongest opportunity to generate a meaningful conversation. Start here.";
   }
   return "This has the strongest combination of timing, relationship value, and opportunity quality on your list today. Start here.";
+}
+
+/** Build a calm, single-sentence consequence of inaction for the primary opportunity. */
+function buildRiskIfIgnored(
+  opportunityType: string,
+  ctx: Record<string, unknown>,
+  triggerDate: string,
+  clientDealCount: number,
+  pipeline: { activeClients: number; pipelineLight: boolean },
+): string {
+  const gci = ctx.gci ? Number(ctx.gci) : 0;
+  const gciLabel = gci > 0 ? `$${(gci / 1000).toFixed(0)}k` : null;
+  const pipelineDry = pipeline.activeClients === 0;
+  const isRepeat = clientDealCount >= 2;
+
+  // Timing awareness
+  const trigTarget = new Date(triggerDate + "T12:00:00");
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  const daysAway = isNaN(trigTarget.getTime()) ? 999 : Math.round((trigTarget.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  const isOverdue = daysAway <= 0;
+  const isImminent = daysAway > 0 && daysAway <= 3;
+
+  // ── Post-close nurture ────────────────────────────────────────────────────
+  if (opportunityType === "post_close_3" || opportunityType === "post_close_14") {
+    return "Silence after closing is what turns a satisfied client into someone who forgets your name within a year.";
+  }
+
+  if (opportunityType === "post_close_90") {
+    return "Without a 90-day touchpoint, this client quietly moves from your network to your competitor's the next time someone asks for a recommendation.";
+  }
+
+  // ── Referral window ───────────────────────────────────────────────────────
+  if (opportunityType === "referral_ask") {
+    return "Referral windows close quietly — the longer you wait, the less natural the ask becomes and the less likely it produces a result.";
+  }
+
+  // ── Review request ────────────────────────────────────────────────────────
+  if (opportunityType === "review_request") {
+    return "The window for an authentic review shrinks quickly after closing — every week that passes makes it feel less natural for both of you.";
+  }
+
+  // ── Birthday ──────────────────────────────────────────────────────────────
+  if (opportunityType === "birthday") {
+    if (isOverdue) return "The birthday has already passed — reaching out late is still better than not at all, but the impact diminishes each day.";
+    if (isImminent) return "Miss this birthday and you won't get another chance for a year — a small window with outsized relationship value.";
+    return "Birthdays are once a year — missing this one means twelve months before the same natural touchpoint comes around again.";
+  }
+
+  // ── Closing anniversary ───────────────────────────────────────────────────
+  if (opportunityType === "closing_anniversary") {
+    if (isRepeat && gciLabel) {
+      return `Letting a ${gciLabel} repeat client's anniversary pass unnoticed risks signaling that the relationship matters less to you than it does to them.`;
+    }
+    if (gciLabel) {
+      return `A ${gciLabel} client who doesn't hear from you on their anniversary is a ${gciLabel} client who may not think of you next time.`;
+    }
+    return "Anniversaries that go unacknowledged quietly erode the connection — and with it, the likelihood of a referral or repeat deal.";
+  }
+
+  // ── Idle client / past client check-in ────────────────────────────────────
+  if (opportunityType === "idle_client" || opportunityType === "past_client_check_in") {
+    if (pipelineDry) {
+      return "Without active deals, every week you delay re-engagement pushes your next potential closing further out.";
+    }
+    if (gciLabel) {
+      return `Each month this ${gciLabel} relationship stays dormant, the probability of reactivation drops — and with it, your access to their network.`;
+    }
+    return "The longer a past client goes without hearing from you, the more likely they are to use a different agent next time.";
+  }
+
+  // ── Mortgage renewal ──────────────────────────────────────────────────────
+  if (opportunityType === "mortgage_renewal_due") {
+    return "If you don't reach out before renewal time, the bank will — and they won't be recommending you.";
+  }
+  if (opportunityType === "mortgage_renewal_window" || opportunityType === "mortgage_renewal_finance") {
+    return "Clients in their renewal window are quietly weighing options — if you're not part of that conversation, you'll hear about their decision after it's made.";
+  }
+
+  // ── Active buyer/seller ───────────────────────────────────────────────────
+  if (opportunityType === "buyer_inventory_match") {
+    if (pipeline.pipelineLight) {
+      return "Active buyers who don't hear from their agent start browsing on their own — and eventually working with someone who's paying closer attention.";
+    }
+    return "Buyers who feel unsupported between showings are the most likely to start taking calls from other agents.";
+  }
+
+  if (opportunityType === "seller_timing_hesitation") {
+    return "Hesitant sellers who don't hear from you will either stay stuck or list with whoever reaches out next — neither outcome helps your business.";
+  }
+
+  // ── Timeframe approaching ─────────────────────────────────────────────────
+  if (opportunityType === "timeframe_approaching") {
+    if (isImminent || isOverdue) {
+      return "Their stated deadline is here — if you're not in the conversation now, you've likely lost the deal.";
+    }
+    return "Clients with approaching timelines who don't hear from you assume you forgot — and start looking for someone who didn't.";
+  }
+
+  // ── Pain point / educational ──────────────────────────────────────────────
+  if (opportunityType === "pain_point_inactive") {
+    return "Clients with unresolved concerns who never hear back conclude you didn't care enough to follow up — a hard impression to reverse.";
+  }
+
+  if (opportunityType === "educational_value_inactive") {
+    return "When you don't follow up on a client's expressed interest, the next agent who does gets the relationship.";
+  }
+
+  // ── Multi-deal milestone ──────────────────────────────────────────────────
+  if (opportunityType === "multi_deal_milestone") {
+    return "Repeat clients who feel taken for granted stop repeating — and their referral network goes with them.";
+  }
+
+  // ── Property milestone ────────────────────────────────────────────────────
+  if (opportunityType === "property_value_milestone") {
+    return "Homeowners who never hear about their equity from you will eventually hear about it from someone else.";
+  }
+
+  // ── Welcome ───────────────────────────────────────────────────────────────
+  if (opportunityType === "new_client_welcome") {
+    return "New clients who don't hear from you in the first week are more likely to disengage before the relationship even starts.";
+  }
+
+  // ── Contact anniversary ───────────────────────────────────────────────────
+  if (opportunityType === "contact_anniversary") {
+    return "Relationship milestones that pass unnoticed gradually reduce the warmth that makes future outreach effective.";
+  }
+
+  // ── Seasonal ──────────────────────────────────────────────────────────────
+  if (opportunityType.startsWith("seasonal_")) {
+    if (pipelineDry) {
+      return "Without any active deals, going quiet during a key market season makes it harder to generate conversations when you need them most.";
+    }
+    return "Agents who stay silent during seasonal moments lose visibility — and visibility is what keeps your phone ringing between deals.";
+  }
+
+  // ── Fallback ──────────────────────────────────────────────────────────────
+  if (pipelineDry) {
+    return "With no active deals, each missed touchpoint extends the gap before your next closing.";
+  }
+  return "Opportunities left unacted on quietly erode the relationships that generate your future business.";
 }
 
 // ── Vercel function timeout — allows up to 60s for sequential Groq calls ──────
