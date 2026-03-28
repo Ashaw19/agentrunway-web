@@ -538,6 +538,10 @@ export function ReportsT2125Tab({
                 Vehicle business-use % set in <a href="/settings" className="underline">Settings</a> ·
                 {localSettings.vehicle_type === "own" ? " Owned vehicle" : localSettings.vehicle_type === "lease" ? " Leased vehicle" : " No vehicle"}
               </p>
+              <p className="mt-1 text-[10px] text-amber-600/90">
+                * Business-use % ({fmtPct(localSettings.vehicle_business_use_pct)}) is user-declared.
+                CRA requires a contemporaneous mileage logbook to substantiate this figure.
+              </p>
             </div>
 
             {/* Meals & entertainment */}

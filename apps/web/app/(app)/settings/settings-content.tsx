@@ -1601,7 +1601,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
               </div>
               <p className="text-xs text-muted-foreground">
                 The % of your home used exclusively for business (e.g. office room ÷ total area).
-                Used to calculate allowable home office deductions on T2125 Line 9270.
+                Used to calculate allowable home office deductions on T2125 Line 9945.
               </p>
             </div>
 
@@ -1626,8 +1626,34 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
               </div>
               <p className="text-xs text-muted-foreground">
                 % of total vehicle costs used for business (e.g. 80 = 80% business use).
-                Use the Mileage tab in Expenses for the CRA per-km method instead.
+                This percentage is applied to all vehicle expenses on your T2125 (Line 9281).
               </p>
+            </div>
+          </div>
+
+          {/* CRA vehicle logbook compliance notice */}
+          <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-4 space-y-2">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+              <div className="space-y-1.5">
+                <p className="text-sm font-semibold text-amber-900">
+                  CRA requires a mileage logbook to support your vehicle business-use %
+                </p>
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  The percentage you enter here will be applied to all your vehicle expenses on your T2125.
+                  CRA requires a <strong>contemporaneous mileage logbook</strong> — recording the date,
+                  destination, purpose, and kilometres for each business trip — to substantiate this
+                  percentage. Without a logbook, CRA can reduce or deny your entire vehicle deduction
+                  if audited.
+                </p>
+                <a
+                  href="/expenses?tab=mileage"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 underline underline-offset-2 hover:text-amber-900"
+                >
+                  <Car className="h-3 w-3" />
+                  Start logging trips in the Mileage tab
+                </a>
+              </div>
             </div>
           </div>
 

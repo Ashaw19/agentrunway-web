@@ -14,7 +14,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Car, Plus, Trash2, Download, Info, X, Check, Loader2,
+  Car, Plus, Trash2, Download, Info, X, Check, Loader2, AlertTriangle, ShieldCheck,
 } from "lucide-react";
 import { fmtCurrency }         from "@/lib/formatters";
 import { cn }                  from "@/lib/utils";
@@ -44,10 +44,10 @@ const PURPOSES = [
 interface Props {
   mileageLogs: MileageLog[];
   year: number;
-  settings: { display_name?: string; province?: string } | null;
+  settings: { display_name?: string; province?: string; vehicle_business_use_pct?: number } | null;
 }
 
-export function ExpensesMileageTab({ mileageLogs, year, settings: _settings }: Props) {
+export function ExpensesMileageTab({ mileageLogs, year, settings }: Props) {
   const [logs,     setLogs]     = useState<MileageLog[]>(mileageLogs);
   const [adding,   setAdding]   = useState(false);
   const [saving,   setSaving]   = useState(false);
@@ -288,6 +288,66 @@ export function ExpensesMileageTab({ mileageLogs, year, settings: _settings }: P
           </CardContent>
         </Card>
       )}
+
+      {/* Business-use % comparison banner */}
+      {(() => {
+        const claimedPct = settings?.vehicle_business_use_pct ?? 0;
+        // Estimate total annual km: Canadian average ~20,000 km/yr, prorated by months elapsed
+        const estTotalAnnualKm = 20_000;
+        const monthsElapsed = Math.max(1, new Date().getMonth() + 1);
+        const estTotalKmSoFar = (estTotalAnnualKm / 12) * monthsElapsed;
+        const loggedPct = estTotalKmSoFar > 0 ? totalKm / estTotalKmSoFar : 0;
+        const hasMeaningfulLogs = totalKm > 100 && logs.length >= 3;
+        const gap = claimedPct - loggedPct;
+        const showGapWarning = claimedPct > 0 && hasMeaningfulLogs && gap > 0.15;
+        const showOnTrack = claimedPct > 0 && hasMeaningfulLogs && gap <= 0.15;
+
+        if (claimedPct === 0) return null;
+
+        return (
+          <>
+            {showGapWarning && (
+              <Card className="border-amber-300 bg-amber-50/70">
+                <CardContent className="flex items-start gap-3 py-3">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-amber-900">
+                      Mileage log doesn&apos;t yet support your claimed business-use %
+                    </p>
+                    <p className="text-xs text-amber-800 leading-relaxed">
+                      Your Settings claim <strong>{Math.round(claimedPct * 100)}% business use</strong>, but
+                      your logged trips so far ({totalKm.toLocaleString()} km across {logs.length} trips) suggest
+                      roughly <strong>{Math.round(loggedPct * 100)}%</strong> of estimated total driving.
+                      Keep logging business trips to close this gap — a CRA auditor would compare these numbers.
+                    </p>
+                    <p className="text-[10px] text-amber-700/80">
+                      Estimate based on ~{estTotalAnnualKm.toLocaleString()} km/yr Canadian average.
+                      Your actual total driving may differ.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {showOnTrack && (
+              <Card className="border-emerald-200 bg-emerald-50/60">
+                <CardContent className="flex items-start gap-3 py-3">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-900">
+                      Mileage log supports your claimed business-use %
+                    </p>
+                    <p className="text-xs text-emerald-800">
+                      Your logged trips ({totalKm.toLocaleString()} km) align with your
+                      claimed <strong>{Math.round(claimedPct * 100)}%</strong> business use.
+                      Keep logging to maintain CRA-ready documentation.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        );
+      })()}
 
       {/* Add trip form */}
       {adding && (

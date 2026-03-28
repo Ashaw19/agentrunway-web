@@ -389,7 +389,7 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
         {/* Expenses */}
         <SectionHeader title="Part 3B — Deductible Expenses" subtitle="CRA T2125 lines 8521–9369 · Auto-filled from expense tracking" color="#7C3AED" />
         <LineRow lineNum="8521" label="Advertising & Marketing" value={result.line8521_advertising} />
-        <LineRow lineNum="9281" label={`Motor Vehicle Expenses (${fmtPct(settings.vehicle_business_use_pct)} business use)`} value={result.line9281_motorVehicle} />
+        <LineRow lineNum="9281" label={`Motor Vehicle Expenses (${fmtPct(settings.vehicle_business_use_pct)} business use)`} value={result.line9281_motorVehicle} note="* User-declared %" />
         <LineRow lineNum="8811" label="Office Supplies & Software" value={result.line8811_officeSupplies} />
         <LineRow
           lineNum="8523"
@@ -407,6 +407,11 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
         )}
         <LineRow lineNum="8860" label="Professional Fees (Accounting & Legal)" value={result.line8860_professionalFees} />
         <LineHighlight lineNum="9369" label="Total Deductible Expenses" value={result.line9369_totalExpenses} />
+        {result.line9281_motorVehicle > 0 && (
+          <Text style={{ fontSize: 7, color: "#92400E", paddingHorizontal: 6, marginTop: 2 }}>
+            * Vehicle business-use % ({fmtPct(settings.vehicle_business_use_pct)}) is user-declared. CRA requires a contemporaneous mileage logbook to substantiate this figure.
+          </Text>
+        )}
 
         <Footer year={taxYear} agentName={result.agentName} />
       </Page>
