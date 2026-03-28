@@ -395,22 +395,22 @@ function generateDistanceLine(
 
 function generateMomentumDetail(
   momentum: MomentumDirection,
-  gainLossVsMarket: number | null,
+  agentDealGrowthPct: number | null,
 ): string | null {
   if (momentum === "no_data") return null;
-  if (gainLossVsMarket == null) return null;
+  if (agentDealGrowthPct == null) return null;
 
-  const magnitude = Math.abs(gainLossVsMarket);
+  const magnitude = Math.abs(agentDealGrowthPct);
 
   if (momentum === "gaining") {
-    if (magnitude > 20) return "You're significantly outpacing the market right now.";
-    return "You're outpacing the market.";
+    if (magnitude > 30) return "Your deal pace is significantly ahead of last year.";
+    return "You're closing more than at this point last year.";
   }
   if (momentum === "losing") {
-    if (magnitude > 20) return "The market is moving and you're not keeping up. Activity is the lever.";
-    return "The market is outpacing you. More pipeline would close this gap.";
+    if (magnitude > 30) return "Your deal pace has dropped sharply from last year. Activity is the lever.";
+    return "You're behind last year's pace. More pipeline would close this gap.";
   }
-  return "Your growth is tracking closely with the market.";
+  return "Your production is in line with where you were last year.";
 }
 
 // ── Bridge Line ────────────────────────────────────────────────────────────────
@@ -448,7 +448,7 @@ export function computeWhereYouStand(input: WhereYouStandInput): WhereYouStandRe
   const momentum = mapMomentum(marketMomentum);
   const momentumDetail = generateMomentumDetail(
     momentum,
-    marketMomentum?.gainLossVsMarket ?? null,
+    marketMomentum?.agentDealGrowthPct ?? null,
   );
 
   // Position vs market (for identity line)

@@ -478,21 +478,28 @@ export function computeMarketMomentum(
       ? agentDealGrowthPct - boardSalesYoYPct
       : null;
 
+  // Momentum tier is based on the agent's OWN YoY growth rate — not the
+  // subtraction of agent growth minus board growth. The board's YoY comes
+  // from a stale quarterly CREA snapshot while the agent's YoY is live
+  // through today. Subtracting them produced a number that looked precise
+  // but shifted unpredictably whenever CREA published new data.
+  // The agent's self-referential YoY is clean: same time window, same data
+  // source, no lag mismatch.
   let momentumTier: MarketMomentum["momentumTier"];
   let momentumLabel: string;
 
-  if (gainLossVsMarket == null) {
+  if (agentDealGrowthPct == null) {
     momentumTier  = "no_data";
     momentumLabel = "Not enough data yet";
-  } else if (gainLossVsMarket > 5) {
+  } else if (agentDealGrowthPct > 10) {
     momentumTier  = "gaining";
-    momentumLabel = "Gaining Market Share";
-  } else if (gainLossVsMarket < -5) {
+    momentumLabel = "Building Momentum";
+  } else if (agentDealGrowthPct < -10) {
     momentumTier  = "trailing";
-    momentumLabel = "Trailing the Market";
+    momentumLabel = "Pace Slowing";
   } else {
     momentumTier  = "tracking";
-    momentumLabel = "Tracking the Market";
+    momentumLabel = "Holding Pace";
   }
 
   // ── Metric 2 ───────────────────────────────────────────────────────────────

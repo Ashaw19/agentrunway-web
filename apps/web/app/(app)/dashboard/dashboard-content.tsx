@@ -2219,42 +2219,30 @@ export function DashboardContent({
                 {marketMomentum && marketMomentum.momentumTier !== "no_data" ? (
                   <>
                     <span className="flex items-center gap-1">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Market Momentum</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Your Pace</p>
                       <MetricInfo tip={
-                        marketMomentum.agentDealGrowthPct != null && marketMomentum.boardSalesYoYPct != null
-                          ? `Your deal count changed ${marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}${marketMomentum.agentDealGrowthPct.toFixed(0)}% YoY vs. ${marketMomentum.boardName} market ${marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}${marketMomentum.boardSalesYoYPct.toFixed(0)}% YoY. A positive gap means you're growing faster than your market. Source: CREA MLS® Statistics, ${marketMomentum.reportMonth}.`
-                          : `Compares your business growth rate against your board's transaction volume trend. Source: CREA MLS® Statistics, ${marketMomentum.reportMonth}.`
+                        marketMomentum.agentDealGrowthPct != null
+                          ? `Your deal count is ${marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}${marketMomentum.agentDealGrowthPct.toFixed(0)}% vs this point last year.${marketMomentum.boardSalesYoYPct != null ? ` Your board (${marketMomentum.boardName}) reported ${marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}${marketMomentum.boardSalesYoYPct.toFixed(0)}% YoY as of ${marketMomentum.reportMonth}.` : ""} Source: CREA MLS® Statistics.`
+                          : `Compares your deal pace against this point last year. Source: CREA MLS® Statistics.`
                       } />
                       <GuideLink anchor="market-position" label="Market Momentum explained in Guide" />
-                      {isPro && <ExplainButton question="How is my business growing compared to my local real estate market, and am I gaining or losing market share?" />}
+                      {isPro && <ExplainButton question="How is my business pace compared to last year and how does my local real estate market look?" />}
                     </span>
-                    {marketMomentum.agentDealGrowthPct != null && marketMomentum.boardSalesYoYPct != null ? (
+                    {marketMomentum.agentDealGrowthPct != null ? (
                       <>
-                        {/* Two-column comparison: You vs Market */}
-                        <div className="flex items-end gap-3 mt-1">
-                          <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">You</p>
-                            <p
-                              className="text-xl font-bold leading-tight"
-                              style={{
-                                color: marketMomentum.momentumTier === "gaining"  ? "#059669"
-                                     : marketMomentum.momentumTier === "trailing" ? "#DC2626"
-                                     : "#D97706",
-                              }}
-                            >
-                              {marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}{marketMomentum.agentDealGrowthPct.toFixed(0)}%
-                            </p>
-                          </div>
-                          <p className="text-slate-300 text-base font-light mb-0.5">vs</p>
-                          <div>
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Market</p>
-                            <p className="text-xl font-bold leading-tight text-slate-600">
-                              {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}%
-                            </p>
-                          </div>
-                        </div>
+                        {/* Agent YoY — primary metric */}
                         <p
-                          className="text-[10px] font-semibold mt-1"
+                          className="text-xl font-bold mt-0.5 leading-tight"
+                          style={{
+                            color: marketMomentum.momentumTier === "gaining"  ? "#059669"
+                                 : marketMomentum.momentumTier === "trailing" ? "#DC2626"
+                                 : "#D97706",
+                          }}
+                        >
+                          {marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}{marketMomentum.agentDealGrowthPct.toFixed(0)}% YoY
+                        </p>
+                        <p
+                          className="text-[10px] font-semibold mt-0.5"
                           style={{
                             color: marketMomentum.momentumTier === "gaining"  ? "#059669"
                                  : marketMomentum.momentumTier === "trailing" ? "#DC2626"
@@ -2263,6 +2251,12 @@ export function DashboardContent({
                         >
                           {marketMomentum.momentumLabel}
                         </p>
+                        {/* Board context — separate, with reporting period */}
+                        {marketMomentum.boardSalesYoYPct != null && (
+                          <p className="text-[9px] text-slate-400 mt-1 leading-tight">
+                            Market {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}% · {marketMomentum.reportMonth}
+                          </p>
+                        )}
                       </>
                     ) : (
                       <p
@@ -2283,8 +2277,8 @@ export function DashboardContent({
                 ) : marketMomentum ? (
                   <>
                     <span className="flex items-center gap-1">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Market Momentum</p>
-                      <MetricInfo tip="Close your first deal or add a prior year in History to unlock your market growth comparison." />
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Your Pace</p>
+                      <MetricInfo tip="Close your first deal or add a prior year in History to unlock your pace comparison." />
                     </span>
                     <p className="text-xl font-bold mt-0.5 text-slate-300">—</p>
                     <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">Needs prior year data</p>
@@ -2295,8 +2289,8 @@ export function DashboardContent({
                 ) : (
                   <>
                     <span className="flex items-center gap-1">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Market Momentum</p>
-                      <MetricInfo tip="Select your local real estate board in Settings to see how your business growth compares to your market." />
+                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Your Pace</p>
+                      <MetricInfo tip="Select your local real estate board in Settings to see how your business pace compares to your market." />
                       <GuideLink anchor="market-position" label="Board benchmarking explained in Guide" />
                     </span>
                     <p className="text-xl font-bold mt-0.5 text-slate-300">—</p>

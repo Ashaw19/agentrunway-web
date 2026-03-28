@@ -757,11 +757,11 @@ export function AltimeterContent({
         <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
           <CardHeader className="pb-2">
             <div className="flex items-center gap-1.5">
-              <CardTitle className="text-base">Market Momentum</CardTitle>
+              <CardTitle className="text-base">Your Pace</CardTitle>
               <MetricInfo tip={
-                marketMomentum.agentDealGrowthPct != null && marketMomentum.boardSalesYoYPct != null
-                  ? `Your deal count changed ${marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}${marketMomentum.agentDealGrowthPct.toFixed(0)}% YoY vs. ${marketMomentum.boardName} market ${marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}${marketMomentum.boardSalesYoYPct.toFixed(0)}% YoY. Source: CREA MLS® Statistics, ${marketMomentum.reportMonth}.`
-                  : `Compares your business growth rate against your board's transaction volume trend. Source: CREA MLS® Statistics, ${marketMomentum.reportMonth}.`
+                marketMomentum.agentDealGrowthPct != null
+                  ? `Your deal count is ${marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}${marketMomentum.agentDealGrowthPct.toFixed(0)}% vs this point last year.${marketMomentum.boardSalesYoYPct != null ? ` Your board (${marketMomentum.boardName}) reported ${marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}${marketMomentum.boardSalesYoYPct.toFixed(0)}% YoY as of ${marketMomentum.reportMonth}.` : ""} Source: CREA MLS® Statistics.`
+                  : `Compares your deal pace against this point last year. Source: CREA MLS® Statistics, ${marketMomentum.reportMonth}.`
               } />
               <GuideLink anchor="market-position" label="Market Momentum explained in Guide" />
             </div>
@@ -770,10 +770,10 @@ export function AltimeterContent({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {marketMomentum.agentDealGrowthPct != null && marketMomentum.boardSalesYoYPct != null ? (
-              <div className="flex items-end gap-6">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">You</p>
+            {marketMomentum.agentDealGrowthPct != null ? (
+              <div>
+                {/* Agent YoY — primary metric */}
+                <div className="flex items-end gap-4">
                   <p
                     className="text-2xl font-bold leading-tight"
                     style={{
@@ -782,26 +782,25 @@ export function AltimeterContent({
                            : "#D97706",
                     }}
                   >
-                    {marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}{marketMomentum.agentDealGrowthPct.toFixed(0)}%
+                    {marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}{marketMomentum.agentDealGrowthPct.toFixed(0)}% YoY
+                  </p>
+                  <p
+                    className="text-sm font-semibold mb-0.5"
+                    style={{
+                      color: marketMomentum.momentumTier === "gaining"  ? "#059669"
+                           : marketMomentum.momentumTier === "trailing" ? "#DC2626"
+                           : "#D97706",
+                    }}
+                  >
+                    {marketMomentum.momentumLabel}
                   </p>
                 </div>
-                <p className="text-slate-300 text-lg font-light mb-1">vs</p>
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Market</p>
-                  <p className="text-2xl font-bold leading-tight text-slate-600">
-                    {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}%
+                {/* Board context — separate, with reporting period */}
+                {marketMomentum.boardSalesYoYPct != null && (
+                  <p className="text-xs text-slate-500 mt-1.5">
+                    Market {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}% YoY · {marketMomentum.reportMonth}
                   </p>
-                </div>
-                <p
-                  className="text-sm font-semibold mb-1"
-                  style={{
-                    color: marketMomentum.momentumTier === "gaining"  ? "#059669"
-                         : marketMomentum.momentumTier === "trailing" ? "#DC2626"
-                         : "#D97706",
-                  }}
-                >
-                  {marketMomentum.momentumLabel}
-                </p>
+                )}
               </div>
             ) : (
               <p className="text-sm font-semibold text-slate-600">{marketMomentum.momentumLabel}</p>
