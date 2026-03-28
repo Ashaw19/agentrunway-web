@@ -34,7 +34,6 @@ import {
   Type,
   STAGE_COLORS,
   fmtCurrency,
-  dayOfYear,
 } from "@/lib/theme";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -50,34 +49,7 @@ function isOverdue(dateStr: string): boolean {
   return new Date(dateStr) < new Date(new Date().toDateString());
 }
 
-function computeRunwayScore({
-  gci, goalGci, pipelineValue, clients, dealCount, goalDeals,
-}: {
-  gci: number; goalGci: number; pipelineValue: number;
-  clients: { last_contact_at: string | null }[];
-  dealCount: number; goalDeals: number;
-}) {
-  const progress = Math.max(dayOfYear() / 365, 0.01);
-  const expectedGci = goalGci * progress;
-  const paceScore = expectedGci > 0
-    ? Math.min(gci / expectedGci, 1.5) / 1.5
-    : gci > 0 ? 0.7 : 0.4;
-  const remainingGoal = Math.max((goalGci - gci) * 1.5, 1);
-  const pipelineScore = goalGci > 0
-    ? Math.min(pipelineValue / remainingGoal, 2) / 2
-    : pipelineValue > 0 ? 0.8 : 0.4;
-  const recentlyContacted = clients.filter((c) =>
-    c.last_contact_at && (Date.now() - new Date(c.last_contact_at).getTime()) / 86400000 <= 30
-  ).length;
-  const activityScore = clients.length > 0
-    ? Math.min(recentlyContacted / Math.max(clients.length * 0.4, 1), 1)
-    : 0.4;
-  const expectedDeals = goalDeals * progress;
-  const velocityScore = expectedDeals > 0
-    ? Math.min(dealCount / expectedDeals, 2) / 2
-    : 0.4;
-  const raw = paceScore * 0.35 + pipelineScore * 0.25 + activityScore * 0.25 + velocityScore * 0.15;
-  const score = Math.round(Math.max(0, Math.min(100, raw * 100)));
+function runwayScoreMeta(score: number) {
   return {
     score,
     label: score >= 80 ? "Excellent" : score >= 60 ? "On Track" : score >= 40 ? "Needs Focus" : "At Risk",
@@ -87,7 +59,7 @@ function computeRunwayScore({
 
 // ── Runway Gauge ─────────────────────────────────────────────────────────────
 
-function RunwayGauge({ score, color, textColor }: { score: number; color: string; textColor: string }) {
+function RunwayGauge({ score, color, textColor, dimColor }: { score: number; color: string; textColor: string; dimColor: string }) {
   const size = 100;
   const sw = 7;
   const r = (size - sw) / 2;
@@ -102,8 +74,11 @@ function RunwayGauge({ score, color, textColor }: { score: number; color: string
         strokeDasharray={circ} strokeDashoffset={offset}
         strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`}
       />
-      <SvgText x={cx} y={cy + 1} textAnchor="middle" fill={textColor} fontSize="28" fontWeight="800">
+      <SvgText x={cx} y={cy - 2} textAnchor="middle" fill={textColor} fontSize="28" fontWeight="800">
         {score}
+      </SvgText>
+      <SvgText x={cx} y={cy + 14} textAnchor="middle" fill={dimColor} fontSize="11" fontWeight="600">
+        /100
       </SvgText>
     </Svg>
   );
@@ -120,18 +95,18 @@ export default function DashboardScreen() {
   const sh = shadows(mode);
 
   const {
-    fetchAll, fetchOutreach, isLoading,
+    fetchAll, fetchOutreach, fetchReceipts, isLoading,
     settings, transactions, pipeline, tasks, clients,
-    outreachReadyCount, ytdGci, ytdDealCount, pipelineValue,
+    outreachReadyCount, ytdGci, ytdDealCount, pipelineValue, runwayScore,
   } = useDataStore();
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => { fetchAll(); fetchOutreach(); }, []);
-  useFocusEffect(useCallback(() => { fetchAll(); fetchOutreach(); }, []));
+  useEffect(() => { fetchAll(); fetchOutreach(); fetchReceipts(); }, []);
+  useFocusEffect(useCallback(() => { fetchAll(); fetchOutreach(); fetchReceipts(); }, []));
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([fetchAll(), fetchOutreach()]);
+    await Promise.all([fetchAll(), fetchOutreach(), fetchReceipts()]);
     setRefreshing(false);
   };
 
@@ -144,7 +119,7 @@ export default function DashboardScreen() {
   const goalPct = goalGci > 0 ? Math.round((gci / goalGci) * 100) : 0;
   const displayName = settings?.display_name ?? user?.email?.split("@")[0] ?? "Agent";
   const outreachCount = outreachReadyCount;
-  const runway = computeRunwayScore({ gci, goalGci, pipelineValue: pipVal, clients, dealCount: deals, goalDeals });
+  const runway = runwayScoreMeta(runwayScore());
 
   // Upcoming: first task or first pipeline deal close date
   const nextTask = tasks[0] ?? null;
@@ -176,10 +151,15 @@ export default function DashboardScreen() {
           <LinearGradient colors={g.heroCard as unknown as string[]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: Space.xxl }}>
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               {/* Gauge */}
-              <RunwayGauge score={runway.score} color={runway.color} textColor={c.text} />
+              <RunwayGauge score={runway.score} color={runway.color} textColor={c.text} dimColor={c.textDim} />
               {/* Metrics */}
               <View style={{ flex: 1, marginLeft: Space.xl }}>
-                <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>YOUR RUNWAY</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: Space.sm }}>
+                  <Text style={{ ...Type.label, color: c.textMuted }}>RUNWAY SCORE</Text>
+                  <View style={{ backgroundColor: runway.color + "22", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                    <Text style={{ color: runway.color, fontSize: 10, fontWeight: "700" }}>{runway.label}</Text>
+                  </View>
+                </View>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: Space.md }}>
                   <MetricPill label="GCI" value={fmtCurrency(gci)} color={c.gold} c={c} />
                   <MetricPill label="Deals" value={String(deals)} color={c.success} c={c} />

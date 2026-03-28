@@ -79,6 +79,10 @@ export interface UserSettings {
   province: string | null;
   experience_years: number | null;
   subscription_tier: string;
+  cash_reserve: number | null;
+  growth_goal_year_pcts: number[] | null;
+  monthly_brokerage_fee: number | null;
+  runway_score_snapshot: { score: number; month: string } | null;
 }
 
 export interface ReceiptExpense {
@@ -250,7 +254,7 @@ export const useDataStore = create<DataStore>((set, get) => {
             supabase
               .from("user_settings")
               .select(
-                "user_id, display_name, goal_gci, goal_transactions, split_preset, province, experience_years, subscription_tier"
+                "user_id, display_name, goal_gci, goal_transactions, split_preset, province, experience_years, subscription_tier, cash_reserve, growth_goal_year_pcts, monthly_brokerage_fee, runway_score_snapshot"
               )
               .eq("user_id", user.id)
               .single(),
@@ -473,47 +477,113 @@ export const useDataStore = create<DataStore>((set, get) => {
       return get().pipeline.length;
     },
 
+    /**
+     * Real Runway Score — matches the web app's 6-component scoring engine.
+     * Uses the monthly snapshot saved by the web dashboard when available,
+     * otherwise computes locally using the same algorithm.
+     *
+     * Components (weights):
+     *   Goal Pace 30% | Pipeline 20% | Expenses 15% | Setup 10% | Benchmark 10% | Survival 15%
+     */
     runwayScore: () => {
       const state = get();
-      const gci = state.ytdGci();
-      const goalGci = state.settings?.goal_gci ?? 0;
-      const pipeVal = state.pipelineValue();
-      const clients = state.clients;
+      const settings = state.settings;
 
-      // Pace component (40%): how well ytdGci tracks against prorated annual goal
+      // If the web app saved a snapshot this month, use it directly for exact parity
+      const now = new Date();
+      const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const snapshot = settings?.runway_score_snapshot;
+      if (snapshot && snapshot.month === currentMonthKey) {
+        return snapshot.score;
+      }
+
+      // Otherwise compute using the same algorithm as the web dashboard
+      const ytdGCI = state.ytdGci();
+      const goalGCI = settings?.goal_gci ?? 0;
       const dayOfYear = Math.floor(
-        (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
+        (Date.now() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000
       );
-      const progress = Math.max(dayOfYear / 365, 0.01);
-      const expectedGci = goalGci * progress;
-      const paceScore =
-        expectedGci > 0
-          ? Math.min(gci / expectedGci, 1.5) / 1.5
-          : gci > 0
-          ? 0.7
-          : 0.4;
+      const fraction = Math.max(dayOfYear / 365, 0.01);
 
-      // Pipeline coverage component (30%): pipeline vs remaining goal (1.5x buffer)
-      const remainingGoal = Math.max((goalGci - gci) * 1.5, 1);
-      const pipelineScore =
-        goalGci > 0
-          ? Math.min(pipeVal / remainingGoal, 2) / 2
-          : pipeVal > 0
-          ? 0.8
-          : 0.4;
+      // 1. Pace score (0–100): maps [-50%, +50%] vs goal → [0, 100]
+      let paceScore = 50;
+      if (goalGCI > 0 && fraction > 0) {
+        const expectedAtThisPoint = goalGCI * fraction;
+        const paceVsGoal = expectedAtThisPoint > 0
+          ? ((ytdGCI - expectedAtThisPoint) / expectedAtThisPoint) * 100
+          : 0;
+        const raw = (paceVsGoal + 50) / 100;
+        paceScore = Math.round(Math.min(1, Math.max(0, raw)) * 100);
+      }
 
-      // Client activity component (30%): % of clients contacted in last 30 days
-      const recentlyContacted = clients.filter((c) => {
-        if (!c.last_contact_at) return false;
-        return (Date.now() - new Date(c.last_contact_at).getTime()) / 86400000 <= 30;
-      }).length;
-      const activityScore =
-        clients.length > 0
-          ? Math.min(recentlyContacted / Math.max(clients.length * 0.4, 1), 1)
-          : 0.4;
+      // 2. Pipeline score (0–100, default 65)
+      let pipelineScore = 65;
+      const remaining = Math.max(0, goalGCI - ytdGCI);
+      // Weighted pipeline GCI = sum(price * commission * probability)
+      const pipelineWeightedGCI = state.pipeline.reduce((sum, d) => {
+        const prob = d.probability_override ??
+          ({ lead: 0.1, showing: 0.25, offer: 0.5, conditional: 0.75, firm: 0.9 }[d.stage] ?? 0.5);
+        return sum + d.estimated_price * d.estimated_commission_pct * prob;
+      }, 0);
+      if (remaining > 0 && pipelineWeightedGCI > 0) {
+        pipelineScore = Math.min(100, Math.round((pipelineWeightedGCI / remaining) * 100));
+      } else if (goalGCI > 0 && ytdGCI >= goalGCI) {
+        pipelineScore = 90;
+      }
 
-      const raw = paceScore * 0.40 + pipelineScore * 0.30 + activityScore * 0.30;
-      return Math.round(Math.max(0, Math.min(100, raw * 100)));
+      // 3. Expense score (0–100, default 80)
+      let expenseScore = 80;
+      if (ytdGCI > 0) {
+        const expensesYTD = state.receipts.reduce((sum, r) => sum + (r.total_amount ?? 0), 0);
+        const ratio = expensesYTD / ytdGCI;
+        if (ratio > 0.5) expenseScore = 30;
+        else if (ratio > 0.35) expenseScore = 55;
+        else if (ratio > 0.25) expenseScore = 75;
+        else expenseScore = 90;
+      }
+
+      // 4. Readiness / Setup score (0–100, default 25)
+      let readinessScore = 25;
+      if (settings) {
+        let points = 0;
+        if ((settings.goal_gci ?? 0) > 0) points += 30;
+        if ((settings.goal_transactions ?? 0) > 0) points += 20;
+        const growthRates = settings.growth_goal_year_pcts;
+        if (growthRates && growthRates.some((r: number) => r > 0)) points += 25;
+        if ((settings.cash_reserve ?? 0) > 0) points += 15;
+        if (settings.experience_years != null) points += 10;
+        readinessScore = points;
+      }
+
+      // 5. Benchmark percentile — requires CREA stats comparison, use snapshot or neutral 50
+      const benchmarkPercentile = 50;
+
+      // 6. Survival score — based on cash_reserve / monthly expenses
+      let survivalScore = 50; // neutral default
+      const cashReserve = settings?.cash_reserve ?? 0;
+      const monthlyFee = settings?.monthly_brokerage_fee ?? 0;
+      const monthlyExpenses = state.receipts.length > 0
+        ? state.receipts.reduce((sum, r) => sum + (r.total_amount ?? 0), 0) / Math.max(fraction * 12, 1)
+        : monthlyFee;
+      if (cashReserve > 0 && monthlyExpenses > 0) {
+        const survivalMonths = cashReserve / monthlyExpenses;
+        if (survivalMonths >= 6) survivalScore = 95;
+        else if (survivalMonths >= 4) survivalScore = 75;
+        else if (survivalMonths >= 2) survivalScore = 50;
+        else if (survivalMonths >= 1) survivalScore = 25;
+        else survivalScore = 10;
+      }
+
+      // Composite: Goal Pace 30% + Pipeline 20% + Expenses 15% + Setup 10% + Benchmark 10% + Survival 15%
+      const composite =
+        paceScore * 0.30 +
+        pipelineScore * 0.20 +
+        expenseScore * 0.15 +
+        readinessScore * 0.10 +
+        benchmarkPercentile * 0.10 +
+        survivalScore * 0.15;
+
+      return Math.round(composite);
     },
   };
 });
