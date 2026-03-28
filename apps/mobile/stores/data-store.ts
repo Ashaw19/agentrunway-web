@@ -13,7 +13,7 @@ import { storage } from "../lib/mmkv";
 
 export interface Transaction {
   id: string;
-  close_date: string;
+  date: string;
   address: string | null;
   sale_price: number;
   commission_pct: number;
@@ -29,7 +29,7 @@ export interface PipelineDeal {
   id: string;
   address: string | null;
   estimated_price: number;
-  commission_pct: number;
+  estimated_commission_pct: number;
   stage: "lead" | "showing" | "offer" | "conditional" | "firm";
   probability_override: number | null;
   expected_close_date: string | null;
@@ -227,8 +227,8 @@ export const useDataStore = create<DataStore>((set, get) => {
               .from("transactions")
               .select("*")
               .eq("user_id", user.id)
-              .gte("close_date", `${currentYear}-01-01`)
-              .order("close_date", { ascending: false }),
+              .gte("date", `${currentYear}-01-01`)
+              .order("date", { ascending: false }),
             supabase
               .from("pipeline_deals")
               .select("*")
@@ -457,7 +457,7 @@ export const useDataStore = create<DataStore>((set, get) => {
         .filter((t) => t.status === "closed")
         .reduce((sum, t) => {
           if (t.gci_override) return sum + t.gci_override;
-          return sum + t.sale_price * (t.commission_pct / 100);
+          return sum + t.sale_price * t.commission_pct;
         }, 0);
     },
 

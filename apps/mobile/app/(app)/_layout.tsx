@@ -1,36 +1,42 @@
 import { Tabs } from "expo-router";
-import { Platform, View } from "react-native";
+import { Platform, View, Pressable } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   LayoutDashboard,
   Handshake,
   Users,
-  Camera,
-  MoreHorizontal,
+  Mic,
+  Menu,
 } from "lucide-react-native";
-import { C } from "@/lib/theme";
+import { useColors, Radius, useTheme, gradients, shadows } from "@/lib/theme";
 
-const ICON_SIZE = 22;
+const ICON_SIZE = 21;
 
 export default function AppLayout() {
+  const c = useColors();
+  const { mode } = useTheme();
+  const g = gradients(mode);
+  const sh = shadows(mode);
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: C.primary,
-        tabBarInactiveTintColor: C.textDim,
+        tabBarActiveTintColor: c.primary,
+        tabBarInactiveTintColor: c.textDim,
         tabBarStyle: {
-          backgroundColor: "#0D0D18",
-          borderTopColor: C.cardBorder,
+          backgroundColor: c.tabBg,
+          borderTopColor: c.tabBorder,
           borderTopWidth: 1,
           paddingBottom: Platform.OS === "ios" ? 26 : 8,
-          paddingTop: 10,
-          height: Platform.OS === "ios" ? 90 : 66,
+          paddingTop: 8,
+          height: Platform.OS === "ios" ? 88 : 64,
           elevation: 0,
         },
         tabBarLabelStyle: {
           fontSize: 10,
-          fontWeight: "700",
-          letterSpacing: 0.2,
+          fontWeight: "600",
+          letterSpacing: 0.4,
           marginTop: 2,
         },
         tabBarIconStyle: {
@@ -43,8 +49,8 @@ export default function AppLayout() {
         options={{
           title: "Dashboard",
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon focused={focused} color={color}>
-              <LayoutDashboard size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.8} />
+            <TabIcon focused={focused} mode={mode}>
+              <LayoutDashboard size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.6} />
             </TabIcon>
           ),
         }}
@@ -54,9 +60,41 @@ export default function AppLayout() {
         options={{
           title: "Deals",
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon focused={focused} color={color}>
-              <Handshake size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.8} />
+            <TabIcon focused={focused} mode={mode}>
+              <Handshake size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.6} />
             </TabIcon>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="expenses"
+        options={{
+          title: "",
+          tabBarLabel: () => null,
+          tabBarIcon: () => (
+            <View style={{
+              position: "absolute",
+              top: -16,
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              overflow: "hidden",
+              ...sh.cardLg,
+              ...(sh.glow("#6366F1")),
+            }}>
+              <LinearGradient
+                colors={g.mic as unknown as string[]}
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: 28,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Mic size={24} color="#FFFFFF" strokeWidth={2.5} />
+              </LinearGradient>
+            </View>
           ),
         }}
       />
@@ -65,19 +103,8 @@ export default function AppLayout() {
         options={{
           title: "Clients",
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon focused={focused} color={color}>
-              <Users size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.8} />
-            </TabIcon>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="expenses"
-        options={{
-          title: "Scan",
-          tabBarIcon: ({ color, focused }) => (
-            <TabIcon focused={focused} color={color}>
-              <Camera size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.8} />
+            <TabIcon focused={focused} mode={mode}>
+              <Users size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.6} />
             </TabIcon>
           ),
         }}
@@ -87,8 +114,8 @@ export default function AppLayout() {
         options={{
           title: "More",
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon focused={focused} color={color}>
-              <MoreHorizontal size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.8} />
+            <TabIcon focused={focused} mode={mode}>
+              <Menu size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.6} />
             </TabIcon>
           ),
         }}
@@ -102,22 +129,26 @@ export default function AppLayout() {
 
 function TabIcon({
   focused,
-  color,
+  mode,
   children,
 }: {
   focused: boolean;
-  color: string;
+  mode: string;
   children: React.ReactNode;
 }) {
   return (
     <View
       style={{
-        width: 40,
-        height: 32,
+        width: 42,
+        height: 34,
         alignItems: "center",
         justifyContent: "center",
-        borderRadius: 10,
-        backgroundColor: focused ? C.primaryDim : "transparent",
+        borderRadius: Radius.md,
+        backgroundColor: focused
+          ? mode === "dark"
+            ? "rgba(99,102,241,0.15)"
+            : "rgba(99,102,241,0.10)"
+          : "transparent",
       }}
     >
       {children}

@@ -57,7 +57,7 @@ export default function DealsScreen() {
   const closed = transactions.filter((t) => t.status === "closed");
   const pending = transactions.filter((t) => t.status === "pending");
   const totalGci = closed.reduce((s, t) => {
-    return s + (t.gci_override ?? t.sale_price * (t.commission_pct / 100));
+    return s + (t.gci_override ?? t.sale_price * t.commission_pct);
   }, 0);
   const pipelineValue = pipeline.reduce((s, d) => s + d.estimated_price, 0);
 
@@ -319,12 +319,10 @@ function StatPill({
 
 function PipelineCard({ deal }: { deal: PipelineDeal }) {
   const sc = STAGE_COLORS[deal.stage] ?? C.textDim;
-  const prob =
-    deal.probability_override ??
-    { lead: 10, showing: 25, offer: 50, conditional: 75, firm: 90 }[
-      deal.stage
-    ] ??
-    50;
+  const defaultProb = { lead: 10, showing: 25, offer: 50, conditional: 75, firm: 90 }[deal.stage] ?? 50;
+  const prob = deal.probability_override != null
+    ? Math.round(deal.probability_override * 100)
+    : defaultProb;
   return (
     <View style={S.card}>
       <View style={{ padding: 16 }}>
@@ -417,7 +415,7 @@ function PipelineCard({ deal }: { deal: PipelineDeal }) {
 }
 
 function TransactionCard({ tx }: { tx: Transaction }) {
-  const gci = tx.gci_override ?? tx.sale_price * (tx.commission_pct / 100);
+  const gci = tx.gci_override ?? tx.sale_price * tx.commission_pct;
   const isPending = tx.status === "pending";
   return (
     <View style={[S.card, { overflow: "hidden" }]}>
@@ -482,10 +480,10 @@ function TransactionCard({ tx }: { tx: Transaction }) {
             Sale: {fmtCurrency(tx.sale_price)}
           </Text>
           <Text style={{ color: C.textDim, fontSize: 12 }}>
-            {tx.commission_pct}% commission
+            {(tx.commission_pct * 100).toFixed(1)}% commission
           </Text>
           <Text style={{ color: C.textDim, fontSize: 12 }}>
-            {new Date(tx.close_date).toLocaleDateString("en-CA", {
+            {new Date(tx.date).toLocaleDateString("en-CA", {
               month: "short",
               day: "numeric",
             })}
@@ -563,13 +561,13 @@ function AddTransactionModal({
     const ok = await onAdd({
       address: address || null,
       sale_price: salePrice,
-      commission_pct: pct,
+      commission_pct: pct / 100,
       gci_override: null,
       side,
       status: "closed",
       client_name: null,
       notes: null,
-      close_date: new Date().toISOString().split("T")[0],
+      date: new Date().toISOString().split("T")[0],
     });
     setSaving(false);
     if (ok) {

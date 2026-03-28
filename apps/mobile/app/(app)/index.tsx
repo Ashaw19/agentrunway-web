@@ -7,106 +7,37 @@ import {
   Pressable,
   RefreshControl,
   StyleSheet,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
-import { useFocusEffect } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
 import { useDataStore } from "@/stores/data-store";
-import Svg, {
-  Circle,
-  Defs,
-  LinearGradient as SvgGrad,
-  Stop,
-  Rect,
-  Text as SvgText,
-} from "react-native-svg";
+import Svg, { Circle, Text as SvgText } from "react-native-svg";
 import {
   Plane,
-  TrendingUp,
   ChevronRight,
-  CheckSquare,
-  Zap,
-  Users,
-  Target,
+  AlertCircle,
+  Clock,
+  TrendingUp,
+  Users as UsersIcon,
+  Briefcase,
 } from "lucide-react-native";
-import { C, STAGE_COLORS, fmtCurrency, dayOfYear } from "@/lib/theme";
+import {
+  useColors,
+  useTheme,
+  gradients,
+  shadows,
+  Space,
+  Radius,
+  Type,
+  STAGE_COLORS,
+  fmtCurrency,
+  dayOfYear,
+} from "@/lib/theme";
 
-// ── Runway Score ─────────────────────────────────────────────────────────────
-
-function computeRunwayScore({
-  gci,
-  goalGci,
-  pipelineValue,
-  clients,
-  dealCount,
-  goalDeals,
-}: {
-  gci: number;
-  goalGci: number;
-  pipelineValue: number;
-  clients: { last_contact_at: string | null }[];
-  dealCount: number;
-  goalDeals: number;
-}): { score: number; label: string; color: string } {
-  const progress = Math.max(dayOfYear() / 365, 0.01);
-
-  const expectedGci = goalGci * progress;
-  const paceScore =
-    expectedGci > 0
-      ? Math.min(gci / expectedGci, 1.5) / 1.5
-      : gci > 0
-      ? 0.7
-      : 0.4;
-
-  const remainingGoal = Math.max((goalGci - gci) * 1.5, 1);
-  const pipelineScore =
-    goalGci > 0
-      ? Math.min(pipelineValue / remainingGoal, 2) / 2
-      : pipelineValue > 0
-      ? 0.8
-      : 0.4;
-
-  const recentlyContacted = clients.filter((c) => {
-    if (!c.last_contact_at) return false;
-    return (
-      (Date.now() - new Date(c.last_contact_at).getTime()) / 86400000 <= 30
-    );
-  }).length;
-  const activityScore =
-    clients.length > 0
-      ? Math.min(recentlyContacted / Math.max(clients.length * 0.4, 1), 1)
-      : 0.4;
-
-  const expectedDeals = goalDeals * progress;
-  const velocityScore =
-    expectedDeals > 0 ? Math.min(dealCount / expectedDeals, 2) / 2 : 0.4;
-
-  const raw =
-    paceScore * 0.35 +
-    pipelineScore * 0.25 +
-    activityScore * 0.25 +
-    velocityScore * 0.15;
-  const score = Math.round(Math.max(0, Math.min(100, raw * 100)));
-  const label =
-    score >= 80
-      ? "Excellent"
-      : score >= 60
-      ? "On Track"
-      : score >= 40
-      ? "Needs Focus"
-      : "At Risk";
-  const color =
-    score >= 80
-      ? C.success
-      : score >= 60
-      ? C.primary
-      : score >= 40
-      ? C.warning
-      : C.danger;
-
-  return { score, label, color };
-}
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -119,11 +50,46 @@ function isOverdue(dateStr: string): boolean {
   return new Date(dateStr) < new Date(new Date().toDateString());
 }
 
-// ── Sub-components ───────────────────────────────────────────────────────────
+function computeRunwayScore({
+  gci, goalGci, pipelineValue, clients, dealCount, goalDeals,
+}: {
+  gci: number; goalGci: number; pipelineValue: number;
+  clients: { last_contact_at: string | null }[];
+  dealCount: number; goalDeals: number;
+}) {
+  const progress = Math.max(dayOfYear() / 365, 0.01);
+  const expectedGci = goalGci * progress;
+  const paceScore = expectedGci > 0
+    ? Math.min(gci / expectedGci, 1.5) / 1.5
+    : gci > 0 ? 0.7 : 0.4;
+  const remainingGoal = Math.max((goalGci - gci) * 1.5, 1);
+  const pipelineScore = goalGci > 0
+    ? Math.min(pipelineValue / remainingGoal, 2) / 2
+    : pipelineValue > 0 ? 0.8 : 0.4;
+  const recentlyContacted = clients.filter((c) =>
+    c.last_contact_at && (Date.now() - new Date(c.last_contact_at).getTime()) / 86400000 <= 30
+  ).length;
+  const activityScore = clients.length > 0
+    ? Math.min(recentlyContacted / Math.max(clients.length * 0.4, 1), 1)
+    : 0.4;
+  const expectedDeals = goalDeals * progress;
+  const velocityScore = expectedDeals > 0
+    ? Math.min(dealCount / expectedDeals, 2) / 2
+    : 0.4;
+  const raw = paceScore * 0.35 + pipelineScore * 0.25 + activityScore * 0.25 + velocityScore * 0.15;
+  const score = Math.round(Math.max(0, Math.min(100, raw * 100)));
+  return {
+    score,
+    label: score >= 80 ? "Excellent" : score >= 60 ? "On Track" : score >= 40 ? "Needs Focus" : "At Risk",
+    color: score >= 80 ? "#10B981" : score >= 60 ? "#6366F1" : score >= 40 ? "#F59E0B" : "#EF4444",
+  };
+}
 
-function RunwayGauge({ score, color }: { score: number; color: string }) {
-  const size = 96;
-  const sw = 9;
+// ── Runway Gauge ─────────────────────────────────────────────────────────────
+
+function RunwayGauge({ score, color, textColor }: { score: number; color: string; textColor: string }) {
+  const size = 100;
+  const sw = 7;
   const r = (size - sw) / 2;
   const circ = 2 * Math.PI * r;
   const offset = circ * (1 - score / 100);
@@ -131,125 +97,37 @@ function RunwayGauge({ score, color }: { score: number; color: string }) {
   const cy = size / 2;
   return (
     <Svg width={size} height={size}>
-      <Circle
-        cx={cx}
-        cy={cy}
-        r={r}
-        stroke={C.textFaint}
-        strokeWidth={sw}
-        fill="none"
+      <Circle cx={cx} cy={cy} r={r} stroke="rgba(128,128,128,0.12)" strokeWidth={sw} fill="none" />
+      <Circle cx={cx} cy={cy} r={r} stroke={color} strokeWidth={sw} fill="none"
+        strokeDasharray={circ} strokeDashoffset={offset}
+        strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`}
       />
-      <Circle
-        cx={cx}
-        cy={cy}
-        r={r}
-        stroke={color}
-        strokeWidth={sw}
-        fill="none"
-        strokeDasharray={circ}
-        strokeDashoffset={offset}
-        strokeLinecap="round"
-        transform={`rotate(-90 ${cx} ${cy})`}
-      />
-      <SvgText
-        x={cx}
-        y={cy - 3}
-        textAnchor="middle"
-        fill={C.text}
-        fontSize="22"
-        fontWeight="800"
-      >
+      <SvgText x={cx} y={cy + 1} textAnchor="middle" fill={textColor} fontSize="28" fontWeight="800">
         {score}
-      </SvgText>
-      <SvgText
-        x={cx}
-        y={cy + 13}
-        textAnchor="middle"
-        fill={C.textDim}
-        fontSize="9"
-        fontWeight="600"
-      >
-        / 100
       </SvgText>
     </Svg>
   );
 }
 
-function KpiChip({
-  label,
-  value,
-  color = C.text,
-}: {
-  label: string;
-  value: string | number;
-  color?: string;
-}) {
-  return (
-    <View style={S.chip}>
-      <Text style={[S.chipValue, { color }]}>{value}</Text>
-      <Text style={S.chipLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function SectionHeader({
-  title,
-  action,
-  onAction,
-}: {
-  title: string;
-  action?: string;
-  onAction?: () => void;
-}) {
-  return (
-    <View style={S.sectionHeader}>
-      <Text style={S.sectionTitle}>{title}</Text>
-      {action && (
-        <Pressable onPress={onAction}>
-          <Text style={{ color: C.primary, fontSize: 13, fontWeight: "600" }}>
-            {action}
-          </Text>
-        </Pressable>
-      )}
-    </View>
-  );
-}
-
-// ── Main Screen ──────────────────────────────────────────────────────────────
+// ── Main ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { mode } = useTheme();
+  const c = useColors();
+  const g = gradients(mode);
+  const sh = shadows(mode);
+
   const {
-    fetchAll,
-    fetchOutreach,
-    isLoading,
-    settings,
-    transactions,
-    pipeline,
-    tasks,
-    clients,
-    outreachReadyCount,
-    ytdGci,
-    ytdDealCount,
-    pipelineValue,
-    runwayScore,
+    fetchAll, fetchOutreach, isLoading,
+    settings, transactions, pipeline, tasks, clients,
+    outreachReadyCount, ytdGci, ytdDealCount, pipelineValue,
   } = useDataStore();
   const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch on mount
-  useEffect(() => {
-    fetchAll();
-    fetchOutreach();
-  }, []);
-
-  // Re-fetch whenever screen comes into focus (e.g. returning from Deals/Clients)
-  useFocusEffect(
-    useCallback(() => {
-      fetchAll();
-      fetchOutreach();
-    }, [])
-  );
+  useEffect(() => { fetchAll(); fetchOutreach(); }, []);
+  useFocusEffect(useCallback(() => { fetchAll(); fetchOutreach(); }, []));
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -264,293 +142,175 @@ export default function DashboardScreen() {
   const goalGci = settings?.goal_gci ?? 0;
   const goalDeals = settings?.goal_transactions ?? 12;
   const goalPct = goalGci > 0 ? Math.round((gci / goalGci) * 100) : 0;
-  const displayName =
-    settings?.display_name ?? user?.email?.split("@")[0] ?? "Agent";
+  const displayName = settings?.display_name ?? user?.email?.split("@")[0] ?? "Agent";
   const outreachCount = outreachReadyCount;
+  const runway = computeRunwayScore({ gci, goalGci, pipelineValue: pipVal, clients, dealCount: deals, goalDeals });
 
-  const runway = computeRunwayScore({
-    gci,
-    goalGci,
-    pipelineValue: pipVal,
-    clients,
-    dealCount: deals,
-    goalDeals,
-  });
-
-  const isEmpty =
-    pipeline.length === 0 && tasks.length === 0 && outreachCount === 0;
+  // Upcoming: first task or first pipeline deal close date
+  const nextTask = tasks[0] ?? null;
+  const overdueTasks = tasks.filter((t) => t.due_date && isOverdue(t.due_date));
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
-      {/* Loading indicator overlay — shown only on initial load when store is empty */}
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
+      {/* Loading */}
       {isLoading && transactions.length === 0 && pipeline.length === 0 && (
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 10,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: C.bg,
-          }}
-        >
-          <ActivityIndicator size="large" color={C.primary} />
-          <Text style={{ color: C.textDim, marginTop: 12, fontSize: 13 }}>
-            Loading your runway…
-          </Text>
+        <View style={[StyleSheet.absoluteFill, { zIndex: 10, backgroundColor: c.bg, alignItems: "center", justifyContent: "center" }]}>
+          <ActivityIndicator size="large" color={c.primary} />
+          <Text style={{ color: c.textMuted, marginTop: 12, ...Type.caption }}>Loading…</Text>
         </View>
       )}
+
       <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingHorizontal: Space.xl, paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={C.primary}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
       >
         {/* ── Header ── */}
-        <View style={{ paddingTop: 20, paddingBottom: 22 }}>
-          <Text style={S.greeting}>{getGreeting()}</Text>
-          <Text style={S.screenTitle}>{displayName}</Text>
+        <View style={{ paddingTop: Space.lg, paddingBottom: Space.xxl }}>
+          <Text style={{ ...Type.caption, color: c.textMuted }}>{getGreeting()}</Text>
+          <Text style={{ ...Type.hero, color: c.text, marginTop: 2 }}>{displayName}</Text>
         </View>
 
-        {/* ── Runway Score + GCI ── */}
-        <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
-          {/* Runway Score */}
-          <View
-            style={[
-              S.card,
-              {
-                flex: 1,
-                padding: 16,
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
-              },
-            ]}
-          >
-            <RunwayGauge score={runway.score} color={runway.color} />
-            <Text style={S.cardLabel}>RUNWAY SCORE</Text>
-            <View
-              style={{
-                backgroundColor: runway.color + "20",
-                paddingHorizontal: 10,
-                paddingVertical: 3,
-                borderRadius: 20,
-              }}
-            >
-              <Text
-                style={{ color: runway.color, fontSize: 11, fontWeight: "700" }}
-              >
-                {runway.label}
-              </Text>
-            </View>
-          </View>
-
-          {/* GCI + Pipeline stacked */}
-          <View style={{ flex: 1.3, gap: 10 }}>
-            {/* GCI */}
-            <View style={[S.card, { padding: 16, overflow: "hidden" }]}>
-              <Svg style={StyleSheet.absoluteFill}>
-                <Defs>
-                  <SvgGrad id="dashGciGrad" x1="0" y1="0" x2="1" y2="1">
-                    <Stop offset="0" stopColor="#1C1C3A" stopOpacity="1" />
-                    <Stop offset="1" stopColor="#0D0D1A" stopOpacity="1" />
-                  </SvgGrad>
-                </Defs>
-                <Rect
-                  width="100%"
-                  height="100%"
-                  fill="url(#dashGciGrad)"
-                  rx="16"
-                />
-              </Svg>
-              <Text style={S.cardLabel}>YTD GCI</Text>
-              <Text style={S.cardBigNumber}>{fmtCurrency(gci)}</Text>
-              {goalGci > 0 && (
-                <>
-                  <View style={S.progressTrack}>
-                    <View
-                      style={[
-                        S.progressFill,
-                        {
-                          width: `${Math.min(goalPct, 100)}%` as any,
-                          backgroundColor:
-                            goalPct >= 100 ? C.success : C.primary,
-                        },
-                      ]}
-                    />
+        {/* ── Hero Card — Runway Score + Key Metrics ── */}
+        <View style={[{ borderRadius: Radius.xl, overflow: "hidden", marginBottom: Space.xl }, sh.cardLg]}>
+          <LinearGradient colors={g.heroCard as unknown as string[]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: Space.xxl }}>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              {/* Gauge */}
+              <RunwayGauge score={runway.score} color={runway.color} textColor={c.text} />
+              {/* Metrics */}
+              <View style={{ flex: 1, marginLeft: Space.xl }}>
+                <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>YOUR RUNWAY</Text>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: Space.md }}>
+                  <MetricPill label="GCI" value={fmtCurrency(gci)} color={c.gold} c={c} />
+                  <MetricPill label="Deals" value={String(deals)} color={c.success} c={c} />
+                </View>
+                <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                  <MetricPill label="Pipeline" value={fmtCurrency(pipVal)} color={c.primaryLight} c={c} />
+                  <MetricPill label="Clients" value={String(clients.length)} color={c.cyan} c={c} />
+                </View>
+                {/* Goal progress */}
+                {goalGci > 0 && (
+                  <View style={{ marginTop: Space.md }}>
+                    <View style={{ height: 3, borderRadius: 2, backgroundColor: "rgba(128,128,128,0.15)", overflow: "hidden" }}>
+                      <LinearGradient
+                        colors={goalPct >= 100 ? (g.successBar as unknown as string[]) : (g.progressBar as unknown as string[])}
+                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                        style={{ height: 3, borderRadius: 2, width: `${Math.min(goalPct, 100)}%` as any }}
+                      />
+                    </View>
+                    <Text style={{ ...Type.micro, color: c.textDim, marginTop: Space.xs }}>{goalPct}% of annual goal</Text>
                   </View>
-                  <Text style={S.microLabel}>{goalPct}% of goal</Text>
-                </>
-              )}
+                )}
+              </View>
             </View>
-
-            {/* Pipeline */}
-            <View style={[S.card, { padding: 16, overflow: "hidden" }]}>
-              <Svg style={StyleSheet.absoluteFill}>
-                <Defs>
-                  <SvgGrad id="dashPipeGrad" x1="0" y1="0" x2="1" y2="1">
-                    <Stop offset="0" stopColor="#1A2A1A" stopOpacity="1" />
-                    <Stop offset="1" stopColor="#0D0D14" stopOpacity="1" />
-                  </SvgGrad>
-                </Defs>
-                <Rect
-                  width="100%"
-                  height="100%"
-                  fill="url(#dashPipeGrad)"
-                  rx="16"
-                />
-              </Svg>
-              <Text style={S.cardLabel}>PIPELINE</Text>
-              <Text style={S.cardBigNumber}>{fmtCurrency(pipVal)}</Text>
-              <Text style={S.microLabel}>
-                {pipeline.length} deal{pipeline.length !== 1 ? "s" : ""}
-              </Text>
-            </View>
-          </View>
+          </LinearGradient>
         </View>
 
-        {/* ── KPI Row ── */}
-        <View style={{ flexDirection: "row", gap: 8, marginBottom: 24 }}>
-          <KpiChip
-            label="Closed"
-            value={deals}
-            color={deals > 0 ? C.success : C.text}
-          />
-          <KpiChip
-            label="Pending"
-            value={pending}
-            color={pending > 0 ? C.warning : C.textDim}
-          />
-          <KpiChip label="Clients" value={clients.length} />
-          <KpiChip
-            label="Tasks"
-            value={tasks.length}
-            color={tasks.length > 3 ? C.warning : C.text}
-          />
-        </View>
-
-        {/* ── Outreach CTA ── */}
-        {outreachCount > 0 && (
+        {/* ── Urgent: Overdue Tasks ── */}
+        {overdueTasks.length > 0 && (
           <Pressable
-            onPress={() => router.push("/outreach")}
-            style={[
-              S.card,
-              {
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 12,
-                padding: 16,
-                marginBottom: 24,
-                borderColor: C.primaryBorder,
-              },
-            ]}
+            onPress={() => router.push("/deals")}
+            style={[{
+              flexDirection: "row", alignItems: "center", gap: Space.md,
+              backgroundColor: c.dangerDim, borderRadius: Radius.lg,
+              padding: Space.lg, marginBottom: Space.lg,
+              borderWidth: 1, borderColor: "rgba(239,68,68,0.15)",
+            }]}
           >
-            <View style={S.iconBox}>
-              <Plane size={18} color={C.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{ color: C.text, fontSize: 14, fontWeight: "700" }}
-              >
-                {outreachCount} message
-                {outreachCount !== 1 ? "s" : ""} ready to send
-              </Text>
-              <Text style={{ color: C.textDim, fontSize: 12, marginTop: 2 }}>
-                Flight Control · Tap to review
-              </Text>
-            </View>
-            <View style={S.badge}>
-              <Text style={S.badgeText}>{outreachCount}</Text>
-            </View>
-            <ChevronRight size={16} color={C.textDim} />
+            <AlertCircle size={20} color={c.danger} />
+            <Text style={{ ...Type.bodyBold, color: c.danger, flex: 1 }}>
+              {overdueTasks.length} overdue task{overdueTasks.length > 1 ? "s" : ""}
+            </Text>
+            <ChevronRight size={16} color={c.danger} />
           </Pressable>
         )}
 
-        {/* ── Pipeline Deals ── */}
+        {/* ── Next Up ── */}
+        {nextTask && (
+          <View style={{ marginBottom: Space.xl }}>
+            <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>NEXT UP</Text>
+            <View style={[{
+              backgroundColor: c.card, borderRadius: Radius.lg, padding: Space.lg,
+              borderWidth: 1, borderColor: c.cardBorder,
+              flexDirection: "row", alignItems: "center", gap: Space.md,
+            }, sh.card]}>
+              <View style={{ width: 40, height: 40, borderRadius: Radius.md, backgroundColor: c.primaryDim, alignItems: "center", justifyContent: "center" }}>
+                <Clock size={20} color={c.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ ...Type.bodyBold, color: c.text }} numberOfLines={1}>{nextTask.title}</Text>
+                {nextTask.due_date && (
+                  <Text style={{ ...Type.caption, color: isOverdue(nextTask.due_date) ? c.danger : c.textDim, marginTop: 2 }}>
+                    {isOverdue(nextTask.due_date) ? "Overdue · " : ""}
+                    {new Date(nextTask.due_date).toLocaleDateString("en-CA", { weekday: "short", month: "short", day: "numeric" })}
+                  </Text>
+                )}
+              </View>
+              {nextTask.priority === "high" && (
+                <View style={{ backgroundColor: c.dangerDim, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.sm }}>
+                  <Text style={{ color: c.danger, fontSize: 10, fontWeight: "700" }}>HIGH</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* ── Outreach Ready ── */}
+        {outreachCount > 0 && (
+          <Pressable
+            onPress={() => router.push("/outreach")}
+            style={[{
+              backgroundColor: c.card, borderRadius: Radius.lg, padding: Space.lg,
+              borderWidth: 1, borderColor: c.primaryBorder,
+              flexDirection: "row", alignItems: "center", gap: Space.md,
+              marginBottom: Space.xl,
+            }, sh.card]}
+          >
+            <View style={{ width: 40, height: 40, borderRadius: Radius.md, backgroundColor: c.primaryDim, alignItems: "center", justifyContent: "center" }}>
+              <Plane size={20} color={c.primaryLight} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ ...Type.bodyBold, color: c.text }}>
+                {outreachCount} message{outreachCount !== 1 ? "s" : ""} ready
+              </Text>
+              <Text style={{ ...Type.caption, color: c.textDim, marginTop: 2 }}>Flight Control</Text>
+            </View>
+            <View style={{ backgroundColor: c.primary, width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ color: "#fff", fontSize: 11, fontWeight: "800" }}>{outreachCount}</Text>
+            </View>
+            <ChevronRight size={16} color={c.textDim} />
+          </Pressable>
+        )}
+
+        {/* ── Active Pipeline (compact) ── */}
         {pipeline.length > 0 && (
-          <View style={{ marginBottom: 24 }}>
-            <SectionHeader
-              title="Active Pipeline"
-              action="View All"
-              onAction={() => router.push("/deals")}
-            />
-            <View style={{ gap: 8 }}>
-              {pipeline.slice(0, 4).map((d) => {
-                const sc = STAGE_COLORS[d.stage] ?? C.textDim;
+          <View style={{ marginBottom: Space.xl }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Space.sm }}>
+              <Text style={{ ...Type.label, color: c.textMuted }}>PIPELINE</Text>
+              <Pressable onPress={() => router.push("/deals")} hitSlop={8}>
+                <Text style={{ ...Type.caption, color: c.primary }}>View All</Text>
+              </Pressable>
+            </View>
+            <View style={{ gap: Space.sm }}>
+              {pipeline.slice(0, 3).map((d) => {
+                const sc = STAGE_COLORS[d.stage] ?? c.textDim;
                 return (
-                  <View key={d.id} style={[S.card, { padding: 14 }]}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: C.text,
-                          fontSize: 14,
-                          fontWeight: "600",
-                          flex: 1,
-                        }}
-                        numberOfLines={1}
-                      >
+                  <View key={d.id} style={[{
+                    backgroundColor: c.card, borderRadius: Radius.lg, padding: Space.lg,
+                    borderWidth: 1, borderColor: c.cardBorder,
+                    flexDirection: "row", alignItems: "center",
+                  }, sh.card]}>
+                    <View style={{ width: 4, height: 32, borderRadius: 2, backgroundColor: sc, marginRight: Space.md }} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ ...Type.bodyBold, color: c.text }} numberOfLines={1}>
                         {d.address ?? d.client_name ?? "Deal"}
                       </Text>
-                      <View style={{ flexDirection: "row", gap: 8 }}>
-                        <Text
-                          style={{
-                            color: C.success,
-                            fontSize: 14,
-                            fontWeight: "700",
-                          }}
-                        >
-                          {fmtCurrency(d.estimated_price)}
-                        </Text>
-                        <View
-                          style={{
-                            backgroundColor: sc + "22",
-                            paddingHorizontal: 7,
-                            paddingVertical: 3,
-                            borderRadius: 6,
-                          }}
-                        >
-                          <Text
-                            style={{
-                              color: sc,
-                              fontSize: 10,
-                              fontWeight: "700",
-                              textTransform: "uppercase",
-                            }}
-                          >
-                            {d.stage}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
-                    {d.expected_close_date && (
-                      <Text
-                        style={{
-                          color: C.textDim,
-                          fontSize: 11,
-                          marginTop: 5,
-                        }}
-                      >
-                        Close:{" "}
-                        {new Date(d.expected_close_date).toLocaleDateString(
-                          "en-CA",
-                          { month: "short", day: "numeric", year: "numeric" }
-                        )}
+                      <Text style={{ ...Type.caption, color: c.textDim, marginTop: 2 }}>
+                        {d.stage.charAt(0).toUpperCase() + d.stage.slice(1)}
+                        {d.expected_close_date && ` · ${new Date(d.expected_close_date).toLocaleDateString("en-CA", { month: "short", day: "numeric" })}`}
                       </Text>
-                    )}
+                    </View>
+                    <Text style={{ ...Type.bodyBold, color: c.gold }}>{fmtCurrency(d.estimated_price)}</Text>
                   </View>
                 );
               })}
@@ -558,293 +318,55 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* ── Tasks ── */}
-        {tasks.length > 0 && (
-          <View style={{ marginBottom: 24 }}>
-            <SectionHeader title="Upcoming Tasks" />
-            <View style={[S.card, { padding: 4 }]}>
-              {tasks.slice(0, 4).map((t, i) => (
-                <View
-                  key={t.id}
-                  style={[
-                    {
-                      flexDirection: "row",
-                      gap: 12,
-                      alignItems: "flex-start",
-                      padding: 14,
-                    },
-                    i > 0 && {
-                      borderTopWidth: 1,
-                      borderTopColor: C.cardBorder,
-                    },
-                  ]}
-                >
-                  <CheckSquare
-                    size={15}
-                    color={C.textDim}
-                    style={{ marginTop: 1 }}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        color: C.text,
-                        fontSize: 14,
-                        fontWeight: "600",
-                      }}
-                    >
-                      {t.title}
-                    </Text>
-                    {t.due_date && (
-                      <Text
-                        style={{
-                          color: isOverdue(t.due_date) ? C.danger : C.textDim,
-                          fontSize: 12,
-                          marginTop: 2,
-                        }}
-                      >
-                        {isOverdue(t.due_date) ? "Overdue · " : ""}
-                        {new Date(t.due_date).toLocaleDateString("en-CA", {
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </Text>
-                    )}
-                  </View>
-                  {t.priority === "high" && (
-                    <View
-                      style={{
-                        backgroundColor: C.dangerDim,
-                        paddingHorizontal: 6,
-                        paddingVertical: 2,
-                        borderRadius: 4,
-                        marginTop: 1,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: C.danger,
-                          fontSize: 10,
-                          fontWeight: "700",
-                        }}
-                      >
-                        HIGH
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        {/* ── Quick Actions ── */}
-        <View style={{ marginBottom: 8 }}>
-          <SectionHeader title="Quick Actions" />
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <Pressable
-              onPress={() => router.push("/deals")}
-              style={[S.quickAction]}
-            >
-              <View
-                style={[S.quickActionIcon, { backgroundColor: C.primaryDim }]}
-              >
-                <TrendingUp size={20} color={C.primary} />
-              </View>
-              <Text style={S.quickActionLabel}>Add Deal</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push("/clients")}
-              style={[S.quickAction]}
-            >
-              <View
-                style={[S.quickActionIcon, { backgroundColor: C.cyanDim }]}
-              >
-                <Users size={20} color={C.cyan} />
-              </View>
-              <Text style={S.quickActionLabel}>Add Client</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => router.push("/expenses")}
-              style={[S.quickAction]}
-            >
-              <View
-                style={[S.quickActionIcon, { backgroundColor: C.successDim }]}
-              >
-                <Target size={20} color={C.success} />
-              </View>
-              <Text style={S.quickActionLabel}>Scan Receipt</Text>
-            </Pressable>
+        {/* ── Quick Access ── */}
+        <View style={{ marginBottom: Space.sm }}>
+          <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>QUICK ACCESS</Text>
+          <View style={{ flexDirection: "row", gap: Space.md }}>
+            <QuickBtn label="Add Deal" icon={<TrendingUp size={20} color={c.primary} />} bg={c.primaryDim} c={c} sh={sh} onPress={() => router.push("/deals")} />
+            <QuickBtn label="Add Client" icon={<UsersIcon size={20} color={c.cyan} />} bg={c.cyanDim} c={c} sh={sh} onPress={() => router.push("/clients")} />
+            <QuickBtn label="Scan" icon={<Briefcase size={20} color={c.success} />} bg={c.successDim} c={c} sh={sh} onPress={() => router.push("/expenses")} />
           </View>
         </View>
-
-        {/* ── Empty State ── */}
-        {isEmpty && (
-          <View style={{ alignItems: "center", paddingVertical: 48, gap: 12 }}>
-            <View
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: 32,
-                backgroundColor: C.primaryDim,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Zap size={32} color={C.primary} />
-            </View>
-            <Text
-              style={{ color: C.text, fontSize: 18, fontWeight: "700" }}
-            >
-              Ready for takeoff
-            </Text>
-            <Text
-              style={{
-                color: C.textDim,
-                fontSize: 14,
-                textAlign: "center",
-                lineHeight: 20,
-              }}
-            >
-              Add your first deal or client{"\n"}to start tracking your runway
-            </Text>
-          </View>
-        )}
       </ScrollView>
+
     </SafeAreaView>
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// ── Small Components ─────────────────────────────────────────────────────────
 
-const S = StyleSheet.create({
-  card: {
-    backgroundColor: C.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    overflow: "hidden",
-  },
-  chip: {
-    flex: 1,
-    backgroundColor: C.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    paddingVertical: 12,
-    alignItems: "center",
-    gap: 3,
-  },
-  chipValue: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: C.text,
-    letterSpacing: -0.5,
-  },
-  chipLabel: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: C.textDim,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  screenTitle: {
-    fontSize: 30,
-    fontWeight: "800",
-    color: C.text,
-    letterSpacing: -0.8,
-    marginTop: 2,
-  },
-  greeting: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: C.textMuted,
-    letterSpacing: 0.2,
-  },
-  cardLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: C.textDim,
-    textTransform: "uppercase",
-    letterSpacing: 1.2,
-  },
-  cardBigNumber: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: C.text,
-    letterSpacing: -0.5,
-    marginTop: 4,
-  },
-  microLabel: {
-    fontSize: 11,
-    color: C.textMuted,
-    fontWeight: "500",
-    marginTop: 3,
-  },
-  progressTrack: {
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: C.textFaint,
-    overflow: "hidden",
-    marginTop: 10,
-  },
-  progressFill: {
-    height: 3,
-    borderRadius: 2,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: C.text,
-    letterSpacing: -0.3,
-  },
-  iconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: C.primaryDim,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  badge: {
-    backgroundColor: C.primary,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  badgeText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  quickAction: {
-    flex: 1,
-    backgroundColor: C.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    padding: 14,
-    alignItems: "center",
-    gap: 10,
-  },
-  quickActionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  quickActionLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: C.textMuted,
-    textAlign: "center",
-  },
-});
+function MetricPill({ label, value, color, c }: { label: string; value: string; color: string; c: ReturnType<typeof useColors> }) {
+  return (
+    <View style={{ alignItems: "flex-start" }}>
+      <Text style={{ fontSize: 18, fontWeight: "800", color, letterSpacing: -0.3 }}>{value}</Text>
+      <Text style={{ ...Type.micro, color: c.textDim, marginTop: 1 }}>{label}</Text>
+    </View>
+  );
+}
+
+function QuickBtn({ label, icon, bg, c, sh, onPress }: {
+  label: string; icon: React.ReactNode; bg: string;
+  c: ReturnType<typeof useColors>; sh: ReturnType<typeof shadows>;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        {
+          flex: 1, backgroundColor: c.card, borderRadius: Radius.lg,
+          borderWidth: 1, borderColor: c.cardBorder,
+          padding: Space.lg, alignItems: "center", gap: Space.sm,
+        },
+        sh.card,
+        pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] },
+      ]}
+    >
+      <View style={{ width: 44, height: 44, borderRadius: Radius.md, backgroundColor: bg, alignItems: "center", justifyContent: "center" }}>
+        {icon}
+      </View>
+      <Text style={{ ...Type.caption, color: c.textSecondary }}>{label}</Text>
+    </Pressable>
+  );
+}
+
