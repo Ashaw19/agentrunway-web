@@ -20,7 +20,7 @@ import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }       from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
-import type { OutreachQueueItem } from "@agent-runway/core/types/database";
+import type { OutreachQueueItem, AgentState } from "@agent-runway/core/types/database";
 import type { SupabaseClient }    from "@supabase/supabase-js";
 import type { ClientMemoryFacts, ClientMemoryProfile } from "@/lib/ai/client-memory-engine";
 import {
@@ -1663,6 +1663,7 @@ function buildFinancialImpact(
     repeatRate: number;
     activeClients: number;
   },
+  state: AgentState,
 ): string {
   const gci = ctx.gci ? Number(ctx.gci) : 0;
   const isHighValue = gci > 15000;
@@ -1693,11 +1694,17 @@ function buildFinancialImpact(
 
   // ── Referral ask / post-close 90 ──────────────────────────────────────────
   if (opportunityType === "referral_ask") {
+    if (isHighValue && gciLabel && state.pace_status === "behind") {
+      return `You're behind pace, and at ${gciLabel} GCI, a referral from this client could be the deal that gets you back on track. This is your highest-leverage ask right now.`;
+    }
     if (isHighValue && gciLabel) {
       return `At ${gciLabel} GCI, referrals from this client are likely to be similarly valuable. This is a higher-probability path to your next closing than any new lead source.`;
     }
     if (hasStrongRepeatHistory) {
       return `Your repeat rate is strong — this referral window is how you keep feeding that. One ask here is worth more than a week of prospecting.`;
+    }
+    if (state.pace_status === "ahead") {
+      return "You're on track this month — this referral ask helps you maintain momentum rather than recover it. That's a better position to be asking from.";
     }
     return "You're in the peak referral window. A single referral from a happy client typically closes faster and at higher value than cold outreach.";
   }
@@ -1736,8 +1743,14 @@ function buildFinancialImpact(
 
   // ── Idle client / past client check-in ────────────────────────────────────
   if (opportunityType === "idle_client" || opportunityType === "past_client_check_in") {
+    if (pipelineDry && state.pace_status === "behind") {
+      return "With no active deals and your pace behind where it needs to be, this past client is your fastest path back to momentum. They already trust you — start here.";
+    }
     if (pipelineDry) {
       return "You have no active deals right now. This past client already trusts you — reconnecting here is the single highest-probability move you can make for near-term income.";
+    }
+    if (pipelineLight && state.pace_status === "behind" && isHighValue && gciLabel) {
+      return `You're behind pace with a light pipeline — and this ${gciLabel} past client is sitting right there. This is a higher-probability path to your next closing than anything else on this list.`;
     }
     if (pipelineLight && isHighValue && gciLabel) {
       return `With your pipeline light and ${gciLabel} in past GCI, this dormant relationship is more valuable than any new lead you could chase today.`;
@@ -1753,6 +1766,9 @@ function buildFinancialImpact(
     }
     if (pipelineLight) {
       return "Your pipeline is light and this client already knows your work. Past-client outreach converts at a significantly higher rate than cold prospecting.";
+    }
+    if (state.pace_status === "ahead") {
+      return "You're ahead of pace — this is a longer-term play, not urgent. But re-engaging now while you have breathing room means you're building pipeline from a position of strength.";
     }
     return "This relationship has gone quiet, but the trust you built doesn't expire overnight. A well-timed check-in here is worth more than several cold introductions.";
   }
@@ -1796,14 +1812,23 @@ function buildFinancialImpact(
 
   // ── Active buyer ──────────────────────────────────────────────────────────
   if (opportunityType === "buyer_inventory_match") {
+    if (pipelineDry && state.pace_status === "behind") {
+      return "With no active deals and your pace falling behind, this buyer with known preferences is the most direct path to a closing. This is recovery territory — act on it.";
+    }
     if (pipelineLight) {
       return "Your pipeline needs active deals, and this buyer has known preferences. Sending relevant inventory now could be the push that moves this from browsing to offer.";
+    }
+    if (state.pipeline_status === "healthy") {
+      return "Your pipeline is in good shape — this is about accelerating an active buyer, not filling a gap. Proactive inventory surfacing moves deals faster.";
     }
     return "Buyers who see you proactively surfacing listings commit faster. This is direct pipeline activity — not relationship maintenance, but deal acceleration.";
   }
 
   // ── Seller hesitation ─────────────────────────────────────────────────────
   if (opportunityType === "seller_timing_hesitation") {
+    if (pipelineDry && state.pace_status === "behind") {
+      return "You need listings and you're behind pace — this seller has a known objection you can address. Converting this could be the turning point in your quarter.";
+    }
     if (pipelineDry) {
       return "You need listings and this seller has a known objection. Overcoming one hesitation with the right data point could be the single most impactful action you take this week.";
     }
@@ -1854,17 +1879,26 @@ function buildFinancialImpact(
 
   // ── Seasonal ──────────────────────────────────────────────────────────────
   if (opportunityType.startsWith("seasonal_")) {
+    if (pipelineDry && state.pace_status === "behind") {
+      return "With no active deals and your pace behind, staying visible isn't optional — it's how you generate your next conversation. This seasonal touchpoint is that first step.";
+    }
     if (pipelineDry) {
       return "With no active deals, staying visible to your database is critical. A seasonal touchpoint now could surface the conversation that becomes your next closing.";
     }
     if (pipelineLight) {
       return "Pipeline gaps get filled by agents who stay visible between deals. This seasonal touchpoint is a low-cost way to keep your name in circulation.";
     }
+    if (state.pipeline_status === "healthy" && state.pace_status === "ahead") {
+      return "Your pipeline is healthy and you're ahead of pace — this seasonal touchpoint is about maintaining visibility, not generating urgency. Keep the flywheel turning.";
+    }
     return "Seasonal outreach keeps you in your network's peripheral vision — so when someone in their circle needs an agent, your name surfaces first.";
   }
 
   // ── New client welcome ────────────────────────────────────────────────────
   if (opportunityType === "new_client_welcome") {
+    if (pipelineLight && state.pace_status === "behind") {
+      return "You need more active clients and you're behind pace. This new contact is a fresh opportunity — a strong first impression could accelerate them from prospect to active deal.";
+    }
     if (pipelineLight) {
       return "This is a new relationship — and with your pipeline light, converting new contacts into active clients matters more right now than usual. A strong first impression accelerates that.";
     }
@@ -1883,13 +1917,75 @@ function buildFinancialImpact(
   }
 
   // ── Fallback (should be rare — most types are covered above) ──────────────
+  if (state.urgency_level === "critical") {
+    return "With your pipeline empty and pace behind, every quality touchpoint is a potential path back to income. This one deserves your attention right now.";
+  }
   if (pipelineDry) {
     return "With your pipeline empty, every quality touchpoint with a past or active client is a potential path to your next deal. This one is worth your attention.";
+  }
+  if (state.urgency_level === "high") {
+    return "Your pipeline needs attention and your pace could use a boost. This is a higher-probability conversation than cold outreach — someone who already knows your work.";
   }
   if (pipelineLight) {
     return "Your pipeline could use more activity. This opportunity represents a higher-probability conversation than cold outreach — someone who already knows your work.";
   }
+  if (state.pace_status === "ahead") {
+    return "You're in a strong position right now. This touchpoint builds on that — maintaining relationships from a position of strength is how you stay ahead.";
+  }
   return "This is a warm relationship with existing trust. Reaching out here converts at a meaningfully higher rate than any cold introduction would.";
+}
+
+/**
+ * Compute a lightweight agent_state snapshot at runtime.
+ * No new DB queries — uses data already fetched by getTopOpportunities.
+ */
+function computeAgentState(
+  activeClients: number,
+  dealsThisYear: number,
+  totalDeals: number,
+  yearsActive: number,
+): AgentState {
+  // ── Pipeline status ─────────────────────────────────────────────────────
+  const pipeline_status: AgentState["pipeline_status"] =
+    activeClients === 0 ? "empty" :
+    activeClients <= 2  ? "light" :
+                          "healthy";
+
+  // ── Pace status ─────────────────────────────────────────────────────────
+  // Compare deals closed this calendar year vs historical yearly average,
+  // prorated for how far through the year we are.
+  let pace_status: AgentState["pace_status"] = "on_track";
+
+  if (yearsActive >= 1 && totalDeals >= 2) {
+    const yearlyAvg = totalDeals / yearsActive;
+    const monthFraction = (new Date().getMonth() + 1) / 12;
+    const expectedByNow = yearlyAvg * monthFraction;
+
+    if (dealsThisYear >= expectedByNow * 1.25) {
+      pace_status = "ahead";
+    } else if (dealsThisYear <= expectedByNow * 0.7) {
+      pace_status = "behind";
+    }
+  } else {
+    // Fallback: infer from pipeline depth when history is thin
+    if (activeClients === 0) pace_status = "behind";
+    else if (activeClients >= 3) pace_status = "on_track";
+  }
+
+  // ── Urgency level ───────────────────────────────────────────────────────
+  let urgency_level: AgentState["urgency_level"] = "moderate";
+
+  if (pipeline_status === "empty" && pace_status === "behind") {
+    urgency_level = "critical";
+  } else if (pipeline_status === "empty" || (pipeline_status === "light" && pace_status === "behind")) {
+    urgency_level = "high";
+  } else if (pipeline_status === "light" || pace_status === "behind") {
+    urgency_level = "moderate";
+  } else {
+    urgency_level = "low";
+  }
+
+  return { pipeline_status, pace_status, urgency_level };
 }
 
 /**
@@ -2180,6 +2276,19 @@ export async function getTopOpportunities(
   ).length;
   const pipelineLight = activeClients < 3;
 
+  // ── Compute agent state ────────────────────────────────────────────────────
+  const currentYear = new Date().getFullYear();
+  const dealsThisYear = records.filter((r) =>
+    r.close_date && r.close_date.startsWith(String(currentYear)),
+  ).length;
+  const closeDates = records
+    .filter((r) => r.close_date)
+    .map((r) => new Date(r.close_date + "T12:00:00").getFullYear());
+  const earliestYear = closeDates.length > 0 ? Math.min(...closeDates) : currentYear;
+  const yearsActive = Math.max(1, currentYear - earliestYear + 1);
+
+  const agentState = computeAgentState(activeClients, dealsThisYear, totalDeals, yearsActive);
+
   // ── Build structured response ───────────────────────────────────────────────
   const results = topCandidates.map((ins) => {
     const typed = ins as {
@@ -2214,10 +2323,12 @@ export async function getTopOpportunities(
         client?.status ?? null,
         (clientDealDates.get(typed.client_id) ?? []).length,
         { avgGci, totalDeals, repeatRate, activeClients },
+        agentState,
       ),
       is_primary:     false,
       primary_reason: null as string | null,
       risk_if_ignored: null as string | null,
+      agent_state:    agentState,
     };
   });
 
@@ -2276,6 +2387,7 @@ export async function getTopOpportunities(
       _clientMap.get(primary.client_id)?.status ?? null,
       (clientDealDates.get(primary.client_id) ?? []).length,
       { activeClients, pipelineLight },
+      agentState,
     );
     primary.risk_if_ignored = buildRiskIfIgnored(
       primary.opportunity_type,
@@ -2283,6 +2395,7 @@ export async function getTopOpportunities(
       primary.trigger_date,
       (clientDealDates.get(primary.client_id) ?? []).length,
       { activeClients, pipelineLight },
+      agentState,
     );
 
     // Move primary to index 0 so UI always shows it first
@@ -2304,6 +2417,7 @@ function buildPrimaryReason(
   clientStatus: string | null,
   clientDealCount: number,
   pipeline: { activeClients: number; pipelineLight: boolean },
+  state: AgentState,
 ): string {
   const gci = ctx.gci ? Number(ctx.gci) : 0;
   const gciLabel = gci > 0 ? `$${(gci / 1000).toFixed(0)}k` : null;
@@ -2312,8 +2426,14 @@ function buildPrimaryReason(
 
   // ── Pipeline-driven urgency ───────────────────────────────────────────────
   if (pipelineDry) {
+    if (state.pace_status === "behind" && (opportunityType === "buyer_inventory_match" || opportunityType === "seller_timing_hesitation" || opportunityType === "timeframe_approaching")) {
+      return "No active deals and you're behind pace. This is the closest thing to a live deal in front of you — this is where your day starts.";
+    }
     if (opportunityType === "buyer_inventory_match" || opportunityType === "seller_timing_hesitation" || opportunityType === "timeframe_approaching") {
       return "You have no active deals. This is the closest thing to a live opportunity in your pipeline — act on it first.";
+    }
+    if (isRepeat && gciLabel && state.pace_status === "behind") {
+      return `No active deals, behind pace, and a ${gciLabel} repeat client who already trusts you. This is the clearest path back to momentum.`;
     }
     if (isRepeat && gciLabel) {
       return `No active deals and a ${gciLabel} repeat client waiting to hear from you. This is your highest-probability path to income right now.`;
@@ -2382,8 +2502,14 @@ function buildPrimaryReason(
   }
 
   // ── General primary ───────────────────────────────────────────────────────
+  if (pipeline.pipelineLight && state.pace_status === "behind") {
+    return "Your pipeline is light and you're behind pace. This is the highest-probability action to get things moving — start here.";
+  }
   if (pipeline.pipelineLight) {
     return "With your pipeline needing attention, this is the strongest opportunity to generate a meaningful conversation. Start here.";
+  }
+  if (state.pace_status === "ahead") {
+    return "You're ahead of pace with a healthy pipeline. This is about building on strength — the best time to deepen relationships is when you're not under pressure.";
   }
   return "This has the strongest combination of timing, relationship value, and opportunity quality on your list today. Start here.";
 }
@@ -2395,6 +2521,7 @@ function buildRiskIfIgnored(
   triggerDate: string,
   clientDealCount: number,
   pipeline: { activeClients: number; pipelineLight: boolean },
+  state: AgentState,
 ): string {
   const gci = ctx.gci ? Number(ctx.gci) : 0;
   const gciLabel = gci > 0 ? `$${(gci / 1000).toFixed(0)}k` : null;
@@ -2447,6 +2574,9 @@ function buildRiskIfIgnored(
 
   // ── Idle client / past client check-in ────────────────────────────────────
   if (opportunityType === "idle_client" || opportunityType === "past_client_check_in") {
+    if (pipelineDry && state.pace_status === "behind") {
+      return "With no deals and your pace falling behind, every week you delay re-engagement makes the gap harder to close.";
+    }
     if (pipelineDry) {
       return "Without active deals, every week you delay re-engagement pushes your next potential closing further out.";
     }
@@ -2466,6 +2596,9 @@ function buildRiskIfIgnored(
 
   // ── Active buyer/seller ───────────────────────────────────────────────────
   if (opportunityType === "buyer_inventory_match") {
+    if (state.urgency_level === "critical") {
+      return "You have no deals and you're behind — losing an active buyer's attention now means losing what may be your best near-term path to income.";
+    }
     if (pipeline.pipelineLight) {
       return "Active buyers who don't hear from their agent start browsing on their own — and eventually working with someone who's paying closer attention.";
     }
@@ -2473,6 +2606,9 @@ function buildRiskIfIgnored(
   }
 
   if (opportunityType === "seller_timing_hesitation") {
+    if (state.urgency_level === "critical" || state.urgency_level === "high") {
+      return "You need listings and this seller is reachable now. If you don't address their hesitation, they'll either stall indefinitely or list with whoever reaches out next.";
+    }
     return "Hesitant sellers who don't hear from you will either stay stuck or list with whoever reaches out next — neither outcome helps your business.";
   }
 
@@ -2522,6 +2658,9 @@ function buildRiskIfIgnored(
   }
 
   // ── Fallback ──────────────────────────────────────────────────────────────
+  if (state.urgency_level === "critical") {
+    return "With no active deals and your pace behind, each missed touchpoint widens the gap you need to close.";
+  }
   if (pipelineDry) {
     return "With no active deals, each missed touchpoint extends the gap before your next closing.";
   }

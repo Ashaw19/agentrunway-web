@@ -636,6 +636,12 @@ export interface OutreachQueueItem {
 }
 
 /** Top Opportunities — structured insight card for the Business Brain. */
+export interface AgentState {
+  pipeline_status: "empty" | "light" | "healthy";
+  pace_status:     "behind" | "on_track" | "ahead";
+  urgency_level:   "critical" | "high" | "moderate" | "low";
+}
+
 export interface TopOpportunity {
   client_id:         string;
   client_name:       string;
@@ -654,6 +660,7 @@ export interface TopOpportunity {
   is_primary:        boolean;                 // true for exactly ONE opportunity — "start here"
   primary_reason:    string | null;           // why this is the best use of time right now (primary only)
   risk_if_ignored:   string | null;           // consequence of inaction (required for primary, optional for secondary)
+  agent_state?:      AgentState;              // runtime-computed snapshot of where the agent stands right now
 }
 
 export interface EmailConnection {
