@@ -365,36 +365,53 @@ export async function fetchBoardData(board: CreaBoard): Promise<LocalMarketData 
 // These figures are intentionally conservative midpoints — actual counts shift
 // ±5–10% year-over-year as licensing fluctuates.
 
+// Keys MUST match the board `slug` values in CREA_BOARDS above,
+// because `settings.board_code` stores the slug. Previously these
+// used organisation acronyms (trreb, rebgv, etc.) which never matched
+// the slugs, so the lookup always returned undefined.
 export const BOARD_AGENT_COUNTS: Record<string, number> = {
-  // Ontario
-  trreb:    73000,   // Toronto Regional Real Estate Board — confirmed
-  oreb:      3750,   // Ottawa Real Estate Board — confirmed
-  rahb:      3250,   // Hamilton-Burlington REALTORS® — estimated (post-merger)
-  lstar:     2750,   // London St. Thomas REALTORS® — estimated
-  kwar:      1000,   // Kitchener-Waterloo — estimated
-  niagara:   1100,   // Niagara Association of REALTORS® — estimated
-  wecar:      900,   // Windsor-Essex — estimated
-  gdar:       800,   // Guelph & District — estimated
-  bdar:       700,   // Barrie & District — estimated
-  sreb:       400,   // Sudbury — estimated
+  // Ontario — slugs from CREA_BOARDS
+  treb:     73000,   // Toronto Regional Real Estate Board — confirmed
+  otta:      3750,   // Ottawa Real Estate Board — confirmed
+  hami:      3250,   // Hamilton-Burlington REALTORS® — estimated (post-merger)
+  lond:      2750,   // London St. Thomas REALTORS® — estimated
+  wrar:      1000,   // Kitchener-Waterloo — estimated (slug "wrar")
+  stca:      1100,   // Niagara Association of REALTORS® — estimated
+  wind:       900,   // Windsor-Essex — estimated
+  guel:       800,   // Guelph & District — estimated
+  musk:       700,   // Muskoka & Simcoe County — estimated
+  sudb:       400,   // Sudbury — estimated
+  miss:      4200,   // Mississauga — estimated
+  oakv:      2200,   // Oakville-Milton — estimated
+  osha:      2000,   // Central Lakes (Durham/Oshawa) — estimated
+  king:       900,   // Kingston — estimated
+  brnt:       700,   // Brantford — estimated
+  grey:       600,   // Grey Bruce & Owen Sound — estimated
   // British Columbia
-  rebgv:    15500,   // Real Estate Board of Greater Vancouver — confirmed
-  fvreb:     4750,   // Fraser Valley — confirmed
+  vanc:     15500,   // Real Estate Board of Greater Vancouver — confirmed
+  fras:      4750,   // Fraser Valley — confirmed
+  vict:      1800,   // Victoria — estimated
+  vani:      1400,   // Vancouver Island — estimated
+  okan:      2100,   // Interior REALTORS® Okanagan — estimated
+  kaml:       500,   // Kamloops — estimated
   // Alberta
-  creb:      7250,   // Calgary Real Estate Board — confirmed
-  rae:       4250,   // REALTORS® Association of Edmonton — confirmed
-  // Quebec
-  apciq:    14500,   // APCIQ / Centris (Montreal metro) — confirmed
-  ciq:       2750,   // Chambre immobilière de Québec (Quebec City) — estimated
+  calg:      7250,   // Calgary Real Estate Board — confirmed
+  edmo:      4250,   // REALTORS® Association of Edmonton — confirmed
+  redd:       700,   // Central Alberta (Red Deer) — estimated
+  leth:       500,   // Lethbridge — estimated
+  gran:       350,   // Grande Prairie — estimated
+  medi:       300,   // Medicine Hat — estimated
   // Manitoba
-  wrreb:     2100,   // Winnipeg Regional Real Estate Board — estimated
+  winn:      2100,   // Winnipeg Regional Real Estate Board — estimated
   mrea:      2100,   // Manitoba Real Estate Association — confirmed
   // Saskatchewan
   sra:       1500,   // Saskatchewan REALTORS® Association — confirmed
   // Atlantic
   nsar:      1500,   // Nova Scotia Association of REALTORS® — confirmed
-  nbrea:     1200,   // New Brunswick Real Estate Association — confirmed
-  nlar:       800,   // Newfoundland & Labrador REALTORS® — confirmed
+  nbreb:     1200,   // New Brunswick Real Estate Association — confirmed (slug "nbreb")
+  stjo:       800,   // Newfoundland & Labrador REALTORS® — confirmed
+  // PEI
+  peia:       400,   // Prince Edward Island — estimated
 };
 
 // ── Market Momentum ───────────────────────────────────────────────────────────
