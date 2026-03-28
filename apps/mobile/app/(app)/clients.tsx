@@ -1,31 +1,49 @@
-import { useEffect, useState, useCallback } from "react";
+/**
+ * Clients Screen — Premium, theme-aware client management.
+ *
+ * Features: real-time search, filter tabs, detail sheet with
+ * call/text/email actions, contact activity logging via AppState,
+ * and add-client modal.
+ */
+
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
   ScrollView,
   Pressable,
   RefreshControl,
-  Modal,
   TextInput,
-  KeyboardAvoidingView,
-  Platform,
   Linking,
   Alert,
   AppState,
   StyleSheet,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import {
   Phone,
   MessageSquare,
   Mail,
   Plus,
-  X,
-  Users,
+  Search,
   ChevronRight,
 } from "lucide-react-native";
 import { useDataStore, type Client } from "@/stores/data-store";
-import { C, STATUS_COLORS, getInitials } from "@/lib/theme";
+import {
+  useColors,
+  useTheme,
+  shadows,
+  Space,
+  Radius,
+  Type,
+  STATUS_COLORS,
+  getInitials,
+} from "@/lib/theme";
+import { Card, Sheet, Badge, Avatar, Button, Input, EmptyState } from "@/components/ui";
+
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 type Filter = "all" | "active" | "landed";
 
@@ -43,8 +61,13 @@ const STATUS_LABELS: Record<string, string> = {
 // ── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ClientsScreen() {
+  const c = useColors();
+  const { mode } = useTheme();
+  const s = shadows(mode);
+
   const { clients, fetchClients, addClient, addActivity } = useDataStore();
   const [filter, setFilter] = useState<Filter>("all");
+  const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -57,6 +80,8 @@ export default function ClientsScreen() {
   useEffect(() => {
     if (clients.length === 0) fetchClients();
   }, []);
+
+  // ── AppState listener: log activity after returning from phone/sms ────────
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
@@ -85,6 +110,8 @@ export default function ClientsScreen() {
     });
     return () => sub.remove();
   }, [pendingContact]);
+
+  // ── Actions ───────────────────────────────────────────────────────────────
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -118,136 +145,171 @@ export default function ClientsScreen() {
     Linking.openURL(`mailto:${client.email}`);
   }, []);
 
-  const active = clients.filter((c) => ACTIVE_STATUSES.has(c.status));
-  const landed = clients.filter(
-    (c) => c.status === "landed" || c.status === "cruising"
+  // ── Derived data ──────────────────────────────────────────────────────────
+
+  const active = useMemo(() => clients.filter((cl) => ACTIVE_STATUSES.has(cl.status)), [clients]);
+  const landed = useMemo(
+    () => clients.filter((cl) => cl.status === "landed" || cl.status === "cruising"),
+    [clients]
   );
-  const filtered =
-    filter === "active" ? active : filter === "landed" ? landed : clients;
+
+  const filtered = useMemo(() => {
+    let list =
+      filter === "active" ? active : filter === "landed" ? landed : clients;
+
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter(
+        (cl) =>
+          cl.name.toLowerCase().includes(q) ||
+          (cl.email && cl.email.toLowerCase().includes(q)) ||
+          (cl.phone && cl.phone.toLowerCase().includes(q))
+      );
+    }
+
+    return list;
+  }, [clients, active, landed, filter, search]);
+
+  // ── Filter tab definitions ────────────────────────────────────────────────
+
+  const tabs: { key: Filter; label: string; count: number }[] = [
+    { key: "all", label: "All", count: clients.length },
+    { key: "active", label: "Active", count: active.length },
+    { key: "landed", label: "Landed", count: landed.length },
+  ];
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
       {/* ── Header ── */}
-      <View
-        style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 4 }}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Text style={S.screenTitle}>Clients</Text>
-          <Pressable onPress={() => setShowAdd(true)} style={S.addBtn}>
-            <Plus size={16} color="#fff" strokeWidth={2.5} />
-            <Text style={S.addBtnText}>Add</Text>
-          </Pressable>
-        </View>
-
-        {/* Summary chips */}
-        <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
-          <SummaryChip label="Total" value={clients.length} color={C.text} />
-          <SummaryChip label="Active" value={active.length} color={C.primary} />
-          <SummaryChip label="Landed" value={landed.length} color={C.textDim} />
-          <SummaryChip
-            label="Overdue"
-            value={
-              clients.filter((c) => {
-                if (!c.last_contact_at) return true;
-                return (
-                  (Date.now() - new Date(c.last_contact_at).getTime()) /
-                    86400000 >
-                  30
-                );
-              }).length
-            }
-            color={C.danger}
+      <View style={{ paddingHorizontal: Space.xl, paddingTop: Space.xl, paddingBottom: Space.xs }}>
+        <View style={styles.headerRow}>
+          <Text style={[Type.h1, { color: c.text }]}>Clients</Text>
+          <Button
+            label="Add"
+            variant="primary"
+            icon="add"
+            onPress={() => setShowAdd(true)}
           />
         </View>
 
-        {/* Filter tabs */}
-        <View style={S.tabs}>
-          {(
-            [
-              { key: "all", label: "All", count: clients.length },
-              { key: "active", label: "Active", count: active.length },
-              { key: "landed", label: "Landed", count: landed.length },
-            ] as { key: Filter; label: string; count: number }[]
-          ).map((f) => (
-            <Pressable
-              key={f.key}
-              onPress={() => setFilter(f.key)}
-              style={[S.tab, filter === f.key && S.tabActive]}
-            >
-              <Text
-                style={[S.tabText, filter === f.key && S.tabTextActive]}
+        {/* ── Search Bar ── */}
+        <View
+          style={[
+            styles.searchBar,
+            {
+              backgroundColor: c.card,
+              borderColor: c.cardBorder,
+              ...s.card,
+            },
+          ]}
+        >
+          <Search size={18} color={c.textDim} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search by name, email, or phone..."
+            placeholderTextColor={c.textDim}
+            style={[Type.body, styles.searchInput, { color: c.text }]}
+            returnKeyType="search"
+            autoCorrect={false}
+          />
+          {search.length > 0 && (
+            <Pressable onPress={() => setSearch("")} hitSlop={Space.sm}>
+              <Ionicons name="close-circle" size={20} color={c.textDim} />
+            </Pressable>
+          )}
+        </View>
+
+        {/* ── Filter Tabs ── */}
+        <View style={styles.tabs}>
+          {tabs.map((f) => {
+            const isActive = filter === f.key;
+            return (
+              <Pressable
+                key={f.key}
+                onPress={() => setFilter(f.key)}
+                style={[
+                  styles.tab,
+                  {
+                    backgroundColor: isActive ? c.primaryDim : c.card,
+                    borderColor: isActive ? c.primaryBorder : c.cardBorder,
+                  },
+                ]}
               >
-                {f.label}
-              </Text>
-              {f.count > 0 && (
-                <View
+                <Text
                   style={[
-                    S.tabBadge,
-                    {
-                      backgroundColor:
-                        filter === f.key ? C.primary : C.textFaint,
-                    },
+                    Type.caption,
+                    { color: isActive ? c.primary : c.textDim, fontWeight: "700" },
                   ]}
                 >
-                  <Text style={S.tabBadgeText}>{f.count}</Text>
-                </View>
-              )}
-            </Pressable>
-          ))}
+                  {f.label}
+                </Text>
+                {f.count > 0 && (
+                  <View
+                    style={[
+                      styles.tabBadge,
+                      {
+                        backgroundColor: isActive ? c.primary : c.textFaint,
+                      },
+                    ]}
+                  >
+                    <Text style={[Type.micro, { color: "#FFFFFF" }]}>{f.count}</Text>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 
+      {/* ── Client List ── */}
       <ScrollView
-        contentContainerStyle={{ padding: 20, paddingTop: 12, gap: 8 }}
+        contentContainerStyle={{
+          paddingHorizontal: Space.xl,
+          paddingTop: Space.md,
+          paddingBottom: Space.xxxl,
+          gap: Space.sm,
+        }}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={C.primary}
+            tintColor={c.primary}
           />
         }
       >
         {filtered.length === 0 ? (
-          <View style={{ alignItems: "center", paddingVertical: 56, gap: 12 }}>
-            <View
-              style={{
-                width: 64,
-                height: 64,
-                borderRadius: 20,
-                backgroundColor: C.card,
-                borderWidth: 1,
-                borderColor: C.cardBorder,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Users size={32} color={C.primary} />
-            </View>
-            <Text style={{ color: C.text, fontSize: 16, fontWeight: "700" }}>
-              No clients found
-            </Text>
-            <Text
-              style={{ color: C.textDim, fontSize: 13, textAlign: "center" }}
-            >
-              Add your first client to start tracking
-            </Text>
-          </View>
+          search.trim() ? (
+            <EmptyState
+              icon="search-outline"
+              title="No matches"
+              subtitle={`No clients match "${search.trim()}"`}
+            />
+          ) : (
+            <EmptyState
+              icon="people-outline"
+              title="No clients found"
+              subtitle="Add your first client to start tracking"
+              actionLabel="Add Client"
+              onAction={() => setShowAdd(true)}
+            />
+          )
         ) : (
-          filtered.map((c) => (
-            <Pressable key={c.id} onPress={() => setSelectedClient(c)}>
-              <ClientRow client={c} />
-            </Pressable>
+          filtered.map((cl) => (
+            <ClientRow
+              key={cl.id}
+              client={cl}
+              onPress={() => setSelectedClient(cl)}
+            />
           ))
         )}
       </ScrollView>
 
+      {/* ── Client Detail Sheet ── */}
       {selectedClient && (
         <ClientDetailSheet
           client={selectedClient}
@@ -258,11 +320,12 @@ export default function ClientsScreen() {
         />
       )}
 
-      <AddClientModal
+      {/* ── Add Client Sheet ── */}
+      <AddClientSheet
         visible={showAdd}
         onClose={() => setShowAdd(false)}
-        onAdd={async (c) => {
-          const ok = await addClient(c);
+        onAdd={async (cl) => {
+          const ok = await addClient(cl);
           if (ok) setShowAdd(false);
           return ok;
         }}
@@ -271,54 +334,15 @@ export default function ClientsScreen() {
   );
 }
 
-// ── Sub-components ───────────────────────────────────────────────────────────
+// ── Client Row ──────────────────────────────────────────────────────────────
 
-function SummaryChip({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: number;
-  color: string;
-}) {
-  return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: C.card,
-        borderRadius: 10,
-        paddingVertical: 9,
-        alignItems: "center",
-        borderWidth: 1,
-        borderColor: C.cardBorder,
-      }}
-    >
-      <Text
-        style={{ color, fontSize: 17, fontWeight: "800", letterSpacing: -0.3 }}
-      >
-        {value}
-      </Text>
-      <Text
-        style={{
-          color: C.textDim,
-          fontSize: 10,
-          fontWeight: "600",
-          textTransform: "uppercase",
-          letterSpacing: 0.4,
-          marginTop: 2,
-        }}
-      >
-        {label}
-      </Text>
-    </View>
-  );
-}
-
-function ClientRow({ client }: { client: Client }) {
-  const statusColor = STATUS_COLORS[client.status] ?? C.textDim;
+function ClientRow({ client, onPress }: { client: Client; onPress: () => void }) {
+  const c = useColors();
+  const { mode } = useTheme();
+  const s = shadows(mode);
+  const statusColor = STATUS_COLORS[client.status] ?? c.textDim;
   const statusLabel = STATUS_LABELS[client.status] ?? client.status;
-  const initials = getInitials(client.name);
+
   const daysSince = client.last_contact_at
     ? Math.floor(
         (Date.now() - new Date(client.last_contact_at).getTime()) / 86400000
@@ -327,37 +351,34 @@ function ClientRow({ client }: { client: Client }) {
   const isOverdue = daysSince === null || daysSince > 30;
 
   return (
-    <View style={S.card}>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 12,
-          padding: 14,
-        }}
-      >
+    <Card onPress={onPress}>
+      <View style={styles.rowInner}>
         {/* Avatar */}
-        <View
-          style={[
-            S.avatar,
-            { backgroundColor: statusColor + "22", borderColor: statusColor + "44" },
-          ]}
-        >
-          <Text style={[S.avatarText, { color: statusColor }]}>{initials}</Text>
-        </View>
+        <Avatar name={client.name} size="md" color={statusColor} />
 
         {/* Info */}
-        <View style={{ flex: 1, gap: 3 }}>
+        <View style={styles.rowInfo}>
           <Text
-            style={{ color: C.text, fontSize: 15, fontWeight: "700" }}
+            style={[Type.bodyBold, { color: c.text }]}
             numberOfLines={1}
           >
             {client.name}
           </Text>
-          <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+          <View style={styles.rowMeta}>
+            {client.phone && (
+              <Text
+                style={[Type.caption, { color: c.textMuted }]}
+                numberOfLines={1}
+              >
+                {client.phone}
+              </Text>
+            )}
+            {client.phone && client.email && (
+              <Text style={[Type.caption, { color: c.textFaint }]}> | </Text>
+            )}
             {client.email && (
               <Text
-                style={{ color: C.textDim, fontSize: 12 }}
+                style={[Type.caption, { color: c.textMuted, flexShrink: 1 }]}
                 numberOfLines={1}
               >
                 {client.email}
@@ -367,43 +388,35 @@ function ClientRow({ client }: { client: Client }) {
         </View>
 
         {/* Right side */}
-        <View style={{ alignItems: "flex-end", gap: 5 }}>
-          <View
-            style={{
-              backgroundColor: statusColor + "20",
-              paddingHorizontal: 8,
-              paddingVertical: 3,
-              borderRadius: 6,
-            }}
-          >
-            <Text
-              style={{ color: statusColor, fontSize: 10, fontWeight: "700" }}
-            >
-              {statusLabel}
-            </Text>
-          </View>
+        <View style={styles.rowRight}>
+          <Badge
+            label={statusLabel}
+            color={statusColor}
+            size="sm"
+          />
           {daysSince !== null ? (
             <Text
-              style={{
-                color: isOverdue ? C.danger : C.textDim,
-                fontSize: 11,
-                fontWeight: isOverdue ? "600" : "400",
-              }}
+              style={[
+                Type.micro,
+                { color: isOverdue ? c.danger : c.textDim },
+              ]}
             >
               {daysSince === 0 ? "Today" : `${daysSince}d ago`}
             </Text>
           ) : (
-            <Text style={{ color: C.danger, fontSize: 11, fontWeight: "600" }}>
-              Never contacted
+            <Text style={[Type.micro, { color: c.danger }]}>
+              Never
             </Text>
           )}
         </View>
 
-        <ChevronRight size={14} color={C.textFaint} />
+        <ChevronRight size={14} color={c.textFaint} />
       </View>
-    </View>
+    </Card>
   );
 }
+
+// ── Client Detail Sheet ─────────────────────────────────────────────────────
 
 function ClientDetailSheet({
   client,
@@ -418,173 +431,109 @@ function ClientDetailSheet({
   onText: (c: Client) => void;
   onEmail: (c: Client) => void;
 }) {
-  const statusColor = STATUS_COLORS[client.status] ?? C.textDim;
-  const initials = getInitials(client.name);
+  const c = useColors();
+  const statusColor = STATUS_COLORS[client.status] ?? c.textDim;
 
   return (
-    <Modal visible animationType="slide" transparent>
-      <View style={{ flex: 1, justifyContent: "flex-end" }}>
-        <Pressable style={{ flex: 1 }} onPress={onClose} />
-        <View style={S.sheet}>
-          <View style={S.sheetHandle} />
+    <Sheet visible onClose={onClose} title={client.name}>
+      {/* ── Client Header ── */}
+      <View style={styles.detailHeader}>
+        <Avatar name={client.name} size="lg" color={statusColor} />
+        <View style={{ flex: 1, gap: Space.xs }}>
+          <Text style={[Type.h2, { color: c.text }]}>{client.name}</Text>
+          <Badge
+            label={STATUS_LABELS[client.status] ?? client.status}
+            color={statusColor}
+            size="sm"
+          />
+        </View>
+      </View>
 
-          {/* Client header */}
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 14,
-              marginBottom: 20,
-            }}
-          >
-            <View
-              style={[
-                S.avatarLarge,
-                {
-                  backgroundColor: statusColor + "22",
-                  borderColor: statusColor + "50",
-                },
-              ]}
-            >
-              <Text style={[S.avatarLargeText, { color: statusColor }]}>
-                {initials}
+      {/* ── Contact Info Card ── */}
+      {(client.email || client.phone) && (
+        <View
+          style={[
+            styles.infoCard,
+            {
+              backgroundColor: c.card,
+              borderColor: c.cardBorder,
+            },
+          ]}
+        >
+          {client.email && (
+            <View style={styles.infoRow}>
+              <Ionicons name="mail-outline" size={16} color={c.textMuted} />
+              <Text style={[Type.body, { color: c.textSecondary, flex: 1 }]}>
+                {client.email}
               </Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{ color: C.text, fontSize: 20, fontWeight: "800" }}
-              >
-                {client.name}
-              </Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 6,
-                  marginTop: 4,
-                }}
-              >
-                <View
-                  style={{
-                    backgroundColor: statusColor + "20",
-                    paddingHorizontal: 8,
-                    paddingVertical: 3,
-                    borderRadius: 6,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: statusColor,
-                      fontSize: 11,
-                      fontWeight: "700",
-                    }}
-                  >
-                    {STATUS_LABELS[client.status] ?? client.status}
-                  </Text>
-                </View>
-              </View>
-            </View>
-            <Pressable
-              onPress={onClose}
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 15,
-                backgroundColor: C.cardBorder,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <X size={14} color={C.textMuted} />
-            </Pressable>
-          </View>
-
-          {/* Contact info */}
-          {(client.email || client.phone) && (
-            <View
-              style={[
-                S.card,
-                { padding: 14, gap: 8, marginBottom: 16 },
-              ]}
-            >
-              {client.email && (
-                <Text style={{ color: C.textMuted, fontSize: 14 }}>
-                  {client.email}
-                </Text>
-              )}
-              {client.phone && (
-                <Text style={{ color: C.textMuted, fontSize: 14 }}>
-                  {client.phone}
-                </Text>
-              )}
-            </View>
           )}
-
-          {/* Action buttons */}
-          <View
-            style={{ flexDirection: "row", gap: 10, marginBottom: 16 }}
-          >
-            <ActionButton
-              icon={<Phone size={18} color={C.success} />}
-              label="Call"
-              color={C.success}
-              onPress={() => onCall(client)}
-            />
-            <ActionButton
-              icon={<MessageSquare size={18} color={C.blue} />}
-              label="Text"
-              color={C.blue}
-              onPress={() => onText(client)}
-            />
-            <ActionButton
-              icon={<Mail size={18} color={C.purple} />}
-              label="Email"
-              color={C.purple}
-              onPress={() => onEmail(client)}
-            />
-          </View>
-
-          {/* Tags */}
-          {client.tags.length > 0 && (
-            <View
-              style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}
-            >
-              {client.tags.map((t) => (
-                <View
-                  key={t}
-                  style={{
-                    backgroundColor: C.card,
-                    paddingHorizontal: 10,
-                    paddingVertical: 5,
-                    borderRadius: 6,
-                    borderWidth: 1,
-                    borderColor: C.cardBorder,
-                  }}
-                >
-                  <Text style={{ color: C.textMuted, fontSize: 12 }}>{t}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Notes */}
-          {client.notes && (
-            <View
-              style={[
-                S.card,
-                { padding: 12, marginTop: 12 },
-              ]}
-            >
-              <Text style={{ color: C.textDim, fontSize: 13, lineHeight: 18 }}>
-                {client.notes}
+          {client.phone && (
+            <View style={styles.infoRow}>
+              <Ionicons name="call-outline" size={16} color={c.textMuted} />
+              <Text style={[Type.body, { color: c.textSecondary, flex: 1 }]}>
+                {client.phone}
               </Text>
             </View>
           )}
         </View>
+      )}
+
+      {/* ── Action Buttons ── */}
+      <View style={styles.actionRow}>
+        <ActionButton
+          icon="call"
+          label="Call"
+          color={c.success}
+          onPress={() => onCall(client)}
+        />
+        <ActionButton
+          icon="chatbubble-ellipses"
+          label="Text"
+          color={c.blue}
+          onPress={() => onText(client)}
+        />
+        <ActionButton
+          icon="mail"
+          label="Email"
+          color={c.purple}
+          onPress={() => onEmail(client)}
+        />
       </View>
-    </Modal>
+
+      {/* ── Tags ── */}
+      {client.tags.length > 0 && (
+        <View style={styles.tagsRow}>
+          {client.tags.map((t) => (
+            <Badge key={t} label={t} size="sm" />
+          ))}
+        </View>
+      )}
+
+      {/* ── Notes ── */}
+      {client.notes && (
+        <View
+          style={[
+            styles.notesCard,
+            {
+              backgroundColor: c.card,
+              borderColor: c.cardBorder,
+            },
+          ]}
+        >
+          <Text style={[Type.caption, { color: c.textMuted, marginBottom: Space.xs }]}>
+            NOTES
+          </Text>
+          <Text style={[Type.body, { color: c.textSecondary }]}>
+            {client.notes}
+          </Text>
+        </View>
+      )}
+    </Sheet>
   );
 }
+
+// ── Action Button ───────────────────────────────────────────────────────────
 
 function ActionButton({
   icon,
@@ -592,34 +541,56 @@ function ActionButton({
   color,
   onPress,
 }: {
-  icon: React.ReactNode;
+  icon: keyof typeof Ionicons.glyphMap;
   label: string;
   color: string;
   onPress: () => void;
 }) {
+  const scaleAnim = useState(() => new Animated.Value(1))[0];
+
+  const handlePressIn = () => {
+    Animated.timing(scaleAnim, {
+      toValue: 0.95,
+      duration: 100,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    Animated.timing(scaleAnim, {
+      toValue: 1,
+      duration: 100,
+      useNativeDriver: true,
+    }).start();
+  };
+
   return (
     <Pressable
       onPress={onPress}
-      style={{
-        flex: 1,
-        backgroundColor: color + "18",
-        borderRadius: 12,
-        paddingVertical: 14,
-        alignItems: "center",
-        gap: 6,
-        borderWidth: 1,
-        borderColor: color + "30",
-      }}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={{ flex: 1 }}
     >
-      {icon}
-      <Text style={{ color, fontSize: 13, fontWeight: "700" }}>{label}</Text>
+      <Animated.View
+        style={[
+          styles.actionBtn,
+          {
+            backgroundColor: color + "18",
+            borderColor: color + "30",
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
+      >
+        <Ionicons name={icon} size={22} color={color} />
+        <Text style={[Type.caption, { color, fontWeight: "700" }]}>{label}</Text>
+      </Animated.View>
     </Pressable>
   );
 }
 
-// ── Add Client Modal ─────────────────────────────────────────────────────────
+// ── Add Client Sheet ────────────────────────────────────────────────────────
 
-function AddClientModal({
+function AddClientSheet({
   visible,
   onClose,
   onAdd,
@@ -628,6 +599,7 @@ function AddClientModal({
   onClose: () => void;
   onAdd: (c: Omit<Client, "id" | "created_at">) => Promise<boolean>;
 }) {
+  const c = useColors();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -655,245 +627,160 @@ function AddClientModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1, justifyContent: "flex-end" }}
-      >
-        <View style={S.sheet}>
-          <View style={S.sheetHandle} />
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 20,
-            }}
-          >
-            <Text style={S.sheetTitle}>Add Client</Text>
-            <Pressable
-              onPress={onClose}
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 15,
-                backgroundColor: C.cardBorder,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <X size={14} color={C.textMuted} />
-            </Pressable>
-          </View>
-          <Field
-            label="Full Name"
-            value={name}
-            onChange={setName}
-            placeholder="Jane Smith"
-          />
-          <Field
-            label="Email"
-            value={email}
-            onChange={setEmail}
-            placeholder="jane@example.com"
-          />
-          <Field
-            label="Phone"
-            value={phone}
-            onChange={setPhone}
-            placeholder="+1 (555) 123-4567"
-          />
-          <Pressable
+    <Sheet visible={visible} onClose={onClose} title="Add Client">
+      <View style={{ gap: Space.md }}>
+        <Input
+          label="Full Name"
+          value={name}
+          onChange={setName}
+          placeholder="Jane Smith"
+        />
+        <Input
+          label="Email"
+          value={email}
+          onChange={setEmail}
+          placeholder="jane@example.com"
+          keyboardType="email-address"
+        />
+        <Input
+          label="Phone"
+          value={phone}
+          onChange={setPhone}
+          placeholder="+1 (555) 123-4567"
+          keyboardType="phone-pad"
+        />
+        <View style={{ marginTop: Space.sm }}>
+          <Button
+            label={saving ? "Adding..." : "Add Client"}
             onPress={handleSubmit}
-            disabled={saving || !name.trim()}
-            style={[
-              S.primaryBtn,
-              { opacity: saving || !name.trim() ? 0.6 : 1 },
-            ]}
-          >
-            <Text style={S.primaryBtnText}>
-              {saving ? "Adding…" : "Add Client"}
-            </Text>
-          </Pressable>
+            loading={saving}
+            disabled={!name.trim()}
+            variant="primary"
+            icon="person-add"
+          />
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
+      </View>
+    </Sheet>
   );
 }
 
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <View style={{ marginBottom: 14 }}>
-      <Text style={S.fieldLabel}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={C.textFaint}
-        style={S.input}
-      />
-    </View>
-  );
-}
+// ── Styles ──────────────────────────────────────────────────────────────────
 
-// ── Styles ─────────────────────────────────────────────────────────────────
-
-const S = StyleSheet.create({
-  screenTitle: {
-    fontSize: 30,
-    fontWeight: "800",
-    color: C.text,
-    letterSpacing: -0.8,
+const styles = StyleSheet.create({
+  // Header
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  addBtn: {
+
+  // Search bar
+  searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: C.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 10,
+    gap: Space.sm,
+    marginTop: Space.lg,
+    paddingHorizontal: Space.lg,
+    height: 48,
+    borderRadius: Radius.md,
+    borderWidth: 1,
   },
-  addBtnText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "700",
+  searchInput: {
+    flex: 1,
+    height: 48,
+    paddingVertical: 0,
   },
+
+  // Filter tabs
   tabs: {
     flexDirection: "row",
-    gap: 6,
-    marginTop: 14,
-    marginBottom: 4,
+    gap: Space.sm,
+    marginTop: Space.md,
+    marginBottom: Space.xs,
   },
   tab: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 5,
-    paddingVertical: 9,
-    borderRadius: 10,
-    backgroundColor: C.card,
+    gap: Space.xs,
+    height: 44,
+    borderRadius: Radius.sm,
     borderWidth: 1,
-    borderColor: C.cardBorder,
-  },
-  tabActive: {
-    backgroundColor: C.primaryDim,
-    borderColor: C.primaryBorder,
-  },
-  tabText: {
-    color: C.textDim,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  tabTextActive: {
-    color: C.primary,
   },
   tabBadge: {
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    minWidth: 20,
+    height: 20,
+    borderRadius: Radius.pill,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 4,
+    paddingHorizontal: Space.xs,
   },
-  tabBadgeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "800",
-  },
-  card: {
-    backgroundColor: C.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-    overflow: "hidden",
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+
+  // Client row
+  rowInner: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
+    gap: Space.md,
+    minHeight: 48,
   },
-  avatarText: {
-    fontSize: 15,
-    fontWeight: "800",
+  rowInfo: {
+    flex: 1,
+    gap: 2,
   },
-  avatarLarge: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  rowMeta: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
   },
-  avatarLargeText: {
-    fontSize: 20,
-    fontWeight: "800",
+  rowRight: {
+    alignItems: "flex-end",
+    gap: Space.xs,
   },
-  sheet: {
-    backgroundColor: "#13131E",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingTop: 14,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: C.cardBorder,
-  },
-  sheetHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: C.textFaint,
-    alignSelf: "center",
-    marginBottom: 20,
-  },
-  sheetTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: C.text,
-    letterSpacing: -0.3,
-  },
-  fieldLabel: {
-    color: C.textMuted,
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 6,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  input: {
-    backgroundColor: C.bg,
-    borderRadius: 12,
-    padding: 14,
-    color: C.text,
-    fontSize: 15,
-    borderWidth: 1,
-    borderColor: C.cardBorder,
-  },
-  primaryBtn: {
-    backgroundColor: C.primary,
-    paddingVertical: 15,
-    borderRadius: 12,
+
+  // Detail sheet
+  detailHeader: {
+    flexDirection: "row",
     alignItems: "center",
-    marginTop: 4,
+    gap: Space.lg,
+    marginBottom: Space.xl,
   },
-  primaryBtnText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "700",
+  infoCard: {
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    padding: Space.lg,
+    gap: Space.md,
+    marginBottom: Space.lg,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.sm,
+  },
+
+  // Action buttons
+  actionRow: {
+    flexDirection: "row",
+    gap: Space.md,
+    marginBottom: Space.lg,
+  },
+  actionBtn: {
+    borderRadius: Radius.md,
+    paddingVertical: Space.lg,
+    alignItems: "center",
+    gap: Space.sm,
+    borderWidth: 1,
+  },
+
+  // Tags & notes
+  tagsRow: {
+    flexDirection: "row",
+    gap: Space.sm,
+    flexWrap: "wrap",
+    marginBottom: Space.md,
+  },
+  notesCard: {
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    padding: Space.lg,
   },
 });
