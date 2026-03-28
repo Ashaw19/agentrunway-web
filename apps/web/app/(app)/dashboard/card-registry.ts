@@ -1,5 +1,6 @@
 export type CardId =
   | "client_briefing"
+  | "where_you_stand"
   | "business_brief"
   | "kpi_row"
   | "net_takehome"
@@ -24,6 +25,7 @@ export interface CardDef {
 export const CARD_REGISTRY: CardDef[] = [
   { id: "kpi_row",          label: "Performance KPIs",            description: "YTD GCI, Deals Closed, Pipeline, and Projected Year-End" },
   { id: "client_briefing",  label: "Daily Briefing",               description: "Pipeline status, pace, market conditions, and priority actions" },
+  { id: "where_you_stand",  label: "Where You Stand",              description: "Competitive position, market diagnosis, and momentum" },
   { id: "business_brief",   label: "Weekly Business Brief",       description: "AI-generated health narrative and month recap" },
   { id: "net_takehome",     label: "Net Take-Home",               description: "After-split, after-tax estimated take-home" },
   { id: "personal_records", label: "Personal Records",            description: "Best deal, best month, best year" },
@@ -47,6 +49,7 @@ export const CARD_REGISTRY: CardDef[] = [
 export const DEFAULT_ORDER: CardId[] = [
   "kpi_row",
   "client_briefing",
+  "where_you_stand",
   "tasks",
   "business_brief",
   "insights",

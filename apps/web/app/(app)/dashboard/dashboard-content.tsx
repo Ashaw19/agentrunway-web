@@ -79,6 +79,11 @@ import {
   Calendar,
   Clock,
   Crosshair,
+  ChevronRight,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
+  Compass,
 } from "lucide-react";
 import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
@@ -107,7 +112,8 @@ import {
   dayOfYear,
 } from "@/lib/engines/projection-engine";
 import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
-import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
+import { compare, COHORT_LABELS, cohortFromYears } from "@/lib/engines/benchmark-engine";
+import { computeWhereYouStand, BAND_LABELS, type PerformanceBand } from "@/lib/engines/where-you-stand-engine";
 import { computeMarketMomentum, type LocalMarketData } from "@/lib/crea-board";
 import type { BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { survivalResult, type SurvivalResult } from "@/lib/engines/survival-engine";
@@ -512,6 +518,30 @@ export function DashboardContent({
         currentYear,
       )
     : null;
+
+  // ── Where You Stand ──────────────────────────────────────────────────
+  const whereYouStand = computeWhereYouStand({
+    ytdGCI,
+    ytdDealCount,
+    projectedGCI,
+    avgDealGCI: avgDealSize,
+    goalGCI,
+    fraction,
+    benchmark,
+    marketMomentum: marketMomentum ? {
+      momentumTier: marketMomentum.momentumTier,
+      agentDealGrowthPct: marketMomentum.agentDealGrowthPct,
+      boardSalesYoYPct: marketMomentum.boardSalesYoYPct,
+      gainLossVsMarket: marketMomentum.gainLossVsMarket,
+      avgDealsPerAgentPerYear: marketMomentum.avgDealsPerAgentPerYear,
+      agentAnnualizedDeals: marketMomentum.agentAnnualizedDeals,
+      boardName: marketMomentum.boardName,
+    } : null,
+    experienceYears: settings?.experience_years ?? null,
+    cohort: cohortFromYears(settings?.experience_years ?? 5),
+    hasPriorYearData: historyItems.some(h => h.year === currentYear - 1),
+    currentQuarter: Math.floor(now.getMonth() / 3),
+  });
 
   // ── Expenses ──────────────────────────────────────────────────────────
   // expensesYTD is now sourced from receipt_expenses (not the manual ytd_amount field)
@@ -1063,6 +1093,35 @@ export function DashboardContent({
       </div>
     </div>
   ) : null;
+
+  // ── Where You Stand — competitive position + market diagnosis ─────────
+  cardRenders["where_you_stand"] = (() => {
+    // Don't render if user has zero transactions and no market data — nothing to show
+    if (ytdDealCount === 0 && !boardMarketData) return null;
+
+    const wys = whereYouStand;
+    const bands: PerformanceBand[] = ["launching", "climbing", "competitive", "advancing", "leading"];
+
+    const momentumIcon =
+      wys.momentum === "gaining" ? <ArrowUpRight className="h-3.5 w-3.5" /> :
+      wys.momentum === "losing" ? <ArrowDownRight className="h-3.5 w-3.5" /> :
+      wys.momentum === "no_data" ? null :
+      <Minus className="h-3.5 w-3.5" />;
+
+    const momentumColor =
+      wys.momentum === "gaining" ? "text-emerald-600" :
+      wys.momentum === "losing" ? "text-amber-600" :
+      "text-slate-500";
+
+    return (
+      <WhereYouStandCard
+        wys={wys}
+        bands={bands}
+        momentumIcon={momentumIcon}
+        momentumColor={momentumColor}
+      />
+    );
+  })();
 
   cardRenders["business_brief"] = (() => {
     const hasPeriodRecap = periodRecap !== null;
@@ -3242,4 +3301,175 @@ function computeProjectedNet(projectedGCI: number, settings: UserSettings | null
   );
   const brokerageFeeAnnual = settings.monthly_brokerage_fee * 12;
   return agentGross - txFees - brokerageFeeAnnual;
+}
+
+// ── Where You Stand Card ──────────────────────────────────────────────────────
+// Extracted as a separate component so it can own its own expand/collapse state
+// without causing re-renders of the entire DashboardContent.
+
+function WhereYouStandCard({
+  wys,
+  bands,
+  momentumIcon,
+  momentumColor,
+}: {
+  wys: import("@/lib/engines/where-you-stand-engine").WhereYouStandResult;
+  bands: import("@/lib/engines/where-you-stand-engine").PerformanceBand[];
+  momentumIcon: React.ReactNode;
+  momentumColor: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  // Band color mapping
+  const bandColors: Record<string, { bg: string; border: string; text: string; fill: string }> = {
+    launching:   { bg: "bg-slate-50",   border: "border-slate-300",   text: "text-slate-700",   fill: "bg-slate-400" },
+    climbing:    { bg: "bg-amber-50",   border: "border-amber-300",   text: "text-amber-700",   fill: "bg-amber-400" },
+    competitive: { bg: "bg-blue-50",    border: "border-blue-300",    text: "text-blue-700",    fill: "bg-blue-500" },
+    advancing:   { bg: "bg-indigo-50",  border: "border-indigo-300",  text: "text-indigo-700",  fill: "bg-indigo-500" },
+    leading:     { bg: "bg-violet-50",  border: "border-violet-300",  text: "text-violet-700",  fill: "bg-violet-500" },
+  };
+
+  const activeBandColor = bandColors[wys.band] ?? bandColors.competitive;
+
+  return (
+    <div
+      className="rounded-xl border border-slate-200 bg-white overflow-hidden cursor-pointer transition-all hover:border-slate-300"
+      onClick={() => setExpanded(!expanded)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpanded(!expanded); } }}
+    >
+      {/* Header */}
+      <div className="px-4 pt-3 pb-2">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <Compass className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+            <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">Where You Stand</p>
+          </div>
+          <ChevronRight className={cn(
+            "h-3.5 w-3.5 text-slate-400 transition-transform duration-200",
+            expanded && "rotate-90",
+          )} />
+        </div>
+
+        {/* Identity Line — the most important sentence */}
+        <p className="text-sm font-medium text-slate-800 leading-snug mb-3">
+          {wys.identityLine}
+        </p>
+
+        {/* Band Track + Momentum */}
+        <div className="flex items-center gap-3">
+          {/* Band segments */}
+          <div className="flex-1 flex gap-0.5">
+            {bands.map((band, i) => {
+              const isActive = i === wys.bandIndex;
+              const isPast = i < wys.bandIndex;
+              const isNext = i === wys.bandIndex + 1;
+              const colors = bandColors[band];
+
+              return (
+                <div key={band} className="flex-1 flex flex-col items-center gap-0.5">
+                  {/* Segment bar */}
+                  <div
+                    className={cn(
+                      "w-full h-2 rounded-sm transition-all",
+                      isActive && `${colors.fill} ring-1 ring-offset-1 ${colors.border.replace("border-", "ring-")}`,
+                      isPast && `${colors.fill} opacity-25`,
+                      isNext && `${colors.fill} opacity-15`,
+                      !isActive && !isPast && !isNext && "bg-slate-100",
+                    )}
+                  />
+                  {/* Label — only show active band on small screens, all on larger */}
+                  <span className={cn(
+                    "text-[8px] font-semibold uppercase tracking-wider leading-none",
+                    isActive ? colors.text : "text-slate-300",
+                    !isActive && "hidden sm:block",
+                  )}>
+                    {BAND_LABELS[band]}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Momentum indicator */}
+          {wys.momentum !== "no_data" && (
+            <div className={cn(
+              "flex items-center gap-1 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold",
+              wys.momentum === "gaining" && "bg-emerald-50 text-emerald-700",
+              wys.momentum === "losing" && "bg-amber-50 text-amber-700",
+              wys.momentum === "holding" && "bg-slate-50 text-slate-600",
+            )}>
+              {momentumIcon}
+              <span className="hidden sm:inline">{wys.momentumLabel}</span>
+              <span className="sm:hidden">
+                {wys.momentum === "gaining" ? "▲" : wys.momentum === "losing" ? "▼" : "→"}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Expanded content */}
+      {expanded && (
+        <div className="border-t border-slate-100 px-4 py-3 space-y-3 animate-in slide-in-from-top-1 duration-200">
+          {/* Market vs You stats */}
+          {(wys.marketChangePct != null || wys.agentChangePct != null) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {wys.marketChangePct != null && (
+                <span className="inline-flex items-center gap-1 rounded-full text-[10px] font-semibold px-2 py-0.5 border bg-slate-50 text-slate-600 border-slate-200">
+                  Market: {wys.marketChangePct >= 0 ? "+" : ""}{Math.round(wys.marketChangePct)}% YoY
+                </span>
+              )}
+              {wys.agentChangePct != null && (
+                <span className={cn(
+                  "inline-flex items-center gap-1 rounded-full text-[10px] font-semibold px-2 py-0.5 border",
+                  wys.agentChangePct >= 5 ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                  wys.agentChangePct <= -5 ? "bg-amber-50 text-amber-700 border-amber-200" :
+                  "bg-slate-50 text-slate-600 border-slate-200",
+                )}>
+                  You: {wys.agentChangePct >= 0 ? "+" : ""}{Math.round(wys.agentChangePct)}% YoY
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Diagnosis */}
+          <p className="text-xs text-slate-600 leading-relaxed">
+            {wys.diagnosisLine}
+          </p>
+
+          {/* Distance to next tier */}
+          {wys.distanceLine && (
+            <div className={cn(
+              "flex items-start gap-2 rounded-lg px-3 py-2",
+              wys.band === "leading" ? "bg-violet-50/50" : "bg-slate-50",
+            )}>
+              <Target className={cn(
+                "h-3.5 w-3.5 shrink-0 mt-0.5",
+                wys.band === "leading" ? "text-violet-500" : "text-slate-400",
+              )} />
+              <p className="text-[11px] font-medium text-slate-700 leading-snug">
+                {wys.distanceLine}
+              </p>
+            </div>
+          )}
+
+          {/* Momentum detail */}
+          {wys.momentumDetail && (
+            <p className="text-[11px] text-slate-500 leading-snug">
+              {wys.momentumDetail}
+            </p>
+          )}
+
+          {/* Bridge to Top Opportunities */}
+          <div className="pt-1 border-t border-slate-100">
+            <p className="text-[11px] text-indigo-600 font-medium">
+              {wys.bridgeLine}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
