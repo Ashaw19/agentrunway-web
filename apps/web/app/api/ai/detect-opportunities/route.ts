@@ -2178,9 +2178,10 @@ export async function getTopOpportunities(
   const activeClients = clients.filter((c) =>
     c.status === "boarding" || c.status === "taxiing" || c.status === "in_flight",
   ).length;
+  const pipelineLight = activeClients < 3;
 
   // ── Build structured response ───────────────────────────────────────────────
-  return topCandidates.map((ins) => {
+  const results = topCandidates.map((ins) => {
     const typed = ins as {
       client_id: string; opportunity_type: string; trigger_date: string;
       client_record_id?: string; context: Record<string, unknown>;
@@ -2214,8 +2215,169 @@ export async function getTopOpportunities(
         (clientDealDates.get(typed.client_id) ?? []).length,
         { avgGci, totalDeals, repeatRate, activeClients },
       ),
+      is_primary:     false,
+      primary_reason: null as string | null,
     };
   });
+
+  // ── Select the single primary opportunity ──────────────────────────────────
+  if (results.length > 0) {
+    // Score tiebreaker: timing strength → client value → score
+    let primaryIdx = 0;
+    let bestPriority = -Infinity;
+
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      let priority = r.score; // base: outreach score (0-100)
+
+      // Boost strong timing signals — these have a window that closes
+      if (STRONG_TIMING_TYPES.has(r.opportunity_type)) priority += 15;
+
+      // Boost time-sensitive items (trigger date is today or very soon)
+      const trigTarget = new Date(r.trigger_date + "T12:00:00");
+      const today = new Date(); today.setHours(12, 0, 0, 0);
+      const daysAway = Math.round((trigTarget.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysAway <= 0) priority += 12;       // overdue or today
+      else if (daysAway <= 3) priority += 8;   // within 3 days
+      else if (daysAway <= 7) priority += 4;   // within a week
+
+      // Boost high-value client relationships
+      const gci = r.context.gci ? Number(r.context.gci) : 0;
+      if (gci > 15000) priority += 10;
+      else if (gci > 5000) priority += 5;
+
+      // Boost repeat clients
+      const dealCount = (clientDealDates.get(r.client_id) ?? []).length;
+      if (dealCount >= 2) priority += 8;
+
+      // Pipeline-urgency boost: when pipeline is dry/light, direct-pipeline types matter more
+      if (pipelineLight && (
+        r.opportunity_type === "buyer_inventory_match" ||
+        r.opportunity_type === "seller_timing_hesitation" ||
+        r.opportunity_type === "timeframe_approaching"
+      )) {
+        priority += 10;
+      }
+
+      if (priority > bestPriority) {
+        bestPriority = priority;
+        primaryIdx = i;
+      }
+    }
+
+    const primary = results[primaryIdx];
+    primary.is_primary = true;
+    primary.primary_reason = buildPrimaryReason(
+      primary.opportunity_type,
+      primary.context,
+      primary.trigger_date,
+      primary.score,
+      _clientMap.get(primary.client_id)?.status ?? null,
+      (clientDealDates.get(primary.client_id) ?? []).length,
+      { activeClients, pipelineLight },
+    );
+
+    // Move primary to index 0 so UI always shows it first
+    if (primaryIdx !== 0) {
+      results.splice(primaryIdx, 1);
+      results.unshift(primary);
+    }
+  }
+
+  return results;
+}
+
+/** Build the primary_reason: why THIS is the best use of time right now. */
+function buildPrimaryReason(
+  opportunityType: string,
+  ctx: Record<string, unknown>,
+  triggerDate: string,
+  score: number,
+  clientStatus: string | null,
+  clientDealCount: number,
+  pipeline: { activeClients: number; pipelineLight: boolean },
+): string {
+  const gci = ctx.gci ? Number(ctx.gci) : 0;
+  const gciLabel = gci > 0 ? `$${(gci / 1000).toFixed(0)}k` : null;
+  const isRepeat = clientDealCount >= 2;
+  const pipelineDry = pipeline.activeClients === 0;
+
+  // ── Pipeline-driven urgency ───────────────────────────────────────────────
+  if (pipelineDry) {
+    if (opportunityType === "buyer_inventory_match" || opportunityType === "seller_timing_hesitation" || opportunityType === "timeframe_approaching") {
+      return "You have no active deals. This is the closest thing to a live opportunity in your pipeline — act on it first.";
+    }
+    if (isRepeat && gciLabel) {
+      return `No active deals and a ${gciLabel} repeat client waiting to hear from you. This is your highest-probability path to income right now.`;
+    }
+    if (gciLabel) {
+      return `With an empty pipeline and ${gciLabel} in past GCI, reconnecting with this client is the most valuable action you can take today.`;
+    }
+    return "Your pipeline is empty. This is the strongest signal in your book right now — start here.";
+  }
+
+  // ── Time-critical window ──────────────────────────────────────────────────
+  const trigTarget = new Date(triggerDate + "T12:00:00");
+  const today = new Date(); today.setHours(12, 0, 0, 0);
+  const daysAway = isNaN(trigTarget.getTime()) ? 999 : Math.round((trigTarget.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (daysAway <= 0) {
+    if (opportunityType === "birthday") return "Their birthday is today. This takes thirty seconds and the window doesn't come back for a year.";
+    if (opportunityType === "timeframe_approaching") return "Their stated timeline has arrived. If you're not reaching out, someone else will — this is the most time-sensitive item on your list.";
+    return "This is overdue. The longer you wait, the less impact it has — handle this one first.";
+  }
+
+  if (daysAway <= 3) {
+    if (opportunityType === "birthday") return "Their birthday is in the next couple of days. A brief note now lands perfectly — miss it and the moment passes.";
+    return "This has the tightest timing window of anything on your list. Acting now gives you the best shot at impact.";
+  }
+
+  // ── Relationship value ────────────────────────────────────────────────────
+  if (isRepeat && gciLabel) {
+    return `A ${clientDealCount}x repeat client with ${gciLabel} in past GCI — this is one of the most valuable relationships you have. It earns the first call.`;
+  }
+
+  if (isRepeat) {
+    return "This is a repeat client who has already demonstrated loyalty. Protecting that relationship should take priority over everything else on this list.";
+  }
+
+  if (gci > 20000 && gciLabel) {
+    return `At ${gciLabel} GCI, this is one of your highest-value client relationships. High-value touchpoints deserve to be first, not an afterthought.`;
+  }
+
+  // ── Direct pipeline types ─────────────────────────────────────────────────
+  if (opportunityType === "buyer_inventory_match") {
+    if (pipeline.pipelineLight) return "Active buyers with known preferences are the most direct path to a closing. With your pipeline light, this is where your attention should go first.";
+    return "This is an active buyer with clear preferences — the most direct opportunity to move a deal forward. Start here.";
+  }
+
+  if (opportunityType === "seller_timing_hesitation") {
+    return "A seller with a known objection is a solvable problem. Converting this into a listing would be the highest-impact outcome from today's opportunities.";
+  }
+
+  if (opportunityType === "timeframe_approaching") {
+    return "This client gave you a deadline and it's approaching. Following through now is the single most important trust signal you can send.";
+  }
+
+  // ── Post-close / referral window ──────────────────────────────────────────
+  if (opportunityType === "referral_ask" || opportunityType === "post_close_90") {
+    return "You're in the peak referral window with this client. This has the highest multiplier potential — one action here could generate your next client.";
+  }
+
+  if (opportunityType === "post_close_3" || opportunityType === "post_close_14") {
+    return "Post-close follow-through shapes the entire future of this relationship. This is the foundation — handle it before anything else.";
+  }
+
+  // ── Strong score ──────────────────────────────────────────────────────────
+  if (score >= 80) {
+    return "This scored highest across timing, relationship value, and context strength. It's the best use of your next five minutes.";
+  }
+
+  // ── General primary ───────────────────────────────────────────────────────
+  if (pipeline.pipelineLight) {
+    return "With your pipeline needing attention, this is the strongest opportunity to generate a meaningful conversation. Start here.";
+  }
+  return "This has the strongest combination of timing, relationship value, and opportunity quality on your list today. Start here.";
 }
 
 // ── Vercel function timeout — allows up to 60s for sequential Groq calls ──────

@@ -651,6 +651,8 @@ export interface TopOpportunity {
   client_record_id:  string | null;
   context:           Record<string, unknown>; // pass-through for optional drafting
   financial_impact:  string;                  // 1-2 sentence business impact explanation
+  is_primary:        boolean;                 // true for exactly ONE opportunity — "start here"
+  primary_reason:    string | null;           // why this is the best use of time right now (primary only)
 }
 
 export interface EmailConnection {

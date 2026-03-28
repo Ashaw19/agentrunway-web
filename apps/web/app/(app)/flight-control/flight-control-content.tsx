@@ -101,22 +101,39 @@ function OpportunityCard({
   const [expanded, setExpanded] = useState(false);
 
   const hasDraft = draftedMessage && draftedMessage.ai_subject;
+  const isPrimary = opportunity.is_primary;
 
   return (
     <div className={cn(
-      "rounded-xl border bg-card/80 backdrop-blur-sm p-5 space-y-3",
+      "rounded-xl border backdrop-blur-sm p-5 space-y-3",
       "ring-1 transition-all duration-200",
-      scoreColors.ring,
-      "hover:shadow-lg hover:shadow-black/5 hover:bg-card hover:ring-2",
+      isPrimary
+        ? "bg-gradient-to-br from-violet-500/5 via-card/90 to-card/80 ring-violet-500/40 shadow-lg shadow-violet-500/10 ring-2"
+        : cn("bg-card/80", scoreColors.ring, "hover:shadow-lg hover:shadow-black/5 hover:bg-card hover:ring-2"),
     )}>
+      {/* Primary badge */}
+      {isPrimary && (
+        <div className="flex items-center gap-2 -mt-1 mb-1">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-violet-500/15 ring-1 ring-violet-500/30 text-[11px] font-bold text-violet-400 uppercase tracking-wider">
+            <Zap className="h-3 w-3" />
+            Start here
+          </span>
+          {opportunity.primary_reason && (
+            <span className="text-[12px] text-violet-300/80 leading-tight">
+              {opportunity.primary_reason}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Top row: icon + label + score */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0 flex-1">
           <span className={cn(
             "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 shadow-sm",
-            scoreColors.bg, scoreColors.ring,
+            isPrimary ? "bg-violet-500/15 ring-violet-500/40" : cn(scoreColors.bg, scoreColors.ring),
           )}>
-            <Icon className={cn("h-5 w-5", scoreColors.text)} />
+            <Icon className={cn("h-5 w-5", isPrimary ? "text-violet-400" : scoreColors.text)} />
           </span>
           <div className="min-w-0 flex-1">
             <p className="font-bold text-[15px] text-foreground leading-tight">
