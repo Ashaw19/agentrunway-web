@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -21,12 +21,26 @@ import {
   RotateCcw,
   ChevronDown,
   X,
+  DollarSign,
+  TrendingDown,
+  Hash,
 } from "lucide-react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import { useDataStore, type ReceiptExpense } from "@/stores/data-store";
 import { supabase } from "@/lib/supabase";
+import {
+  useColors,
+  useTheme,
+  shadows,
+  Space,
+  Radius,
+  Type,
+} from "@/lib/theme";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -75,6 +89,13 @@ function fmtCurrency(n: number | null): string {
   return `$${n.toFixed(2)}`;
 }
 
+function fmtCurrencyCompact(n: number): string {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 10_000) return `$${(n / 1_000).toFixed(1)}K`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(2)}K`;
+  return `$${Math.round(n)}`;
+}
+
 function fmtDate(d: string | null): string {
   if (!d) return "Unknown date";
   const date = new Date(d + "T00:00:00");
@@ -90,6 +111,38 @@ function categoryLabel(key: string | null): string {
   return CATEGORIES[key] ?? key;
 }
 
+function todayFormatted(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// Category color mapping for badges
+function categoryColor(key: string | null): string {
+  const map: Record<string, string> = {
+    vehicle: "#3B82F6",
+    marketing: "#8B5CF6",
+    office: "#06B6D4",
+    meals: "#F59E0B",
+    professional: "#10B981",
+    insurance: "#EF4444",
+    software: "#6366F1",
+    education: "#EC4899",
+    clothing: "#F97316",
+    home_office: "#14B8A6",
+    phone: "#6366F1",
+    travel: "#3B82F6",
+    gifts: "#EC4899",
+    photography: "#8B5CF6",
+    staging: "#F59E0B",
+    signage: "#06B6D4",
+    other: "#6B7280",
+  };
+  return key ? (map[key] ?? "#6366F1") : "#6366F1";
+}
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function ScanScreen() {
@@ -98,6 +151,10 @@ export default function ScanScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
+
+  const c = useColors();
+  const { mode } = useTheme();
+  const sh = shadows(mode);
 
   // Captured image
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -111,6 +168,42 @@ export default function ScanScreen() {
   const [notes, setNotes] = useState("");
   const [ocrConfidence, setOcrConfidence] = useState(0);
   const [showCategories, setShowCategories] = useState(false);
+
+  // ── Expense Summary Metrics ──────────────────────────────────────────────
+
+  const summaryMetrics = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    let ytdTotal = 0;
+    let monthTotal = 0;
+    const totalCount = receipts.length;
+
+    receipts.forEach((r) => {
+      const amt = r.total_amount ?? 0;
+      if (r.expense_date) {
+        const d = new Date(r.expense_date + "T00:00:00");
+        if (d.getFullYear() === currentYear) {
+          ytdTotal += amt;
+          if (d.getMonth() === currentMonth) {
+            monthTotal += amt;
+          }
+        }
+      } else {
+        // If no date, count towards YTD based on created_at
+        const created = new Date(r.created_at);
+        if (created.getFullYear() === currentYear) {
+          ytdTotal += amt;
+          if (created.getMonth() === currentMonth) {
+            monthTotal += amt;
+          }
+        }
+      }
+    });
+
+    return { ytdTotal, monthTotal, totalCount };
+  }, [receipts]);
 
   useEffect(() => {
     fetchReceipts();
@@ -211,7 +304,7 @@ export default function ScanScreen() {
       setVendor(receipt.vendor ?? "");
       setAmount(receipt.total_amount?.toString() ?? "");
       setTaxAmount(receipt.tax_amount?.toString() ?? "");
-      setExpenseDate(receipt.expense_date ?? "");
+      setExpenseDate(receipt.expense_date ?? todayFormatted());
       setCategory(receipt.category_key ?? "");
       setOcrConfidence(receipt.ocr_confidence ?? 0);
       setState("review");
@@ -223,7 +316,7 @@ export default function ScanScreen() {
       setVendor("");
       setAmount("");
       setTaxAmount("");
-      setExpenseDate("");
+      setExpenseDate(todayFormatted());
       setCategory("");
       setOcrConfidence(0);
       setState("review");
@@ -313,19 +406,20 @@ export default function ScanScreen() {
               style={{
                 flexDirection: "row",
                 justifyContent: "space-between",
-                padding: 20,
+                padding: Space.xl,
               }}
             >
               <Pressable
                 onPress={resetState}
-                style={{
+                style={({ pressed }) => ({
                   width: 40,
                   height: 40,
-                  borderRadius: 20,
+                  borderRadius: Radius.xl,
                   backgroundColor: "rgba(0,0,0,0.5)",
                   alignItems: "center",
                   justifyContent: "center",
-                }}
+                  opacity: pressed ? 0.7 : 1,
+                })}
               >
                 <X size={22} color="#FFF" />
               </Pressable>
@@ -335,18 +429,18 @@ export default function ScanScreen() {
             <View
               style={{
                 alignItems: "center",
-                paddingBottom: 40,
-                gap: 16,
+                paddingBottom: Space.section,
+                gap: Space.lg,
               }}
             >
-              <Text style={{ color: "#FFF", fontSize: 14, opacity: 0.7 }}>
+              <Text style={{ ...Type.caption, color: "rgba(255,255,255,0.7)" }}>
                 Position the receipt within the frame
               </Text>
 
               {/* Capture button */}
               <Pressable
                 onPress={capturePhoto}
-                style={{
+                style={({ pressed }) => ({
                   width: 72,
                   height: 72,
                   borderRadius: 36,
@@ -354,7 +448,9 @@ export default function ScanScreen() {
                   borderColor: "#FFF",
                   alignItems: "center",
                   justifyContent: "center",
-                }}
+                  opacity: pressed ? 0.7 : 1,
+                  transform: [{ scale: pressed ? 0.95 : 1 }],
+                })}
               >
                 <View
                   style={{
@@ -372,18 +468,19 @@ export default function ScanScreen() {
                   setState("idle");
                   pickFromGallery();
                 }}
-                style={{
+                style={({ pressed }) => ({
                   flexDirection: "row",
                   alignItems: "center",
-                  gap: 6,
-                  paddingVertical: 8,
-                  paddingHorizontal: 16,
-                  borderRadius: 20,
+                  gap: Space.sm,
+                  paddingVertical: Space.sm,
+                  paddingHorizontal: Space.lg,
+                  borderRadius: Radius.pill,
                   backgroundColor: "rgba(255,255,255,0.15)",
-                }}
+                  opacity: pressed ? 0.7 : 1,
+                })}
               >
                 <ImagePlus size={16} color="#FFF" />
-                <Text style={{ color: "#FFF", fontSize: 13 }}>
+                <Text style={{ ...Type.caption, color: "#FFF" }}>
                   Choose from Photos
                 </Text>
               </Pressable>
@@ -400,13 +497,13 @@ export default function ScanScreen() {
     const isUploading = state === "uploading";
 
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#0A0A0F" }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1 }}
         >
           <ScrollView
-            contentContainerStyle={{ padding: 20, gap: 16 }}
+            contentContainerStyle={{ padding: Space.xl, gap: Space.lg }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
@@ -418,17 +515,24 @@ export default function ScanScreen() {
                 alignItems: "center",
               }}
             >
-              <Text
-                style={{
-                  fontSize: 22,
-                  fontWeight: "800",
-                  color: "#FFF",
-                }}
-              >
+              <Text style={{ ...Type.h1, color: c.text }}>
                 {isUploading ? "Processing..." : "Review Receipt"}
               </Text>
-              <Pressable onPress={resetState}>
-                <X size={24} color="#9CA3AF" />
+              <Pressable
+                onPress={resetState}
+                style={({ pressed }) => ({
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: c.card,
+                  borderWidth: 1,
+                  borderColor: c.cardBorder,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: pressed ? 0.7 : 1,
+                })}
+              >
+                <X size={20} color={c.textMuted} />
               </Pressable>
             </View>
 
@@ -436,9 +540,12 @@ export default function ScanScreen() {
             {imageUri && (
               <View
                 style={{
-                  borderRadius: 12,
+                  borderRadius: Radius.lg,
                   overflow: "hidden",
-                  backgroundColor: "#1A1A2E",
+                  backgroundColor: c.card,
+                  borderWidth: 1,
+                  borderColor: c.cardBorder,
+                  ...sh.card,
                 }}
               >
                 <Image
@@ -453,12 +560,12 @@ export default function ScanScreen() {
               <View
                 style={{
                   alignItems: "center",
-                  paddingVertical: 40,
-                  gap: 12,
+                  paddingVertical: Space.section,
+                  gap: Space.md,
                 }}
               >
-                <ActivityIndicator size="large" color="#6366F1" />
-                <Text style={{ color: "#9CA3AF", fontSize: 14 }}>
+                <ActivityIndicator size="large" color={c.primary} />
+                <Text style={{ ...Type.body, color: c.textMuted }}>
                   Scanning receipt with AI...
                 </Text>
               </View>
@@ -470,58 +577,58 @@ export default function ScanScreen() {
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
-                      gap: 8,
-                      padding: 12,
-                      borderRadius: 10,
+                      gap: Space.sm,
+                      padding: Space.md,
+                      borderRadius: Radius.md,
                       backgroundColor:
                         ocrConfidence >= 0.8
-                          ? "rgba(34,197,94,0.1)"
+                          ? c.successDim
                           : ocrConfidence >= 0.5
-                            ? "rgba(234,179,8,0.1)"
-                            : "rgba(239,68,68,0.1)",
+                            ? c.warningDim
+                            : c.dangerDim,
                     }}
                   >
                     <Check
                       size={16}
                       color={
                         ocrConfidence >= 0.8
-                          ? "#22C55E"
+                          ? c.success
                           : ocrConfidence >= 0.5
-                            ? "#EAB308"
-                            : "#EF4444"
+                            ? c.warning
+                            : c.danger
                       }
                     />
                     <Text
                       style={{
+                        ...Type.caption,
+                        fontWeight: "600",
                         color:
                           ocrConfidence >= 0.8
-                            ? "#22C55E"
+                            ? c.success
                             : ocrConfidence >= 0.5
-                              ? "#EAB308"
-                              : "#EF4444",
-                        fontSize: 13,
-                        fontWeight: "600",
+                              ? c.warning
+                              : c.danger,
                       }}
                     >
                       {Math.round(ocrConfidence * 100)}% confidence
                     </Text>
-                    <Text style={{ color: "#6B7280", fontSize: 12 }}>
+                    <Text style={{ ...Type.caption, color: c.textDim }}>
                       — verify the details below
                     </Text>
                   </View>
                 )}
 
                 {/* Form fields */}
-                <View style={{ gap: 12 }}>
-                  <FormField
+                <View style={{ gap: Space.md }}>
+                  <ThemedFormField
                     label="Vendor"
                     value={vendor}
                     onChangeText={setVendor}
                     placeholder="e.g. Staples, Shell, Tim Hortons"
                   />
-                  <View style={{ flexDirection: "row", gap: 12 }}>
+                  <View style={{ flexDirection: "row", gap: Space.md }}>
                     <View style={{ flex: 1 }}>
-                      <FormField
+                      <ThemedFormField
                         label="Total"
                         value={amount}
                         onChangeText={setAmount}
@@ -531,7 +638,7 @@ export default function ScanScreen() {
                       />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <FormField
+                      <ThemedFormField
                         label="Tax (HST/GST)"
                         value={taxAmount}
                         onChangeText={setTaxAmount}
@@ -541,101 +648,22 @@ export default function ScanScreen() {
                       />
                     </View>
                   </View>
-                  <FormField
+                  <ThemedFormField
                     label="Date"
                     value={expenseDate}
                     onChangeText={setExpenseDate}
-                    placeholder="YYYY-MM-DD"
+                    placeholder={todayFormatted()}
                   />
 
                   {/* Category picker */}
-                  <View>
-                    <Text
-                      style={{
-                        color: "#9CA3AF",
-                        fontSize: 12,
-                        fontWeight: "600",
-                        marginBottom: 6,
-                        textTransform: "uppercase",
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      Category
-                    </Text>
-                    <Pressable
-                      onPress={() => setShowCategories(!showCategories)}
-                      style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        padding: 14,
-                        borderRadius: 10,
-                        backgroundColor: "#1A1A2E",
-                        borderWidth: 1,
-                        borderColor: "#2D2D44",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: category ? "#FFF" : "#6B7280",
-                          fontSize: 15,
-                        }}
-                      >
-                        {category
-                          ? categoryLabel(category)
-                          : "Select category"}
-                      </Text>
-                      <ChevronDown size={18} color="#6B7280" />
-                    </Pressable>
+                  <CategoryPicker
+                    category={category}
+                    setCategory={setCategory}
+                    showCategories={showCategories}
+                    setShowCategories={setShowCategories}
+                  />
 
-                    {showCategories && (
-                      <View
-                        style={{
-                          marginTop: 4,
-                          borderRadius: 10,
-                          backgroundColor: "#1A1A2E",
-                          borderWidth: 1,
-                          borderColor: "#2D2D44",
-                          maxHeight: 200,
-                        }}
-                      >
-                        <ScrollView nestedScrollEnabled>
-                          {Object.entries(CATEGORIES).map(([key, label]) => (
-                            <Pressable
-                              key={key}
-                              onPress={() => {
-                                setCategory(key);
-                                setShowCategories(false);
-                              }}
-                              style={{
-                                padding: 14,
-                                borderBottomWidth: 1,
-                                borderBottomColor: "#2D2D44",
-                                backgroundColor:
-                                  category === key
-                                    ? "rgba(99,102,241,0.15)"
-                                    : "transparent",
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  color:
-                                    category === key
-                                      ? "#818CF8"
-                                      : "#E5E7EB",
-                                  fontSize: 14,
-                                }}
-                              >
-                                {label}
-                              </Text>
-                            </Pressable>
-                          ))}
-                        </ScrollView>
-                      </View>
-                    )}
-                  </View>
-
-                  <FormField
+                  <ThemedFormField
                     label="Notes (optional)"
                     value={notes}
                     onChangeText={setNotes}
@@ -645,58 +673,50 @@ export default function ScanScreen() {
                 </View>
 
                 {/* Action buttons */}
-                <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
+                <View style={{ flexDirection: "row", gap: Space.md, marginTop: Space.sm }}>
                   <Pressable
                     onPress={() => {
                       resetState();
                       openCamera();
                     }}
-                    style={{
+                    style={({ pressed }) => ({
                       flex: 1,
                       flexDirection: "row",
                       alignItems: "center",
                       justifyContent: "center",
-                      gap: 8,
-                      paddingVertical: 16,
-                      borderRadius: 12,
-                      backgroundColor: "#1A1A2E",
+                      gap: Space.sm,
+                      paddingVertical: Space.lg,
+                      borderRadius: Radius.md,
+                      backgroundColor: c.card,
                       borderWidth: 1,
-                      borderColor: "#2D2D44",
-                    }}
+                      borderColor: c.cardBorder,
+                      opacity: pressed ? 0.7 : 1,
+                      transform: [{ scale: pressed ? 0.97 : 1 }],
+                    })}
                   >
-                    <RotateCcw size={18} color="#9CA3AF" />
-                    <Text
-                      style={{
-                        color: "#9CA3AF",
-                        fontSize: 15,
-                        fontWeight: "600",
-                      }}
-                    >
+                    <RotateCcw size={18} color={c.textMuted} />
+                    <Text style={{ ...Type.bodyBold, color: c.textMuted }}>
                       Retake
                     </Text>
                   </Pressable>
 
                   <Pressable
                     onPress={saveReceipt}
-                    style={{
+                    style={({ pressed }) => ({
                       flex: 1,
                       flexDirection: "row",
                       alignItems: "center",
                       justifyContent: "center",
-                      gap: 8,
-                      paddingVertical: 16,
-                      borderRadius: 12,
-                      backgroundColor: "#6366F1",
-                    }}
+                      gap: Space.sm,
+                      paddingVertical: Space.lg,
+                      borderRadius: Radius.md,
+                      backgroundColor: c.primary,
+                      opacity: pressed ? 0.9 : 1,
+                      transform: [{ scale: pressed ? 0.97 : 1 }],
+                    })}
                   >
                     <Check size={18} color="#FFF" />
-                    <Text
-                      style={{
-                        color: "#FFF",
-                        fontSize: 15,
-                        fontWeight: "700",
-                      }}
-                    >
+                    <Text style={{ ...Type.bodyBold, color: "#FFF" }}>
                       Save
                     </Text>
                   </Pressable>
@@ -712,105 +732,108 @@ export default function ScanScreen() {
   // ── Idle View (main screen) ───────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0A0A0F" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
       <ScrollView
-        contentContainerStyle={{ padding: 20, gap: 20 }}
+        contentContainerStyle={{ paddingHorizontal: Space.xl, paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#6366F1"
+            tintColor={c.primary}
           />
         }
       >
         {/* Header */}
-        <Text
-          style={{
-            fontSize: 28,
-            fontWeight: "800",
-            color: "#FFFFFF",
-            letterSpacing: -0.5,
-          }}
-        >
-          Expenses
-        </Text>
+        <View style={{ paddingTop: Space.lg, paddingBottom: Space.xxl }}>
+          <Text style={{ ...Type.hero, color: c.text }}>
+            Expenses
+          </Text>
+        </View>
 
-        {/* Scan buttons */}
-        <View style={{ flexDirection: "row", gap: 12 }}>
+        {/* ── Summary Metrics ── */}
+        <View style={{ flexDirection: "row", gap: Space.md, marginBottom: Space.xl }}>
+          <SummaryCard
+            icon={<DollarSign size={18} color={c.danger} />}
+            iconBg={c.dangerDim}
+            label="YTD Total"
+            value={fmtCurrencyCompact(summaryMetrics.ytdTotal)}
+            valueColor={c.text}
+          />
+          <SummaryCard
+            icon={<TrendingDown size={18} color={c.warning} />}
+            iconBg={c.warningDim}
+            label="This Month"
+            value={fmtCurrencyCompact(summaryMetrics.monthTotal)}
+            valueColor={c.text}
+          />
+          <SummaryCard
+            icon={<Hash size={18} color={c.primary} />}
+            iconBg={c.primaryDim}
+            label="Receipts"
+            value={String(summaryMetrics.totalCount)}
+            valueColor={c.text}
+          />
+        </View>
+
+        {/* ── Scan Buttons ── */}
+        <View style={{ flexDirection: "row", gap: Space.md, marginBottom: Space.xxl }}>
           <Pressable
             onPress={openCamera}
-            style={{
+            style={({ pressed }) => ({
               flex: 1,
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "center",
-              gap: 10,
-              paddingVertical: 18,
-              borderRadius: 14,
-              backgroundColor: "#6366F1",
-            }}
+              gap: Space.sm,
+              paddingVertical: Space.lg + 2,
+              borderRadius: Radius.lg,
+              backgroundColor: c.primary,
+              opacity: pressed ? 0.9 : 1,
+              transform: [{ scale: pressed ? 0.97 : 1 }],
+              ...sh.glow(c.primary),
+            })}
           >
             <Camera size={20} color="#FFF" />
-            <Text
-              style={{
-                color: "#FFF",
-                fontSize: 16,
-                fontWeight: "700",
-              }}
-            >
+            <Text style={{ ...Type.bodyBold, color: "#FFF" }}>
               Scan Receipt
             </Text>
           </Pressable>
 
           <Pressable
             onPress={pickFromGallery}
-            style={{
-              paddingVertical: 18,
-              paddingHorizontal: 18,
-              borderRadius: 14,
-              backgroundColor: "#1A1A2E",
+            style={({ pressed }) => ({
+              paddingVertical: Space.lg + 2,
+              paddingHorizontal: Space.lg + 2,
+              borderRadius: Radius.lg,
+              backgroundColor: c.card,
               borderWidth: 1,
-              borderColor: "#2D2D44",
+              borderColor: c.cardBorder,
               alignItems: "center",
               justifyContent: "center",
-            }}
+              opacity: pressed ? 0.7 : 1,
+              transform: [{ scale: pressed ? 0.97 : 1 }],
+              ...sh.card,
+            })}
           >
-            <ImagePlus size={20} color="#9CA3AF" />
+            <ImagePlus size={20} color={c.textMuted} />
           </Pressable>
         </View>
 
-        {/* Recent receipts */}
-        <View style={{ gap: 12 }}>
-          <Text
-            style={{
-              fontSize: 15,
-              fontWeight: "700",
-              color: "#9CA3AF",
-              textTransform: "uppercase",
-              letterSpacing: 0.5,
-            }}
-          >
-            Recent Receipts
+        {/* ── Recent Receipts ── */}
+        <View style={{ gap: Space.md }}>
+          <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.xs }}>
+            RECENT RECEIPTS
           </Text>
 
           {receipts.length === 0 ? (
-            <View
-              style={{
-                padding: 32,
-                borderRadius: 14,
-                backgroundColor: "#1A1A2E",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <Receipt size={32} color="#4B5563" />
-              <Text
-                style={{ color: "#6B7280", fontSize: 14, textAlign: "center" }}
-              >
-                No receipts yet.{"\n"}Scan your first receipt to get started.
-              </Text>
-            </View>
+            <EmptyState
+              icon="receipt-outline"
+              title="No Receipts Yet"
+              subtitle="Scan your first receipt to start tracking your business expenses."
+              actionLabel="Scan Receipt"
+              onAction={openCamera}
+            />
           ) : (
             receipts.map((r) => <ReceiptCard key={r.id} receipt={r} />)
           )}
@@ -820,49 +843,109 @@ export default function ScanScreen() {
   );
 }
 
-// ── Receipt Card ──────────────────────────────────────────────────────────────
+// ── Summary Card ─────────────────────────────────────────────────────────────
 
-function ReceiptCard({ receipt }: { receipt: ReceiptExpense }) {
+function SummaryCard({
+  icon,
+  iconBg,
+  label,
+  value,
+  valueColor,
+}: {
+  icon: React.ReactNode;
+  iconBg: string;
+  label: string;
+  value: string;
+  valueColor: string;
+}) {
+  const c = useColors();
+  const { mode } = useTheme();
+  const sh = shadows(mode);
+
   return (
     <View
       style={{
-        padding: 16,
-        borderRadius: 12,
-        backgroundColor: "#1A1A2E",
+        flex: 1,
+        backgroundColor: c.card,
+        borderRadius: Radius.lg,
         borderWidth: 1,
-        borderColor: "#2D2D44",
-        gap: 8,
+        borderColor: c.cardBorder,
+        padding: Space.md,
+        gap: Space.sm,
+        ...sh.card,
       }}
     >
       <View
         style={{
-          flexDirection: "row",
-          justifyContent: "space-between",
+          width: 32,
+          height: 32,
+          borderRadius: Radius.sm,
+          backgroundColor: iconBg,
           alignItems: "center",
+          justifyContent: "center",
         }}
       >
+        {icon}
+      </View>
+      <Text style={{ ...Type.h3, color: valueColor }} numberOfLines={1}>
+        {value}
+      </Text>
+      <Text style={{ ...Type.micro, color: c.textDim }}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+// ── Receipt Card ─────────────────────────────────────────────────────────────
+
+function ReceiptCard({ receipt }: { receipt: ReceiptExpense }) {
+  const c = useColors();
+  const { mode } = useTheme();
+  const sh = shadows(mode);
+
+  return (
+    <View
+      style={{
+        padding: Space.lg,
+        borderRadius: Radius.lg,
+        backgroundColor: c.card,
+        borderWidth: 1,
+        borderColor: c.cardBorder,
+        gap: Space.sm,
+        ...sh.card,
+      }}
+    >
+      {/* Top row: vendor + prominent amount */}
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+        }}
+      >
+        <View style={{ flex: 1, marginRight: Space.md }}>
+          <Text
+            style={{ ...Type.bodyBold, color: c.text }}
+            numberOfLines={1}
+          >
+            {receipt.vendor ?? "Unknown Vendor"}
+          </Text>
+          <Text style={{ ...Type.caption, color: c.textDim, marginTop: 2 }}>
+            {fmtDate(receipt.expense_date)}
+          </Text>
+        </View>
         <Text
           style={{
-            color: "#FFF",
-            fontSize: 16,
-            fontWeight: "700",
-            flex: 1,
-          }}
-          numberOfLines={1}
-        >
-          {receipt.vendor ?? "Unknown Vendor"}
-        </Text>
-        <Text
-          style={{
-            color: "#6366F1",
-            fontSize: 16,
-            fontWeight: "700",
+            ...Type.h2,
+            color: c.primary,
           }}
         >
           {fmtCurrency(receipt.total_amount)}
         </Text>
       </View>
 
+      {/* Bottom row: category badge + tax info */}
       <View
         style={{
           flexDirection: "row",
@@ -870,35 +953,132 @@ function ReceiptCard({ receipt }: { receipt: ReceiptExpense }) {
           alignItems: "center",
         }}
       >
-        <Text style={{ color: "#6B7280", fontSize: 13 }}>
-          {fmtDate(receipt.expense_date)}
-        </Text>
-        <View
-          style={{
-            paddingHorizontal: 8,
-            paddingVertical: 3,
-            borderRadius: 6,
-            backgroundColor: "rgba(99,102,241,0.1)",
-          }}
-        >
-          <Text
-            style={{
-              color: "#818CF8",
-              fontSize: 11,
-              fontWeight: "600",
-            }}
-          >
-            {categoryLabel(receipt.category_key)}
+        <Badge
+          label={categoryLabel(receipt.category_key)}
+          color={categoryColor(receipt.category_key)}
+          size="sm"
+        />
+        {receipt.tax_amount != null && receipt.tax_amount > 0 && (
+          <Text style={{ ...Type.micro, color: c.textDim }}>
+            Tax: {fmtCurrency(receipt.tax_amount)}
           </Text>
-        </View>
+        )}
       </View>
     </View>
   );
 }
 
-// ── Reusable Form Field ───────────────────────────────────────────────────────
+// ── Category Picker ──────────────────────────────────────────────────────────
 
-function FormField({
+function CategoryPicker({
+  category,
+  setCategory,
+  showCategories,
+  setShowCategories,
+}: {
+  category: string;
+  setCategory: (v: string) => void;
+  showCategories: boolean;
+  setShowCategories: (v: boolean) => void;
+}) {
+  const c = useColors();
+
+  return (
+    <View>
+      <Text
+        style={{
+          ...Type.caption,
+          color: c.textMuted,
+          marginBottom: Space.xs,
+          marginLeft: Space.xs,
+        }}
+      >
+        Category
+      </Text>
+      <Pressable
+        onPress={() => setShowCategories(!showCategories)}
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          paddingHorizontal: Space.lg,
+          paddingVertical: Space.md,
+          borderRadius: Radius.md,
+          backgroundColor: c.card,
+          borderWidth: 1.5,
+          borderColor: showCategories ? c.primary : c.cardBorder,
+          minHeight: 48,
+        }}
+      >
+        <Text
+          style={{
+            ...Type.body,
+            color: category ? c.text : c.textDim,
+          }}
+        >
+          {category
+            ? categoryLabel(category)
+            : "Select category"}
+        </Text>
+        <ChevronDown size={18} color={c.textDim} />
+      </Pressable>
+
+      {showCategories && (
+        <View
+          style={{
+            marginTop: Space.xs,
+            borderRadius: Radius.md,
+            backgroundColor: c.card,
+            borderWidth: 1,
+            borderColor: c.cardBorder,
+            maxHeight: 200,
+            overflow: "hidden",
+          }}
+        >
+          <ScrollView nestedScrollEnabled>
+            {Object.entries(CATEGORIES).map(([key, label]) => (
+              <Pressable
+                key={key}
+                onPress={() => {
+                  setCategory(key);
+                  setShowCategories(false);
+                }}
+                style={({ pressed }) => ({
+                  paddingHorizontal: Space.lg,
+                  paddingVertical: Space.md,
+                  borderBottomWidth: 1,
+                  borderBottomColor: c.divider,
+                  backgroundColor:
+                    category === key
+                      ? c.primaryDim
+                      : pressed
+                        ? c.primaryDim
+                        : "transparent",
+                })}
+              >
+                <Text
+                  style={{
+                    ...Type.body,
+                    color:
+                      category === key
+                        ? c.primaryLight
+                        : c.textSecondary,
+                  }}
+                >
+                  {label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ── Themed Form Field ────────────────────────────────────────────────────────
+
+function ThemedFormField({
   label,
   value,
   onChangeText,
@@ -915,16 +1095,16 @@ function FormField({
   prefix?: string;
   multiline?: boolean;
 }) {
+  const c = useColors();
+  const [focused, setFocused] = useState(false);
+
   return (
-    <View>
+    <View style={{ gap: Space.xs }}>
       <Text
         style={{
-          color: "#9CA3AF",
-          fontSize: 12,
-          fontWeight: "600",
-          marginBottom: 6,
-          textTransform: "uppercase",
-          letterSpacing: 0.5,
+          ...Type.caption,
+          color: c.textMuted,
+          marginLeft: Space.xs,
         }}
       >
         {label}
@@ -933,15 +1113,15 @@ function FormField({
         style={{
           flexDirection: "row",
           alignItems: "center",
-          borderRadius: 10,
-          backgroundColor: "#1A1A2E",
-          borderWidth: 1,
-          borderColor: "#2D2D44",
-          paddingHorizontal: 14,
+          borderRadius: Radius.md,
+          backgroundColor: c.card,
+          borderWidth: 1.5,
+          borderColor: focused ? c.primary : c.cardBorder,
+          paddingHorizontal: Space.lg,
         }}
       >
         {prefix && (
-          <Text style={{ color: "#6B7280", fontSize: 15, marginRight: 4 }}>
+          <Text style={{ ...Type.body, color: c.textDim, marginRight: Space.xs }}>
             {prefix}
           </Text>
         )}
@@ -949,14 +1129,16 @@ function FormField({
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
-          placeholderTextColor="#4B5563"
+          placeholderTextColor={c.textDim}
           keyboardType={keyboardType ?? "default"}
           multiline={multiline}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           style={{
             flex: 1,
-            color: "#FFF",
-            fontSize: 15,
-            paddingVertical: 14,
+            ...Type.body,
+            color: c.text,
+            paddingVertical: Space.md,
             minHeight: multiline ? 60 : undefined,
             textAlignVertical: multiline ? "top" : "center",
           }}
