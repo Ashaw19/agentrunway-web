@@ -62,6 +62,7 @@ function palette(mode: ThemeMode) {
     // Commission Gold
     gold:           "#C8A24E",
     goldLight:      "#DABB6A",
+    goldDim:        dark ? "rgba(200,162,78,0.12)" : "rgba(200,162,78,0.08)",
 
     // Semantic
     success:        "#10B981",
@@ -170,6 +171,8 @@ export function shadows(mode: ThemeMode) {
 
 export const Space = {
   xs: 4,  sm: 8,  md: 12,  lg: 16,  xl: 20,  xxl: 24,  xxxl: 32,
+  section: 48,
+  hero: 64,
 } as const;
 
 // ── Radii ─────────────────────────────────────────────────────────────────────
@@ -181,17 +184,28 @@ export const Radius = {
 // ── Typography ────────────────────────────────────────────────────────────────
 
 export const Type = {
-  hero:     { fontSize: 32, fontWeight: "800" as const, letterSpacing: -0.8 },
-  h1:       { fontSize: 26, fontWeight: "800" as const, letterSpacing: -0.6 },
-  h2:       { fontSize: 20, fontWeight: "700" as const, letterSpacing: -0.4 },
-  h3:       { fontSize: 17, fontWeight: "700" as const, letterSpacing: -0.2 },
-  body:     { fontSize: 15, fontWeight: "400" as const, letterSpacing: 0 },
-  bodyBold: { fontSize: 15, fontWeight: "600" as const, letterSpacing: 0 },
-  caption:  { fontSize: 13, fontWeight: "500" as const, letterSpacing: 0.1 },
-  micro:    { fontSize: 11, fontWeight: "600" as const, letterSpacing: 0.3 },
-  label:    { fontSize: 10, fontWeight: "700" as const, letterSpacing: 1.0, textTransform: "uppercase" as const },
-  bigNum:   { fontSize: 28, fontWeight: "800" as const, letterSpacing: -0.5 },
+  hero:     { fontSize: 32, fontWeight: "800" as const, letterSpacing: -0.8, lineHeight: 34 },
+  h1:       { fontSize: 26, fontWeight: "800" as const, letterSpacing: -0.6, lineHeight: 28 },
+  h2:       { fontSize: 20, fontWeight: "700" as const, letterSpacing: -0.4, lineHeight: 24 },
+  h3:       { fontSize: 17, fontWeight: "700" as const, letterSpacing: -0.2, lineHeight: 22 },
+  body:     { fontSize: 15, fontWeight: "400" as const, letterSpacing: 0, lineHeight: 22 },
+  bodyBold: { fontSize: 15, fontWeight: "600" as const, letterSpacing: 0, lineHeight: 22 },
+  caption:  { fontSize: 13, fontWeight: "500" as const, letterSpacing: 0.1, lineHeight: 18 },
+  micro:    { fontSize: 11, fontWeight: "600" as const, letterSpacing: 0.3, lineHeight: 14 },
+  label:    { fontSize: 10, fontWeight: "700" as const, letterSpacing: 1.0, textTransform: "uppercase" as const, lineHeight: 14 },
+  bigNum:   { fontSize: 28, fontWeight: "800" as const, letterSpacing: -0.5, lineHeight: 34 },
 };
+
+// ── Animation Tokens ─────────────────────────────────────────────────────────
+
+export const Motion = {
+  springDefault: { damping: 0.8, stiffness: 250 },
+  springSnappy:  { damping: 0.7, stiffness: 350 },
+  durationFast:   150,
+  durationNormal: 250,
+  durationSlow:   400,
+  pressScale:     0.97,
+} as const;
 
 // ── Pipeline Stage Colors ─────────────────────────────────────────────────────
 
@@ -205,6 +219,16 @@ export const STAGE_COLORS: Record<string, string> = {
 export const STATUS_COLORS: Record<string, string> = {
   boarding: "#3B82F6", taxiing: "#8B5CF6", approach: "#F59E0B",
   in_flight: "#10B981", landed: "#6B7280", cruising: "#06B6D4",
+};
+
+/** Canonical flight-status color mapping (preferred over STATUS_COLORS) */
+export const StatusColors: Record<string, string> = {
+  cruising:   "#10B981",   // green
+  turbulence: "#F59E0B",   // amber
+  grounded:   "#EF4444",   // red
+  boarding:   "#6366F1",   // indigo
+  landed:     "#8B5CF6",   // purple
+  departed:   "#06B6D4",   // cyan
 };
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
