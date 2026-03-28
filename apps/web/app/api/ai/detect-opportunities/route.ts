@@ -106,34 +106,75 @@ function nextBirthdayDate(birthdate: string): Date {
 
 // ── Memory-powered scoring & value selection ─────────────────────────────────
 
-/** Lightweight relevance score (0–100) for ranking outreach candidates. */
+// ── Send-worthiness constants ────────────────────────────────────────────────
+
+/** Minimum score to surface an opportunity. Below this, it's filtered out. */
+const MIN_SEND_WORTHY_SCORE = 45;
+
+/** Max opportunities to surface per client per scan. Prevents inbox flooding. */
+const MAX_PER_CLIENT_PER_SCAN = 2;
+
+/** Types with inherently strong timing signals (always pass timing check). */
+const STRONG_TIMING_TYPES = new Set([
+  "birthday", "closing_anniversary", "post_close_3", "post_close_14",
+  "post_close_90", "mortgage_renewal_due", "timeframe_approaching",
+  "property_value_milestone", "new_client_welcome",
+]);
+
+/** Types that are relationship-maintenance (weaker signal, need support from data). */
+const MAINTENANCE_TYPES = new Set([
+  "idle_client", "past_client_check_in", "seasonal_spring", "seasonal_fall",
+  "seasonal_yearend", "seasonal_tax", "contact_anniversary",
+]);
+
+/** Lightweight relevance score (0–100) for ranking outreach candidates.
+ *  Score reflects: reason strength × value potential × client state × timing. */
 function scoreCandidate(
   opportunityType: string,
   memory: ClientMemoryFacts | null,
   ctx: Record<string, unknown>,
+  clientTags?: string[],
+  clientNotes?: string | null,
 ): number {
-  let score = 50; // base score — all existing triggers start at 50
+  let score = 40; // base — slightly below threshold, must earn its way in
 
-  // Boost: memory available at all
+  // ── Reason strength: why now? ──────────────────────────────────────────────
+  if (STRONG_TIMING_TYPES.has(opportunityType)) score += 20;
+  else if (MAINTENANCE_TYPES.has(opportunityType)) score += 8;
+  else score += 12; // memory-powered or other
+
+  // ── Value potential: can we say something useful? ──────────────────────────
   if (memory) score += 5;
-
-  // Boost: memory has a specific angle for this client
   if (memory?.next_best_angle) score += 10;
   if (memory?.pain_point) score += 5;
   if (memory?.motivation) score += 5;
+  if (memory?.areas_of_interest) score += 3;
+  if (memory?.budget_context) score += 3;
 
-  // Boost: high engagement = more likely to reply
+  // ── Client state: engagement + data richness ──────────────────────────────
   const eng = memory?.engagement_level?.toLowerCase() ?? "";
   if (eng.includes("highly active") || eng.includes("responsive")) score += 10;
-  else if (eng.includes("going cold") || eng.includes("ghost")) score -= 5;
+  else if (eng.includes("going cold") || eng.includes("ghost")) score -= 10;
 
-  // Type-specific bonuses
+  // Sparse-data penalty for maintenance types — don't spam with weak signals
+  const contextLevel = classifyClientContext(
+    clientTags ?? [], clientNotes ?? null, ctx,
+  );
+  if (contextLevel === "sparse" && MAINTENANCE_TYPES.has(opportunityType)) {
+    score -= 10; // needs stronger reason or richer data to justify outreach
+  }
+  if (contextLevel === "sensitive") {
+    // Sensitive clients: only strong-timing triggers should pass
+    if (!STRONG_TIMING_TYPES.has(opportunityType)) score -= 8;
+  }
+
+  // ── Type-specific bonuses ─────────────────────────────────────────────────
   if (opportunityType === "pain_point_inactive" && memory?.pain_point) score += 15;
   if (opportunityType === "buyer_inventory_match" && memory?.areas_of_interest) score += 10;
   if (opportunityType === "seller_timing_hesitation" && memory?.objection) score += 10;
   if (opportunityType === "educational_value_inactive" && memory?.last_key_topic) score += 10;
 
-  // Recency: post-close triggers are time-sensitive
+  // Time-critical triggers get extra urgency
   if (opportunityType.startsWith("post_close_")) score += 15;
   if (opportunityType === "birthday") score += 10;
 
@@ -141,6 +182,48 @@ function scoreCandidate(
   if (ctx.gci && Number(ctx.gci) > 10000) score += 5;
 
   return Math.min(100, Math.max(0, score));
+}
+
+/** Generate a short human-readable explanation of why this opportunity was surfaced. */
+function buildOutreachReason(
+  opportunityType: string,
+  score: number,
+  ctx: Record<string, unknown>,
+): string {
+  const parts: string[] = [];
+
+  // Timing reason
+  switch (opportunityType) {
+    case "birthday": parts.push("Birthday coming up"); break;
+    case "closing_anniversary": parts.push(`${ctx.anniversary_year ?? 1}-year anniversary`); break;
+    case "post_close_3": parts.push("3 days since closing"); break;
+    case "post_close_14": parts.push("2 weeks since closing"); break;
+    case "post_close_90": parts.push("90 days since closing"); break;
+    case "mortgage_renewal_due": parts.push("Mortgage renewal approaching"); break;
+    case "mortgage_renewal_window": parts.push("In mortgage renewal window"); break;
+    case "timeframe_approaching": parts.push("Stated timeframe arriving"); break;
+    case "property_value_milestone": parts.push(`${ctx.milestone_year ?? 1}-year property milestone`); break;
+    case "idle_client": parts.push(`No contact in ${ctx.months_idle ?? "18+"} months`); break;
+    case "past_client_check_in": parts.push(`${ctx.months_idle ?? "6+"} months since last deal`); break;
+    case "pain_point_inactive": parts.push("Known concern + inactive"); break;
+    case "buyer_inventory_match": parts.push("Active buyer with target areas"); break;
+    case "seller_timing_hesitation": parts.push("Seller with timing objection"); break;
+    case "mortgage_renewal_finance": parts.push("Mortgage context in memory"); break;
+    case "educational_value_inactive": parts.push("Topic of interest + inactive"); break;
+    case "new_client_welcome": parts.push("New client welcome"); break;
+    case "review_request": parts.push("Good time to request review"); break;
+    case "referral_ask": parts.push("Relationship mature for referral ask"); break;
+    default:
+      if (opportunityType.startsWith("seasonal_")) parts.push("Seasonal touchpoint");
+      else parts.push("Outreach opportunity detected");
+  }
+
+  // Value signal
+  if (ctx.next_best_angle) parts.push(`angle: ${(ctx.next_best_angle as string).slice(0, 60)}`);
+  else if (ctx.memory_pain_point) parts.push("has known concern");
+  else if (ctx.areas_of_interest) parts.push("has target areas");
+
+  return `${parts.join(" · ")} (score: ${score})`;
 }
 
 type ValueType = "listing_bundle" | "market_note" | "educational_resource" | "financing_scenario" | "custom_explanation" | null;
@@ -247,6 +330,117 @@ function extractFirstName(displayName: string | null, email: string): string {
   return email.split("@")[0].replace(/[._-]/g, " ").split(" ")[0] || "your agent";
 }
 
+// ── Context classification ────────────────────────────────────────────────────
+
+type ContextLevel = "sensitive" | "sparse" | "rich";
+
+/**
+ * Classify a client's context richness for drafting purposes.
+ * Inferred from existing data — no new fields required.
+ *
+ * "sensitive": indicators of emotional sensitivity (estate, divorce, legal, negative tags/notes)
+ * "sparse":   most memory fields are null, minimal client data
+ * "rich":     multiple structured memory fields present, good personalization potential
+ */
+function classifyClientContext(
+  tags: string[],
+  notes: string | null,
+  ctx: Record<string, unknown>,
+): ContextLevel {
+  // ── Sensitive detection ──────────────────────────────────────────────────
+  const sensitiveKeywords = [
+    "estate", "executor", "deceased", "divorce", "separation", "legal",
+    "foreclosure", "bankruptcy", "illness", "passing", "death", "widow",
+    "sensitive", "careful", "bereavement", "probate", "power of attorney",
+  ];
+  const searchText = [
+    ...(tags ?? []),
+    notes ?? "",
+    (ctx.memory_summary as string) ?? "",
+    (ctx.memory_pain_point as string) ?? "",
+  ].join(" ").toLowerCase();
+
+  if (sensitiveKeywords.some((kw) => searchText.includes(kw))) {
+    return "sensitive";
+  }
+
+  // ── Rich vs sparse: count how many memory fields are populated ───────────
+  const memoryFields = [
+    "memory_summary", "next_best_angle", "memory_pain_point", "memory_motivation",
+    "budget_context", "areas_of_interest", "last_key_topic", "objection",
+  ];
+  const populatedCount = memoryFields.filter((f) => {
+    const val = ctx[f];
+    return val && val !== "null" && val !== "";
+  }).length;
+
+  // Also count basic client data presence
+  const hasNotes = notes && notes.length > 10;
+  const hasTags = tags && tags.length > 0;
+  const dataPoints = populatedCount + (hasNotes ? 1 : 0) + (hasTags ? 1 : 0);
+
+  if (dataPoints >= 3) return "rich";
+  return "sparse";
+}
+
+// ── Context-aware drafting instructions ──────────────────────────────────────
+
+const SENSITIVE_INSTRUCTIONS = `SENSITIVITY NOTICE:
+This client may be in a sensitive situation (estate, legal matter, life transition).
+- Keep the tone respectful, neutral, and brief.
+- Avoid strong emotional assumptions or overly personal references.
+- Do NOT speculate about their circumstances.
+- Focus on being helpful and available without being presumptuous.
+- Shorter is better. When in doubt, leave it out.
+- Value nugget must remain neutral: a seasonal observation or general neighbourhood note is safe.
+  GOOD: "a few things have shifted in the area recently — happy to fill you in whenever you're ready"
+  BAD: "exciting changes happening in your neighbourhood!"`;
+
+const SPARSE_CONTEXT_INSTRUCTIONS = `CONTEXT NOTICE — LIMITED CLIENT DATA:
+You have minimal information about this client. Do NOT attempt deep personalization.
+- Focus on being useful and relevant, not personal.
+- Avoid filler language like "just reaching out", "wanted to touch base", or "hope all is well".
+- Keep it concise and confident — a short, useful message beats a long, vague one.
+- Do NOT fabricate personal details or assume preferences you don't have evidence for.
+- Write as if the agent is sharing something genuinely worth reading, not filling a CRM checkbox.
+- Your value nugget MUST be concrete and grounded. Use soft specificity:
+  GOOD: "a couple of homes came up this week that caught my eye" or "inventory has picked up a bit this month"
+  GOOD: "rates shifted a little recently — could change what buyers qualify for"
+  GOOD: "I can walk you through what your price range looks like in today's market"
+  BAD: "I have a market insight to share" or "thought this might be helpful" (says nothing)
+  BAD: "there have been some changes in the market" (too vague — WHAT changes?)`;
+
+const RICH_CONTEXT_INSTRUCTIONS = `CONTEXT NOTICE — RICH CLIENT DATA AVAILABLE:
+Use the available memory and client data to personalize meaningfully.
+- Reference specific preferences, history, areas of interest, or past conversations when natural.
+- Show that the agent remembers and pays attention — this is what separates good agents from forgettable ones.
+- Still keep it concise. Personalization should sharpen the message, not inflate it.
+- Tailor value to what you know: if they're a buyer, mention inventory in their areas. If a seller, mention demand or pricing trends. If a past client, mention neighbourhood developments or equity.`;
+
+const VALUE_FIRST_RULE = `VALUE-FIRST RULE (mandatory):
+Every message MUST include at least one concrete, specific piece of value. Abstract claims do not count.
+
+WHAT COUNTS AS VALUE (pick one, make it specific):
+- A market observation with direction: "inventory has picked up a bit this month" or "homes under $X are still moving quickly"
+- A seasonal/timing note: "spring listings tend to get more eyes — this month is usually when things heat up"
+- A practical offer: "I can walk you through what $X looks like in today's market" or "I put together a quick snapshot of your neighbourhood — happy to share"
+- A neighbourhood note: "a couple homes came up this week in [area] that caught my eye"
+- A rate/financing note: "rates have shifted a bit recently, which could change what buyers qualify for"
+
+WHAT DOES NOT COUNT (banned — never write these):
+- "just wanted to share an update" (what update? say it)
+- "thought this might be helpful" without specifying WHAT
+- "there have been some changes" (what changes? be specific)
+- "I have some market insights" (what insights? say one)
+- "exciting things happening" (what things?)
+- Any sentence that claims value exists without delivering it
+
+SPECIFICITY RULES:
+- Anchor to at least one of: area/neighbourhood, approximate price range, or timing (this week, this month, recently, this season)
+- Use soft specificity when you lack exact data: "a couple", "a few", "recently", "this month"
+- Do NOT fabricate exact numbers, addresses, or statistics you don't have
+- A single concrete sentence beats three vague ones`;
+
 // ── Draft a single queue item via Groq ────────────────────────────────────────
 
 const BANNED_PHRASES = [
@@ -263,8 +457,15 @@ const BANNED_PHRASES = [
   "big news",
   "important reminder",
   "all done at",
+  "just wanted to share an update",
+  "thought this might be helpful",
+  "there have been some changes",
+  "i have some market insights",
+  "exciting things happening",
+  "some exciting",
 ];
 
+/** Draft a single queue item. Returns true if successfully drafted, false on failure. */
 async function draftItem(
   item:           OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; communication_tone?: string; tags?: string[]; notes?: string | null } | null },
   agentFirst:     string,
@@ -272,7 +473,7 @@ async function draftItem(
   agentStyleGuide: string | null,
   groq:           OpenAI,
   supabase:       SupabaseClient,
-): Promise<void> {
+): Promise<boolean> {
   const clientName = item.clients?.name ?? "your client";
   const ctx        = item.context as Record<string, string | number>;
   const tone       = (item.clients?.communication_tone as Tone) ?? "friendly";
@@ -433,11 +634,32 @@ async function draftItem(
       );
       break;
     default:
-      return;
+      console.warn(`[flight-control] Unknown opportunity_type: ${item.opportunity_type} for item ${item.id}`);
+      return false;
+  }
+
+  // Track retry attempts via context field (persisted across scans)
+  const attempts = Number(ctx._draft_attempts ?? 0) + 1;
+  const MAX_DRAFT_ATTEMPTS = 3;
+
+  if (attempts > MAX_DRAFT_ATTEMPTS) {
+    console.warn(`[flight-control] Item ${item.id} exceeded ${MAX_DRAFT_ATTEMPTS} draft attempts — marking failed`);
+    await supabase
+      .from("outreach_queue")
+      .update({ status: "skipped", context: { ...ctx, _draft_attempts: attempts, _draft_error: "exceeded max attempts" } })
+      .eq("id", item.id);
+    return false;
   }
 
   try {
-    // Build full prompt with client context, memory enrichment, and agent voice guide
+    // ── Classify context and build appropriate instruction blocks ────────────
+    const contextLevel = classifyClientContext(clientTags, clientNotes, ctx);
+
+    const contextLevelBlock =
+      contextLevel === "sensitive" ? SENSITIVE_INSTRUCTIONS :
+      contextLevel === "rich"     ? RICH_CONTEXT_INSTRUCTIONS :
+                                    SPARSE_CONTEXT_INSTRUCTIONS;
+
     const memoryContextBlock = ctx.memory_summary || ctx.next_best_angle || ctx.memory_motivation
       ? [
           "CLIENT MEMORY (use to personalize — do not mention the CRM or memory system):",
@@ -450,6 +672,8 @@ async function draftItem(
 
     const contextSuffix = [
       clientContextBlock,
+      contextLevelBlock,
+      VALUE_FIRST_RULE,
       memoryContextBlock,
       agentStyleGuide
         ? `AGENT VOICE GUIDE (follow closely — message must sound like the agent personally wrote it):\n${agentStyleGuide}`
@@ -457,12 +681,17 @@ async function draftItem(
     ].filter(Boolean).join("\n\n");
     const fullPrompt = contextSuffix ? `${prompt}\n\n${contextSuffix}` : prompt;
 
-    const completion = await groq.chat.completions.create({
-      model:       "llama-3.3-70b-versatile",
-      max_tokens:  400,
-      temperature: 0.85,
-      messages:    [{ role: "user", content: fullPrompt }],
-    });
+    // Groq call with 15s timeout per call to prevent hanging
+    const GROQ_TIMEOUT = 15_000;
+    const completion = await Promise.race([
+      groq.chat.completions.create({
+        model:       "llama-3.3-70b-versatile",
+        max_tokens:  400,
+        temperature: 0.85,
+        messages:    [{ role: "user", content: fullPrompt }],
+      }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Groq timeout (15s)")), GROQ_TIMEOUT)),
+    ]);
 
     let raw = completion.choices[0]?.message?.content?.trim() ?? "";
     if (!raw) throw new Error("Empty response");
@@ -479,24 +708,42 @@ async function draftItem(
         tooLong   ? `IMPORTANT: The previous draft was ${wordCount} words. Keep it under 200 words.` : null,
       ].filter(Boolean).join(" ");
 
-      const retryCompletion = await groq.chat.completions.create({
-        model:       "llama-3.3-70b-versatile",
-        max_tokens:  400,
-        temperature: 0.85,
-        messages:    [{ role: "user", content: `${fullPrompt}\n\n${retryNote}` }],
-      });
-      const retryRaw = retryCompletion.choices[0]?.message?.content?.trim();
-      if (retryRaw) raw = retryRaw;
+      try {
+        const retryCompletion = await Promise.race([
+          groq.chat.completions.create({
+            model:       "llama-3.3-70b-versatile",
+            max_tokens:  400,
+            temperature: 0.85,
+            messages:    [{ role: "user", content: `${fullPrompt}\n\n${retryNote}` }],
+          }),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Groq retry timeout (15s)")), GROQ_TIMEOUT)),
+        ]);
+        const retryRaw = retryCompletion.choices[0]?.message?.content?.trim();
+        if (retryRaw) raw = retryRaw;
+      } catch (retryErr) {
+        // Retry failed — use the original (imperfect) draft rather than failing entirely
+        console.warn(`[flight-control] Self-review retry failed for item ${item.id}:`, retryErr);
+      }
     }
 
     // Parse: last line starting with "SUBJECT:" is the subject
     const lines   = raw.split("\n");
     const subjIdx = [...lines].reverse().findIndex((l) => l.trimStart().toUpperCase().startsWith("SUBJECT:"));
-    if (subjIdx === -1) throw new Error("No SUBJECT line");
 
-    const realSubjIdx = lines.length - 1 - subjIdx;
-    const ai_subject  = lines[realSubjIdx].replace(/^SUBJECT:\s*/i, "").trim();
-    let   ai_body     = lines.slice(0, realSubjIdx).join("\n").trim();
+    let ai_subject: string;
+    let ai_body: string;
+
+    if (subjIdx === -1) {
+      // No SUBJECT line — synthesize one from the first sentence instead of failing
+      console.warn(`[flight-control] No SUBJECT line in Groq response for item ${item.id} — synthesizing`);
+      const firstSentence = raw.split(/[.!?\n]/)[0]?.trim() ?? "";
+      ai_subject = firstSentence.slice(0, 50).toLowerCase().replace(/^(hi|hey|hello)\s+\w+,?\s*/i, "").trim() || "quick note";
+      ai_body = raw.trim();
+    } else {
+      const realSubjIdx = lines.length - 1 - subjIdx;
+      ai_subject = lines[realSubjIdx].replace(/^SUBJECT:\s*/i, "").trim();
+      ai_body    = lines.slice(0, realSubjIdx).join("\n").trim();
+    }
 
     // Append custom email signature if the agent has one configured
     if (emailSignature) {
@@ -507,9 +754,17 @@ async function draftItem(
       .from("outreach_queue")
       .update({ ai_subject, ai_body, status: "ready" })
       .eq("id", item.id);
+
+    return true;
   } catch (err) {
-    console.error("[flight-control] Draft error for item", item.id, err);
-    // Leave status as 'draft' — will retry on next scan
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error(`[flight-control] Draft error for item ${item.id} (attempt ${attempts}):`, errMsg);
+    // Persist attempt count so retries are bounded
+    await supabase
+      .from("outreach_queue")
+      .update({ context: { ...ctx, _draft_attempts: attempts, _draft_error: errMsg } })
+      .eq("id", item.id);
+    return false;
   }
 }
 
@@ -941,9 +1196,14 @@ export async function detectAndDraftForUser(
       );
     }
 
-    // Attach score for ranking
-    const score = scoreCandidate(ins.opportunity_type, facts, ins.context);
-    ins.context = { ...ins.context, outreach_score: score };
+    // Score with client context for data-richness awareness
+    const clientData = _clientMap.get(ins.client_id);
+    const clientTags = (clientData?.tags as string[] | null) ?? [];
+    const clientNotes = (clientData?.notes as string | null) ?? null;
+
+    const score = scoreCandidate(ins.opportunity_type, facts, ins.context, clientTags, clientNotes);
+    const reason = buildOutreachReason(ins.opportunity_type, score, ins.context);
+    ins.context = { ...ins.context, outreach_score: score, outreach_reason: reason };
   }
 
   // Sort by score descending — highest-value opportunities first
@@ -952,6 +1212,33 @@ export async function detectAndDraftForUser(
     const sb = ((b as { context: { outreach_score?: number } }).context.outreach_score ?? 50);
     return sb - sa;
   });
+
+  // ── Send-worthiness filter: remove weak signals ───────────────────────────
+  const preFilterCount = inserts.length;
+  const filtered = inserts.filter((ins) => {
+    const score = (ins as { context: { outreach_score?: number } }).context.outreach_score ?? 0;
+    return score >= MIN_SEND_WORTHY_SCORE;
+  });
+
+  // ── Per-client cap: max N opportunities per client per scan ───────────────
+  const clientCounts = new Map<string, number>();
+  const capped: typeof filtered = [];
+  for (const ins of filtered) {
+    const clientId = (ins as { client_id: string }).client_id;
+    const count = clientCounts.get(clientId) ?? 0;
+    if (count < MAX_PER_CLIENT_PER_SCAN) {
+      capped.push(ins);
+      clientCounts.set(clientId, count + 1);
+    }
+  }
+
+  // Replace inserts with filtered + capped list
+  inserts.length = 0;
+  inserts.push(...capped);
+
+  if (preFilterCount > inserts.length) {
+    console.log(`[detect-opportunities] Filtered ${preFilterCount - inserts.length} weak/capped opportunities (${preFilterCount} → ${inserts.length})`);
+  }
 
   // ── Clear skipped rows so they can be re-detected as fresh drafts ──────────
   // Why: The UNIQUE constraint (user_id, client_id, opportunity_type, trigger_date)
@@ -965,23 +1252,20 @@ export async function detectAndDraftForUser(
       return { client_id: i.client_id, opportunity_type: i.opportunity_type, trigger_date: i.trigger_date };
     });
 
-    // Batch delete: remove skipped rows that match any candidate we're about to insert.
-    // Supabase doesn't support compound IN clauses, so we use OR filters per unique key.
-    // To avoid excessive query size, process in chunks.
-    const CHUNK_SIZE = 100;
-    for (let i = 0; i < skippedKeys.length; i += CHUNK_SIZE) {
-      const chunk = skippedKeys.slice(i, i + CHUNK_SIZE);
-      for (const key of chunk) {
-        await supabase
+    // Parallel delete: fire all skipped-row deletions concurrently instead of sequentially.
+    // Each is a small, independent query — safe to parallelize.
+    await Promise.all(
+      skippedKeys.map((key) =>
+        supabase
           .from("outreach_queue")
           .delete()
           .eq("user_id", userId)
           .eq("client_id", key.client_id)
           .eq("opportunity_type", key.opportunity_type)
           .eq("trigger_date", key.trigger_date)
-          .eq("status", "skipped");
-      }
-    }
+          .eq("status", "skipped"),
+      ),
+    );
   }
 
   // ── Upsert (UNIQUE constraint on user_id, client_id, type, trigger_date) ───
@@ -1031,20 +1315,628 @@ export async function detectAndDraftForUser(
     baseURL: "https://api.groq.com/openai/v1",
   });
 
+  // Draft all items in parallel — each draftItem has its own timeout + error handling,
+  // so one slow/failed item never blocks the others.
+  const results = await Promise.allSettled(
+    undrafted.map((item) =>
+      draftItem(
+        item as OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; communication_tone?: string; tags?: string[]; notes?: string | null } | null },
+        agentFirst,
+        emailSignature,
+        agentStyleGuide,
+        groq,
+        supabase,
+      ),
+    ),
+  );
+
   let drafted = 0;
-  for (const item of undrafted) {
-    await draftItem(
-      item as OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; communication_tone?: string; tags?: string[]; notes?: string | null } | null },
-      agentFirst,
-      emailSignature,
-      agentStyleGuide,
-      groq,
-      supabase,
-    );
-    drafted++;
+  let failed  = 0;
+  for (const r of results) {
+    if (r.status === "fulfilled" && r.value === true) drafted++;
+    else failed++;
+  }
+
+  if (failed > 0) {
+    console.warn(`[flight-control] Drafting complete: ${drafted} succeeded, ${failed} failed out of ${undrafted.length}`);
   }
 
   return { detected, drafted };
+}
+
+// ── Top Opportunities Engine ─────────────────────────────────────────────────
+// Pure detection + scoring — NO database writes, NO Groq calls.
+// Returns the top N highest-value opportunities as structured insight cards.
+
+import type { TopOpportunity } from "@agent-runway/core/types/database";
+
+const MAX_TOP_OPPORTUNITIES = 5;
+
+/** Map opportunity type to a practical, short suggested approach. */
+function suggestAngle(
+  opportunityType: string,
+  memory: ClientMemoryFacts | null,
+  ctx: Record<string, unknown>,
+): string {
+  // Memory-driven angles take priority
+  if (memory?.next_best_angle) return memory.next_best_angle;
+
+  if (memory?.pain_point && opportunityType.includes("inactive")) {
+    return "Address their concern directly — show you remembered";
+  }
+  if (memory?.areas_of_interest && (opportunityType.includes("buyer") || opportunityType.includes("idle"))) {
+    return `Inventory update for ${memory.areas_of_interest}`;
+  }
+
+  // Type-specific defaults
+  switch (opportunityType) {
+    case "closing_anniversary":
+      return "Home anniversary + neighbourhood value update";
+    case "idle_client":
+      return "Casual reconnection — market update for their area";
+    case "birthday":
+      return "Personal birthday note — no business pitch";
+    case "post_close_3":
+      return "Settling-in check — anything they need help with";
+    case "post_close_14":
+      return "Two-week follow-up — how's the new place";
+    case "post_close_90":
+      return "Three-month milestone — value check-in";
+    case "review_request":
+      return "Ask for a review or testimonial";
+    case "referral_ask":
+      return "Referral touchpoint — who else can you help";
+    case "new_client_welcome":
+      return "Welcome + set expectations for how you work together";
+    case "contact_anniversary":
+      return "Relationship milestone — express genuine appreciation";
+    case "multi_deal_milestone":
+      return "Loyalty recognition — repeat client appreciation";
+    case "mortgage_renewal_due":
+    case "mortgage_renewal_window":
+    case "mortgage_renewal_finance":
+      return "Mortgage renewal conversation — connect with rates/options";
+    case "past_client_check_in":
+      return "Casual check-in — share something useful about their area";
+    case "timeframe_approaching":
+      return "Their stated timeline is arriving — are they still on track";
+    case "property_value_milestone":
+      return "Property anniversary + offer equity snapshot";
+    case "buyer_inventory_match":
+      return "New listings in their target areas";
+    case "seller_timing_hesitation":
+      return "Address their timing concern with current market context";
+    case "educational_value_inactive":
+      return `Educational content on ${(ctx.last_key_topic as string) ?? "their area of interest"}`;
+    case "pain_point_inactive":
+      return "Re-engage by addressing their known concern";
+    default:
+      if (opportunityType.startsWith("seasonal_")) return "Seasonal market update — keep it relevant";
+      return "General relationship touchpoint";
+  }
+}
+
+/** Build a human-readable label for the opportunity card. */
+function buildTopLabel(
+  opportunityType: string,
+  ctx: Record<string, unknown>,
+  clientCity: string | null,
+): string {
+  const parts: string[] = [];
+
+  switch (opportunityType) {
+    case "closing_anniversary":
+      parts.push(`${ctx.anniversary_year ?? 1}-year home anniversary`);
+      if (ctx.address) parts.push(String(ctx.address));
+      break;
+    case "idle_client":
+      parts.push(`No contact in ${ctx.months_idle ?? "18+"}`);
+      break;
+    case "birthday":
+      parts.push("Birthday coming up");
+      break;
+    case "post_close_3":
+      parts.push("Just closed · 3-day check-in");
+      if (ctx.address) parts.push(String(ctx.address));
+      break;
+    case "post_close_14":
+      parts.push("2 weeks since closing");
+      break;
+    case "post_close_90":
+      parts.push("3-month post-close milestone");
+      break;
+    case "review_request":
+      parts.push("21 days post-close · review timing");
+      break;
+    case "referral_ask":
+      parts.push("45 days post-close · referral window");
+      break;
+    case "new_client_welcome":
+      parts.push("New client · 7-day welcome");
+      break;
+    case "contact_anniversary":
+      parts.push(`${ctx.anniversary_year ?? 1}-year relationship`);
+      break;
+    case "multi_deal_milestone":
+      parts.push(`${ctx.deal_count ?? 2}x repeat client`);
+      break;
+    case "mortgage_renewal_due":
+      parts.push("Mortgage renewal approaching");
+      break;
+    case "mortgage_renewal_window":
+      parts.push("Entering renewal window");
+      break;
+    case "past_client_check_in":
+      parts.push(`Past client · ${ctx.months_idle ?? "6+"}mo since last deal`);
+      break;
+    case "timeframe_approaching":
+      parts.push(`Stated timeline arriving · ${ctx.days_remaining ?? "?"}d`);
+      break;
+    case "property_value_milestone":
+      parts.push(`${ctx.milestone_year ?? 1}-year property anniversary`);
+      break;
+    case "pain_point_inactive":
+      parts.push("Known concern + inactive");
+      break;
+    case "buyer_inventory_match":
+      parts.push("Active buyer with target areas");
+      break;
+    case "seller_timing_hesitation":
+      parts.push("Seller with timing objection");
+      break;
+    case "educational_value_inactive":
+      parts.push("Topic interest + inactive");
+      break;
+    default:
+      if (opportunityType.startsWith("seasonal_")) parts.push("Seasonal touchpoint");
+      else parts.push("Outreach opportunity");
+  }
+
+  // Append city if we have it and haven't already mentioned an address
+  if (clientCity && !ctx.address) parts.push(clientCity);
+
+  // Append GCI tier if notable
+  if (ctx.gci && Number(ctx.gci) > 10000) parts.push(`$${(Number(ctx.gci) / 1000).toFixed(0)}k GCI`);
+
+  return parts.join(" · ");
+}
+
+/** Build the "why this matters" explanation focused on relationship value. */
+function buildWhyThisMatters(
+  opportunityType: string,
+  ctx: Record<string, unknown>,
+  memory: ClientMemoryFacts | null,
+): string {
+  const lines: string[] = [];
+
+  // Relationship value
+  if (ctx.gci && Number(ctx.gci) > 15000) {
+    lines.push("High-value client relationship.");
+  } else if (ctx.gci && Number(ctx.gci) > 5000) {
+    lines.push("Solid past transaction history.");
+  }
+
+  if (memory?.engagement_level) {
+    const eng = memory.engagement_level.toLowerCase();
+    if (eng.includes("highly active") || eng.includes("responsive")) {
+      lines.push("Client has been responsive and engaged.");
+    } else if (eng.includes("going cold") || eng.includes("ghost")) {
+      lines.push("Client engagement is dropping — this could re-engage them.");
+    }
+  }
+
+  // Type-specific reasons
+  switch (opportunityType) {
+    case "closing_anniversary":
+      lines.push("Closing anniversaries are one of the strongest referral triggers in real estate.");
+      break;
+    case "idle_client":
+      lines.push("Long gaps in contact erode relationships. A timely touchpoint keeps you top-of-mind.");
+      break;
+    case "birthday":
+      lines.push("Personal milestones build loyalty more effectively than business outreach.");
+      break;
+    case "post_close_3":
+    case "post_close_14":
+    case "post_close_90":
+      lines.push("Post-close nurture is where referrals are earned. Most agents disappear after closing.");
+      break;
+    case "review_request":
+      lines.push("Reviews from recent clients carry the most weight and authenticity.");
+      break;
+    case "referral_ask":
+      lines.push("Clients are most likely to refer within 60 days of a positive closing experience.");
+      break;
+    case "mortgage_renewal_due":
+    case "mortgage_renewal_window":
+    case "mortgage_renewal_finance":
+      lines.push("Mortgage renewal is a natural re-engagement moment. Be there before the bank is.");
+      break;
+    case "past_client_check_in":
+      lines.push("Past clients are your most underutilized asset. A brief, useful check-in goes far.");
+      break;
+    case "buyer_inventory_match":
+      lines.push("Active buyer with known preferences — showing relevant inventory builds trust.");
+      break;
+    case "seller_timing_hesitation":
+      lines.push("Addressing objections directly shows you're paying attention, not just following up.");
+      break;
+    default:
+      if (lines.length === 0) lines.push("Maintaining regular contact strengthens the relationship.");
+  }
+
+  // Memory-enhanced insights
+  if (memory?.pain_point && !lines.some((l) => l.includes("concern"))) {
+    lines.push(`Known concern: "${memory.pain_point.slice(0, 80)}".`);
+  }
+  if (memory?.motivation) {
+    lines.push(`Motivation: ${memory.motivation.slice(0, 80)}.`);
+  }
+
+  return lines.join(" ");
+}
+
+/** Build the "why now" timing justification. */
+function buildWhyNow(
+  opportunityType: string,
+  ctx: Record<string, unknown>,
+  triggerDate: string,
+): string {
+  switch (opportunityType) {
+    case "closing_anniversary":
+      return `${ctx.anniversary_year ?? 1}-year closing anniversary is ${daysUntilLabel(triggerDate)}.`;
+    case "idle_client":
+      return `Last deal was ${ctx.months_idle ?? "18+ months"} ago — well past the recommended contact interval.`;
+    case "birthday":
+      return `Birthday is ${daysUntilLabel(triggerDate)} — best to reach out a day or two before.`;
+    case "post_close_3":
+      return "3 days since closing — the client is still in the emotional high of a new home.";
+    case "post_close_14":
+      return "2 weeks since closing — they've settled in enough to reflect on the experience.";
+    case "post_close_90":
+      return "3 months since closing — long enough to feel established, soon enough to remember you.";
+    case "review_request":
+      return "21 days post-close — the ideal window for an authentic review request.";
+    case "referral_ask":
+      return "45 days post-close — the peak referral window before the relationship cools.";
+    case "new_client_welcome":
+      return "7 days since first contact — enough time to process, early enough to set expectations.";
+    case "contact_anniversary":
+      return `${ctx.anniversary_year ?? 1}-year relationship milestone is ${daysUntilLabel(triggerDate)}.`;
+    case "multi_deal_milestone":
+      return `Recent close marked their ${ctx.deal_count ?? 2}th deal with you — loyalty worth recognizing.`;
+    case "mortgage_renewal_due":
+      return `Mortgage renewal is approaching — ${ctx.days_until_renewal ?? "soon"}. Contact before the bank does.`;
+    case "mortgage_renewal_window":
+      return `${ctx.months_until_renewal ?? 12} months until renewal — now is the time to plant the seed.`;
+    case "past_client_check_in":
+      return `${ctx.months_idle ?? "6+"} months since last deal with no recent contact.`;
+    case "timeframe_approaching":
+      return `Their stated timeline of "${ctx.timeframe_label ?? "move date"}" is ~${ctx.days_remaining ?? "?"}d away.`;
+    case "property_value_milestone":
+      return `${ctx.milestone_year ?? 1}-year property anniversary — natural moment to discuss equity.`;
+    case "pain_point_inactive":
+      return "Client has a known concern and has gone quiet — reaching out shows you haven't forgotten.";
+    case "buyer_inventory_match":
+      return "Active buyer with known target areas — new listings align with their preferences.";
+    case "seller_timing_hesitation":
+      return "Seller with timing objection — current market data could shift their thinking.";
+    case "educational_value_inactive":
+      return `Client showed interest in "${ctx.last_key_topic ?? "a topic"}" — educational value re-engages without pressure.`;
+    default:
+      if (opportunityType.startsWith("seasonal_")) {
+        return "Seasonal timing — relevant touchpoint that doesn't need a specific reason.";
+      }
+      return `Trigger date is ${daysUntilLabel(triggerDate)}.`;
+  }
+}
+
+function daysUntilLabel(triggerDate: string): string {
+  const target = new Date(triggerDate + "T12:00:00");
+  const today  = new Date();
+  today.setHours(12, 0, 0, 0);
+  const days = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  if (days < 0)  return `${Math.abs(days)} days ago`;
+  if (days === 0) return "today";
+  if (days === 1) return "tomorrow";
+  return `in ${days} days`;
+}
+
+/**
+ * Get Top Opportunities — detection + scoring without persistence.
+ * Returns the highest-value opportunities as structured insight cards.
+ * NO database writes. NO Groq calls. Fast and safe.
+ */
+export async function getTopOpportunities(
+  userId:   string,
+  supabase: SupabaseClient,
+): Promise<TopOpportunity[]> {
+  // ── Fetch data (same as detectAndDraftForUser) ─────────────────────────────
+  const [clientsRes, recordsRes, memoryRes] = await Promise.all([
+    supabase
+      .from("clients")
+      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes, status")
+      .eq("user_id", userId)
+      .is("archived_at", null),
+    supabase
+      .from("client_records")
+      .select("id, client_id, address, close_date, gci, side, property_use")
+      .eq("user_id", userId)
+      .not("close_date", "is", null)
+      .not("client_id", "is", null),
+    supabase
+      .from("client_memory_profiles")
+      .select("client_id, memory_summary, structured_facts, stale")
+      .eq("user_id", userId)
+      .eq("stale", false),
+  ]);
+
+  const clients    = clientsRes.data ?? [];
+  const records    = recordsRes.data ?? [];
+  const _clientMap = new Map(clients.map((c) => [c.id, c]));
+
+  const memoryMap = new Map<string, { memory_summary: string | null; structured_facts: ClientMemoryFacts }>();
+  if (memoryRes.data) {
+    for (const m of memoryRes.data) {
+      memoryMap.set(m.client_id, {
+        memory_summary: m.memory_summary,
+        structured_facts: m.structured_facts as ClientMemoryFacts,
+      });
+    }
+  }
+
+  // Suppression
+  const SUPPRESSION_DAYS = 14;
+  const suppressionCutoff = new Date();
+  suppressionCutoff.setDate(suppressionCutoff.getDate() - SUPPRESSION_DAYS);
+  const recentlyContactedIds = new Set(
+    clients
+      .filter((c) => c.last_contact_at && new Date(c.last_contact_at) > suppressionCutoff)
+      .map((c) => c.id),
+  );
+
+  const inserts: object[] = [];
+  const idleCutoff = monthsAgoDate(IDLE_MONTHS);
+
+  // ── Run ALL the same detection loops ──────────────────────────────────────
+  // (Duplicated from detectAndDraftForUser for isolation — no DB writes here)
+
+  // 1. Closing anniversaries
+  for (const rec of records) {
+    if (!rec.close_date || !rec.client_id) continue;
+    if (recentlyContactedIds.has(rec.client_id)) continue;
+    for (const years of ANNIVERSARY_YEARS) {
+      const anniv = addYears(rec.close_date, years);
+      const days  = daysUntil(anniv);
+      if (days >= 0 && days <= WINDOW_DAYS) {
+        inserts.push({
+          user_id: userId, client_id: rec.client_id, client_record_id: rec.id,
+          opportunity_type: "closing_anniversary", trigger_date: toISODate(anniv),
+          context: { anniversary_year: years, address: rec.address, close_date: rec.close_date, gci: rec.gci, side: rec.side, property_use: rec.property_use },
+        });
+      }
+    }
+  }
+
+  // 2. Idle clients
+  const clientLastDeal = new Map<string, string>();
+  for (const rec of records) {
+    if (!rec.client_id || !rec.close_date) continue;
+    const existing = clientLastDeal.get(rec.client_id);
+    if (!existing || rec.close_date > existing) clientLastDeal.set(rec.client_id, rec.close_date);
+  }
+  const triggerMonthKey = firstOfMonth();
+  for (const [clientId, lastDeal] of clientLastDeal.entries()) {
+    if (recentlyContactedIds.has(clientId)) continue;
+    if (new Date(lastDeal + "T12:00:00") < idleCutoff) {
+      inserts.push({
+        user_id: userId, client_id: clientId, opportunity_type: "idle_client",
+        trigger_date: triggerMonthKey,
+        context: { last_deal: lastDeal, months_idle: monthsIdleLabel(lastDeal) },
+      });
+    }
+  }
+
+  // 3. Birthdays
+  for (const client of clients) {
+    if (!client.birthdate) continue;
+    const birthday = nextBirthdayDate(client.birthdate);
+    if (isNaN(birthday.getTime())) continue;
+    const days = daysUntil(birthday);
+    if (days >= 0 && days <= WINDOW_DAYS) {
+      inserts.push({
+        user_id: userId, client_id: client.id, opportunity_type: "birthday",
+        trigger_date: toISODate(birthday), context: { birthdate: client.birthdate },
+      });
+    }
+  }
+
+  // 4. Post-close nurture
+  const POST_CLOSE_CONFIGS = [
+    { type: "post_close_3" as const, days: 3, lookback: 30 },
+    { type: "post_close_14" as const, days: 14, lookback: 30 },
+    { type: "post_close_90" as const, days: 90, lookback: 30 },
+    { type: "review_request" as const, days: 21, lookback: 30 },
+    { type: "referral_ask" as const, days: 45, lookback: 30 },
+  ];
+  for (const rec of records) {
+    if (!rec.close_date || !rec.client_id) continue;
+    if (recentlyContactedIds.has(rec.client_id)) continue;
+    for (const cfg of POST_CLOSE_CONFIGS) {
+      const triggerDate = addDays(rec.close_date, cfg.days);
+      const d = daysUntil(triggerDate);
+      if (d >= -cfg.lookback && d <= WINDOW_DAYS) {
+        inserts.push({
+          user_id: userId, client_id: rec.client_id, client_record_id: rec.id,
+          opportunity_type: cfg.type, trigger_date: toISODate(triggerDate),
+          context: { address: rec.address, close_date: rec.close_date, gci: rec.gci, days_after_close: cfg.days, side: rec.side, property_use: rec.property_use },
+        });
+      }
+    }
+  }
+
+  // 5-9: Remaining triggers (welcome, contact anniversary, multi-deal, seasonal, mortgage, memory-powered)
+  // Welcome
+  for (const client of clients) {
+    if (!client.first_contacted_at) continue;
+    if (recentlyContactedIds.has(client.id)) continue;
+    const welcomeDate = addDays(client.first_contacted_at.slice(0, 10), 7);
+    const d = daysUntil(welcomeDate);
+    if (d >= -14 && d <= WINDOW_DAYS) {
+      inserts.push({
+        user_id: userId, client_id: client.id, opportunity_type: "new_client_welcome",
+        trigger_date: toISODate(welcomeDate), context: { first_contacted_at: client.first_contacted_at },
+      });
+    }
+  }
+
+  // Contact anniversary
+  for (const client of clients) {
+    if (!client.first_contacted_at) continue;
+    if (recentlyContactedIds.has(client.id)) continue;
+    const startDate = client.first_contacted_at.slice(0, 10);
+    const yearsSince = new Date().getFullYear() - new Date(startDate + "T12:00:00").getFullYear();
+    if (yearsSince < 1) continue;
+    for (const yr of [1, 2, 3, 5, 10]) {
+      if (yr > yearsSince + 1) break;
+      const annivDate = addYears(startDate, yr);
+      const d = daysUntil(annivDate);
+      if (d >= 0 && d <= WINDOW_DAYS) {
+        inserts.push({
+          user_id: userId, client_id: client.id, opportunity_type: "contact_anniversary",
+          trigger_date: toISODate(annivDate), context: { anniversary_year: yr, first_contacted_at: startDate },
+        });
+      }
+    }
+  }
+
+  // Multi-deal milestone
+  const clientDealDates = new Map<string, string[]>();
+  for (const rec of records) {
+    if (!rec.client_id || !rec.close_date) continue;
+    const arr = clientDealDates.get(rec.client_id) ?? [];
+    arr.push(rec.close_date);
+    clientDealDates.set(rec.client_id, arr);
+  }
+  for (const [clientId, dates] of clientDealDates.entries()) {
+    if (recentlyContactedIds.has(clientId)) continue;
+    const sorted = [...dates].sort();
+    for (const milestone of [2, 3, 5]) {
+      if (sorted.length >= milestone) {
+        const latestClose = sorted[sorted.length - 1];
+        const trigDate = addDays(latestClose, 7);
+        const d = daysUntil(trigDate);
+        if (d >= -30 && d <= WINDOW_DAYS) {
+          inserts.push({
+            user_id: userId, client_id: clientId, opportunity_type: "multi_deal_milestone",
+            trigger_date: toISODate(trigDate), context: { deal_count: milestone },
+          });
+        }
+      }
+    }
+  }
+
+  // Memory-powered triggers
+  for (const [clientId, mem] of memoryMap.entries()) {
+    if (recentlyContactedIds.has(clientId)) continue;
+    const facts = mem.structured_facts;
+    if (!facts) continue;
+    const client = _clientMap.get(clientId);
+    if (!client) continue;
+
+    const lastDeal = clientLastDeal.get(clientId);
+    const idleMonths = lastDeal ? Math.floor((Date.now() - new Date(lastDeal + "T12:00:00").getTime()) / (1000 * 60 * 60 * 24 * 30)) : 999;
+
+    if (facts.pain_point && idleMonths >= 6) {
+      inserts.push({
+        user_id: userId, client_id: clientId, opportunity_type: "pain_point_inactive",
+        trigger_date: triggerMonthKey, context: enrichContext({ pain_point: facts.pain_point }, "pain_point_inactive", facts, `Known concern + ${idleMonths}mo inactive`),
+      });
+    }
+    if (facts.areas_of_interest && facts.goal?.toLowerCase().includes("buy") && (client.status === "boarding" || client.status === "taxiing")) {
+      inserts.push({
+        user_id: userId, client_id: clientId, opportunity_type: "buyer_inventory_match",
+        trigger_date: triggerMonthKey, context: enrichContext({ areas_of_interest: facts.areas_of_interest, budget: facts.budget_context }, "buyer_inventory_match", facts, "Active buyer with target areas"),
+      });
+    }
+    if (facts.objection && (facts.goal?.toLowerCase().includes("sell") || facts.motivation?.toLowerCase().includes("sell"))) {
+      inserts.push({
+        user_id: userId, client_id: clientId, opportunity_type: "seller_timing_hesitation",
+        trigger_date: triggerMonthKey, context: enrichContext({ objection: facts.objection, motivation: facts.motivation }, "seller_timing_hesitation", facts, "Seller with timing concern"),
+      });
+    }
+  }
+
+  // ── Score + filter ──────────────────────────────────────────────────────────
+  for (const insert of inserts) {
+    const ins = insert as { client_id: string; opportunity_type: string; context: Record<string, unknown> };
+    const mem = memoryMap.get(ins.client_id);
+    const facts = mem?.structured_facts ?? null;
+    if (facts && !ins.context.memory_summary) {
+      ins.context = enrichContext(ins.context, ins.opportunity_type, facts, ins.context.selected_reason as string ?? "");
+    }
+    const clientData = _clientMap.get(ins.client_id);
+    const clientTags = (clientData?.tags as string[] | null) ?? [];
+    const clientNotes = (clientData?.notes as string | null) ?? null;
+    const score = scoreCandidate(ins.opportunity_type, facts, ins.context, clientTags, clientNotes);
+    ins.context = { ...ins.context, outreach_score: score };
+  }
+
+  // Sort by score, filter by threshold, cap per client
+  inserts.sort((a, b) => {
+    const sa = ((a as { context: { outreach_score?: number } }).context.outreach_score ?? 0);
+    const sb = ((b as { context: { outreach_score?: number } }).context.outreach_score ?? 0);
+    return sb - sa;
+  });
+
+  // Higher threshold for top opportunities — only genuinely valuable ones
+  const TOP_OPPORTUNITY_THRESHOLD = 55;
+  const clientCounts = new Map<string, number>();
+  const topCandidates: object[] = [];
+
+  for (const ins of inserts) {
+    const typed = ins as { client_id: string; opportunity_type: string; trigger_date: string; client_record_id?: string; context: Record<string, unknown> };
+    const score = typed.context.outreach_score as number ?? 0;
+    if (score < TOP_OPPORTUNITY_THRESHOLD) continue;
+
+    const clientId = typed.client_id;
+    const count = clientCounts.get(clientId) ?? 0;
+    if (count >= 1) continue; // strict: 1 opportunity per client for top list
+
+    clientCounts.set(clientId, count + 1);
+    topCandidates.push(ins);
+    if (topCandidates.length >= MAX_TOP_OPPORTUNITIES) break;
+  }
+
+  // ── Build structured response ───────────────────────────────────────────────
+  return topCandidates.map((ins) => {
+    const typed = ins as {
+      client_id: string; opportunity_type: string; trigger_date: string;
+      client_record_id?: string; context: Record<string, unknown>;
+    };
+    const client = _clientMap.get(typed.client_id);
+    const mem = memoryMap.get(typed.client_id);
+    const facts = mem?.structured_facts ?? null;
+    const clientTags = (client?.tags as string[] | null) ?? [];
+    const clientNotes = (client?.notes as string | null) ?? null;
+    const contextLevel = classifyClientContext(clientTags, clientNotes, typed.context);
+
+    return {
+      client_id:        typed.client_id,
+      client_name:      client?.name ?? "Unknown",
+      client_city:      client?.city ?? null,
+      opportunity_type: typed.opportunity_type as TopOpportunity["opportunity_type"],
+      trigger_date:     typed.trigger_date,
+      score:            (typed.context.outreach_score as number) ?? 0,
+      label:            buildTopLabel(typed.opportunity_type, typed.context, client?.city ?? null),
+      why_this_matters: buildWhyThisMatters(typed.opportunity_type, typed.context, facts),
+      why_now:          buildWhyNow(typed.opportunity_type, typed.context, typed.trigger_date),
+      suggested_angle:  suggestAngle(typed.opportunity_type, facts, typed.context),
+      context_level:    contextLevel,
+      client_record_id: typed.client_record_id ?? null,
+      context:          typed.context,
+    };
+  });
 }
 
 // ── Vercel function timeout — allows up to 60s for sequential Groq calls ──────
@@ -1102,13 +1994,15 @@ export async function POST(req: NextRequest) {
           const agentFirst     = extractFirstName(settingsRes.data?.display_name ?? null, "");
           const emailSignature = (settingsRes.data?.email_signature as string) ?? "";
           const agentStyleGuide = (settingsRes.data?.ai_voice_guide as string | null) ?? null;
-          for (const item of undraftedRes.data) {
-            await draftItem(
-              item as Parameters<typeof draftItem>[0],
-              agentFirst, emailSignature, agentStyleGuide, groq, supabase,
-            );
-            drafted++;
-          }
+          const results = await Promise.allSettled(
+            undraftedRes.data.map((item) =>
+              draftItem(
+                item as Parameters<typeof draftItem>[0],
+                agentFirst, emailSignature, agentStyleGuide, groq, supabase,
+              ),
+            ),
+          );
+          drafted = results.filter((r) => r.status === "fulfilled" && r.value === true).length;
         }
       }
     } else {

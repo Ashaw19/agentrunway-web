@@ -1,15 +1,14 @@
 "use client";
 
 /**
- * Flight Control — AI-powered outreach inbox.
+ * Flight Control — Business Brain + Prioritization Engine.
  *
- * Surfaces AI-drafted, personalised outreach messages for the agent to
- * review and send with one click. No templates, no campaign builder.
+ * Shows top opportunities: "Who should I focus on right now, and why?"
+ * Message drafting is optional and assistive, not the primary experience.
  */
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Button }                          from "@/components/ui/button";
-import { Badge }                           from "@/components/ui/badge";
 import { Input }                           from "@/components/ui/input";
 import { Textarea }                        from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -18,19 +17,57 @@ import { toast }                           from "sonner";
 import { cn }                              from "@/lib/utils";
 import {
   Sparkles, Calendar, Clock, Gift, Mail, Copy,
-  ChevronRight, ChevronDown, Loader2, CheckCircle2, Pen,
-  Send, Radar, TrendingUp,
+  ChevronDown, Loader2, CheckCircle2, Pen,
+  Send, Radar, TrendingUp, Target,
   Home, MessageCircle, Star, Users,
   Handshake, Heart, Repeat2,
   Flower2, Leaf, PartyPopper, Receipt,
-  RefreshCw, Timer,
+  RefreshCw, Timer, Lightbulb, ArrowRight,
+  AlertTriangle, Brain, Zap,
 } from "lucide-react";
-import type { OutreachQueueItem, OutreachOpportunityType, NewsletterQueue } from "@/lib/types/database";
+import type { OutreachQueueItem, OutreachOpportunityType, TopOpportunity, NewsletterQueue } from "@/lib/types/database";
 import { guardSandboxWrite, guardSandboxExternalAction } from "@/lib/sandbox-guard";
 import { useSandboxMode } from "@/lib/sandbox-mode-context";
 import { NewsletterSection } from "./newsletter-section";
 
-// ── Extended type with joined client fields ────────────────────────────────────
+// ── Opportunity type icons ──────────────────────────────────────────────────
+
+const OPTYPE_ICON: Record<OutreachOpportunityType, React.ElementType> = {
+  closing_anniversary:   Calendar,
+  idle_client:           Clock,
+  birthday:              Gift,
+  post_close_3:          Home,
+  post_close_14:         MessageCircle,
+  post_close_90:         TrendingUp,
+  review_request:        Star,
+  referral_ask:          Users,
+  new_client_welcome:    Handshake,
+  contact_anniversary:   Heart,
+  multi_deal_milestone:  Repeat2,
+  seasonal_spring:       Flower2,
+  seasonal_fall:         Leaf,
+  seasonal_yearend:      PartyPopper,
+  seasonal_tax:          Receipt,
+  mortgage_renewal_due:  RefreshCw,
+  mortgage_renewal_window: RefreshCw,
+  past_client_check_in:  Clock,
+  timeframe_approaching: Timer,
+  property_value_milestone: Home,
+};
+
+function getScoreColor(score: number): { bg: string; text: string; ring: string } {
+  if (score >= 80) return { bg: "bg-emerald-500/10", text: "text-emerald-400", ring: "ring-emerald-500/30" };
+  if (score >= 65) return { bg: "bg-violet-500/10", text: "text-violet-400", ring: "ring-violet-500/30" };
+  return { bg: "bg-amber-500/10", text: "text-amber-400", ring: "ring-amber-500/30" };
+}
+
+function getContextBadge(level: TopOpportunity["context_level"]): { label: string; cls: string } | null {
+  if (level === "sensitive") return { label: "Sensitive", cls: "bg-rose-500/10 text-rose-400 ring-rose-500/20" };
+  if (level === "sparse") return { label: "Limited data", cls: "bg-slate-500/10 text-slate-400 ring-slate-500/20" };
+  return null; // rich = no badge needed
+}
+
+// ── Extended queue item type for drafting ───────────────────────────────────
 
 type QueueItemWithClient = OutreachQueueItem & {
   clients: {
@@ -41,380 +78,151 @@ type QueueItemWithClient = OutreachQueueItem & {
   } | null;
 };
 
-// ── Opportunity display config ────────────────────────────────────────────────
+// ── Opportunity Card ────────────────────────────────────────────────────────
 
-const OPTYPE_CONFIG: Record<
-  OutreachOpportunityType,
-  { label: string; icon: React.ElementType; ringCls: string; bgCls: string; textCls: string }
-> = {
-  // Phase A
-  closing_anniversary: {
-    label:   "Closing Anniversary",
-    icon:    Calendar,
-    ringCls: "ring-violet-500/40",
-    bgCls:   "bg-violet-500/10",
-    textCls: "text-violet-400",
-  },
-  idle_client: {
-    label:   "Overdue Check-In",
-    icon:    Clock,
-    ringCls: "ring-amber-500/40",
-    bgCls:   "bg-amber-500/10",
-    textCls: "text-amber-400",
-  },
-  birthday: {
-    label:   "Birthday",
-    icon:    Gift,
-    ringCls: "ring-rose-500/40",
-    bgCls:   "bg-rose-500/10",
-    textCls: "text-rose-400",
-  },
-  // Batch 1: Post-Close Nurture
-  post_close_3: {
-    label:   "Move-In Thanks",
-    icon:    Home,
-    ringCls: "ring-emerald-500/40",
-    bgCls:   "bg-emerald-500/10",
-    textCls: "text-emerald-400",
-  },
-  post_close_14: {
-    label:   "2-Week Check-In",
-    icon:    MessageCircle,
-    ringCls: "ring-teal-500/40",
-    bgCls:   "bg-teal-500/10",
-    textCls: "text-teal-400",
-  },
-  post_close_90: {
-    label:   "3-Month Check-In",
-    icon:    TrendingUp,
-    ringCls: "ring-blue-500/40",
-    bgCls:   "bg-blue-500/10",
-    textCls: "text-blue-400",
-  },
-  review_request: {
-    label:   "Review Request",
-    icon:    Star,
-    ringCls: "ring-yellow-500/40",
-    bgCls:   "bg-yellow-500/10",
-    textCls: "text-yellow-400",
-  },
-  referral_ask: {
-    label:   "Referral Ask",
-    icon:    Users,
-    ringCls: "ring-purple-500/40",
-    bgCls:   "bg-purple-500/10",
-    textCls: "text-purple-400",
-  },
-  // Batch 2: Relationship Milestones
-  new_client_welcome: {
-    label:   "New Client Welcome",
-    icon:    Handshake,
-    ringCls: "ring-cyan-500/40",
-    bgCls:   "bg-cyan-500/10",
-    textCls: "text-cyan-400",
-  },
-  contact_anniversary: {
-    label:   "Relationship Milestone",
-    icon:    Heart,
-    ringCls: "ring-pink-500/40",
-    bgCls:   "bg-pink-500/10",
-    textCls: "text-pink-400",
-  },
-  multi_deal_milestone: {
-    label:   "Repeat Client",
-    icon:    Repeat2,
-    ringCls: "ring-indigo-500/40",
-    bgCls:   "bg-indigo-500/10",
-    textCls: "text-indigo-400",
-  },
-  // Batch 3: Seasonal
-  seasonal_spring: {
-    label:   "Spring Market",
-    icon:    Flower2,
-    ringCls: "ring-green-500/40",
-    bgCls:   "bg-green-500/10",
-    textCls: "text-green-400",
-  },
-  seasonal_fall: {
-    label:   "Fall Market",
-    icon:    Leaf,
-    ringCls: "ring-orange-500/40",
-    bgCls:   "bg-orange-500/10",
-    textCls: "text-orange-400",
-  },
-  seasonal_yearend: {
-    label:   "Year-End",
-    icon:    PartyPopper,
-    ringCls: "ring-violet-500/40",
-    bgCls:   "bg-violet-500/10",
-    textCls: "text-violet-400",
-  },
-  seasonal_tax: {
-    label:   "Tax Season Tip",
-    icon:    Receipt,
-    ringCls: "ring-slate-500/40",
-    bgCls:   "bg-slate-500/10",
-    textCls: "text-slate-400",
-  },
-  // Batch 4: Intelligent Outreach (briefing-triggered)
-  mortgage_renewal_due: {
-    label:   "Mortgage Renewal",
-    icon:    RefreshCw,
-    ringCls: "ring-red-500/40",
-    bgCls:   "bg-red-500/10",
-    textCls: "text-red-400",
-  },
-  mortgage_renewal_window: {
-    label:   "Renewal Window",
-    icon:    RefreshCw,
-    ringCls: "ring-blue-500/40",
-    bgCls:   "bg-blue-500/10",
-    textCls: "text-blue-400",
-  },
-  past_client_check_in: {
-    label:   "Past Client Check-In",
-    icon:    Clock,
-    ringCls: "ring-slate-500/40",
-    bgCls:   "bg-slate-500/10",
-    textCls: "text-slate-400",
-  },
-  timeframe_approaching: {
-    label:   "Timeframe Approaching",
-    icon:    Timer,
-    ringCls: "ring-amber-500/40",
-    bgCls:   "bg-amber-500/10",
-    textCls: "text-amber-400",
-  },
-  property_value_milestone: {
-    label:   "Property Milestone",
-    icon:    Home,
-    ringCls: "ring-emerald-500/40",
-    bgCls:   "bg-emerald-500/10",
-    textCls: "text-emerald-400",
-  },
-};
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function daysUntilLabel(triggerDate: string): string {
-  const target = new Date(triggerDate + "T12:00:00");
-  const today  = new Date();
-  today.setHours(12, 0, 0, 0);
-  const days = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  if (days < 0)  return "Overdue";
-  if (days === 0) return "Today";
-  if (days === 1) return "Tomorrow";
-  return `In ${days} days`;
-}
-
-function contextLabel(item: QueueItemWithClient): string {
-  const ctx = item.context as Record<string, string | number>;
-  switch (item.opportunity_type) {
-    // Phase A
-    case "closing_anniversary": {
-      const years = Number(ctx.anniversary_year ?? 1);
-      const addr  = (ctx.address as string) ?? item.clients?.city ?? "";
-      return `${years}-year anniversary${addr ? ` · ${addr}` : ""}`;
-    }
-    case "idle_client":
-      return `Last deal: ${ctx.last_deal ? String(ctx.last_deal).slice(0, 4) : "—"} · ${ctx.months_idle ?? "18+ months"} ago`;
-    case "birthday":
-      return "Upcoming birthday";
-    // Batch 1: Post-Close Nurture
-    case "post_close_3": {
-      const addr = (ctx.address as string) ?? item.clients?.city ?? "";
-      return `3 days after closing${addr ? ` · ${addr}` : ""}`;
-    }
-    case "post_close_14": {
-      const addr = (ctx.address as string) ?? item.clients?.city ?? "";
-      return `2-week check-in${addr ? ` · ${addr}` : ""}`;
-    }
-    case "post_close_90": {
-      const addr = (ctx.address as string) ?? item.clients?.city ?? "";
-      return `3-month mark${addr ? ` · ${addr}` : ""}`;
-    }
-    case "review_request": {
-      const addr = (ctx.address as string) ?? item.clients?.city ?? "";
-      return `21 days after closing${addr ? ` · ${addr}` : ""}`;
-    }
-    case "referral_ask": {
-      const addr = (ctx.address as string) ?? item.clients?.city ?? "";
-      return `45 days after closing${addr ? ` · ${addr}` : ""}`;
-    }
-    // Batch 2: Relationship Milestones
-    case "new_client_welcome":
-      return "7 days since first contact";
-    case "contact_anniversary": {
-      const yr = Number(ctx.anniversary_year ?? 1);
-      return `${yr}-year working relationship`;
-    }
-    case "multi_deal_milestone": {
-      const n = Number(ctx.deal_count ?? 2);
-      const ordinal = n === 2 ? "2nd" : n === 3 ? "3rd" : `${n}th`;
-      return `${ordinal} deal together`;
-    }
-    // Batch 3: Seasonal
-    case "seasonal_spring":
-      return `Spring ${ctx.year ?? new Date().getFullYear()} market update`;
-    case "seasonal_fall":
-      return `Fall ${ctx.year ?? new Date().getFullYear()} market update`;
-    case "seasonal_yearend":
-      return `Year-end ${ctx.year ?? new Date().getFullYear()} check-in`;
-    case "seasonal_tax":
-      return `Tax season ${ctx.year ?? new Date().getFullYear()} tips`;
-    // Batch 4: Intelligent Outreach
-    case "mortgage_renewal_due": {
-      const days = Number(ctx.days_until_renewal ?? 0);
-      const addr = (ctx.address as string) ?? item.clients?.city ?? "";
-      const timing = days <= 0 ? "overdue" : days <= 90 ? `${days}d away` : `~${Math.round(days / 30)}mo away`;
-      return `5-yr renewal ${timing}${addr ? ` · ${addr}` : ""}`;
-    }
-    case "mortgage_renewal_window": {
-      const months = Number(ctx.months_until_renewal ?? 12);
-      const addr   = (ctx.address as string) ?? item.clients?.city ?? "";
-      return `Renewal in ~${months}mo${addr ? ` · ${addr}` : ""}`;
-    }
-    case "past_client_check_in": {
-      const months = Number(ctx.months_idle ?? 6);
-      return `${months} month${months !== 1 ? "s" : ""} since last contact`;
-    }
-    case "timeframe_approaching": {
-      const label = (ctx.timeframe_label as string) ?? "upcoming";
-      const days  = Number(ctx.days_remaining ?? 0);
-      return `${label} window · ~${days}d remaining`;
-    }
-    case "property_value_milestone": {
-      const yr   = Number(ctx.milestone_year ?? 1);
-      const addr = (ctx.address as string) ?? item.clients?.city ?? "";
-      return `${yr}-year property anniversary${addr ? ` · ${addr}` : ""}`;
-    }
-    default:
-      return "";
-  }
-}
-
-// ── Message card ──────────────────────────────────────────────────────────────
-
-function MessageCard({
-  item,
-  onReview,
-  onSkip,
-  onGenerate,
+function OpportunityCard({
+  opportunity,
+  onDraftMessage,
+  onDismiss,
+  draftedMessage,
+  onReviewDraft,
+  drafting,
 }: {
-  item:       QueueItemWithClient;
-  onReview:   (item: QueueItemWithClient) => void;
-  onSkip:     (id: string) => void;
-  onGenerate: () => void;
+  opportunity:    TopOpportunity;
+  onDraftMessage: (opp: TopOpportunity) => void;
+  onDismiss:      (opp: TopOpportunity) => void;
+  draftedMessage: QueueItemWithClient | null;
+  onReviewDraft:  (item: QueueItemWithClient) => void;
+  drafting:       boolean;
 }) {
-  const cfg    = OPTYPE_CONFIG[item.opportunity_type];
-  const Icon   = cfg.icon;
-  const isDraft = item.status === "draft";
-  const subject = item.final_subject ?? item.ai_subject;
-  const body    = item.final_body    ?? item.ai_body;
+  const Icon = OPTYPE_ICON[opportunity.opportunity_type] ?? Target;
+  const scoreColors = getScoreColor(opportunity.score);
+  const contextBadge = getContextBadge(opportunity.context_level);
+  const [expanded, setExpanded] = useState(false);
+
+  const hasDraft = draftedMessage && draftedMessage.ai_subject;
 
   return (
     <div className={cn(
-      "group/card rounded-xl border bg-card/80 backdrop-blur-sm p-4 flex flex-col gap-3",
+      "rounded-xl border bg-card/80 backdrop-blur-sm p-5 space-y-3",
       "ring-1 transition-all duration-200",
-      cfg.ringCls,
+      scoreColors.ring,
       "hover:shadow-lg hover:shadow-black/5 hover:bg-card hover:ring-2",
     )}>
-      {/* Header row */}
+      {/* Top row: icon + label + score */}
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
           <span className={cn(
-            "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1 shadow-sm",
-            cfg.bgCls, cfg.ringCls,
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 shadow-sm",
+            scoreColors.bg, scoreColors.ring,
           )}>
-            <Icon className={cn("h-4 w-4", cfg.textCls)} />
+            <Icon className={cn("h-5 w-5", scoreColors.text)} />
           </span>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={cn("text-[11px] font-bold uppercase tracking-wider", cfg.textCls)}>
-                {cfg.label}
-              </span>
-              {isDraft && (
-                <Badge variant="outline" className="text-[10px] py-0 h-4 border-muted-foreground/30 animate-pulse">
-                  <Loader2 className="h-2.5 w-2.5 mr-1 animate-spin" />
-                  Drafting…
-                </Badge>
-              )}
-            </div>
-            <p className="text-[12px] text-muted-foreground leading-tight mt-0.5">
-              {contextLabel(item)}
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-[15px] text-foreground leading-tight">
+              {opportunity.client_name}
+            </p>
+            <p className="text-[12px] text-muted-foreground leading-snug mt-0.5">
+              {opportunity.label}
             </p>
           </div>
         </div>
-        <span className={cn(
-          "shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full",
-          cfg.bgCls, cfg.textCls,
-        )}>
-          {daysUntilLabel(item.trigger_date)}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          {contextBadge && (
+            <span className={cn(
+              "text-[10px] font-medium px-2 py-0.5 rounded-full ring-1",
+              contextBadge.cls,
+            )}>
+              {contextBadge.label}
+            </span>
+          )}
+          <span className={cn(
+            "text-[12px] font-bold px-2.5 py-1 rounded-full ring-1",
+            scoreColors.bg, scoreColors.text, scoreColors.ring,
+          )}>
+            {opportunity.score}
+          </span>
+        </div>
       </div>
 
-      {/* Client name */}
-      <p className="font-semibold text-sm text-foreground leading-tight pl-0.5">
-        {item.clients?.name ?? "Unknown client"}
-      </p>
+      {/* Why now — always visible */}
+      <div className="flex items-start gap-2 pl-0.5">
+        <Zap className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-400" />
+        <p className="text-[13px] text-foreground/80 leading-relaxed">
+          <span className="font-semibold text-foreground/90">Why now:</span>{" "}
+          {opportunity.why_now}
+        </p>
+      </div>
 
-      {/* Message preview */}
-      {!isDraft && subject && body ? (
-        <div className={cn("rounded-lg p-3 space-y-1.5 border", cfg.bgCls, "border-transparent")}>
-          <p className="text-[12px] font-semibold text-foreground/90 truncate">
-            {subject}
-          </p>
-          <p className="text-[12px] text-muted-foreground line-clamp-2 leading-relaxed">
-            {body.slice(0, 180)}…
-          </p>
+      {/* Suggested angle — always visible */}
+      <div className="flex items-start gap-2 pl-0.5">
+        <Lightbulb className="h-3.5 w-3.5 mt-0.5 shrink-0 text-violet-400" />
+        <p className="text-[13px] text-foreground/80 leading-relaxed">
+          <span className="font-semibold text-foreground/90">Angle:</span>{" "}
+          {opportunity.suggested_angle}
+        </p>
+      </div>
+
+      {/* Expandable: why this matters */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground transition-colors pl-0.5"
+      >
+        <Brain className="h-3 w-3" />
+        <span>Why this matters</span>
+        <ChevronDown className={cn("h-3 w-3 transition-transform", expanded && "rotate-180")} />
+      </button>
+      {expanded && (
+        <div className="pl-6 text-[12px] text-muted-foreground leading-relaxed border-l-2 border-border/40 ml-1">
+          {opportunity.why_this_matters}
         </div>
-      ) : isDraft ? (
-        <div className="rounded-lg border border-border/30 bg-muted/20 p-3 space-y-2 animate-pulse">
-          <div className="h-3 w-3/4 rounded-full bg-muted-foreground/15" />
-          <div className="h-3 w-full rounded-full bg-muted-foreground/10" />
-          <div className="h-3 w-5/6 rounded-full bg-muted-foreground/8" />
-        </div>
-      ) : null}
+      )}
 
       {/* Actions */}
-      <div className="flex items-center justify-end gap-2 pt-0.5">
+      <div className="flex items-center justify-between gap-2 pt-1">
         <Button
           variant="ghost"
           size="sm"
           className="text-muted-foreground hover:text-foreground h-7 text-xs"
-          onClick={() => onSkip(item.id)}
+          onClick={() => onDismiss(opportunity)}
         >
-          Skip
+          Dismiss
         </Button>
-        {isDraft ? (
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 text-xs gap-1.5 font-semibold border-violet-500/40 text-violet-400 hover:text-violet-300 hover:bg-violet-500/10"
-            onClick={onGenerate}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            Generate Message
-          </Button>
-        ) : (
-        <Button
-          size="sm"
-          className={cn(
-            "h-8 text-xs gap-1.5 font-semibold",
-            "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white border-0 shadow-sm",
+        <div className="flex items-center gap-2">
+          {hasDraft ? (
+            <Button
+              size="sm"
+              className={cn(
+                "h-8 text-xs gap-1.5 font-semibold",
+                "bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white border-0 shadow-sm",
+              )}
+              onClick={() => onReviewDraft(draftedMessage!)}
+            >
+              Review Draft
+              <ArrowRight className="h-3 w-3" />
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs gap-1.5 font-semibold border-violet-500/40 text-violet-400 hover:text-violet-300 hover:bg-violet-500/10"
+              onClick={() => onDraftMessage(opportunity)}
+              disabled={drafting}
+            >
+              {drafting ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Drafting...</>
+              ) : (
+                <><Pen className="h-3.5 w-3.5" /> Draft Message</>
+              )}
+            </Button>
           )}
-          onClick={() => onReview(item)}
-        >
-          Review & Send
-          <ChevronRight className="h-3 w-3" />
-        </Button>
-        )}
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Review drawer ─────────────────────────────────────────────────────────────
+// ── Review drawer (preserved from existing — handles draft review + send) ───
 
 function ReviewDrawer({
   item,
@@ -436,7 +244,6 @@ function ReviewDrawer({
   const [saving,      setSaving]      = useState(false);
   const [copied,      setCopied]      = useState(false);
 
-  // Sync local state when a new item is opened in the drawer
   const prevIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (item && item.id !== prevIdRef.current) {
@@ -483,7 +290,7 @@ function ReviewDrawer({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       onSent(item.id);
       onClose();
-      toast.success("Marked as sent ✓");
+      toast.success("Marked as sent");
     } catch {
       toast.error("Couldn't mark as sent — try again");
     }
@@ -496,22 +303,21 @@ function ReviewDrawer({
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      toast.success("Copied to clipboard — paste into your email client");
+      toast.success("Copied to clipboard");
       setTimeout(() => setCopied(false), 2500);
     } catch {
-      toast.error("Couldn't access clipboard — copy the text manually");
+      toast.error("Couldn't access clipboard");
       return;
     }
-    // Ask "mark as sent?"
     markAsSent();
-  }, [item, editSubject, editBody, saveEdits]);
+  }, [item, editSubject, editBody, saveEdits, markAsSent]);
 
   const handleSendGmail = useCallback(async () => {
     if (!item) return;
     if (guardSandboxExternalAction(sandbox.sandboxMode, "Sending emails")) return;
     const to = item.clients?.email?.trim() ?? "";
     if (!to) {
-      toast.error("No email address on file for this client — add one in the CRM first");
+      toast.error("No email address on file for this client");
       return;
     }
     await saveEdits();
@@ -545,13 +351,13 @@ function ReviewDrawer({
     if (!item) return;
     const to = item.clients?.email?.trim() ?? "";
     if (!to) {
-      toast.error("No email address on file for this client — add one in the CRM first");
+      toast.error("No email address on file for this client");
       return;
     }
     await saveEdits();
     const subject = encodeURIComponent(editSubject);
     if (editBody.length > 1800) {
-      toast.warning("Message was trimmed for the email link — paste the full text from above if needed");
+      toast.warning("Message was trimmed for the email link");
     }
     const body    = encodeURIComponent(editBody.slice(0, 1800));
     const url     = `mailto:${to}?subject=${subject}&body=${body}`;
@@ -561,28 +367,14 @@ function ReviewDrawer({
 
   if (!item) return null;
 
-  const cfg = OPTYPE_CONFIG[item.opportunity_type];
-
   return (
     <Sheet open={!!item} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-full sm:max-w-lg flex flex-col gap-0 p-0 overflow-hidden">
-        {/* Header with gradient */}
         <SheetHeader className="relative px-6 pt-6 pb-4 shrink-0 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-violet-600/8 via-indigo-500/5 to-transparent pointer-events-none" />
           <div className="relative">
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-lg ring-1 shadow-sm",
-                cfg.bgCls, cfg.ringCls,
-              )}>
-                <cfg.icon className={cn("h-3.5 w-3.5", cfg.textCls)} />
-              </span>
-              <span className={cn("text-[11px] font-bold uppercase tracking-wider", cfg.textCls)}>
-                {cfg.label}
-              </span>
-            </div>
             <SheetTitle className="text-base font-bold">
-              {item.clients?.name ?? "Client"} — {contextLabel(item)}
+              {item.clients?.name ?? "Client"} — Draft Message
             </SheetTitle>
             <p className="text-xs text-muted-foreground mt-1">
               Review and personalise before sending. Edits are saved automatically.
@@ -591,7 +383,6 @@ function ReviewDrawer({
           <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-border/60 to-transparent" />
         </SheetHeader>
 
-        {/* Editable message */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -601,7 +392,7 @@ function ReviewDrawer({
               value={editSubject}
               onChange={(e) => setEditSubject(e.target.value)}
               className="text-sm font-medium"
-              placeholder="Subject line…"
+              placeholder="Subject line..."
             />
           </div>
           <div className="space-y-1.5">
@@ -613,11 +404,10 @@ function ReviewDrawer({
               onChange={(e) => setEditBody(e.target.value)}
               rows={12}
               className="text-sm leading-relaxed resize-none"
-              placeholder="Message body…"
+              placeholder="Message body..."
             />
           </div>
 
-          {/* Signature status */}
           <div className="rounded-lg border border-border/40 bg-muted/20 px-3 py-2.5">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
@@ -630,7 +420,7 @@ function ReviewDrawer({
                   </p>
                 ) : (
                   <p className="text-[11px] text-muted-foreground/60 italic">
-                    No signature set — add one in Settings so it appears in your drafted messages.
+                    No signature set — add one in Settings.
                   </p>
                 )}
               </div>
@@ -638,7 +428,7 @@ function ReviewDrawer({
                 href="/settings"
                 className="shrink-0 text-[10px] text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors mt-0.5"
               >
-                Edit →
+                Edit
               </a>
             </div>
           </div>
@@ -660,32 +450,13 @@ function ReviewDrawer({
                 )}
               </Button>
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1 gap-2 h-9 text-xs"
-                  onClick={handleCopy}
-                  disabled={saving}
-                >
-                  {copied ? (
-                    <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Copied</>
-                  ) : (
-                    <><Copy className="h-3.5 w-3.5" /> Copy</>
-                  )}
+                <Button variant="outline" className="flex-1 gap-2 h-9 text-xs" onClick={handleCopy} disabled={saving}>
+                  {copied ? <><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> Copied</> : <><Copy className="h-3.5 w-3.5" /> Copy</>}
                 </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1 gap-2 h-9 text-xs"
-                  onClick={handleOpenMailto}
-                  disabled={saving}
-                >
+                <Button variant="outline" className="flex-1 gap-2 h-9 text-xs" onClick={handleOpenMailto} disabled={saving}>
                   <Mail className="h-3.5 w-3.5" /> Open in Email
                 </Button>
-                <Button
-                  variant="ghost"
-                  className="flex-1 text-muted-foreground text-xs h-9"
-                  onClick={markAsSent}
-                  disabled={saving}
-                >
+                <Button variant="ghost" className="flex-1 text-muted-foreground text-xs h-9" onClick={markAsSent} disabled={saving}>
                   Mark Sent
                 </Button>
               </div>
@@ -693,40 +464,25 @@ function ReviewDrawer({
           ) : (
             <>
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1 gap-2 h-10"
-                  onClick={handleCopy}
-                  disabled={saving}
-                >
-                  {copied ? (
-                    <><CheckCircle2 className="h-4 w-4 text-emerald-400" /> Copied!</>
-                  ) : (
-                    <><Copy className="h-4 w-4" /> Copy to Clipboard</>
-                  )}
+                <Button variant="outline" className="flex-1 gap-2 h-10" onClick={handleCopy} disabled={saving}>
+                  {copied ? <><CheckCircle2 className="h-4 w-4 text-emerald-400" /> Copied!</> : <><Copy className="h-4 w-4" /> Copy to Clipboard</>}
                 </Button>
                 <Button
                   className="flex-1 gap-2 h-10 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white border-0 shadow-md shadow-violet-500/20"
                   onClick={handleOpenMailto}
                   disabled={saving}
                 >
-                  <Mail className="h-4 w-4" />
-                  Open in Email
+                  <Mail className="h-4 w-4" /> Open in Email
                 </Button>
               </div>
-              <Button
-                variant="ghost"
-                className="w-full text-muted-foreground text-xs h-8"
-                onClick={markAsSent}
-                disabled={saving}
-              >
+              <Button variant="ghost" className="w-full text-muted-foreground text-xs h-8" onClick={markAsSent} disabled={saving}>
                 Mark as sent without opening
               </Button>
               <a
                 href="/api/auth/google/connect"
                 className="block text-center text-[10px] text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors"
               >
-                Connect Gmail to send directly from Agent Runway →
+                Connect Gmail to send directly from Agent Runway
               </a>
             </>
           )}
@@ -738,7 +494,7 @@ function ReviewDrawer({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-type Tab = "outreach" | "newsletters";
+type Tab = "opportunities" | "newsletters";
 
 interface FlightControlContentProps {
   initialQueue:        QueueItemWithClient[];
@@ -748,50 +504,6 @@ interface FlightControlContentProps {
   initialNewsletters:  NewsletterQueue[];
   gmailConnected:      boolean;
   gmailEmail:          string | null;
-}
-
-// ── Flight Control dismissible banner ────────────────────────────────────────
-
-function FlightControlBanner() {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    try {
-      const dismissed = localStorage.getItem("flight_control_banner_dismissed");
-      if (!dismissed) setVisible(true);
-    } catch {
-      // localStorage may not be available in some contexts
-    }
-  }, []);
-
-  function dismiss() {
-    try {
-      localStorage.setItem("flight_control_banner_dismissed", "true");
-    } catch { /* ignore */ }
-    setVisible(false);
-  }
-
-  if (!visible) return null;
-
-  return (
-    <div className="mx-6 mt-4 flex items-start justify-between gap-4 rounded-2xl bg-[oklch(0.13_0.06_265)] px-5 py-4 shadow-md">
-      <div className="flex items-start gap-3">
-        <Sparkles className="h-5 w-5 shrink-0 mt-0.5 text-violet-400" />
-        <div>
-          <p className="font-bold text-sm text-white">Flight Control</p>
-          <p className="text-sm text-slate-300 mt-0.5 leading-relaxed">
-            AI-drafted outreach for your clients. In real aviation, Flight Control manages aircraft traffic. Here, it manages your relationship traffic. The metaphor works if you don&apos;t think about it too hard.
-          </p>
-        </div>
-      </div>
-      <button
-        onClick={dismiss}
-        className="shrink-0 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20 transition-colors whitespace-nowrap mt-0.5"
-      >
-        Cleared for takeoff
-      </button>
-    </div>
-  );
 }
 
 export function FlightControlContent({
@@ -804,18 +516,53 @@ export function FlightControlContent({
   gmailEmail,
 }: FlightControlContentProps) {
   const sandbox = useSandboxMode();
-  const [activeTab, setActiveTab] = useState<Tab>("outreach");
+  const [activeTab, setActiveTab] = useState<Tab>("opportunities");
+
+  // Top Opportunities state
+  const [opportunities, setOpportunities] = useState<TopOpportunity[]>([]);
+  const [dismissedIds,  setDismissedIds]  = useState<Set<string>>(new Set());
+  const [scanning,      setScanning]      = useState(false);
+  const [loaded,        setLoaded]        = useState(false);
+
+  // Drafted messages (from outreach_queue)
   const [queue,         setQueue]         = useState<QueueItemWithClient[]>(initialQueue);
   const [reviewItem,    setReviewItem]    = useState<QueueItemWithClient | null>(null);
-  const [scanning,      setScanning]      = useState(false);
+  const [draftingFor,   setDraftingFor]   = useState<string | null>(null); // client_id being drafted
   const [sentThisMonth, setSentThisMonth] = useState(initialSentThisMonth);
 
-  // ── Email signature ─────────────────────────────────────────────────────────
+  // Settings
   const [signature,     setSignature]     = useState(initialSignature);
   const [sigOpen,       setSigOpen]       = useState(false);
   const [sigSaving,     setSigSaving]     = useState(false);
   const sigDebounce     = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [voiceGuide,    setVoiceGuide]    = useState(initialVoiceGuide);
+  const [guideOpen,     setGuideOpen]     = useState(false);
+  const [guideSaving,   setGuideSaving]   = useState(false);
+  const guideDebounce   = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // ── Load top opportunities on mount ──────────────────────────────────────
+  const loadOpportunities = useCallback(async () => {
+    setScanning(true);
+    try {
+      const res = await fetch("/api/ai/top-opportunities");
+      const data = await res.json();
+      if (res.ok && data.opportunities) {
+        setOpportunities(data.opportunities);
+        setDismissedIds(new Set());
+      }
+    } catch {
+      toast.error("Couldn't load opportunities");
+    } finally {
+      setScanning(false);
+      setLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadOpportunities();
+  }, [loadOpportunities]);
+
+  // ── Settings persistence ──────────────────────────────────────────────────
   const saveSignature = useCallback((value: string) => {
     setSignature(value);
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
@@ -826,24 +573,11 @@ export function FlightControlContent({
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          await supabase
-            .from("user_settings")
-            .update({ email_signature: value })
-            .eq("user_id", user.id);
+          await supabase.from("user_settings").update({ email_signature: value }).eq("user_id", user.id);
         }
-      } catch {
-        // silent — non-critical
-      } finally {
-        setSigSaving(false);
-      }
+      } catch { /* silent */ } finally { setSigSaving(false); }
     }, 800);
   }, [sandbox.sandboxMode]);
-
-  // ── AI Voice Guide ───────────────────────────────────────────────────────────
-  const [voiceGuide,    setVoiceGuide]    = useState(initialVoiceGuide);
-  const [guideOpen,     setGuideOpen]     = useState(false);
-  const [guideSaving,   setGuideSaving]   = useState(false);
-  const guideDebounce   = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const saveVoiceGuide = useCallback((value: string) => {
     setVoiceGuide(value);
@@ -855,128 +589,101 @@ export function FlightControlContent({
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          await supabase
-            .from("user_settings")
-            .update({ ai_voice_guide: value })
-            .eq("user_id", user.id);
+          await supabase.from("user_settings").update({ ai_voice_guide: value }).eq("user_id", user.id);
         }
-      } catch {
-        // silent — non-critical
-      } finally {
-        setGuideSaving(false);
-      }
+      } catch { /* silent */ } finally { setGuideSaving(false); }
     }, 800);
   }, [sandbox.sandboxMode]);
 
-  // ── Skip ──────────────────────────────────────────────────────────────────
+  // ── Dismiss opportunity ──────────────────────────────────────────────────
+  const handleDismiss = useCallback((opp: TopOpportunity) => {
+    setDismissedIds((prev) => new Set([...prev, `${opp.client_id}:${opp.opportunity_type}`]));
+  }, []);
 
-  const handleSkip = useCallback(async (id: string) => {
+  // ── Draft message for an opportunity ──────────────────────────────────────
+  const handleDraftMessage = useCallback(async (opp: TopOpportunity) => {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
+    setDraftingFor(opp.client_id);
     try {
-      const res = await fetch(`/api/ai/outreach-queue/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "skipped" }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setQueue((prev) => prev.filter((i) => i.id !== id));
+      // First, persist the opportunity to outreach_queue via the scan endpoint
+      const scanRes = await fetch("/api/ai/detect-opportunities", { method: "POST" });
+      const scanData = await scanRes.json();
+      if (scanRes.ok && scanData.queue) {
+        setQueue(scanData.queue as QueueItemWithClient[]);
+      }
+
+      // Then draft any pending items
+      const draftRes = await fetch("/api/ai/detect-opportunities?draft_only=true", { method: "POST" });
+      const draftData = await draftRes.json();
+      if (draftRes.ok && draftData.queue) {
+        setQueue(draftData.queue as QueueItemWithClient[]);
+
+        // Find the drafted message for this client
+        const drafted = (draftData.queue as QueueItemWithClient[]).find(
+          (q) => q.client_id === opp.client_id && q.status === "ready" && q.ai_subject,
+        );
+        if (drafted) {
+          setReviewItem(drafted);
+          toast.success("Draft ready for review");
+        } else {
+          toast.success("Message queued — may still be generating");
+        }
+      }
     } catch {
-      toast.error("Couldn't skip — try again");
+      toast.error("Couldn't draft message — try again");
+    } finally {
+      setDraftingFor(null);
     }
   }, [sandbox.sandboxMode]);
 
   // ── Mark as sent ──────────────────────────────────────────────────────────
-
   const handleSent = useCallback((id: string) => {
     setQueue((prev) => prev.filter((i) => i.id !== id));
     setSentThisMonth((n) => n + 1);
   }, []);
 
-  // ── Scan Now ──────────────────────────────────────────────────────────────
+  // ── Visible opportunities ──────────────────────────────────────────────────
+  const visibleOpps = opportunities.filter(
+    (opp) => !dismissedIds.has(`${opp.client_id}:${opp.opportunity_type}`),
+  );
 
-  const handleScan = useCallback(async () => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
-    setScanning(true);
-    try {
-      const res  = await fetch("/api/ai/detect-opportunities", { method: "POST" });
-      const data = await res.json();
-
-      if (!res.ok) {
-        toast.error(data.error ?? "Scan failed");
-        return;
-      }
-
-      const newQueue = (data.queue ?? []) as QueueItemWithClient[];
-      setQueue(newQueue);
-
-      if (data.detected === 0) {
-        toast.success("All caught up — no new opportunities found");
-      } else {
-        toast.success(`Found ${data.detected} new opportunit${data.detected === 1 ? "y" : "ies"} · ${data.drafted} drafted`);
-      }
-    } catch {
-      toast.error("Scan failed — check your connection");
-    } finally {
-      setScanning(false);
-    }
-  }, [sandbox.sandboxMode]);
-
-  // ── Generate messages for stuck draft items ───────────────────────────────
-
-  const handleGenerate = useCallback(async () => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
-    try {
-      const res  = await fetch("/api/ai/detect-opportunities?draft_only=true", { method: "POST" });
-      const data = await res.json();
-      if (res.ok) {
-        const newQueue = (data.queue ?? []) as QueueItemWithClient[];
-        setQueue(newQueue);
-        if (data.drafted > 0) {
-          toast.success(`${data.drafted} message${data.drafted === 1 ? "" : "s"} generated`);
-        }
-      }
-    } catch {
-      toast.error("Couldn't generate message — try again");
-    }
-  }, [sandbox.sandboxMode]);
-
-  // ── Stats ─────────────────────────────────────────────────────────────────
-
-  const readyCount = queue.filter((i) => i.status === "ready").length;
-  const draftCount = queue.filter((i) => i.status === "draft").length;
+  // Find matching drafted messages for each opportunity
+  const getDraftForOpp = (opp: TopOpportunity): QueueItemWithClient | null => {
+    return queue.find(
+      (q) => q.client_id === opp.client_id && q.status === "ready" && q.ai_subject,
+    ) ?? null;
+  };
 
   return (
     <>
-      <FlightControlBanner />
       <div className="flex flex-col h-full">
-        {/* ── Hero header with gradient ─────────────────────────────────── */}
+        {/* ── Hero header ────────────────────────────────────────────────── */}
         <div className="shrink-0 relative overflow-hidden">
-          {/* Gradient background */}
           <div className="absolute inset-0 bg-gradient-to-br from-violet-600/8 via-indigo-500/5 to-transparent pointer-events-none" />
           <div className="relative px-6 pt-6 pb-5 space-y-4">
             {/* Title row */}
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow-lg shadow-violet-500/20">
-                  <Sparkles className="h-5 w-5 text-white" />
+                  <Brain className="h-5 w-5 text-white" />
                 </span>
                 <div>
                   <h1 className="text-xl font-bold tracking-tight text-foreground">
                     Flight Control
                   </h1>
                   <p className="text-xs text-muted-foreground">
-                    AI-powered outreach that feels human
+                    Who should you focus on today?
                   </p>
                 </div>
               </div>
               <Button
-                onClick={handleScan}
+                onClick={loadOpportunities}
                 disabled={scanning}
                 size="sm"
                 className="gap-2 shrink-0 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-md shadow-violet-500/20 border-0"
               >
                 {scanning ? (
-                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Scanning…</>
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Scanning...</>
                 ) : (
                   <><Radar className="h-3.5 w-3.5" /> Scan Now</>
                 )}
@@ -985,18 +692,11 @@ export function FlightControlContent({
 
             {/* Stat pills */}
             <div className="flex items-center gap-2 flex-wrap">
-              {readyCount > 0 && (
+              {visibleOpps.length > 0 && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-500/10 ring-1 ring-violet-500/20 text-xs">
-                  <span className="h-2 w-2 rounded-full bg-violet-400 animate-pulse" />
-                  <span className="font-semibold text-violet-600 dark:text-violet-400">{readyCount}</span>
-                  <span className="text-muted-foreground">ready</span>
-                </span>
-              )}
-              {draftCount > 0 && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 ring-1 ring-amber-500/20 text-xs">
-                  <Loader2 className="h-3 w-3 animate-spin text-amber-500" />
-                  <span className="font-semibold text-amber-600 dark:text-amber-400">{draftCount}</span>
-                  <span className="text-muted-foreground">drafting</span>
+                  <Target className="h-3 w-3 text-violet-500" />
+                  <span className="font-semibold text-violet-600 dark:text-violet-400">{visibleOpps.length}</span>
+                  <span className="text-muted-foreground">top {visibleOpps.length === 1 ? "opportunity" : "opportunities"}</span>
                 </span>
               )}
               {sentThisMonth > 0 && (
@@ -1006,7 +706,7 @@ export function FlightControlContent({
                   <span className="text-muted-foreground">sent this month</span>
                 </span>
               )}
-              {readyCount === 0 && draftCount === 0 && sentThisMonth === 0 && (
+              {loaded && visibleOpps.length === 0 && !scanning && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-muted/50 text-xs text-muted-foreground">
                   <CheckCircle2 className="h-3 w-3" />
                   All caught up
@@ -1017,24 +717,24 @@ export function FlightControlContent({
             {/* Tab switcher */}
             <div className="flex items-center gap-1 p-1 rounded-lg bg-muted/40 ring-1 ring-border/40 self-start">
               <button
-                onClick={() => setActiveTab("outreach")}
+                onClick={() => setActiveTab("opportunities")}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-all",
-                  activeTab === "outreach"
+                  activeTab === "opportunities"
                     ? "bg-background shadow-sm text-foreground ring-1 ring-border/50"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <Radar className="h-3 w-3" />
-                Outreach
-                {(readyCount + draftCount) > 0 && (
+                <Target className="h-3 w-3" />
+                Opportunities
+                {visibleOpps.length > 0 && (
                   <span className={cn(
                     "ml-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold",
-                    activeTab === "outreach"
+                    activeTab === "opportunities"
                       ? "bg-violet-500/20 text-violet-600 dark:text-violet-400"
                       : "bg-muted text-muted-foreground",
                   )}>
-                    {readyCount + draftCount}
+                    {visibleOpps.length}
                   </span>
                 )}
               </button>
@@ -1052,8 +752,8 @@ export function FlightControlContent({
               </button>
             </div>
 
-            {/* Email signature + AI Voice Guide (collapsible) — outreach tab only */}
-            {activeTab === "outreach" && (
+            {/* Settings (collapsible) — opportunities tab only */}
+            {activeTab === "opportunities" && (
             <div className="flex flex-col gap-2">
               <div>
                 <button
@@ -1079,7 +779,7 @@ export function FlightControlContent({
                       placeholder={"Best regards,\nYour Name\nBrokerage Name\n(555) 123-4567"}
                     />
                     <p className="text-[10px] text-muted-foreground">
-                      {sigSaving ? "Saving…" : "Appended to every AI-drafted message. Saves automatically."}
+                      {sigSaving ? "Saving..." : "Appended to every AI-drafted message. Saves automatically."}
                     </p>
                   </div>
                 )}
@@ -1093,7 +793,7 @@ export function FlightControlContent({
                   <span>AI Voice Guide</span>
                   {voiceGuide && !guideOpen && (
                     <span className="text-foreground/50 truncate max-w-[200px]">
-                      — {voiceGuide.slice(0, 40)}{voiceGuide.length > 40 ? "…" : ""}
+                      — {voiceGuide.slice(0, 40)}{voiceGuide.length > 40 ? "..." : ""}
                     </span>
                   )}
                   <ChevronDown className={cn("h-3 w-3 transition-transform", guideOpen && "rotate-180")} />
@@ -1105,10 +805,10 @@ export function FlightControlContent({
                       onChange={(e) => saveVoiceGuide(e.target.value)}
                       rows={4}
                       className="text-xs resize-none"
-                      placeholder={"Describe your writing style so AI drafts sound like you.\n\nExample: I keep messages short and casual. I always end with an open question. I avoid real estate clichés and never say \"I hope this email finds you well\". I prefer first names only."}
+                      placeholder={"Describe your writing style so AI drafts sound like you.\n\nExample: I keep messages short and casual. I avoid real estate clichés."}
                     />
                     <p className="text-[10px] text-muted-foreground">
-                      {guideSaving ? "Saving…" : "The AI uses this to match your voice on every drafted message. Saves automatically."}
+                      {guideSaving ? "Saving..." : "The AI uses this to match your voice. Saves automatically."}
                     </p>
                   </div>
                 )}
@@ -1116,59 +816,40 @@ export function FlightControlContent({
             </div>
             )}
           </div>
-          {/* Bottom divider with gradient fade */}
           <div className="h-px bg-gradient-to-r from-transparent via-border/60 to-transparent" />
         </div>
 
-        {/* ── Tab content ────────────────────────────────────────────────── */}
+        {/* ── Tab content ──────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {activeTab === "newsletters" ? (
             <NewsletterSection
               initialNewsletters={initialNewsletters}
               signature={signature}
             />
-          ) : queue.length === 0 ? (
-            <EmptyState onScan={handleScan} scanning={scanning} />
+          ) : !loaded ? (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <Loader2 className="h-6 w-6 animate-spin text-violet-400" />
+              <p className="text-sm text-muted-foreground">Analyzing your clients...</p>
+            </div>
+          ) : visibleOpps.length === 0 ? (
+            <EmptyState onScan={loadOpportunities} scanning={scanning} />
           ) : (
-            <div className="space-y-3 max-w-2xl">
-              {/* Section label */}
-              {readyCount > 0 && (
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
-                  <TrendingUp className="h-3 w-3 text-violet-400" />
-                  Opportunities Ready
-                </p>
-              )}
-              {/* Ready items first */}
-              {queue
-                .filter((i) => i.status === "ready")
-                .map((item) => (
-                  <MessageCard
-                    key={item.id}
-                    item={item}
-                    onReview={setReviewItem}
-                    onSkip={handleSkip}
-                    onGenerate={handleGenerate}
-                  />
-                ))}
-              {/* Draft section label */}
-              {draftCount > 0 && (
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mt-4 mb-1">
-                  <Sparkles className="h-3 w-3 text-amber-400" />
-                  Pending — Generate Message to draft
-                </p>
-              )}
-              {/* Draft / still generating */}
-              {queue
-                .filter((i) => i.status === "draft")
-                .map((item) => (
-                  <MessageCard
-                    key={item.id}
-                    item={item}
-                    onReview={setReviewItem}
-                    onSkip={handleSkip}
-                    onGenerate={handleGenerate}
-                  />
-                ))}
+            <div className="space-y-4 max-w-2xl">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
+                <Target className="h-3 w-3 text-violet-400" />
+                Top Opportunities — Who needs your attention
+              </p>
+              {visibleOpps.map((opp, i) => (
+                <OpportunityCard
+                  key={`${opp.client_id}-${opp.opportunity_type}-${i}`}
+                  opportunity={opp}
+                  onDraftMessage={handleDraftMessage}
+                  onDismiss={handleDismiss}
+                  draftedMessage={getDraftForOpp(opp)}
+                  onReviewDraft={setReviewItem}
+                  drafting={draftingFor === opp.client_id}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -1210,9 +891,9 @@ function EmptyState({
           All caught up
         </h2>
         <p className="text-sm text-muted-foreground leading-relaxed">
-          Flight Control monitors closing anniversaries, birthdays, and
-          clients who haven&apos;t heard from you lately. When it finds a
-          touchpoint, it drafts a personal message for you.
+          No high-value opportunities right now. Flight Control scans your CRM for
+          clients who need attention — closing anniversaries, overdue check-ins,
+          timing signals, and relationship milestones.
         </p>
       </div>
       <Button
@@ -1222,7 +903,7 @@ function EmptyState({
         className="gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white border-0 shadow-md shadow-violet-500/20"
       >
         {scanning ? (
-          <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Scanning…</>
+          <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Scanning...</>
         ) : (
           <><Radar className="h-3.5 w-3.5" /> Scan Now</>
         )}

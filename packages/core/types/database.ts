@@ -635,6 +635,23 @@ export interface OutreachQueueItem {
   created_at:       string;
 }
 
+/** Top Opportunities — structured insight card for the Business Brain. */
+export interface TopOpportunity {
+  client_id:         string;
+  client_name:       string;
+  client_city:       string | null;
+  opportunity_type:  OutreachOpportunityType;
+  trigger_date:      string;
+  score:             number;
+  label:             string;           // e.g. "High-value past client · no contact in 14 months"
+  why_this_matters:  string;           // human explanation of relationship value
+  why_now:           string;           // timing justification
+  suggested_angle:   string;           // practical approach recommendation
+  context_level:     "sensitive" | "sparse" | "rich";
+  client_record_id:  string | null;
+  context:           Record<string, unknown>; // pass-through for optional drafting
+}
+
 export interface EmailConnection {
   id:            string;
   user_id:       string;
