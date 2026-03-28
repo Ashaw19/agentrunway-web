@@ -72,28 +72,39 @@ export default function AppLayout() {
           title: "",
           tabBarLabel: () => null,
           tabBarIcon: () => (
-            <View style={{
-              position: "absolute",
-              top: -16,
-              width: 56,
-              height: 56,
-              borderRadius: 28,
-              overflow: "hidden",
-              ...sh.cardLg,
-              ...(sh.glow("#6366F1")),
-            }}>
-              <LinearGradient
-                colors={g.mic as unknown as string[]}
+            <View
+              style={{
+                position: "absolute",
+                top: -16,
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                overflow: "hidden",
+              }}
+            >
+              <View
                 style={{
                   width: 56,
                   height: 56,
                   borderRadius: 28,
-                  alignItems: "center",
-                  justifyContent: "center",
+                  overflow: "hidden",
+                  ...sh.cardLg,
+                  ...(sh.glow("#6366F1")),
                 }}
               >
-                <Mic size={24} color="#FFFFFF" strokeWidth={2.5} />
-              </LinearGradient>
+                <LinearGradient
+                  colors={g.mic as unknown as string[]}
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 28,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Mic size={24} color="#FFFFFF" strokeWidth={2.5} />
+                </LinearGradient>
+              </View>
             </View>
           ),
         }}

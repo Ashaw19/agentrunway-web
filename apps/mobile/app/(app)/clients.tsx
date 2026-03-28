@@ -269,7 +269,7 @@ export default function ClientsScreen() {
         contentContainerStyle={{
           paddingHorizontal: Space.xl,
           paddingTop: Space.md,
-          paddingBottom: Space.xxxl,
+          paddingBottom: 120,
           gap: Space.sm,
         }}
         showsVerticalScrollIndicator={false}

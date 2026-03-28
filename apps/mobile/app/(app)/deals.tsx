@@ -194,6 +194,7 @@ export default function DealsScreen() {
         contentContainerStyle={{
           padding: Space.xl,
           paddingTop: Space.md,
+          paddingBottom: 120,
           gap: Space.sm,
         }}
         showsVerticalScrollIndicator={false}

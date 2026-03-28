@@ -412,9 +412,9 @@ export default function ScanScreen() {
               <Pressable
                 onPress={resetState}
                 style={({ pressed }) => ({
-                  width: 40,
-                  height: 40,
-                  borderRadius: Radius.xl,
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
                   backgroundColor: "rgba(0,0,0,0.5)",
                   alignItems: "center",
                   justifyContent: "center",
@@ -503,7 +503,7 @@ export default function ScanScreen() {
           style={{ flex: 1 }}
         >
           <ScrollView
-            contentContainerStyle={{ padding: Space.xl, gap: Space.lg }}
+            contentContainerStyle={{ padding: Space.xl, paddingBottom: 120, gap: Space.lg }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
@@ -520,10 +520,11 @@ export default function ScanScreen() {
               </Text>
               <Pressable
                 onPress={resetState}
+                hitSlop={Space.sm}
                 style={({ pressed }) => ({
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
                   backgroundColor: c.card,
                   borderWidth: 1,
                   borderColor: c.cardBorder,
@@ -685,6 +686,7 @@ export default function ScanScreen() {
                       alignItems: "center",
                       justifyContent: "center",
                       gap: Space.sm,
+                      minHeight: 48,
                       paddingVertical: Space.lg,
                       borderRadius: Radius.md,
                       backgroundColor: c.card,
@@ -708,6 +710,7 @@ export default function ScanScreen() {
                       alignItems: "center",
                       justifyContent: "center",
                       gap: Space.sm,
+                      minHeight: 48,
                       paddingVertical: Space.lg,
                       borderRadius: Radius.md,
                       backgroundColor: c.primary,
@@ -786,7 +789,8 @@ export default function ScanScreen() {
               alignItems: "center",
               justifyContent: "center",
               gap: Space.sm,
-              paddingVertical: Space.lg + 2,
+              paddingVertical: Space.lg,
+              minHeight: 48,
               borderRadius: Radius.lg,
               backgroundColor: c.primary,
               opacity: pressed ? 0.9 : 1,
@@ -803,8 +807,9 @@ export default function ScanScreen() {
           <Pressable
             onPress={pickFromGallery}
             style={({ pressed }) => ({
-              paddingVertical: Space.lg + 2,
-              paddingHorizontal: Space.lg + 2,
+              paddingVertical: Space.lg,
+              minHeight: 48,
+              paddingHorizontal: Space.xl,
               borderRadius: Radius.lg,
               backgroundColor: c.card,
               borderWidth: 1,
@@ -872,6 +877,7 @@ function SummaryCard({
         borderColor: c.cardBorder,
         padding: Space.md,
         gap: Space.sm,
+        overflow: "hidden",
         ...sh.card,
       }}
     >
@@ -913,6 +919,7 @@ function ReceiptCard({ receipt }: { receipt: ReceiptExpense }) {
         borderWidth: 1,
         borderColor: c.cardBorder,
         gap: Space.sm,
+        overflow: "hidden",
         ...sh.card,
       }}
     >

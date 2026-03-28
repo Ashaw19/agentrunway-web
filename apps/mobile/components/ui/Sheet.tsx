@@ -9,10 +9,12 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors, Space, Radius, Type } from "@/lib/theme";
 
@@ -25,6 +27,7 @@ interface SheetProps {
 
 export function Sheet({ visible, onClose, title, children }: SheetProps) {
   const c = useColors();
+  const insets = useSafeAreaInsets();
 
   return (
     <Modal
@@ -49,6 +52,7 @@ export function Sheet({ visible, onClose, title, children }: SheetProps) {
                 backgroundColor: c.bgElevated,
                 borderTopLeftRadius: Radius.xxl,
                 borderTopRightRadius: Radius.xxl,
+                paddingBottom: Math.max(insets.bottom, Space.xxxl),
               },
             ]}
           >
@@ -84,8 +88,15 @@ export function Sheet({ visible, onClose, title, children }: SheetProps) {
               </View>
             )}
 
-            {/* Content */}
-            <View style={styles.content}>{children}</View>
+            {/* Content — scrollable to prevent overflow on smaller screens */}
+            <ScrollView
+              style={styles.content}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              bounces={false}
+            >
+              {children}
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </View>
@@ -106,7 +117,6 @@ const styles = StyleSheet.create({
   },
   sheet: {
     maxHeight: "85%",
-    paddingBottom: Space.xxxl,
   },
   handleRow: {
     alignItems: "center",
@@ -127,8 +137,8 @@ const styles = StyleSheet.create({
     gap: Space.md,
   },
   closeBtn: {
-    width: 28,
-    height: 28,
+    width: 36,
+    height: 36,
     borderRadius: Radius.pill,
     alignItems: "center",
     justifyContent: "center",

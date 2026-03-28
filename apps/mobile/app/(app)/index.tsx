@@ -131,7 +131,7 @@ export default function DashboardScreen() {
       {isLoading && transactions.length === 0 && pipeline.length === 0 && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 10, backgroundColor: c.bg, alignItems: "center", justifyContent: "center" }]}>
           <ActivityIndicator size="large" color={c.primary} />
-          <Text style={{ color: c.textMuted, marginTop: 12, ...Type.caption }}>Loading…</Text>
+          <Text style={{ color: c.textMuted, marginTop: Space.md, ...Type.caption }}>Loading…</Text>
         </View>
       )}
 
@@ -154,9 +154,9 @@ export default function DashboardScreen() {
               <RunwayGauge score={runway.score} color={runway.color} textColor={c.text} dimColor={c.textDim} />
               {/* Metrics */}
               <View style={{ flex: 1, marginLeft: Space.xl }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: Space.sm }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, marginBottom: Space.sm }}>
                   <Text style={{ ...Type.label, color: c.textMuted }}>RUNWAY SCORE</Text>
-                  <View style={{ backgroundColor: runway.color + "22", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                  <View style={{ backgroundColor: runway.color + "22", paddingHorizontal: Space.sm, paddingVertical: 2, borderRadius: Radius.sm }}>
                     <Text style={{ color: runway.color, fontSize: 10, fontWeight: "700" }}>{runway.label}</Text>
                   </View>
                 </View>
@@ -227,7 +227,7 @@ export default function DashboardScreen() {
                 )}
               </View>
               {nextTask.priority === "high" && (
-                <View style={{ backgroundColor: c.dangerDim, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.sm }}>
+                <View style={{ backgroundColor: c.dangerDim, paddingHorizontal: Space.sm, paddingVertical: Space.xs, borderRadius: Radius.sm }}>
                   <Text style={{ color: c.danger, fontSize: 10, fontWeight: "700" }}>HIGH</Text>
                 </View>
               )}
@@ -255,7 +255,7 @@ export default function DashboardScreen() {
               </Text>
               <Text style={{ ...Type.caption, color: c.textDim, marginTop: 2 }}>Flight Control</Text>
             </View>
-            <View style={{ backgroundColor: c.primary, width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" }}>
+            <View style={{ backgroundColor: c.primary, width: Space.xxl, height: Space.xxl, borderRadius: Space.md, alignItems: "center", justifyContent: "center" }}>
               <Text style={{ color: "#fff", fontSize: 11, fontWeight: "800" }}>{outreachCount}</Text>
             </View>
             <ChevronRight size={16} color={c.textDim} />
@@ -267,7 +267,7 @@ export default function DashboardScreen() {
           <View style={{ marginBottom: Space.xl }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Space.sm }}>
               <Text style={{ ...Type.label, color: c.textMuted }}>PIPELINE</Text>
-              <Pressable onPress={() => router.push("/deals")} hitSlop={8}>
+              <Pressable onPress={() => router.push("/deals")} hitSlop={Space.sm} style={{ minHeight: 44, justifyContent: "center" }}>
                 <Text style={{ ...Type.caption, color: c.primary }}>View All</Text>
               </Pressable>
             </View>
