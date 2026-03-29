@@ -7,10 +7,11 @@
   },
   "smartLists": {
     "overdueFollowups": "En retard",
-    "uncontactedLeads": "Nouveaux prospects"
+    "uncontactedLeads": "Nouveaux prospects",
+    "hotDeals": "Transactions chaudes"
   },
   "search": {
-    "placeholder": "Rechercher des clients..."
+    "placeholder": "Rechercher par nom, courriel ou t\u00e9l\u00e9phone..."
   },
   "status": {
     "boarding": "Embarquement",
@@ -18,7 +19,10 @@
     "approach": "Approche",
     "in_flight": "En vol",
     "landed": "Atterri",
-    "cruising": "Croisi\u00e8re"
+    "cruising": "Croisi\u00e8re",
+    "turbulence": "Turbulence",
+    "grounded": "Au sol",
+    "departed": "D\u00e9part\u00e9"
   },
   "contact": {
     "logCall": "Enregistrer un appel",
@@ -26,7 +30,11 @@
     "logEmail": "Enregistrer un courriel",
     "call": "Appeler",
     "text": "Texter",
-    "email": "Courriel"
+    "email": "Courriel",
+    "noPhone": "Aucun num\u00e9ro de t\u00e9l\u00e9phone",
+    "noPhoneBody": "Ajoutez un num\u00e9ro de t\u00e9l\u00e9phone pour ce client d'abord.",
+    "noEmail": "Aucun courriel",
+    "noEmailBody": "Ajoutez un courriel pour ce client d'abord."
   },
   "activity": {
     "call": "Appel",
@@ -38,29 +46,71 @@
   "detail": {
     "lastContact": "Dernier contact",
     "daysAgo": "il y a {{count}} j",
+    "today": "Aujourd'hui",
+    "never": "Jamais",
     "neverContacted": "Jamais contact\u00e9",
-    "flightStatus": "Statut de vol",
-    "recentActivity": "Activit\u00e9 r\u00e9cente",
-    "noActivity": "Aucune activit\u00e9 enregistr\u00e9e"
+    "flightStatus": "STATUT DE VOL",
+    "recentActivity": "ACTIVIT\u00c9 R\u00c9CENTE",
+    "noActivity": "Aucune activit\u00e9 enregistr\u00e9e",
+    "notes": "NOTES",
+    "deals": "TRANSACTIONS",
+    "noLinkedDeals": "Aucune transaction li\u00e9e",
+    "noAddress": "Pas d'adresse",
+    "estimated": "Est. {{amount}}",
+    "gciAmount": "RBC {{amount}}",
+    "cruisingIn": "Croisi\u00e8re dans {{count}} j",
+    "transitioningToCruising": "Transition vers Croisi\u00e8re dans {{count}} jour",
+    "transitioningToCruising_plural": "Transition vers Croisi\u00e8re dans {{count}} jours"
+  },
+  "quickLog": {
+    "title": "JOURNAL RAPIDE",
+    "justCalled": "Appel fait",
+    "justTexted": "Texto envoy\u00e9",
+    "voicemail": "Messagerie vocale",
+    "logged": "Enregistr\u00e9 !"
   },
   "addClient": {
     "title": "Ajouter un client",
-    "nameLabel": "Nom",
-    "namePlaceholder": "Nom complet",
+    "nameLabel": "Nom complet",
+    "namePlaceholder": "Jeanne Tremblay",
     "emailLabel": "Courriel",
-    "emailPlaceholder": "courriel@exemple.com",
+    "emailPlaceholder": "jeanne@exemple.com",
     "phoneLabel": "T\u00e9l\u00e9phone",
     "phonePlaceholder": "+1 (555) 123-4567",
-    "save": "Enregistrer le client"
+    "save": "Ajouter le client",
+    "adding": "Ajout en cours..."
+  },
+  "editClient": {
+    "title": "Modifier le client",
+    "nameLabel": "Nom complet",
+    "namePlaceholder": "Nom du client",
+    "phoneLabel": "T\u00e9l\u00e9phone",
+    "emailLabel": "Courriel",
+    "notesLabel": "Notes",
+    "notesPlaceholder": "Ajouter des notes...",
+    "save": "Enregistrer les modifications",
+    "saving": "Enregistrement...",
+    "edit": "Modifier"
   },
   "postContact": {
     "title": "Comment \u00e7a s'est pass\u00e9 ?",
-    "notesPlaceholder": "Ajoutez des notes sur la conversation...",
+    "activityType": "TYPE D'ACTIVIT\u00c9",
+    "notesLabel": "Notes",
+    "notesPlaceholder": "De quoi avez-vous discut\u00e9 ?",
+    "tapToUse": "Appuyez pour utiliser : \u00ab {{note}} \u00bb",
+    "logAndClose": "Enregistrer et fermer",
+    "logging": "Enregistrement...",
     "skipLabel": "Passer",
-    "saveLabel": "Enregistrer la note"
+    "saveLabel": "Enregistrer la note",
+    "contactedToday": "Vous l'avez contact\u00e9 plus t\u00f4t aujourd'hui",
+    "contactedYesterday": "Dernier contact hier",
+    "firstContactIn": "Premier contact en {{count}} jours",
+    "firstEverContact": "Premier contact avec ce client"
   },
   "empty": {
-    "title": "Aucun client",
+    "title": "Aucun client trouv\u00e9",
+    "noMatchTitle": "Aucune correspondance",
+    "noMatchSubtitle": "Aucun client ne correspond \u00e0 \u00ab {{query}} \u00bb",
     "subtitle": "Ajoutez votre premier client pour commencer le suivi",
     "actionLabel": "Ajouter un client"
   }

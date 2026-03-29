@@ -5,32 +5,74 @@
     "evening": "Good evening"
   },
   "score": {
-    "runwayScore": "RUNWAY SCORE",
+    "runwayScore": "Runway Score",
     "outOf": "/100",
     "strong": "Strong",
     "onTrack": "On Track",
     "building": "Building",
     "atRisk": "At Risk",
+    "tapForDetails": "{{label}} \u00b7 Tap for details",
     "description": "Based on goal pace, pipeline coverage, expenses, and cash reserves"
+  },
+  "scoreBar": {
+    "pace": "Pace",
+    "pipeline": "Pipeline",
+    "expenses": "Expenses",
+    "setup": "Setup",
+    "bench": "Bench",
+    "survival": "Survival"
   },
   "metrics": {
     "ytdGci": "YTD GCI",
     "goalPace": "Goal Pace",
     "activePipeline": "Active Pipeline",
     "closedDeals": "Closed Deals",
+    "dealsClosed": "Deals Closed",
     "pipelineValue": "Pipeline Value",
-    "pending": "Pending"
+    "pipeline": "Pipeline",
+    "clients": "Clients",
+    "pending": "Pending",
+    "deals": "{{count}} deals",
+    "needFollowUp": "{{count}} need follow-up"
   },
   "actions": {
-    "overdue": "Overdue",
-    "followUps": "Follow-ups",
+    "overdue": "overdue",
+    "ready": "ready",
+    "pending": "pending",
+    "followUps": "follow-ups",
     "newLeads": "New Leads",
     "pendingDeals": "Pending Deals",
     "allCaughtUp": "All caught up"
   },
+  "sync": {
+    "offline": "Offline \u2014 changes saved locally",
+    "pendingSync": "{{count}} change pending sync",
+    "pendingSync_plural": "{{count}} changes pending sync",
+    "updating": "Updating\u2026"
+  },
+  "streak": {
+    "loggedToday": "{{count}} logged today",
+    "dayStreak": "{{count}}-day streak"
+  },
   "briefing": {
-    "title": "Today's Briefing",
-    "noBriefing": "No briefing items today"
+    "title": "TODAY'S FOCUS",
+    "noBriefing": "No briefing items today",
+    "itemCount": "{{count}} item",
+    "itemCount_plural": "{{count}} items"
+  },
+  "goal": {
+    "annualGoal": "ANNUAL GOAL",
+    "ofGoal": "{{current}} of {{goal}}"
+  },
+  "nextUp": {
+    "title": "NEXT UP",
+    "overdue": "Overdue",
+    "high": "HIGH"
+  },
+  "pipelinePreview": {
+    "title": "PIPELINE",
+    "seeAll": "See all",
+    "pipelineDeal": "Pipeline Deal"
   },
   "quickCapture": {
     "title": "Quick Capture",

@@ -6,9 +6,13 @@
     "pending": "En attente"
   },
   "stats": {
+    "gciClosed": "RBC conclues",
     "totalGci": "RBC total",
     "pipelineValue": "Pipeline",
     "pendingCount": "En attente"
+  },
+  "search": {
+    "placeholder": "Rechercher par adresse ou client..."
   },
   "stages": {
     "lead": "Prospect",
@@ -26,14 +30,22 @@
     },
     "probability": "{{pct}} % de probabilit\u00e9",
     "estimatedGci": "RBC estim\u00e9",
-    "advanceStage": "Avancer l'\u00e9tape"
+    "advanceStage": "Avancer l'\u00e9tape",
+    "close": "Cl\u00f4ture :",
+    "untitledDeal": "Transaction sans titre"
   },
   "transaction": {
     "closedDate": "Conclue le {{date}}",
     "pendingDate": "Pr\u00e9vue le {{date}}",
     "gci": "RBC",
     "salePrice": "Prix de vente",
-    "commission": "Commission"
+    "sale": "Vente :",
+    "commission": "Commission",
+    "commissionPct": "{{pct}} % de commission",
+    "side": "C\u00f4t\u00e9",
+    "status": "STATUT",
+    "date": "Date",
+    "transactionLabel": "Transaction"
   },
   "closedEmpty": {
     "title": "Aucune transaction conclue cette ann\u00e9e",
@@ -43,27 +55,43 @@
     "title": "Aucune transaction en attente",
     "subtitle": "Les transactions en cours de cl\u00f4ture appara\u00eetront ici"
   },
+  "searchEmpty": {
+    "title": "Aucune correspondance",
+    "subtitle": "Aucune transaction ne correspond \u00e0 \u00ab {{query}} \u00bb"
+  },
   "addDeal": {
-    "title": "Ajouter une transaction",
+    "title": "Enregistrer une transaction",
     "addressLabel": "Adresse",
-    "addressPlaceholder": "Adresse de la propri\u00e9t\u00e9",
+    "addressPlaceholder": "123, rue Principale",
     "clientLabel": "Client",
     "clientPlaceholder": "Nom du client",
-    "priceLabel": "Prix",
-    "pricePlaceholder": "Prix estim\u00e9",
+    "priceLabel": "Prix de vente",
+    "pricePlaceholder": "650 000",
+    "commissionLabel": "Commission %",
+    "commissionPlaceholder": "2,5",
     "stageLabel": "\u00c9tape",
     "typeLabel": "C\u00f4t\u00e9",
-    "buy": "Achat",
-    "sell": "Vente",
-    "save": "Enregistrer la transaction"
+    "buy": "Acheteur",
+    "sell": "Vendeur",
+    "save": "Enregistrer la transaction",
+    "saving": "Enregistrement..."
   },
   "detail": {
     "title": "D\u00e9tails de la transaction",
     "address": "Adresse",
     "client": "Client",
-    "stage": "\u00c9tape",
+    "stage": "\u00c9TAPE",
+    "estimatedPrice": "Prix estim\u00e9",
     "price": "Prix",
+    "probability": "Probabilit\u00e9",
+    "expectedClose": "Cl\u00f4ture pr\u00e9vue",
     "closingDate": "Date de cl\u00f4ture",
-    "notes": "Notes"
+    "notes": "NOTES",
+    "advanceTo": "Avancer \u00e0 {{stage}}",
+    "markClosed": "Marquer comme conclue",
+    "updating": "Mise \u00e0 jour..."
+  },
+  "transactionDetail": {
+    "title": "D\u00e9tails de la transaction"
   }
 }

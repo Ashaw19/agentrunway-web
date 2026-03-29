@@ -50,35 +50,36 @@ import { Avatar } from "@/components/ui/Avatar";
 import { FadeIn } from "@/components/ui/FadeIn";
 import { Sparkline } from "@/components/ui/Sparkline";
 import * as Haptics from "expo-haptics";
+import { useTranslation } from "react-i18next";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function getGreeting(): string {
+function getGreetingKey(): string {
   const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 17) return "Good afternoon";
-  return "Good evening";
+  if (h < 12) return "greeting.morning";
+  if (h < 17) return "greeting.afternoon";
+  return "greeting.evening";
 }
 
 function isOverdue(dateStr: string): boolean {
   return new Date(dateStr) < new Date(new Date().toDateString());
 }
 
-function formatLastSynced(ts: number): string {
+function formatLastSyncedKey(ts: number): { key: string; count?: number } {
   const ago = Date.now() - ts;
-  if (ago < 60_000) return "Updated just now";
+  if (ago < 60_000) return { key: "status.updatedJustNow" };
   const mins = Math.round(ago / 60_000);
-  return `Updated ${mins}m ago`;
+  return { key: "status.updatedMinAgo", count: mins };
 }
 
 // Web status badges: Strong (emerald), On Track (blue), Building (amber), At Risk (red)
 function runwayScoreMeta(score: number) {
-  if (score >= 85) return { grade: "A+", label: "Strong", color: "#10B981" };
-  if (score >= 75) return { grade: "A", label: "Strong", color: "#10B981" };
-  if (score >= 62) return { grade: "B", label: "On Track", color: "#3B5EF6" };
-  if (score >= 50) return { grade: "C", label: "Building", color: "#F59E0B" };
-  if (score >= 35) return { grade: "D", label: "Building", color: "#F59E0B" };
-  return { grade: "F", label: "At Risk", color: "#EF4444" };
+  if (score >= 85) return { grade: "A+", labelKey: "score.strong", color: "#10B981" };
+  if (score >= 75) return { grade: "A", labelKey: "score.strong", color: "#10B981" };
+  if (score >= 62) return { grade: "B", labelKey: "score.onTrack", color: "#3B5EF6" };
+  if (score >= 50) return { grade: "C", labelKey: "score.building", color: "#F59E0B" };
+  if (score >= 35) return { grade: "D", labelKey: "score.building", color: "#F59E0B" };
+  return { grade: "F", labelKey: "score.atRisk", color: "#EF4444" };
 }
 
 // ── Runway Score Gauge (Hero — 140px, gold ring matching web) ──────────────
@@ -153,7 +154,7 @@ function ActionPill({
   );
 }
 
-function AllCaughtUpPill({ color }: { color: string }) {
+function AllCaughtUpPill({ color, label }: { color: string; label: string }) {
   return (
     <View
       style={{
@@ -169,7 +170,7 @@ function AllCaughtUpPill({ color }: { color: string }) {
       }}
     >
       <CheckCircle2 size={13} color={color} />
-      <Text style={{ color, fontSize: 12, fontWeight: "700" }}>All caught up</Text>
+      <Text style={{ color, fontSize: 12, fontWeight: "700" }}>{label}</Text>
     </View>
   );
 }
@@ -183,10 +184,12 @@ function ActivityTypePicker({
   selected,
   onSelect,
   colors: c,
+  labels,
 }: {
   selected: ActivityType;
   onSelect: (t: ActivityType) => void;
   colors: ReturnType<typeof useColors>;
+  labels?: Record<string, string>;
 }) {
   return (
     <View style={{ flexDirection: "row", gap: Space.sm, flexWrap: "wrap" }}>
@@ -210,10 +213,9 @@ function ActivityTypePicker({
                 fontSize: 13,
                 fontWeight: "600",
                 color: active ? "#FFFFFF" : c.primary,
-                textTransform: "capitalize",
               }}
             >
-              {type}
+              {labels?.[type] ?? type}
             </Text>
           </Pressable>
         );
@@ -232,6 +234,8 @@ function QuickCaptureSheet({
   onClose: () => void;
 }) {
   const c = useColors();
+  const { t } = useTranslation("home");
+  const { t: tCommon } = useTranslation("common");
   const { clients, addActivity } = useDataStore();
   const [clientQuery, setClientQuery] = useState("");
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -285,17 +289,17 @@ function QuickCaptureSheet({
   const canSave = selectedClient && notes.trim().length > 0 && !saving;
 
   return (
-    <Sheet visible={visible} onClose={handleClose} title="Quick Capture">
+    <Sheet visible={visible} onClose={handleClose} title={t("quickCapture.title")}>
       <View style={{ gap: Space.lg, paddingBottom: Space.lg }}>
         <View>
-          <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>CLIENT</Text>
+          <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>{t("quickCapture.clientLabel")}</Text>
           <TextInput
             value={clientQuery}
             onChangeText={(text) => {
               setClientQuery(text);
               if (selectedClient) setSelectedClient(null);
             }}
-            placeholder="Search client name..."
+            placeholder={t("quickCapture.searchClient")}
             placeholderTextColor={c.textDim}
             style={{
               backgroundColor: c.card,
@@ -348,17 +352,23 @@ function QuickCaptureSheet({
         </View>
 
         <View>
-          <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>TYPE</Text>
-          <ActivityTypePicker selected={activityType} onSelect={setActivityType} colors={c} />
+          <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>{t("quickCapture.typeLabel")}</Text>
+          <ActivityTypePicker selected={activityType} onSelect={setActivityType} colors={c} labels={{
+            call: t("quickCapture.activityTypes.call"),
+            text: t("quickCapture.activityTypes.text"),
+            showing: t("quickCapture.activityTypes.showing"),
+            meeting: t("quickCapture.activityTypes.meeting"),
+            note: t("quickCapture.activityTypes.note"),
+          }} />
         </View>
 
         <View>
-          <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>NOTES</Text>
+          <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>{t("quickCapture.notesLabel")}</Text>
           <TextInput
             ref={notesRef}
             value={notes}
             onChangeText={setNotes}
-            placeholder="What happened?"
+            placeholder={t("quickCapture.notesPlaceholder")}
             placeholderTextColor={c.textDim}
             multiline
             textAlignVertical="top"
@@ -391,7 +401,7 @@ function QuickCaptureSheet({
           ]}
         >
           <Text style={{ color: canSave ? "#FFFFFF" : c.textDim, fontSize: 15, fontWeight: "700" }}>
-            {saving ? "Saving..." : "Save"}
+            {saving ? tCommon("actions.saving") : tCommon("actions.save")}
           </Text>
         </Pressable>
       </View>
@@ -430,6 +440,8 @@ export default function DashboardScreen() {
   const c = useColors();
   const g = gradients(mode);
   const sh = shadows(mode);
+  const { t } = useTranslation("home");
+  const { t: tCommon } = useTranslation("common");
 
   const {
     fetchAll, fetchOutreach, fetchReceipts, isLoading, lastFetched,
@@ -498,10 +510,10 @@ export default function DashboardScreen() {
 
   const actionItems = useMemo(() => {
     const items: { key: string; count: number; label: string; color: string; icon: typeof AlertCircle; route: string }[] = [];
-    if (overdueTasks.length > 0) items.push({ key: "overdue", count: overdueTasks.length, label: "overdue", color: "#EF4444", icon: AlertCircle, route: "/deals" });
-    if (outreachCount > 0) items.push({ key: "messages", count: outreachCount, label: "ready", color: "#6366F1", icon: Mail, route: "/profile/outreach" });
-    if (pending > 0) items.push({ key: "pending", count: pending, label: "pending", color: "#F59E0B", icon: Handshake, route: "/deals" });
-    if (followUpsDue > 0) items.push({ key: "followups", count: followUpsDue, label: "follow-ups", color: "#06B6D4", icon: UserCheck, route: "/clients" });
+    if (overdueTasks.length > 0) items.push({ key: "overdue", count: overdueTasks.length, label: t("actions.overdue"), color: "#EF4444", icon: AlertCircle, route: "/deals" });
+    if (outreachCount > 0) items.push({ key: "messages", count: outreachCount, label: t("actions.ready"), color: "#6366F1", icon: Mail, route: "/profile/outreach" });
+    if (pending > 0) items.push({ key: "pending", count: pending, label: t("actions.pending"), color: "#F59E0B", icon: Handshake, route: "/deals" });
+    if (followUpsDue > 0) items.push({ key: "followups", count: followUpsDue, label: t("actions.followUps"), color: "#06B6D4", icon: UserCheck, route: "/clients" });
     return items;
   }, [overdueTasks.length, outreachCount, pending, followUpsDue]);
 
@@ -574,7 +586,7 @@ export default function DashboardScreen() {
         {/* ── 1. Greeting ── */}
         <FadeIn delay={0}>
           <View style={{ paddingTop: Space.lg }}>
-            <Text style={{ ...Type.caption, color: c.textDim }}>{getGreeting()}</Text>
+            <Text style={{ ...Type.caption, color: c.textDim }}>{t(getGreetingKey())}</Text>
             <Text style={{ ...Type.hero, color: c.text, marginTop: 2 }} numberOfLines={1}>
               {displayName.split(" ")[0]}
             </Text>
@@ -591,13 +603,13 @@ export default function DashboardScreen() {
           }}
         >
           {!isOnline
-            ? "Offline \u2014 changes saved locally"
+            ? t("sync.offline")
             : offlinePending > 0
-              ? `${offlinePending} change${offlinePending === 1 ? "" : "s"} pending sync`
+              ? t(offlinePending === 1 ? "sync.pendingSync" : "sync.pendingSync_plural", { count: offlinePending })
               : isLoading
-                ? "Updating\u2026"
+                ? t("sync.updating")
                 : lastFetched
-                  ? formatLastSynced(lastFetched)
+                  ? tCommon(formatLastSyncedKey(lastFetched).key, { count: formatLastSyncedKey(lastFetched).count })
                   : ""}
         </Text>
 
@@ -632,7 +644,7 @@ export default function DashboardScreen() {
                     color: c.success,
                   }}
                 >
-                  {todayCount} logged today
+                  {t("streak.loggedToday", { count: todayCount })}
                 </Text>
               </View>
             )}
@@ -660,7 +672,7 @@ export default function DashboardScreen() {
                     color: c.gold,
                   }}
                 >
-                  {streak}-day streak
+                  {t("streak.dayStreak", { count: streak })}
                 </Text>
               </View>
             )}
@@ -688,21 +700,21 @@ export default function DashboardScreen() {
           >
             <RunwayGauge score={score} textColor={c.text} dimColor={c.textDim} mode={mode} />
             <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, marginTop: Space.md }}>
-              <Text style={{ ...Type.h3, color: c.text }}>Runway Score</Text>
+              <Text style={{ ...Type.h3, color: c.text }}>{t("score.runwayScore")}</Text>
               <View style={{ backgroundColor: meta.color + "22", paddingHorizontal: Space.sm + 2, paddingVertical: 3, borderRadius: Radius.sm }}>
                 <Text style={{ color: meta.color, fontSize: 11, fontWeight: "800" }}>{meta.grade}</Text>
               </View>
             </View>
-            <Text style={{ ...Type.caption, color: c.textDim, marginTop: Space.xs }}>{meta.label} · Tap for details</Text>
+            <Text style={{ ...Type.caption, color: c.textDim, marginTop: Space.xs }}>{t("score.tapForDetails", { label: t(meta.labelKey) })}</Text>
 
             {/* Score component mini-bar */}
             <View style={{ flexDirection: "row", marginTop: Space.lg, gap: Space.xs, width: "100%" }}>
-              <ScoreBar label="Pace" pct={30} color="#6366F1" c={c} />
-              <ScoreBar label="Pipeline" pct={20} color="#818CF8" c={c} />
-              <ScoreBar label="Expenses" pct={15} color="#10B981" c={c} />
-              <ScoreBar label="Setup" pct={10} color="#F59E0B" c={c} />
-              <ScoreBar label="Bench" pct={10} color="#06B6D4" c={c} />
-              <ScoreBar label="Survival" pct={15} color="#8B5CF6" c={c} />
+              <ScoreBar label={t("scoreBar.pace")} pct={30} color="#6366F1" c={c} />
+              <ScoreBar label={t("scoreBar.pipeline")} pct={20} color="#818CF8" c={c} />
+              <ScoreBar label={t("scoreBar.expenses")} pct={15} color="#10B981" c={c} />
+              <ScoreBar label={t("scoreBar.setup")} pct={10} color="#F59E0B" c={c} />
+              <ScoreBar label={t("scoreBar.bench")} pct={10} color="#06B6D4" c={c} />
+              <ScoreBar label={t("scoreBar.survival")} pct={15} color="#8B5CF6" c={c} />
             </View>
           </LinearGradient>
         </Pressable>
@@ -729,7 +741,7 @@ export default function DashboardScreen() {
               />
             ))
           ) : (
-            <AllCaughtUpPill color={c.success} />
+            <AllCaughtUpPill color={c.success} label={t("actions.allCaughtUp")} />
           )}
         </ScrollView>
 
@@ -745,7 +757,7 @@ export default function DashboardScreen() {
               }}
             >
               <Text style={{ ...Type.label, color: c.textMuted }}>
-                TODAY&apos;S FOCUS
+                {t("briefing.title")}
               </Text>
               <View
                 style={{
@@ -762,7 +774,7 @@ export default function DashboardScreen() {
                     color: c.primary,
                   }}
                 >
-                  {briefing.length} {briefing.length === 1 ? "item" : "items"}
+                  {t(briefing.length === 1 ? "briefing.itemCount" : "briefing.itemCount_plural", { count: briefing.length })}
                 </Text>
               </View>
             </View>
@@ -781,7 +793,7 @@ export default function DashboardScreen() {
         <View style={{ marginBottom: Space.xxl }}>
           <View style={{ flexDirection: "row", gap: Space.md, marginBottom: Space.md }}>
             <MetricCard
-              label="YTD GCI"
+              label={t("metrics.ytdGci")}
               value={fmtCurrency(gci)}
               icon={<TrendingUp size={16} color={c.gold} />}
               color={c.gold}
@@ -789,7 +801,7 @@ export default function DashboardScreen() {
               sparkData={gciSparkData}
             />
             <MetricCard
-              label="Deals Closed"
+              label={t("metrics.dealsClosed")}
               value={String(deals)}
               icon={<Handshake size={16} color={c.success} />}
               color={c.success}
@@ -799,18 +811,18 @@ export default function DashboardScreen() {
           </View>
           <View style={{ flexDirection: "row", gap: Space.md }}>
             <MetricCard
-              label="Pipeline"
+              label={t("metrics.pipeline")}
               value={fmtCurrency(pipVal)}
-              subtitle={`${pipeline.length} deals`}
+              subtitle={t("metrics.deals", { count: pipeline.length })}
               icon={<Briefcase size={16} color={c.primaryLight} />}
               color={c.primaryLight}
               c={c} sh={sh}
               onPress={() => router.push("/deals")}
             />
             <MetricCard
-              label="Clients"
+              label={t("metrics.clients")}
               value={String(clients.length)}
-              subtitle={followUpsDue > 0 ? `${followUpsDue} need follow-up` : ""}
+              subtitle={followUpsDue > 0 ? t("metrics.needFollowUp", { count: followUpsDue }) : ""}
               icon={<Users size={16} color={c.cyan} />}
               color={c.cyan}
               c={c} sh={sh}
@@ -838,7 +850,7 @@ export default function DashboardScreen() {
             ]}
           >
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Space.md }}>
-              <Text style={{ ...Type.label, color: c.textMuted }}>ANNUAL GOAL</Text>
+              <Text style={{ ...Type.label, color: c.textMuted }}>{t("goal.annualGoal")}</Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: Space.xs }}>
                 <Text style={{ ...Type.caption, color: c.primary, fontWeight: "700" }}>{goalPct}%</Text>
                 <ArrowRight size={12} color={c.textDim} />
@@ -852,7 +864,7 @@ export default function DashboardScreen() {
               />
             </View>
             <Text style={{ ...Type.micro, color: c.textDim, marginTop: Space.sm }}>
-              {fmtCurrency(gci)} of {fmtCurrency(goalGci)}
+              {t("goal.ofGoal", { current: fmtCurrency(gci), goal: fmtCurrency(goalGci) })}
             </Text>
           </Pressable>
         )}
@@ -860,7 +872,7 @@ export default function DashboardScreen() {
         {/* ── 7. Next Task Card ── */}
         {nextTask && (
           <View style={{ marginBottom: Space.xl }}>
-            <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>NEXT UP</Text>
+            <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>{t("nextUp.title")}</Text>
             <View style={[{
               backgroundColor: c.card, borderRadius: Radius.xl, padding: Space.lg,
               borderWidth: 1, borderColor: c.cardBorder,
@@ -873,14 +885,14 @@ export default function DashboardScreen() {
                 <Text style={{ ...Type.bodyBold, color: c.text }} numberOfLines={1}>{nextTask.title}</Text>
                 {nextTask.due_date && (
                   <Text style={{ ...Type.caption, color: isOverdue(nextTask.due_date) ? c.danger : c.textDim, marginTop: 2 }}>
-                    {isOverdue(nextTask.due_date) ? "Overdue \u00B7 " : ""}
+                    {isOverdue(nextTask.due_date) ? t("nextUp.overdue") + " \u00B7 " : ""}
                     {new Date(nextTask.due_date).toLocaleDateString("en-CA", { weekday: "short", month: "short", day: "numeric" })}
                   </Text>
                 )}
               </View>
               {nextTask.priority === "high" && (
                 <View style={{ backgroundColor: c.dangerDim, paddingHorizontal: Space.sm, paddingVertical: Space.xs, borderRadius: Radius.sm }}>
-                  <Text style={{ color: c.danger, fontSize: 10, fontWeight: "700" }}>HIGH</Text>
+                  <Text style={{ color: c.danger, fontSize: 10, fontWeight: "700" }}>{t("nextUp.high")}</Text>
                 </View>
               )}
             </View>
@@ -894,9 +906,9 @@ export default function DashboardScreen() {
               onPress={() => router.push("/deals")}
               style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Space.sm }}
             >
-              <Text style={{ ...Type.label, color: c.textMuted }}>PIPELINE</Text>
+              <Text style={{ ...Type.label, color: c.textMuted }}>{t("pipelinePreview.title")}</Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: Space.xs }}>
-                <Text style={{ ...Type.micro, color: c.primary }}>See all</Text>
+                <Text style={{ ...Type.micro, color: c.primary }}>{t("pipelinePreview.seeAll")}</Text>
                 <ArrowRight size={10} color={c.primary} />
               </View>
             </Pressable>
@@ -921,7 +933,7 @@ export default function DashboardScreen() {
                 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ ...Type.bodyBold, color: c.text }} numberOfLines={1}>
-                    {deal.address ?? deal.client_name ?? "Pipeline Deal"}
+                    {deal.address ?? deal.client_name ?? t("pipelinePreview.pipelineDeal")}
                   </Text>
                   <Text style={{ ...Type.micro, color: c.textDim, marginTop: 2, textTransform: "capitalize" }}>
                     {deal.stage} {deal.client_name ? `\u00B7 ${deal.client_name}` : ""}

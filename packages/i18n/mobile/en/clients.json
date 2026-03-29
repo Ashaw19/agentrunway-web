@@ -7,10 +7,11 @@
   },
   "smartLists": {
     "overdueFollowups": "Overdue",
-    "uncontactedLeads": "New Leads"
+    "uncontactedLeads": "New Leads",
+    "hotDeals": "Hot Deals"
   },
   "search": {
-    "placeholder": "Search clients..."
+    "placeholder": "Search by name, email, or phone..."
   },
   "status": {
     "boarding": "Boarding",
@@ -18,7 +19,10 @@
     "approach": "Approach",
     "in_flight": "In Flight",
     "landed": "Landed",
-    "cruising": "Cruising"
+    "cruising": "Cruising",
+    "turbulence": "Turbulence",
+    "grounded": "Grounded",
+    "departed": "Departed"
   },
   "contact": {
     "logCall": "Log Call",
@@ -26,7 +30,11 @@
     "logEmail": "Log Email",
     "call": "Call",
     "text": "Text",
-    "email": "Email"
+    "email": "Email",
+    "noPhone": "No phone number",
+    "noPhoneBody": "Add a phone number for this client first.",
+    "noEmail": "No email",
+    "noEmailBody": "Add an email for this client first."
   },
   "activity": {
     "call": "Call",
@@ -38,30 +46,72 @@
   "detail": {
     "lastContact": "Last contact",
     "daysAgo": "{{count}}d ago",
+    "today": "Today",
+    "never": "Never",
     "neverContacted": "Never contacted",
-    "flightStatus": "Flight Status",
-    "recentActivity": "Recent Activity",
-    "noActivity": "No activity logged yet"
+    "flightStatus": "FLIGHT STATUS",
+    "recentActivity": "RECENT ACTIVITY",
+    "noActivity": "No activity logged yet",
+    "notes": "NOTES",
+    "deals": "DEALS",
+    "noLinkedDeals": "No linked deals",
+    "noAddress": "No address",
+    "estimated": "Est. {{amount}}",
+    "gciAmount": "GCI {{amount}}",
+    "cruisingIn": "Cruising in {{count}}d",
+    "transitioningToCruising": "Transitioning to Cruising in {{count}} day",
+    "transitioningToCruising_plural": "Transitioning to Cruising in {{count}} days"
+  },
+  "quickLog": {
+    "title": "QUICK LOG",
+    "justCalled": "Just called",
+    "justTexted": "Just texted",
+    "voicemail": "Voicemail",
+    "logged": "Logged!"
   },
   "addClient": {
     "title": "Add Client",
-    "nameLabel": "Name",
-    "namePlaceholder": "Full name",
+    "nameLabel": "Full Name",
+    "namePlaceholder": "Jane Smith",
     "emailLabel": "Email",
-    "emailPlaceholder": "email@example.com",
+    "emailPlaceholder": "jane@example.com",
     "phoneLabel": "Phone",
     "phonePlaceholder": "+1 (555) 123-4567",
-    "save": "Save Client"
+    "save": "Add Client",
+    "adding": "Adding..."
+  },
+  "editClient": {
+    "title": "Edit Client",
+    "nameLabel": "Full Name",
+    "namePlaceholder": "Client name",
+    "phoneLabel": "Phone",
+    "emailLabel": "Email",
+    "notesLabel": "Notes",
+    "notesPlaceholder": "Add notes...",
+    "save": "Save Changes",
+    "saving": "Saving...",
+    "edit": "Edit"
   },
   "postContact": {
     "title": "How did it go?",
-    "notesPlaceholder": "Add notes about the conversation...",
+    "activityType": "ACTIVITY TYPE",
+    "notesLabel": "Notes",
+    "notesPlaceholder": "What did you discuss?",
+    "tapToUse": "Tap to use: \"{{note}}\"",
+    "logAndClose": "Log & Close",
+    "logging": "Logging...",
     "skipLabel": "Skip",
-    "saveLabel": "Save Note"
+    "saveLabel": "Save Note",
+    "contactedToday": "You contacted them earlier today",
+    "contactedYesterday": "Last contact was yesterday",
+    "firstContactIn": "First contact in {{count}} days",
+    "firstEverContact": "First ever contact with this client"
   },
   "empty": {
-    "title": "No clients yet",
-    "subtitle": "Add your first client to start tracking relationships",
+    "title": "No clients found",
+    "noMatchTitle": "No matches",
+    "noMatchSubtitle": "No clients match \"{{query}}\"",
+    "subtitle": "Add your first client to start tracking",
     "actionLabel": "Add Client"
   }
 }

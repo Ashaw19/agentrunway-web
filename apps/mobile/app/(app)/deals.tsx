@@ -48,6 +48,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useTranslation } from "react-i18next";
 
 type Tab = "pipeline" | "closed" | "pending";
 
@@ -108,6 +109,8 @@ export default function DealsScreen() {
   const c = useColors();
   const { mode } = useTheme();
   const sh = shadows(mode);
+  const { t } = useTranslation("deals");
+  const { t: tCommon } = useTranslation("common");
 
   const [tab, setTab] = useState<Tab>("pipeline");
   const [refreshing, setRefreshing] = useState(false);
@@ -203,7 +206,7 @@ export default function DealsScreen() {
     if (tab !== "pipeline" || filteredPipeline.length === 0) return null;
     return (
       <Card variant="default">
-        <Text style={{ ...Type.label, color: c.textDim }}>STAGE BREAKDOWN</Text>
+        <Text style={{ ...Type.label, color: c.textDim }}>{t("stages.breakdown")}</Text>
         <View
           style={{
             flexDirection: "row",
@@ -219,7 +222,7 @@ export default function DealsScreen() {
             return (
               <Badge
                 key={stage}
-                label={`${stage.charAt(0).toUpperCase() + stage.slice(1)} \u00b7 ${count}`}
+                label={`${t(`stages.${stage}`)} \u00b7 ${count}`}
                 color={stageColor}
                 size="sm"
               />
@@ -235,8 +238,8 @@ export default function DealsScreen() {
       return (
         <EmptyState
           icon="search-outline"
-          title="No matches"
-          subtitle={`No deals match "${search.trim()}"`}
+          title={t("searchEmpty.title")}
+          subtitle={t("searchEmpty.subtitle", { query: search.trim() })}
         />
       );
     }
@@ -244,9 +247,9 @@ export default function DealsScreen() {
       return (
         <EmptyState
           icon="trending-up-outline"
-          title="No pipeline deals"
-          subtitle="Add deals to track your upcoming commissions"
-          actionLabel="Add Deal"
+          title={t("pipeline.empty.title")}
+          subtitle={t("pipeline.empty.subtitle")}
+          actionLabel={t("pipeline.empty.actionLabel")}
           onAction={() => setShowAdd(true)}
         />
       );
@@ -255,16 +258,16 @@ export default function DealsScreen() {
       return (
         <EmptyState
           icon="checkmark-circle-outline"
-          title="No closed deals this year"
-          subtitle="Closed transactions will appear here"
+          title={t("closedEmpty.title")}
+          subtitle={t("closedEmpty.subtitle")}
         />
       );
     }
     return (
       <EmptyState
         icon="time-outline"
-        title="No pending deals"
-        subtitle="Deals awaiting close will appear here"
+        title={t("pendingEmpty.title")}
+        subtitle={t("pendingEmpty.subtitle")}
       />
     );
   }, [tab, q, search]);
@@ -287,9 +290,9 @@ export default function DealsScreen() {
             alignItems: "center",
           }}
         >
-          <Text style={{ ...Type.hero, color: c.text }}>Deals</Text>
+          <Text style={{ ...Type.hero, color: c.text }}>{t("title")}</Text>
           <Button
-            label="Add"
+            label={tCommon("actions.add")}
             icon="add"
             variant="primary"
             onPress={() => setShowAdd(true)}
@@ -311,7 +314,7 @@ export default function DealsScreen() {
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Search by address or client..."
+            placeholder={t("search.placeholder")}
             placeholderTextColor={c.textDim}
             style={[Type.body, styles.searchInput, { color: c.text }]}
             returnKeyType="search"
@@ -326,18 +329,18 @@ export default function DealsScreen() {
 
         {/* Summary stats */}
         <View style={{ flexDirection: "row", gap: Space.sm, marginTop: Space.lg }}>
-          <StatPill label="GCI Closed" value={fmtCurrency(totalGci)} color={c.success} />
-          <StatPill label="Pipeline" value={fmtCurrency(pipelineValue)} color={c.primary} />
-          <StatPill label="Pending" value={String(pendingCount)} color={c.warning} />
+          <StatPill label={t("stats.gciClosed")} value={fmtCurrency(totalGci)} color={c.success} />
+          <StatPill label={t("stats.pipelineValue")} value={fmtCurrency(pipelineValue)} color={c.primary} />
+          <StatPill label={t("stats.pendingCount")} value={String(pendingCount)} color={c.warning} />
         </View>
 
         {/* Tabs */}
         <View style={{ flexDirection: "row", gap: Space.sm, marginTop: Space.lg, marginBottom: Space.xs }}>
           {(
             [
-              { key: "pipeline", label: "Pipeline", count: pipeline.length },
-              { key: "closed", label: "Closed", count: transactions.filter((t) => t.status === "closed").length },
-              { key: "pending", label: "Pending", count: pendingCount },
+              { key: "pipeline", label: t("tabs.pipeline"), count: pipeline.length },
+              { key: "closed", label: t("tabs.closed"), count: transactions.filter((tx) => tx.status === "closed").length },
+              { key: "pending", label: t("tabs.pending"), count: pendingCount },
             ] as { key: Tab; label: string; count: number }[]
           ).map((t) => {
             const isActive = tab === t.key;
@@ -507,6 +510,7 @@ function StatPill({
 function PipelineCard({ deal, onPress }: { deal: PipelineDeal; onPress: () => void }) {
   const c = useColors();
   const { mode } = useTheme();
+  const { t } = useTranslation("deals");
   const sh = shadows(mode);
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -587,7 +591,7 @@ function PipelineCard({ deal, onPress }: { deal: PipelineDeal; onPress: () => vo
                   style={{ ...Type.bodyBold, color: c.text }}
                   numberOfLines={1}
                 >
-                  {deal.address ?? deal.client_name ?? "Untitled Deal"}
+                  {deal.address ?? deal.client_name ?? t("pipeline.untitledDeal")}
                 </Text>
                 {deal.client_name && deal.address && (
                   <Text
@@ -627,7 +631,7 @@ function PipelineCard({ deal, onPress }: { deal: PipelineDeal; onPress: () => vo
             >
               {deal.expected_close_date && (
                 <Text style={{ ...Type.caption, color: c.textDim }}>
-                  Close:{" "}
+                  {t("pipeline.close")}{" "}
                   {new Date(deal.expected_close_date).toLocaleDateString(
                     "en-CA",
                     { month: "short", day: "numeric" }
@@ -635,7 +639,7 @@ function PipelineCard({ deal, onPress }: { deal: PipelineDeal; onPress: () => vo
                 </Text>
               )}
               <Text style={{ ...Type.caption, color: sc, fontWeight: "600" }}>
-                {prob}% probability
+                {t("pipeline.probability", { pct: prob })}
               </Text>
             </View>
 
@@ -668,6 +672,7 @@ function PipelineCard({ deal, onPress }: { deal: PipelineDeal; onPress: () => vo
 function TransactionCard({ tx, onPress }: { tx: Transaction; onPress: () => void }) {
   const c = useColors();
   const { mode } = useTheme();
+  const { t } = useTranslation("deals");
   const sh = shadows(mode);
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -730,7 +735,7 @@ function TransactionCard({ tx, onPress }: { tx: Transaction; onPress: () => void
                   style={{ ...Type.bodyBold, color: c.text }}
                   numberOfLines={1}
                 >
-                  {tx.address ?? tx.client_name ?? "Transaction"}
+                  {tx.address ?? tx.client_name ?? t("transaction.transactionLabel")}
                 </Text>
                 {tx.client_name && tx.address && (
                   <Text style={{ ...Type.caption, color: c.textDim, marginTop: 2 }}>
@@ -749,7 +754,7 @@ function TransactionCard({ tx, onPress }: { tx: Transaction; onPress: () => void
                   {fmtCurrency(gci)}
                 </Text>
                 <Text style={{ ...Type.micro, color: c.textDim }}>
-                  GCI {"\u00b7"} {tx.side}
+                  {t("transaction.gci")} {"\u00b7"} {tx.side}
                 </Text>
               </View>
             </View>
@@ -763,10 +768,10 @@ function TransactionCard({ tx, onPress }: { tx: Transaction; onPress: () => void
               }}
             >
               <Text style={{ ...Type.caption, color: c.textDim }}>
-                Sale: {fmtCurrency(tx.sale_price)}
+                {t("transaction.sale")} {fmtCurrency(tx.sale_price)}
               </Text>
               <Text style={{ ...Type.caption, color: c.textDim }}>
-                {(tx.commission_pct * 100).toFixed(1)}% commission
+                {t("transaction.commissionPct", { pct: (tx.commission_pct * 100).toFixed(1) })}
               </Text>
               <Text style={{ ...Type.caption, color: c.textDim }}>
                 {new Date(tx.date).toLocaleDateString("en-CA", {
@@ -794,6 +799,7 @@ function DealDetailSheet({
   onAdvance: (deal: PipelineDeal) => Promise<void>;
 }) {
   const c = useColors();
+  const { t } = useTranslation("deals");
   const [advancing, setAdvancing] = useState(false);
 
   if (!deal) return null;
@@ -809,32 +815,32 @@ function DealDetailSheet({
   };
 
   return (
-    <Sheet visible={!!deal} onClose={onClose} title="Deal Details">
+    <Sheet visible={!!deal} onClose={onClose} title={t("detail.title")}>
       <View style={{ gap: Space.lg, paddingBottom: Space.lg }}>
         {/* Address / title */}
         <Text style={{ ...Type.h2, color: c.text }}>
-          {deal.address ?? deal.client_name ?? "Untitled Deal"}
+          {deal.address ?? deal.client_name ?? t("pipeline.untitledDeal")}
         </Text>
 
         {/* Info rows */}
         {deal.client_name && (
-          <InfoRow label="Client" value={deal.client_name} />
+          <InfoRow label={t("detail.client")} value={deal.client_name} />
         )}
         {deal.address && deal.client_name && (
-          <InfoRow label="Address" value={deal.address} />
+          <InfoRow label={t("detail.address")} value={deal.address} />
         )}
-        <InfoRow label="Estimated Price" value={fmtCurrency(deal.estimated_price)} />
+        <InfoRow label={t("detail.estimatedPrice")} value={fmtCurrency(deal.estimated_price)} />
         <View style={styles.infoRow}>
-          <Text style={{ ...Type.label, color: c.textMuted }}>STAGE</Text>
+          <Text style={{ ...Type.label, color: c.textMuted }}>{t("detail.stage")}</Text>
           <Badge label={deal.stage.toUpperCase()} color={sc} size="sm" />
         </View>
         <InfoRow
-          label="Probability"
+          label={t("detail.probability")}
           value={`${Math.round(prob * 100)}%`}
         />
         {deal.expected_close_date && (
           <InfoRow
-            label="Expected Close"
+            label={t("detail.expectedClose")}
             value={new Date(deal.expected_close_date).toLocaleDateString("en-CA", {
               year: "numeric",
               month: "short",
@@ -844,13 +850,13 @@ function DealDetailSheet({
         )}
         {deal.estimated_commission_pct > 0 && (
           <InfoRow
-            label="Commission"
+            label={t("transaction.commission")}
             value={`${(deal.estimated_commission_pct * 100).toFixed(1)}%`}
           />
         )}
         {deal.notes && (
           <View style={{ gap: Space.xs }}>
-            <Text style={{ ...Type.label, color: c.textMuted }}>NOTES</Text>
+            <Text style={{ ...Type.label, color: c.textMuted }}>{t("detail.notes")}</Text>
             <Text style={{ ...Type.body, color: c.text }}>{deal.notes}</Text>
           </View>
         )}
@@ -860,10 +866,10 @@ function DealDetailSheet({
           <Button
             label={
               advancing
-                ? "Updating..."
+                ? t("detail.updating")
                 : isLastStage
-                  ? "Mark Closed"
-                  : `Advance to ${STAGE_ORDER[STAGE_ORDER.indexOf(deal.stage) + 1]?.charAt(0).toUpperCase()}${STAGE_ORDER[STAGE_ORDER.indexOf(deal.stage) + 1]?.slice(1) ?? ""}`
+                  ? t("detail.markClosed")
+                  : t("detail.advanceTo", { stage: t(`stages.${STAGE_ORDER[STAGE_ORDER.indexOf(deal.stage) + 1]}`) })
             }
             variant="primary"
             icon={isLastStage ? "checkmark-circle" : "arrow-forward"}
@@ -887,6 +893,7 @@ function TransactionDetailSheet({
   onClose: () => void;
 }) {
   const c = useColors();
+  const { t } = useTranslation("deals");
 
   if (!tx) return null;
 
@@ -895,27 +902,27 @@ function TransactionDetailSheet({
   const accentColor = isPending ? c.warning : c.success;
 
   return (
-    <Sheet visible={!!tx} onClose={onClose} title="Transaction Details">
+    <Sheet visible={!!tx} onClose={onClose} title={t("transactionDetail.title")}>
       <View style={{ gap: Space.lg, paddingBottom: Space.lg }}>
         <Text style={{ ...Type.h2, color: c.text }}>
-          {tx.address ?? tx.client_name ?? "Transaction"}
+          {tx.address ?? tx.client_name ?? t("transaction.transactionLabel")}
         </Text>
 
-        {tx.client_name && <InfoRow label="Client" value={tx.client_name} />}
-        {tx.address && tx.client_name && <InfoRow label="Address" value={tx.address} />}
-        <InfoRow label="Sale Price" value={fmtCurrency(tx.sale_price)} />
-        <InfoRow label="Commission" value={`${(tx.commission_pct * 100).toFixed(1)}%`} />
+        {tx.client_name && <InfoRow label={t("detail.client")} value={tx.client_name} />}
+        {tx.address && tx.client_name && <InfoRow label={t("detail.address")} value={tx.address} />}
+        <InfoRow label={t("transaction.salePrice")} value={fmtCurrency(tx.sale_price)} />
+        <InfoRow label={t("transaction.commission")} value={`${(tx.commission_pct * 100).toFixed(1)}%`} />
         <InfoRow
-          label="GCI"
+          label={t("transaction.gci")}
           value={fmtCurrency(gci)}
           valueColor={accentColor}
         />
         <InfoRow
-          label="Side"
+          label={t("transaction.side")}
           value={tx.side.charAt(0).toUpperCase() + tx.side.slice(1)}
         />
         <View style={styles.infoRow}>
-          <Text style={{ ...Type.label, color: c.textMuted }}>STATUS</Text>
+          <Text style={{ ...Type.label, color: c.textMuted }}>{t("transaction.status")}</Text>
           <Badge
             label={tx.status.toUpperCase()}
             color={accentColor}
@@ -923,7 +930,7 @@ function TransactionDetailSheet({
           />
         </View>
         <InfoRow
-          label="Date"
+          label={t("transaction.date")}
           value={new Date(tx.date).toLocaleDateString("en-CA", {
             year: "numeric",
             month: "short",
@@ -932,7 +939,7 @@ function TransactionDetailSheet({
         />
         {tx.notes && (
           <View style={{ gap: Space.xs }}>
-            <Text style={{ ...Type.label, color: c.textMuted }}>NOTES</Text>
+            <Text style={{ ...Type.label, color: c.textMuted }}>{t("detail.notes")}</Text>
             <Text style={{ ...Type.body, color: c.text }}>{tx.notes}</Text>
           </View>
         )}
@@ -973,6 +980,7 @@ function AddTransactionModal({
   onAdd: (tx: Omit<Transaction, "id" | "created_at">) => Promise<boolean>;
 }) {
   const c = useColors();
+  const { t } = useTranslation("deals");
 
   const [address, setAddress] = useState("");
   const [price, setPrice] = useState("");
@@ -1005,32 +1013,32 @@ function AddTransactionModal({
   };
 
   return (
-    <Sheet visible={visible} onClose={onClose} title="Log Transaction">
+    <Sheet visible={visible} onClose={onClose} title={t("addDeal.title")}>
       <View style={{ gap: Space.lg }}>
         <Input
-          label="Address"
+          label={t("addDeal.addressLabel")}
           value={address}
           onChange={setAddress}
-          placeholder="123 Main St"
+          placeholder={t("addDeal.addressPlaceholder")}
         />
         <Input
-          label="Sale Price"
+          label={t("addDeal.priceLabel")}
           value={price}
           onChange={setPrice}
-          placeholder="650,000"
+          placeholder={t("addDeal.pricePlaceholder")}
           keyboardType="numeric"
         />
         <Input
-          label="Commission %"
+          label={t("addDeal.commissionLabel")}
           value={commPct}
           onChange={setCommPct}
-          placeholder="2.5"
+          placeholder={t("addDeal.commissionPlaceholder")}
           keyboardType="numeric"
         />
 
         <View>
           <Text style={{ ...Type.caption, color: c.textMuted, marginLeft: Space.xs, marginBottom: Space.xs }}>
-            Side
+            {t("addDeal.typeLabel")}
           </Text>
           <View style={{ flexDirection: "row", gap: Space.sm }}>
             {(["buyer", "seller"] as const).map((s) => {
@@ -1056,7 +1064,7 @@ function AddTransactionModal({
                       color: isActive ? "#fff" : c.textMuted,
                     }}
                   >
-                    {s.charAt(0).toUpperCase() + s.slice(1)}
+                    {s === "buyer" ? t("addDeal.buy") : t("addDeal.sell")}
                   </Text>
                 </Pressable>
               );
@@ -1065,7 +1073,7 @@ function AddTransactionModal({
         </View>
 
         <Button
-          label={saving ? "Saving..." : "Save Transaction"}
+          label={saving ? t("addDeal.saving") : t("addDeal.save")}
           onPress={handleSubmit}
           loading={saving}
           variant="primary"

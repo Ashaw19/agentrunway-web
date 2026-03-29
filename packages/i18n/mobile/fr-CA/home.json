@@ -5,32 +5,74 @@
     "evening": "Bonsoir"
   },
   "score": {
-    "runwayScore": "SCORE RUNWAY",
+    "runwayScore": "Score Runway",
     "outOf": "/100",
     "strong": "Solide",
     "onTrack": "En bonne voie",
     "building": "En construction",
     "atRisk": "\u00c0 risque",
+    "tapForDetails": "{{label}} \u00b7 Appuyez pour les d\u00e9tails",
     "description": "Bas\u00e9 sur le rythme de l'objectif, la couverture du pipeline, les d\u00e9penses et les r\u00e9serves"
+  },
+  "scoreBar": {
+    "pace": "Rythme",
+    "pipeline": "Pipeline",
+    "expenses": "D\u00e9penses",
+    "setup": "Config.",
+    "bench": "R\u00e9serve",
+    "survival": "Survie"
   },
   "metrics": {
     "ytdGci": "RBC cumul",
     "goalPace": "Rythme objectif",
     "activePipeline": "Pipeline actif",
     "closedDeals": "Transactions conclues",
+    "dealsClosed": "Transactions conclues",
     "pipelineValue": "Valeur du pipeline",
-    "pending": "En attente"
+    "pipeline": "Pipeline",
+    "clients": "Clients",
+    "pending": "En attente",
+    "deals": "{{count}} transactions",
+    "needFollowUp": "{{count}} \u00e0 relancer"
   },
   "actions": {
-    "overdue": "En retard",
-    "followUps": "Suivis",
+    "overdue": "en retard",
+    "ready": "pr\u00eats",
+    "pending": "en attente",
+    "followUps": "suivis",
     "newLeads": "Nouveaux prospects",
     "pendingDeals": "Transactions en attente",
     "allCaughtUp": "Tout est \u00e0 jour"
   },
+  "sync": {
+    "offline": "Hors ligne \u2014 modifications enregistr\u00e9es localement",
+    "pendingSync": "{{count}} modification en attente de sync",
+    "pendingSync_plural": "{{count}} modifications en attente de sync",
+    "updating": "Mise \u00e0 jour\u2026"
+  },
+  "streak": {
+    "loggedToday": "{{count}} enregistr\u00e9(s) aujourd'hui",
+    "dayStreak": "S\u00e9rie de {{count}} jours"
+  },
   "briefing": {
-    "title": "Briefing du jour",
-    "noBriefing": "Aucun \u00e9l\u00e9ment de briefing aujourd'hui"
+    "title": "FOCUS DU JOUR",
+    "noBriefing": "Aucun \u00e9l\u00e9ment de briefing aujourd'hui",
+    "itemCount": "{{count}} \u00e9l\u00e9ment",
+    "itemCount_plural": "{{count}} \u00e9l\u00e9ments"
+  },
+  "goal": {
+    "annualGoal": "OBJECTIF ANNUEL",
+    "ofGoal": "{{current}} de {{goal}}"
+  },
+  "nextUp": {
+    "title": "PROCHAINE T\u00c2CHE",
+    "overdue": "En retard",
+    "high": "\u00c9LEV\u00c9E"
+  },
+  "pipelinePreview": {
+    "title": "PIPELINE",
+    "seeAll": "Tout voir",
+    "pipelineDeal": "Transaction pipeline"
   },
   "quickCapture": {
     "title": "Capture rapide",

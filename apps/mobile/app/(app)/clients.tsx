@@ -62,6 +62,7 @@ import {
 } from "@/lib/theme";
 import { Card, Sheet, Badge, Avatar, Button, Input, EmptyState } from "@/components/ui";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useTranslation } from "react-i18next";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -71,29 +72,6 @@ type ContactType = "call" | "text" | "email";
 type ActivityType = "call" | "text" | "meeting" | "showing" | "note";
 
 const ACTIVE_STATUSES = new Set(["boarding", "taxiing", "approach", "in_flight"]);
-
-const STATUS_LABELS: Record<string, string> = {
-  boarding:  "Boarding",
-  taxiing:   "Taxiing",
-  approach:  "Approach",
-  in_flight: "In Flight",
-  landed:    "Landed",
-  cruising:  "Cruising",
-};
-
-const CONTACT_TYPE_TITLES: Record<ContactType, string> = {
-  call:  "Log Call",
-  text:  "Log Text",
-  email: "Log Email",
-};
-
-const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
-  call:    "Call",
-  text:    "Text",
-  meeting: "Meeting",
-  showing: "Showing",
-  note:    "Note",
-};
 
 const ACTIVITY_TYPE_ICONS: Record<ActivityType, keyof typeof Ionicons.glyphMap> = {
   call:    "call",
@@ -151,6 +129,8 @@ export default function ClientsScreen() {
   const { mode } = useTheme();
   const s = shadows(mode);
   const router = useRouter();
+  const { t } = useTranslation("clients");
+  const { t: tCommon } = useTranslation("common");
 
   const {
     clients, fetchClients, addClient, addActivity, updateClient, isLoading,
@@ -205,7 +185,7 @@ export default function ClientsScreen() {
 
   const handleCall = useCallback((client: Client) => {
     if (!client.phone) {
-      Alert.alert("No phone number", "Add a phone number for this client first.");
+      Alert.alert(t("contact.noPhone"), t("contact.noPhoneBody"));
       return;
     }
     const ctx = getContactContext(client);
@@ -215,7 +195,7 @@ export default function ClientsScreen() {
 
   const handleText = useCallback((client: Client) => {
     if (!client.phone) {
-      Alert.alert("No phone number", "Add a phone number for this client first.");
+      Alert.alert(t("contact.noPhone"), t("contact.noPhoneBody"));
       return;
     }
     const ctx = getContactContext(client);
@@ -225,7 +205,7 @@ export default function ClientsScreen() {
 
   const handleEmail = useCallback((client: Client) => {
     if (!client.email) {
-      Alert.alert("No email", "Add an email for this client first.");
+      Alert.alert(t("contact.noEmail"), t("contact.noEmailBody"));
       return;
     }
     const ctx = getContactContext(client);
@@ -312,9 +292,9 @@ export default function ClientsScreen() {
   // ── Filter tab definitions ────────────────────────────────────────────────
 
   const tabs: { key: Filter; label: string; count: number }[] = [
-    { key: "all", label: "All", count: clients.length },
-    { key: "active", label: "Active", count: active.length },
-    { key: "landed", label: "Landed", count: landed.length },
+    { key: "all", label: t("filters.all"), count: clients.length },
+    { key: "active", label: t("filters.active"), count: active.length },
+    { key: "landed", label: t("filters.landed"), count: landed.length },
   ];
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -331,9 +311,9 @@ export default function ClientsScreen() {
       {/* ── Header ── */}
       <View style={{ paddingHorizontal: Space.xl, paddingTop: Space.xl, paddingBottom: Space.xs }}>
         <View style={styles.headerRow}>
-          <Text style={[Type.h1, { color: c.text }]}>Clients</Text>
+          <Text style={[Type.h1, { color: c.text }]}>{t("title")}</Text>
           <Button
-            label="Add"
+            label={tCommon("actions.add")}
             variant="primary"
             icon="add"
             onPress={() => setShowAdd(true)}
@@ -355,7 +335,7 @@ export default function ClientsScreen() {
           <TextInput
             value={search}
             onChangeText={setSearch}
-            placeholder="Search by name, email, or phone..."
+            placeholder={t("search.placeholder")}
             placeholderTextColor={c.textDim}
             style={[Type.body, styles.searchInput, { color: c.text }]}
             returnKeyType="search"
@@ -405,7 +385,7 @@ export default function ClientsScreen() {
               >
                 <Clock size={13} color="#EF4444" />
                 <Text style={{ fontSize: 12, fontWeight: "700", color: "#EF4444" }}>
-                  {slCounts.overdueFollowups} Overdue
+                  {slCounts.overdueFollowups} {t("smartLists.overdueFollowups")}
                 </Text>
                 {smartFilter === "overdue" && (
                   <X size={12} color="#EF4444" />
@@ -441,7 +421,7 @@ export default function ClientsScreen() {
               >
                 <UserPlus size={13} color="#F59E0B" />
                 <Text style={{ fontSize: 12, fontWeight: "700", color: "#F59E0B" }}>
-                  {slCounts.uncontactedLeads} New Leads
+                  {slCounts.uncontactedLeads} {t("smartLists.uncontactedLeads")}
                 </Text>
                 {smartFilter === "uncontacted" && (
                   <X size={12} color="#F59E0B" />
@@ -468,7 +448,7 @@ export default function ClientsScreen() {
               >
                 <TrendingUp size={13} color="#10B981" />
                 <Text style={{ fontSize: 12, fontWeight: "700", color: "#10B981" }}>
-                  {slCounts.hotPipeline} Hot Deals
+                  {slCounts.hotPipeline} {t("smartLists.hotDeals")}
                 </Text>
               </Pressable>
             )}
@@ -539,15 +519,15 @@ export default function ClientsScreen() {
           search.trim() ? (
             <EmptyState
               icon="search-outline"
-              title="No matches"
-              subtitle={`No clients match "${search.trim()}"`}
+              title={t("empty.noMatchTitle")}
+              subtitle={t("empty.noMatchSubtitle", { query: search.trim() })}
             />
           ) : (
             <EmptyState
               icon="people-outline"
-              title="No clients found"
-              subtitle="Add your first client to start tracking"
-              actionLabel="Add Client"
+              title={t("empty.title")}
+              subtitle={t("empty.subtitle")}
+              actionLabel={t("empty.actionLabel")}
               onAction={() => setShowAdd(true)}
             />
           )
@@ -622,8 +602,9 @@ function ClientRow({
   const c = useColors();
   const { mode } = useTheme();
   const s = shadows(mode);
+  const { t } = useTranslation("clients");
   const statusColor = STATUS_COLORS[client.status] ?? c.textDim;
-  const statusLabel = STATUS_LABELS[client.status] ?? client.status;
+  const statusLabel = t(`status.${client.status}`, { defaultValue: client.status });
 
   // Auto-transition countdown for Landed clients
   const getClientDeals = useDataStore((s) => s.getClientDeals);
@@ -694,7 +675,7 @@ function ClientRow({
           />
           {transitionDaysLeft !== null ? (
             <Text style={[Type.micro, { color: "#D97706" }]}>
-              Cruising in {transitionDaysLeft}d
+              {t("detail.cruisingIn", { count: transitionDaysLeft })}
             </Text>
           ) : daysSince !== null ? (
             <Text
@@ -703,11 +684,11 @@ function ClientRow({
                 { color: isOverdue ? c.danger : c.textDim },
               ]}
             >
-              {daysSince === 0 ? "Today" : `${daysSince}d ago`}
+              {daysSince === 0 ? t("detail.today") : t("detail.daysAgo", { count: daysSince })}
             </Text>
           ) : (
             <Text style={[Type.micro, { color: c.danger }]}>
-              Never
+              {t("detail.never")}
             </Text>
           )}
         </View>
@@ -757,22 +738,28 @@ function PostContactSheet({
   onSkip: () => void;
 }) {
   const c = useColors();
+  const { t } = useTranslation("clients");
   const [notes, setNotes] = useState("");
   const [activityType, setActivityType] = useState<ActivityType>(
     contactType === "email" ? "note" : contactType
   );
   const [saving, setSaving] = useState(false);
 
-  const title = CONTACT_TYPE_TITLES[contactType];
+  const contactTypeKey: Record<ContactType, string> = {
+    call: "contact.logCall",
+    text: "contact.logText",
+    email: "contact.logEmail",
+  };
+  const title = t(contactTypeKey[contactType]);
 
   // Build context string
   const contextLine = daysSinceContact !== null
     ? daysSinceContact === 0
-      ? "You contacted them earlier today"
+      ? t("postContact.contactedToday")
       : daysSinceContact === 1
-        ? "Last contact was yesterday"
-        : `First contact in ${daysSinceContact} days`
-    : "First ever contact with this client";
+        ? t("postContact.contactedYesterday")
+        : t("postContact.firstContactIn", { count: daysSinceContact })
+    : t("postContact.firstEverContact");
 
   // Suggested note based on pipeline
   const suggestedNote = pipelineContext
@@ -824,7 +811,7 @@ function PostContactSheet({
 
       {/* Activity type selector */}
       <Text style={[Type.caption, { color: c.textMuted, marginBottom: Space.sm, marginLeft: Space.xs }]}>
-        ACTIVITY TYPE
+        {t("postContact.activityType")}
       </Text>
       <View style={styles.activityTypeRow}>
         {activityTypes.map((at) => {
@@ -855,7 +842,7 @@ function PostContactSheet({
                   },
                 ]}
               >
-                {ACTIVITY_TYPE_LABELS[at]}
+                {t(`activity.${at}`)}
               </Text>
             </Pressable>
           );
@@ -865,10 +852,10 @@ function PostContactSheet({
       {/* Notes input with suggested note */}
       <View style={{ marginTop: Space.lg }}>
         <Input
-          label="Notes"
+          label={t("postContact.notesLabel")}
           value={notes}
           onChange={setNotes}
-          placeholder={suggestedNote ?? "What did you discuss?"}
+          placeholder={suggestedNote ?? t("postContact.notesPlaceholder")}
           multiline
         />
         {suggestedNote && !notes && (
@@ -877,7 +864,7 @@ function PostContactSheet({
             style={{ marginTop: Space.xs }}
           >
             <Text style={[Type.micro, { color: c.primary }]}>
-              Tap to use: &quot;{suggestedNote}&quot;
+              {t("postContact.tapToUse", { note: suggestedNote })}
             </Text>
           </Pressable>
         )}
@@ -886,7 +873,7 @@ function PostContactSheet({
       {/* Action buttons */}
       <View style={{ marginTop: Space.xl, gap: Space.sm }}>
         <Button
-          label={saving ? "Logging..." : "Log & Close"}
+          label={saving ? t("postContact.logging") : t("postContact.logAndClose")}
           onPress={handleLog}
           loading={saving}
           variant="primary"
@@ -897,7 +884,7 @@ function PostContactSheet({
           style={styles.skipBtn}
         >
           <Text style={[Type.bodyBold, { color: c.textMuted, textAlign: "center" }]}>
-            Skip
+            {t("postContact.skipLabel")}
           </Text>
         </Pressable>
       </View>
@@ -917,13 +904,7 @@ const ACTIVITY_DOT_COLORS: Record<string, string> = {
   offer:   "#8B5CF6", // purple
 };
 
-const STAGE_LABELS: Record<string, string> = {
-  lead: "Lead",
-  showing: "Showing",
-  offer: "Offer",
-  conditional: "Conditional",
-  firm: "Firm",
-};
+// Stage labels now use t("status.*") from i18n
 
 const TX_STATUS_COLORS: Record<string, string> = {
   closed:  "#10B981",
@@ -969,6 +950,8 @@ function ClientDetailSheet({
   onUpdate: (updates: Partial<Pick<Client, 'name' | 'email' | 'phone' | 'status' | 'notes'>>) => Promise<boolean>;
 }) {
   const c = useColors();
+  const { t } = useTranslation("clients");
+  const { t: tCommon } = useTranslation("common");
   const statusColor = STATUS_COLORS[client.status] ?? c.textDim;
 
   const {
@@ -1038,16 +1021,16 @@ function ClientDetailSheet({
   const deals = useMemo(() => getClientDeals(client.name), [client.name]);
 
   const FLIGHT_STATUSES: { key: string; label: string }[] = [
-    { key: "cruising", label: "Cruising" },
-    { key: "turbulence", label: "Turbulence" },
-    { key: "grounded", label: "Grounded" },
-    { key: "boarding", label: "Boarding" },
-    { key: "landed", label: "Landed" },
-    { key: "departed", label: "Departed" },
+    { key: "cruising", label: t("status.cruising") },
+    { key: "turbulence", label: t("status.turbulence") },
+    { key: "grounded", label: t("status.grounded") },
+    { key: "boarding", label: t("status.boarding") },
+    { key: "landed", label: t("status.landed") },
+    { key: "departed", label: t("status.departed") },
   ];
 
   return (
-    <Sheet visible onClose={onClose} title={editing ? "Edit Client" : client.name} maxHeight="95%">
+    <Sheet visible onClose={onClose} title={editing ? t("editClient.title") : client.name} maxHeight="95%">
       {/* ── Edit button in header area ── */}
       {!editing && (
         <View style={{ position: "absolute", top: Space.md, right: Space.xl + 44, zIndex: 10 }}>
@@ -1060,7 +1043,7 @@ function ClientDetailSheet({
             ]}
           >
             <Ionicons name="create-outline" size={16} color={c.primary} />
-            <Text style={[Type.caption, { color: c.primary, fontWeight: "700" }]}>Edit</Text>
+            <Text style={[Type.caption, { color: c.primary, fontWeight: "700" }]}>{t("editClient.edit")}</Text>
           </Pressable>
         </View>
       )}
@@ -1069,20 +1052,20 @@ function ClientDetailSheet({
         /* ── Edit Mode ── */
         <View style={{ gap: Space.md }}>
           <Input
-            label="Full Name"
+            label={t("editClient.nameLabel")}
             value={editName}
             onChange={setEditName}
-            placeholder="Client name"
+            placeholder={t("editClient.namePlaceholder")}
           />
           <Input
-            label="Phone"
+            label={t("editClient.phoneLabel")}
             value={editPhone}
             onChange={setEditPhone}
             placeholder="+1 (555) 123-4567"
             keyboardType="phone-pad"
           />
           <Input
-            label="Email"
+            label={t("editClient.emailLabel")}
             value={editEmail}
             onChange={setEditEmail}
             placeholder="email@example.com"
@@ -1092,7 +1075,7 @@ function ClientDetailSheet({
           {/* Flight status pills */}
           <View style={{ gap: Space.xs }}>
             <Text style={[Type.caption, { color: c.textMuted, marginLeft: Space.xs }]}>
-              FLIGHT STATUS
+              {t("detail.flightStatus")}
             </Text>
             <View style={styles.statusPillRow}>
               {FLIGHT_STATUSES.map((fs) => {
@@ -1134,17 +1117,17 @@ function ClientDetailSheet({
           </View>
 
           <Input
-            label="Notes"
+            label={t("editClient.notesLabel")}
             value={editNotes}
             onChange={setEditNotes}
-            placeholder="Add notes..."
+            placeholder={t("editClient.notesPlaceholder")}
             multiline
           />
 
           {/* Save / Cancel */}
           <View style={{ marginTop: Space.sm, gap: Space.sm }}>
             <Button
-              label={savingEdit ? "Saving..." : "Save Changes"}
+              label={savingEdit ? t("editClient.saving") : t("editClient.save")}
               onPress={handleSaveEdit}
               loading={savingEdit}
               disabled={!editName.trim()}
@@ -1153,7 +1136,7 @@ function ClientDetailSheet({
             />
             <Pressable onPress={handleCancelEdit} style={styles.skipBtn}>
               <Text style={[Type.bodyBold, { color: c.textMuted, textAlign: "center" }]}>
-                Cancel
+                {tCommon("nav.cancel")}
               </Text>
             </Pressable>
           </View>
@@ -1167,7 +1150,7 @@ function ClientDetailSheet({
         <View style={{ flex: 1, gap: Space.xs }}>
           <Text style={[Type.h2, { color: c.text }]}>{client.name}</Text>
           <Badge
-            label={STATUS_LABELS[client.status] ?? client.status}
+            label={t(`status.${client.status}`, { defaultValue: client.status })}
             color={statusColor}
             size="sm"
           />
@@ -1185,7 +1168,7 @@ function ClientDetailSheet({
             if (daysSince > 60 && left > 0) {
               return (
                 <Text style={[Type.micro, { color: "#D97706", marginTop: 2 }]}>
-                  Transitioning to Cruising in {left} day{left !== 1 ? "s" : ""}
+                  {t(left !== 1 ? "detail.transitioningToCruising_plural" : "detail.transitioningToCruising", { count: left })}
                 </Text>
               );
             }
@@ -1228,19 +1211,19 @@ function ClientDetailSheet({
       <View style={styles.actionRow}>
         <ActionButton
           icon="call"
-          label="Call"
+          label={t("contact.call")}
           color={c.success}
           onPress={() => onCall(client)}
         />
         <ActionButton
           icon="chatbubble-ellipses"
-          label="Text"
+          label={t("contact.text")}
           color={c.blue}
           onPress={() => onText(client)}
         />
         <ActionButton
           icon="mail"
-          label="Email"
+          label={t("contact.email")}
           color={c.purple}
           onPress={() => onEmail(client)}
         />
@@ -1249,14 +1232,14 @@ function ClientDetailSheet({
       {/* ── Quick-Log Buttons (one-tap, no sheet) ── */}
       <View style={{ marginBottom: Space.lg }}>
         <Text style={[Type.label, { color: c.textMuted, marginBottom: Space.sm }]}>
-          QUICK LOG
+          {t("quickLog.title")}
         </Text>
         <View style={{ flexDirection: "row", gap: Space.sm }}>
           {(
             [
-              { key: "call", label: "Just called", icon: "call" as const, color: "#10B981" },
-              { key: "text", label: "Just texted", icon: "chatbubble-ellipses" as const, color: "#3B82F6" },
-              { key: "voicemail", label: "Voicemail", icon: "recording" as const, color: "#8B5CF6" },
+              { key: "call", label: t("quickLog.justCalled"), icon: "call" as const, color: "#10B981" },
+              { key: "text", label: t("quickLog.justTexted"), icon: "chatbubble-ellipses" as const, color: "#3B82F6" },
+              { key: "voicemail", label: t("quickLog.voicemail"), icon: "recording" as const, color: "#8B5CF6" },
             ] as const
           ).map((q) => (
             <Pressable
@@ -1289,7 +1272,7 @@ function ClientDetailSheet({
             >
               <Ionicons name={q.icon} size={14} color={q.color} />
               <Text style={{ fontSize: 11, fontWeight: "700", color: q.color }}>
-                {quickLogging === q.key ? "Logged!" : q.label}
+                {quickLogging === q.key ? t("quickLog.logged") : q.label}
               </Text>
             </Pressable>
           ))}
@@ -1317,7 +1300,7 @@ function ClientDetailSheet({
           ]}
         >
           <Text style={[Type.caption, { color: c.textMuted, marginBottom: Space.xs }]}>
-            NOTES
+            {t("detail.notes")}
           </Text>
           <Text style={[Type.body, { color: c.textSecondary }]}>
             {client.notes}
@@ -1328,7 +1311,7 @@ function ClientDetailSheet({
       {/* ── Activity Timeline ── */}
       <View style={{ marginTop: Space.xl }}>
         <Text style={[Type.label, { color: c.textMuted, marginBottom: Space.md }]}>
-          RECENT ACTIVITY
+          {t("detail.recentActivity")}
         </Text>
         {activitiesLoading ? (
           <View style={{ alignItems: "center", paddingVertical: Space.xl }}>
@@ -1336,7 +1319,7 @@ function ClientDetailSheet({
           </View>
         ) : activities.length === 0 ? (
           <Text style={[Type.body, { color: c.textDim, marginBottom: Space.lg }]}>
-            No activity logged yet
+            {t("detail.noActivity")}
           </Text>
         ) : (
           <View style={{ marginBottom: Space.md }}>
@@ -1344,7 +1327,7 @@ function ClientDetailSheet({
               const isLast = idx === activities.length - 1;
               const dotColor = ACTIVITY_DOT_COLORS[act.type] ?? c.textDim;
               const typeLabel =
-                ACTIVITY_TYPE_LABELS[act.type as ActivityType] ?? act.type;
+                t(`activity.${act.type}`, { defaultValue: act.type });
               return (
                 <View key={act.id} style={styles.timelineRow}>
                   {/* Left: dot + connecting line */}
@@ -1402,11 +1385,11 @@ function ClientDetailSheet({
       {/* ── Linked Deals ── */}
       <View style={{ marginTop: Space.lg }}>
         <Text style={[Type.label, { color: c.textMuted, marginBottom: Space.md }]}>
-          DEALS
+          {t("detail.deals")}
         </Text>
         {deals.pipeline.length === 0 && deals.transactions.length === 0 ? (
           <Text style={[Type.body, { color: c.textDim, marginBottom: Space.lg }]}>
-            No linked deals
+            {t("detail.noLinkedDeals")}
           </Text>
         ) : (
           <View style={{ gap: Space.sm, marginBottom: Space.lg }}>
@@ -1425,7 +1408,7 @@ function ClientDetailSheet({
                   ]}
                 >
                   <Badge
-                    label={STAGE_LABELS[deal.stage] ?? deal.stage}
+                    label={t(`status.${deal.stage}`, { defaultValue: deal.stage })}
                     color={stageColor}
                     size="sm"
                   />
@@ -1434,10 +1417,10 @@ function ClientDetailSheet({
                       style={[Type.caption, { color: c.text }]}
                       numberOfLines={1}
                     >
-                      {deal.address ?? "No address"}
+                      {deal.address ?? t("detail.noAddress")}
                     </Text>
                     <Text style={[Type.micro, { color: c.textDim }]}>
-                      Est. {fmtCurrency(deal.estimated_price)}
+                      {t("detail.estimated", { amount: fmtCurrency(deal.estimated_price) })}
                     </Text>
                   </View>
                 </View>
@@ -1469,10 +1452,10 @@ function ClientDetailSheet({
                       style={[Type.caption, { color: c.text }]}
                       numberOfLines={1}
                     >
-                      {tx.address ?? "No address"}
+                      {tx.address ?? t("detail.noAddress")}
                     </Text>
                     <Text style={[Type.micro, { color: c.textDim }]}>
-                      GCI {fmtCurrency(gci)}
+                      {t("detail.gciAmount", { amount: fmtCurrency(gci) })}
                     </Text>
                   </View>
                 </View>
@@ -1554,6 +1537,7 @@ function AddClientSheet({
   onAdd: (c: Omit<Client, "id" | "created_at">) => Promise<boolean>;
 }) {
   const c = useColors();
+  const { t } = useTranslation("clients");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -1581,31 +1565,31 @@ function AddClientSheet({
   };
 
   return (
-    <Sheet visible={visible} onClose={onClose} title="Add Client">
+    <Sheet visible={visible} onClose={onClose} title={t("addClient.title")}>
       <View style={{ gap: Space.md }}>
         <Input
-          label="Full Name"
+          label={t("addClient.nameLabel")}
           value={name}
           onChange={setName}
-          placeholder="Jane Smith"
+          placeholder={t("addClient.namePlaceholder")}
         />
         <Input
-          label="Email"
+          label={t("addClient.emailLabel")}
           value={email}
           onChange={setEmail}
-          placeholder="jane@example.com"
+          placeholder={t("addClient.emailPlaceholder")}
           keyboardType="email-address"
         />
         <Input
-          label="Phone"
+          label={t("addClient.phoneLabel")}
           value={phone}
           onChange={setPhone}
-          placeholder="+1 (555) 123-4567"
+          placeholder={t("addClient.phonePlaceholder")}
           keyboardType="phone-pad"
         />
         <View style={{ marginTop: Space.sm }}>
           <Button
-            label={saving ? "Adding..." : "Add Client"}
+            label={saving ? t("addClient.adding") : t("addClient.save")}
             onPress={handleSubmit}
             loading={saving}
             disabled={!name.trim()}
