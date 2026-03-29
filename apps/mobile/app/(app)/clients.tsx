@@ -625,6 +625,22 @@ function ClientRow({
   const statusColor = STATUS_COLORS[client.status] ?? c.textDim;
   const statusLabel = STATUS_LABELS[client.status] ?? client.status;
 
+  // Auto-transition countdown for Landed clients
+  const getClientDeals = useDataStore((s) => s.getClientDeals);
+  const transitionDaysLeft = useMemo(() => {
+    if (client.status !== "landed") return null;
+    const { transactions } = getClientDeals(client.name);
+    const closedDates = transactions
+      .filter((t) => t.status === "closed" && t.date)
+      .map((t) => t.date)
+      .sort()
+      .reverse();
+    if (!closedDates[0]) return null;
+    const daysSince = Math.floor((Date.now() - new Date(closedDates[0] + "T00:00:00").getTime()) / 86400000);
+    const left = 90 - daysSince;
+    return daysSince > 60 && left > 0 ? left : null;
+  }, [client.status, client.name, getClientDeals]);
+
   const daysSince = client.last_contact_at
     ? Math.floor(
         (Date.now() - new Date(client.last_contact_at).getTime()) / 86400000
@@ -676,7 +692,11 @@ function ClientRow({
             color={statusColor}
             size="sm"
           />
-          {daysSince !== null ? (
+          {transitionDaysLeft !== null ? (
+            <Text style={[Type.micro, { color: "#D97706" }]}>
+              Cruising in {transitionDaysLeft}d
+            </Text>
+          ) : daysSince !== null ? (
             <Text
               style={[
                 Type.micro,
@@ -1151,6 +1171,26 @@ function ClientDetailSheet({
             color={statusColor}
             size="sm"
           />
+          {/* Auto-transition countdown for Landed clients */}
+          {client.status === "landed" && (() => {
+            const { transactions } = getClientDeals(client.name);
+            const closedDates = transactions
+              .filter((t) => t.status === "closed" && t.date)
+              .map((t) => t.date)
+              .sort()
+              .reverse();
+            if (!closedDates[0]) return null;
+            const daysSince = Math.floor((Date.now() - new Date(closedDates[0] + "T00:00:00").getTime()) / 86400000);
+            const left = 90 - daysSince;
+            if (daysSince > 60 && left > 0) {
+              return (
+                <Text style={[Type.micro, { color: "#D97706", marginTop: 2 }]}>
+                  Transitioning to Cruising in {left} day{left !== 1 ? "s" : ""}
+                </Text>
+              );
+            }
+            return null;
+          })()}
         </View>
       </View>
 

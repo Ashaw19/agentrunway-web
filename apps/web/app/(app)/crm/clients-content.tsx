@@ -1276,6 +1276,21 @@ export function ClientsContent({
     return gci > 0 ? calcRewardBudget(gci, rewardGenerosity) : undefined;
   }, [clientDeals, rewardGenerosity]);
 
+  // Auto-transition countdown: days until Landed -> Cruising (90 days after last close)
+  const landedTransitionDays = useMemo(() => {
+    if (!selectedClient || selectedClient.status !== "landed") return null;
+    const closeDates = clientDeals
+      .map((d) => d.close_date)
+      .filter(Boolean)
+      .sort()
+      .reverse();
+    const lastClose = closeDates[0];
+    if (!lastClose) return null;
+    const daysSince = Math.floor((Date.now() - new Date(lastClose + "T00:00:00").getTime()) / 86400000);
+    const daysLeft = 90 - daysSince;
+    return daysSince > 60 && daysLeft > 0 ? daysLeft : null;
+  }, [selectedClient, clientDeals]);
+
   // Showings for the selected client
   const selectedClientShowings = useMemo(
     () => selectedClientId ? localShowings.filter((s) => s.client_id === selectedClientId) : [],
@@ -2623,10 +2638,25 @@ export function ClientsContent({
 
                               <TableCell className="py-2.5">
                                 {sc && client && (
-                                  <span className={cn("text-[10px] font-semibold border rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1", sc.bg, sc.text, sc.border)}>
-                                    <span className={cn("h-1.5 w-1.5 rounded-full", sc.dot)} />
-                                    {CLIENT_STATUS_LABELS[client.status]}
-                                  </span>
+                                  <div className="flex flex-col gap-0.5">
+                                    <span className={cn("text-[10px] font-semibold border rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1", sc.bg, sc.text, sc.border)}>
+                                      <span className={cn("h-1.5 w-1.5 rounded-full", sc.dot)} />
+                                      {CLIENT_STATUS_LABELS[client.status]}
+                                    </span>
+                                    {/* Auto-transition countdown for Landed clients approaching 90-day mark */}
+                                    {client.status === "landed" && group.lastDeal && (() => {
+                                      const daysSinceClose = Math.floor((Date.now() - new Date(group.lastDeal + "T00:00:00").getTime()) / 86400000);
+                                      const daysLeft = 90 - daysSinceClose;
+                                      if (daysSinceClose > 60 && daysLeft > 0) {
+                                        return (
+                                          <span className="text-[9px] text-amber-600 dark:text-amber-400 whitespace-nowrap pl-0.5">
+                                            Cruising in {daysLeft}d
+                                          </span>
+                                        );
+                                      }
+                                      return null;
+                                    })()}
+                                  </div>
                                 )}
                               </TableCell>
 
@@ -2972,6 +3002,15 @@ export function ClientsContent({
 
                   {/* Flight Status Strip */}
                   <FlightStatusStrip current={selectedClient.status} />
+                  {/* Auto-transition countdown */}
+                  {landedTransitionDays !== null && (
+                    <div className="mt-2 flex items-center gap-1.5 px-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                        Transitioning to Cruising in {landedTransitionDays} day{landedTransitionDays !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
