@@ -9,6 +9,8 @@ import { useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
 import { useDataStore } from "@/stores/data-store";
 import Svg, {
+  Circle,
+  Text as SvgText,
   Defs,
   LinearGradient as SvgGrad,
   Stop,
@@ -36,6 +38,41 @@ import {
 } from "@/lib/theme";
 import { Card, Badge, Button, Avatar } from "@/components/ui";
 
+// ── Runway Score Helpers ─────────────────────────────────────────────────────
+
+function runwayScoreMeta(score: number) {
+  return {
+    score,
+    label: score >= 80 ? "Excellent" : score >= 60 ? "On Track" : score >= 40 ? "Needs Focus" : "At Risk",
+    color: score >= 80 ? "#10B981" : score >= 60 ? "#6366F1" : score >= 40 ? "#F59E0B" : "#EF4444",
+  };
+}
+
+function RunwayGauge({ score, color, textColor, dimColor }: { score: number; color: string; textColor: string; dimColor: string }) {
+  const size = 100;
+  const sw = 7;
+  const r = (size - sw) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ * (1 - score / 100);
+  const cx = size / 2;
+  const cy = size / 2;
+  return (
+    <Svg width={size} height={size}>
+      <Circle cx={cx} cy={cy} r={r} stroke="rgba(128,128,128,0.12)" strokeWidth={sw} fill="none" />
+      <Circle cx={cx} cy={cy} r={r} stroke={color} strokeWidth={sw} fill="none"
+        strokeDasharray={circ} strokeDashoffset={offset}
+        strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`}
+      />
+      <SvgText x={cx} y={cy - 2} textAnchor="middle" fill={textColor} fontSize="28" fontWeight="800">
+        {score}
+      </SvgText>
+      <SvgText x={cx} y={cy + 14} textAnchor="middle" fill={dimColor} fontSize="11" fontWeight="600">
+        /100
+      </SvgText>
+    </Svg>
+  );
+}
+
 // ── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ProfileScreen() {
@@ -56,6 +93,8 @@ export default function ProfileScreen() {
   const ytdDeals = store.ytdDealCount();
   const goalGci = settings?.goal_gci ?? 0;
   const goalPct = goalGci > 0 ? Math.round((ytdGci / goalGci) * 100) : null;
+
+  const runway = runwayScoreMeta(store.runwayScore());
 
   const isDark = mode === "dark";
 
@@ -211,6 +250,29 @@ export default function ProfileScreen() {
               textDim={c.textDim}
             />
           </View>
+        </View>
+
+        {/* ── Runway Score Section ── */}
+        <View style={[{
+          marginTop: Space.xxl,
+          borderRadius: Radius.xl,
+          overflow: "hidden",
+          borderWidth: 1,
+          borderColor: c.cardBorder,
+          backgroundColor: c.card,
+          alignItems: "center",
+          padding: Space.xxl,
+        }, sh.cardLg]}>
+          <RunwayGauge score={runway.score} color={runway.color} textColor={c.text} dimColor={c.textDim} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, marginTop: Space.md }}>
+            <Text style={{ ...Type.label, color: c.textMuted }}>RUNWAY SCORE</Text>
+            <View style={{ backgroundColor: runway.color + "22", paddingHorizontal: Space.sm, paddingVertical: 2, borderRadius: Radius.sm }}>
+              <Text style={{ color: runway.color, fontSize: 10, fontWeight: "700" }}>{runway.label}</Text>
+            </View>
+          </View>
+          <Text style={{ ...Type.caption, color: c.textDim, marginTop: Space.sm, textAlign: "center" }}>
+            Based on goal pace, pipeline coverage, expenses, and cash reserves
+          </Text>
         </View>
 
         {/* ── Tools Section ── */}
