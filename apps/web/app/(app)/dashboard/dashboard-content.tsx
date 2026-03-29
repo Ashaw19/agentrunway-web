@@ -575,17 +575,28 @@ export function DashboardContent({
       ? runwayScore.score - runwayScoreSnapshot.score
       : null;
 
-  // Persist current score once per month (fire-and-forget)
+  // Persist full score breakdown to Supabase so mobile reads the same values.
+  // Saves every time the score changes (not just once/month) for real-time parity.
   useEffect(() => {
-    if (sandbox.sandboxMode) return; // Don't persist score snapshot in sandbox
-    if (runwayScoreSnapshot?.month === currentMonthKey) return;
+    if (sandbox.sandboxMode) return;
     const supabase = createClient();
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       await supabase
         .from("user_settings")
-        .update({ runway_score_snapshot: { score: runwayScore.score, month: currentMonthKey } })
+        .update({
+          runway_score_snapshot: {
+            score: runwayScore.score,
+            grade: runwayScore.grade,
+            month: currentMonthKey,
+            components: runwayScore.components.map((c) => ({
+              label: c.label,
+              score: c.score,
+              weight: c.weightValue,
+            })),
+          },
+        })
         .eq("user_id", user.id);
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -10,20 +10,8 @@ import { supabase } from "../lib/supabase";
 import { storage } from "../lib/mmkv";
 import { useToastStore } from "./toast-store";
 import { useOfflineQueueStore } from "./offline-queue";
-import {
-  compute as computeRunwayScore,
-  type BusinessHealthReport,
-  type RunwayScoreResult,
-} from "@agent-runway/core/engines/runway-score-engine";
-import {
-  compare as benchmarkCompare,
-} from "@agent-runway/core/engines/benchmark-engine";
-import {
-  survivalResult as computeSurvival,
-} from "@agent-runway/core/engines/survival-engine";
-import {
-  projectedYearEndGCI,
-} from "@agent-runway/core/engines/projection-engine";
+// Score is read directly from the web dashboard's snapshot in user_settings.
+// No local recomputation needed — guarantees exact parity.
 
 // ── Types (lightweight — matches Supabase row shapes) ────────────────────────
 
@@ -100,7 +88,12 @@ export interface UserSettings {
   cash_reserve: number | null;
   growth_goal_year_pcts: number[] | null;
   monthly_brokerage_fee: number | null;
-  runway_score_snapshot: { score: number; month: string } | null;
+  runway_score_snapshot: {
+    score: number;
+    grade?: string;
+    month: string;
+    components?: { label: string; score: number; weight: number }[];
+  } | null;
 }
 
 export interface ReceiptExpense {
@@ -221,7 +214,6 @@ interface DataStore {
    * Clamped to [0, 100].
    */
   runwayScore: () => number;
-  runwayScoreResult: () => RunwayScoreResult;
 
   // Smart Lists & Today's Briefing
   todayBriefing: () => BriefingItem[];
@@ -751,114 +743,16 @@ export const useDataStore = create<DataStore>((set, get) => {
     },
 
     /**
-     * Compute the Runway Score using the same core engines as the web dashboard.
-     * Returns the full RunwayScoreResult with components for breakdown display.
+     * Runway Score — reads the snapshot saved by the web dashboard to Supabase.
+     * The web computes the score using seasonal weights, structured expense
+     * categories, benchmark engine, and survival engine. Mobile simply displays
+     * the web's computed result for guaranteed parity.
      *
-     * Components (weights):
-     *   Goal Pace 30% | Pipeline 20% | Expenses 15% | Setup 10% | Benchmark 10% | Survival 15%
+     * Returns 0 if no snapshot exists yet (user hasn't loaded web dashboard).
      */
-    runwayScoreResult: (): RunwayScoreResult => {
-      const state = get();
-      const settings = state.settings;
-      const now = new Date();
-      const ytdGCI = state.ytdGci();
-      const goalGCI = settings?.goal_gci ?? 0;
-      const dayOfYear = Math.floor(
-        (Date.now() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000
-      );
-      const fraction = Math.max(dayOfYear / 365, 0.01);
-
-      // ── Health Report (same logic as web's buildHealthReport) ──
-
-      // 1. Pace score
-      let paceScore = 50;
-      if (goalGCI > 0 && fraction > 0) {
-        const expectedAtThisPoint = goalGCI * fraction;
-        const paceVsGoal = expectedAtThisPoint > 0
-          ? ((ytdGCI - expectedAtThisPoint) / expectedAtThisPoint) * 100
-          : 0;
-        const raw = (paceVsGoal + 50) / 100;
-        paceScore = Math.round(Math.min(1, Math.max(0, raw)) * 100);
-      }
-
-      // 2. Pipeline score
-      let pipelineScore = 65;
-      const remaining = Math.max(0, goalGCI - ytdGCI);
-      const pipelineWeightedGCI = state.pipeline.reduce((sum, d) => {
-        const prob = d.probability_override ??
-          ({ lead: 0.1, showing: 0.25, offer: 0.5, conditional: 0.75, firm: 0.9 }[d.stage] ?? 0.5);
-        return sum + d.estimated_price * d.estimated_commission_pct * prob;
-      }, 0);
-      if (remaining > 0 && pipelineWeightedGCI > 0) {
-        pipelineScore = Math.min(100, Math.round((pipelineWeightedGCI / remaining) * 100));
-      } else if (goalGCI > 0 && ytdGCI >= goalGCI) {
-        pipelineScore = 90;
-      }
-
-      // 3. Expense score
-      let expenseScore = 80;
-      const expensesYTD = state.receipts.reduce((sum, r) => sum + (r.total_amount ?? 0), 0);
-      if (ytdGCI > 0) {
-        const ratio = expensesYTD / ytdGCI;
-        if (ratio > 0.5) expenseScore = 30;
-        else if (ratio > 0.35) expenseScore = 55;
-        else if (ratio > 0.25) expenseScore = 75;
-        else expenseScore = 90;
-      }
-
-      // 4. Readiness / Setup score
-      let readinessScore = 25;
-      if (settings) {
-        let points = 0;
-        if ((settings.goal_gci ?? 0) > 0) points += 30;
-        if ((settings.goal_transactions ?? 0) > 0) points += 20;
-        const growthRates = settings.growth_goal_year_pcts;
-        if (growthRates && growthRates.some((r: number) => r > 0)) points += 25;
-        if ((settings.cash_reserve ?? 0) > 0) points += 15;
-        if (settings.experience_years != null) points += 10;
-        readinessScore = points;
-      }
-
-      const components = [paceScore, pipelineScore, expenseScore, readinessScore];
-      const avg = components.reduce((a, b) => a + b, 0) / 4;
-      const weakest = Math.min(...components);
-      const weakestLabels = ["Pace", "Pipeline", "Expenses", "Setup"];
-      const weakestIdx = components.indexOf(weakest);
-
-      const healthReport: BusinessHealthReport = {
-        score: Math.round(avg),
-        grade: avg >= 85 ? "A" : avg >= 75 ? "B" : avg >= 62 ? "C" : avg >= 50 ? "D" : "F",
-        paceScore,
-        pipelineScore,
-        expenseScore,
-        readinessScore,
-        weakestLabel: weakestLabels[weakestIdx],
-        hasEnoughData: ytdGCI > 0,
-      };
-
-      // ── Benchmark (same engine as web — uses projected GCI + experience years) ──
-      const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, goalGCI);
-      const benchmark = benchmarkCompare(projectedGCI, settings?.experience_years ?? null);
-
-      // ── Survival (same engine as web — uses brokerage fee + monthly recurring) ──
-      const monthlyRecurring = expensesYTD > 0
-        ? expensesYTD / Math.max(now.getMonth() + 1, 1)
-        : 0;
-      const pipelineMonthlyEst = fraction > 0 ? (pipelineWeightedGCI * 0.5) / 12 : 0;
-      const survival = computeSurvival(
-        settings?.monthly_brokerage_fee ?? 0,
-        monthlyRecurring,
-        settings?.cash_reserve ?? 0,
-        pipelineMonthlyEst,
-      );
-
-      // ── Composite score via core engine ──
-      return computeRunwayScore(healthReport, benchmark.percentile, survival.months);
-    },
-
-    /** Convenience: returns just the numeric score (0–100) */
     runwayScore: (): number => {
-      return get().runwayScoreResult().score;
+      const snapshot = get().settings?.runway_score_snapshot;
+      return snapshot?.score ?? 0;
     },
 
     // ── Smart Lists & Today's Briefing ──────────────────────────────────────
