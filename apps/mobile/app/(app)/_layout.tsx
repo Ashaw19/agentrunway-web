@@ -21,24 +21,22 @@ export default function AppLayout() {
   const g = gradients(mode);
   const sh = shadows(mode);
 
-  const { tasks, transactions, clients } = useDataStore();
+  const { tasks, transactions, clients, pipeline, smartListCounts } = useDataStore();
 
-  // Badge counts
+  // Badge counts — smart list counts give more meaningful numbers
+  const counts = useMemo(() => smartListCounts(), [clients, pipeline]);
+
   const overdueCount = useMemo(() => {
     const today = new Date(new Date().toDateString());
     return tasks.filter(t => t.due_date && new Date(t.due_date) < today && !t.completed_at).length;
   }, [tasks]);
 
   const pendingCount = useMemo(() => {
-    return transactions.filter(t => t.status === "pending").length;
-  }, [transactions]);
+    const pending = transactions.filter(t => t.status === "pending").length;
+    return pending + counts.hotPipeline;
+  }, [transactions, counts.hotPipeline]);
 
-  const followUpCount = useMemo(() => {
-    const fourteenDaysAgo = Date.now() - (14 * 86400000);
-    return clients.filter(c =>
-      c.last_contact_at && new Date(c.last_contact_at).getTime() < fourteenDaysAgo
-    ).length;
-  }, [clients]);
+  const followUpCount = counts.overdueFollowups + counts.uncontactedLeads;
 
   return (
     <Tabs

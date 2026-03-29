@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useDataStore } from "@/stores/data-store";
 import type { Client, BriefingItem } from "@/stores/data-store";
 import { BriefingRow } from "@/components/BriefingRow";
+import { ScoreBreakdownSheet } from "@/components/ScoreBreakdownSheet";
 import { useOfflineQueueStore } from "@/stores/offline-queue";
 import Svg, { Circle, Text as SvgText } from "react-native-svg";
 import {
@@ -436,6 +437,7 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [, setTick] = useState(0);
   const [showCapture, setShowCapture] = useState(false);
+  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
 
   useEffect(() => { fetchAll(); fetchOutreach(); fetchReceipts(); }, []);
   useFocusEffect(useCallback(() => { fetchAll(); fetchOutreach(); fetchReceipts(); }, []));
@@ -629,8 +631,18 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* ── 3. Runway Score Hero Card ── */}
-        <View style={[{ borderRadius: Radius.xxl, overflow: "hidden", marginBottom: Space.xxl }, sh.cardLg]}>
+        {/* ── 3. Runway Score Hero Card (tap to see breakdown) ── */}
+        <Pressable
+          onPress={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            setShowScoreBreakdown(true);
+          }}
+          style={({ pressed }) => [
+            { borderRadius: Radius.xxl, overflow: "hidden", marginBottom: Space.xxl },
+            sh.cardLg,
+            pressed && { opacity: 0.92, transform: [{ scale: 0.98 }] },
+          ]}
+        >
           <LinearGradient
             colors={g.heroCard as unknown as string[]}
             start={{ x: 0, y: 0 }}
@@ -644,7 +656,7 @@ export default function DashboardScreen() {
                 <Text style={{ color: meta.color, fontSize: 11, fontWeight: "800" }}>{meta.grade}</Text>
               </View>
             </View>
-            <Text style={{ ...Type.caption, color: c.textDim, marginTop: Space.xs }}>{meta.label}</Text>
+            <Text style={{ ...Type.caption, color: c.textDim, marginTop: Space.xs }}>{meta.label} · Tap for details</Text>
 
             {/* Score component mini-bar */}
             <View style={{ flexDirection: "row", marginTop: Space.lg, gap: Space.xs, width: "100%" }}>
@@ -656,7 +668,7 @@ export default function DashboardScreen() {
               <ScoreBar label="Survival" pct={15} color="#8B5CF6" c={c} />
             </View>
           </LinearGradient>
-        </View>
+        </Pressable>
 
         {/* ── 4. Action Items Strip ── */}
         {(actionItems.length > 0 || true) && (
@@ -911,6 +923,11 @@ export default function DashboardScreen() {
       </Pressable>
 
       <QuickCaptureSheet visible={showCapture} onClose={() => setShowCapture(false)} />
+      <ScoreBreakdownSheet
+        visible={showScoreBreakdown}
+        onClose={() => setShowScoreBreakdown(false)}
+        totalScore={score}
+      />
     </SafeAreaView>
   );
 }

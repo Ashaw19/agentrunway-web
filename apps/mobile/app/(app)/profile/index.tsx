@@ -26,6 +26,7 @@ import {
   Sun,
   Moon,
   Bell,
+  Sunrise,
 } from "lucide-react-native";
 import {
   useColors,
@@ -298,6 +299,15 @@ export default function ProfileScreen() {
             Tools
           </Text>
           <Card style={{ padding: 0, marginHorizontal: 0 }}>
+            <MenuItem
+              icon={<Sunrise size={18} color={c.gold} />}
+              iconBg={c.goldDim}
+              label="Today's Briefing"
+              description="Your daily priorities and action items"
+              onPress={() => router.push("/profile/briefing")}
+              c={c}
+            />
+            <Divider c={c} />
             <MenuItem
               icon={<Plane size={18} color={c.primary} />}
               iconBg={c.primaryDim}
