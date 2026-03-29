@@ -149,6 +149,7 @@ interface DataStore {
   fetchOutreach: () => Promise<void>;
   fetchReceipts: () => Promise<void>;
   addTransaction: (tx: Omit<Transaction, "id" | "created_at">) => Promise<boolean>;
+  advancePipelineStage: (dealId: string, newStage: PipelineDeal["stage"]) => Promise<boolean>;
   addClient: (client: Omit<Client, "id" | "created_at">) => Promise<boolean>;
   addActivity: (activity: Omit<ContactActivity, "id" | "created_at">) => Promise<boolean>;
   updateOutreachDraft: (id: string, subject: string, body: string) => Promise<boolean>;
@@ -393,6 +394,44 @@ export const useDataStore = create<DataStore>((set, get) => {
       // Refresh with real server data
       await get().fetchAll();
       toast.show("Transaction logged \u2713", "success");
+      return true;
+    },
+
+    advancePipelineStage: async (dealId, newStage) => {
+      const toast = useToastStore.getState();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      // Optimistic update
+      const prevPipeline = get().pipeline;
+      set({
+        pipeline: prevPipeline.map((d) =>
+          d.id === dealId ? { ...d, stage: newStage } : d
+        ),
+      });
+      saveCache(get());
+
+      // Fire Supabase update in background
+      const { error } = await supabase
+        .from("pipeline_deals")
+        .update({ stage: newStage })
+        .eq("id", dealId)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("advancePipelineStage error:", error);
+        // Rollback
+        set({ pipeline: prevPipeline });
+        saveCache(get());
+        toast.show("Failed to update stage \u2014 tap to retry", "error", () =>
+          get().advancePipelineStage(dealId, newStage)
+        );
+        return false;
+      }
+
+      toast.show("Stage updated \u2713", "success");
       return true;
     },
 

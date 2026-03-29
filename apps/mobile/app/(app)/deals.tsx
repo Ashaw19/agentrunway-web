@@ -1,15 +1,18 @@
 /**
  * Deals Screen — Premium, theme-aware pipeline & transaction tracker.
  * Uses shared UI components, design tokens, and subtle animations.
+ *
+ * Sprint 3: Search, tappable cards, detail sheets, stage advancement, FlatList.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
   View,
   Text,
-  ScrollView,
+  TextInput,
+  FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -23,7 +26,8 @@ import Svg, {
   Stop,
   Rect,
 } from "react-native-svg";
-import { TrendingUp, Plus } from "lucide-react-native";
+import { Search } from "lucide-react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useDataStore, type Transaction, type PipelineDeal } from "@/stores/data-store";
 import {
   useColors,
@@ -46,27 +50,40 @@ import { Button } from "@/components/ui/Button";
 
 type Tab = "pipeline" | "closed" | "pending";
 
-const STAGE_ORDER = ["lead", "showing", "offer", "conditional", "firm"];
+const STAGE_ORDER = ["lead", "showing", "offer", "conditional", "firm"] as const;
+
+const DEFAULT_PROBABILITIES: Record<string, number> = {
+  lead: 0.1,
+  showing: 0.25,
+  offer: 0.5,
+  conditional: 0.75,
+  firm: 0.9,
+};
 
 // ── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function DealsScreen() {
-  const { transactions, pipeline, fetchAll, addTransaction, isLoading } = useDataStore();
+  const { transactions, pipeline, fetchAll, addTransaction, advancePipelineStage, isLoading } =
+    useDataStore();
   const c = useColors();
   const { mode } = useTheme();
   const sh = shadows(mode);
-  const g = gradients(mode);
 
   const [tab, setTab] = useState<Tab>("pipeline");
   const [refreshing, setRefreshing] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [search, setSearch] = useState("");
+
+  // Detail sheet state
+  const [selectedDeal, setSelectedDeal] = useState<PipelineDeal | null>(null);
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
 
   // Initial load
   useEffect(() => {
     if (transactions.length === 0 && pipeline.length === 0) fetchAll();
   }, []);
 
-  // Re-fetch on focus (e.g. after adding a deal)
+  // Re-fetch on focus
   useFocusEffect(
     useCallback(() => {
       fetchAll();
@@ -79,16 +96,142 @@ export default function DealsScreen() {
     setRefreshing(false);
   };
 
-  const closed = transactions.filter((t) => t.status === "closed");
-  const pending = transactions.filter((t) => t.status === "pending");
-  const totalGci = closed.reduce((s, t) => {
-    return s + (t.gci_override ?? t.sale_price * t.commission_pct);
-  }, 0);
+  // ── Filtering & sorting ──
+  const q = search.trim().toLowerCase();
+
+  const filteredPipeline = useMemo(() => {
+    let items = [...pipeline];
+
+    // Filter by search
+    if (q) {
+      items = items.filter(
+        (d) =>
+          (d.address && d.address.toLowerCase().includes(q)) ||
+          (d.client_name && d.client_name.toLowerCase().includes(q))
+      );
+    }
+
+    // Sort by composite score: probability * estimated_price DESC
+    items.sort((a, b) => {
+      const probA = a.probability_override ?? DEFAULT_PROBABILITIES[a.stage] ?? 0.5;
+      const probB = b.probability_override ?? DEFAULT_PROBABILITIES[b.stage] ?? 0.5;
+      return probB * b.estimated_price - probA * a.estimated_price;
+    });
+
+    return items;
+  }, [pipeline, q]);
+
+  const filteredTransactions = useMemo(() => {
+    let items = transactions;
+    if (q) {
+      items = items.filter(
+        (t) =>
+          (t.address && t.address.toLowerCase().includes(q)) ||
+          (t.client_name && t.client_name.toLowerCase().includes(q))
+      );
+    }
+    return items;
+  }, [transactions, q]);
+
+  const closed = useMemo(() => filteredTransactions.filter((t) => t.status === "closed"), [filteredTransactions]);
+  const pending = useMemo(() => filteredTransactions.filter((t) => t.status === "pending"), [filteredTransactions]);
+
+  // Stats always from unfiltered data
+  const totalGci = transactions
+    .filter((t) => t.status === "closed")
+    .reduce((s, t) => s + (t.gci_override ?? t.sale_price * t.commission_pct), 0);
   const pipelineValue = pipeline.reduce((s, d) => s + d.estimated_price, 0);
+  const pendingCount = transactions.filter((t) => t.status === "pending").length;
+
+  // ── List data for current tab ──
+  const listData: (PipelineDeal | Transaction)[] =
+    tab === "pipeline" ? filteredPipeline : tab === "closed" ? closed : pending;
+
+  const renderItem = useCallback(
+    ({ item }: { item: PipelineDeal | Transaction }) => {
+      if ("stage" in item) {
+        return <PipelineCard deal={item} onPress={() => setSelectedDeal(item)} />;
+      }
+      return <TransactionCard tx={item} onPress={() => setSelectedTx(item)} />;
+    },
+    []
+  );
+
+  const keyExtractor = useCallback((item: PipelineDeal | Transaction) => item.id, []);
+
+  const ListHeader = useMemo(() => {
+    if (tab !== "pipeline" || filteredPipeline.length === 0) return null;
+    return (
+      <Card variant="default">
+        <Text style={{ ...Type.label, color: c.textDim }}>STAGE BREAKDOWN</Text>
+        <View
+          style={{
+            flexDirection: "row",
+            gap: Space.sm,
+            marginTop: Space.sm,
+            flexWrap: "wrap",
+          }}
+        >
+          {STAGE_ORDER.map((stage) => {
+            const count = pipeline.filter((d) => d.stage === stage).length;
+            if (count === 0) return null;
+            const stageColor = STAGE_COLORS[stage] ?? c.textDim;
+            return (
+              <Badge
+                key={stage}
+                label={`${stage.charAt(0).toUpperCase() + stage.slice(1)} \u00b7 ${count}`}
+                color={stageColor}
+                size="sm"
+              />
+            );
+          })}
+        </View>
+      </Card>
+    );
+  }, [tab, filteredPipeline.length, pipeline, c.textDim]);
+
+  const ListEmpty = useMemo(() => {
+    if (q) {
+      return (
+        <EmptyState
+          icon="search-outline"
+          title="No matches"
+          subtitle={`No deals match "${search.trim()}"`}
+        />
+      );
+    }
+    if (tab === "pipeline") {
+      return (
+        <EmptyState
+          icon="trending-up-outline"
+          title="No pipeline deals"
+          subtitle="Add deals to track your upcoming commissions"
+          actionLabel="Add Deal"
+          onAction={() => setShowAdd(true)}
+        />
+      );
+    }
+    if (tab === "closed") {
+      return (
+        <EmptyState
+          icon="checkmark-circle-outline"
+          title="No closed deals this year"
+          subtitle="Closed transactions will appear here"
+        />
+      );
+    }
+    return (
+      <EmptyState
+        icon="time-outline"
+        title="No pending deals"
+        subtitle="Deals awaiting close will appear here"
+      />
+    );
+  }, [tab, q, search]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
-      {/* Loading overlay — shown only on initial load when no cached data */}
+      {/* Loading overlay */}
       {isLoading && transactions.length === 0 && pipeline.length === 0 && (
         <View
           style={[
@@ -126,11 +269,39 @@ export default function DealsScreen() {
           />
         </View>
 
+        {/* ── Search Bar ── */}
+        <View
+          style={[
+            styles.searchBar,
+            {
+              backgroundColor: c.card,
+              borderColor: c.cardBorder,
+              ...sh.card,
+            },
+          ]}
+        >
+          <Search size={18} color={c.textDim} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search by address or client..."
+            placeholderTextColor={c.textDim}
+            style={[Type.body, styles.searchInput, { color: c.text }]}
+            returnKeyType="search"
+            autoCorrect={false}
+          />
+          {search.length > 0 && (
+            <Pressable onPress={() => setSearch("")} hitSlop={Space.sm}>
+              <Ionicons name="close-circle" size={20} color={c.textDim} />
+            </Pressable>
+          )}
+        </View>
+
         {/* Summary stats */}
         <View style={{ flexDirection: "row", gap: Space.sm, marginTop: Space.lg }}>
           <StatPill label="GCI Closed" value={fmtCurrency(totalGci)} color={c.success} />
           <StatPill label="Pipeline" value={fmtCurrency(pipelineValue)} color={c.primary} />
-          <StatPill label="Pending" value={String(pending.length)} color={c.warning} />
+          <StatPill label="Pending" value={String(pendingCount)} color={c.warning} />
         </View>
 
         {/* Tabs */}
@@ -138,8 +309,8 @@ export default function DealsScreen() {
           {(
             [
               { key: "pipeline", label: "Pipeline", count: pipeline.length },
-              { key: "closed", label: "Closed", count: closed.length },
-              { key: "pending", label: "Pending", count: pending.length },
+              { key: "closed", label: "Closed", count: transactions.filter((t) => t.status === "closed").length },
+              { key: "pending", label: "Pending", count: pendingCount },
             ] as { key: Tab; label: string; count: number }[]
           ).map((t) => {
             const isActive = tab === t.key;
@@ -190,7 +361,11 @@ export default function DealsScreen() {
         </View>
       </View>
 
-      <ScrollView
+      {/* ── Deal List (FlatList) ── */}
+      <FlatList
+        data={listData}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
         contentContainerStyle={{
           padding: Space.xl,
           paddingTop: Space.md,
@@ -198,6 +373,8 @@ export default function DealsScreen() {
           gap: Space.sm,
         }}
         showsVerticalScrollIndicator={false}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={ListEmpty}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -205,70 +382,9 @@ export default function DealsScreen() {
             tintColor={c.primary}
           />
         }
-      >
-        {tab === "pipeline" ? (
-          pipeline.length === 0 ? (
-            <EmptyState
-              icon="trending-up-outline"
-              title="No pipeline deals"
-              subtitle="Add deals to track your upcoming commissions"
-              actionLabel="Add Deal"
-              onAction={() => setShowAdd(true)}
-            />
-          ) : (
-            <>
-              {/* Stage summary bar */}
-              <Card variant="default">
-                <Text style={{ ...Type.label, color: c.textDim }}>STAGE BREAKDOWN</Text>
-                <View
-                  style={{
-                    flexDirection: "row",
-                    gap: Space.sm,
-                    marginTop: Space.sm,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {STAGE_ORDER.map((stage) => {
-                    const count = pipeline.filter((d) => d.stage === stage).length;
-                    if (count === 0) return null;
-                    const stageColor = STAGE_COLORS[stage] ?? c.textDim;
-                    return (
-                      <Badge
-                        key={stage}
-                        label={`${stage.charAt(0).toUpperCase() + stage.slice(1)} \u00b7 ${count}`}
-                        color={stageColor}
-                        size="sm"
-                      />
-                    );
-                  })}
-                </View>
-              </Card>
-              {pipeline.map((d) => (
-                <PipelineCard key={d.id} deal={d} />
-              ))}
-            </>
-          )
-        ) : tab === "closed" ? (
-          closed.length === 0 ? (
-            <EmptyState
-              icon="checkmark-circle-outline"
-              title="No closed deals this year"
-              subtitle="Closed transactions will appear here"
-            />
-          ) : (
-            closed.map((tx) => <TransactionCard key={tx.id} tx={tx} />)
-          )
-        ) : pending.length === 0 ? (
-          <EmptyState
-            icon="time-outline"
-            title="No pending deals"
-            subtitle="Deals awaiting close will appear here"
-          />
-        ) : (
-          pending.map((tx) => <TransactionCard key={tx.id} tx={tx} />)
-        )}
-      </ScrollView>
+      />
 
+      {/* ── Modals / Sheets ── */}
       <AddTransactionModal
         visible={showAdd}
         onClose={() => setShowAdd(false)}
@@ -277,6 +393,27 @@ export default function DealsScreen() {
           if (ok) setShowAdd(false);
           return ok;
         }}
+      />
+
+      <DealDetailSheet
+        deal={selectedDeal}
+        onClose={() => setSelectedDeal(null)}
+        onAdvance={async (deal) => {
+          const idx = STAGE_ORDER.indexOf(deal.stage);
+          if (idx < STAGE_ORDER.length - 1) {
+            const nextStage = STAGE_ORDER[idx + 1];
+            await advancePipelineStage(deal.id, nextStage);
+            // Update local selected deal to reflect new stage
+            setSelectedDeal((prev) =>
+              prev ? { ...prev, stage: nextStage } : null
+            );
+          }
+        }}
+      />
+
+      <TransactionDetailSheet
+        tx={selectedTx}
+        onClose={() => setSelectedTx(null)}
       />
     </SafeAreaView>
   );
@@ -340,7 +477,7 @@ function StatPill({
   );
 }
 
-function PipelineCard({ deal }: { deal: PipelineDeal }) {
+function PipelineCard({ deal, onPress }: { deal: PipelineDeal; onPress: () => void }) {
   const c = useColors();
   const { mode } = useTheme();
   const sh = shadows(mode);
@@ -371,7 +508,7 @@ function PipelineCard({ deal }: { deal: PipelineDeal }) {
   };
 
   return (
-    <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut}>
+    <Pressable onPress={onPress} onPressIn={handlePressIn} onPressOut={handlePressOut}>
       <Animated.View style={{ transform: [{ scale }] }}>
         <View
           style={[
@@ -475,7 +612,7 @@ function PipelineCard({ deal }: { deal: PipelineDeal }) {
               </Text>
             </View>
 
-            {/* Probability bar — 4px with rounded ends */}
+            {/* Probability bar */}
             <View
               style={{
                 height: 4,
@@ -501,7 +638,7 @@ function PipelineCard({ deal }: { deal: PipelineDeal }) {
   );
 }
 
-function TransactionCard({ tx }: { tx: Transaction }) {
+function TransactionCard({ tx, onPress }: { tx: Transaction; onPress: () => void }) {
   const c = useColors();
   const { mode } = useTheme();
   const sh = shadows(mode);
@@ -528,7 +665,7 @@ function TransactionCard({ tx }: { tx: Transaction }) {
   };
 
   return (
-    <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut}>
+    <Pressable onPress={onPress} onPressIn={handlePressIn} onPressOut={handlePressOut}>
       <Animated.View style={{ transform: [{ scale }] }}>
         <View
           style={[
@@ -585,7 +722,7 @@ function TransactionCard({ tx }: { tx: Transaction }) {
                   {fmtCurrency(gci)}
                 </Text>
                 <Text style={{ ...Type.micro, color: c.textDim }}>
-                  GCI \u00b7 {tx.side}
+                  GCI {"\u00b7"} {tx.side}
                 </Text>
               </View>
             </View>
@@ -615,6 +752,185 @@ function TransactionCard({ tx }: { tx: Transaction }) {
         </View>
       </Animated.View>
     </Pressable>
+  );
+}
+
+// ── Deal Detail Sheet ────────────────────────────────────────────────────────
+
+function DealDetailSheet({
+  deal,
+  onClose,
+  onAdvance,
+}: {
+  deal: PipelineDeal | null;
+  onClose: () => void;
+  onAdvance: (deal: PipelineDeal) => Promise<void>;
+}) {
+  const c = useColors();
+  const [advancing, setAdvancing] = useState(false);
+
+  if (!deal) return null;
+
+  const sc = STAGE_COLORS[deal.stage] ?? c.textDim;
+  const prob = deal.probability_override ?? DEFAULT_PROBABILITIES[deal.stage] ?? 0.5;
+  const isLastStage = deal.stage === "firm";
+
+  const handleAdvance = async () => {
+    setAdvancing(true);
+    await onAdvance(deal);
+    setAdvancing(false);
+  };
+
+  return (
+    <Sheet visible={!!deal} onClose={onClose} title="Deal Details">
+      <View style={{ gap: Space.lg, paddingBottom: Space.lg }}>
+        {/* Address / title */}
+        <Text style={{ ...Type.h2, color: c.text }}>
+          {deal.address ?? deal.client_name ?? "Untitled Deal"}
+        </Text>
+
+        {/* Info rows */}
+        {deal.client_name && (
+          <InfoRow label="Client" value={deal.client_name} />
+        )}
+        {deal.address && deal.client_name && (
+          <InfoRow label="Address" value={deal.address} />
+        )}
+        <InfoRow label="Estimated Price" value={fmtCurrency(deal.estimated_price)} />
+        <View style={styles.infoRow}>
+          <Text style={{ ...Type.label, color: c.textMuted }}>STAGE</Text>
+          <Badge label={deal.stage.toUpperCase()} color={sc} size="sm" />
+        </View>
+        <InfoRow
+          label="Probability"
+          value={`${Math.round(prob * 100)}%`}
+        />
+        {deal.expected_close_date && (
+          <InfoRow
+            label="Expected Close"
+            value={new Date(deal.expected_close_date).toLocaleDateString("en-CA", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+            })}
+          />
+        )}
+        {deal.estimated_commission_pct > 0 && (
+          <InfoRow
+            label="Commission"
+            value={`${(deal.estimated_commission_pct * 100).toFixed(1)}%`}
+          />
+        )}
+        {deal.notes && (
+          <View style={{ gap: Space.xs }}>
+            <Text style={{ ...Type.label, color: c.textMuted }}>NOTES</Text>
+            <Text style={{ ...Type.body, color: c.text }}>{deal.notes}</Text>
+          </View>
+        )}
+
+        {/* Advance Stage button */}
+        <View style={{ marginTop: Space.sm }}>
+          <Button
+            label={
+              advancing
+                ? "Updating..."
+                : isLastStage
+                  ? "Mark Closed"
+                  : `Advance to ${STAGE_ORDER[STAGE_ORDER.indexOf(deal.stage) + 1]?.charAt(0).toUpperCase()}${STAGE_ORDER[STAGE_ORDER.indexOf(deal.stage) + 1]?.slice(1) ?? ""}`
+            }
+            variant="primary"
+            icon={isLastStage ? "checkmark-circle" : "arrow-forward"}
+            onPress={handleAdvance}
+            loading={advancing}
+            disabled={isLastStage}
+          />
+        </View>
+      </View>
+    </Sheet>
+  );
+}
+
+// ── Transaction Detail Sheet ─────────────────────────────────────────────────
+
+function TransactionDetailSheet({
+  tx,
+  onClose,
+}: {
+  tx: Transaction | null;
+  onClose: () => void;
+}) {
+  const c = useColors();
+
+  if (!tx) return null;
+
+  const gci = tx.gci_override ?? tx.sale_price * tx.commission_pct;
+  const isPending = tx.status === "pending";
+  const accentColor = isPending ? c.warning : c.success;
+
+  return (
+    <Sheet visible={!!tx} onClose={onClose} title="Transaction Details">
+      <View style={{ gap: Space.lg, paddingBottom: Space.lg }}>
+        <Text style={{ ...Type.h2, color: c.text }}>
+          {tx.address ?? tx.client_name ?? "Transaction"}
+        </Text>
+
+        {tx.client_name && <InfoRow label="Client" value={tx.client_name} />}
+        {tx.address && tx.client_name && <InfoRow label="Address" value={tx.address} />}
+        <InfoRow label="Sale Price" value={fmtCurrency(tx.sale_price)} />
+        <InfoRow label="Commission" value={`${(tx.commission_pct * 100).toFixed(1)}%`} />
+        <InfoRow
+          label="GCI"
+          value={fmtCurrency(gci)}
+          valueColor={accentColor}
+        />
+        <InfoRow
+          label="Side"
+          value={tx.side.charAt(0).toUpperCase() + tx.side.slice(1)}
+        />
+        <View style={styles.infoRow}>
+          <Text style={{ ...Type.label, color: c.textMuted }}>STATUS</Text>
+          <Badge
+            label={tx.status.toUpperCase()}
+            color={accentColor}
+            size="sm"
+          />
+        </View>
+        <InfoRow
+          label="Date"
+          value={new Date(tx.date).toLocaleDateString("en-CA", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          })}
+        />
+        {tx.notes && (
+          <View style={{ gap: Space.xs }}>
+            <Text style={{ ...Type.label, color: c.textMuted }}>NOTES</Text>
+            <Text style={{ ...Type.body, color: c.text }}>{tx.notes}</Text>
+          </View>
+        )}
+      </View>
+    </Sheet>
+  );
+}
+
+// ── Shared Info Row ──────────────────────────────────────────────────────────
+
+function InfoRow({
+  label,
+  value,
+  valueColor,
+}: {
+  label: string;
+  value: string;
+  valueColor?: string;
+}) {
+  const c = useColors();
+  return (
+    <View style={styles.infoRow}>
+      <Text style={{ ...Type.label, color: c.textMuted }}>{label.toUpperCase()}</Text>
+      <Text style={{ ...Type.body, color: valueColor ?? c.text }}>{value}</Text>
+    </View>
   );
 }
 
@@ -732,3 +1048,28 @@ function AddTransactionModal({
     </Sheet>
   );
 }
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.sm,
+    marginTop: Space.lg,
+    paddingHorizontal: Space.lg,
+    height: 48,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+  },
+  searchInput: {
+    flex: 1,
+    height: 48,
+    paddingVertical: 0,
+  },
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+});
