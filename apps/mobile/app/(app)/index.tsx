@@ -7,12 +7,14 @@ import {
   Pressable,
   RefreshControl,
   StyleSheet,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
 import { useDataStore } from "@/stores/data-store";
+import type { Client } from "@/stores/data-store";
 import { useOfflineQueueStore } from "@/stores/offline-queue";
 import Svg, { Circle, Text as SvgText } from "react-native-svg";
 import {
@@ -22,6 +24,7 @@ import {
   Handshake,
   UserCheck,
   CheckCircle2,
+  Plus,
 } from "lucide-react-native";
 import {
   useColors,
@@ -34,6 +37,9 @@ import {
   fmtCurrency,
 } from "@/lib/theme";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Sheet } from "@/components/ui/Sheet";
+import { Avatar } from "@/components/ui/Avatar";
+import * as Haptics from "expo-haptics";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -146,6 +152,237 @@ function AllCaughtUpPill({ color }: { color: string }) {
   );
 }
 
+// ── Activity Type Pill Selector ─────────────────────────────────────────────
+
+const ACTIVITY_TYPES = ["call", "text", "showing", "meeting", "note"] as const;
+type ActivityType = (typeof ACTIVITY_TYPES)[number];
+
+function ActivityTypePicker({
+  selected,
+  onSelect,
+  colors: c,
+}: {
+  selected: ActivityType;
+  onSelect: (t: ActivityType) => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  return (
+    <View style={{ flexDirection: "row", gap: Space.sm, flexWrap: "wrap" }}>
+      {ACTIVITY_TYPES.map((type) => {
+        const active = type === selected;
+        return (
+          <Pressable
+            key={type}
+            onPress={() => onSelect(type)}
+            style={{
+              paddingHorizontal: Space.md,
+              paddingVertical: Space.sm,
+              borderRadius: Radius.pill,
+              backgroundColor: active ? c.primary : c.primaryDim,
+              borderWidth: 1,
+              borderColor: active ? c.primary : c.primaryBorder,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "600",
+                color: active ? "#FFFFFF" : c.primary,
+                textTransform: "capitalize",
+              }}
+            >
+              {type}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+// ── Quick Capture Sheet ─────────────────────────────────────────────────────
+
+function QuickCaptureSheet({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const c = useColors();
+  const { clients, addActivity } = useDataStore();
+  const [clientQuery, setClientQuery] = useState("");
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [activityType, setActivityType] = useState<ActivityType>("note");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const notesRef = useRef<TextInput>(null);
+
+  const filteredClients = useMemo(() => {
+    if (!clientQuery.trim() || selectedClient) return [];
+    const q = clientQuery.toLowerCase().trim();
+    return clients
+      .filter((cl) => cl.name.toLowerCase().includes(q))
+      .slice(0, 5);
+  }, [clientQuery, clients, selectedClient]);
+
+  const handleSelectClient = (client: Client) => {
+    setSelectedClient(client);
+    setClientQuery(client.name);
+    setTimeout(() => notesRef.current?.focus(), 100);
+  };
+
+  const handleSave = async () => {
+    if (!selectedClient || !notes.trim()) return;
+    setSaving(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {}
+    await addActivity({
+      client_id: selectedClient.id,
+      type: activityType,
+      description: notes.trim(),
+      activity_date: new Date().toISOString(),
+    });
+    setSaving(false);
+    // Reset and close
+    setClientQuery("");
+    setSelectedClient(null);
+    setActivityType("note");
+    setNotes("");
+    onClose();
+  };
+
+  const handleClose = () => {
+    setClientQuery("");
+    setSelectedClient(null);
+    setActivityType("note");
+    setNotes("");
+    onClose();
+  };
+
+  const canSave = selectedClient && notes.trim().length > 0 && !saving;
+
+  return (
+    <Sheet visible={visible} onClose={handleClose} title="Quick Capture">
+      <View style={{ gap: Space.lg, paddingBottom: Space.lg }}>
+        {/* Client picker */}
+        <View>
+          <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>CLIENT</Text>
+          <TextInput
+            value={clientQuery}
+            onChangeText={(text) => {
+              setClientQuery(text);
+              if (selectedClient) setSelectedClient(null);
+            }}
+            placeholder="Search client name..."
+            placeholderTextColor={c.textDim}
+            style={{
+              backgroundColor: c.card,
+              borderRadius: Radius.md,
+              borderWidth: 1,
+              borderColor: c.cardBorder,
+              paddingHorizontal: Space.md,
+              paddingVertical: Space.md,
+              ...Type.body,
+              color: c.text,
+            }}
+            autoCorrect={false}
+          />
+          {/* Dropdown results */}
+          {filteredClients.length > 0 && (
+            <View
+              style={{
+                backgroundColor: c.card,
+                borderRadius: Radius.md,
+                borderWidth: 1,
+                borderColor: c.cardHighBorder,
+                marginTop: Space.xs,
+                overflow: "hidden",
+              }}
+            >
+              {filteredClients.map((client, idx) => (
+                <Pressable
+                  key={client.id}
+                  onPress={() => handleSelectClient(client)}
+                  style={({ pressed }) => [
+                    {
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingHorizontal: Space.md,
+                      paddingVertical: Space.sm,
+                      gap: Space.md,
+                      borderTopWidth: idx > 0 ? 1 : 0,
+                      borderTopColor: c.divider,
+                    },
+                    pressed && { backgroundColor: c.primaryDim },
+                  ]}
+                >
+                  <Avatar name={client.name} size="sm" />
+                  <Text style={{ ...Type.bodyBold, color: c.text, flex: 1 }} numberOfLines={1}>
+                    {client.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Activity type */}
+        <View>
+          <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>TYPE</Text>
+          <ActivityTypePicker selected={activityType} onSelect={setActivityType} colors={c} />
+        </View>
+
+        {/* Notes */}
+        <View>
+          <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>NOTES</Text>
+          <TextInput
+            ref={notesRef}
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="What happened?"
+            placeholderTextColor={c.textDim}
+            multiline
+            textAlignVertical="top"
+            style={{
+              backgroundColor: c.card,
+              borderRadius: Radius.md,
+              borderWidth: 1,
+              borderColor: c.cardBorder,
+              paddingHorizontal: Space.md,
+              paddingVertical: Space.md,
+              ...Type.body,
+              color: c.text,
+              minHeight: 80,
+            }}
+          />
+        </View>
+
+        {/* Save button */}
+        <Pressable
+          onPress={handleSave}
+          disabled={!canSave}
+          style={({ pressed }) => [
+            {
+              backgroundColor: canSave ? c.primary : c.primaryDim,
+              borderRadius: Radius.md,
+              paddingVertical: Space.md,
+              alignItems: "center",
+              justifyContent: "center",
+            },
+            pressed && canSave && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+          ]}
+        >
+          <Text style={{ color: canSave ? "#FFFFFF" : c.textDim, fontSize: 15, fontWeight: "700" }}>
+            {saving ? "Saving..." : "Save"}
+          </Text>
+        </Pressable>
+      </View>
+    </Sheet>
+  );
+}
+
 // ── Dashboard Skeleton ────────────────────────────────────────────────────────
 
 function DashboardSkeleton() {
@@ -194,6 +431,7 @@ export default function DashboardScreen() {
   } = useDataStore();
   const [refreshing, setRefreshing] = useState(false);
   const [, setTick] = useState(0);
+  const [showCapture, setShowCapture] = useState(false);
 
   useEffect(() => { fetchAll(); fetchOutreach(); fetchReceipts(); }, []);
   useFocusEffect(useCallback(() => { fetchAll(); fetchOutreach(); fetchReceipts(); }, []));
@@ -261,6 +499,13 @@ export default function DashboardScreen() {
     return items;
   }, [overdueTasks.length, outreachCount, pending, followUpsDue]);
 
+  const handleFabPress = () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {}
+    setShowCapture(true);
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
       {/* Loading Skeleton */}
@@ -275,7 +520,7 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
       >
-        {/* ── 1. Greeting + Runway Score Badge ── */}
+        {/* -- 1. Greeting + Runway Score Badge -- */}
         <View style={{ paddingTop: Space.lg, paddingBottom: Space.sm, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Text style={{ ...Type.hero, color: c.text, flex: 1 }} numberOfLines={1}>
             {getGreeting()}, {displayName.split(" ")[0]}
@@ -283,7 +528,7 @@ export default function DashboardScreen() {
           <RunwayBadge score={runway.score} color={runway.color} />
         </View>
 
-        {/* ── 2. Last Synced Indicator + Offline Queue Status ── */}
+        {/* -- 2. Last Synced Indicator + Offline Queue Status -- */}
         <Text
           style={{
             ...Type.micro,
@@ -302,7 +547,7 @@ export default function DashboardScreen() {
                   : ""}
         </Text>
 
-        {/* ── 3. Action Items Strip ── */}
+        {/* -- 3. Action Items Strip -- */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -327,7 +572,7 @@ export default function DashboardScreen() {
           )}
         </ScrollView>
 
-        {/* ── 4. Key Metrics Row ── */}
+        {/* -- 4. Key Metrics Row -- */}
         <View style={[{ borderRadius: Radius.xl, overflow: "hidden", marginBottom: Space.xl }, sh.cardLg]}>
           <LinearGradient colors={g.heroCard as unknown as string[]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: Space.xxl }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
@@ -339,7 +584,7 @@ export default function DashboardScreen() {
           </LinearGradient>
         </View>
 
-        {/* ── 5. Goal Progress Bar ── */}
+        {/* -- 5. Goal Progress Bar -- */}
         {goalGci > 0 && (
           <View style={{ marginBottom: Space.xl }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Space.sm }}>
@@ -359,7 +604,7 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* ── 6. Next Task Card ── */}
+        {/* -- 6. Next Task Card -- */}
         {nextTask && (
           <View style={{ marginBottom: Space.xl }}>
             <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>NEXT UP</Text>
@@ -389,6 +634,32 @@ export default function DashboardScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* -- Floating Action Button -- */}
+      <Pressable
+        onPress={handleFabPress}
+        style={({ pressed }) => [
+          {
+            position: "absolute",
+            bottom: 100,
+            right: 20,
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            backgroundColor: c.primary,
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 20,
+            ...sh.cardLg,
+          },
+          pressed && { opacity: 0.85, transform: [{ scale: 0.93 }] },
+        ]}
+      >
+        <Plus size={24} color="#FFFFFF" strokeWidth={2.5} />
+      </Pressable>
+
+      {/* -- Quick Capture Sheet -- */}
+      <QuickCaptureSheet visible={showCapture} onClose={() => setShowCapture(false)} />
     </SafeAreaView>
   );
 }

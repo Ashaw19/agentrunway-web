@@ -1,5 +1,6 @@
+import { useMemo } from "react";
 import { Tabs } from "expo-router";
-import { Platform, View, Pressable } from "react-native";
+import { Platform, View, Pressable, Text } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import {
@@ -10,6 +11,7 @@ import {
   Menu,
 } from "lucide-react-native";
 import { useColors, Radius, useTheme, gradients, shadows } from "@/lib/theme";
+import { useDataStore } from "@/stores/data-store";
 
 const ICON_SIZE = 21;
 
@@ -18,6 +20,25 @@ export default function AppLayout() {
   const { mode } = useTheme();
   const g = gradients(mode);
   const sh = shadows(mode);
+
+  const { tasks, transactions, clients } = useDataStore();
+
+  // Badge counts
+  const overdueCount = useMemo(() => {
+    const today = new Date(new Date().toDateString());
+    return tasks.filter(t => t.due_date && new Date(t.due_date) < today && !t.completed_at).length;
+  }, [tasks]);
+
+  const pendingCount = useMemo(() => {
+    return transactions.filter(t => t.status === "pending").length;
+  }, [transactions]);
+
+  const followUpCount = useMemo(() => {
+    const fourteenDaysAgo = Date.now() - (14 * 86400000);
+    return clients.filter(c =>
+      c.last_contact_at && new Date(c.last_contact_at).getTime() < fourteenDaysAgo
+    ).length;
+  }, [clients]);
 
   return (
     <Tabs
@@ -59,6 +80,7 @@ export default function AppLayout() {
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused} mode={mode}>
               <LayoutDashboard size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.6} />
+              {overdueCount > 0 && <Badge count={overdueCount} color="#EF4444" />}
             </TabIcon>
           ),
         }}
@@ -70,6 +92,7 @@ export default function AppLayout() {
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused} mode={mode}>
               <Handshake size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.6} />
+              {pendingCount > 0 && <Badge count={pendingCount} color="#F59E0B" />}
             </TabIcon>
           ),
         }}
@@ -124,6 +147,7 @@ export default function AppLayout() {
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused} mode={mode}>
               <Users size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.6} />
+              {followUpCount > 0 && <Badge count={followUpCount} color="#06B6D4" />}
             </TabIcon>
           ),
         }}
@@ -172,6 +196,35 @@ function TabIcon({
       }}
     >
       {children}
+    </View>
+  );
+}
+
+function Badge({ count, color }: { count: number; color: string }) {
+  return (
+    <View
+      style={{
+        position: "absolute",
+        top: -4,
+        right: -8,
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: color,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Text
+        style={{
+          color: "#FFFFFF",
+          fontSize: 9,
+          fontWeight: "700",
+          lineHeight: 11,
+        }}
+      >
+        {count > 99 ? "99" : count}
+      </Text>
     </View>
   );
 }
