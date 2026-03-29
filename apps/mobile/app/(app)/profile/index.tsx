@@ -176,7 +176,7 @@ export default function ProfileScreen() {
               padding: Space.xl,
             }}
           >
-            <Avatar name={displayName} size="lg" color={c.primary} />
+            <Avatar name={displayName} size="xl" color={c.primary} imageUrl={settings?.avatar_url} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text
                 style={{ ...Type.h2, color: c.text }}

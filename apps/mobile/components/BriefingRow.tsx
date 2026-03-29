@@ -1,9 +1,15 @@
 /**
  * BriefingRow — A single actionable item in the Today's Focus list.
  * Severity-coded with icon, title, detail, and action label.
+ * Spring-animated press with subtle glow on severity icon.
  */
 
 import { View, Text, Pressable } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from "react-native-reanimated";
 import {
   Clock,
   UserPlus,
@@ -29,6 +35,8 @@ const TYPE_ICONS: Record<string, typeof Clock> = {
   task_due_today: CheckSquare,
 };
 
+const SPRING = { damping: 15, stiffness: 400, mass: 0.8 };
+
 export function BriefingRow({
   item,
   onPress,
@@ -39,12 +47,23 @@ export function BriefingRow({
   const c = useColors();
   const sevColor = SEVERITY_COLORS[item.severity] ?? "#3B5EF6";
   const Icon = TYPE_ICONS[item.type] ?? AlertCircle;
+  const scale = useSharedValue(1);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        {
+    <Animated.View style={animStyle}>
+      <Pressable
+        onPress={onPress}
+        onPressIn={() => {
+          scale.value = withSpring(0.97, SPRING);
+        }}
+        onPressOut={() => {
+          scale.value = withSpring(1, SPRING);
+        }}
+        style={{
           flexDirection: "row",
           alignItems: "center",
           padding: Space.md,
@@ -54,50 +73,51 @@ export function BriefingRow({
           borderWidth: 1,
           borderColor: c.cardBorder,
           marginBottom: Space.sm,
-        },
-        pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] },
-      ]}
-    >
-      {/* Severity icon */}
-      <View
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: Radius.md,
-          backgroundColor: sevColor + "15",
-          alignItems: "center",
-          justifyContent: "center",
         }}
       >
-        <Icon size={18} color={sevColor} />
-      </View>
-
-      {/* Content */}
-      <View style={{ flex: 1 }}>
-        <Text style={{ ...Type.bodyBold, color: c.text }} numberOfLines={1}>
-          {item.title}
-        </Text>
-        <Text
-          style={{ ...Type.caption, color: c.textDim, marginTop: 2 }}
-          numberOfLines={1}
+        {/* Severity icon with subtle glow bg */}
+        <View
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: sevColor + "15",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         >
-          {item.detail}
-        </Text>
-      </View>
+          <Icon size={16} color={sevColor} strokeWidth={2.2} />
+        </View>
 
-      {/* Action badge */}
-      <View
-        style={{
-          paddingHorizontal: Space.sm + 2,
-          paddingVertical: Space.xs + 1,
-          borderRadius: Radius.sm,
-          backgroundColor: sevColor + "18",
-        }}
-      >
-        <Text style={{ fontSize: 11, fontWeight: "700", color: sevColor }}>
-          {item.actionLabel}
-        </Text>
-      </View>
-    </Pressable>
+        {/* Content */}
+        <View style={{ flex: 1 }}>
+          <Text style={{ ...Type.bodyBold, color: c.text }} numberOfLines={1}>
+            {item.title}
+          </Text>
+          <Text
+            style={{ ...Type.caption, color: c.textDim, marginTop: 2 }}
+            numberOfLines={1}
+          >
+            {item.detail}
+          </Text>
+        </View>
+
+        {/* Action badge */}
+        <View
+          style={{
+            paddingHorizontal: Space.sm + 2,
+            paddingVertical: Space.xs + 1,
+            borderRadius: Radius.pill,
+            backgroundColor: sevColor + "15",
+            borderWidth: 1,
+            borderColor: sevColor + "25",
+          }}
+        >
+          <Text style={{ fontSize: 10, fontWeight: "700", color: sevColor, letterSpacing: 0.2 }}>
+            {item.actionLabel}
+          </Text>
+        </View>
+      </Pressable>
+    </Animated.View>
   );
 }

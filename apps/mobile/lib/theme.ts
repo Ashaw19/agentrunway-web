@@ -89,6 +89,11 @@ function palette(mode: ThemeMode) {
     textDim:        dark ? "#6B728A" : "#9CA3AF",
     textFaint:      dark ? "#3A3F55" : "#D1D5DB",
 
+    // Elevated surfaces — 3-layer depth system (research: premium apps use layered darkness)
+    cardElevated:   dark ? "#242450" : "#FFFFFF",
+    cardElevatedBorder: dark ? "rgba(255,255,255,0.13)" : "rgba(0,0,0,0.08)",
+    surfaceGlass:   dark ? "rgba(30,30,70,0.75)" : "rgba(255,255,255,0.85)",
+
     // Misc
     overlay:        dark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.3)",
     divider:        dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
@@ -218,16 +223,16 @@ export const Radius = {
 // Web uses Geist (system font family on mobile); sizes mapped from Tailwind
 
 export const Type = {
-  hero:     { fontSize: 32, fontWeight: "800" as const, letterSpacing: -0.8, lineHeight: 36 },
-  h1:       { fontSize: 26, fontWeight: "800" as const, letterSpacing: -0.6, lineHeight: 30 },
-  h2:       { fontSize: 20, fontWeight: "700" as const, letterSpacing: -0.4, lineHeight: 26 },
+  hero:     { fontSize: 34, fontWeight: "900" as const, letterSpacing: -1.0, lineHeight: 38 },
+  h1:       { fontSize: 28, fontWeight: "800" as const, letterSpacing: -0.8, lineHeight: 32 },
+  h2:       { fontSize: 22, fontWeight: "800" as const, letterSpacing: -0.5, lineHeight: 28 },
   h3:       { fontSize: 17, fontWeight: "700" as const, letterSpacing: -0.2, lineHeight: 22 },
   body:     { fontSize: 15, fontWeight: "400" as const, letterSpacing: 0, lineHeight: 22 },
-  bodyBold: { fontSize: 15, fontWeight: "600" as const, letterSpacing: 0, lineHeight: 22 },
+  bodyBold: { fontSize: 15, fontWeight: "600" as const, letterSpacing: -0.1, lineHeight: 22 },
   caption:  { fontSize: 13, fontWeight: "500" as const, letterSpacing: 0.1, lineHeight: 18 },
   micro:    { fontSize: 11, fontWeight: "600" as const, letterSpacing: 0.3, lineHeight: 14 },
-  label:    { fontSize: 10, fontWeight: "700" as const, letterSpacing: 1.0, textTransform: "uppercase" as const, lineHeight: 14 },
-  bigNum:   { fontSize: 28, fontWeight: "800" as const, letterSpacing: -0.5, lineHeight: 34 },
+  label:    { fontSize: 10, fontWeight: "700" as const, letterSpacing: 1.2, textTransform: "uppercase" as const, lineHeight: 14 },
+  bigNum:   { fontSize: 32, fontWeight: "900" as const, letterSpacing: -0.8, lineHeight: 36 },
 };
 
 // ── Animation Tokens ─────────────────────────────────────────────────────────

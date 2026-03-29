@@ -1,10 +1,17 @@
 /**
- * Skeleton — Shimmer loading placeholder with opacity pulse animation.
- * Uses simple Animated opacity for web-export compatibility.
+ * Skeleton — Shimmer loading placeholder with sweeping highlight animation.
+ * Uses Reanimated for smooth 60fps shimmer on the native UI thread.
  */
 
-import React, { useEffect, useRef } from "react";
-import { Animated, type ViewStyle } from "react-native";
+import React from "react";
+import { View, type ViewStyle } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  Easing,
+} from "react-native-reanimated";
 import { useColors, Radius } from "@/lib/theme";
 
 interface SkeletonProps {
@@ -21,26 +28,19 @@ export function Skeleton({
   style,
 }: SkeletonProps) {
   const c = useColors();
-  const opacity = useRef(new Animated.Value(0.3)).current;
+  const translateX = useSharedValue(-1);
 
-  useEffect(() => {
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, {
-          toValue: 0.7,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 0.3,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ])
+  React.useEffect(() => {
+    translateX.value = withRepeat(
+      withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      false
     );
-    pulse.start();
-    return () => pulse.stop();
-  }, [opacity]);
+  }, []);
+
+  const shimmerStyle = useAnimatedStyle(() => ({
+    opacity: 0.3 + (1 + Math.sin(translateX.value * Math.PI)) * 0.2,
+  }));
 
   return (
     <Animated.View
@@ -50,8 +50,9 @@ export function Skeleton({
           height,
           borderRadius,
           backgroundColor: c.textFaint,
-          opacity,
+          overflow: "hidden",
         },
+        shimmerStyle,
         style,
       ]}
     />

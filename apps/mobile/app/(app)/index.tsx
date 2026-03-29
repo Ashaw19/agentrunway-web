@@ -46,6 +46,8 @@ import {
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Sheet } from "@/components/ui/Sheet";
 import { Avatar } from "@/components/ui/Avatar";
+import { FadeIn } from "@/components/ui/FadeIn";
+import { Sparkline } from "@/components/ui/Sparkline";
 import * as Haptics from "expo-haptics";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -506,6 +508,37 @@ export default function DashboardScreen() {
   const streak = contactStreak();
   const todayCount = todayActivityCount();
 
+  // Sparkline data: monthly GCI trend from closed transactions
+  const gciSparkData = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const monthCount = Math.max(now.getMonth() + 1, 2);
+    const months = new Array(monthCount).fill(0);
+    for (const t of transactions) {
+      if (t.status !== "closed") continue;
+      const d = new Date(t.date);
+      if (d.getFullYear() === year) {
+        const gci = t.gci_override ?? (t.sale_price * t.commission_pct);
+        months[d.getMonth()] += gci;
+      }
+    }
+    return months;
+  }, [transactions]);
+
+  // Sparkline data: monthly deal count
+  const dealSparkData = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const monthCount = Math.max(now.getMonth() + 1, 2);
+    const months = new Array(monthCount).fill(0);
+    for (const t of transactions) {
+      if (t.status !== "closed") continue;
+      const d = new Date(t.date);
+      if (d.getFullYear() === year) months[d.getMonth()]++;
+    }
+    return months;
+  }, [transactions]);
+
   const handleBriefingPress = useCallback(
     (item: BriefingItem) => {
       if (item.type === "hot_pipeline") {
@@ -538,12 +571,14 @@ export default function DashboardScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
       >
         {/* ── 1. Greeting ── */}
-        <View style={{ paddingTop: Space.lg }}>
-          <Text style={{ ...Type.caption, color: c.textDim }}>{getGreeting()}</Text>
-          <Text style={{ ...Type.hero, color: c.text, marginTop: 2 }} numberOfLines={1}>
-            {displayName.split(" ")[0]}
-          </Text>
-        </View>
+        <FadeIn delay={0}>
+          <View style={{ paddingTop: Space.lg }}>
+            <Text style={{ ...Type.caption, color: c.textDim }}>{getGreeting()}</Text>
+            <Text style={{ ...Type.hero, color: c.text, marginTop: 2 }} numberOfLines={1}>
+              {displayName.split(" ")[0]}
+            </Text>
+          </View>
+        </FadeIn>
 
         {/* ── 2. Sync status ── */}
         <Text
@@ -632,6 +667,7 @@ export default function DashboardScreen() {
         )}
 
         {/* ── 3. Runway Score Hero Card (tap to see breakdown) ── */}
+        <FadeIn delay={100}>
         <Pressable
           onPress={() => {
             try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
@@ -669,6 +705,7 @@ export default function DashboardScreen() {
             </View>
           </LinearGradient>
         </Pressable>
+        </FadeIn>
 
         {/* ── 4. Action Items Strip ── */}
         {(actionItems.length > 0 || true) && (
@@ -741,6 +778,7 @@ export default function DashboardScreen() {
         )}
 
         {/* ── 6. Key Metrics Grid (2x2) ── */}
+        <FadeIn delay={250}>
         <View style={{ marginBottom: Space.xxl }}>
           <View style={{ flexDirection: "row", gap: Space.md, marginBottom: Space.md }}>
             <MetricCard
@@ -749,6 +787,7 @@ export default function DashboardScreen() {
               icon={<TrendingUp size={16} color={c.gold} />}
               color={c.gold}
               c={c} sh={sh}
+              sparkData={gciSparkData}
             />
             <MetricCard
               label="Deals Closed"
@@ -756,6 +795,7 @@ export default function DashboardScreen() {
               icon={<Handshake size={16} color={c.success} />}
               color={c.success}
               c={c} sh={sh}
+              sparkData={dealSparkData}
             />
           </View>
           <View style={{ flexDirection: "row", gap: Space.md }}>
@@ -779,6 +819,7 @@ export default function DashboardScreen() {
             />
           </View>
         </View>
+        </FadeIn>
 
         {/* ── 6. Goal Progress ── */}
         {goalGci > 0 && (
@@ -943,6 +984,7 @@ function MetricCard({
   c,
   sh,
   onPress,
+  sparkData,
 }: {
   label: string;
   value: string;
@@ -952,6 +994,7 @@ function MetricCard({
   c: ReturnType<typeof useColors>;
   sh: ReturnType<typeof shadows>;
   onPress?: () => void;
+  sparkData?: number[];
 }) {
   return (
     <Pressable
@@ -965,16 +1008,23 @@ function MetricCard({
           borderWidth: 1,
           borderColor: c.cardBorder,
           padding: Space.lg,
+          overflow: "hidden",
         },
         sh.card,
-        pressed && onPress && { opacity: 0.8, transform: [{ scale: 0.98 }] },
+        pressed && onPress && { opacity: 0.85, transform: [{ scale: 0.97 }] },
       ]}
     >
+      {/* Sparkline watermark behind content */}
+      {sparkData && sparkData.length >= 2 && (
+        <View style={{ position: "absolute", bottom: 0, right: 0, opacity: 0.5 }}>
+          <Sparkline data={sparkData} width={90} height={36} color={color} fill />
+        </View>
+      )}
       <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, marginBottom: Space.sm }}>
         {icon}
         <Text style={{ ...Type.micro, color: c.textDim }}>{label}</Text>
       </View>
-      <Text style={{ fontSize: 22, fontWeight: "800", color, letterSpacing: -0.3 }}>{value}</Text>
+      <Text style={{ fontSize: 24, fontWeight: "900", color, letterSpacing: -0.5 }}>{value}</Text>
       {subtitle ? (
         <Text style={{ ...Type.micro, color: c.textDim, marginTop: 2 }}>{subtitle}</Text>
       ) : null}

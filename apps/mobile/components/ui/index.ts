@@ -11,3 +11,6 @@ export { SectionHeader } from "./SectionHeader";
 export { EmptyState } from "./EmptyState";
 export { Avatar } from "./Avatar";
 export { Skeleton } from "./Skeleton";
+export { AnimatedPressable } from "./AnimatedPressable";
+export { Sparkline } from "./Sparkline";
+export { FadeIn } from "./FadeIn";

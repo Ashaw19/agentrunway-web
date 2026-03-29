@@ -76,6 +76,7 @@ export interface ContactTask {
 export interface UserSettings {
   user_id: string;
   display_name: string | null;
+  avatar_url: string | null;
   goal_gci: number | null;
   goal_transactions: number | null;
   split_preset: string | null;
@@ -317,7 +318,7 @@ export const useDataStore = create<DataStore>((set, get) => {
             supabase
               .from("user_settings")
               .select(
-                "user_id, display_name, goal_gci, goal_transactions, split_preset, province, experience_years, subscription_tier, cash_reserve, growth_goal_year_pcts, monthly_brokerage_fee, runway_score_snapshot"
+                "user_id, display_name, avatar_url, goal_gci, goal_transactions, split_preset, province, experience_years, subscription_tier, cash_reserve, growth_goal_year_pcts, monthly_brokerage_fee, runway_score_snapshot"
               )
               .eq("user_id", user.id)
               .single(),
