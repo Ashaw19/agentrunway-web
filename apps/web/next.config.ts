@@ -1,5 +1,8 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import createNextIntlPlugin from "next-intl/plugin";
+
+const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 
 // ── Security headers ──────────────────────────────────────────────────────────
 //
@@ -93,7 +96,7 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
+export default withSentryConfig(withNextIntl(nextConfig), {
   // Sentry organization and project (set in Vercel env vars)
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,

@@ -26,7 +26,18 @@
     "./mobile/ar/*": "./mobile/ar/*.json",
     "./mobile/hi/*": "./mobile/hi/*.json",
     "./mobile/ur/*": "./mobile/ur/*.json",
-    "./mobile/*": "./mobile/*"
+    "./mobile/*": "./mobile/*",
+    "./web/en/*": "./web/en/*.json",
+    "./web/fr-CA/*": "./web/fr-CA/*.json",
+    "./web/zh/*": "./web/zh/*.json",
+    "./web/pa/*": "./web/pa/*.json",
+    "./web/yue/*": "./web/yue/*.json",
+    "./web/es/*": "./web/es/*.json",
+    "./web/tl/*": "./web/tl/*.json",
+    "./web/ar/*": "./web/ar/*.json",
+    "./web/hi/*": "./web/hi/*.json",
+    "./web/ur/*": "./web/ur/*.json",
+    "./web/*": "./web/*"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

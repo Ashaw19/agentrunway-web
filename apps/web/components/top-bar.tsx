@@ -7,6 +7,7 @@ import Image from "next/image";
 import { Moon, Sun, CircleUser, Settings, LogOut } from "lucide-react";
 import { useTheme } from "next-themes";
 import { createClient } from "@/lib/supabase/client";
+import { LanguagePicker } from "@/components/language-picker";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,6 +55,9 @@ export function TopBar() {
 
   return (
     <div className="hidden md:flex h-12 shrink-0 items-center justify-end gap-3 border-b border-border/40 bg-background/60 px-6">
+      {/* Language picker */}
+      <LanguagePicker />
+
       {/* Dark mode toggle */}
       {mounted && (
         <button
