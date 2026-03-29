@@ -3,10 +3,11 @@
  *
  * Features: real-time search, filter tabs, detail sheet with
  * call/text/email actions, contact activity logging via AppState,
+ * post-contact bottom sheet with notes, inline call buttons,
  * and add-client modal.
  */
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -47,6 +48,9 @@ import { Card, Sheet, Badge, Avatar, Button, Input, EmptyState } from "@/compone
 
 type Filter = "all" | "active" | "landed";
 
+type ContactType = "call" | "text" | "email";
+type ActivityType = "call" | "text" | "meeting" | "showing" | "note";
+
 const ACTIVE_STATUSES = new Set(["boarding", "taxiing", "approach", "in_flight"]);
 
 const STATUS_LABELS: Record<string, string> = {
@@ -56,6 +60,28 @@ const STATUS_LABELS: Record<string, string> = {
   in_flight: "In Flight",
   landed:    "Landed",
   cruising:  "Cruising",
+};
+
+const CONTACT_TYPE_TITLES: Record<ContactType, string> = {
+  call:  "Log Call",
+  text:  "Log Text",
+  email: "Log Email",
+};
+
+const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
+  call:    "Call",
+  text:    "Text",
+  meeting: "Meeting",
+  showing: "Showing",
+  note:    "Note",
+};
+
+const ACTIVITY_TYPE_ICONS: Record<ActivityType, keyof typeof Ionicons.glyphMap> = {
+  call:    "call",
+  text:    "chatbubble-ellipses",
+  meeting: "people",
+  showing: "home",
+  note:    "document-text",
 };
 
 // ── Main Screen ──────────────────────────────────────────────────────────────
@@ -74,38 +100,20 @@ export default function ClientsScreen() {
   const [pendingContact, setPendingContact] = useState<{
     clientId: string;
     clientName: string;
-    type: "call" | "text";
+    type: ContactType;
   } | null>(null);
+  const [showPostContact, setShowPostContact] = useState(false);
 
   useEffect(() => {
     if (clients.length === 0) fetchClients();
   }, []);
 
-  // ── AppState listener: log activity after returning from phone/sms ────────
+  // ── AppState listener: show post-contact sheet after returning from phone/sms/email ──
 
   useEffect(() => {
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active" && pendingContact) {
-        Alert.alert(
-          "Log Activity?",
-          `Did you complete the ${pendingContact.type} to ${pendingContact.clientName}?`,
-          [
-            { text: "No", style: "cancel", onPress: () => setPendingContact(null) },
-            {
-              text: "Yes, log it",
-              onPress: async () => {
-                await addActivity({
-                  client_id: pendingContact.clientId,
-                  type: pendingContact.type,
-                  description: `${pendingContact.type === "call" ? "Phone call" : "Text message"} initiated from app`,
-                  activity_date: new Date().toISOString(),
-                });
-                setPendingContact(null);
-                fetchClients();
-              },
-            },
-          ]
-        );
+        setShowPostContact(true);
       }
     });
     return () => sub.remove();
@@ -142,7 +150,29 @@ export default function ClientsScreen() {
       Alert.alert("No email", "Add an email for this client first.");
       return;
     }
+    setPendingContact({ clientId: client.id, clientName: client.name, type: "email" });
     Linking.openURL(`mailto:${client.email}`);
+  }, []);
+
+  const handlePostContactLog = useCallback(
+    async (activityType: ActivityType, notes: string) => {
+      if (!pendingContact) return;
+      await addActivity({
+        client_id: pendingContact.clientId,
+        type: activityType,
+        description: notes.trim() || null,
+        activity_date: new Date().toISOString(),
+      });
+      setPendingContact(null);
+      setShowPostContact(false);
+      fetchClients();
+    },
+    [pendingContact, addActivity, fetchClients]
+  );
+
+  const handlePostContactSkip = useCallback(() => {
+    setPendingContact(null);
+    setShowPostContact(false);
   }, []);
 
   // ── Derived data ──────────────────────────────────────────────────────────
@@ -304,6 +334,7 @@ export default function ClientsScreen() {
               key={cl.id}
               client={cl}
               onPress={() => setSelectedClient(cl)}
+              onCall={handleCall}
             />
           ))
         )}
@@ -317,6 +348,16 @@ export default function ClientsScreen() {
           onCall={handleCall}
           onText={handleText}
           onEmail={handleEmail}
+        />
+      )}
+
+      {/* ── Post-Contact Logging Sheet ── */}
+      {showPostContact && pendingContact && (
+        <PostContactSheet
+          contactType={pendingContact.type}
+          clientName={pendingContact.clientName}
+          onLog={handlePostContactLog}
+          onSkip={handlePostContactSkip}
         />
       )}
 
@@ -336,7 +377,15 @@ export default function ClientsScreen() {
 
 // ── Client Row ──────────────────────────────────────────────────────────────
 
-function ClientRow({ client, onPress }: { client: Client; onPress: () => void }) {
+function ClientRow({
+  client,
+  onPress,
+  onCall,
+}: {
+  client: Client;
+  onPress: () => void;
+  onCall: (c: Client) => void;
+}) {
   const c = useColors();
   const { mode } = useTheme();
   const s = shadows(mode);
@@ -410,9 +459,144 @@ function ClientRow({ client, onPress }: { client: Client; onPress: () => void })
           )}
         </View>
 
-        <ChevronRight size={14} color={c.textFaint} />
+        {/* Inline call button */}
+        {client.phone ? (
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation?.();
+              onCall(client);
+            }}
+            hitSlop={4}
+            style={[
+              styles.inlineCallBtn,
+              { backgroundColor: c.successDim },
+            ]}
+          >
+            <Phone size={18} color={c.success} />
+          </Pressable>
+        ) : (
+          <View style={{ width: 14 }}>
+            <ChevronRight size={14} color={c.textFaint} />
+          </View>
+        )}
+
+        {client.phone && <ChevronRight size={14} color={c.textFaint} />}
       </View>
     </Card>
+  );
+}
+
+// ── Post-Contact Logging Sheet ──────────────────────────────────────────────
+
+function PostContactSheet({
+  contactType,
+  clientName,
+  onLog,
+  onSkip,
+}: {
+  contactType: ContactType;
+  clientName: string;
+  onLog: (activityType: ActivityType, notes: string) => void;
+  onSkip: () => void;
+}) {
+  const c = useColors();
+  const [notes, setNotes] = useState("");
+  const [activityType, setActivityType] = useState<ActivityType>(
+    contactType === "email" ? "note" : contactType
+  );
+  const [saving, setSaving] = useState(false);
+  const notesRef = useRef<TextInput>(null);
+
+  const title = CONTACT_TYPE_TITLES[contactType];
+
+  const activityTypes: ActivityType[] = ["call", "text", "meeting", "showing", "note"];
+
+  const handleLog = async () => {
+    setSaving(true);
+    await onLog(activityType, notes);
+    setSaving(false);
+  };
+
+  return (
+    <Sheet visible onClose={onSkip} title={title}>
+      {/* Client name */}
+      <View style={styles.postContactClientRow}>
+        <Ionicons name="person-circle" size={24} color={c.primary} />
+        <Text style={[Type.h3, { color: c.text, flex: 1 }]} numberOfLines={1}>
+          {clientName}
+        </Text>
+      </View>
+
+      {/* Activity type selector */}
+      <Text style={[Type.caption, { color: c.textMuted, marginBottom: Space.sm, marginLeft: Space.xs }]}>
+        ACTIVITY TYPE
+      </Text>
+      <View style={styles.activityTypeRow}>
+        {activityTypes.map((at) => {
+          const isSelected = activityType === at;
+          return (
+            <Pressable
+              key={at}
+              onPress={() => setActivityType(at)}
+              style={[
+                styles.activityTypeChip,
+                {
+                  backgroundColor: isSelected ? c.primaryDim : c.card,
+                  borderColor: isSelected ? c.primaryBorder : c.cardBorder,
+                },
+              ]}
+            >
+              <Ionicons
+                name={ACTIVITY_TYPE_ICONS[at]}
+                size={14}
+                color={isSelected ? c.primary : c.textDim}
+              />
+              <Text
+                style={[
+                  Type.caption,
+                  {
+                    color: isSelected ? c.primary : c.textDim,
+                    fontWeight: isSelected ? "700" : "500",
+                  },
+                ]}
+              >
+                {ACTIVITY_TYPE_LABELS[at]}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Notes input */}
+      <View style={{ marginTop: Space.lg }}>
+        <Input
+          label="Notes"
+          value={notes}
+          onChange={setNotes}
+          placeholder="What did you discuss?"
+          multiline
+        />
+      </View>
+
+      {/* Action buttons */}
+      <View style={{ marginTop: Space.xl, gap: Space.sm }}>
+        <Button
+          label={saving ? "Logging..." : "Log & Close"}
+          onPress={handleLog}
+          loading={saving}
+          variant="primary"
+          icon="checkmark-circle"
+        />
+        <Pressable
+          onPress={onSkip}
+          style={styles.skipBtn}
+        >
+          <Text style={[Type.bodyBold, { color: c.textMuted, textAlign: "center" }]}>
+            Skip
+          </Text>
+        </Pressable>
+      </View>
+    </Sheet>
   );
 }
 
@@ -735,6 +919,41 @@ const styles = StyleSheet.create({
   rowRight: {
     alignItems: "flex-end",
     gap: Space.xs,
+  },
+
+  // Inline call button
+  inlineCallBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Post-contact sheet
+  postContactClientRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.sm,
+    marginBottom: Space.xl,
+  },
+  activityTypeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Space.sm,
+    marginBottom: Space.xs,
+  },
+  activityTypeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.xs,
+    paddingHorizontal: Space.md,
+    height: 36,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+  },
+  skipBtn: {
+    paddingVertical: Space.md,
   },
 
   // Detail sheet
