@@ -48,6 +48,7 @@ import {
   Radius,
   Type,
   STATUS_COLORS,
+  StatusColors,
   STAGE_COLORS,
   getInitials,
   fmtCurrency,
@@ -143,7 +144,7 @@ export default function ClientsScreen() {
   const { mode } = useTheme();
   const s = shadows(mode);
 
-  const { clients, fetchClients, addClient, addActivity, isLoading } = useDataStore();
+  const { clients, fetchClients, addClient, addActivity, updateClient, isLoading } = useDataStore();
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -407,6 +408,14 @@ export default function ClientsScreen() {
           onCall={handleCall}
           onText={handleText}
           onEmail={handleEmail}
+          onUpdate={async (updates) => {
+            const ok = await updateClient(selectedClient.id, updates);
+            if (ok) {
+              // Update the selected client reference with new values
+              setSelectedClient((prev) => prev ? { ...prev, ...updates } : null);
+            }
+            return ok;
+          }}
         />
       )}
 
@@ -713,12 +722,14 @@ function ClientDetailSheet({
   onCall,
   onText,
   onEmail,
+  onUpdate,
 }: {
   client: Client;
   onClose: () => void;
   onCall: (c: Client) => void;
   onText: (c: Client) => void;
   onEmail: (c: Client) => void;
+  onUpdate: (updates: Partial<Pick<Client, 'name' | 'email' | 'phone' | 'status' | 'notes'>>) => Promise<boolean>;
 }) {
   const c = useColors();
   const statusColor = STATUS_COLORS[client.status] ?? c.textDim;
@@ -730,6 +741,48 @@ function ClientDetailSheet({
   } = useDataStore();
 
   const [activitiesLoading, setActivitiesLoading] = useState(true);
+
+  // Edit mode state
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(client.name);
+  const [editPhone, setEditPhone] = useState(client.phone ?? "");
+  const [editEmail, setEditEmail] = useState(client.email ?? "");
+  const [editStatus, setEditStatus] = useState(client.status);
+  const [editNotes, setEditNotes] = useState(client.notes ?? "");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // Reset edit form when client changes
+  useEffect(() => {
+    setEditName(client.name);
+    setEditPhone(client.phone ?? "");
+    setEditEmail(client.email ?? "");
+    setEditStatus(client.status);
+    setEditNotes(client.notes ?? "");
+  }, [client]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditName(client.name);
+    setEditPhone(client.phone ?? "");
+    setEditEmail(client.email ?? "");
+    setEditStatus(client.status);
+    setEditNotes(client.notes ?? "");
+    setEditing(false);
+  }, [client]);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!editName.trim()) return;
+    setSavingEdit(true);
+    const updates: Partial<Pick<Client, 'name' | 'email' | 'phone' | 'status' | 'notes'>> = {
+      name: editName.trim(),
+      email: editEmail.trim() || null,
+      phone: editPhone.trim() || null,
+      status: editStatus,
+      notes: editNotes.trim() || null,
+    };
+    const ok = await onUpdate(updates);
+    setSavingEdit(false);
+    if (ok) setEditing(false);
+  }, [editName, editEmail, editPhone, editStatus, editNotes, onUpdate]);
 
   // Fetch activities when sheet opens
   useEffect(() => {
@@ -744,8 +797,130 @@ function ClientDetailSheet({
   const activities = clientActivities[client.id] ?? [];
   const deals = useMemo(() => getClientDeals(client.name), [client.name]);
 
+  const FLIGHT_STATUSES: { key: string; label: string }[] = [
+    { key: "cruising", label: "Cruising" },
+    { key: "turbulence", label: "Turbulence" },
+    { key: "grounded", label: "Grounded" },
+    { key: "boarding", label: "Boarding" },
+    { key: "landed", label: "Landed" },
+    { key: "departed", label: "Departed" },
+  ];
+
   return (
-    <Sheet visible onClose={onClose} title={client.name} maxHeight="95%">
+    <Sheet visible onClose={onClose} title={editing ? "Edit Client" : client.name} maxHeight="95%">
+      {/* ── Edit button in header area ── */}
+      {!editing && (
+        <View style={{ position: "absolute", top: Space.md, right: Space.xl + 44, zIndex: 10 }}>
+          <Pressable
+            onPress={() => setEditing(true)}
+            hitSlop={8}
+            style={[
+              styles.editBtn,
+              { backgroundColor: c.primaryDim },
+            ]}
+          >
+            <Ionicons name="create-outline" size={16} color={c.primary} />
+            <Text style={[Type.caption, { color: c.primary, fontWeight: "700" }]}>Edit</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {editing ? (
+        /* ── Edit Mode ── */
+        <View style={{ gap: Space.md }}>
+          <Input
+            label="Full Name"
+            value={editName}
+            onChange={setEditName}
+            placeholder="Client name"
+          />
+          <Input
+            label="Phone"
+            value={editPhone}
+            onChange={setEditPhone}
+            placeholder="+1 (555) 123-4567"
+            keyboardType="phone-pad"
+          />
+          <Input
+            label="Email"
+            value={editEmail}
+            onChange={setEditEmail}
+            placeholder="email@example.com"
+            keyboardType="email-address"
+          />
+
+          {/* Flight status pills */}
+          <View style={{ gap: Space.xs }}>
+            <Text style={[Type.caption, { color: c.textMuted, marginLeft: Space.xs }]}>
+              FLIGHT STATUS
+            </Text>
+            <View style={styles.statusPillRow}>
+              {FLIGHT_STATUSES.map((fs) => {
+                const isSelected = editStatus === fs.key;
+                const pillColor = StatusColors[fs.key] ?? c.textDim;
+                return (
+                  <Pressable
+                    key={fs.key}
+                    onPress={() => setEditStatus(fs.key)}
+                    style={[
+                      styles.statusPill,
+                      {
+                        backgroundColor: isSelected ? pillColor + "20" : c.card,
+                        borderColor: isSelected ? pillColor + "50" : c.cardBorder,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.statusPillDot,
+                        { backgroundColor: pillColor },
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        Type.caption,
+                        {
+                          color: isSelected ? pillColor : c.textDim,
+                          fontWeight: isSelected ? "700" : "500",
+                        },
+                      ]}
+                    >
+                      {fs.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <Input
+            label="Notes"
+            value={editNotes}
+            onChange={setEditNotes}
+            placeholder="Add notes..."
+            multiline
+          />
+
+          {/* Save / Cancel */}
+          <View style={{ marginTop: Space.sm, gap: Space.sm }}>
+            <Button
+              label={savingEdit ? "Saving..." : "Save Changes"}
+              onPress={handleSaveEdit}
+              loading={savingEdit}
+              disabled={!editName.trim()}
+              variant="primary"
+              icon="checkmark-circle"
+            />
+            <Pressable onPress={handleCancelEdit} style={styles.skipBtn}>
+              <Text style={[Type.bodyBold, { color: c.textMuted, textAlign: "center" }]}>
+                Cancel
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : (
+        /* ── View Mode (existing) ── */
+        <>
       {/* ── Client Header ── */}
       <View style={styles.detailHeader}>
         <Avatar name={client.name} size="lg" color={statusColor} />
@@ -996,6 +1171,8 @@ function ClientDetailSheet({
           </View>
         )}
       </View>
+        </>
+      )}
     </Sheet>
   );
 }
@@ -1326,5 +1503,36 @@ const styles = StyleSheet.create({
     padding: Space.md,
     borderRadius: Radius.md,
     borderWidth: 1,
+  },
+
+  // Edit button
+  editBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.xs,
+    paddingHorizontal: Space.md,
+    height: 32,
+    borderRadius: Radius.pill,
+  },
+
+  // Status pill row (edit mode)
+  statusPillRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Space.sm,
+  },
+  statusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.xs,
+    paddingHorizontal: Space.md,
+    height: 34,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+  },
+  statusPillDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 });

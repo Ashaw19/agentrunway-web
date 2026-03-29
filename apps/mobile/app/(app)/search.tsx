@@ -17,6 +17,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import {
   Search as SearchIcon,
   X,
@@ -25,6 +26,7 @@ import {
   Handshake,
   Receipt,
   ChevronRight,
+  Pencil,
 } from "lucide-react-native";
 import {
   useColors,
@@ -38,9 +40,11 @@ import {
   StatusColors,
 } from "@/lib/theme";
 import { storage } from "@/lib/mmkv";
-import { useDataStore } from "@/stores/data-store";
+import { useDataStore, type Client } from "@/stores/data-store";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge } from "@/components/ui/Badge";
+import { Sheet } from "@/components/ui/Sheet";
+import { Button } from "@/components/ui/Button";
 
 // ── Recent searches persistence ─────────────────────────────────────────────
 
@@ -107,9 +111,11 @@ export default function SearchScreen() {
   const router = useRouter();
   const inputRef = useRef<TextInput>(null);
   const search = useDataStore((s) => s.search);
+  const addActivity = useDataStore((s) => s.addActivity);
 
   const [query, setQuery] = useState("");
   const [recentSearches, setRecentSearches] = useState<string[]>(getRecentSearches);
+  const [quickNoteClient, setQuickNoteClient] = useState<Client | null>(null);
 
   // Auto-focus on mount
   useEffect(() => {
@@ -214,7 +220,7 @@ export default function SearchScreen() {
         case "header":
           return <SectionHeaderView title={item.title} colors={c} />;
         case "client":
-          return <ClientRowView item={item.data} colors={c} onPress={() => handleResultTap(item)} />;
+          return <ClientRowView item={item.data} colors={c} onPress={() => handleResultTap(item)} onQuickNote={() => setQuickNoteClient(item.data)} />;
         case "deal":
           return <DealRowView item={item.data} colors={c} onPress={() => handleResultTap(item)} />;
         case "transaction":
@@ -235,7 +241,7 @@ export default function SearchScreen() {
           return null;
       }
     },
-    [c, mode, sh, router, handleResultTap, handleRecentTap, handleClearRecent]
+    [c, mode, sh, router, handleResultTap, handleRecentTap, handleClearRecent, setQuickNoteClient]
   );
 
   const keyExtractor = useCallback(
@@ -310,6 +316,23 @@ export default function SearchScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: Space.section }}
       />
+
+      {/* Quick Note Sheet */}
+      {quickNoteClient && (
+        <QuickNoteSheet
+          client={quickNoteClient}
+          onClose={() => setQuickNoteClient(null)}
+          onSave={async (type, description) => {
+            await addActivity({
+              client_id: quickNoteClient.id,
+              type,
+              description: description.trim() || null,
+              activity_date: new Date().toISOString(),
+            });
+            setQuickNoteClient(null);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -328,10 +351,12 @@ function ClientRowView({
   item,
   colors: c,
   onPress,
+  onQuickNote,
 }: {
   item: ReturnType<typeof useDataStore.getState>["clients"][number];
   colors: ReturnType<typeof useColors>;
   onPress: () => void;
+  onQuickNote: () => void;
 }) {
   const statusColor = StatusColors[item.status] ?? c.textMuted;
   const statusLabel = item.status
@@ -362,7 +387,17 @@ function ClientRowView({
         ) : null}
       </View>
       <Badge label={statusLabel} color={statusColor} size="sm" />
-      <ChevronRight size={16} color={c.textDim} strokeWidth={2} style={{ marginLeft: Space.sm }} />
+      <Pressable
+        onPress={(e) => {
+          e.stopPropagation?.();
+          onQuickNote();
+        }}
+        hitSlop={8}
+        style={[styles.quickNoteBtn, { backgroundColor: c.primaryDim }]}
+      >
+        <Pencil size={14} color={c.primary} strokeWidth={2.5} />
+      </Pressable>
+      <ChevronRight size={16} color={c.textDim} strokeWidth={2} style={{ marginLeft: Space.xs }} />
     </Pressable>
   );
 }
@@ -582,6 +617,162 @@ function QuickActionsView({
   );
 }
 
+// ── Quick Note Sheet ────────────────────────────────────────────────────────
+
+type QuickNoteActivityType = "call" | "text" | "showing" | "meeting" | "note";
+
+const QUICK_NOTE_TYPES: { key: QuickNoteActivityType; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: "note", label: "Note", icon: "document-text" },
+  { key: "call", label: "Call", icon: "call" },
+  { key: "text", label: "Text", icon: "chatbubble-ellipses" },
+  { key: "showing", label: "Showing", icon: "home" },
+  { key: "meeting", label: "Meeting", icon: "people" },
+];
+
+function QuickNoteSheet({
+  client,
+  onClose,
+  onSave,
+}: {
+  client: Client;
+  onClose: () => void;
+  onSave: (type: QuickNoteActivityType, description: string) => Promise<void>;
+}) {
+  const c = useColors();
+  const [activityType, setActivityType] = useState<QuickNoteActivityType>("note");
+  const [description, setDescription] = useState("");
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => inputRef.current?.focus(), 300);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  const handleSave = async () => {
+    if (!description.trim()) return;
+    setSaving(true);
+    await onSave(activityType, description);
+    setSaving(false);
+  };
+
+  return (
+    <Sheet visible onClose={onClose} title="Quick Note">
+      {/* Client name */}
+      <View style={quickNoteStyles.clientRow}>
+        <Ionicons name="person-circle" size={22} color={c.primary} />
+        <Text style={[Type.bodyBold, { color: c.text, flex: 1 }]} numberOfLines={1}>
+          {client.name}
+        </Text>
+      </View>
+
+      {/* Activity type pills */}
+      <View style={quickNoteStyles.typeRow}>
+        {QUICK_NOTE_TYPES.map((t) => {
+          const isSelected = activityType === t.key;
+          return (
+            <Pressable
+              key={t.key}
+              onPress={() => setActivityType(t.key)}
+              style={[
+                quickNoteStyles.typeChip,
+                {
+                  backgroundColor: isSelected ? c.primaryDim : c.card,
+                  borderColor: isSelected ? c.primaryBorder : c.cardBorder,
+                },
+              ]}
+            >
+              <Ionicons
+                name={t.icon}
+                size={13}
+                color={isSelected ? c.primary : c.textDim}
+              />
+              <Text
+                style={[
+                  Type.caption,
+                  {
+                    color: isSelected ? c.primary : c.textDim,
+                    fontWeight: isSelected ? "700" : "500",
+                  },
+                ]}
+              >
+                {t.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Note input */}
+      <TextInput
+        ref={inputRef}
+        value={description}
+        onChangeText={setDescription}
+        placeholder="Quick note..."
+        placeholderTextColor={c.textDim}
+        multiline
+        style={[
+          Type.body,
+          quickNoteStyles.noteInput,
+          {
+            color: c.text,
+            backgroundColor: c.card,
+            borderColor: c.cardBorder,
+          },
+        ]}
+      />
+
+      {/* Actions */}
+      <View style={{ marginTop: Space.lg, gap: Space.sm }}>
+        <Button
+          label={saving ? "Saving..." : "Save"}
+          onPress={handleSave}
+          loading={saving}
+          disabled={!description.trim()}
+          variant="primary"
+        />
+        <Pressable onPress={onClose} style={{ paddingVertical: Space.md }}>
+          <Text style={[Type.bodyBold, { color: c.textMuted, textAlign: "center" }]}>
+            Cancel
+          </Text>
+        </Pressable>
+      </View>
+    </Sheet>
+  );
+}
+
+const quickNoteStyles = StyleSheet.create({
+  clientRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.sm,
+    marginBottom: Space.lg,
+  },
+  typeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Space.sm,
+    marginBottom: Space.lg,
+  },
+  typeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.xs,
+    paddingHorizontal: Space.md,
+    height: 34,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+  },
+  noteInput: {
+    borderWidth: 1.5,
+    borderRadius: Radius.md,
+    paddingHorizontal: Space.lg,
+    paddingVertical: Space.md,
+    minHeight: 100,
+    textAlignVertical: "top",
+  },
+});
+
 // ── Styles ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -664,6 +855,13 @@ const styles = StyleSheet.create({
   quickActionIcon: {
     width: 44,
     height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickNoteBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
   },
