@@ -66,39 +66,43 @@ function formatLastSynced(ts: number): string {
   return `Updated ${mins}m ago`;
 }
 
+// Web status badges: Strong (emerald), On Track (blue), Building (amber), At Risk (red)
 function runwayScoreMeta(score: number) {
-  if (score >= 92) return { grade: "A+", label: "Excellent", color: "#10B981" };
-  if (score >= 85) return { grade: "A", label: "Excellent", color: "#10B981" };
-  if (score >= 75) return { grade: "B", label: "Strong", color: "#6366F1" };
-  if (score >= 62) return { grade: "C", label: "On Track", color: "#F59E0B" };
-  if (score >= 50) return { grade: "D", label: "Needs Focus", color: "#F59E0B" };
+  if (score >= 85) return { grade: "A+", label: "Strong", color: "#10B981" };
+  if (score >= 75) return { grade: "A", label: "Strong", color: "#10B981" };
+  if (score >= 62) return { grade: "B", label: "On Track", color: "#3B5EF6" };
+  if (score >= 50) return { grade: "C", label: "Building", color: "#F59E0B" };
+  if (score >= 35) return { grade: "D", label: "Building", color: "#F59E0B" };
   return { grade: "F", label: "At Risk", color: "#EF4444" };
 }
 
-// ── Runway Score Gauge (Hero — 130px) ──────────────────────────────────────
+// ── Runway Score Gauge (Hero — 140px, gold ring matching web) ──────────────
 
-function RunwayGauge({ score, color, textColor, dimColor }: { score: number; color: string; textColor: string; dimColor: string }) {
-  const size = 130;
-  const sw = 8;
+function RunwayGauge({ score, textColor, dimColor }: { score: number; textColor: string; dimColor: string }) {
+  const size = 140;
+  const sw = 9;
   const r = (size - sw) / 2;
   const circ = 2 * Math.PI * r;
   const offset = circ * (1 - score / 100);
   const cx = size / 2;
   const cy = size / 2;
+  // Web uses Commission Gold gradient for the score ring
   return (
-    <Svg width={size} height={size}>
-      <Circle cx={cx} cy={cy} r={r} stroke="rgba(128,128,128,0.10)" strokeWidth={sw} fill="none" />
-      <Circle cx={cx} cy={cy} r={r} stroke={color} strokeWidth={sw} fill="none"
-        strokeDasharray={circ} strokeDashoffset={offset}
-        strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`}
-      />
-      <SvgText x={cx} y={cy + 2} textAnchor="middle" fill={textColor} fontSize="38" fontWeight="800">
-        {score}
-      </SvgText>
-      <SvgText x={cx} y={cy + 20} textAnchor="middle" fill={dimColor} fontSize="12" fontWeight="600">
-        /100
-      </SvgText>
-    </Svg>
+    <View style={{ ...shadows("dark").goldGlow }}>
+      <Svg width={size} height={size}>
+        <Circle cx={cx} cy={cy} r={r} stroke="rgba(240,168,0,0.08)" strokeWidth={sw} fill="none" />
+        <Circle cx={cx} cy={cy} r={r} stroke="#F0A800" strokeWidth={sw} fill="none"
+          strokeDasharray={circ} strokeDashoffset={offset}
+          strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`}
+        />
+        <SvgText x={cx} y={cy - 2} textAnchor="middle" fill={textColor} fontSize="42" fontWeight="800">
+          {score}
+        </SvgText>
+        <SvgText x={cx} y={cy + 18} textAnchor="middle" fill={dimColor} fontSize="13" fontWeight="600">
+          /100
+        </SvgText>
+      </Svg>
+    </View>
   );
 }
 
@@ -548,7 +552,7 @@ export default function DashboardScreen() {
             end={{ x: 1, y: 1 }}
             style={{ paddingVertical: Space.xxl, paddingHorizontal: Space.xxl, alignItems: "center" }}
           >
-            <RunwayGauge score={score} color={meta.color} textColor={c.text} dimColor={c.textDim} />
+            <RunwayGauge score={score} textColor={c.text} dimColor={c.textDim} />
             <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, marginTop: Space.md }}>
               <Text style={{ ...Type.h3, color: c.text }}>Runway Score</Text>
               <View style={{ backgroundColor: meta.color + "22", paddingHorizontal: Space.sm + 2, paddingVertical: 3, borderRadius: Radius.sm }}>

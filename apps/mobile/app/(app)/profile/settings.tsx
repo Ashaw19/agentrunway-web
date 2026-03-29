@@ -37,6 +37,44 @@ import {
   fmtCurrency,
 } from "@/lib/theme";
 
+// ── Display formatters (DB values → human-readable) ────────────────────────
+
+const PROVINCE_LABELS: Record<string, string> = {
+  alberta: "Alberta",
+  britishColumbia: "British Columbia",
+  manitoba: "Manitoba",
+  newBrunswick: "New Brunswick",
+  newfoundland: "Newfoundland & Labrador",
+  northwestTerritories: "Northwest Territories",
+  novaScotia: "Nova Scotia",
+  nunavut: "Nunavut",
+  ontario: "Ontario",
+  princeEdwardIsland: "Prince Edward Island",
+  quebec: "Quebec",
+  saskatchewan: "Saskatchewan",
+  yukon: "Yukon",
+};
+
+const SPLIT_LABELS: Record<string, string> = {
+  p70_30: "70/30",
+  p75_25: "75/25",
+  p80_20: "80/20",
+  p85_15: "85/15",
+  p90_10: "90/10",
+  p95_5: "95/5",
+  p100_0: "100/0",
+};
+
+function formatProvince(raw: string | null | undefined): string {
+  if (!raw) return "Not set";
+  return PROVINCE_LABELS[raw] ?? raw.replace(/([A-Z])/g, " $1").trim();
+}
+
+function formatSplit(raw: string | null | undefined): string {
+  if (!raw) return "Not set";
+  return SPLIT_LABELS[raw] ?? raw.replace(/_/g, "/").replace(/^p/, "");
+}
+
 export default function SettingsScreen() {
   const c = useColors();
   const { mode } = useTheme();
@@ -96,9 +134,9 @@ export default function SettingsScreen() {
   const goalTx = settings?.goal_transactions ?? 0;
   const cashReserve = settings?.cash_reserve ?? 0;
   const monthlyFee = settings?.monthly_brokerage_fee ?? 0;
-  const province = settings?.province ?? "Not set";
+  const province = formatProvince(settings?.province);
   const experience = settings?.experience_years;
-  const splitPreset = settings?.split_preset ?? "Not set";
+  const splitPreset = formatSplit(settings?.split_preset);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={["bottom"]}>

@@ -38,17 +38,25 @@ import {
 } from "@/lib/theme";
 import { Card, Badge, Button, Avatar } from "@/components/ui";
 
+const PROVINCE_LABELS: Record<string, string> = {
+  alberta: "Alberta", britishColumbia: "British Columbia", manitoba: "Manitoba",
+  newBrunswick: "New Brunswick", newfoundland: "Newfoundland & Labrador",
+  northwestTerritories: "Northwest Territories", novaScotia: "Nova Scotia",
+  nunavut: "Nunavut", ontario: "Ontario", princeEdwardIsland: "Prince Edward Island",
+  quebec: "Quebec", saskatchewan: "Saskatchewan", yukon: "Yukon",
+};
+
 // ── Runway Score Helpers ─────────────────────────────────────────────────────
 
 function runwayScoreMeta(score: number) {
   return {
     score,
-    label: score >= 80 ? "Excellent" : score >= 60 ? "On Track" : score >= 40 ? "Needs Focus" : "At Risk",
-    color: score >= 80 ? "#10B981" : score >= 60 ? "#6366F1" : score >= 40 ? "#F59E0B" : "#EF4444",
+    label: score >= 80 ? "Strong" : score >= 60 ? "On Track" : score >= 40 ? "Building" : "At Risk",
+    color: score >= 80 ? "#10B981" : score >= 60 ? "#3B5EF6" : score >= 40 ? "#F59E0B" : "#EF4444",
   };
 }
 
-function RunwayGauge({ score, color, textColor, dimColor }: { score: number; color: string; textColor: string; dimColor: string }) {
+function RunwayGauge({ score, textColor, dimColor }: { score: number; textColor: string; dimColor: string }) {
   const size = 100;
   const sw = 7;
   const r = (size - sw) / 2;
@@ -57,19 +65,21 @@ function RunwayGauge({ score, color, textColor, dimColor }: { score: number; col
   const cx = size / 2;
   const cy = size / 2;
   return (
-    <Svg width={size} height={size}>
-      <Circle cx={cx} cy={cy} r={r} stroke="rgba(128,128,128,0.12)" strokeWidth={sw} fill="none" />
-      <Circle cx={cx} cy={cy} r={r} stroke={color} strokeWidth={sw} fill="none"
-        strokeDasharray={circ} strokeDashoffset={offset}
-        strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`}
-      />
-      <SvgText x={cx} y={cy - 2} textAnchor="middle" fill={textColor} fontSize="28" fontWeight="800">
-        {score}
-      </SvgText>
-      <SvgText x={cx} y={cy + 14} textAnchor="middle" fill={dimColor} fontSize="11" fontWeight="600">
-        /100
-      </SvgText>
-    </Svg>
+    <View style={{ ...shadows("dark").goldGlow }}>
+      <Svg width={size} height={size}>
+        <Circle cx={cx} cy={cy} r={r} stroke="rgba(240,168,0,0.08)" strokeWidth={sw} fill="none" />
+        <Circle cx={cx} cy={cy} r={r} stroke="#F0A800" strokeWidth={sw} fill="none"
+          strokeDasharray={circ} strokeDashoffset={offset}
+          strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`}
+        />
+        <SvgText x={cx} y={cy - 2} textAnchor="middle" fill={textColor} fontSize="28" fontWeight="800">
+          {score}
+        </SvgText>
+        <SvgText x={cx} y={cy + 14} textAnchor="middle" fill={dimColor} fontSize="11" fontWeight="600">
+          /100
+        </SvgText>
+      </Svg>
+    </View>
   );
 }
 
@@ -99,8 +109,8 @@ export default function ProfileScreen() {
   const isDark = mode === "dark";
 
   // SVG gradient stops — theme-aware
-  const gradStart = isDark ? "#1C1C3E" : "#E8E6FF";
-  const gradEnd = isDark ? "#0D0D1A" : "#F4F3FF";
+  const gradStart = isDark ? "#1E1E48" : "#EEF0FF";
+  const gradEnd = isDark ? "#131326" : "#F8F9FF";
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
@@ -191,7 +201,7 @@ export default function ProfileScreen() {
                   }}
                   numberOfLines={1}
                 >
-                  {settings.province} · {settings.experience_years ?? "?"} yrs
+                  {PROVINCE_LABELS[settings.province] ?? settings.province} · {settings.experience_years ?? "?"} yrs
                   exp
                 </Text>
               )}
@@ -263,7 +273,7 @@ export default function ProfileScreen() {
           alignItems: "center",
           padding: Space.xxl,
         }, sh.cardLg]}>
-          <RunwayGauge score={runway.score} color={runway.color} textColor={c.text} dimColor={c.textDim} />
+          <RunwayGauge score={runway.score} textColor={c.text} dimColor={c.textDim} />
           <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, marginTop: Space.md }}>
             <Text style={{ ...Type.label, color: c.textMuted }}>RUNWAY SCORE</Text>
             <View style={{ backgroundColor: runway.color + "22", paddingHorizontal: Space.sm, paddingVertical: 2, borderRadius: Radius.sm }}>

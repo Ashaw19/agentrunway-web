@@ -26,6 +26,14 @@ import {
 import * as Haptics from "expo-haptics";
 import { useDataStore, type OutreachItem } from "@/stores/data-store";
 import { supabase } from "@/lib/supabase";
+import {
+  useColors,
+  useTheme,
+  shadows,
+  Space,
+  Radius,
+  Type,
+} from "@/lib/theme";
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
@@ -60,6 +68,10 @@ function fmtDate(d: string): string {
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function OutreachScreen() {
+  const c = useColors();
+  const { mode } = useTheme();
+  const sh = shadows(mode);
+
   const {
     outreachQueue,
     fetchOutreach,
@@ -130,7 +142,6 @@ export default function OutreachScreen() {
                 Haptics.notificationAsync(
                   Haptics.NotificationFeedbackType.Success
                 );
-                // Remove from local queue
                 useDataStore.setState({
                   outreachQueue: useDataStore
                     .getState()
@@ -204,53 +215,38 @@ export default function OutreachScreen() {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0A0A0F" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }} edges={["bottom"]}>
       <ScrollView
-        contentContainerStyle={{ padding: 20, gap: 16 }}
+        contentContainerStyle={{ padding: Space.xl, gap: Space.lg }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#6366F1"
+            tintColor={c.primary}
           />
         }
       >
-        {/* Header */}
-        <View style={{ gap: 4 }}>
-          <Text
-            style={{
-              fontSize: 28,
-              fontWeight: "800",
-              color: "#FFFFFF",
-              letterSpacing: -0.5,
-            }}
-          >
-            Flight Control
-          </Text>
-          <Text style={{ color: "#9CA3AF", fontSize: 14 }}>
-            AI-drafted emails ready for your review
-          </Text>
-        </View>
-
         {/* Queue */}
         {outreachQueue.length === 0 ? (
           <View
-            style={{
-              padding: 40,
-              borderRadius: 14,
-              backgroundColor: "#1A1A2E",
+            style={[{
+              padding: Space.xxxl,
+              borderRadius: Radius.xl,
+              backgroundColor: c.card,
+              borderWidth: 1,
+              borderColor: c.cardBorder,
               alignItems: "center",
-              gap: 12,
-            }}
+              gap: Space.md,
+            }, sh.card]}
           >
-            <Plane size={32} color="#4B5563" />
+            <Plane size={32} color={c.textFaint} />
             <Text
               style={{
-                color: "#6B7280",
-                fontSize: 14,
+                ...Type.body,
+                color: c.textDim,
                 textAlign: "center",
-                lineHeight: 20,
+                lineHeight: 22,
               }}
             >
               No outreach items right now.{"\n"}Flight Control scans your CRM
@@ -258,18 +254,10 @@ export default function OutreachScreen() {
             </Text>
           </View>
         ) : (
-          <View style={{ gap: 12 }}>
-            <Text
-              style={{
-                color: "#9CA3AF",
-                fontSize: 12,
-                fontWeight: "700",
-                textTransform: "uppercase",
-                letterSpacing: 0.5,
-              }}
-            >
-              {outreachQueue.length} item
-              {outreachQueue.length !== 1 ? "s" : ""} in queue
+          <View style={{ gap: Space.md }}>
+            <Text style={{ ...Type.label, color: c.textMuted }}>
+              {outreachQueue.length} ITEM
+              {outreachQueue.length !== 1 ? "S" : ""} IN QUEUE
             </Text>
 
             {outreachQueue.map((item) => (
@@ -280,6 +268,8 @@ export default function OutreachScreen() {
                 onSend={() => handleSend(item)}
                 onEdit={() => openEdit(item)}
                 onSkip={() => handleSkip(item)}
+                c={c}
+                sh={sh}
               />
             ))}
           </View>
@@ -295,11 +285,11 @@ export default function OutreachScreen() {
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1, backgroundColor: "#0A0A0F" }}
+          style={{ flex: 1, backgroundColor: c.bg }}
         >
           <SafeAreaView style={{ flex: 1 }}>
             <ScrollView
-              contentContainerStyle={{ padding: 20, gap: 16 }}
+              contentContainerStyle={{ padding: Space.xl, gap: Space.lg }}
               keyboardShouldPersistTaps="handled"
             >
               {/* Modal header */}
@@ -310,17 +300,11 @@ export default function OutreachScreen() {
                   alignItems: "center",
                 }}
               >
-                <Text
-                  style={{
-                    fontSize: 20,
-                    fontWeight: "800",
-                    color: "#FFF",
-                  }}
-                >
+                <Text style={{ ...Type.h2, color: c.text }}>
                   Edit Email
                 </Text>
                 <Pressable onPress={() => setEditItem(null)}>
-                  <X size={24} color="#9CA3AF" />
+                  <X size={24} color={c.textMuted} />
                 </Pressable>
               </View>
 
@@ -330,20 +314,22 @@ export default function OutreachScreen() {
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    gap: 8,
-                    padding: 12,
-                    borderRadius: 10,
-                    backgroundColor: "#1A1A2E",
+                    gap: Space.sm,
+                    padding: Space.md,
+                    borderRadius: Radius.md,
+                    backgroundColor: c.card,
+                    borderWidth: 1,
+                    borderColor: c.cardBorder,
                   }}
                 >
-                  <User size={16} color="#6B7280" />
-                  <Text style={{ color: "#9CA3AF", fontSize: 13 }}>
+                  <User size={16} color={c.textDim} />
+                  <Text style={{ ...Type.caption, color: c.textMuted }}>
                     To:{" "}
-                    <Text style={{ color: "#FFF" }}>
+                    <Text style={{ color: c.text, fontWeight: "600" }}>
                       {editItem.clients?.name ?? "Unknown"}
                     </Text>
                     {editItem.clients?.email && (
-                      <Text style={{ color: "#6B7280" }}>
+                      <Text style={{ color: c.textDim }}>
                         {" "}
                         ({editItem.clients.email})
                       </Text>
@@ -354,94 +340,73 @@ export default function OutreachScreen() {
 
               {/* Subject */}
               <View>
-                <Text
-                  style={{
-                    color: "#9CA3AF",
-                    fontSize: 12,
-                    fontWeight: "600",
-                    marginBottom: 6,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  Subject
+                <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>
+                  SUBJECT
                 </Text>
                 <TextInput
                   value={editSubject}
                   onChangeText={setEditSubject}
                   placeholder="Email subject"
-                  placeholderTextColor="#4B5563"
+                  placeholderTextColor={c.textFaint}
                   style={{
-                    color: "#FFF",
-                    fontSize: 15,
-                    padding: 14,
-                    borderRadius: 10,
-                    backgroundColor: "#1A1A2E",
+                    ...Type.body,
+                    color: c.text,
+                    padding: Space.md + 2,
+                    borderRadius: Radius.md,
+                    backgroundColor: c.card,
                     borderWidth: 1,
-                    borderColor: "#2D2D44",
+                    borderColor: c.cardBorder,
                   }}
                 />
               </View>
 
               {/* Body */}
               <View>
-                <Text
-                  style={{
-                    color: "#9CA3AF",
-                    fontSize: 12,
-                    fontWeight: "600",
-                    marginBottom: 6,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.5,
-                  }}
-                >
-                  Message
+                <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>
+                  MESSAGE
                 </Text>
                 <TextInput
                   value={editBody}
                   onChangeText={setEditBody}
                   placeholder="Email body"
-                  placeholderTextColor="#4B5563"
+                  placeholderTextColor={c.textFaint}
                   multiline
                   textAlignVertical="top"
                   style={{
-                    color: "#FFF",
-                    fontSize: 15,
-                    padding: 14,
-                    borderRadius: 10,
-                    backgroundColor: "#1A1A2E",
+                    ...Type.body,
+                    color: c.text,
+                    padding: Space.md + 2,
+                    borderRadius: Radius.md,
+                    backgroundColor: c.card,
                     borderWidth: 1,
-                    borderColor: "#2D2D44",
+                    borderColor: c.cardBorder,
                     minHeight: 200,
                   }}
                 />
               </View>
 
               {/* Save buttons */}
-              <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
+              <View style={{ flexDirection: "row", gap: Space.md, marginTop: Space.sm }}>
                 <Pressable
                   onPress={saveEdit}
-                  style={{
-                    flex: 1,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 8,
-                    paddingVertical: 16,
-                    borderRadius: 12,
-                    backgroundColor: "#1A1A2E",
-                    borderWidth: 1,
-                    borderColor: "#2D2D44",
-                  }}
+                  style={({ pressed }) => [
+                    {
+                      flex: 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: Space.sm,
+                      paddingVertical: Space.lg,
+                      borderRadius: Radius.lg,
+                      backgroundColor: c.card,
+                      borderWidth: 1,
+                      borderColor: c.cardBorder,
+                    },
+                    pressed && { opacity: 0.7 },
+                  ]}
                 >
-                  <Pencil size={16} color="#9CA3AF" />
-                  <Text
-                    style={{
-                      color: "#9CA3AF",
-                      fontSize: 15,
-                      fontWeight: "600",
-                    }}
-                  >
+                  <Pencil size={16} color={c.textMuted} />
+                  <Text style={{ ...Type.bodyBold, color: c.textMuted }}>
                     Save Draft
                   </Text>
                 </Pressable>
@@ -461,25 +426,22 @@ export default function OutreachScreen() {
                       final_body: editBody,
                     });
                   }}
-                  style={{
-                    flex: 1,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 8,
-                    paddingVertical: 16,
-                    borderRadius: 12,
-                    backgroundColor: "#6366F1",
-                  }}
+                  style={({ pressed }) => [
+                    {
+                      flex: 1,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: Space.sm,
+                      paddingVertical: Space.lg,
+                      borderRadius: Radius.lg,
+                      backgroundColor: c.primary,
+                    },
+                    pressed && { opacity: 0.85 },
+                  ]}
                 >
                   <Send size={16} color="#FFF" />
-                  <Text
-                    style={{
-                      color: "#FFF",
-                      fontSize: 15,
-                      fontWeight: "700",
-                    }}
-                  >
+                  <Text style={{ color: "#FFF", fontSize: 15, fontWeight: "700" }}>
                     Save & Send
                   </Text>
                 </Pressable>
@@ -500,12 +462,16 @@ function OutreachCard({
   onSend,
   onEdit,
   onSkip,
+  c,
+  sh,
 }: {
   item: OutreachItem;
   sending: boolean;
   onSend: () => void;
   onEdit: () => void;
   onSkip: () => void;
+  c: ReturnType<typeof useColors>;
+  sh: ReturnType<typeof shadows>;
 }) {
   const subject = item.final_subject || item.ai_subject || "No subject";
   const body = item.final_body || item.ai_body || "";
@@ -513,14 +479,14 @@ function OutreachCard({
 
   return (
     <View
-      style={{
-        padding: 16,
-        borderRadius: 12,
-        backgroundColor: "#1A1A2E",
+      style={[{
+        padding: Space.lg,
+        borderRadius: Radius.xl,
+        backgroundColor: c.card,
         borderWidth: 1,
-        borderColor: "#2D2D44",
-        gap: 12,
-      }}
+        borderColor: c.cardBorder,
+        gap: Space.md,
+      }, sh.card]}
     >
       {/* Top row: client + type badge */}
       <View
@@ -530,15 +496,10 @@ function OutreachCard({
           alignItems: "center",
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-          <User size={16} color="#6366F1" />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, flex: 1 }}>
+          <User size={16} color={c.primary} />
           <Text
-            style={{
-              color: "#FFF",
-              fontSize: 15,
-              fontWeight: "700",
-              flex: 1,
-            }}
+            style={{ ...Type.bodyBold, color: c.text, flex: 1 }}
             numberOfLines={1}
           >
             {item.clients?.name ?? "Unknown Client"}
@@ -546,29 +507,25 @@ function OutreachCard({
         </View>
         <View
           style={{
-            paddingHorizontal: 8,
+            paddingHorizontal: Space.sm,
             paddingVertical: 3,
-            borderRadius: 6,
-            backgroundColor: "rgba(99,102,241,0.1)",
+            borderRadius: Radius.sm,
+            backgroundColor: c.primaryDim,
+            borderWidth: 1,
+            borderColor: c.primaryBorder,
           }}
         >
-          <Text
-            style={{
-              color: "#818CF8",
-              fontSize: 11,
-              fontWeight: "600",
-            }}
-          >
+          <Text style={{ color: c.primaryLight, fontSize: 11, fontWeight: "600" }}>
             {opportunityLabel(item.opportunity_type)}
           </Text>
         </View>
       </View>
 
       {/* Subject line */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <Mail size={14} color="#6B7280" />
+      <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm }}>
+        <Mail size={14} color={c.textDim} />
         <Text
-          style={{ color: "#E5E7EB", fontSize: 14, fontWeight: "600", flex: 1 }}
+          style={{ ...Type.bodyBold, color: c.textSecondary, flex: 1 }}
           numberOfLines={1}
         >
           {subject}
@@ -578,11 +535,7 @@ function OutreachCard({
       {/* Body preview */}
       {preview && (
         <Text
-          style={{
-            color: "#6B7280",
-            fontSize: 13,
-            lineHeight: 18,
-          }}
+          style={{ ...Type.caption, color: c.textDim, lineHeight: 18 }}
           numberOfLines={2}
         >
           {preview}
@@ -590,9 +543,9 @@ function OutreachCard({
       )}
 
       {/* Date */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-        <Calendar size={12} color="#4B5563" />
-        <Text style={{ color: "#4B5563", fontSize: 12 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: Space.xs }}>
+        <Calendar size={12} color={c.textFaint} />
+        <Text style={{ ...Type.micro, color: c.textFaint }}>
           {fmtDate(item.trigger_date)}
         </Text>
       </View>
@@ -601,45 +554,47 @@ function OutreachCard({
       <View
         style={{
           flexDirection: "row",
-          gap: 8,
+          gap: Space.sm,
           borderTopWidth: 1,
-          borderTopColor: "#2D2D44",
-          paddingTop: 12,
+          borderTopColor: c.cardBorder,
+          paddingTop: Space.md,
         }}
       >
         <Pressable
           onPress={onSkip}
-          style={{
-            paddingVertical: 10,
-            paddingHorizontal: 14,
-            borderRadius: 8,
-            backgroundColor: "rgba(107,114,128,0.1)",
-          }}
+          style={({ pressed }) => [
+            {
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              borderRadius: Radius.md,
+              backgroundColor: c.divider,
+            },
+            pressed && { opacity: 0.6 },
+          ]}
         >
-          <SkipForward size={16} color="#6B7280" />
+          <SkipForward size={16} color={c.textDim} />
         </Pressable>
 
         <Pressable
           onPress={onEdit}
-          style={{
-            flex: 1,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-            paddingVertical: 10,
-            borderRadius: 8,
-            backgroundColor: "rgba(99,102,241,0.1)",
-          }}
+          style={({ pressed }) => [
+            {
+              flex: 1,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              paddingVertical: 10,
+              borderRadius: Radius.md,
+              backgroundColor: c.primaryDim,
+              borderWidth: 1,
+              borderColor: c.primaryBorder,
+            },
+            pressed && { opacity: 0.7 },
+          ]}
         >
-          <Pencil size={14} color="#818CF8" />
-          <Text
-            style={{
-              color: "#818CF8",
-              fontSize: 13,
-              fontWeight: "600",
-            }}
-          >
+          <Pencil size={14} color={c.primaryLight} />
+          <Text style={{ color: c.primaryLight, fontSize: 13, fontWeight: "600" }}>
             Edit
           </Text>
         </Pressable>
@@ -647,30 +602,27 @@ function OutreachCard({
         <Pressable
           onPress={onSend}
           disabled={sending}
-          style={{
-            flex: 1,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-            paddingVertical: 10,
-            borderRadius: 8,
-            backgroundColor: "#6366F1",
-            opacity: sending ? 0.6 : 1,
-          }}
+          style={({ pressed }) => [
+            {
+              flex: 1,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+              paddingVertical: 10,
+              borderRadius: Radius.md,
+              backgroundColor: c.primary,
+              opacity: sending ? 0.6 : 1,
+            },
+            pressed && !sending && { opacity: 0.85 },
+          ]}
         >
           {sending ? (
             <ActivityIndicator size="small" color="#FFF" />
           ) : (
             <>
               <Send size={14} color="#FFF" />
-              <Text
-                style={{
-                  color: "#FFF",
-                  fontSize: 13,
-                  fontWeight: "700",
-                }}
-              >
+              <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "700" }}>
                 Send
               </Text>
             </>

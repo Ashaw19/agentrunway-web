@@ -1,5 +1,6 @@
 /**
  * Agent Runway — Mobile Design System
+ * Matched to the web app's OKLCH-based color system.
  * Light & Dark mode support. Premium, clean, modern.
  */
 
@@ -42,58 +43,59 @@ export const useTheme = create<ThemeStore>((set) => ({
 }));
 
 // ── Palette Factory ───────────────────────────────────────────────────────────
+// Colors aligned with web app's CSS variables (oklch converted to hex)
 
 function palette(mode: ThemeMode) {
   const dark = mode === "dark";
   return {
-    // Backgrounds
-    bg:             dark ? "#0A0A0F" : "#F8F9FB",
-    bgElevated:     dark ? "#0E0E17" : "#FFFFFF",
-    card:           dark ? "#14142A" : "#FFFFFF",
-    cardBorder:     dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
-    cardHighBorder: dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+    // Backgrounds — web: oklch(0.129, 0.042, 264.695) dark, oklch(1,0,0) light
+    bg:             dark ? "#131326" : "#FFFFFF",
+    bgElevated:     dark ? "#171733" : "#FAFAFE",
+    card:           dark ? "#1E1E3A" : "#FFFFFF",
+    cardBorder:     dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)",
+    cardHighBorder: dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.10)",
 
-    // Brand
-    primary:        "#6366F1",
-    primaryLight:   "#818CF8",
-    primaryDim:     dark ? "rgba(99,102,241,0.12)" : "rgba(99,102,241,0.08)",
-    primaryBorder:  dark ? "rgba(99,102,241,0.25)" : "rgba(99,102,241,0.20)",
+    // Brand — web: Runway Blue oklch(0.57, 0.240, 261) ≈ #3B5EF6
+    primary:        "#3B5EF6",
+    primaryLight:   "#6380F8",
+    primaryDim:     dark ? "rgba(59,94,246,0.12)" : "rgba(59,94,246,0.08)",
+    primaryBorder:  dark ? "rgba(59,94,246,0.25)" : "rgba(59,94,246,0.20)",
 
-    // Commission Gold
-    gold:           "#C8A24E",
-    goldLight:      "#DABB6A",
-    goldDim:        dark ? "rgba(200,162,78,0.12)" : "rgba(200,162,78,0.08)",
+    // Commission Gold — web: oklch(0.75, 0.19, 73) ≈ #F0A800
+    gold:           "#F0A800",
+    goldLight:      "#F5BE3A",
+    goldDim:        dark ? "rgba(240,168,0,0.14)" : "rgba(240,168,0,0.08)",
 
-    // Semantic
-    success:        "#10B981",
+    // Semantic — chart colors from web
+    success:        "#10B981",  // Chart-1 emerald
     successLight:   "#34D399",
     successDim:     dark ? "rgba(16,185,129,0.12)" : "rgba(16,185,129,0.08)",
-    warning:        "#F59E0B",
+    warning:        "#F59E0B",  // Warning amber
     warningLight:   "#FBBF24",
     warningDim:     dark ? "rgba(245,158,11,0.12)" : "rgba(245,158,11,0.08)",
-    danger:         "#EF4444",
+    danger:         "#EF4444",  // Critical red
     dangerDim:      dark ? "rgba(239,68,68,0.12)" : "rgba(239,68,68,0.08)",
-    cyan:           "#06B6D4",
+    cyan:           "#06B6D4",  // Chart-4 teal
     cyanDim:        dark ? "rgba(6,182,212,0.12)" : "rgba(6,182,212,0.08)",
-    purple:         "#8B5CF6",
+    purple:         "#8B5CF6",  // Chart-2 violet
     purpleDim:      dark ? "rgba(139,92,246,0.12)" : "rgba(139,92,246,0.08)",
-    blue:           "#3B82F6",
+    blue:           "#3B82F6",  // Info blue
     blueDim:        dark ? "rgba(59,130,246,0.12)" : "rgba(59,130,246,0.08)",
 
-    // Text
-    text:           dark ? "#FFFFFF" : "#111827",
-    textSecondary:  dark ? "#D1D5DB" : "#374151",
-    textMuted:      dark ? "#9CA3AF" : "#6B7280",
-    textDim:        dark ? "#6B7280" : "#9CA3AF",
-    textFaint:      dark ? "#374151" : "#D1D5DB",
+    // Text — web: oklch(0.984) light-on-dark, oklch(0.129) dark-on-light
+    text:           dark ? "#F5F5FA" : "#111827",
+    textSecondary:  dark ? "#D1D5E0" : "#374151",
+    textMuted:      dark ? "#9CA3B8" : "#6B7280",
+    textDim:        dark ? "#6B728A" : "#9CA3AF",
+    textFaint:      dark ? "#3A3F55" : "#D1D5DB",
 
     // Misc
     overlay:        dark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.3)",
-    divider:        dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+    divider:        dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
 
-    // Tab bar
-    tabBg:          dark ? "#0D0D1A" : "#FFFFFF",
-    tabBorder:      dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)",
+    // Tab bar — matches web sidebar dark navy
+    tabBg:          dark ? "#111126" : "#FFFFFF",
+    tabBorder:      dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
 
     // Status bar
     statusBarStyle: dark ? ("light" as const) : ("dark" as const),
@@ -112,58 +114,83 @@ export function useColors() {
 }
 
 // ── Gradients ─────────────────────────────────────────────────────────────────
+// Matched to web's gradient tokens
 
 export function gradients(mode: ThemeMode) {
   const dark = mode === "dark";
   return {
-    heroCard:    dark ? ["#1A1040", "#0E0E1A"] as const : ["#F0EEFF", "#FFFFFF"] as const,
-    growthCard:  dark ? ["#0A2A1A", "#0A0F14"] as const : ["#ECFDF5", "#FFFFFF"] as const,
-    tabBar:      dark ? ["#0D0D1A", "#0A0A12"] as const : ["#FFFFFF", "#F8F9FB"] as const,
-    mic:         ["#6366F1", "#4F46E5"] as const,
+    // Web: --gradient-runway (navy → blue)
+    heroCard:    dark ? ["#161640", "#111126"] as const : ["#EEF0FF", "#FFFFFF"] as const,
+    // Web: --gradient-growth (emerald → teal)
+    growthCard:  dark ? ["#0A2A1A", "#0E1420"] as const : ["#ECFDF5", "#FFFFFF"] as const,
+    tabBar:      dark ? ["#111126", "#0E0E1A"] as const : ["#FFFFFF", "#F8F9FB"] as const,
+    // Web: --gradient-ascent (blue → violet)
+    mic:         ["#3B5EF6", "#5B4FE5"] as const,
     micActive:   ["#EF4444", "#DC2626"] as const,
-    progressBar: ["#6366F1", "#818CF8"] as const,
+    // Web: Runway Blue → Runway Blue lighter
+    progressBar: ["#3B5EF6", "#6380F8"] as const,
     successBar:  ["#10B981", "#34D399"] as const,
+    // Web: --gradient-commission (gold → dark gold)
+    goldBar:     ["#F0A800", "#D97706"] as const,
+    // Web: --gradient-horizon (gold → blue → violet)
+    horizon:     ["#F0A800", "#3B5EF6", "#8B5CF6"] as const,
   };
 }
 
 // ── Elevation Shadows ─────────────────────────────────────────────────────────
+// Web uses 3-layer shadow system with oklch shadow color
 
 export function shadows(mode: ThemeMode) {
   const dark = mode === "dark";
   return {
+    // Web: --shadow-sm (contact + light lift)
     card: Platform.select({
       ios: {
-        shadowColor: dark ? "#000" : "#6B7280",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: dark ? 0.3 : 0.08,
-        shadowRadius: 8,
+        shadowColor: dark ? "#000" : "#4B5563",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: dark ? 0.25 : 0.06,
+        shadowRadius: 6,
       },
-      android: { elevation: dark ? 4 : 2 },
+      android: { elevation: dark ? 3 : 2 },
       default: {},
     }) as object,
 
+    // Web: --shadow (full 3-layer)
     cardLg: Platform.select({
       ios: {
-        shadowColor: dark ? "#000" : "#6B7280",
+        shadowColor: dark ? "#000" : "#4B5563",
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: dark ? 0.4 : 0.12,
+        shadowOpacity: dark ? 0.35 : 0.10,
         shadowRadius: 16,
       },
-      android: { elevation: dark ? 8 : 4 },
+      android: { elevation: dark ? 6 : 4 },
       default: {},
     }) as object,
 
+    // Glow effect — web: .glow-gold, .glow-blue
     glow: (color: string) =>
       Platform.select({
         ios: {
           shadowColor: color,
           shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 0.35,
-          shadowRadius: 12,
+          shadowOpacity: 0.4,
+          shadowRadius: 16,
         },
         android: { elevation: 6 },
         default: {},
       }) as object,
+
+    // Gold glow — web: pulse-gold animation
+    goldGlow: Platform.select({
+      ios: {
+        shadowColor: "#F0A800",
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.45,
+        shadowRadius: 24,
+      },
+      android: { elevation: 8 },
+      default: {},
+    }) as object,
   };
 }
 
@@ -176,17 +203,24 @@ export const Space = {
 } as const;
 
 // ── Radii ─────────────────────────────────────────────────────────────────────
+// Web: --radius = 0.75rem (12px), cards use rounded-2xl (20px)
 
 export const Radius = {
-  sm: 8,  md: 12,  lg: 16,  xl: 20,  xxl: 24,  pill: 100,
+  sm: 8,   // Web: --radius-sm (radius - 4px)
+  md: 10,  // Web: --radius-md (radius - 2px)
+  lg: 12,  // Web: --radius-lg (radius)
+  xl: 20,  // Web: rounded-2xl (cards)
+  xxl: 24, // Web: --radius-3xl
+  pill: 100,
 } as const;
 
 // ── Typography ────────────────────────────────────────────────────────────────
+// Web uses Geist (system font family on mobile); sizes mapped from Tailwind
 
 export const Type = {
-  hero:     { fontSize: 32, fontWeight: "800" as const, letterSpacing: -0.8, lineHeight: 34 },
-  h1:       { fontSize: 26, fontWeight: "800" as const, letterSpacing: -0.6, lineHeight: 28 },
-  h2:       { fontSize: 20, fontWeight: "700" as const, letterSpacing: -0.4, lineHeight: 24 },
+  hero:     { fontSize: 32, fontWeight: "800" as const, letterSpacing: -0.8, lineHeight: 36 },
+  h1:       { fontSize: 26, fontWeight: "800" as const, letterSpacing: -0.6, lineHeight: 30 },
+  h2:       { fontSize: 20, fontWeight: "700" as const, letterSpacing: -0.4, lineHeight: 26 },
   h3:       { fontSize: 17, fontWeight: "700" as const, letterSpacing: -0.2, lineHeight: 22 },
   body:     { fontSize: 15, fontWeight: "400" as const, letterSpacing: 0, lineHeight: 22 },
   bodyBold: { fontSize: 15, fontWeight: "600" as const, letterSpacing: 0, lineHeight: 22 },
@@ -197,17 +231,19 @@ export const Type = {
 };
 
 // ── Animation Tokens ─────────────────────────────────────────────────────────
+// Web: cubic-bezier(0.22, 1, 0.36, 1) — fast, bouncy
 
 export const Motion = {
   springDefault: { damping: 0.8, stiffness: 250 },
   springSnappy:  { damping: 0.7, stiffness: 350 },
   durationFast:   150,
-  durationNormal: 250,
+  durationNormal: 220,  // Web: 0.22s
   durationSlow:   400,
   pressScale:     0.97,
 } as const;
 
 // ── Pipeline Stage Colors ─────────────────────────────────────────────────────
+// Matched to web's badge variants
 
 export const STAGE_COLORS: Record<string, string> = {
   lead: "#6B7280", showing: "#3B82F6", offer: "#F59E0B",
@@ -226,7 +262,7 @@ export const StatusColors: Record<string, string> = {
   cruising:   "#10B981",   // green
   turbulence: "#F59E0B",   // amber
   grounded:   "#EF4444",   // red
-  boarding:   "#6366F1",   // indigo
+  boarding:   "#3B5EF6",   // runway blue
   landed:     "#8B5CF6",   // purple
   departed:   "#06B6D4",   // cyan
 };
