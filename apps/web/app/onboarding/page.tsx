@@ -27,6 +27,7 @@ import {
   Palette,
   Target,
   Rocket,
+  Globe,
 } from "lucide-react";
 import {
   PROVINCE_LABELS,
@@ -115,8 +116,21 @@ const COLOR_THEMES = [
   },
 ];
 
-// Step indices: 0=welcome, 1=province, 2=about, 3=structure, 4=money, 5=experience, 6=theme, 7=goals, 8=done
-const TOTAL_STEPS = 9;
+// Step indices: 0=welcome, 1=language, 2=province, 3=about, 4=structure, 5=money, 6=experience, 7=theme, 8=goals, 9=done
+const TOTAL_STEPS = 10;
+
+const LANGUAGE_OPTIONS = [
+  { code: "en", native: "English", english: "English" },
+  { code: "fr", native: "Fran\u00e7ais", english: "Canadian French" },
+  { code: "zh", native: "\u4e2d\u6587", english: "Mandarin" },
+  { code: "pa", native: "\u0a2a\u0a70\u0a1c\u0a3e\u0a2c\u0a40", english: "Punjabi" },
+  { code: "yue", native: "\u5ee3\u6771\u8a71", english: "Cantonese" },
+  { code: "es", native: "Espa\u00f1ol", english: "Spanish" },
+  { code: "fil", native: "Filipino", english: "Filipino" },
+  { code: "ar", native: "\u0627\u0644\u0639\u0631\u0628\u064a\u0629", english: "Arabic" },
+  { code: "hi", native: "\u0939\u093f\u0928\u094d\u0926\u0940", english: "Hindi" },
+  { code: "ur", native: "\u0627\u0631\u062f\u0648", english: "Urdu" },
+];
 const NAMED_STEPS = TOTAL_STEPS - 2; // excludes welcome and done
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -128,6 +142,7 @@ export default function OnboardingPage() {
   const [mounted, setMounted] = useState(false);
 
   // Form state
+  const [language, setLanguage] = useState("en");
   const [province, setProvince] = useState<Province>("ontario");
   const [displayName, setDisplayName] = useState("");
   const [brokerageName, setBrokerageName] = useState("");
@@ -155,9 +170,9 @@ export default function OnboardingPage() {
     setMounted(true);
   }, []);
 
-  // Pre-fill a suggested GCI goal when the user reaches step 7, based on experience
+  // Pre-fill a suggested GCI goal when the user reaches step 8, based on experience
   useEffect(() => {
-    if (step === 7 && !goalGCI) {
+    if (step === 8 && !goalGCI) {
       const suggested =
         experienceYears <= 2 ? "75000" :
         experienceYears <= 5 ? "100000" :
@@ -215,8 +230,12 @@ export default function OnboardingPage() {
           compensation_method: isIncorporated ? compensationMethod : "salary",
           has_employees: hasEmployees,
           num_employees: hasEmployees ? parseInt(numEmployees) || 1 : 0,
+          preferred_language: language,
         })
         .eq("user_id", user.id);
+
+      // Persist locale to cookie for next-intl
+      document.cookie = `NEXT_LOCALE=${language};path=/;max-age=31536000`;
 
       if (error) {
         toast.error("Failed to save your settings. Please try again.");
@@ -250,7 +269,7 @@ export default function OnboardingPage() {
           "linear-gradient(180deg, oklch(0.15 0.065 265) 0%, oklch(0.10 0.055 265) 100%)",
       }}
     >
-      {/* Progress header — shown for steps 1–6 */}
+      {/* Progress header — shown for steps 1–8 */}
       {progressStep !== null && (
         <div className="mb-7 flex flex-col items-center gap-3">
           <LogoMark size={38} />
@@ -290,8 +309,52 @@ export default function OnboardingPage() {
           {/* Step 0: Welcome */}
           {step === 0 && <WelcomeStep onContinue={advance} />}
 
-          {/* Step 1: Province */}
+          {/* Step 1: Language */}
           {step === 1 && (
+            <StepFrame
+              icon={<Globe className="h-5 w-5" />}
+              title="Choose Your Language / Choisissez votre langue"
+              subtitle="Agent Runway is available in 10 languages"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                {LANGUAGE_OPTIONS.map((lang) => (
+                  <button
+                    key={lang.code}
+                    onClick={() => {
+                      setLanguage(lang.code);
+                      document.cookie = `NEXT_LOCALE=${lang.code};path=/;max-age=31536000`;
+                    }}
+                    className={cn(
+                      "flex flex-col items-center rounded-xl border p-4 text-center transition-all",
+                      language === lang.code
+                        ? "border-primary bg-primary/15 shadow-inner"
+                        : "border-white/20 bg-white/5 hover:border-white/40",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "text-[15px] font-semibold",
+                        language === lang.code
+                          ? "text-primary"
+                          : "text-white/90",
+                      )}
+                    >
+                      {lang.native}
+                    </span>
+                    <span className="mt-0.5 text-[11px] text-white/40">
+                      {lang.english}
+                    </span>
+                    {language === lang.code && (
+                      <Check className="mt-2 h-3.5 w-3.5 text-primary" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </StepFrame>
+          )}
+
+          {/* Step 2: Province */}
+          {step === 2 && (
             <StepFrame
               icon={<MapPin className="h-5 w-5" />}
               title="Where are you closing deals?"
@@ -322,8 +385,8 @@ export default function OnboardingPage() {
             </StepFrame>
           )}
 
-          {/* Step 2: About You */}
-          {step === 2 && (
+          {/* Step 3: About You */}
+          {step === 3 && (
             <StepFrame
               icon={<User className="h-5 w-5" />}
               title="Tell us who we're building this for."
@@ -355,8 +418,8 @@ export default function OnboardingPage() {
             </StepFrame>
           )}
 
-          {/* Step 3: Business Structure */}
-          {step === 3 && (
+          {/* Step 4: Business Structure */}
+          {step === 4 && (
             <StepFrame
               icon={<Building2 className="h-5 w-5" />}
               title="How's your business set up?"
@@ -475,8 +538,8 @@ export default function OnboardingPage() {
             </StepFrame>
           )}
 
-          {/* Step 4: The Money Math */}
-          {step === 4 && (
+          {/* Step 5: The Money Math */}
+          {step === 5 && (
             <StepFrame
               icon={<DollarSign className="h-5 w-5" />}
               title="Let's talk about how you get paid."
@@ -597,8 +660,8 @@ export default function OnboardingPage() {
             </StepFrame>
           )}
 
-          {/* Step 5: Experience */}
-          {step === 5 && (
+          {/* Step 6: Experience */}
+          {step === 6 && (
             <StepFrame
               icon={<Clock className="h-5 w-5" />}
               title="How long have you been in the game?"
@@ -644,8 +707,8 @@ export default function OnboardingPage() {
             </StepFrame>
           )}
 
-          {/* Step 6: Color Theme */}
-          {step === 6 && (
+          {/* Step 7: Color Theme */}
+          {step === 7 && (
             <StepFrame
               icon={<Palette className="h-5 w-5" />}
               title="Choose your battle colour."
@@ -693,8 +756,8 @@ export default function OnboardingPage() {
             </StepFrame>
           )}
 
-          {/* Step 7: Goals (optional) */}
-          {step === 7 && (
+          {/* Step 8: Goals (optional) */}
+          {step === 8 && (
             <StepFrame
               icon={<Target className="h-5 w-5" />}
               title="Set your targets for this year."
@@ -751,7 +814,7 @@ export default function OnboardingPage() {
             </StepFrame>
           )}
 
-          {/* Step 8: Done */}
+          {/* Step 9: Done */}
           {step === TOTAL_STEPS - 1 && (
             <DoneStep
               displayName={displayName}
@@ -765,11 +828,11 @@ export default function OnboardingPage() {
             />
           )}
 
-          {/* Nav buttons — steps 1–6 */}
+          {/* Nav buttons — steps 1–8 */}
           {step > 0 && step < TOTAL_STEPS - 1 && (
             <div className="mt-7 border-t border-white/10 pt-5">
-              {/* Step 7: stack buttons vertically on narrow screens */}
-              {step === 7 ? (
+              {/* Step 8: stack buttons vertically on narrow screens */}
+              {step === 8 ? (
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <Button
                     variant="ghost"
