@@ -8,6 +8,7 @@
 import { create } from "zustand";
 import { supabase } from "../lib/supabase";
 import { storage } from "../lib/mmkv";
+import { useToastStore } from "./toast-store";
 
 // ── Types (lightweight — matches Supabase row shapes) ────────────────────────
 
@@ -149,6 +150,9 @@ interface DataStore {
   addActivity: (activity: Omit<ContactActivity, "id" | "created_at">) => Promise<boolean>;
   updateOutreachDraft: (id: string, subject: string, body: string) => Promise<boolean>;
   skipOutreach: (id: string) => Promise<boolean>;
+
+  // Search
+  search: (query: string) => { clients: Client[]; pipeline: PipelineDeal[]; transactions: Transaction[] };
 
   // Computed methods
   ytdGci: () => number;
@@ -345,58 +349,103 @@ export const useDataStore = create<DataStore>((set, get) => {
     },
 
     addTransaction: async (tx) => {
+      const toast = useToastStore.getState();
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return false;
 
+      // Optimistic insert
+      const tempId = `temp_${Date.now()}`;
+      const tempTx: Transaction = {
+        ...tx,
+        id: tempId,
+        created_at: new Date().toISOString(),
+      };
+      const prevTransactions = get().transactions;
+      set({ transactions: [tempTx, ...prevTransactions] });
+      saveCache(get());
+
+      // Fire Supabase insert in background
       const { error } = await supabase
         .from("transactions")
         .insert({ ...tx, user_id: user.id });
 
       if (error) {
         console.error("addTransaction error:", error);
+        // Rollback
+        set({ transactions: prevTransactions });
+        saveCache(get());
+        const retryFn = () => get().addTransaction(tx);
+        toast.show("Failed to save transaction \u2014 tap to retry", "error", retryFn);
         return false;
       }
 
+      // Refresh with real server data
       await get().fetchAll();
+      toast.show("Transaction logged \u2713", "success");
       return true;
     },
 
     addClient: async (client) => {
+      const toast = useToastStore.getState();
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return false;
 
+      // Optimistic insert
+      const tempId = `temp_${Date.now()}`;
+      const tempClient: Client = {
+        ...client,
+        id: tempId,
+        created_at: new Date().toISOString(),
+      };
+      const prevClients = get().clients;
+      set({ clients: [tempClient, ...prevClients] });
+      saveCache(get());
+
+      // Fire Supabase insert in background
       const { error } = await supabase
         .from("clients")
         .insert({ ...client, user_id: user.id });
 
       if (error) {
         console.error("addClient error:", error);
+        // Rollback
+        set({ clients: prevClients });
+        saveCache(get());
+        const retryFn = () => get().addClient(client);
+        toast.show("Failed to add client \u2014 tap to retry", "error", retryFn);
         return false;
       }
 
+      // Refresh with real server data
       await get().fetchClients();
+      toast.show("Client added", "success");
       return true;
     },
 
     addActivity: async (activity) => {
+      const toast = useToastStore.getState();
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return false;
 
+      // Fire Supabase insert
       const { error } = await supabase
         .from("contact_activities")
         .insert({ ...activity, user_id: user.id });
 
       if (error) {
         console.error("addActivity error:", error);
+        const retryFn = () => get().addActivity(activity);
+        toast.show("Failed to log activity \u2014 tap to retry", "error", retryFn);
         return false;
       }
 
+      toast.show("Activity logged \u2713", "success");
       return true;
     },
 
@@ -453,6 +502,40 @@ export const useDataStore = create<DataStore>((set, get) => {
         outreachQueue: get().outreachQueue.filter((item) => item.id !== id),
       });
       return true;
+    },
+
+    search: (query: string) => {
+      const q = query.toLowerCase().trim();
+      if (!q) return { clients: [], pipeline: [], transactions: [] };
+
+      const state = get();
+
+      const clients = state.clients
+        .filter(
+          (c) =>
+            c.name.toLowerCase().includes(q) ||
+            (c.email && c.email.toLowerCase().includes(q)) ||
+            (c.phone && c.phone.toLowerCase().includes(q))
+        )
+        .slice(0, 10);
+
+      const pipeline = state.pipeline
+        .filter(
+          (d) =>
+            (d.address && d.address.toLowerCase().includes(q)) ||
+            (d.client_name && d.client_name.toLowerCase().includes(q))
+        )
+        .slice(0, 10);
+
+      const transactions = state.transactions
+        .filter(
+          (t) =>
+            (t.address && t.address.toLowerCase().includes(q)) ||
+            (t.client_name && t.client_name.toLowerCase().includes(q))
+        )
+        .slice(0, 10);
+
+      return { clients, pipeline, transactions };
     },
 
     ytdGci: () => {

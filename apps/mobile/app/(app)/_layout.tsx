@@ -5,7 +5,7 @@ import {
   LayoutDashboard,
   Handshake,
   Users,
-  Mic,
+  Search,
   Menu,
 } from "lucide-react-native";
 import { useColors, Radius, useTheme, gradients, shadows } from "@/lib/theme";
@@ -67,7 +67,7 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
-        name="expenses"
+        name="search"
         options={{
           title: "",
           tabBarLabel: () => null,
@@ -102,7 +102,7 @@ export default function AppLayout() {
                     justifyContent: "center",
                   }}
                 >
-                  <Mic size={24} color="#FFFFFF" strokeWidth={2.5} />
+                  <Search size={24} color="#FFFFFF" strokeWidth={2.5} />
                 </LinearGradient>
               </View>
             </View>
@@ -131,7 +131,8 @@ export default function AppLayout() {
           ),
         }}
       />
-      {/* Hidden routes */}
+      {/* Hidden routes — accessible via navigation but not shown in tab bar */}
+      <Tabs.Screen name="expenses" options={{ href: null }} />
       <Tabs.Screen name="forecast" options={{ href: null }} />
       <Tabs.Screen name="outreach" options={{ href: null }} />
     </Tabs>
