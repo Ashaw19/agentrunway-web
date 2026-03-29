@@ -5,6 +5,7 @@ import { View, ActivityIndicator } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { useTheme, useColors } from "@/lib/theme";
+import Toast from "@/components/Toast";
 import "react-native-reanimated";
 
 SplashScreen.preventAutoHideAsync();
@@ -45,10 +46,11 @@ function RootLayoutNav() {
   }
 
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
       <StatusBar style={c.statusBarStyle} />
       <Slot />
-    </>
+      <Toast />
+    </View>
   );
 }
 

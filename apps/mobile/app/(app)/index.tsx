@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   View,
   Text,
   ScrollView,
@@ -49,6 +50,14 @@ function isOverdue(dateStr: string): boolean {
   return new Date(dateStr) < new Date(new Date().toDateString());
 }
 
+function formatLastSynced(ts: number): string {
+  const ago = Date.now() - ts;
+  if (ago < 60_000) return "Updated just now";
+  const mins = Math.round(ago / 60_000);
+  if (mins < 5) return `Updated ${mins} min ago`;
+  return `Updated ${mins} min ago`;
+}
+
 function runwayScoreMeta(score: number) {
   return {
     score,
@@ -95,14 +104,38 @@ export default function DashboardScreen() {
   const sh = shadows(mode);
 
   const {
-    fetchAll, fetchOutreach, fetchReceipts, isLoading,
+    fetchAll, fetchOutreach, fetchReceipts, isLoading, lastFetched,
     settings, transactions, pipeline, tasks, clients,
     outreachReadyCount, ytdGci, ytdDealCount, pipelineValue, runwayScore,
   } = useDataStore();
   const [refreshing, setRefreshing] = useState(false);
+  const [, setTick] = useState(0);
 
   useEffect(() => { fetchAll(); fetchOutreach(); fetchReceipts(); }, []);
   useFocusEffect(useCallback(() => { fetchAll(); fetchOutreach(); fetchReceipts(); }, []));
+
+  // Re-render every 30 s so the "Updated X ago" text stays fresh
+  useEffect(() => {
+    const interval = setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-refresh when app comes to foreground and data is stale (> 2 min)
+  const appStateRef = useRef(AppState.currentState);
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState) => {
+      if (appStateRef.current.match(/inactive|background/) && nextState === "active") {
+        const lf = useDataStore.getState().lastFetched;
+        if (!lf || Date.now() - lf > 2 * 60 * 1000) {
+          fetchAll();
+          fetchOutreach();
+          fetchReceipts();
+        }
+      }
+      appStateRef.current = nextState;
+    });
+    return () => sub.remove();
+  }, []);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -185,6 +218,15 @@ export default function DashboardScreen() {
             </View>
           </LinearGradient>
         </View>
+
+        {/* ── Last Synced Indicator ── */}
+        <Text style={{ ...Type.micro, color: c.textDim, marginBottom: Space.lg, textAlign: "center" }}>
+          {isLoading
+            ? "\u26A0 Updating\u2026"
+            : lastFetched
+              ? formatLastSynced(lastFetched)
+              : ""}
+        </Text>
 
         {/* ── Urgent: Overdue Tasks ── */}
         {overdueTasks.length > 0 && (
