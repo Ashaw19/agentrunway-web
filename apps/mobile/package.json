@@ -12,6 +12,10 @@
   },
   "dependencies": {
     "@agent-runway/core": "workspace:*",
+    "@agent-runway/i18n": "workspace:*",
+    "expo-localization": "~55.0.9",
+    "i18next": "^24.2.2",
+    "react-i18next": "^15.4.1",
     "@expo/vector-icons": "^15.0.3",
     "@react-navigation/bottom-tabs": "^7.15.8",
     "@react-navigation/elements": "^2.9.13",

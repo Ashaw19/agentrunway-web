@@ -1,0 +1,61 @@
+{
+  "brand": {
+    "name": "Agent Runway",
+    "tagline": "Business Analytics"
+  },
+  "nav": {
+    "sections": {
+      "financials": "FINANCIALS",
+      "crm": "CRM",
+      "tools": "TOOLS",
+      "organization": "ORGANIZATION"
+    },
+    "dashboard": "Dashboard",
+    "transactions": "Transactions",
+    "expenses": "Expenses",
+    "altimeter": "Altimeter",
+    "altimeterSub": "Analytics",
+    "overhead": "Overhead",
+    "overheadSub": "Taxes",
+    "forecast": "Forecast",
+    "reports": "Reports",
+    "crm": "CRM",
+    "flightControl": "Flight Control",
+    "referrals": "Referrals",
+    "social": "Social",
+    "guide": "Guide",
+    "members": "Members",
+    "orgSettings": "Org Settings",
+    "auditLog": "Audit Log",
+    "myConsent": "My Consent",
+    "visitWebsite": "Visit Website"
+  },
+  "topBar": {
+    "switchToLight": "Switch to light mode",
+    "switchToDark": "Switch to dark mode",
+    "accountMenu": "Account menu",
+    "profile": "Profile",
+    "settings": "Settings",
+    "signOut": "Sign Out"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "loading": "Loading...",
+    "retry": "Retry"
+  },
+  "upgrade": {
+    "unlockPro": "Unlock Pro"
+  },
+  "language": {
+    "label": "Language",
+    "switchTo": "Switch language"
+  },
+  "_TODO": "TRANSLATE: These are English placeholder strings for locale pa"
+}

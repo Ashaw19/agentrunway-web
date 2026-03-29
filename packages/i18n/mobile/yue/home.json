@@ -1,0 +1,50 @@
+{
+  "greeting": {
+    "morning": "Good morning",
+    "afternoon": "Good afternoon",
+    "evening": "Good evening"
+  },
+  "score": {
+    "runwayScore": "RUNWAY SCORE",
+    "outOf": "/100",
+    "strong": "Strong",
+    "onTrack": "On Track",
+    "building": "Building",
+    "atRisk": "At Risk",
+    "description": "Based on goal pace, pipeline coverage, expenses, and cash reserves"
+  },
+  "metrics": {
+    "ytdGci": "YTD GCI",
+    "goalPace": "Goal Pace",
+    "activePipeline": "Active Pipeline",
+    "closedDeals": "Closed Deals",
+    "pipelineValue": "Pipeline Value",
+    "pending": "Pending"
+  },
+  "actions": {
+    "overdue": "Overdue",
+    "followUps": "Follow-ups",
+    "newLeads": "New Leads",
+    "pendingDeals": "Pending Deals",
+    "allCaughtUp": "All caught up"
+  },
+  "briefing": {
+    "title": "Today's Briefing",
+    "noBriefing": "No briefing items today"
+  },
+  "quickCapture": {
+    "title": "Quick Capture",
+    "clientLabel": "CLIENT",
+    "typeLabel": "TYPE",
+    "notesLabel": "NOTES",
+    "searchClient": "Search client name...",
+    "notesPlaceholder": "What happened?",
+    "activityTypes": {
+      "call": "Call",
+      "text": "Text",
+      "showing": "Showing",
+      "meeting": "Meeting",
+      "note": "Note"
+    }
+  }
+}

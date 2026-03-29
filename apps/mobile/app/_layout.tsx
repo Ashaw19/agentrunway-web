@@ -8,6 +8,7 @@ import { useTheme, useColors } from "@/lib/theme";
 import Toast from "@/components/Toast";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import "react-native-reanimated";
+import "@/lib/i18n"; // Initialize i18next before app renders
 
 SplashScreen.preventAutoHideAsync();
 

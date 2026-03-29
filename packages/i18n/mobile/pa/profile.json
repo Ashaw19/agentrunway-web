@@ -1,0 +1,44 @@
+{
+  "title": "More",
+  "stats": {
+    "ytdGci": "YTD GCI",
+    "dealsClosed": "Deals Closed",
+    "goal": "Goal"
+  },
+  "runwayScore": {
+    "label": "RUNWAY SCORE",
+    "strong": "Strong",
+    "onTrack": "On Track",
+    "building": "Building",
+    "atRisk": "At Risk",
+    "description": "Based on goal pace, pipeline coverage, expenses, and cash reserves"
+  },
+  "tools": {
+    "title": "Tools",
+    "briefing": "Today's Briefing",
+    "briefingDesc": "Your daily priorities and action items",
+    "flightControl": "Flight Control",
+    "flightControlDesc": "Review and send AI-drafted outreach",
+    "forecast": "Income Forecast",
+    "forecastDesc": "Year-end projections and pacing",
+    "scanReceipt": "Scan Receipt",
+    "scanReceiptDesc": "Capture and log business expenses"
+  },
+  "account": {
+    "title": "Account",
+    "appearance": "Appearance",
+    "darkMode": "Dark mode",
+    "lightMode": "Light mode",
+    "language": "Language",
+    "languageDesc": "Change app language",
+    "subscription": "Subscription",
+    "subscriptionPro": "Professional \u00b7 Active",
+    "subscriptionFree": "Free plan",
+    "goals": "Goals & Settings",
+    "goalsDesc": "Set your annual targets",
+    "goalsWithValue": "GCI goal: {{value}}",
+    "notifications": "Notifications",
+    "notificationsDesc": "Morning briefing, deal alerts, follow-ups"
+  },
+  "version": "Agent Runway \u00b7 v{{version}}"
+}

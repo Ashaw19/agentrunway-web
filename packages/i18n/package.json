@@ -1,0 +1,40 @@
+{
+  "name": "@agent-runway/i18n",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./index.ts",
+    "./types": "./types.ts",
+    "./shared/en": "./shared/en.json",
+    "./shared/fr-CA": "./shared/fr-CA.json",
+    "./shared/zh": "./shared/zh.json",
+    "./shared/pa": "./shared/pa.json",
+    "./shared/yue": "./shared/yue.json",
+    "./shared/es": "./shared/es.json",
+    "./shared/tl": "./shared/tl.json",
+    "./shared/ar": "./shared/ar.json",
+    "./shared/hi": "./shared/hi.json",
+    "./shared/ur": "./shared/ur.json",
+    "./shared/*": "./shared/*.json",
+    "./mobile/en/*": "./mobile/en/*.json",
+    "./mobile/fr-CA/*": "./mobile/fr-CA/*.json",
+    "./mobile/zh/*": "./mobile/zh/*.json",
+    "./mobile/pa/*": "./mobile/pa/*.json",
+    "./mobile/yue/*": "./mobile/yue/*.json",
+    "./mobile/es/*": "./mobile/es/*.json",
+    "./mobile/tl/*": "./mobile/tl/*.json",
+    "./mobile/ar/*": "./mobile/ar/*.json",
+    "./mobile/hi/*": "./mobile/hi/*.json",
+    "./mobile/ur/*": "./mobile/ur/*.json",
+    "./mobile/*": "./mobile/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "i18next": ">=23"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

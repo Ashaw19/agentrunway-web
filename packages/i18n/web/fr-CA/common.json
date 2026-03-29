@@ -1,0 +1,60 @@
+{
+  "brand": {
+    "name": "Agent Runway",
+    "tagline": "Analytique d'affaires"
+  },
+  "nav": {
+    "sections": {
+      "financials": "FINANCES",
+      "crm": "CRM",
+      "tools": "OUTILS",
+      "organization": "ORGANISATION"
+    },
+    "dashboard": "Tableau de bord",
+    "transactions": "Transactions",
+    "expenses": "Dépenses",
+    "altimeter": "Altimètre",
+    "altimeterSub": "Analytique",
+    "overhead": "Frais généraux",
+    "overheadSub": "Impôts",
+    "forecast": "Prévisions",
+    "reports": "Rapports",
+    "crm": "CRM",
+    "flightControl": "Contrôle de vol",
+    "referrals": "Références",
+    "social": "Réseaux sociaux",
+    "guide": "Guide",
+    "members": "Membres",
+    "orgSettings": "Param. org.",
+    "auditLog": "Journal d'audit",
+    "myConsent": "Mon consentement",
+    "visitWebsite": "Visiter le site"
+  },
+  "topBar": {
+    "switchToLight": "Passer au mode clair",
+    "switchToDark": "Passer au mode sombre",
+    "accountMenu": "Menu du compte",
+    "profile": "Profil",
+    "settings": "Paramètres",
+    "signOut": "Déconnexion"
+  },
+  "actions": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "close": "Fermer",
+    "confirm": "Confirmer",
+    "back": "Retour",
+    "next": "Suivant",
+    "loading": "Chargement...",
+    "retry": "Réessayer"
+  },
+  "upgrade": {
+    "unlockPro": "Passer à Pro"
+  },
+  "language": {
+    "label": "Langue",
+    "switchTo": "Changer de langue"
+  }
+}

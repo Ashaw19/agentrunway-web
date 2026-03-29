@@ -1,0 +1,44 @@
+{
+  "title": "Plus",
+  "stats": {
+    "ytdGci": "RBC cumul",
+    "dealsClosed": "Transactions conclues",
+    "goal": "Objectif"
+  },
+  "runwayScore": {
+    "label": "SCORE RUNWAY",
+    "strong": "Solide",
+    "onTrack": "En bonne voie",
+    "building": "En construction",
+    "atRisk": "\u00c0 risque",
+    "description": "Bas\u00e9 sur le rythme de l'objectif, la couverture du pipeline, les d\u00e9penses et les r\u00e9serves"
+  },
+  "tools": {
+    "title": "Outils",
+    "briefing": "Briefing du jour",
+    "briefingDesc": "Vos priorit\u00e9s et actions du jour",
+    "flightControl": "Contr\u00f4le de vol",
+    "flightControlDesc": "Examiner et envoyer les messages automatis\u00e9s",
+    "forecast": "Pr\u00e9visions de revenus",
+    "forecastDesc": "Projections et rythme de fin d'ann\u00e9e",
+    "scanReceipt": "Num\u00e9riser un re\u00e7u",
+    "scanReceiptDesc": "Capturer et enregistrer les d\u00e9penses"
+  },
+  "account": {
+    "title": "Compte",
+    "appearance": "Apparence",
+    "darkMode": "Mode sombre",
+    "lightMode": "Mode clair",
+    "language": "Langue",
+    "languageDesc": "Changer la langue de l'application",
+    "subscription": "Abonnement",
+    "subscriptionPro": "Professionnel \u00b7 Actif",
+    "subscriptionFree": "Forfait gratuit",
+    "goals": "Objectifs et param\u00e8tres",
+    "goalsDesc": "D\u00e9finir vos cibles annuelles",
+    "goalsWithValue": "Objectif RBC : {{value}}",
+    "notifications": "Notifications",
+    "notificationsDesc": "Briefing matinal, alertes de transactions, suivis"
+  },
+  "version": "Agent Runway \u00b7 v{{version}}"
+}

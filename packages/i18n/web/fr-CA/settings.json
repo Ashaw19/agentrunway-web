@@ -1,0 +1,49 @@
+{
+  "title": "Paramètres",
+  "sections": {
+    "aiVoice": "Votre voix IA",
+    "profileIdentity": "Identité du profil",
+    "provinceTax": "Province et impôts",
+    "localMarketBoard": "Chambre immobilière locale",
+    "businessStructure": "Structure d'entreprise",
+    "commissionStructure": "Structure de commission",
+    "postCapSplit": "Partage post-plafond",
+    "postCapSplitOptional": "(optionnel)",
+    "brokerageFees": "Frais d'agence",
+    "runwayInputs": "Données d'autonomie",
+    "annualGoal": "Objectif annuel",
+    "growthPlan": "Plan de croissance sur 5 ans",
+    "claimingDeductions": "Réclamations et déductions",
+    "bankConnections": "Connexions bancaires",
+    "googleIntegrations": "Intégrations Google",
+    "planBilling": "Forfait et facturation"
+  },
+  "fields": {
+    "displayName": "Nom d'affichage",
+    "email": "Courriel",
+    "province": "Province",
+    "goalGCI": "Objectif annuel de RCB",
+    "cashReserve": "Réserve de trésorerie",
+    "splitPreset": "Partage de commission",
+    "monthlyBrokerageFee": "Frais mensuels d'agence",
+    "txFeeRate": "Taux de frais de transaction",
+    "txFeeAnnualCap": "Plafond annuel des frais",
+    "experienceYears": "Années d'expérience",
+    "colorTheme": "Thème de couleur"
+  },
+  "actions": {
+    "save": "Enregistrer les modifications",
+    "saved": "Enregistré",
+    "addBankAccount": "Ajouter un compte bancaire",
+    "connectGoogle": "Connecter Google",
+    "disconnectGoogle": "Déconnecter",
+    "deleteAccount": "Supprimer le compte",
+    "manageSubscription": "Gérer l'abonnement"
+  },
+  "messages": {
+    "googleConnected": "Compte Google connecté avec succès!",
+    "googleDisconnected": "Compte Google déconnecté.",
+    "disconnectError": "Impossible de déconnecter. Veuillez réessayer.",
+    "settingsSaved": "Paramètres enregistrés."
+  }
+}

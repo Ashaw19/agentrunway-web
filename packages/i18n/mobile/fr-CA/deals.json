@@ -1,0 +1,69 @@
+{
+  "title": "Transactions",
+  "tabs": {
+    "pipeline": "Pipeline",
+    "closed": "Conclues",
+    "pending": "En attente"
+  },
+  "stats": {
+    "totalGci": "RBC total",
+    "pipelineValue": "Pipeline",
+    "pendingCount": "En attente"
+  },
+  "stages": {
+    "lead": "Prospect",
+    "showing": "Visite",
+    "offer": "Offre",
+    "conditional": "Conditionnel",
+    "firm": "Ferme",
+    "breakdown": "R\u00c9PARTITION PAR \u00c9TAPE"
+  },
+  "pipeline": {
+    "empty": {
+      "title": "Aucune transaction en pipeline",
+      "subtitle": "Ajoutez des transactions pour suivre vos commissions \u00e0 venir",
+      "actionLabel": "Ajouter une transaction"
+    },
+    "probability": "{{pct}} % de probabilit\u00e9",
+    "estimatedGci": "RBC estim\u00e9",
+    "advanceStage": "Avancer l'\u00e9tape"
+  },
+  "transaction": {
+    "closedDate": "Conclue le {{date}}",
+    "pendingDate": "Pr\u00e9vue le {{date}}",
+    "gci": "RBC",
+    "salePrice": "Prix de vente",
+    "commission": "Commission"
+  },
+  "closedEmpty": {
+    "title": "Aucune transaction conclue cette ann\u00e9e",
+    "subtitle": "Les transactions conclues appara\u00eetront ici"
+  },
+  "pendingEmpty": {
+    "title": "Aucune transaction en attente",
+    "subtitle": "Les transactions en cours de cl\u00f4ture appara\u00eetront ici"
+  },
+  "addDeal": {
+    "title": "Ajouter une transaction",
+    "addressLabel": "Adresse",
+    "addressPlaceholder": "Adresse de la propri\u00e9t\u00e9",
+    "clientLabel": "Client",
+    "clientPlaceholder": "Nom du client",
+    "priceLabel": "Prix",
+    "pricePlaceholder": "Prix estim\u00e9",
+    "stageLabel": "\u00c9tape",
+    "typeLabel": "C\u00f4t\u00e9",
+    "buy": "Achat",
+    "sell": "Vente",
+    "save": "Enregistrer la transaction"
+  },
+  "detail": {
+    "title": "D\u00e9tails de la transaction",
+    "address": "Adresse",
+    "client": "Client",
+    "stage": "\u00c9tape",
+    "price": "Prix",
+    "closingDate": "Date de cl\u00f4ture",
+    "notes": "Notes"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "tabs": {
+    "dashboard": "Dashboard",
+    "deals": "Deals",
+    "clients": "Clients",
+    "more": "More"
+  },
+  "nav": {
+    "back": "Back",
+    "close": "Close",
+    "cancel": "Cancel",
+    "done": "Done"
+  },
+  "actions": {
+    "save": "Save",
+    "saving": "Saving...",
+    "add": "Add",
+    "edit": "Edit",
+    "delete": "Delete",
+    "search": "Search",
+    "refresh": "Refresh",
+    "retry": "Retry",
+    "signOut": "Sign Out",
+    "confirm": "Confirm",
+    "viewAll": "View All"
+  },
+  "status": {
+    "loading": "Loading...",
+    "noResults": "No results",
+    "error": "Something went wrong",
+    "offline": "You're offline",
+    "updatedJustNow": "Updated just now",
+    "updatedMinAgo": "Updated {{count}}m ago"
+  },
+  "empty": {
+    "noMatches": "No matches",
+    "noMatchesFor": "No results match \"{{query}}\""
+  }
+}

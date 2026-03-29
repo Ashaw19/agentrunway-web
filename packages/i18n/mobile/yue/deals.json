@@ -1,0 +1,69 @@
+{
+  "title": "Deals",
+  "tabs": {
+    "pipeline": "Pipeline",
+    "closed": "Closed",
+    "pending": "Pending"
+  },
+  "stats": {
+    "totalGci": "Total GCI",
+    "pipelineValue": "Pipeline",
+    "pendingCount": "Pending"
+  },
+  "stages": {
+    "lead": "Lead",
+    "showing": "Showing",
+    "offer": "Offer",
+    "conditional": "Conditional",
+    "firm": "Firm",
+    "breakdown": "STAGE BREAKDOWN"
+  },
+  "pipeline": {
+    "empty": {
+      "title": "No pipeline deals",
+      "subtitle": "Add deals to track your upcoming commissions",
+      "actionLabel": "Add Deal"
+    },
+    "probability": "{{pct}}% probability",
+    "estimatedGci": "Est. GCI",
+    "advanceStage": "Advance Stage"
+  },
+  "transaction": {
+    "closedDate": "Closed {{date}}",
+    "pendingDate": "Expected {{date}}",
+    "gci": "GCI",
+    "salePrice": "Sale Price",
+    "commission": "Commission"
+  },
+  "closedEmpty": {
+    "title": "No closed deals this year",
+    "subtitle": "Closed transactions will appear here"
+  },
+  "pendingEmpty": {
+    "title": "No pending deals",
+    "subtitle": "Deals awaiting close will appear here"
+  },
+  "addDeal": {
+    "title": "Add Deal",
+    "addressLabel": "Address",
+    "addressPlaceholder": "Property address",
+    "clientLabel": "Client",
+    "clientPlaceholder": "Client name",
+    "priceLabel": "Price",
+    "pricePlaceholder": "Estimated price",
+    "stageLabel": "Stage",
+    "typeLabel": "Side",
+    "buy": "Buy",
+    "sell": "Sell",
+    "save": "Save Deal"
+  },
+  "detail": {
+    "title": "Deal Details",
+    "address": "Address",
+    "client": "Client",
+    "stage": "Stage",
+    "price": "Price",
+    "closingDate": "Closing Date",
+    "notes": "Notes"
+  }
+}

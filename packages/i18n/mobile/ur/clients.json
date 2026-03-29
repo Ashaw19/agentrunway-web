@@ -1,0 +1,67 @@
+{
+  "title": "Clients",
+  "filters": {
+    "all": "All",
+    "active": "Active",
+    "landed": "Landed"
+  },
+  "smartLists": {
+    "overdueFollowups": "Overdue",
+    "uncontactedLeads": "New Leads"
+  },
+  "search": {
+    "placeholder": "Search clients..."
+  },
+  "status": {
+    "boarding": "Boarding",
+    "taxiing": "Taxiing",
+    "approach": "Approach",
+    "in_flight": "In Flight",
+    "landed": "Landed",
+    "cruising": "Cruising"
+  },
+  "contact": {
+    "logCall": "Log Call",
+    "logText": "Log Text",
+    "logEmail": "Log Email",
+    "call": "Call",
+    "text": "Text",
+    "email": "Email"
+  },
+  "activity": {
+    "call": "Call",
+    "text": "Text",
+    "meeting": "Meeting",
+    "showing": "Showing",
+    "note": "Note"
+  },
+  "detail": {
+    "lastContact": "Last contact",
+    "daysAgo": "{{count}}d ago",
+    "neverContacted": "Never contacted",
+    "flightStatus": "Flight Status",
+    "recentActivity": "Recent Activity",
+    "noActivity": "No activity logged yet"
+  },
+  "addClient": {
+    "title": "Add Client",
+    "nameLabel": "Name",
+    "namePlaceholder": "Full name",
+    "emailLabel": "Email",
+    "emailPlaceholder": "email@example.com",
+    "phoneLabel": "Phone",
+    "phonePlaceholder": "+1 (555) 123-4567",
+    "save": "Save Client"
+  },
+  "postContact": {
+    "title": "How did it go?",
+    "notesPlaceholder": "Add notes about the conversation...",
+    "skipLabel": "Skip",
+    "saveLabel": "Save Note"
+  },
+  "empty": {
+    "title": "No clients yet",
+    "subtitle": "Add your first client to start tracking relationships",
+    "actionLabel": "Add Client"
+  }
+}

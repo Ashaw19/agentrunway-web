@@ -3,6 +3,7 @@
  * Premium, theme-aware with light/dark toggle.
  */
 
+import { useState } from "react";
 import { View, Text, Pressable, ScrollView, Switch, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -27,7 +28,11 @@ import {
   Moon,
   Bell,
   Sunrise,
+  Globe,
 } from "lucide-react-native";
+import { getLocaleName, type SupportedLocale } from "@agent-runway/i18n";
+import { useT } from "@/lib/useT";
+import { LanguagePicker } from "@/components/LanguagePicker";
 import {
   useColors,
   useTheme,
@@ -96,6 +101,8 @@ export default function ProfileScreen() {
   const { mode, toggle } = useTheme();
   const c = useColors();
   const sh = shadows(mode);
+  const { t, locale } = useT("profile");
+  const [showLanguagePicker, setShowLanguagePicker] = useState(false);
 
   const displayName =
     settings?.display_name ?? user?.email?.split("@")[0] ?? "Agent";
@@ -408,6 +415,17 @@ export default function ProfileScreen() {
             <Divider c={c} />
 
             <MenuItem
+              icon={<Globe size={18} color={c.cyan} />}
+              iconBg={c.cyanDim}
+              label={t("account.language")}
+              description={getLocaleName(locale as SupportedLocale)}
+              onPress={() => setShowLanguagePicker(true)}
+              c={c}
+            />
+
+            <Divider c={c} />
+
+            <MenuItem
               icon={<Zap size={18} color={c.warning} />}
               iconBg={c.warningDim}
               label="Subscription"
@@ -471,6 +489,11 @@ export default function ProfileScreen() {
           Agent Runway · v1.0.0
         </Text>
       </ScrollView>
+
+      <LanguagePicker
+        visible={showLanguagePicker}
+        onClose={() => setShowLanguagePicker(false)}
+      />
     </SafeAreaView>
   );
 }

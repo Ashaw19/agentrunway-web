@@ -1,0 +1,62 @@
+{
+  "greeting": {
+    "morning": "Bonjour",
+    "afternoon": "Bon après-midi",
+    "evening": "Bonsoir"
+  },
+  "metrics": {
+    "ytdGCI": "RCB cumulatif",
+    "closedDeals": "Transactions conclues",
+    "avgDealSize": "Taille moy. des transactions",
+    "pipelineWeighted": "Pipeline (pondéré)",
+    "projectedGCI": "RCB projeté",
+    "goalProgress": "Progression vers l'objectif",
+    "pace": "Rythme vs objectif",
+    "ahead": "en avance",
+    "behind": "en retard",
+    "onTrack": "dans les temps",
+    "noGoal": "Aucun objectif défini",
+    "expenseRatio": "Ratio de dépenses",
+    "monthlyRecurring": "Récurrent mensuel",
+    "cashReserve": "Réserve de trésorerie",
+    "runwayMonths": "Autonomie (mois)",
+    "revenuePerWorkingDay": "Revenu / jour ouvrable",
+    "breakEvenGCI": "Seuil de rentabilité (RCB)",
+    "netAfterTax": "Net après impôts",
+    "marginalTaxRate": "Taux marginal d'imposition",
+    "netPerDeal": "Net par transaction"
+  },
+  "cards": {
+    "runwayScore": "Score Runway",
+    "gciProgress": "Progression du RCB",
+    "pipelineOverview": "Aperçu du pipeline",
+    "forecastBands": "Bandes de probabilité",
+    "monthlyTrend": "Tendance mensuelle du RCB",
+    "expenseSummary": "Sommaire des dépenses",
+    "taxEstimate": "Estimation fiscale",
+    "benchmark": "Votre positionnement",
+    "insights": "Perspectives",
+    "survivalCurve": "Courbe de survie",
+    "marketMomentum": "Élan du marché",
+    "contactBriefing": "Briefing contacts",
+    "quickActions": "Actions rapides"
+  },
+  "runway": {
+    "healthy": "Sain",
+    "stable": "Stable",
+    "caution": "Prudence",
+    "critical": "Critique"
+  },
+  "alerts": {
+    "paceWarning": "Le rythme est significativement en retard sur l'objectif",
+    "expenseWarning": "Ratio de dépenses au-dessus de la référence",
+    "goalReached": "Objectif atteint!",
+    "goalAlmost": "Presque à votre objectif!"
+  },
+  "customize": {
+    "title": "Personnaliser le tableau de bord",
+    "showCard": "Afficher",
+    "hideCard": "Masquer",
+    "resetOrder": "Rétablir par défaut"
+  }
+}

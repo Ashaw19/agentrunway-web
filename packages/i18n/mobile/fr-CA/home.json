@@ -1,0 +1,50 @@
+{
+  "greeting": {
+    "morning": "Bonjour",
+    "afternoon": "Bon apr\u00e8s-midi",
+    "evening": "Bonsoir"
+  },
+  "score": {
+    "runwayScore": "SCORE RUNWAY",
+    "outOf": "/100",
+    "strong": "Solide",
+    "onTrack": "En bonne voie",
+    "building": "En construction",
+    "atRisk": "\u00c0 risque",
+    "description": "Bas\u00e9 sur le rythme de l'objectif, la couverture du pipeline, les d\u00e9penses et les r\u00e9serves"
+  },
+  "metrics": {
+    "ytdGci": "RBC cumul",
+    "goalPace": "Rythme objectif",
+    "activePipeline": "Pipeline actif",
+    "closedDeals": "Transactions conclues",
+    "pipelineValue": "Valeur du pipeline",
+    "pending": "En attente"
+  },
+  "actions": {
+    "overdue": "En retard",
+    "followUps": "Suivis",
+    "newLeads": "Nouveaux prospects",
+    "pendingDeals": "Transactions en attente",
+    "allCaughtUp": "Tout est \u00e0 jour"
+  },
+  "briefing": {
+    "title": "Briefing du jour",
+    "noBriefing": "Aucun \u00e9l\u00e9ment de briefing aujourd'hui"
+  },
+  "quickCapture": {
+    "title": "Capture rapide",
+    "clientLabel": "CLIENT",
+    "typeLabel": "TYPE",
+    "notesLabel": "NOTES",
+    "searchClient": "Rechercher un client...",
+    "notesPlaceholder": "Que s'est-il pass\u00e9 ?",
+    "activityTypes": {
+      "call": "Appel",
+      "text": "Texto",
+      "showing": "Visite",
+      "meeting": "Rencontre",
+      "note": "Note"
+    }
+  }
+}

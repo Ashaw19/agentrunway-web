@@ -1,0 +1,39 @@
+{
+  "tabs": {
+    "dashboard": "Tableau de bord",
+    "deals": "Transactions",
+    "clients": "Clients",
+    "more": "Plus"
+  },
+  "nav": {
+    "back": "Retour",
+    "close": "Fermer",
+    "cancel": "Annuler",
+    "done": "Termin\u00e9"
+  },
+  "actions": {
+    "save": "Enregistrer",
+    "saving": "Enregistrement...",
+    "add": "Ajouter",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "search": "Rechercher",
+    "refresh": "Actualiser",
+    "retry": "R\u00e9essayer",
+    "signOut": "D\u00e9connexion",
+    "confirm": "Confirmer",
+    "viewAll": "Tout voir"
+  },
+  "status": {
+    "loading": "Chargement...",
+    "noResults": "Aucun r\u00e9sultat",
+    "error": "Une erreur est survenue",
+    "offline": "Vous \u00eates hors ligne",
+    "updatedJustNow": "Mis \u00e0 jour \u00e0 l'instant",
+    "updatedMinAgo": "Mis \u00e0 jour il y a {{count}} min"
+  },
+  "empty": {
+    "noMatches": "Aucune correspondance",
+    "noMatchesFor": "Aucun r\u00e9sultat pour \u00ab {{query}} \u00bb"
+  }
+}

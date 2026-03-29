@@ -1,0 +1,63 @@
+{
+  "greeting": {
+    "morning": "Good morning",
+    "afternoon": "Good afternoon",
+    "evening": "Good evening"
+  },
+  "metrics": {
+    "ytdGCI": "YTD GCI",
+    "closedDeals": "Closed Deals",
+    "avgDealSize": "Avg Deal Size",
+    "pipelineWeighted": "Pipeline (Weighted)",
+    "projectedGCI": "Projected GCI",
+    "goalProgress": "Goal Progress",
+    "pace": "Pace vs Goal",
+    "ahead": "ahead",
+    "behind": "behind",
+    "onTrack": "on track",
+    "noGoal": "No goal set",
+    "expenseRatio": "Expense Ratio",
+    "monthlyRecurring": "Monthly Recurring",
+    "cashReserve": "Cash Reserve",
+    "runwayMonths": "Runway (Months)",
+    "revenuePerWorkingDay": "Revenue / Working Day",
+    "breakEvenGCI": "Break-Even GCI",
+    "netAfterTax": "Net After Tax",
+    "marginalTaxRate": "Marginal Tax Rate",
+    "netPerDeal": "Net Per Deal"
+  },
+  "cards": {
+    "runwayScore": "Runway Score",
+    "gciProgress": "GCI Progress",
+    "pipelineOverview": "Pipeline Overview",
+    "forecastBands": "Forecast Probability Bands",
+    "monthlyTrend": "Monthly GCI Trend",
+    "expenseSummary": "Expense Summary",
+    "taxEstimate": "Tax Estimate",
+    "benchmark": "Where You Stand",
+    "insights": "Insights",
+    "survivalCurve": "Survival Curve",
+    "marketMomentum": "Market Momentum",
+    "contactBriefing": "Contact Briefing",
+    "quickActions": "Quick Actions"
+  },
+  "runway": {
+    "healthy": "Healthy",
+    "stable": "Stable",
+    "caution": "Caution",
+    "critical": "Critical"
+  },
+  "alerts": {
+    "paceWarning": "Pace is significantly behind goal",
+    "expenseWarning": "Expense ratio above benchmark",
+    "goalReached": "Goal reached!",
+    "goalAlmost": "Almost at your goal!"
+  },
+  "customize": {
+    "title": "Customize Dashboard",
+    "showCard": "Show",
+    "hideCard": "Hide",
+    "resetOrder": "Reset to default"
+  },
+  "_TODO": "TRANSLATE: These are English placeholder strings for locale es"
+}

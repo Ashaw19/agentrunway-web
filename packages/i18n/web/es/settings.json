@@ -1,0 +1,50 @@
+{
+  "title": "Settings",
+  "sections": {
+    "aiVoice": "Your AI Voice",
+    "profileIdentity": "Profile Identity",
+    "provinceTax": "Province & Tax",
+    "localMarketBoard": "Local Market Board",
+    "businessStructure": "Business Structure",
+    "commissionStructure": "Commission Structure",
+    "postCapSplit": "Post-Cap Split",
+    "postCapSplitOptional": "(optional)",
+    "brokerageFees": "Brokerage Fees",
+    "runwayInputs": "Runway Inputs",
+    "annualGoal": "Annual Goal",
+    "growthPlan": "5-Year Growth Plan",
+    "claimingDeductions": "Claiming & Deductions",
+    "bankConnections": "Bank Connections",
+    "googleIntegrations": "Google Integrations",
+    "planBilling": "Plan & Billing"
+  },
+  "fields": {
+    "displayName": "Display Name",
+    "email": "Email",
+    "province": "Province",
+    "goalGCI": "Annual GCI Goal",
+    "cashReserve": "Cash Reserve",
+    "splitPreset": "Commission Split",
+    "monthlyBrokerageFee": "Monthly Brokerage Fee",
+    "txFeeRate": "Transaction Fee Rate",
+    "txFeeAnnualCap": "Annual Fee Cap",
+    "experienceYears": "Years of Experience",
+    "colorTheme": "Color Theme"
+  },
+  "actions": {
+    "save": "Save Changes",
+    "saved": "Saved",
+    "addBankAccount": "Add Bank Account",
+    "connectGoogle": "Connect Google",
+    "disconnectGoogle": "Disconnect",
+    "deleteAccount": "Delete Account",
+    "manageSubscription": "Manage Subscription"
+  },
+  "messages": {
+    "googleConnected": "Google account connected successfully!",
+    "googleDisconnected": "Google account disconnected.",
+    "disconnectError": "Could not disconnect. Please try again.",
+    "settingsSaved": "Settings saved."
+  },
+  "_TODO": "TRANSLATE: These are English placeholder strings for locale es"
+}

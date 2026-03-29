@@ -12,6 +12,7 @@ import {
 } from "lucide-react-native";
 import { useColors, Radius, useTheme, gradients, shadows } from "@/lib/theme";
 import { useDataStore } from "@/stores/data-store";
+import { useT } from "@/lib/useT";
 
 const ICON_SIZE = 21;
 
@@ -20,6 +21,7 @@ export default function AppLayout() {
   const { mode } = useTheme();
   const g = gradients(mode);
   const sh = shadows(mode);
+  const { t } = useT("common");
 
   const { tasks, transactions, clients, pipeline, smartListCounts } = useDataStore();
 
@@ -74,7 +76,7 @@ export default function AppLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Dashboard",
+          title: t("tabs.dashboard"),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused} mode={mode}>
               <LayoutDashboard size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.6} />
@@ -86,7 +88,7 @@ export default function AppLayout() {
       <Tabs.Screen
         name="deals"
         options={{
-          title: "Deals",
+          title: t("tabs.deals"),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused} mode={mode}>
               <Handshake size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.6} />
@@ -141,7 +143,7 @@ export default function AppLayout() {
       <Tabs.Screen
         name="clients"
         options={{
-          title: "Clients",
+          title: t("tabs.clients"),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused} mode={mode}>
               <Users size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.6} />
@@ -153,7 +155,7 @@ export default function AppLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: "More",
+          title: t("tabs.more"),
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused} mode={mode}>
               <Menu size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.6} />
