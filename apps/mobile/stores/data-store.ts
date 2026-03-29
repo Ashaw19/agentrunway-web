@@ -213,6 +213,19 @@ interface DataStore {
   overdueFollowupClients: () => Client[];
   uncontactedLeadClients: () => Client[];
   hotPipelineDeals: () => PipelineDeal[];
+
+  // Activity Tracking
+  /** Number of activities logged today (across all clients) */
+  todayActivityCount: () => number;
+  /** Number of consecutive days with at least 1 activity logged */
+  contactStreak: () => number;
+  /** Get pipeline context for a client (for smart note suggestions) */
+  clientPipelineContext: (clientName: string) => string | null;
+  /** Quick-log an activity with minimal friction (no notes required) */
+  quickLogActivity: (
+    clientId: string,
+    type: "call" | "text" | "email" | "voicemail"
+  ) => Promise<boolean>;
 }
 
 // Cache key
@@ -1056,6 +1069,117 @@ export const useDataStore = create<DataStore>((set, get) => {
           d.stage === "conditional" ||
           d.stage === "firm"
       );
+    },
+
+    // ── Activity Tracking ───────────────────────────────────────────────────
+
+    todayActivityCount: () => {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const allActivities = Object.values(get().clientActivities).flat();
+      return allActivities.filter((a) =>
+        a.activity_date.startsWith(todayStr)
+      ).length;
+    },
+
+    contactStreak: () => {
+      const allActivities = Object.values(get().clientActivities).flat();
+      if (allActivities.length === 0) return 0;
+
+      // Get unique dates with activity (sorted newest first)
+      const dates = [
+        ...new Set(
+          allActivities.map((a) => a.activity_date.split("T")[0])
+        ),
+      ].sort((a, b) => b.localeCompare(a));
+
+      if (dates.length === 0) return 0;
+
+      // Check if today or yesterday has activity (streak must be current)
+      const today = new Date().toISOString().split("T")[0];
+      const yesterday = new Date(Date.now() - 86400000)
+        .toISOString()
+        .split("T")[0];
+      if (dates[0] !== today && dates[0] !== yesterday) return 0;
+
+      let streak = 1;
+      for (let i = 1; i < dates.length; i++) {
+        const prev = new Date(dates[i - 1]).getTime();
+        const curr = new Date(dates[i]).getTime();
+        if (prev - curr <= 86400000 * 1.5) {
+          streak++;
+        } else {
+          break;
+        }
+      }
+      return streak;
+    },
+
+    clientPipelineContext: (clientName: string) => {
+      const state = get();
+      const q = clientName.toLowerCase();
+      const deals = state.pipeline.filter(
+        (d) => d.client_name && d.client_name.toLowerCase() === q
+      );
+      if (deals.length === 0) return null;
+
+      const deal = deals[0];
+      const stage =
+        deal.stage.charAt(0).toUpperCase() + deal.stage.slice(1);
+      const price =
+        deal.estimated_price >= 1_000_000
+          ? `$${(deal.estimated_price / 1_000_000).toFixed(1)}M`
+          : deal.estimated_price >= 1_000
+            ? `$${(deal.estimated_price / 1_000).toFixed(0)}K`
+            : `$${Math.round(deal.estimated_price)}`;
+      const addr = deal.address ? ` at ${deal.address}` : "";
+      return `${stage} deal${addr} · ${price}`;
+    },
+
+    quickLogActivity: async (clientId, type) => {
+      const toast = useToastStore.getState();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      const description =
+        type === "voicemail"
+          ? "Left voicemail"
+          : type === "email"
+            ? "Sent email"
+            : null;
+      const actType = type === "voicemail" ? "call" : type;
+
+      const { error } = await supabase
+        .from("contact_activities")
+        .insert({
+          client_id: clientId,
+          user_id: user.id,
+          type: actType,
+          description,
+          activity_date: new Date().toISOString(),
+        });
+
+      if (error) {
+        console.error("quickLogActivity error:", error);
+        useOfflineQueueStore.getState().enqueue("addActivity", {
+          client_id: clientId,
+          type: actType,
+          description,
+          activity_date: new Date().toISOString(),
+        });
+        toast.show("Saved locally — will sync when online", "info");
+        return true;
+      }
+
+      // Invalidate activity cache for this client
+      const prev = get()._clientActivitiesFetchedAt;
+      set({
+        _clientActivitiesFetchedAt: { ...prev, [clientId]: 0 },
+      });
+
+      toast.show("Activity logged \u2713", "success");
+      return true;
     },
   };
 });

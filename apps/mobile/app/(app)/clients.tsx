@@ -26,6 +26,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import {
   Phone,
   MessageSquare,
@@ -154,6 +155,7 @@ export default function ClientsScreen() {
   const {
     clients, fetchClients, addClient, addActivity, updateClient, isLoading,
     smartListCounts, overdueFollowupClients, uncontactedLeadClients,
+    clientPipelineContext,
   } = useDataStore();
   const [filter, setFilter] = useState<Filter>("all");
   const [smartFilter, setSmartFilter] = useState<"overdue" | "uncontacted" | null>(null);
@@ -165,6 +167,8 @@ export default function ClientsScreen() {
     clientId: string;
     clientName: string;
     type: ContactType;
+    daysSinceContact: number | null;
+    pipelineContext: string | null;
   } | null>(null);
   const [showPostContact, setShowPostContact] = useState(false);
 
@@ -191,32 +195,43 @@ export default function ClientsScreen() {
     setRefreshing(false);
   };
 
+  const getContactContext = useCallback((client: Client) => {
+    const daysSince = client.last_contact_at
+      ? Math.floor((Date.now() - new Date(client.last_contact_at).getTime()) / 86400000)
+      : null;
+    const pipeline = clientPipelineContext(client.name);
+    return { daysSinceContact: daysSince, pipelineContext: pipeline };
+  }, [clientPipelineContext]);
+
   const handleCall = useCallback((client: Client) => {
     if (!client.phone) {
       Alert.alert("No phone number", "Add a phone number for this client first.");
       return;
     }
-    setPendingContact({ clientId: client.id, clientName: client.name, type: "call" });
+    const ctx = getContactContext(client);
+    setPendingContact({ clientId: client.id, clientName: client.name, type: "call", ...ctx });
     Linking.openURL(`tel:${client.phone}`);
-  }, []);
+  }, [getContactContext]);
 
   const handleText = useCallback((client: Client) => {
     if (!client.phone) {
       Alert.alert("No phone number", "Add a phone number for this client first.");
       return;
     }
-    setPendingContact({ clientId: client.id, clientName: client.name, type: "text" });
+    const ctx = getContactContext(client);
+    setPendingContact({ clientId: client.id, clientName: client.name, type: "text", ...ctx });
     Linking.openURL(`sms:${client.phone}`);
-  }, []);
+  }, [getContactContext]);
 
   const handleEmail = useCallback((client: Client) => {
     if (!client.email) {
       Alert.alert("No email", "Add an email for this client first.");
       return;
     }
-    setPendingContact({ clientId: client.id, clientName: client.name, type: "email" });
+    const ctx = getContactContext(client);
+    setPendingContact({ clientId: client.id, clientName: client.name, type: "email", ...ctx });
     Linking.openURL(`mailto:${client.email}`);
-  }, []);
+  }, [getContactContext]);
 
   const handlePostContactLog = useCallback(
     async (activityType: ActivityType, notes: string) => {
@@ -572,6 +587,8 @@ export default function ClientsScreen() {
         <PostContactSheet
           contactType={pendingContact.type}
           clientName={pendingContact.clientName}
+          daysSinceContact={pendingContact.daysSinceContact}
+          pipelineContext={pendingContact.pipelineContext}
           onLog={handlePostContactLog}
           onSkip={handlePostContactSkip}
         />
@@ -707,11 +724,15 @@ function ClientRow({
 function PostContactSheet({
   contactType,
   clientName,
+  daysSinceContact,
+  pipelineContext,
   onLog,
   onSkip,
 }: {
   contactType: ContactType;
   clientName: string;
+  daysSinceContact: number | null;
+  pipelineContext: string | null;
   onLog: (activityType: ActivityType, notes: string) => void;
   onSkip: () => void;
 }) {
@@ -721,9 +742,22 @@ function PostContactSheet({
     contactType === "email" ? "note" : contactType
   );
   const [saving, setSaving] = useState(false);
-  const notesRef = useRef<TextInput>(null);
 
   const title = CONTACT_TYPE_TITLES[contactType];
+
+  // Build context string
+  const contextLine = daysSinceContact !== null
+    ? daysSinceContact === 0
+      ? "You contacted them earlier today"
+      : daysSinceContact === 1
+        ? "Last contact was yesterday"
+        : `First contact in ${daysSinceContact} days`
+    : "First ever contact with this client";
+
+  // Suggested note based on pipeline
+  const suggestedNote = pipelineContext
+    ? `Follow-up re: ${pipelineContext}`
+    : null;
 
   const activityTypes: ActivityType[] = ["call", "text", "meeting", "showing", "note"];
 
@@ -735,13 +769,38 @@ function PostContactSheet({
 
   return (
     <Sheet visible onClose={onSkip} title={title}>
-      {/* Client name */}
+      {/* Client name + context */}
       <View style={styles.postContactClientRow}>
         <Ionicons name="person-circle" size={24} color={c.primary} />
-        <Text style={[Type.h3, { color: c.text, flex: 1 }]} numberOfLines={1}>
-          {clientName}
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[Type.h3, { color: c.text }]} numberOfLines={1}>
+            {clientName}
+          </Text>
+          <Text style={[Type.caption, { color: daysSinceContact !== null && daysSinceContact > 14 ? "#F59E0B" : c.textDim, marginTop: 2 }]}>
+            {contextLine}
+          </Text>
+        </View>
       </View>
+
+      {/* Pipeline context badge */}
+      {pipelineContext && (
+        <View style={{
+          backgroundColor: c.primaryDim,
+          borderRadius: Radius.md,
+          padding: Space.md,
+          marginBottom: Space.lg,
+          borderWidth: 1,
+          borderColor: c.primaryBorder,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: Space.sm,
+        }}>
+          <Ionicons name="briefcase-outline" size={14} color={c.primary} />
+          <Text style={[Type.caption, { color: c.primaryLight, flex: 1 }]}>
+            {pipelineContext}
+          </Text>
+        </View>
+      )}
 
       {/* Activity type selector */}
       <Text style={[Type.caption, { color: c.textMuted, marginBottom: Space.sm, marginLeft: Space.xs }]}>
@@ -783,15 +842,25 @@ function PostContactSheet({
         })}
       </View>
 
-      {/* Notes input */}
+      {/* Notes input with suggested note */}
       <View style={{ marginTop: Space.lg }}>
         <Input
           label="Notes"
           value={notes}
           onChange={setNotes}
-          placeholder="What did you discuss?"
+          placeholder={suggestedNote ?? "What did you discuss?"}
           multiline
         />
+        {suggestedNote && !notes && (
+          <Pressable
+            onPress={() => setNotes(suggestedNote)}
+            style={{ marginTop: Space.xs }}
+          >
+            <Text style={[Type.micro, { color: c.primary }]}>
+              Tap to use: &quot;{suggestedNote}&quot;
+            </Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Action buttons */}
@@ -886,7 +955,10 @@ function ClientDetailSheet({
     clientActivities,
     fetchClientActivities,
     getClientDeals,
+    quickLogActivity,
   } = useDataStore();
+
+  const [quickLogging, setQuickLogging] = useState<string | null>(null);
 
   const [activitiesLoading, setActivitiesLoading] = useState(true);
 
@@ -1132,6 +1204,56 @@ function ClientDetailSheet({
           color={c.purple}
           onPress={() => onEmail(client)}
         />
+      </View>
+
+      {/* ── Quick-Log Buttons (one-tap, no sheet) ── */}
+      <View style={{ marginBottom: Space.lg }}>
+        <Text style={[Type.label, { color: c.textMuted, marginBottom: Space.sm }]}>
+          QUICK LOG
+        </Text>
+        <View style={{ flexDirection: "row", gap: Space.sm }}>
+          {(
+            [
+              { key: "call", label: "Just called", icon: "call" as const, color: "#10B981" },
+              { key: "text", label: "Just texted", icon: "chatbubble-ellipses" as const, color: "#3B82F6" },
+              { key: "voicemail", label: "Voicemail", icon: "recording" as const, color: "#8B5CF6" },
+            ] as const
+          ).map((q) => (
+            <Pressable
+              key={q.key}
+              onPress={async () => {
+                setQuickLogging(q.key);
+                try {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                } catch {}
+                await quickLogActivity(client.id, q.key as any);
+                await fetchClientActivities(client.id);
+                setQuickLogging(null);
+              }}
+              disabled={quickLogging !== null}
+              style={({ pressed }) => [
+                {
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 4,
+                  paddingVertical: Space.sm + 2,
+                  borderRadius: Radius.md,
+                  backgroundColor: quickLogging === q.key ? q.color + "30" : q.color + "12",
+                  borderWidth: 1,
+                  borderColor: q.color + "25",
+                },
+                pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] },
+              ]}
+            >
+              <Ionicons name={q.icon} size={14} color={q.color} />
+              <Text style={{ fontSize: 11, fontWeight: "700", color: q.color }}>
+                {quickLogging === q.key ? "Logged!" : q.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
 
       {/* ── Tags ── */}

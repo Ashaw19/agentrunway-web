@@ -431,7 +431,7 @@ export default function DashboardScreen() {
     fetchAll, fetchOutreach, fetchReceipts, isLoading, lastFetched,
     settings, transactions, pipeline, tasks, clients,
     outreachReadyCount, ytdGci, ytdDealCount, pipelineValue, runwayScore,
-    todayBriefing,
+    todayBriefing, todayActivityCount, contactStreak,
   } = useDataStore();
   const [refreshing, setRefreshing] = useState(false);
   const [, setTick] = useState(0);
@@ -501,6 +501,8 @@ export default function DashboardScreen() {
   }, [overdueTasks.length, outreachCount, pending, followUpsDue]);
 
   const briefing = useMemo(() => todayBriefing(), [clients, pipeline, tasks]);
+  const streak = contactStreak();
+  const todayCount = todayActivityCount();
 
   const handleBriefingPress = useCallback(
     (item: BriefingItem) => {
@@ -560,6 +562,72 @@ export default function DashboardScreen() {
                   ? formatLastSynced(lastFetched)
                   : ""}
         </Text>
+
+        {/* ── 2b. Activity Streak (positive reinforcement) ── */}
+        {(todayCount > 0 || streak >= 2) && (
+          <View
+            style={{
+              flexDirection: "row",
+              gap: Space.sm,
+              marginBottom: Space.lg,
+            }}
+          >
+            {todayCount > 0 && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 5,
+                  backgroundColor: c.successDim,
+                  paddingHorizontal: Space.md,
+                  paddingVertical: Space.xs + 1,
+                  borderRadius: Radius.pill,
+                  borderWidth: 1,
+                  borderColor: "rgba(16,185,129,0.20)",
+                }}
+              >
+                <CheckCircle2 size={12} color={c.success} />
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "700",
+                    color: c.success,
+                  }}
+                >
+                  {todayCount} logged today
+                </Text>
+              </View>
+            )}
+            {streak >= 2 && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 5,
+                  backgroundColor: c.goldDim,
+                  paddingHorizontal: Space.md,
+                  paddingVertical: Space.xs + 1,
+                  borderRadius: Radius.pill,
+                  borderWidth: 1,
+                  borderColor: "rgba(240,168,0,0.20)",
+                }}
+              >
+                <Text style={{ fontSize: 11 }}>
+                  {streak >= 7 ? "\uD83D\uDD25" : "\u2B50"}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: "700",
+                    color: c.gold,
+                  }}
+                >
+                  {streak}-day streak
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* ── 3. Runway Score Hero Card ── */}
         <View style={[{ borderRadius: Radius.xxl, overflow: "hidden", marginBottom: Space.xxl }, sh.cardLg]}>
