@@ -37,5 +37,5 @@ export const localeNames: Record<Locale, string> = {
 export const routing = defineRouting({
   locales,
   defaultLocale,
-  localePrefix: "as-needed",
+  localePrefix: "never",
 });
