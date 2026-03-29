@@ -20,6 +20,7 @@ export default function ProfileLayout() {
       <Stack.Screen name="forecast" options={{ title: "Income Forecast" }} />
       <Stack.Screen name="expenses" options={{ title: "Expenses" }} />
       <Stack.Screen name="settings" options={{ title: "Goals & Settings" }} />
+      <Stack.Screen name="notification-settings" options={{ title: "Notifications" }} />
     </Stack>
   );
 }

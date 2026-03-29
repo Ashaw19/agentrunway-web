@@ -25,6 +25,7 @@ import {
   Zap,
   Sun,
   Moon,
+  Bell,
 } from "lucide-react-native";
 import {
   useColors,
@@ -424,6 +425,15 @@ export default function ProfileScreen() {
                   : "Set your annual targets"
               }
               onPress={() => router.push("/profile/settings")}
+              c={c}
+            />
+            <View style={{ height: 1, backgroundColor: c.cardBorder, marginLeft: 40 + Space.md + Space.lg }} />
+            <MenuItem
+              icon={<Bell size={18} color={c.warning} />}
+              iconBg={c.warningDim}
+              label="Notifications"
+              description="Morning briefing, deal alerts, follow-ups"
+              onPress={() => router.push("/profile/notification-settings")}
               c={c}
             />
           </Card>
