@@ -586,6 +586,15 @@ export default function DashboardScreen() {
         {/* ── 1. Greeting ── */}
         <FadeIn delay={0}>
           <View style={{ paddingTop: Space.lg }}>
+            {/* Agent Runway brand mark */}
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Space.sm }}>
+              <Text style={{ fontSize: 10, fontWeight: "500", letterSpacing: 1.5, color: "#8CA4C8" }}>
+                AGENT
+              </Text>
+              <Text style={{ fontSize: 10, fontWeight: "700", letterSpacing: 1.5, color: c.primary, marginLeft: 4 }}>
+                RUNWAY
+              </Text>
+            </View>
             <Text style={{ ...Type.caption, color: c.textDim }}>{t(getGreetingKey())}</Text>
             <Text style={{ ...Type.hero, color: c.text, marginTop: 2 }} numberOfLines={1}>
               {displayName.split(" ")[0]}

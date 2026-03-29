@@ -15,6 +15,12 @@ import {
 import { Sheet } from "@/components/ui";
 import { useColors, Space, Radius, Type, fmtCurrency } from "@/lib/theme";
 import { useDataStore } from "@/stores/data-store";
+import {
+  compare as benchmarkCompare,
+} from "@agent-runway/core/engines/benchmark-engine";
+import {
+  survivalResult as computeSurvival,
+} from "@agent-runway/core/engines/survival-engine";
 
 interface ScoreComponent {
   key: string;
@@ -120,35 +126,49 @@ function computeComponents(state: ReturnType<typeof useDataStore>): ScoreCompone
     else readinessTip = "Set GCI goal and transaction target on web dashboard";
   }
 
-  // 5. Benchmark
-  const benchmarkScore = 50;
-  const benchmarkTip = "Benchmark data updates monthly from CREA stats";
+  // 5. Benchmark (same core engine as web — uses projected GCI + experience years)
+  const projectedGCI = fraction > 0 ? ytdGCI / fraction : 0;
+  const benchmark = benchmarkCompare(projectedGCI, settings?.experience_years ?? null);
+  const benchmarkScore = benchmark.percentile;
+  let benchmarkTip = "Benchmark data updates monthly from CREA stats";
+  if (benchmarkScore >= 75)
+    benchmarkTip = `P${benchmarkScore} — outperforming most of your cohort`;
+  else if (benchmarkScore >= 50)
+    benchmarkTip = `P${benchmarkScore} — above median for your experience level`;
+  else if (benchmarkScore >= 25)
+    benchmarkTip = `P${benchmarkScore} — below median, but closing deals will improve this`;
+  else
+    benchmarkTip = `P${benchmarkScore} — early in the year, this will rise as you close deals`;
 
-  // 6. Survival
-  let survivalScore = 50;
-  let survivalTip = "Add your cash reserve to calculate survival months";
-  const cashReserve = settings?.cash_reserve ?? 0;
-  const monthlyFee = settings?.monthly_brokerage_fee ?? 0;
-  const monthlyExpenses =
-    state.receipts.length > 0
-      ? state.receipts.reduce((sum, r) => sum + (r.total_amount ?? 0), 0) /
-        Math.max(fraction * 12, 1)
-      : monthlyFee;
-  if (cashReserve > 0 && monthlyExpenses > 0) {
-    const months = cashReserve / monthlyExpenses;
-    if (months >= 6) {
-      survivalScore = 95;
-      survivalTip = `${months.toFixed(0)} months runway — very healthy`;
-    } else if (months >= 4) {
-      survivalScore = 75;
-      survivalTip = `${months.toFixed(0)} months runway — solid`;
-    } else if (months >= 2) {
-      survivalScore = 50;
-      survivalTip = `${months.toFixed(0)} months runway — consider building reserves`;
-    } else {
-      survivalScore = 25;
-      survivalTip = `${months.toFixed(1)} months runway — low buffer`;
-    }
+  // 6. Survival (same core engine as web — uses brokerage fee + recurring expenses)
+  const expensesYTD = state.receipts.reduce((sum, r) => sum + (r.total_amount ?? 0), 0);
+  const monthlyRecurring = expensesYTD > 0
+    ? expensesYTD / Math.max(now.getMonth() + 1, 1)
+    : 0;
+  const pipelineMonthlyEst = fraction > 0 ? (pipelineWeightedGCI * 0.5) / 12 : 0;
+  const survival = computeSurvival(
+    settings?.monthly_brokerage_fee ?? 0,
+    monthlyRecurring,
+    settings?.cash_reserve ?? 0,
+    pipelineMonthlyEst,
+  );
+  let survivalScore: number;
+  let survivalTip: string;
+  if (survival.months < 0) {
+    survivalScore = 50;
+    survivalTip = "Add your cash reserve to calculate survival months";
+  } else if (survival.months >= 6) {
+    survivalScore = 95;
+    survivalTip = `${survival.months.toFixed(0)} months runway — very healthy`;
+  } else if (survival.months >= 4) {
+    survivalScore = 75;
+    survivalTip = `${survival.months.toFixed(0)} months runway — solid`;
+  } else if (survival.months >= 2) {
+    survivalScore = 50;
+    survivalTip = `${survival.months.toFixed(0)} months runway — consider building reserves`;
+  } else {
+    survivalScore = 25;
+    survivalTip = `${survival.months.toFixed(1)} months runway — low buffer`;
   }
 
   return [
