@@ -9,18 +9,27 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Link } from "expo-router";
+import { Globe, ChevronRight } from "lucide-react-native";
+import { useTranslation } from "react-i18next";
+import { getLocaleName, type SupportedLocale } from "@agent-runway/i18n";
 import { useAuth } from "@/lib/auth-context";
 import { useT } from "@/lib/useT";
+import { LanguagePicker } from "@/components/LanguagePicker";
 
 export default function SignUpScreen() {
   const { signUp } = useAuth();
   const { t } = useT("auth");
+  const { i18n } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [languagePickerVisible, setLanguagePickerVisible] = useState(false);
+
+  const currentLocale = i18n.language as SupportedLocale;
+  const currentLanguageName = getLocaleName(currentLocale);
 
   const handleSignUp = async () => {
     setError(null);
@@ -88,6 +97,39 @@ export default function SignUpScreen() {
             {t("signup.subtitle")}
           </Text>
         </View>
+
+        {/* Language Selector */}
+        <Pressable
+          onPress={() => setLanguagePickerVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel={t("language.chooseLanguage")}
+          style={({ pressed }) => ({
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: "#1A1A2E",
+            borderRadius: 12,
+            padding: 14,
+            borderWidth: 1,
+            borderColor: "#2D2D44",
+            opacity: pressed ? 0.85 : 1,
+          })}
+        >
+          <Globe size={18} color="#6366F1" style={{ marginRight: 10 }} />
+          <Text style={{ color: "#9CA3AF", fontSize: 14, marginRight: 4 }}>
+            {t("language.chooseLanguage")}:
+          </Text>
+          <Text
+            style={{
+              color: "#FFFFFF",
+              fontSize: 14,
+              fontWeight: "600",
+              flex: 1,
+            }}
+          >
+            {currentLanguageName}
+          </Text>
+          <ChevronRight size={16} color="#9CA3AF" />
+        </Pressable>
 
         {/* Success Message */}
         {success ? (
@@ -261,6 +303,12 @@ export default function SignUpScreen() {
           </Link>
         </View>
       </View>
+
+      {/* Language Picker Bottom Sheet */}
+      <LanguagePicker
+        visible={languagePickerVisible}
+        onClose={() => setLanguagePickerVisible(false)}
+      />
     </KeyboardAvoidingView>
   );
 }
