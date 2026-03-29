@@ -8,6 +8,7 @@ import {
   RefreshControl,
   StyleSheet,
   TextInput,
+  type DimensionValue,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -680,7 +681,7 @@ export default function DashboardScreen() {
           ]}
         >
           <LinearGradient
-            colors={g.heroCard as unknown as string[]}
+            colors={g.heroCard as string[]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={{ paddingVertical: Space.xxl, paddingHorizontal: Space.xxl, alignItems: "center" }}
@@ -845,9 +846,9 @@ export default function DashboardScreen() {
             </View>
             <View style={{ height: 8, borderRadius: 4, backgroundColor: "rgba(128,128,128,0.10)", overflow: "hidden" }}>
               <LinearGradient
-                colors={goalPct >= 100 ? (g.successBar as unknown as string[]) : (g.progressBar as unknown as string[])}
+                colors={goalPct >= 100 ? (g.successBar as string[]) : (g.progressBar as string[])}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                style={{ height: 8, borderRadius: 4, width: `${Math.min(goalPct, 100)}%` as any }}
+                style={{ height: 8, borderRadius: 4, width: `${Math.min(goalPct, 100)}%` as DimensionValue }}
               />
             </View>
             <Text style={{ ...Type.micro, color: c.textDim, marginTop: Space.sm }}>

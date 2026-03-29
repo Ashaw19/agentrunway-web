@@ -4,7 +4,7 @@
  */
 
 import { useMemo } from "react";
-import { View, Text, ScrollView } from "react-native";
+import { View, Text, ScrollView, type DimensionValue } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -105,7 +105,7 @@ export default function ForecastScreen() {
       >
         {/* ── Projection Hero Card ── */}
         <View style={[{ borderRadius: Radius.xl, overflow: "hidden", marginBottom: Space.xxl }, sh.cardLg]}>
-          <LinearGradient colors={g.heroCard as unknown as string[]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: Space.xxl }}>
+          <LinearGradient colors={g.heroCard as string[]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: Space.xxl }}>
             <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>PROJECTED YEAR-END GCI</Text>
             <Text style={{ fontSize: 36, fontWeight: "800", color: forecast.onTrackGci ? c.success : c.warning, letterSpacing: -1 }}>
               {fmtCurrency(forecast.projectedGci)}
@@ -123,7 +123,7 @@ export default function ForecastScreen() {
                 </View>
                 <View style={{ height: 8, borderRadius: 4, backgroundColor: "rgba(128,128,128,0.15)", overflow: "hidden" }}>
                   <LinearGradient
-                    colors={goalPct >= 100 ? (g.successBar as unknown as string[]) : (g.progressBar as unknown as string[])}
+                    colors={goalPct >= 100 ? (g.successBar as string[]) : (g.progressBar as string[])}
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                     style={{ height: 8, borderRadius: 4, width: `${Math.min(goalPct, 100)}%` as any }}
                   />

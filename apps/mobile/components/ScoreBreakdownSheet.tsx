@@ -3,7 +3,7 @@
  * Each component shows its weight, individual score, and one-line improvement tip.
  */
 
-import { View, Text } from "react-native";
+import { View, Text, type DimensionValue } from "react-native";
 import {
   TrendingUp,
   Briefcase,
@@ -26,8 +26,7 @@ interface ScoreComponent {
   tip: string;
 }
 
-function computeComponents(): ScoreComponent[] {
-  const state = useDataStore.getState();
+function computeComponents(state: ReturnType<typeof useDataStore>): ScoreComponent[] {
   const settings = state.settings;
   const ytdGCI = state.ytdGci();
   const goalGCI = settings?.goal_gci ?? 0;
@@ -227,7 +226,8 @@ export function ScoreBreakdownSheet({
   totalScore: number;
 }) {
   const c = useColors();
-  const components = computeComponents();
+  const store = useDataStore();
+  const components = computeComponents(store);
 
   return (
     <Sheet visible={visible} onClose={onClose} title="Runway Score Breakdown">
@@ -338,7 +338,7 @@ export function ScoreBreakdownSheet({
                     style={{
                       height: 4,
                       borderRadius: 2,
-                      width: `${barWidth}%` as any,
+                      width: `${barWidth}%` as DimensionValue,
                       backgroundColor: scoreColor(comp.score),
                     }}
                   />

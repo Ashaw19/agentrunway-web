@@ -125,20 +125,20 @@ export function gradients(mode: ThemeMode) {
   const dark = mode === "dark";
   return {
     // Web: --gradient-runway (navy → blue)
-    heroCard:    dark ? ["#161640", "#111126"] as const : ["#EEF0FF", "#FFFFFF"] as const,
+    heroCard:    dark ? ["#161640", "#111126"] : ["#EEF0FF", "#FFFFFF"],
     // Web: --gradient-growth (emerald → teal)
-    growthCard:  dark ? ["#0A2A1A", "#0E1420"] as const : ["#ECFDF5", "#FFFFFF"] as const,
-    tabBar:      dark ? ["#111126", "#0E0E1A"] as const : ["#FFFFFF", "#F8F9FB"] as const,
+    growthCard:  dark ? ["#0A2A1A", "#0E1420"] : ["#ECFDF5", "#FFFFFF"],
+    tabBar:      dark ? ["#111126", "#0E0E1A"] : ["#FFFFFF", "#F8F9FB"],
     // Web: --gradient-ascent (blue → violet)
-    mic:         ["#3B5EF6", "#5B4FE5"] as const,
-    micActive:   ["#EF4444", "#DC2626"] as const,
+    mic:         ["#3B5EF6", "#5B4FE5"],
+    micActive:   ["#EF4444", "#DC2626"],
     // Web: Runway Blue → Runway Blue lighter
-    progressBar: ["#3B5EF6", "#6380F8"] as const,
-    successBar:  ["#10B981", "#34D399"] as const,
+    progressBar: ["#3B5EF6", "#6380F8"],
+    successBar:  ["#10B981", "#34D399"],
     // Web: --gradient-commission (gold → dark gold)
-    goldBar:     ["#F0A800", "#D97706"] as const,
+    goldBar:     ["#F0A800", "#D97706"],
     // Web: --gradient-horizon (gold → blue → violet)
-    horizon:     ["#F0A800", "#3B5EF6", "#8B5CF6"] as const,
+    horizon:     ["#F0A800", "#3B5EF6", "#8B5CF6"],
   };
 }
 

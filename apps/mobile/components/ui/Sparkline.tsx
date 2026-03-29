@@ -75,11 +75,12 @@ export function Sparkline({
   const { linePath, fillPath } = buildPath(data, width, height);
 
   useEffect(() => {
+    progress.value = 0;
     progress.value = withTiming(1, {
       duration: 800,
       easing: Easing.out(Easing.cubic),
     });
-  }, [data]);
+  }, [data, progress]);
 
   const animatedLineProps = useAnimatedProps(() => ({
     strokeDashoffset: (1 - progress.value) * 200,

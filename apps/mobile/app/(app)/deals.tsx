@@ -15,6 +15,7 @@ import {
   Pressable,
   RefreshControl,
   StyleSheet,
+  type DimensionValue,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
@@ -652,7 +653,7 @@ function PipelineCard({ deal, onPress }: { deal: PipelineDeal; onPress: () => vo
                 style={{
                   height: 4,
                   borderRadius: Radius.pill,
-                  width: `${prob}%` as any,
+                  width: `${prob}%` as DimensionValue,
                   backgroundColor: sc,
                 }}
               />

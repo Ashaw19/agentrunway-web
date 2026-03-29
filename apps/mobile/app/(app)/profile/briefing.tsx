@@ -4,7 +4,7 @@
  */
 
 import { useMemo, useCallback, useState } from "react";
-import { View, Text, ScrollView, RefreshControl } from "react-native";
+import { View, Text, ScrollView, RefreshControl, type DimensionValue } from "react-native";
 import { useRouter } from "expo-router";
 import { useDataStore } from "@/stores/data-store";
 import type { BriefingItem } from "@/stores/data-store";
@@ -233,7 +233,7 @@ export default function BriefingScreen() {
                 height: 6,
                 borderRadius: 3,
                 width:
-                  `${Math.min(Math.round((gci / goalGci) * 100), 100)}%` as any,
+                  `${Math.min(Math.round((gci / goalGci) * 100), 100)}%` as DimensionValue,
                 backgroundColor:
                   gci / goalGci >= doy / 365 ? "#10B981" : "#F59E0B",
               }}

@@ -44,7 +44,7 @@ export function FadeIn({
       delay,
       withSpring(0, { damping: 20, stiffness: 200, mass: 0.8 })
     );
-  }, []);
+  }, [delay, duration, opacity, translateY]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: opacity.value,

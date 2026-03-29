@@ -4,12 +4,13 @@
  */
 
 import React from "react";
-import { View, type ViewStyle } from "react-native";
+import { type ViewStyle } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
   withTiming,
+  interpolate,
   Easing,
 } from "react-native-reanimated";
 import { useColors, Radius } from "@/lib/theme";
@@ -28,18 +29,18 @@ export function Skeleton({
   style,
 }: SkeletonProps) {
   const c = useColors();
-  const translateX = useSharedValue(-1);
+  const progress = useSharedValue(0);
 
   React.useEffect(() => {
-    translateX.value = withRepeat(
+    progress.value = withRepeat(
       withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
       -1,
-      false
+      true
     );
-  }, []);
+  }, [progress]);
 
   const shimmerStyle = useAnimatedStyle(() => ({
-    opacity: 0.3 + (1 + Math.sin(translateX.value * Math.PI)) * 0.2,
+    opacity: interpolate(progress.value, [0, 0.5, 1], [0.3, 0.7, 0.3]),
   }));
 
   return (
