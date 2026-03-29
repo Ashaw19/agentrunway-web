@@ -130,7 +130,6 @@ function computeComponents(state: ReturnType<typeof useDataStore>): ScoreCompone
   }
 
   // 5. Benchmark (same core engine as web — uses projected GCI + experience years)
-  const goalGCI = settings?.goal_gci ?? 0;
   const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, goalGCI);
   const benchmark = benchmarkCompare(projectedGCI, settings?.experience_years ?? null);
   const benchmarkScore = benchmark.percentile;
