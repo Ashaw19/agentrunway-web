@@ -163,10 +163,6 @@ export default function AppLayout() {
           ),
         }}
       />
-      {/* Hidden routes — accessible via navigation but not shown in tab bar */}
-      <Tabs.Screen name="expenses" options={{ href: null }} />
-      <Tabs.Screen name="forecast" options={{ href: null }} />
-      <Tabs.Screen name="outreach" options={{ href: null }} />
     </Tabs>
   );
 }

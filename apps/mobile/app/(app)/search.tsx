@@ -569,7 +569,7 @@ function QuickActionsView({
       icon: Receipt,
       label: "Scan Receipt",
       color: c.gold,
-      onPress: () => router.navigate("/(app)/expenses"),
+      onPress: () => router.navigate("/profile/expenses"),
     },
   ];
 

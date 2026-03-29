@@ -25,6 +25,10 @@ import {
   UserCheck,
   CheckCircle2,
   Plus,
+  TrendingUp,
+  ArrowRight,
+  Briefcase,
+  Users,
 } from "lucide-react-native";
 import {
   useColors,
@@ -35,6 +39,7 @@ import {
   Radius,
   Type,
   fmtCurrency,
+  dayOfYear,
 } from "@/lib/theme";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Sheet } from "@/components/ui/Sheet";
@@ -58,22 +63,23 @@ function formatLastSynced(ts: number): string {
   const ago = Date.now() - ts;
   if (ago < 60_000) return "Updated just now";
   const mins = Math.round(ago / 60_000);
-  return `Updated ${mins} min ago`;
+  return `Updated ${mins}m ago`;
 }
 
 function runwayScoreMeta(score: number) {
-  return {
-    score,
-    label: score >= 80 ? "Excellent" : score >= 60 ? "On Track" : score >= 40 ? "Needs Focus" : "At Risk",
-    color: score >= 80 ? "#10B981" : score >= 60 ? "#6366F1" : score >= 40 ? "#F59E0B" : "#EF4444",
-  };
+  if (score >= 92) return { grade: "A+", label: "Excellent", color: "#10B981" };
+  if (score >= 85) return { grade: "A", label: "Excellent", color: "#10B981" };
+  if (score >= 75) return { grade: "B", label: "Strong", color: "#6366F1" };
+  if (score >= 62) return { grade: "C", label: "On Track", color: "#F59E0B" };
+  if (score >= 50) return { grade: "D", label: "Needs Focus", color: "#F59E0B" };
+  return { grade: "F", label: "At Risk", color: "#EF4444" };
 }
 
-// ── Small Runway Score Badge (inline, 28px) ─────────────────────────────────
+// ── Runway Score Gauge (Hero — 130px) ──────────────────────────────────────
 
-function RunwayBadge({ score, color }: { score: number; color: string }) {
-  const size = 28;
-  const sw = 2.5;
+function RunwayGauge({ score, color, textColor, dimColor }: { score: number; color: string; textColor: string; dimColor: string }) {
+  const size = 130;
+  const sw = 8;
   const r = (size - sw) / 2;
   const circ = 2 * Math.PI * r;
   const offset = circ * (1 - score / 100);
@@ -81,13 +87,16 @@ function RunwayBadge({ score, color }: { score: number; color: string }) {
   const cy = size / 2;
   return (
     <Svg width={size} height={size}>
-      <Circle cx={cx} cy={cy} r={r} stroke="rgba(128,128,128,0.15)" strokeWidth={sw} fill="none" />
+      <Circle cx={cx} cy={cy} r={r} stroke="rgba(128,128,128,0.10)" strokeWidth={sw} fill="none" />
       <Circle cx={cx} cy={cy} r={r} stroke={color} strokeWidth={sw} fill="none"
         strokeDasharray={circ} strokeDashoffset={offset}
         strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`}
       />
-      <SvgText x={cx} y={cy + 4} textAnchor="middle" fill={color} fontSize="10" fontWeight="800">
+      <SvgText x={cx} y={cy + 2} textAnchor="middle" fill={textColor} fontSize="38" fontWeight="800">
         {score}
+      </SvgText>
+      <SvgText x={cx} y={cy + 20} textAnchor="middle" fill={dimColor} fontSize="12" fontWeight="600">
+        /100
       </SvgText>
     </Svg>
   );
@@ -115,18 +124,20 @@ function ActionPill({
         {
           height: 36,
           borderRadius: 18,
-          backgroundColor: color + "26",
+          backgroundColor: color + "20",
           flexDirection: "row",
           alignItems: "center",
           paddingHorizontal: Space.md,
-          gap: Space.sm,
+          gap: 6,
           marginRight: Space.sm,
+          borderWidth: 1,
+          borderColor: color + "30",
         },
         pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] },
       ]}
     >
-      <Icon size={14} color={color} />
-      <Text style={{ color, fontSize: 13, fontWeight: "700" }}>
+      <Icon size={13} color={color} />
+      <Text style={{ color, fontSize: 12, fontWeight: "700" }}>
         {count} {label}
       </Text>
     </Pressable>
@@ -139,15 +150,17 @@ function AllCaughtUpPill({ color }: { color: string }) {
       style={{
         height: 36,
         borderRadius: 18,
-        backgroundColor: color + "26",
+        backgroundColor: color + "20",
         flexDirection: "row",
         alignItems: "center",
         paddingHorizontal: Space.md,
-        gap: Space.sm,
+        gap: 6,
+        borderWidth: 1,
+        borderColor: color + "30",
       }}
     >
-      <CheckCircle2 size={14} color={color} />
-      <Text style={{ color, fontSize: 13, fontWeight: "700" }}>All caught up</Text>
+      <CheckCircle2 size={13} color={color} />
+      <Text style={{ color, fontSize: 12, fontWeight: "700" }}>All caught up</Text>
     </View>
   );
 }
@@ -245,7 +258,6 @@ function QuickCaptureSheet({
       activity_date: new Date().toISOString(),
     });
     setSaving(false);
-    // Reset and close
     setClientQuery("");
     setSelectedClient(null);
     setActivityType("note");
@@ -266,7 +278,6 @@ function QuickCaptureSheet({
   return (
     <Sheet visible={visible} onClose={handleClose} title="Quick Capture">
       <View style={{ gap: Space.lg, paddingBottom: Space.lg }}>
-        {/* Client picker */}
         <View>
           <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>CLIENT</Text>
           <TextInput
@@ -289,7 +300,6 @@ function QuickCaptureSheet({
             }}
             autoCorrect={false}
           />
-          {/* Dropdown results */}
           {filteredClients.length > 0 && (
             <View
               style={{
@@ -328,13 +338,11 @@ function QuickCaptureSheet({
           )}
         </View>
 
-        {/* Activity type */}
         <View>
           <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>TYPE</Text>
           <ActivityTypePicker selected={activityType} onSelect={setActivityType} colors={c} />
         </View>
 
-        {/* Notes */}
         <View>
           <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>NOTES</Text>
           <TextInput
@@ -359,7 +367,6 @@ function QuickCaptureSheet({
           />
         </View>
 
-        {/* Save button */}
         <Pressable
           onPress={handleSave}
           disabled={!canSave}
@@ -389,26 +396,17 @@ function DashboardSkeleton() {
   const c = useColors();
   return (
     <View style={{ flex: 1, backgroundColor: c.bg, paddingHorizontal: Space.xl, paddingTop: Space.lg }}>
-      {/* Greeting */}
-      <Skeleton width={140} height={20} borderRadius={Radius.sm} />
-      {/* Name */}
-      <Skeleton width={220} height={36} borderRadius={Radius.sm} style={{ marginTop: Space.sm }} />
-      {/* Last synced */}
+      <Skeleton width={180} height={20} borderRadius={Radius.sm} />
+      <Skeleton width={260} height={36} borderRadius={Radius.sm} style={{ marginTop: Space.sm }} />
       <Skeleton width={100} height={12} borderRadius={Radius.sm} style={{ marginTop: Space.sm, marginBottom: Space.xl }} />
-      {/* Action pills row */}
-      <View style={{ flexDirection: "row", gap: Space.sm, marginBottom: Space.xl }}>
-        <Skeleton width={110} height={36} borderRadius={18} />
-        <Skeleton width={130} height={36} borderRadius={18} />
-        <Skeleton width={100} height={36} borderRadius={18} />
-        <Skeleton width={110} height={36} borderRadius={18} />
+      {/* Score card skeleton */}
+      <Skeleton width="100%" height={200} borderRadius={Radius.xl} style={{ marginBottom: Space.xl }} />
+      {/* Metrics row */}
+      <View style={{ flexDirection: "row", gap: Space.md, marginBottom: Space.xl }}>
+        <Skeleton width="48%" height={80} borderRadius={Radius.lg} />
+        <Skeleton width="48%" height={80} borderRadius={Radius.lg} />
       </View>
-      {/* Metrics card */}
-      <Skeleton width="100%" height={100} borderRadius={Radius.xl} style={{ marginBottom: Space.xl }} />
-      {/* Goal progress */}
-      <Skeleton width={80} height={10} borderRadius={Radius.sm} style={{ marginBottom: Space.sm }} />
       <Skeleton width="100%" height={6} borderRadius={3} style={{ marginBottom: Space.xl }} />
-      {/* Next task card */}
-      <Skeleton width={60} height={10} borderRadius={Radius.sm} style={{ marginBottom: Space.sm }} />
       <Skeleton width="100%" height={72} borderRadius={Radius.lg} />
     </View>
   );
@@ -436,13 +434,11 @@ export default function DashboardScreen() {
   useEffect(() => { fetchAll(); fetchOutreach(); fetchReceipts(); }, []);
   useFocusEffect(useCallback(() => { fetchAll(); fetchOutreach(); fetchReceipts(); }, []));
 
-  // Re-render every 30 s so the "Updated X ago" text stays fresh
   useEffect(() => {
     const interval = setInterval(() => setTick((t) => t + 1), 30_000);
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-refresh when app comes to foreground and data is stale (> 2 min)
   const appStateRef = useRef(AppState.currentState);
   useEffect(() => {
     const sub = AppState.addEventListener("change", (nextState) => {
@@ -473,42 +469,38 @@ export default function DashboardScreen() {
   const goalPct = goalGci > 0 ? Math.round((gci / goalGci) * 100) : 0;
   const displayName = settings?.display_name ?? user?.email?.split("@")[0] ?? "Agent";
   const outreachCount = outreachReadyCount;
-  const runway = runwayScoreMeta(runwayScore());
+  const score = runwayScore();
+  const meta = runwayScoreMeta(score);
 
   const { pendingCount: offlinePending, isOnline } = useOfflineQueueStore();
 
   const nextTask = tasks[0] ?? null;
   const overdueTasks = tasks.filter((t) => t.due_date && isOverdue(t.due_date));
 
-  // Follow-ups due: clients whose last_contact_at is older than 14 days
   const followUpsDue = useMemo(() => {
     const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
     return clients.filter((cl) => {
-      if (!cl.last_contact_at) return true; // never contacted = overdue
+      if (!cl.last_contact_at) return true;
       return new Date(cl.last_contact_at).getTime() < cutoff;
     }).length;
   }, [clients]);
 
-  // Action strip items
   const actionItems = useMemo(() => {
     const items: { key: string; count: number; label: string; color: string; icon: typeof AlertCircle; route: string }[] = [];
     if (overdueTasks.length > 0) items.push({ key: "overdue", count: overdueTasks.length, label: "overdue", color: "#EF4444", icon: AlertCircle, route: "/deals" });
-    if (outreachCount > 0) items.push({ key: "messages", count: outreachCount, label: "messages ready", color: "#6366F1", icon: Mail, route: "/outreach" });
-    if (pending > 0) items.push({ key: "pending", count: pending, label: "pending deals", color: "#F59E0B", icon: Handshake, route: "/deals" });
-    if (followUpsDue > 0) items.push({ key: "followups", count: followUpsDue, label: "follow-ups due", color: "#06B6D4", icon: UserCheck, route: "/clients" });
+    if (outreachCount > 0) items.push({ key: "messages", count: outreachCount, label: "ready", color: "#6366F1", icon: Mail, route: "/profile/outreach" });
+    if (pending > 0) items.push({ key: "pending", count: pending, label: "pending", color: "#F59E0B", icon: Handshake, route: "/deals" });
+    if (followUpsDue > 0) items.push({ key: "followups", count: followUpsDue, label: "follow-ups", color: "#06B6D4", icon: UserCheck, route: "/clients" });
     return items;
   }, [overdueTasks.length, outreachCount, pending, followUpsDue]);
 
   const handleFabPress = () => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } catch {}
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     setShowCapture(true);
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
-      {/* Loading Skeleton */}
       {isLoading && transactions.length === 0 && pipeline.length === 0 && (
         <View style={[StyleSheet.absoluteFill, { zIndex: 10, backgroundColor: c.bg }]}>
           <DashboardSkeleton />
@@ -520,19 +512,20 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.primary} />}
       >
-        {/* -- 1. Greeting + Runway Score Badge -- */}
-        <View style={{ paddingTop: Space.lg, paddingBottom: Space.sm, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <Text style={{ ...Type.hero, color: c.text, flex: 1 }} numberOfLines={1}>
-            {getGreeting()}, {displayName.split(" ")[0]}
+        {/* ── 1. Greeting ── */}
+        <View style={{ paddingTop: Space.lg }}>
+          <Text style={{ ...Type.caption, color: c.textDim }}>{getGreeting()}</Text>
+          <Text style={{ ...Type.hero, color: c.text, marginTop: 2 }} numberOfLines={1}>
+            {displayName.split(" ")[0]}
           </Text>
-          <RunwayBadge score={runway.score} color={runway.color} />
         </View>
 
-        {/* -- 2. Last Synced Indicator + Offline Queue Status -- */}
+        {/* ── 2. Sync status ── */}
         <Text
           style={{
             ...Type.micro,
             color: !isOnline || offlinePending > 0 ? "#F59E0B" : c.textDim,
+            marginTop: Space.sm,
             marginBottom: Space.xl,
           }}
         >
@@ -547,73 +540,149 @@ export default function DashboardScreen() {
                   : ""}
         </Text>
 
-        {/* -- 3. Action Items Strip -- */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          style={{ marginBottom: Space.xl }}
-          contentContainerStyle={{ paddingRight: Space.md }}
-        >
-          {actionItems.length > 0 ? (
-            actionItems.map((item) => (
-              <ActionPill
-                key={item.key}
-                count={item.count}
-                label={item.label}
-                color={item.color}
-                icon={item.icon}
-                onPress={() => router.push(item.route as any)}
-              />
-            ))
-          ) : (
-            <AllCaughtUpPill color={c.success} />
-          )}
-        </ScrollView>
+        {/* ── 3. Runway Score Hero Card ── */}
+        <View style={[{ borderRadius: Radius.xxl, overflow: "hidden", marginBottom: Space.xxl }, sh.cardLg]}>
+          <LinearGradient
+            colors={g.heroCard as unknown as string[]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ paddingVertical: Space.xxl, paddingHorizontal: Space.xxl, alignItems: "center" }}
+          >
+            <RunwayGauge score={score} color={meta.color} textColor={c.text} dimColor={c.textDim} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, marginTop: Space.md }}>
+              <Text style={{ ...Type.h3, color: c.text }}>Runway Score</Text>
+              <View style={{ backgroundColor: meta.color + "22", paddingHorizontal: Space.sm + 2, paddingVertical: 3, borderRadius: Radius.sm }}>
+                <Text style={{ color: meta.color, fontSize: 11, fontWeight: "800" }}>{meta.grade}</Text>
+              </View>
+            </View>
+            <Text style={{ ...Type.caption, color: c.textDim, marginTop: Space.xs }}>{meta.label}</Text>
 
-        {/* -- 4. Key Metrics Row -- */}
-        <View style={[{ borderRadius: Radius.xl, overflow: "hidden", marginBottom: Space.xl }, sh.cardLg]}>
-          <LinearGradient colors={g.heroCard as unknown as string[]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: Space.xxl }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-              <MetricPill label="GCI" value={fmtCurrency(gci)} color={c.gold} c={c} />
-              <MetricPill label="Deals" value={String(deals)} color={c.success} c={c} />
-              <MetricPill label="Pipeline" value={fmtCurrency(pipVal)} color={c.primaryLight} c={c} />
-              <MetricPill label="Clients" value={String(clients.length)} color={c.cyan} c={c} />
+            {/* Score component mini-bar */}
+            <View style={{ flexDirection: "row", marginTop: Space.lg, gap: Space.xs, width: "100%" }}>
+              <ScoreBar label="Pace" pct={30} color="#6366F1" c={c} />
+              <ScoreBar label="Pipeline" pct={20} color="#818CF8" c={c} />
+              <ScoreBar label="Expenses" pct={15} color="#10B981" c={c} />
+              <ScoreBar label="Setup" pct={10} color="#F59E0B" c={c} />
+              <ScoreBar label="Bench" pct={10} color="#06B6D4" c={c} />
+              <ScoreBar label="Survival" pct={15} color="#8B5CF6" c={c} />
             </View>
           </LinearGradient>
         </View>
 
-        {/* -- 5. Goal Progress Bar -- */}
+        {/* ── 4. Action Items Strip ── */}
+        {(actionItems.length > 0 || true) && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            style={{ marginBottom: Space.xxl }}
+            contentContainerStyle={{ paddingRight: Space.md }}
+          >
+            {actionItems.length > 0 ? (
+              actionItems.map((item) => (
+                <ActionPill
+                  key={item.key}
+                  count={item.count}
+                  label={item.label}
+                  color={item.color}
+                  icon={item.icon}
+                  onPress={() => router.push(item.route as any)}
+                />
+              ))
+            ) : (
+              <AllCaughtUpPill color={c.success} />
+            )}
+          </ScrollView>
+        )}
+
+        {/* ── 5. Key Metrics Grid (2x2) ── */}
+        <View style={{ marginBottom: Space.xxl }}>
+          <View style={{ flexDirection: "row", gap: Space.md, marginBottom: Space.md }}>
+            <MetricCard
+              label="YTD GCI"
+              value={fmtCurrency(gci)}
+              icon={<TrendingUp size={16} color={c.gold} />}
+              color={c.gold}
+              c={c} sh={sh}
+            />
+            <MetricCard
+              label="Deals Closed"
+              value={String(deals)}
+              icon={<Handshake size={16} color={c.success} />}
+              color={c.success}
+              c={c} sh={sh}
+            />
+          </View>
+          <View style={{ flexDirection: "row", gap: Space.md }}>
+            <MetricCard
+              label="Pipeline"
+              value={fmtCurrency(pipVal)}
+              subtitle={`${pipeline.length} deals`}
+              icon={<Briefcase size={16} color={c.primaryLight} />}
+              color={c.primaryLight}
+              c={c} sh={sh}
+              onPress={() => router.push("/deals")}
+            />
+            <MetricCard
+              label="Clients"
+              value={String(clients.length)}
+              subtitle={followUpsDue > 0 ? `${followUpsDue} need follow-up` : ""}
+              icon={<Users size={16} color={c.cyan} />}
+              color={c.cyan}
+              c={c} sh={sh}
+              onPress={() => router.push("/clients")}
+            />
+          </View>
+        </View>
+
+        {/* ── 6. Goal Progress ── */}
         {goalGci > 0 && (
-          <View style={{ marginBottom: Space.xl }}>
-            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Space.sm }}>
+          <Pressable
+            onPress={() => router.push("/profile/forecast")}
+            style={({ pressed }) => [
+              {
+                marginBottom: Space.xxl,
+                backgroundColor: c.card,
+                borderRadius: Radius.xl,
+                borderWidth: 1,
+                borderColor: c.cardBorder,
+                padding: Space.lg,
+              },
+              sh.card,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Space.md }}>
               <Text style={{ ...Type.label, color: c.textMuted }}>ANNUAL GOAL</Text>
-              <Text style={{ ...Type.caption, color: c.textSecondary, fontWeight: "700" }}>{goalPct}%</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: Space.xs }}>
+                <Text style={{ ...Type.caption, color: c.primary, fontWeight: "700" }}>{goalPct}%</Text>
+                <ArrowRight size={12} color={c.textDim} />
+              </View>
             </View>
-            <View style={{ height: 6, borderRadius: 3, backgroundColor: "rgba(128,128,128,0.12)", overflow: "hidden" }}>
+            <View style={{ height: 8, borderRadius: 4, backgroundColor: "rgba(128,128,128,0.10)", overflow: "hidden" }}>
               <LinearGradient
                 colors={goalPct >= 100 ? (g.successBar as unknown as string[]) : (g.progressBar as unknown as string[])}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                style={{ height: 6, borderRadius: 3, width: `${Math.min(goalPct, 100)}%` as any }}
+                style={{ height: 8, borderRadius: 4, width: `${Math.min(goalPct, 100)}%` as any }}
               />
             </View>
-            <Text style={{ ...Type.micro, color: c.textDim, marginTop: Space.xs }}>
+            <Text style={{ ...Type.micro, color: c.textDim, marginTop: Space.sm }}>
               {fmtCurrency(gci)} of {fmtCurrency(goalGci)}
             </Text>
-          </View>
+          </Pressable>
         )}
 
-        {/* -- 6. Next Task Card -- */}
+        {/* ── 7. Next Task Card ── */}
         {nextTask && (
           <View style={{ marginBottom: Space.xl }}>
             <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>NEXT UP</Text>
             <View style={[{
-              backgroundColor: c.card, borderRadius: Radius.lg, padding: Space.lg,
+              backgroundColor: c.card, borderRadius: Radius.xl, padding: Space.lg,
               borderWidth: 1, borderColor: c.cardBorder,
               flexDirection: "row", alignItems: "center", gap: Space.md,
             }, sh.card]}>
-              <View style={{ width: 40, height: 40, borderRadius: Radius.md, backgroundColor: c.primaryDim, alignItems: "center", justifyContent: "center" }}>
+              <View style={{ width: 42, height: 42, borderRadius: Radius.md, backgroundColor: c.primaryDim, alignItems: "center", justifyContent: "center" }}>
                 <Clock size={20} color={c.primary} />
               </View>
               <View style={{ flex: 1 }}>
@@ -633,9 +702,57 @@ export default function DashboardScreen() {
             </View>
           </View>
         )}
+
+        {/* ── 8. Quick Pipeline Preview ── */}
+        {pipeline.length > 0 && (
+          <View style={{ marginBottom: Space.xl }}>
+            <Pressable
+              onPress={() => router.push("/deals")}
+              style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Space.sm }}
+            >
+              <Text style={{ ...Type.label, color: c.textMuted }}>PIPELINE</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: Space.xs }}>
+                <Text style={{ ...Type.micro, color: c.primary }}>See all</Text>
+                <ArrowRight size={10} color={c.primary} />
+              </View>
+            </Pressable>
+            {pipeline.slice(0, 3).map((deal) => (
+              <View
+                key={deal.id}
+                style={[{
+                  backgroundColor: c.card,
+                  borderRadius: Radius.lg,
+                  padding: Space.md,
+                  marginBottom: Space.sm,
+                  borderWidth: 1,
+                  borderColor: c.cardBorder,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: Space.md,
+                }, sh.card]}
+              >
+                <View style={{
+                  width: 4, height: 32, borderRadius: 2,
+                  backgroundColor: ({ lead: "#6B7280", showing: "#3B82F6", offer: "#F59E0B", conditional: "#8B5CF6", firm: "#10B981" }[deal.stage] ?? c.textDim),
+                }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ ...Type.bodyBold, color: c.text }} numberOfLines={1}>
+                    {deal.address ?? deal.client_name ?? "Pipeline Deal"}
+                  </Text>
+                  <Text style={{ ...Type.micro, color: c.textDim, marginTop: 2, textTransform: "capitalize" }}>
+                    {deal.stage} {deal.client_name ? `\u00B7 ${deal.client_name}` : ""}
+                  </Text>
+                </View>
+                <Text style={{ ...Type.caption, color: c.gold, fontWeight: "700" }}>
+                  {fmtCurrency(deal.estimated_price)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
 
-      {/* -- Floating Action Button -- */}
+      {/* ── Floating Action Button ── */}
       <Pressable
         onPress={handleFabPress}
         style={({ pressed }) => [
@@ -646,19 +763,21 @@ export default function DashboardScreen() {
             width: 56,
             height: 56,
             borderRadius: 28,
-            backgroundColor: c.primary,
-            alignItems: "center",
-            justifyContent: "center",
+            overflow: "hidden",
             zIndex: 20,
             ...sh.cardLg,
           },
           pressed && { opacity: 0.85, transform: [{ scale: 0.93 }] },
         ]}
       >
-        <Plus size={24} color="#FFFFFF" strokeWidth={2.5} />
+        <LinearGradient
+          colors={["#6366F1", "#4F46E5"]}
+          style={{ width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center" }}
+        >
+          <Plus size={24} color="#FFFFFF" strokeWidth={2.5} />
+        </LinearGradient>
       </Pressable>
 
-      {/* -- Quick Capture Sheet -- */}
       <QuickCaptureSheet visible={showCapture} onClose={() => setShowCapture(false)} />
     </SafeAreaView>
   );
@@ -666,11 +785,59 @@ export default function DashboardScreen() {
 
 // ── Small Components ─────────────────────────────────────────────────────────
 
-function MetricPill({ label, value, color, c }: { label: string; value: string; color: string; c: ReturnType<typeof useColors> }) {
+function MetricCard({
+  label,
+  value,
+  subtitle,
+  icon,
+  color,
+  c,
+  sh,
+  onPress,
+}: {
+  label: string;
+  value: string;
+  subtitle?: string;
+  icon: React.ReactNode;
+  color: string;
+  c: ReturnType<typeof useColors>;
+  sh: ReturnType<typeof shadows>;
+  onPress?: () => void;
+}) {
   return (
-    <View style={{ alignItems: "center" }}>
-      <Text style={{ fontSize: 18, fontWeight: "800", color, letterSpacing: -0.3 }}>{value}</Text>
-      <Text style={{ ...Type.micro, color: c.textDim, marginTop: 1 }}>{label}</Text>
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      style={({ pressed }) => [
+        {
+          flex: 1,
+          backgroundColor: c.card,
+          borderRadius: Radius.xl,
+          borderWidth: 1,
+          borderColor: c.cardBorder,
+          padding: Space.lg,
+        },
+        sh.card,
+        pressed && onPress && { opacity: 0.8, transform: [{ scale: 0.98 }] },
+      ]}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, marginBottom: Space.sm }}>
+        {icon}
+        <Text style={{ ...Type.micro, color: c.textDim }}>{label}</Text>
+      </View>
+      <Text style={{ fontSize: 22, fontWeight: "800", color, letterSpacing: -0.3 }}>{value}</Text>
+      {subtitle ? (
+        <Text style={{ ...Type.micro, color: c.textDim, marginTop: 2 }}>{subtitle}</Text>
+      ) : null}
+    </Pressable>
+  );
+}
+
+function ScoreBar({ label, pct, color, c }: { label: string; pct: number; color: string; c: ReturnType<typeof useColors> }) {
+  return (
+    <View style={{ flex: pct, alignItems: "center" }}>
+      <View style={{ height: 4, width: "100%", borderRadius: 2, backgroundColor: color, opacity: 0.7 }} />
+      <Text style={{ fontSize: 7, fontWeight: "600", color: c.textDim, marginTop: 4, letterSpacing: 0.2 }}>{label}</Text>
     </View>
   );
 }

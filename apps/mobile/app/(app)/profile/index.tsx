@@ -292,7 +292,7 @@ export default function ProfileScreen() {
               iconBg={c.primaryDim}
               label="Flight Control"
               description="Review and send AI-drafted outreach"
-              onPress={() => router.push("/outreach")}
+              onPress={() => router.push("/profile/outreach")}
               c={c}
             />
             <Divider c={c} />
@@ -301,7 +301,7 @@ export default function ProfileScreen() {
               iconBg={c.cyanDim}
               label="Income Forecast"
               description="Year-end projections and pacing"
-              onPress={() => router.push("/forecast")}
+              onPress={() => router.push("/profile/forecast")}
               c={c}
             />
             <Divider c={c} />
@@ -310,7 +310,7 @@ export default function ProfileScreen() {
               iconBg={c.successDim}
               label="Scan Receipt"
               description="Capture and log business expenses"
-              onPress={() => router.push("/expenses")}
+              onPress={() => router.push("/profile/expenses")}
               c={c}
             />
           </Card>
@@ -413,12 +413,7 @@ export default function ProfileScreen() {
                   ? `GCI goal: ${fmtCurrency(goalGci)}`
                   : "Set your annual targets"
               }
-              onPress={() =>
-                Alert.alert(
-                  "Coming Soon",
-                  "Goals & Settings will be available in the next update."
-                )
-              }
+              onPress={() => router.push("/profile/settings")}
               c={c}
             />
           </Card>
