@@ -58,7 +58,7 @@ function runwayScoreMeta(score: number) {
   };
 }
 
-function RunwayGauge({ score, textColor, dimColor }: { score: number; textColor: string; dimColor: string }) {
+function RunwayGauge({ score, textColor, dimColor, mode }: { score: number; textColor: string; dimColor: string; mode: string }) {
   const size = 100;
   const sw = 7;
   const r = (size - sw) / 2;
@@ -67,7 +67,7 @@ function RunwayGauge({ score, textColor, dimColor }: { score: number; textColor:
   const cx = size / 2;
   const cy = size / 2;
   return (
-    <View style={{ ...shadows("dark").goldGlow }}>
+    <View style={{ ...shadows(mode as "light" | "dark").goldGlow }}>
       <Svg width={size} height={size}>
         <Circle cx={cx} cy={cy} r={r} stroke="rgba(240,168,0,0.08)" strokeWidth={sw} fill="none" />
         <Circle cx={cx} cy={cy} r={r} stroke="#F0A800" strokeWidth={sw} fill="none"
@@ -275,7 +275,7 @@ export default function ProfileScreen() {
           alignItems: "center",
           padding: Space.xxl,
         }, sh.cardLg]}>
-          <RunwayGauge score={runway.score} textColor={c.text} dimColor={c.textDim} />
+          <RunwayGauge score={runway.score} textColor={c.text} dimColor={c.textDim} mode={mode} />
           <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, marginTop: Space.md }}>
             <Text style={{ ...Type.label, color: c.textMuted }}>RUNWAY SCORE</Text>
             <View style={{ backgroundColor: runway.color + "22", paddingHorizontal: Space.sm, paddingVertical: 2, borderRadius: Radius.sm }}>
@@ -437,7 +437,7 @@ export default function ProfileScreen() {
               onPress={() => router.push("/profile/settings")}
               c={c}
             />
-            <View style={{ height: 1, backgroundColor: c.cardBorder, marginLeft: 40 + Space.md + Space.lg }} />
+            <Divider c={c} />
             <MenuItem
               icon={<Bell size={18} color={c.warning} />}
               iconBg={c.warningDim}

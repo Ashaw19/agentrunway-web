@@ -3,7 +3,7 @@
  * Shows all briefing items organized by severity with actionable context.
  */
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState } from "react";
 import { View, Text, ScrollView, RefreshControl } from "react-native";
 import { useRouter } from "expo-router";
 import { useDataStore } from "@/stores/data-store";
@@ -27,7 +27,6 @@ import {
   Briefcase,
   Users,
 } from "lucide-react-native";
-import { useState } from "react";
 
 const SEVERITY_ORDER = { urgent: 0, attention: 1, upcoming: 2 } as const;
 
@@ -489,11 +488,11 @@ function GlancePill({
       style={{
         flexDirection: "row",
         alignItems: "center",
-        gap: 5,
+        gap: Space.xs,
         backgroundColor: color + "15",
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: 14,
+        paddingHorizontal: Space.md,
+        paddingVertical: Space.xs + 1,
+        borderRadius: Radius.pill,
         borderWidth: 1,
         borderColor: color + "25",
       }}

@@ -82,7 +82,7 @@ function runwayScoreMeta(score: number) {
 
 // ── Runway Score Gauge (Hero — 140px, gold ring matching web) ──────────────
 
-function RunwayGauge({ score, textColor, dimColor }: { score: number; textColor: string; dimColor: string }) {
+function RunwayGauge({ score, textColor, dimColor, mode }: { score: number; textColor: string; dimColor: string; mode: string }) {
   const size = 140;
   const sw = 9;
   const r = (size - sw) / 2;
@@ -92,7 +92,7 @@ function RunwayGauge({ score, textColor, dimColor }: { score: number; textColor:
   const cy = size / 2;
   // Web uses Commission Gold gradient for the score ring
   return (
-    <View style={{ ...shadows("dark").goldGlow }}>
+    <View style={{ ...shadows(mode as "light" | "dark").goldGlow }}>
       <Svg width={size} height={size}>
         <Circle cx={cx} cy={cy} r={r} stroke="rgba(240,168,0,0.08)" strokeWidth={sw} fill="none" />
         <Circle cx={cx} cy={cy} r={r} stroke="#F0A800" strokeWidth={sw} fill="none"
@@ -685,7 +685,7 @@ export default function DashboardScreen() {
             end={{ x: 1, y: 1 }}
             style={{ paddingVertical: Space.xxl, paddingHorizontal: Space.xxl, alignItems: "center" }}
           >
-            <RunwayGauge score={score} textColor={c.text} dimColor={c.textDim} />
+            <RunwayGauge score={score} textColor={c.text} dimColor={c.textDim} mode={mode} />
             <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, marginTop: Space.md }}>
               <Text style={{ ...Type.h3, color: c.text }}>Runway Score</Text>
               <View style={{ backgroundColor: meta.color + "22", paddingHorizontal: Space.sm + 2, paddingVertical: 3, borderRadius: Radius.sm }}>
@@ -708,31 +708,29 @@ export default function DashboardScreen() {
         </FadeIn>
 
         {/* ── 4. Action Items Strip ── */}
-        {(actionItems.length > 0 || true) && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            snapToAlignment="start"
-            decelerationRate="fast"
-            style={{ marginBottom: Space.xxl }}
-            contentContainerStyle={{ paddingRight: Space.md }}
-          >
-            {actionItems.length > 0 ? (
-              actionItems.map((item) => (
-                <ActionPill
-                  key={item.key}
-                  count={item.count}
-                  label={item.label}
-                  color={item.color}
-                  icon={item.icon}
-                  onPress={() => router.push(item.route as any)}
-                />
-              ))
-            ) : (
-              <AllCaughtUpPill color={c.success} />
-            )}
-          </ScrollView>
-        )}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          snapToAlignment="start"
+          decelerationRate="fast"
+          style={{ marginBottom: Space.xxl }}
+          contentContainerStyle={{ paddingRight: Space.md }}
+        >
+          {actionItems.length > 0 ? (
+            actionItems.map((item) => (
+              <ActionPill
+                key={item.key}
+                count={item.count}
+                label={item.label}
+                color={item.color}
+                icon={item.icon}
+                onPress={() => router.push(item.route as any)}
+              />
+            ))
+          ) : (
+            <AllCaughtUpPill color={c.success} />
+          )}
+        </ScrollView>
 
         {/* ── 5. Today's Focus ── */}
         {briefing.length > 0 && (
@@ -1036,7 +1034,7 @@ function ScoreBar({ label, pct, color, c }: { label: string; pct: number; color:
   return (
     <View style={{ flex: pct, alignItems: "center" }}>
       <View style={{ height: 4, width: "100%", borderRadius: 2, backgroundColor: color, opacity: 0.7 }} />
-      <Text style={{ fontSize: 7, fontWeight: "600", color: c.textDim, marginTop: 4, letterSpacing: 0.2 }}>{label}</Text>
+      <Text style={{ fontSize: 9, fontWeight: "600", color: c.textDim, marginTop: 4, letterSpacing: 0.2 }}>{label}</Text>
     </View>
   );
 }

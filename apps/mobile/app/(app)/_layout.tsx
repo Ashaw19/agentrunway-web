@@ -78,7 +78,7 @@ export default function AppLayout() {
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused} mode={mode}>
               <LayoutDashboard size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.6} />
-              {overdueCount > 0 && <Badge count={overdueCount} color="#EF4444" />}
+              {overdueCount > 0 && <Badge count={overdueCount} color={c.danger} />}
             </TabIcon>
           ),
         }}
@@ -90,7 +90,7 @@ export default function AppLayout() {
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused} mode={mode}>
               <Handshake size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.6} />
-              {pendingCount > 0 && <Badge count={pendingCount} color="#F59E0B" />}
+              {pendingCount > 0 && <Badge count={pendingCount} color={c.warning} />}
             </TabIcon>
           ),
         }}
@@ -145,7 +145,7 @@ export default function AppLayout() {
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused} mode={mode}>
               <Users size={ICON_SIZE} color={color} strokeWidth={focused ? 2.5 : 1.6} />
-              {followUpCount > 0 && <Badge count={followUpCount} color="#06B6D4" />}
+              {followUpCount > 0 && <Badge count={followUpCount} color={c.cyan} />}
             </TabIcon>
           ),
         }}
