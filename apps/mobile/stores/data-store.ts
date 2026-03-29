@@ -9,6 +9,7 @@ import { create } from "zustand";
 import { supabase } from "../lib/supabase";
 import { storage } from "../lib/mmkv";
 import { useToastStore } from "./toast-store";
+import { useOfflineQueueStore } from "./offline-queue";
 
 // ── Types (lightweight — matches Supabase row shapes) ────────────────────────
 
@@ -152,6 +153,7 @@ interface DataStore {
   advancePipelineStage: (dealId: string, newStage: PipelineDeal["stage"]) => Promise<boolean>;
   addClient: (client: Omit<Client, "id" | "created_at">) => Promise<boolean>;
   addActivity: (activity: Omit<ContactActivity, "id" | "created_at">) => Promise<boolean>;
+  updateClient: (clientId: string, updates: Partial<Pick<Client, 'name' | 'email' | 'phone' | 'status' | 'notes'>>) => Promise<boolean>;
   updateOutreachDraft: (id: string, subject: string, body: string) => Promise<boolean>;
   skipOutreach: (id: string) => Promise<boolean>;
 
@@ -383,12 +385,10 @@ export const useDataStore = create<DataStore>((set, get) => {
 
       if (error) {
         console.error("addTransaction error:", error);
-        // Rollback
-        set({ transactions: prevTransactions });
-        saveCache(get());
-        const retryFn = () => get().addTransaction(tx);
-        toast.show("Failed to save transaction \u2014 tap to retry", "error", retryFn);
-        return false;
+        // Keep optimistic data — enqueue for retry when online
+        useOfflineQueueStore.getState().enqueue("addTransaction", tx);
+        toast.show("Saved locally \u2014 will sync when online", "info");
+        return true;
       }
 
       // Refresh with real server data
@@ -422,13 +422,10 @@ export const useDataStore = create<DataStore>((set, get) => {
 
       if (error) {
         console.error("advancePipelineStage error:", error);
-        // Rollback
-        set({ pipeline: prevPipeline });
-        saveCache(get());
-        toast.show("Failed to update stage \u2014 tap to retry", "error", () =>
-          get().advancePipelineStage(dealId, newStage)
-        );
-        return false;
+        // Keep optimistic data — enqueue for retry when online
+        useOfflineQueueStore.getState().enqueue("advanceStage", { dealId, newStage });
+        toast.show("Saved locally \u2014 will sync when online", "info");
+        return true;
       }
 
       toast.show("Stage updated \u2713", "success");
@@ -460,12 +457,10 @@ export const useDataStore = create<DataStore>((set, get) => {
 
       if (error) {
         console.error("addClient error:", error);
-        // Rollback
-        set({ clients: prevClients });
-        saveCache(get());
-        const retryFn = () => get().addClient(client);
-        toast.show("Failed to add client \u2014 tap to retry", "error", retryFn);
-        return false;
+        // Keep optimistic data — enqueue for retry when online
+        useOfflineQueueStore.getState().enqueue("addClient", client);
+        toast.show("Saved locally \u2014 will sync when online", "info");
+        return true;
       }
 
       // Refresh with real server data
@@ -488,12 +483,51 @@ export const useDataStore = create<DataStore>((set, get) => {
 
       if (error) {
         console.error("addActivity error:", error);
-        const retryFn = () => get().addActivity(activity);
-        toast.show("Failed to log activity \u2014 tap to retry", "error", retryFn);
-        return false;
+        // Enqueue for retry when online
+        useOfflineQueueStore.getState().enqueue("addActivity", activity);
+        toast.show("Saved locally \u2014 will sync when online", "info");
+        return true;
       }
 
       toast.show("Activity logged \u2713", "success");
+      return true;
+    },
+
+    updateClient: async (clientId, updates) => {
+      const toast = useToastStore.getState();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      // Optimistic update
+      const prevClients = get().clients;
+      set({
+        clients: prevClients.map((c) =>
+          c.id === clientId ? { ...c, ...updates } : c
+        ),
+      });
+      saveCache(get());
+
+      // Fire Supabase update
+      const { error } = await supabase
+        .from("clients")
+        .update(updates)
+        .eq("id", clientId)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("updateClient error:", error);
+        // Rollback
+        set({ clients: prevClients });
+        saveCache(get());
+        toast.show("Failed to update client \u2014 tap to retry", "error", () =>
+          get().updateClient(clientId, updates)
+        );
+        return false;
+      }
+
+      toast.show("Client updated \u2713", "success");
       return true;
     },
 

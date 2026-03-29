@@ -6,6 +6,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { useTheme, useColors } from "@/lib/theme";
 import Toast from "@/components/Toast";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import "react-native-reanimated";
 
 SplashScreen.preventAutoHideAsync();
@@ -15,6 +16,9 @@ function RootLayoutNav() {
   const segments = useSegments();
   const { mode } = useTheme();
   const c = useColors();
+
+  // Mount global network connectivity listener
+  useNetworkStatus();
 
   useEffect(() => {
     if (!isLoading) {

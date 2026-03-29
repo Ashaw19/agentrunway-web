@@ -13,6 +13,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
 import { useDataStore } from "@/stores/data-store";
+import { useOfflineQueueStore } from "@/stores/offline-queue";
 import Svg, { Circle, Text as SvgText } from "react-native-svg";
 import {
   AlertCircle,
@@ -236,6 +237,8 @@ export default function DashboardScreen() {
   const outreachCount = outreachReadyCount;
   const runway = runwayScoreMeta(runwayScore());
 
+  const { pendingCount: offlinePending, isOnline } = useOfflineQueueStore();
+
   const nextTask = tasks[0] ?? null;
   const overdueTasks = tasks.filter((t) => t.due_date && isOverdue(t.due_date));
 
@@ -280,13 +283,23 @@ export default function DashboardScreen() {
           <RunwayBadge score={runway.score} color={runway.color} />
         </View>
 
-        {/* ── 2. Last Synced Indicator ── */}
-        <Text style={{ ...Type.micro, color: c.textDim, marginBottom: Space.xl }}>
-          {isLoading
-            ? "\u26A0 Updating\u2026"
-            : lastFetched
-              ? formatLastSynced(lastFetched)
-              : ""}
+        {/* ── 2. Last Synced Indicator + Offline Queue Status ── */}
+        <Text
+          style={{
+            ...Type.micro,
+            color: !isOnline || offlinePending > 0 ? "#F59E0B" : c.textDim,
+            marginBottom: Space.xl,
+          }}
+        >
+          {!isOnline
+            ? "Offline \u2014 changes saved locally"
+            : offlinePending > 0
+              ? `${offlinePending} change${offlinePending === 1 ? "" : "s"} pending sync`
+              : isLoading
+                ? "Updating\u2026"
+                : lastFetched
+                  ? formatLastSynced(lastFetched)
+                  : ""}
         </Text>
 
         {/* ── 3. Action Items Strip ── */}
