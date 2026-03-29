@@ -10,9 +10,11 @@ import {
 } from "react-native";
 import { Link } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
+import { useT } from "@/lib/useT";
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
+  const { t } = useT("auth");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,7 +24,7 @@ export default function LoginScreen() {
     setError(null);
 
     if (!email.trim() || !password) {
-      setError("Please enter email and password");
+      setError(t("login.errors.emptyFields"));
       return;
     }
 
@@ -33,7 +35,7 @@ export default function LoginScreen() {
         setError(signInError.message);
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "An unexpected error occurred");
+      setError(e instanceof Error ? e.message : t("login.errors.unexpected"));
     } finally {
       setLoading(false);
     }
@@ -62,7 +64,7 @@ export default function LoginScreen() {
               letterSpacing: -0.5,
             }}
           >
-            Agent Runway
+            {t("login.title")}
           </Text>
           <Text
             style={{
@@ -71,7 +73,7 @@ export default function LoginScreen() {
               marginTop: 8,
             }}
           >
-            Real estate analytics, simplified
+            {t("login.subtitle")}
           </Text>
         </View>
 
@@ -95,7 +97,7 @@ export default function LoginScreen() {
         {/* Email Input */}
         <View>
           <Text style={{ color: "#9CA3AF", fontSize: 14, marginBottom: 6 }}>
-            Email
+            {t("login.emailLabel")}
           </Text>
           <TextInput
             value={email}
@@ -103,7 +105,7 @@ export default function LoginScreen() {
               setEmail(text);
               if (error) setError(null);
             }}
-            placeholder="you@example.com"
+            placeholder={t("login.emailPlaceholder")}
             placeholderTextColor="#4B5563"
             keyboardType="email-address"
             autoCapitalize="none"
@@ -126,7 +128,7 @@ export default function LoginScreen() {
         {/* Password Input */}
         <View>
           <Text style={{ color: "#9CA3AF", fontSize: 14, marginBottom: 6 }}>
-            Password
+            {t("login.passwordLabel")}
           </Text>
           <TextInput
             value={password}
@@ -134,7 +136,7 @@ export default function LoginScreen() {
               setPassword(text);
               if (error) setError(null);
             }}
-            placeholder="Enter your password"
+            placeholder={t("login.passwordPlaceholder")}
             placeholderTextColor="#4B5563"
             secureTextEntry
             autoComplete="password"
@@ -158,7 +160,7 @@ export default function LoginScreen() {
           onPress={handleSignIn}
           disabled={loading}
           accessibilityRole="button"
-          accessibilityLabel="Sign In"
+          accessibilityLabel={t("login.signIn")}
           style={({ pressed }) => ({
             backgroundColor: "#6366F1",
             borderRadius: 12,
@@ -178,7 +180,7 @@ export default function LoginScreen() {
                 fontWeight: "600",
               }}
             >
-              Sign In
+              {t("login.signIn")}
             </Text>
           )}
         </Pressable>
@@ -192,14 +194,14 @@ export default function LoginScreen() {
           }}
         >
           <Text style={{ color: "#9CA3AF", fontSize: 14 }}>
-            Don't have an account?{" "}
+            {t("login.noAccount")}{" "}
           </Text>
           <Link href="/(auth)/signup" asChild>
             <Pressable accessibilityRole="link">
               <Text
                 style={{ color: "#6366F1", fontSize: 14, fontWeight: "600" }}
               >
-                Sign Up
+                {t("login.signUpLink")}
               </Text>
             </Pressable>
           </Link>

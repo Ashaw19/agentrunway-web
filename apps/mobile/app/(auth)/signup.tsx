@@ -10,9 +10,11 @@ import {
 } from "react-native";
 import { Link } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
+import { useT } from "@/lib/useT";
 
 export default function SignUpScreen() {
   const { signUp } = useAuth();
+  const { t } = useT("auth");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -24,15 +26,15 @@ export default function SignUpScreen() {
     setError(null);
 
     if (!email.trim() || !password) {
-      setError("Please fill in all fields");
+      setError(t("signup.errors.emptyFields"));
       return;
     }
     if (password !== confirmPassword) {
-      setError("Passwords don't match");
+      setError(t("signup.errors.passwordMismatch"));
       return;
     }
     if (password.length < 6) {
-      setError("Password must be at least 6 characters");
+      setError(t("signup.errors.passwordTooShort"));
       return;
     }
 
@@ -45,7 +47,7 @@ export default function SignUpScreen() {
         setSuccess(true);
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "An unexpected error occurred");
+      setError(e instanceof Error ? e.message : t("signup.errors.unexpected"));
     } finally {
       setLoading(false);
     }
@@ -74,7 +76,7 @@ export default function SignUpScreen() {
               letterSpacing: -0.5,
             }}
           >
-            Create Account
+            {t("signup.title")}
           </Text>
           <Text
             style={{
@@ -83,7 +85,7 @@ export default function SignUpScreen() {
               marginTop: 8,
             }}
           >
-            Start tracking your real estate business
+            {t("signup.subtitle")}
           </Text>
         </View>
 
@@ -99,8 +101,7 @@ export default function SignUpScreen() {
             }}
           >
             <Text style={{ color: "#4ADE80", fontSize: 14, textAlign: "center" }}>
-              Check your email — we sent you a confirmation link to verify your
-              account.
+              {t("signup.success.message")}
             </Text>
           </View>
         ) : null}
@@ -125,7 +126,7 @@ export default function SignUpScreen() {
         {/* Email */}
         <View>
           <Text style={{ color: "#9CA3AF", fontSize: 14, marginBottom: 6 }}>
-            Email
+            {t("signup.emailLabel")}
           </Text>
           <TextInput
             value={email}
@@ -133,7 +134,7 @@ export default function SignUpScreen() {
               setEmail(text);
               if (error) setError(null);
             }}
-            placeholder="you@example.com"
+            placeholder={t("signup.emailPlaceholder")}
             placeholderTextColor="#4B5563"
             keyboardType="email-address"
             autoCapitalize="none"
@@ -156,7 +157,7 @@ export default function SignUpScreen() {
         {/* Password */}
         <View>
           <Text style={{ color: "#9CA3AF", fontSize: 14, marginBottom: 6 }}>
-            Password
+            {t("signup.passwordLabel")}
           </Text>
           <TextInput
             value={password}
@@ -164,7 +165,7 @@ export default function SignUpScreen() {
               setPassword(text);
               if (error) setError(null);
             }}
-            placeholder="At least 6 characters"
+            placeholder={t("signup.passwordPlaceholder")}
             placeholderTextColor="#4B5563"
             secureTextEntry
             autoComplete="new-password"
@@ -185,7 +186,7 @@ export default function SignUpScreen() {
         {/* Confirm Password */}
         <View>
           <Text style={{ color: "#9CA3AF", fontSize: 14, marginBottom: 6 }}>
-            Confirm Password
+            {t("signup.confirmPasswordLabel")}
           </Text>
           <TextInput
             value={confirmPassword}
@@ -193,7 +194,7 @@ export default function SignUpScreen() {
               setConfirmPassword(text);
               if (error) setError(null);
             }}
-            placeholder="Confirm your password"
+            placeholder={t("signup.confirmPasswordPlaceholder")}
             placeholderTextColor="#4B5563"
             secureTextEntry
             autoComplete="new-password"
@@ -217,7 +218,7 @@ export default function SignUpScreen() {
           onPress={handleSignUp}
           disabled={loading || success}
           accessibilityRole="button"
-          accessibilityLabel="Create Account"
+          accessibilityLabel={t("signup.signUp")}
           style={({ pressed }) => ({
             backgroundColor: "#6366F1",
             borderRadius: 12,
@@ -233,7 +234,7 @@ export default function SignUpScreen() {
             <Text
               style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "600" }}
             >
-              Create Account
+              {t("signup.signUp")}
             </Text>
           )}
         </Pressable>
@@ -247,14 +248,14 @@ export default function SignUpScreen() {
           }}
         >
           <Text style={{ color: "#9CA3AF", fontSize: 14 }}>
-            Already have an account?{" "}
+            {t("signup.hasAccount")}{" "}
           </Text>
           <Link href="/(auth)/login" asChild>
             <Pressable accessibilityRole="link">
               <Text
                 style={{ color: "#6366F1", fontSize: 14, fontWeight: "600" }}
               >
-                Sign In
+                {t("signup.signInLink")}
               </Text>
             </Pressable>
           </Link>

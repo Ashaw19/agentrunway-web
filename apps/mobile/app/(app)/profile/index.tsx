@@ -55,10 +55,10 @@ const PROVINCE_LABELS: Record<string, string> = {
 
 // ── Runway Score Helpers ─────────────────────────────────────────────────────
 
-function runwayScoreMeta(score: number) {
+function getRunwayScoreMeta(score: number, t: (key: string) => string) {
   return {
     score,
-    label: score >= 80 ? "Strong" : score >= 60 ? "On Track" : score >= 40 ? "Building" : "At Risk",
+    label: score >= 80 ? t("runwayScore.strong") : score >= 60 ? t("runwayScore.onTrack") : score >= 40 ? t("runwayScore.building") : t("runwayScore.atRisk"),
     color: score >= 80 ? "#10B981" : score >= 60 ? "#3B5EF6" : score >= 40 ? "#F59E0B" : "#EF4444",
   };
 }
@@ -113,7 +113,7 @@ export default function ProfileScreen() {
   const goalGci = settings?.goal_gci ?? 0;
   const goalPct = goalGci > 0 ? Math.round((ytdGci / goalGci) * 100) : null;
 
-  const runway = runwayScoreMeta(store.runwayScore());
+  const runway = getRunwayScoreMeta(store.runwayScore(), t);
 
   const isDark = mode === "dark";
 
@@ -139,7 +139,7 @@ export default function ProfileScreen() {
             paddingBottom: Space.sm,
           }}
         >
-          More
+          {t("title")}
         </Text>
 
         {/* ── User Card (SVG gradient) ── */}
@@ -210,8 +210,7 @@ export default function ProfileScreen() {
                   }}
                   numberOfLines={1}
                 >
-                  {PROVINCE_LABELS[settings.province] ?? settings.province} · {settings.experience_years ?? "?"} yrs
-                  exp
+                  {PROVINCE_LABELS[settings.province] ?? settings.province} · {t("province.yrsExp", { years: settings.experience_years ?? "?" })}
                 </Text>
               )}
             </View>
@@ -219,8 +218,8 @@ export default function ProfileScreen() {
               <Badge
                 label={
                   settings.subscription_tier === "professional"
-                    ? "Pro"
-                    : "Free"
+                    ? t("badge.pro")
+                    : t("badge.free")
                 }
                 color={
                   settings.subscription_tier === "professional"
@@ -241,21 +240,21 @@ export default function ProfileScreen() {
             }}
           >
             <StatCell
-              label="YTD GCI"
+              label={t("stats.ytdGci")}
               value={fmtCurrency(ytdGci)}
               color={c.success}
               textDim={c.textDim}
             />
             <View style={{ width: 1, backgroundColor: c.cardBorder }} />
             <StatCell
-              label="Deals Closed"
+              label={t("stats.dealsClosed")}
               value={String(ytdDeals)}
               color={c.text}
               textDim={c.textDim}
             />
             <View style={{ width: 1, backgroundColor: c.cardBorder }} />
             <StatCell
-              label="Goal"
+              label={t("stats.goal")}
               value={goalPct !== null ? `${goalPct}%` : "\u2014"}
               color={
                 goalPct === null
@@ -284,13 +283,13 @@ export default function ProfileScreen() {
         }, sh.cardLg]}>
           <RunwayGauge score={runway.score} textColor={c.text} dimColor={c.textDim} mode={mode} />
           <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, marginTop: Space.md }}>
-            <Text style={{ ...Type.label, color: c.textMuted }}>RUNWAY SCORE</Text>
+            <Text style={{ ...Type.label, color: c.textMuted }}>{t("runwayScore.label")}</Text>
             <View style={{ backgroundColor: runway.color + "22", paddingHorizontal: Space.sm, paddingVertical: 2, borderRadius: Radius.sm }}>
               <Text style={{ color: runway.color, fontSize: 10, fontWeight: "700" }}>{runway.label}</Text>
             </View>
           </View>
           <Text style={{ ...Type.caption, color: c.textDim, marginTop: Space.sm, textAlign: "center" }}>
-            Based on goal pace, pipeline coverage, expenses, and cash reserves
+            {t("runwayScore.description")}
           </Text>
         </View>
 
@@ -303,14 +302,14 @@ export default function ProfileScreen() {
               marginBottom: Space.md,
             }}
           >
-            Tools
+            {t("tools.title")}
           </Text>
           <Card style={{ padding: 0, marginHorizontal: 0 }}>
             <MenuItem
               icon={<Sunrise size={18} color={c.gold} />}
               iconBg={c.goldDim}
-              label="Today's Briefing"
-              description="Your daily priorities and action items"
+              label={t("tools.briefing")}
+              description={t("tools.briefingDesc")}
               onPress={() => router.push("/profile/briefing")}
               c={c}
             />
@@ -318,8 +317,8 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<Plane size={18} color={c.primary} />}
               iconBg={c.primaryDim}
-              label="Flight Control"
-              description="Review and send AI-drafted outreach"
+              label={t("tools.flightControl")}
+              description={t("tools.flightControlDesc")}
               onPress={() => router.push("/profile/outreach")}
               c={c}
             />
@@ -327,8 +326,8 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<TrendingUp size={18} color={c.cyan} />}
               iconBg={c.cyanDim}
-              label="Income Forecast"
-              description="Year-end projections and pacing"
+              label={t("tools.forecast")}
+              description={t("tools.forecastDesc")}
               onPress={() => router.push("/profile/forecast")}
               c={c}
             />
@@ -336,8 +335,8 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<Receipt size={18} color={c.success} />}
               iconBg={c.successDim}
-              label="Scan Receipt"
-              description="Capture and log business expenses"
+              label={t("tools.scanReceipt")}
+              description={t("tools.scanReceiptDesc")}
               onPress={() => router.push("/profile/expenses")}
               c={c}
             />
@@ -353,7 +352,7 @@ export default function ProfileScreen() {
               marginBottom: Space.md,
             }}
           >
-            Account
+            {t("account.title")}
           </Text>
           <Card style={{ padding: 0, marginHorizontal: 0 }}>
             {/* Theme Toggle */}
@@ -387,7 +386,7 @@ export default function ProfileScreen() {
                   style={{ ...Type.bodyBold, color: c.text }}
                   numberOfLines={1}
                 >
-                  Appearance
+                  {t("account.appearance")}
                 </Text>
                 <Text
                   style={{
@@ -397,7 +396,7 @@ export default function ProfileScreen() {
                   }}
                   numberOfLines={1}
                 >
-                  {isDark ? "Dark" : "Light"} mode
+                  {isDark ? t("account.darkMode") : t("account.lightMode")}
                 </Text>
               </View>
               <Switch
@@ -428,16 +427,16 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<Zap size={18} color={c.warning} />}
               iconBg={c.warningDim}
-              label="Subscription"
+              label={t("account.subscription")}
               description={
                 settings?.subscription_tier === "professional"
-                  ? "Professional \u00B7 Active"
-                  : "Free plan"
+                  ? t("account.subscriptionPro")
+                  : t("account.subscriptionFree")
               }
               onPress={() =>
                 Alert.alert(
-                  "Subscription",
-                  "Manage your subscription on the web dashboard."
+                  t("account.subscription"),
+                  t("account.subscriptionManage")
                 )
               }
               c={c}
@@ -446,11 +445,11 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<Target size={18} color={c.purple} />}
               iconBg={c.purpleDim}
-              label="Goals & Settings"
+              label={t("account.goals")}
               description={
                 goalGci > 0
-                  ? `GCI goal: ${fmtCurrency(goalGci)}`
-                  : "Set your annual targets"
+                  ? t("account.goalsWithValue", { value: fmtCurrency(goalGci) })
+                  : t("account.goalsDesc")
               }
               onPress={() => router.push("/profile/settings")}
               c={c}
@@ -459,8 +458,8 @@ export default function ProfileScreen() {
             <MenuItem
               icon={<Bell size={18} color={c.warning} />}
               iconBg={c.warningDim}
-              label="Notifications"
-              description="Morning briefing, deal alerts, follow-ups"
+              label={t("account.notifications")}
+              description={t("account.notificationsDesc")}
               onPress={() => router.push("/profile/notification-settings")}
               c={c}
             />
@@ -471,7 +470,7 @@ export default function ProfileScreen() {
         <View style={{ marginTop: Space.section }}>
           <Button
             variant="danger"
-            label="Sign Out"
+            label={t("signOut")}
             onPress={signOut}
             icon="log-out-outline"
           />
@@ -486,7 +485,7 @@ export default function ProfileScreen() {
             marginTop: Space.xxl,
           }}
         >
-          Agent Runway · v1.0.0
+          {t("version", { version: "1.0.0" })}
         </Text>
       </ScrollView>
 

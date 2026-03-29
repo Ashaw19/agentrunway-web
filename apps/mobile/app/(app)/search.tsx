@@ -39,6 +39,7 @@ import {
   STAGE_COLORS,
   StatusColors,
 } from "@/lib/theme";
+import { useT } from "@/lib/useT";
 import { storage } from "@/lib/mmkv";
 import { useDataStore, type Client } from "@/stores/data-store";
 import { Avatar } from "@/components/ui/Avatar";
@@ -112,6 +113,7 @@ export default function SearchScreen() {
   const inputRef = useRef<TextInput>(null);
   const search = useDataStore((s) => s.search);
   const addActivity = useDataStore((s) => s.addActivity);
+  const { t } = useT("profile");
 
   const [query, setQuery] = useState("");
   const [recentSearches, setRecentSearches] = useState<string[]>(getRecentSearches);
@@ -158,22 +160,22 @@ export default function SearchScreen() {
     const items: ListItem[] = [];
 
     if (results.clients.length > 0) {
-      items.push({ type: "header", title: "CLIENTS" });
+      items.push({ type: "header", title: t("search.clients") });
       results.clients.forEach((client) => items.push({ type: "client", data: client }));
     }
 
     if (results.pipeline.length > 0) {
-      items.push({ type: "header", title: "DEALS" });
+      items.push({ type: "header", title: t("search.deals") });
       results.pipeline.forEach((deal) => items.push({ type: "deal", data: deal }));
     }
 
     if (results.transactions.length > 0) {
-      items.push({ type: "header", title: "TRANSACTIONS" });
+      items.push({ type: "header", title: t("search.transactions") });
       results.transactions.forEach((tx) => items.push({ type: "transaction", data: tx }));
     }
 
     return items;
-  }, [results, totalResults, query, recentSearches]);
+  }, [results, totalResults, query, recentSearches, t]);
 
   // Handlers
   const handleClear = useCallback(() => {
@@ -228,20 +230,20 @@ export default function SearchScreen() {
             <TransactionRowView item={item.data} colors={c} onPress={() => handleResultTap(item)} />
           );
         case "empty":
-          return <EmptyView query={item.query} colors={c} />;
+          return <EmptyView query={item.query} colors={c} t={t} />;
         case "recentHeader":
           return (
-            <RecentHeaderView colors={c} onClear={handleClearRecent} />
+            <RecentHeaderView colors={c} onClear={handleClearRecent} t={t} />
           );
         case "recent":
           return <RecentRowView query={item.query} colors={c} onPress={() => handleRecentTap(item.query)} />;
         case "quickActions":
-          return <QuickActionsView colors={c} mode={mode} sh={sh} router={router} />;
+          return <QuickActionsView colors={c} mode={mode} sh={sh} router={router} t={t} />;
         default:
           return null;
       }
     },
-    [c, mode, sh, router, handleResultTap, handleRecentTap, handleClearRecent, setQuickNoteClient]
+    [c, mode, sh, router, handleResultTap, handleRecentTap, handleClearRecent, setQuickNoteClient, t]
   );
 
   const keyExtractor = useCallback(
@@ -288,7 +290,7 @@ export default function SearchScreen() {
               Type.body,
               { color: c.text, flex: 1 },
             ]}
-            placeholder="Search clients, deals, transactions..."
+            placeholder={t("search.placeholder")}
             placeholderTextColor={c.textDim}
             value={query}
             onChangeText={setQuery}
@@ -331,6 +333,7 @@ export default function SearchScreen() {
             });
             setQuickNoteClient(null);
           }}
+          t={t}
         />
       )}
     </SafeAreaView>
@@ -484,15 +487,15 @@ function TransactionRowView({
   );
 }
 
-function EmptyView({ query, colors: c }: { query: string; colors: ReturnType<typeof useColors> }) {
+function EmptyView({ query, colors: c, t }: { query: string; colors: ReturnType<typeof useColors>; t: (key: string, opts?: any) => string }) {
   return (
     <View style={styles.emptyContainer}>
       <SearchIcon size={48} color={c.textDim} strokeWidth={1.2} />
       <Text style={[Type.h3, { color: c.text, marginTop: Space.lg, textAlign: "center" }]}>
-        No results for &ldquo;{query}&rdquo;
+        {t("search.noResults", { query })}
       </Text>
       <Text style={[Type.caption, { color: c.textMuted, marginTop: Space.sm, textAlign: "center" }]}>
-        Try a different search term, or add a new client
+        {t("search.noResultsHint")}
       </Text>
     </View>
   );
@@ -501,15 +504,17 @@ function EmptyView({ query, colors: c }: { query: string; colors: ReturnType<typ
 function RecentHeaderView({
   colors: c,
   onClear,
+  t,
 }: {
   colors: ReturnType<typeof useColors>;
   onClear: () => void;
+  t: (key: string) => string;
 }) {
   return (
     <View style={[styles.sectionHeader, { borderBottomColor: c.divider }]}>
-      <Text style={[Type.label, { color: c.textMuted }]}>RECENT SEARCHES</Text>
+      <Text style={[Type.label, { color: c.textMuted }]}>{t("search.recentSearches")}</Text>
       <Pressable onPress={onClear} hitSlop={8}>
-        <Text style={[Type.caption, { color: c.primary }]}>Clear</Text>
+        <Text style={[Type.caption, { color: c.primary }]}>{t("search.clear")}</Text>
       </Pressable>
     </View>
   );
@@ -546,28 +551,30 @@ function QuickActionsView({
   mode,
   sh,
   router,
+  t,
 }: {
   colors: ReturnType<typeof useColors>;
   mode: string;
   sh: ReturnType<typeof shadows>;
   router: ReturnType<typeof useRouter>;
+  t: (key: string) => string;
 }) {
   const actions = [
     {
       icon: UserPlus,
-      label: "Add Client",
+      label: t("search.addClient"),
       color: c.primary,
       onPress: () => router.navigate("/(app)/clients"),
     },
     {
       icon: Handshake,
-      label: "Add Deal",
+      label: t("search.addDeal"),
       color: c.success,
       onPress: () => router.navigate("/(app)/deals"),
     },
     {
       icon: Receipt,
-      label: "Scan Receipt",
+      label: t("search.scanReceipt"),
       color: c.gold,
       onPress: () => router.navigate("/profile/expenses"),
     },
@@ -575,7 +582,7 @@ function QuickActionsView({
 
   return (
     <View style={{ paddingHorizontal: Space.lg, paddingTop: Space.xl }}>
-      <Text style={[Type.label, { color: c.textMuted, marginBottom: Space.md }]}>QUICK ACTIONS</Text>
+      <Text style={[Type.label, { color: c.textMuted, marginBottom: Space.md }]}>{t("search.quickActions")}</Text>
       <View style={styles.quickActionsGrid}>
         {actions.map((action) => (
           <Pressable
@@ -621,22 +628,24 @@ function QuickActionsView({
 
 type QuickNoteActivityType = "call" | "text" | "showing" | "meeting" | "note";
 
-const QUICK_NOTE_TYPES: { key: QuickNoteActivityType; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { key: "note", label: "Note", icon: "document-text" },
-  { key: "call", label: "Call", icon: "call" },
-  { key: "text", label: "Text", icon: "chatbubble-ellipses" },
-  { key: "showing", label: "Showing", icon: "home" },
-  { key: "meeting", label: "Meeting", icon: "people" },
+const QUICK_NOTE_TYPE_KEYS: { key: QuickNoteActivityType; labelKey: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { key: "note", labelKey: "search.activityTypes.note", icon: "document-text" },
+  { key: "call", labelKey: "search.activityTypes.call", icon: "call" },
+  { key: "text", labelKey: "search.activityTypes.text", icon: "chatbubble-ellipses" },
+  { key: "showing", labelKey: "search.activityTypes.showing", icon: "home" },
+  { key: "meeting", labelKey: "search.activityTypes.meeting", icon: "people" },
 ];
 
 function QuickNoteSheet({
   client,
   onClose,
   onSave,
+  t,
 }: {
   client: Client;
   onClose: () => void;
   onSave: (type: QuickNoteActivityType, description: string) => Promise<void>;
+  t: (key: string) => string;
 }) {
   const c = useColors();
   const [activityType, setActivityType] = useState<QuickNoteActivityType>("note");
@@ -657,7 +666,7 @@ function QuickNoteSheet({
   };
 
   return (
-    <Sheet visible onClose={onClose} title="Quick Note">
+    <Sheet visible onClose={onClose} title={t("search.quickNote")}>
       {/* Client name */}
       <View style={quickNoteStyles.clientRow}>
         <Ionicons name="person-circle" size={22} color={c.primary} />
@@ -668,12 +677,12 @@ function QuickNoteSheet({
 
       {/* Activity type pills */}
       <View style={quickNoteStyles.typeRow}>
-        {QUICK_NOTE_TYPES.map((t) => {
-          const isSelected = activityType === t.key;
+        {QUICK_NOTE_TYPE_KEYS.map((item) => {
+          const isSelected = activityType === item.key;
           return (
             <Pressable
-              key={t.key}
-              onPress={() => setActivityType(t.key)}
+              key={item.key}
+              onPress={() => setActivityType(item.key)}
               style={[
                 quickNoteStyles.typeChip,
                 {
@@ -683,7 +692,7 @@ function QuickNoteSheet({
               ]}
             >
               <Ionicons
-                name={t.icon}
+                name={item.icon}
                 size={13}
                 color={isSelected ? c.primary : c.textDim}
               />
@@ -696,7 +705,7 @@ function QuickNoteSheet({
                   },
                 ]}
               >
-                {t.label}
+                {t(item.labelKey)}
               </Text>
             </Pressable>
           );
@@ -708,7 +717,7 @@ function QuickNoteSheet({
         ref={inputRef}
         value={description}
         onChangeText={setDescription}
-        placeholder="Quick note..."
+        placeholder={t("search.quickNotePlaceholder")}
         placeholderTextColor={c.textDim}
         multiline
         style={[
@@ -725,7 +734,7 @@ function QuickNoteSheet({
       {/* Actions */}
       <View style={{ marginTop: Space.lg, gap: Space.sm }}>
         <Button
-          label={saving ? "Saving..." : "Save"}
+          label={saving ? t("search.saving") : t("search.save")}
           onPress={handleSave}
           loading={saving}
           disabled={!description.trim()}
@@ -733,7 +742,7 @@ function QuickNoteSheet({
         />
         <Pressable onPress={onClose} style={{ paddingVertical: Space.md }}>
           <Text style={[Type.bodyBold, { color: c.textMuted, textAlign: "center" }]}>
-            Cancel
+            {t("search.cancel")}
           </Text>
         </Pressable>
       </View>

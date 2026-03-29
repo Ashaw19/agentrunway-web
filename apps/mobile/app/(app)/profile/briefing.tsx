@@ -9,6 +9,7 @@ import { useRouter } from "expo-router";
 import { useDataStore } from "@/stores/data-store";
 import type { BriefingItem } from "@/stores/data-store";
 import { BriefingRow } from "@/components/BriefingRow";
+import { useT } from "@/lib/useT";
 import {
   useColors,
   Space,
@@ -44,19 +45,19 @@ function groupBySeverity(items: BriefingItem[]) {
 
 const SEVERITY_META = {
   urgent: {
-    label: "Needs Attention",
+    labelKey: "briefing.needsAttention",
     icon: AlertTriangle,
     color: "#EF4444",
     bg: "rgba(239,68,68,0.08)",
   },
   attention: {
-    label: "Worth a Look",
+    labelKey: "briefing.worthALook",
     icon: Eye,
     color: "#F59E0B",
     bg: "rgba(245,158,11,0.08)",
   },
   upcoming: {
-    label: "Coming Up",
+    labelKey: "briefing.comingUp",
     icon: CalendarClock,
     color: "#3B5EF6",
     bg: "rgba(59,94,246,0.08)",
@@ -66,6 +67,7 @@ const SEVERITY_META = {
 export default function BriefingScreen() {
   const router = useRouter();
   const c = useColors();
+  const { t } = useT("profile");
   const {
     todayBriefing,
     clients,
@@ -114,7 +116,7 @@ export default function BriefingScreen() {
   const now = new Date();
   const hour = now.getHours();
   const timeOfDay =
-    hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+    hour < 12 ? t("briefing.morning") : hour < 17 ? t("briefing.afternoon") : t("briefing.evening");
   const dateStr = now.toLocaleDateString("en-CA", {
     weekday: "long",
     month: "long",
@@ -156,7 +158,7 @@ export default function BriefingScreen() {
         >
           <Sunrise size={20} color="#F59E0B" />
           <Text style={{ ...Type.caption, color: c.textDim }}>
-            Your {timeOfDay} briefing
+            {t("briefing.greeting", { timeOfDay })}
           </Text>
         </View>
         <Text style={{ ...Type.hero, color: c.text }}>{dateStr}</Text>
@@ -173,19 +175,19 @@ export default function BriefingScreen() {
       >
         <QuickStat
           icon={<TrendingUp size={14} color={c.gold} />}
-          label="Score"
+          label={t("briefing.score")}
           value={String(score)}
           c={c}
         />
         <QuickStat
           icon={<Briefcase size={14} color={c.primaryLight} />}
-          label="YTD GCI"
+          label={t("briefing.ytdGci")}
           value={fmtCurrency(gci)}
           c={c}
         />
         <QuickStat
           icon={<Users size={14} color={c.cyan} />}
-          label="Deals"
+          label={t("briefing.deals")}
           value={String(deals)}
           c={c}
         />
@@ -212,12 +214,12 @@ export default function BriefingScreen() {
             }}
           >
             <Text style={{ ...Type.caption, color: c.textDim }}>
-              Goal progress · Day {doy}/365
+              {t("briefing.goalProgress", { day: doy })}
             </Text>
             <Text
               style={{ ...Type.caption, color: c.primary, fontWeight: "700" }}
             >
-              {Math.round((gci / goalGci) * 100)}% of goal
+              {t("briefing.percentOfGoal", { percent: Math.round((gci / goalGci) * 100) })}
             </Text>
           </View>
           <View
@@ -247,8 +249,8 @@ export default function BriefingScreen() {
             }}
           >
             {gci / goalGci >= doy / 365
-              ? "Ahead of pace"
-              : `${fmtCurrency(Math.max(0, goalGci * (doy / 365) - gci))} behind pace`}
+              ? t("briefing.aheadOfPace")
+              : t("briefing.behindPace", { amount: fmtCurrency(Math.max(0, goalGci * (doy / 365) - gci)) })}
           </Text>
         </View>
       )}
@@ -270,27 +272,27 @@ export default function BriefingScreen() {
               marginBottom: Space.md,
             }}
           >
-            AT A GLANCE
+            {t("briefing.atAGlance")}
           </Text>
           <View style={{ flexDirection: "row", gap: Space.sm, flexWrap: "wrap" }}>
             {counts.overdueFollowups > 0 && (
               <GlancePill
                 count={counts.overdueFollowups}
-                label="overdue follow-ups"
+                label={t("briefing.overdueFollowUps")}
                 color="#EF4444"
               />
             )}
             {counts.uncontactedLeads > 0 && (
               <GlancePill
                 count={counts.uncontactedLeads}
-                label="new leads"
+                label={t("briefing.newLeads")}
                 color="#6366F1"
               />
             )}
             {counts.hotPipeline > 0 && (
               <GlancePill
                 count={counts.hotPipeline}
-                label="hot deals"
+                label={t("briefing.hotDeals")}
                 color="#F59E0B"
               />
             )}
@@ -340,7 +342,7 @@ export default function BriefingScreen() {
                     color: meta.color,
                   }}
                 >
-                  {meta.label.toUpperCase()}
+                  {t(meta.labelKey).toUpperCase()}
                 </Text>
                 <View
                   style={{
@@ -387,7 +389,7 @@ export default function BriefingScreen() {
               marginTop: Space.lg,
             }}
           >
-            All clear
+            {t("briefing.allClear")}
           </Text>
           <Text
             style={{
@@ -398,8 +400,7 @@ export default function BriefingScreen() {
               paddingHorizontal: Space.xxl,
             }}
           >
-            No urgent items right now. Check back later or keep building your
-            pipeline.
+            {t("briefing.noUrgentItems")}
           </Text>
         </View>
       )}
@@ -423,8 +424,7 @@ export default function BriefingScreen() {
             textAlign: "center",
           }}
         >
-          Your briefing updates throughout the day as you log activities and
-          close deals. Pull down to refresh.
+          {t("briefing.footerTip")}
         </Text>
       </View>
     </ScrollView>

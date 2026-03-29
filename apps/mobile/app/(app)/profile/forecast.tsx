@@ -17,6 +17,7 @@ import {
   Zap,
 } from "lucide-react-native";
 import { useDataStore } from "@/stores/data-store";
+import { useT } from "@/lib/useT";
 import {
   useColors,
   useTheme,
@@ -34,6 +35,7 @@ export default function ForecastScreen() {
   const { mode } = useTheme();
   const g = gradients(mode);
   const sh = shadows(mode);
+  const { t } = useT("profile");
 
   const store = useDataStore();
   const settings = store.settings;
@@ -106,20 +108,20 @@ export default function ForecastScreen() {
         {/* ── Projection Hero Card ── */}
         <View style={[{ borderRadius: Radius.xl, overflow: "hidden", marginBottom: Space.xxl }, sh.cardLg]}>
           <LinearGradient colors={g.heroCard as string[]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: Space.xxl }}>
-            <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>PROJECTED YEAR-END GCI</Text>
+            <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>{t("forecast.projectedYearEndGci")}</Text>
             <Text style={{ fontSize: 36, fontWeight: "800", color: forecast.onTrackGci ? c.success : c.warning, letterSpacing: -1 }}>
               {fmtCurrency(forecast.projectedGci)}
             </Text>
             <Text style={{ ...Type.caption, color: c.textDim, marginTop: Space.sm }}>
-              Based on your current pace of {fmtCurrency(forecast.avgMonthlyGci)}/mo
+              {t("forecast.basedOnPace", { amount: fmtCurrency(forecast.avgMonthlyGci) })}
             </Text>
 
             {/* Mini goal progress */}
             {goalGci > 0 && (
               <View style={{ marginTop: Space.xl }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Space.sm }}>
-                  <Text style={{ ...Type.caption, color: c.textSecondary }}>{fmtCurrency(ytdGci)} earned</Text>
-                  <Text style={{ ...Type.caption, color: c.textSecondary, fontWeight: "700" }}>{goalPct}% of {fmtCurrency(goalGci)}</Text>
+                  <Text style={{ ...Type.caption, color: c.textSecondary }}>{t("forecast.earned", { amount: fmtCurrency(ytdGci) })}</Text>
+                  <Text style={{ ...Type.caption, color: c.textSecondary, fontWeight: "700" }}>{t("forecast.percentOfGoal", { percent: goalPct, goal: fmtCurrency(goalGci) })}</Text>
                 </View>
                 <View style={{ height: 8, borderRadius: 4, backgroundColor: "rgba(128,128,128,0.15)", overflow: "hidden" }}>
                   <LinearGradient
@@ -137,50 +139,50 @@ export default function ForecastScreen() {
         <View style={{ flexDirection: "row", gap: Space.md, marginBottom: Space.xxl }}>
           <StatusCard
             icon={forecast.onTrackGci ? <CheckCircle2 size={18} color={c.success} /> : <AlertTriangle size={18} color={c.warning} />}
-            label="GCI Pace"
-            value={forecast.onTrackGci ? "On Track" : "Behind"}
+            label={t("forecast.gciPace")}
+            value={forecast.onTrackGci ? t("forecast.onTrack") : t("forecast.behind")}
             color={forecast.onTrackGci ? c.success : c.warning}
             c={c} sh={sh}
           />
           <StatusCard
             icon={forecast.onTrackTx ? <CheckCircle2 size={18} color={c.success} /> : <AlertTriangle size={18} color={c.warning} />}
-            label="Deal Pace"
-            value={forecast.onTrackTx ? "On Track" : "Behind"}
+            label={t("forecast.dealPace")}
+            value={forecast.onTrackTx ? t("forecast.onTrack") : t("forecast.behind")}
             color={forecast.onTrackTx ? c.success : c.warning}
             c={c} sh={sh}
           />
         </View>
 
         {/* ── Key Numbers ── */}
-        <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.md }}>KEY NUMBERS</Text>
+        <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.md }}>{t("forecast.keyNumbers")}</Text>
         <View style={[{ backgroundColor: c.card, borderRadius: Radius.xl, borderWidth: 1, borderColor: c.cardBorder, overflow: "hidden" }, sh.card]}>
-          <NumberRow icon={<TrendingUp size={18} color={c.primary} />} iconBg={c.primaryDim} label="Projected Year-End" value={fmtCurrency(forecast.projectedGci)} c={c} />
+          <NumberRow icon={<TrendingUp size={18} color={c.primary} />} iconBg={c.primaryDim} label={t("forecast.projectedYearEnd")} value={fmtCurrency(forecast.projectedGci)} c={c} />
           <View style={{ height: 1, backgroundColor: c.cardBorder, marginLeft: 56 }} />
-          <NumberRow icon={<Wallet size={18} color={c.success} />} iconBg={c.successDim} label="Conservative (+ pipeline)" value={fmtCurrency(forecast.conservativeGci)} c={c} />
+          <NumberRow icon={<Wallet size={18} color={c.success} />} iconBg={c.successDim} label={t("forecast.conservativePipeline")} value={fmtCurrency(forecast.conservativeGci)} c={c} />
           <View style={{ height: 1, backgroundColor: c.cardBorder, marginLeft: 56 }} />
-          <NumberRow icon={<BarChart3 size={18} color={c.cyan} />} iconBg={c.cyanDim} label="Weighted Pipeline GCI" value={fmtCurrency(forecast.pipelineWeighted)} c={c} />
+          <NumberRow icon={<BarChart3 size={18} color={c.cyan} />} iconBg={c.cyanDim} label={t("forecast.weightedPipelineGci")} value={fmtCurrency(forecast.pipelineWeighted)} c={c} />
           <View style={{ height: 1, backgroundColor: c.cardBorder, marginLeft: 56 }} />
-          <NumberRow icon={<Target size={18} color={c.warning} />} iconBg={c.warningDim} label="Remaining to Goal" value={forecast.gciGap > 0 ? fmtCurrency(forecast.gciGap) : "Goal met!"} c={c} />
+          <NumberRow icon={<Target size={18} color={c.warning} />} iconBg={c.warningDim} label={t("forecast.remainingToGoal")} value={forecast.gciGap > 0 ? fmtCurrency(forecast.gciGap) : t("forecast.goalMet")} c={c} />
         </View>
 
         {/* ── Monthly Pace ── */}
         {goalGci > 0 && forecast.gciGap > 0 && (
           <>
-            <Text style={{ ...Type.label, color: c.textMuted, marginTop: Space.section, marginBottom: Space.md }}>MONTHLY PACE REQUIRED</Text>
+            <Text style={{ ...Type.label, color: c.textMuted, marginTop: Space.section, marginBottom: Space.md }}>{t("forecast.monthlyPaceRequired")}</Text>
             <View style={[{ backgroundColor: c.card, borderRadius: Radius.xl, borderWidth: 1, borderColor: c.cardBorder, padding: Space.xl }, sh.card]}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: Space.lg }}>
                 <PaceColumn
-                  label="Current Avg"
+                  label={t("forecast.currentAvg")}
                   gci={fmtCurrency(forecast.avgMonthlyGci)}
-                  deals={`${forecast.avgMonthlyDeals} deals`}
+                  deals={t("forecast.deals", { count: forecast.avgMonthlyDeals })}
                   color={c.textSecondary}
                   c={c}
                 />
                 <View style={{ width: 1, backgroundColor: c.cardBorder }} />
                 <PaceColumn
-                  label="Needed"
+                  label={t("forecast.needed")}
                   gci={fmtCurrency(forecast.monthlyGciNeeded)}
-                  deals={`${forecast.monthlyDealsNeeded} deals`}
+                  deals={t("forecast.deals", { count: forecast.monthlyDealsNeeded })}
                   color={forecast.monthlyGciNeeded > forecast.avgMonthlyGci ? c.warning : c.success}
                   c={c}
                 />
@@ -190,7 +192,7 @@ export default function ForecastScreen() {
                 <View style={{ backgroundColor: c.warningDim, borderRadius: Radius.md, padding: Space.md, flexDirection: "row", alignItems: "center", gap: Space.sm }}>
                   <Zap size={14} color={c.warning} />
                   <Text style={{ ...Type.caption, color: c.warning, flex: 1 }}>
-                    You need to increase your monthly GCI by {fmtCurrency(forecast.monthlyGciNeeded - forecast.avgMonthlyGci)} to hit your goal
+                    {t("forecast.increaseWarning", { amount: fmtCurrency(forecast.monthlyGciNeeded - forecast.avgMonthlyGci) })}
                   </Text>
                 </View>
               )}
@@ -199,11 +201,11 @@ export default function ForecastScreen() {
         )}
 
         {/* ── Quick Stats ── */}
-        <Text style={{ ...Type.label, color: c.textMuted, marginTop: Space.section, marginBottom: Space.md }}>THIS YEAR SO FAR</Text>
+        <Text style={{ ...Type.label, color: c.textMuted, marginTop: Space.section, marginBottom: Space.md }}>{t("forecast.thisYearSoFar")}</Text>
         <View style={{ flexDirection: "row", gap: Space.md }}>
-          <QuickStat label="Deals Closed" value={String(ytdDeals)} color={c.primary} c={c} sh={sh} />
-          <QuickStat label="Days Left" value={String(forecast.daysRemaining)} color={c.cyan} c={c} sh={sh} />
-          <QuickStat label="Pipeline Deals" value={String(store.pipeline.length)} color={c.purple} c={c} sh={sh} />
+          <QuickStat label={t("forecast.dealsClosed")} value={String(ytdDeals)} color={c.primary} c={c} sh={sh} />
+          <QuickStat label={t("forecast.daysLeft")} value={String(forecast.daysRemaining)} color={c.cyan} c={c} sh={sh} />
+          <QuickStat label={t("forecast.pipelineDeals")} value={String(store.pipeline.length)} color={c.purple} c={c} sh={sh} />
         </View>
       </ScrollView>
     </SafeAreaView>
