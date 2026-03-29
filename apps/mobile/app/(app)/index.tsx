@@ -14,7 +14,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
 import { useDataStore } from "@/stores/data-store";
-import type { Client } from "@/stores/data-store";
+import type { Client, BriefingItem } from "@/stores/data-store";
+import { BriefingRow } from "@/components/BriefingRow";
 import { useOfflineQueueStore } from "@/stores/offline-queue";
 import Svg, { Circle, Text as SvgText } from "react-native-svg";
 import {
@@ -430,6 +431,7 @@ export default function DashboardScreen() {
     fetchAll, fetchOutreach, fetchReceipts, isLoading, lastFetched,
     settings, transactions, pipeline, tasks, clients,
     outreachReadyCount, ytdGci, ytdDealCount, pipelineValue, runwayScore,
+    todayBriefing,
   } = useDataStore();
   const [refreshing, setRefreshing] = useState(false);
   const [, setTick] = useState(0);
@@ -497,6 +499,21 @@ export default function DashboardScreen() {
     if (followUpsDue > 0) items.push({ key: "followups", count: followUpsDue, label: "follow-ups", color: "#06B6D4", icon: UserCheck, route: "/clients" });
     return items;
   }, [overdueTasks.length, outreachCount, pending, followUpsDue]);
+
+  const briefing = useMemo(() => todayBriefing(), [clients, pipeline, tasks]);
+
+  const handleBriefingPress = useCallback(
+    (item: BriefingItem) => {
+      if (item.type === "hot_pipeline") {
+        router.push("/deals");
+      } else if (item.clientId) {
+        router.push("/clients");
+      } else if (item.type === "task_due_today") {
+        router.push("/deals");
+      }
+    },
+    [router]
+  );
 
   const handleFabPress = () => {
     try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
@@ -600,7 +617,50 @@ export default function DashboardScreen() {
           </ScrollView>
         )}
 
-        {/* ── 5. Key Metrics Grid (2x2) ── */}
+        {/* ── 5. Today's Focus ── */}
+        {briefing.length > 0 && (
+          <View style={{ marginBottom: Space.xxl }}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: Space.md,
+              }}
+            >
+              <Text style={{ ...Type.label, color: c.textMuted }}>
+                TODAY&apos;S FOCUS
+              </Text>
+              <View
+                style={{
+                  backgroundColor: c.primaryDim,
+                  paddingHorizontal: Space.sm + 2,
+                  paddingVertical: 2,
+                  borderRadius: Radius.sm,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 10,
+                    fontWeight: "700",
+                    color: c.primary,
+                  }}
+                >
+                  {briefing.length} {briefing.length === 1 ? "item" : "items"}
+                </Text>
+              </View>
+            </View>
+            {briefing.map((item) => (
+              <BriefingRow
+                key={item.id}
+                item={item}
+                onPress={() => handleBriefingPress(item)}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* ── 6. Key Metrics Grid (2x2) ── */}
         <View style={{ marginBottom: Space.xxl }}>
           <View style={{ flexDirection: "row", gap: Space.md, marginBottom: Space.md }}>
             <MetricCard

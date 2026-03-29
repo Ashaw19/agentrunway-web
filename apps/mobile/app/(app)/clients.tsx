@@ -24,6 +24,7 @@ import {
   Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Phone,
@@ -32,6 +33,10 @@ import {
   Plus,
   Search,
   ChevronRight,
+  Clock,
+  UserPlus,
+  TrendingUp,
+  X,
 } from "lucide-react-native";
 import {
   useDataStore,
@@ -39,6 +44,7 @@ import {
   type ContactActivity,
   type PipelineDeal,
   type Transaction,
+  type SmartListCounts,
 } from "@/stores/data-store";
 import {
   useColors,
@@ -143,9 +149,14 @@ export default function ClientsScreen() {
   const c = useColors();
   const { mode } = useTheme();
   const s = shadows(mode);
+  const router = useRouter();
 
-  const { clients, fetchClients, addClient, addActivity, updateClient, isLoading } = useDataStore();
+  const {
+    clients, fetchClients, addClient, addActivity, updateClient, isLoading,
+    smartListCounts, overdueFollowupClients, uncontactedLeadClients,
+  } = useDataStore();
   const [filter, setFilter] = useState<Filter>("all");
+  const [smartFilter, setSmartFilter] = useState<"overdue" | "uncontacted" | null>(null);
   const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -236,7 +247,37 @@ export default function ClientsScreen() {
     [clients]
   );
 
+  const slCounts = useMemo(() => smartListCounts(), [clients]);
+
   const filtered = useMemo(() => {
+    // Smart filter takes precedence
+    if (smartFilter === "overdue") {
+      let list = overdueFollowupClients();
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        list = list.filter(
+          (cl) =>
+            cl.name.toLowerCase().includes(q) ||
+            (cl.email && cl.email.toLowerCase().includes(q)) ||
+            (cl.phone && cl.phone.toLowerCase().includes(q))
+        );
+      }
+      return list;
+    }
+    if (smartFilter === "uncontacted") {
+      let list = uncontactedLeadClients();
+      if (search.trim()) {
+        const q = search.trim().toLowerCase();
+        list = list.filter(
+          (cl) =>
+            cl.name.toLowerCase().includes(q) ||
+            (cl.email && cl.email.toLowerCase().includes(q)) ||
+            (cl.phone && cl.phone.toLowerCase().includes(q))
+        );
+      }
+      return list;
+    }
+
     let list =
       filter === "active" ? active : filter === "landed" ? landed : clients;
 
@@ -251,7 +292,7 @@ export default function ClientsScreen() {
     }
 
     return list;
-  }, [clients, active, landed, filter, search]);
+  }, [clients, active, landed, filter, search, smartFilter]);
 
   // ── Filter tab definitions ────────────────────────────────────────────────
 
@@ -312,6 +353,113 @@ export default function ClientsScreen() {
           )}
         </View>
 
+        {/* ── Smart Lists ── */}
+        {(slCounts.overdueFollowups > 0 || slCounts.uncontactedLeads > 0 || slCounts.hotPipeline > 0) && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginTop: Space.md, marginBottom: Space.xs }}
+            contentContainerStyle={{ gap: Space.sm }}
+          >
+            {slCounts.overdueFollowups > 0 && (
+              <Pressable
+                onPress={() => {
+                  setSmartFilter(smartFilter === "overdue" ? null : "overdue");
+                  setFilter("all");
+                }}
+                style={({ pressed }) => [
+                  {
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: Space.md,
+                    paddingVertical: Space.sm,
+                    borderRadius: Radius.pill,
+                    gap: 6,
+                    backgroundColor:
+                      smartFilter === "overdue"
+                        ? "#EF4444" + "20"
+                        : c.card,
+                    borderWidth: 1,
+                    borderColor:
+                      smartFilter === "overdue"
+                        ? "#EF4444" + "40"
+                        : c.cardBorder,
+                  },
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Clock size={13} color="#EF4444" />
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#EF4444" }}>
+                  {slCounts.overdueFollowups} Overdue
+                </Text>
+                {smartFilter === "overdue" && (
+                  <X size={12} color="#EF4444" />
+                )}
+              </Pressable>
+            )}
+            {slCounts.uncontactedLeads > 0 && (
+              <Pressable
+                onPress={() => {
+                  setSmartFilter(smartFilter === "uncontacted" ? null : "uncontacted");
+                  setFilter("all");
+                }}
+                style={({ pressed }) => [
+                  {
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: Space.md,
+                    paddingVertical: Space.sm,
+                    borderRadius: Radius.pill,
+                    gap: 6,
+                    backgroundColor:
+                      smartFilter === "uncontacted"
+                        ? "#F59E0B" + "20"
+                        : c.card,
+                    borderWidth: 1,
+                    borderColor:
+                      smartFilter === "uncontacted"
+                        ? "#F59E0B" + "40"
+                        : c.cardBorder,
+                  },
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <UserPlus size={13} color="#F59E0B" />
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#F59E0B" }}>
+                  {slCounts.uncontactedLeads} New Leads
+                </Text>
+                {smartFilter === "uncontacted" && (
+                  <X size={12} color="#F59E0B" />
+                )}
+              </Pressable>
+            )}
+            {slCounts.hotPipeline > 0 && (
+              <Pressable
+                onPress={() => router.push("/deals")}
+                style={({ pressed }) => [
+                  {
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: Space.md,
+                    paddingVertical: Space.sm,
+                    borderRadius: Radius.pill,
+                    gap: 6,
+                    backgroundColor: c.card,
+                    borderWidth: 1,
+                    borderColor: c.cardBorder,
+                  },
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <TrendingUp size={13} color="#10B981" />
+                <Text style={{ fontSize: 12, fontWeight: "700", color: "#10B981" }}>
+                  {slCounts.hotPipeline} Hot Deals
+                </Text>
+              </Pressable>
+            )}
+          </ScrollView>
+        )}
+
         {/* ── Filter Tabs ── */}
         <View style={styles.tabs}>
           {tabs.map((f) => {
@@ -319,7 +467,7 @@ export default function ClientsScreen() {
             return (
               <Pressable
                 key={f.key}
-                onPress={() => setFilter(f.key)}
+                onPress={() => { setFilter(f.key); setSmartFilter(null); }}
                 style={[
                   styles.tab,
                   {

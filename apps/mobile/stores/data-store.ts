@@ -50,6 +50,7 @@ export interface Client {
   lead_source: string | null;
   last_contact_at: string | null;
   notes: string | null;
+  birthdate: string | null;
   created_at: string;
 }
 
@@ -113,6 +114,32 @@ export interface OutreachItem {
   final_body: string | null;
   trigger_date: string;
   clients: { name: string; email: string | null } | null;
+}
+
+// ── Briefing Types ───────────────────────────────────────────────────────────
+
+export type BriefingType =
+  | "overdue_followup"
+  | "uncontacted_lead"
+  | "hot_pipeline"
+  | "task_due_today"
+  | "birthday_soon";
+
+export interface BriefingItem {
+  id: string;
+  type: BriefingType;
+  severity: "urgent" | "attention" | "upcoming";
+  clientId?: string;
+  clientName: string;
+  title: string;
+  detail: string;
+  actionLabel: string;
+}
+
+export interface SmartListCounts {
+  overdueFollowups: number;
+  hotPipeline: number;
+  uncontactedLeads: number;
 }
 
 // ── Store ────────────────────────────────────────────────────────────────────
@@ -179,6 +206,13 @@ interface DataStore {
    * Clamped to [0, 100].
    */
   runwayScore: () => number;
+
+  // Smart Lists & Today's Briefing
+  todayBriefing: () => BriefingItem[];
+  smartListCounts: () => SmartListCounts;
+  overdueFollowupClients: () => Client[];
+  uncontactedLeadClients: () => Client[];
+  hotPipelineDeals: () => PipelineDeal[];
 }
 
 // Cache key
@@ -794,6 +828,234 @@ export const useDataStore = create<DataStore>((set, get) => {
         survivalScore * 0.15;
 
       return Math.round(composite);
+    },
+
+    // ── Smart Lists & Today's Briefing ──────────────────────────────────────
+
+    todayBriefing: () => {
+      const state = get();
+      const items: BriefingItem[] = [];
+      const now = Date.now();
+      const DAY = 86400000;
+      const activeStatuses = new Set(["boarding", "taxiing", "approach", "in_flight"]);
+
+      // 1. Uncontacted leads — never contacted (urgent)
+      const uncontacted = state.clients.filter(
+        (cl) => cl.status === "boarding" && !cl.last_contact_at
+      );
+      for (const cl of uncontacted.slice(0, 3)) {
+        const daysOld = Math.floor(
+          (now - new Date(cl.created_at).getTime()) / DAY
+        );
+        items.push({
+          id: `uncontacted_${cl.id}`,
+          type: "uncontacted_lead",
+          severity: daysOld > 2 ? "urgent" : "attention",
+          clientId: cl.id,
+          clientName: cl.name,
+          title: cl.name,
+          detail:
+            daysOld === 0
+              ? "New lead — never contacted"
+              : `New lead — ${daysOld}d without contact`,
+          actionLabel: "Reach Out",
+        });
+      }
+
+      // 2. Overdue follow-ups — active clients, 14+ days since contact
+      const overdue = state.clients
+        .filter((cl) => {
+          if (!activeStatuses.has(cl.status)) return false;
+          if (!cl.last_contact_at) return false;
+          return now - new Date(cl.last_contact_at).getTime() > 14 * DAY;
+        })
+        .sort((a, b) => {
+          const aT = new Date(a.last_contact_at!).getTime();
+          const bT = new Date(b.last_contact_at!).getTime();
+          return aT - bT;
+        });
+
+      for (const cl of overdue.slice(0, 3)) {
+        const days = Math.floor(
+          (now - new Date(cl.last_contact_at!).getTime()) / DAY
+        );
+        const isVip = cl.tags?.some(
+          (t) => t.toLowerCase() === "vip" || t.toLowerCase() === "high value"
+        );
+        items.push({
+          id: `overdue_${cl.id}`,
+          type: "overdue_followup",
+          severity: days > 30 || isVip ? "urgent" : "attention",
+          clientId: cl.id,
+          clientName: cl.name,
+          title: cl.name,
+          detail: `${days}d without contact${isVip ? " · VIP" : ""}`,
+          actionLabel: "Follow Up",
+        });
+      }
+
+      // 3. Tasks due today
+      const todayStr = new Date().toISOString().split("T")[0];
+      const dueTasks = state.tasks.filter(
+        (t) => t.due_date && t.due_date.startsWith(todayStr)
+      );
+      for (const task of dueTasks.slice(0, 2)) {
+        items.push({
+          id: `task_${task.id}`,
+          type: "task_due_today",
+          severity: task.priority === "high" ? "urgent" : "attention",
+          clientName: task.title,
+          title: task.title,
+          detail:
+            task.priority === "high"
+              ? "High priority · Due today"
+              : "Due today",
+          actionLabel: "Do It",
+        });
+      }
+
+      // 4. Hot pipeline — offer / conditional / firm
+      const hot = state.pipeline.filter(
+        (d) =>
+          d.stage === "offer" ||
+          d.stage === "conditional" ||
+          d.stage === "firm"
+      );
+      for (const deal of hot.slice(0, 2)) {
+        const p = deal.estimated_price;
+        const priceStr =
+          p >= 1_000_000
+            ? `$${(p / 1_000_000).toFixed(1)}M`
+            : p >= 1_000
+              ? `$${(p / 1_000).toFixed(0)}K`
+              : `$${Math.round(p)}`;
+        items.push({
+          id: `hot_${deal.id}`,
+          type: "hot_pipeline",
+          severity: "attention",
+          clientName: deal.client_name ?? "Pipeline Deal",
+          title: deal.address ?? deal.client_name ?? "Pipeline Deal",
+          detail: `${deal.stage.charAt(0).toUpperCase() + deal.stage.slice(1)} · ${priceStr}`,
+          actionLabel: "View",
+        });
+      }
+
+      // 5. Birthdays this week
+      const nowDate = new Date();
+      const thisYear = nowDate.getFullYear();
+      let bdayCount = 0;
+      for (const cl of state.clients) {
+        if (bdayCount >= 2) break;
+        if (!cl.birthdate) continue;
+        const bday = new Date(cl.birthdate);
+        const bdayThisYear = new Date(
+          thisYear,
+          bday.getMonth(),
+          bday.getDate()
+        );
+        const daysUntil = Math.floor(
+          (bdayThisYear.getTime() - nowDate.getTime()) / DAY
+        );
+        if (daysUntil >= 0 && daysUntil <= 7) {
+          items.push({
+            id: `bday_${cl.id}`,
+            type: "birthday_soon",
+            severity: daysUntil === 0 ? "attention" : "upcoming",
+            clientId: cl.id,
+            clientName: cl.name,
+            title: cl.name,
+            detail:
+              daysUntil === 0
+                ? "Birthday today!"
+                : daysUntil === 1
+                  ? "Birthday tomorrow"
+                  : `Birthday in ${daysUntil} days`,
+            actionLabel: daysUntil === 0 ? "Wish" : "Plan",
+          });
+          bdayCount++;
+        }
+      }
+
+      // Sort: urgent → attention → upcoming
+      const order: Record<string, number> = {
+        urgent: 0,
+        attention: 1,
+        upcoming: 2,
+      };
+      items.sort((a, b) => order[a.severity] - order[b.severity]);
+
+      return items.slice(0, 7);
+    },
+
+    smartListCounts: () => {
+      const state = get();
+      const now = Date.now();
+      const DAY = 86400000;
+      const activeStatuses = new Set([
+        "boarding",
+        "taxiing",
+        "approach",
+        "in_flight",
+      ]);
+
+      return {
+        overdueFollowups: state.clients.filter((cl) => {
+          if (!activeStatuses.has(cl.status)) return false;
+          if (!cl.last_contact_at) return cl.status === "boarding";
+          return now - new Date(cl.last_contact_at).getTime() > 14 * DAY;
+        }).length,
+        hotPipeline: state.pipeline.filter(
+          (d) =>
+            d.stage === "offer" ||
+            d.stage === "conditional" ||
+            d.stage === "firm"
+        ).length,
+        uncontactedLeads: state.clients.filter(
+          (cl) => cl.status === "boarding" && !cl.last_contact_at
+        ).length,
+      };
+    },
+
+    overdueFollowupClients: () => {
+      const state = get();
+      const now = Date.now();
+      const DAY = 86400000;
+      const activeStatuses = new Set([
+        "boarding",
+        "taxiing",
+        "approach",
+        "in_flight",
+      ]);
+      return state.clients
+        .filter((cl) => {
+          if (!activeStatuses.has(cl.status)) return false;
+          if (!cl.last_contact_at) return cl.status === "boarding";
+          return now - new Date(cl.last_contact_at).getTime() > 14 * DAY;
+        })
+        .sort((a, b) => {
+          const aT = a.last_contact_at
+            ? new Date(a.last_contact_at).getTime()
+            : 0;
+          const bT = b.last_contact_at
+            ? new Date(b.last_contact_at).getTime()
+            : 0;
+          return aT - bT;
+        });
+    },
+
+    uncontactedLeadClients: () => {
+      return get().clients.filter(
+        (cl) => cl.status === "boarding" && !cl.last_contact_at
+      );
+    },
+
+    hotPipelineDeals: () => {
+      return get().pipeline.filter(
+        (d) =>
+          d.stage === "offer" ||
+          d.stage === "conditional" ||
+          d.stage === "firm"
+      );
     },
   };
 });
