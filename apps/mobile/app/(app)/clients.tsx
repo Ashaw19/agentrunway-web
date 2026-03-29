@@ -53,6 +53,7 @@ import {
   fmtCurrency,
 } from "@/lib/theme";
 import { Card, Sheet, Badge, Avatar, Button, Input, EmptyState } from "@/components/ui";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -94,6 +95,47 @@ const ACTIVITY_TYPE_ICONS: Record<ActivityType, keyof typeof Ionicons.glyphMap> 
   note:    "document-text",
 };
 
+// ── Clients Skeleton ────────────────────────────────────────────────────────
+
+function ClientsSkeleton() {
+  const c = useColors();
+  return (
+    <View style={{ flex: 1, backgroundColor: c.bg, paddingHorizontal: Space.xl, paddingTop: Space.xl }}>
+      {/* Header row */}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <Skeleton width={100} height={28} borderRadius={Radius.sm} />
+        <Skeleton width={72} height={40} borderRadius={Radius.md} />
+      </View>
+      {/* Search bar */}
+      <Skeleton width="100%" height={48} borderRadius={Radius.md} style={{ marginTop: Space.lg }} />
+      {/* Filter tabs */}
+      <View style={{ flexDirection: "row", gap: Space.sm, marginTop: Space.lg, marginBottom: Space.lg }}>
+        <Skeleton width={0} height={44} borderRadius={Radius.md} style={{ flex: 1 }} />
+        <Skeleton width={0} height={44} borderRadius={Radius.md} style={{ flex: 1 }} />
+        <Skeleton width={0} height={44} borderRadius={Radius.md} style={{ flex: 1 }} />
+      </View>
+      {/* Client row skeletons */}
+      {[0, 1, 2, 3, 4].map((i) => (
+        <View
+          key={i}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            paddingVertical: Space.md,
+            gap: Space.md,
+          }}
+        >
+          <Skeleton width={40} height={40} borderRadius={20} />
+          <View style={{ flex: 1, gap: Space.xs }}>
+            <Skeleton width={160} height={16} borderRadius={Radius.sm} />
+            <Skeleton width={120} height={12} borderRadius={Radius.sm} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 // ── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function ClientsScreen() {
@@ -101,7 +143,7 @@ export default function ClientsScreen() {
   const { mode } = useTheme();
   const s = shadows(mode);
 
-  const { clients, fetchClients, addClient, addActivity } = useDataStore();
+  const { clients, fetchClients, addClient, addActivity, isLoading } = useDataStore();
   const [filter, setFilter] = useState<Filter>("all");
   const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -222,6 +264,13 @@ export default function ClientsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
+      {/* Loading Skeleton */}
+      {isLoading && clients.length === 0 && (
+        <View style={[StyleSheet.absoluteFill, { zIndex: 10, backgroundColor: c.bg }]}>
+          <ClientsSkeleton />
+        </View>
+      )}
+
       {/* ── Header ── */}
       <View style={{ paddingHorizontal: Space.xl, paddingTop: Space.xl, paddingBottom: Space.xs }}>
         <View style={styles.headerRow}>

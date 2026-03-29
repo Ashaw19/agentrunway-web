@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import { Platform, View, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
 import {
   LayoutDashboard,
   Handshake,
@@ -41,6 +42,13 @@ export default function AppLayout() {
         },
         tabBarIconStyle: {
           marginBottom: -2,
+        },
+      }}
+      screenListeners={{
+        tabPress: () => {
+          try {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          } catch {}
         },
       }}
     >

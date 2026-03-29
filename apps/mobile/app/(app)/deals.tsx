@@ -7,7 +7,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Animated,
   View,
   Text,
@@ -47,6 +46,7 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 type Tab = "pipeline" | "closed" | "pending";
 
@@ -59,6 +59,45 @@ const DEFAULT_PROBABILITIES: Record<string, number> = {
   conditional: 0.75,
   firm: 0.9,
 };
+
+// ── Deals Skeleton ──────────────────────────────────────────────────────────
+
+function DealsSkeleton() {
+  const c = useColors();
+  return (
+    <View style={{ flex: 1, backgroundColor: c.bg, paddingHorizontal: Space.xl, paddingTop: Space.xl }}>
+      {/* Header row */}
+      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+        <Skeleton width={100} height={32} borderRadius={Radius.sm} />
+        <Skeleton width={72} height={40} borderRadius={Radius.md} />
+      </View>
+      {/* Search bar */}
+      <Skeleton width="100%" height={48} borderRadius={Radius.md} style={{ marginTop: Space.lg }} />
+      {/* Stat pills row */}
+      <View style={{ flexDirection: "row", gap: Space.sm, marginTop: Space.lg }}>
+        <Skeleton width={0} height={52} borderRadius={Radius.md} style={{ flex: 1 }} />
+        <Skeleton width={0} height={52} borderRadius={Radius.md} style={{ flex: 1 }} />
+        <Skeleton width={0} height={52} borderRadius={Radius.md} style={{ flex: 1 }} />
+      </View>
+      {/* Tab row */}
+      <View style={{ flexDirection: "row", gap: Space.sm, marginTop: Space.lg }}>
+        <Skeleton width={0} height={44} borderRadius={Radius.md} style={{ flex: 1 }} />
+        <Skeleton width={0} height={44} borderRadius={Radius.md} style={{ flex: 1 }} />
+        <Skeleton width={0} height={44} borderRadius={Radius.md} style={{ flex: 1 }} />
+      </View>
+      {/* Card skeletons */}
+      {[0, 1, 2, 3].map((i) => (
+        <Skeleton
+          key={i}
+          width="100%"
+          height={120}
+          borderRadius={Radius.lg}
+          style={{ marginTop: Space.sm }}
+        />
+      ))}
+    </View>
+  );
+}
 
 // ── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -231,23 +270,10 @@ export default function DealsScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
-      {/* Loading overlay */}
+      {/* Loading Skeleton */}
       {isLoading && transactions.length === 0 && pipeline.length === 0 && (
-        <View
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              zIndex: 10,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: c.bg,
-            },
-          ]}
-        >
-          <ActivityIndicator size="large" color={c.primary} />
-          <Text style={{ color: c.textDim, marginTop: Space.md, ...Type.caption }}>
-            Loading deals...
-          </Text>
+        <View style={[StyleSheet.absoluteFill, { zIndex: 10, backgroundColor: c.bg }]}>
+          <DealsSkeleton />
         </View>
       )}
 

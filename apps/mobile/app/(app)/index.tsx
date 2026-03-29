@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   AppState,
   View,
   Text,
@@ -33,6 +32,7 @@ import {
   Type,
   fmtCurrency,
 } from "@/lib/theme";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -145,6 +145,37 @@ function AllCaughtUpPill({ color }: { color: string }) {
   );
 }
 
+// ── Dashboard Skeleton ────────────────────────────────────────────────────────
+
+function DashboardSkeleton() {
+  const c = useColors();
+  return (
+    <View style={{ flex: 1, backgroundColor: c.bg, paddingHorizontal: Space.xl, paddingTop: Space.lg }}>
+      {/* Greeting */}
+      <Skeleton width={140} height={20} borderRadius={Radius.sm} />
+      {/* Name */}
+      <Skeleton width={220} height={36} borderRadius={Radius.sm} style={{ marginTop: Space.sm }} />
+      {/* Last synced */}
+      <Skeleton width={100} height={12} borderRadius={Radius.sm} style={{ marginTop: Space.sm, marginBottom: Space.xl }} />
+      {/* Action pills row */}
+      <View style={{ flexDirection: "row", gap: Space.sm, marginBottom: Space.xl }}>
+        <Skeleton width={110} height={36} borderRadius={18} />
+        <Skeleton width={130} height={36} borderRadius={18} />
+        <Skeleton width={100} height={36} borderRadius={18} />
+        <Skeleton width={110} height={36} borderRadius={18} />
+      </View>
+      {/* Metrics card */}
+      <Skeleton width="100%" height={100} borderRadius={Radius.xl} style={{ marginBottom: Space.xl }} />
+      {/* Goal progress */}
+      <Skeleton width={80} height={10} borderRadius={Radius.sm} style={{ marginBottom: Space.sm }} />
+      <Skeleton width="100%" height={6} borderRadius={3} style={{ marginBottom: Space.xl }} />
+      {/* Next task card */}
+      <Skeleton width={60} height={10} borderRadius={Radius.sm} style={{ marginBottom: Space.sm }} />
+      <Skeleton width="100%" height={72} borderRadius={Radius.lg} />
+    </View>
+  );
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardScreen() {
@@ -229,11 +260,10 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.bg }}>
-      {/* Loading */}
+      {/* Loading Skeleton */}
       {isLoading && transactions.length === 0 && pipeline.length === 0 && (
-        <View style={[StyleSheet.absoluteFill, { zIndex: 10, backgroundColor: c.bg, alignItems: "center", justifyContent: "center" }]}>
-          <ActivityIndicator size="large" color={c.primary} />
-          <Text style={{ color: c.textMuted, marginTop: Space.md, ...Type.caption }}>Loading...</Text>
+        <View style={[StyleSheet.absoluteFill, { zIndex: 10, backgroundColor: c.bg }]}>
+          <DashboardSkeleton />
         </View>
       )}
 

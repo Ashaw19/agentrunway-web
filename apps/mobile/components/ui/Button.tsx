@@ -11,6 +11,7 @@ import {
   Text,
   View,
 } from "react-native";
+import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { useColors, Space, Radius, Type } from "@/lib/theme";
 
@@ -79,9 +80,22 @@ export function Button({
 
   const vs = variantStyles[variant];
 
+  const handlePress = () => {
+    try {
+      if (variant === "primary") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } else if (variant === "danger") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      } else {
+        Haptics.selectionAsync();
+      }
+    } catch {}
+    onPress();
+  };
+
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       disabled={isDisabled}
