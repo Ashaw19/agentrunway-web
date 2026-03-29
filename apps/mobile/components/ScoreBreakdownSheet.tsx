@@ -21,6 +21,9 @@ import {
 import {
   survivalResult as computeSurvival,
 } from "@agent-runway/core/engines/survival-engine";
+import {
+  projectedYearEndGCI,
+} from "@agent-runway/core/engines/projection-engine";
 
 interface ScoreComponent {
   key: string;
@@ -127,7 +130,8 @@ function computeComponents(state: ReturnType<typeof useDataStore>): ScoreCompone
   }
 
   // 5. Benchmark (same core engine as web — uses projected GCI + experience years)
-  const projectedGCI = fraction > 0 ? ytdGCI / fraction : 0;
+  const goalGCI = settings?.goal_gci ?? 0;
+  const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, goalGCI);
   const benchmark = benchmarkCompare(projectedGCI, settings?.experience_years ?? null);
   const benchmarkScore = benchmark.percentile;
   let benchmarkTip = "Benchmark data updates monthly from CREA stats";

@@ -21,6 +21,9 @@ import {
 import {
   survivalResult as computeSurvival,
 } from "@agent-runway/core/engines/survival-engine";
+import {
+  projectedYearEndGCI,
+} from "@agent-runway/core/engines/projection-engine";
 
 // ── Types (lightweight — matches Supabase row shapes) ────────────────────────
 
@@ -748,16 +751,11 @@ export const useDataStore = create<DataStore>((set, get) => {
     },
 
     /**
-     * Real Runway Score — matches the web app's 6-component scoring engine.
-     * Uses the monthly snapshot saved by the web dashboard when available,
-     * otherwise computes locally using the same algorithm.
+     * Compute the Runway Score using the same core engines as the web dashboard.
+     * Returns the full RunwayScoreResult with components for breakdown display.
      *
      * Components (weights):
      *   Goal Pace 30% | Pipeline 20% | Expenses 15% | Setup 10% | Benchmark 10% | Survival 15%
-     */
-    /**
-     * Compute the Runway Score using the same core engines as the web dashboard.
-     * Returns the full RunwayScoreResult with components for breakdown display.
      */
     runwayScoreResult: (): RunwayScoreResult => {
       const state = get();
@@ -839,7 +837,7 @@ export const useDataStore = create<DataStore>((set, get) => {
       };
 
       // ── Benchmark (same engine as web — uses projected GCI + experience years) ──
-      const projectedGCI = fraction > 0 ? ytdGCI / fraction : 0;
+      const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, goalGCI);
       const benchmark = benchmarkCompare(projectedGCI, settings?.experience_years ?? null);
 
       // ── Survival (same engine as web — uses brokerage fee + monthly recurring) ──
