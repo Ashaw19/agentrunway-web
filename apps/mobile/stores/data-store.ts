@@ -125,6 +125,9 @@ interface DataStore {
   settings: UserSettings | null;
   outreachQueue: OutreachItem[];
   receipts: ReceiptExpense[];
+  clientActivities: Record<string, ContactActivity[]>;
+  /** Timestamp of last fetch per client ID — used for 60s cache */
+  _clientActivitiesFetchedAt: Record<string, number>;
 
   // Loading states
   loading: boolean;
@@ -150,6 +153,10 @@ interface DataStore {
   addActivity: (activity: Omit<ContactActivity, "id" | "created_at">) => Promise<boolean>;
   updateOutreachDraft: (id: string, subject: string, body: string) => Promise<boolean>;
   skipOutreach: (id: string) => Promise<boolean>;
+
+  // Client detail methods
+  fetchClientActivities: (clientId: string) => Promise<void>;
+  getClientDeals: (clientName: string) => { pipeline: PipelineDeal[]; transactions: Transaction[] };
 
   // Search
   search: (query: string) => { clients: Client[]; pipeline: PipelineDeal[]; transactions: Transaction[] };
@@ -213,6 +220,8 @@ export const useDataStore = create<DataStore>((set, get) => {
     settings: (cached.settings as UserSettings | null) ?? null,
     outreachQueue: [],
     receipts: (cached.receipts as ReceiptExpense[]) ?? [],
+    clientActivities: {},
+    _clientActivitiesFetchedAt: {},
     loading: false,
     isLoading: false,
     lastFetched: null,
@@ -502,6 +511,51 @@ export const useDataStore = create<DataStore>((set, get) => {
         outreachQueue: get().outreachQueue.filter((item) => item.id !== id),
       });
       return true;
+    },
+
+    fetchClientActivities: async (clientId: string) => {
+      // Simple 60-second cache — skip if fetched recently
+      const lastFetchedAt = get()._clientActivitiesFetchedAt[clientId];
+      if (lastFetchedAt && Date.now() - lastFetchedAt < 60_000) return;
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from("contact_activities")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("client_id", clientId)
+        .order("activity_date", { ascending: false })
+        .limit(20);
+
+      if (data) {
+        set({
+          clientActivities: {
+            ...get().clientActivities,
+            [clientId]: data as ContactActivity[],
+          },
+          _clientActivitiesFetchedAt: {
+            ...get()._clientActivitiesFetchedAt,
+            [clientId]: Date.now(),
+          },
+        });
+      }
+    },
+
+    getClientDeals: (clientName: string) => {
+      const state = get();
+      const q = clientName.toLowerCase();
+      return {
+        pipeline: state.pipeline.filter(
+          (d) => d.client_name && d.client_name.toLowerCase() === q
+        ),
+        transactions: state.transactions.filter(
+          (t) => t.client_name && t.client_name.toLowerCase() === q
+        ),
+      };
     },
 
     search: (query: string) => {

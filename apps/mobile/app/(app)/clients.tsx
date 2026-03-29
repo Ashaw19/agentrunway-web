@@ -20,6 +20,8 @@ import {
   AppState,
   StyleSheet,
   Animated,
+  ActivityIndicator,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,7 +33,13 @@ import {
   Search,
   ChevronRight,
 } from "lucide-react-native";
-import { useDataStore, type Client } from "@/stores/data-store";
+import {
+  useDataStore,
+  type Client,
+  type ContactActivity,
+  type PipelineDeal,
+  type Transaction,
+} from "@/stores/data-store";
 import {
   useColors,
   useTheme,
@@ -40,7 +48,9 @@ import {
   Radius,
   Type,
   STATUS_COLORS,
+  STAGE_COLORS,
   getInitials,
+  fmtCurrency,
 } from "@/lib/theme";
 import { Card, Sheet, Badge, Avatar, Button, Input, EmptyState } from "@/components/ui";
 
@@ -600,6 +610,52 @@ function PostContactSheet({
   );
 }
 
+// ── Activity Timeline Colors ─────────────────────────────────────────────────
+
+const ACTIVITY_DOT_COLORS: Record<string, string> = {
+  call:    "#10B981", // green
+  email:   "#3B82F6", // blue
+  text:    "#6366F1", // indigo
+  showing: "#F59E0B", // amber
+  note:    "#6B7280", // gray
+  meeting: "#6B7280", // gray
+  offer:   "#8B5CF6", // purple
+};
+
+const STAGE_LABELS: Record<string, string> = {
+  lead: "Lead",
+  showing: "Showing",
+  offer: "Offer",
+  conditional: "Conditional",
+  firm: "Firm",
+};
+
+const TX_STATUS_COLORS: Record<string, string> = {
+  closed:  "#10B981",
+  pending: "#F59E0B",
+  fallen:  "#EF4444",
+};
+
+// ── Relative Date Helper ─────────────────────────────────────────────────────
+
+function relativeDate(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffMs = now - then;
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 14) return "Last week";
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+  if (diffDays < 60) return "Last month";
+  return `${Math.floor(diffDays / 30)} months ago`;
+}
+
 // ── Client Detail Sheet ─────────────────────────────────────────────────────
 
 function ClientDetailSheet({
@@ -618,8 +674,29 @@ function ClientDetailSheet({
   const c = useColors();
   const statusColor = STATUS_COLORS[client.status] ?? c.textDim;
 
+  const {
+    clientActivities,
+    fetchClientActivities,
+    getClientDeals,
+  } = useDataStore();
+
+  const [activitiesLoading, setActivitiesLoading] = useState(true);
+
+  // Fetch activities when sheet opens
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      await fetchClientActivities(client.id);
+      if (!cancelled) setActivitiesLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [client.id]);
+
+  const activities = clientActivities[client.id] ?? [];
+  const deals = useMemo(() => getClientDeals(client.name), [client.name]);
+
   return (
-    <Sheet visible onClose={onClose} title={client.name}>
+    <Sheet visible onClose={onClose} title={client.name} maxHeight="95%">
       {/* ── Client Header ── */}
       <View style={styles.detailHeader}>
         <Avatar name={client.name} size="lg" color={statusColor} />
@@ -713,6 +790,163 @@ function ClientDetailSheet({
           </Text>
         </View>
       )}
+
+      {/* ── Activity Timeline ── */}
+      <View style={{ marginTop: Space.xl }}>
+        <Text style={[Type.label, { color: c.textMuted, marginBottom: Space.md }]}>
+          RECENT ACTIVITY
+        </Text>
+        {activitiesLoading ? (
+          <View style={{ alignItems: "center", paddingVertical: Space.xl }}>
+            <ActivityIndicator size="small" color={c.primary} />
+          </View>
+        ) : activities.length === 0 ? (
+          <Text style={[Type.body, { color: c.textDim, marginBottom: Space.lg }]}>
+            No activity logged yet
+          </Text>
+        ) : (
+          <View style={{ marginBottom: Space.md }}>
+            {activities.map((act, idx) => {
+              const isLast = idx === activities.length - 1;
+              const dotColor = ACTIVITY_DOT_COLORS[act.type] ?? c.textDim;
+              const typeLabel =
+                ACTIVITY_TYPE_LABELS[act.type as ActivityType] ?? act.type;
+              return (
+                <View key={act.id} style={styles.timelineRow}>
+                  {/* Left: dot + connecting line */}
+                  <View style={styles.timelineLeft}>
+                    <View
+                      style={[
+                        styles.timelineDot,
+                        { backgroundColor: dotColor },
+                      ]}
+                    />
+                    {!isLast && (
+                      <View
+                        style={[
+                          styles.timelineLine,
+                          { backgroundColor: c.divider },
+                        ]}
+                      />
+                    )}
+                  </View>
+
+                  {/* Right: content */}
+                  <View style={styles.timelineContent}>
+                    <View style={styles.timelineHeader}>
+                      <Text
+                        style={[
+                          Type.caption,
+                          { color: dotColor, fontWeight: "700" },
+                        ]}
+                      >
+                        {typeLabel}
+                      </Text>
+                      <Text style={[Type.micro, { color: c.textDim }]}>
+                        {relativeDate(act.activity_date)}
+                      </Text>
+                    </View>
+                    {act.description ? (
+                      <Text
+                        style={[
+                          Type.body,
+                          { color: c.textSecondary, marginTop: 2 },
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {act.description}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </View>
+
+      {/* ── Linked Deals ── */}
+      <View style={{ marginTop: Space.lg }}>
+        <Text style={[Type.label, { color: c.textMuted, marginBottom: Space.md }]}>
+          DEALS
+        </Text>
+        {deals.pipeline.length === 0 && deals.transactions.length === 0 ? (
+          <Text style={[Type.body, { color: c.textDim, marginBottom: Space.lg }]}>
+            No linked deals
+          </Text>
+        ) : (
+          <View style={{ gap: Space.sm, marginBottom: Space.lg }}>
+            {/* Pipeline deals */}
+            {deals.pipeline.map((deal) => {
+              const stageColor = STAGE_COLORS[deal.stage] ?? c.textDim;
+              return (
+                <View
+                  key={deal.id}
+                  style={[
+                    styles.dealRow,
+                    {
+                      backgroundColor: c.card,
+                      borderColor: c.cardBorder,
+                    },
+                  ]}
+                >
+                  <Badge
+                    label={STAGE_LABELS[deal.stage] ?? deal.stage}
+                    color={stageColor}
+                    size="sm"
+                  />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                      style={[Type.caption, { color: c.text }]}
+                      numberOfLines={1}
+                    >
+                      {deal.address ?? "No address"}
+                    </Text>
+                    <Text style={[Type.micro, { color: c.textDim }]}>
+                      Est. {fmtCurrency(deal.estimated_price)}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+
+            {/* Transactions */}
+            {deals.transactions.map((tx) => {
+              const txColor = TX_STATUS_COLORS[tx.status] ?? c.textDim;
+              const gci = tx.gci_override ?? tx.sale_price * tx.commission_pct;
+              return (
+                <View
+                  key={tx.id}
+                  style={[
+                    styles.dealRow,
+                    {
+                      backgroundColor: c.card,
+                      borderColor: c.cardBorder,
+                    },
+                  ]}
+                >
+                  <Badge
+                    label={tx.status.charAt(0).toUpperCase() + tx.status.slice(1)}
+                    color={txColor}
+                    size="sm"
+                  />
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text
+                      style={[Type.caption, { color: c.text }]}
+                      numberOfLines={1}
+                    >
+                      {tx.address ?? "No address"}
+                    </Text>
+                    <Text style={[Type.micro, { color: c.textDim }]}>
+                      GCI {fmtCurrency(gci)}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </View>
     </Sheet>
   );
 }
@@ -1001,5 +1235,47 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     borderWidth: 1,
     padding: Space.lg,
+  },
+
+  // Activity timeline
+  timelineRow: {
+    flexDirection: "row",
+    minHeight: 48,
+  },
+  timelineLeft: {
+    width: 20,
+    alignItems: "center",
+  },
+  timelineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 5,
+  },
+  timelineLine: {
+    width: 1,
+    flex: 1,
+    marginTop: 4,
+    marginBottom: 4,
+  },
+  timelineContent: {
+    flex: 1,
+    paddingLeft: Space.sm,
+    paddingBottom: Space.md,
+  },
+  timelineHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  // Deal rows
+  dealRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Space.md,
+    padding: Space.md,
+    borderRadius: Radius.md,
+    borderWidth: 1,
   },
 });

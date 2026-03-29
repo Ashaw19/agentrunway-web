@@ -22,10 +22,11 @@ interface SheetProps {
   visible: boolean;
   onClose: () => void;
   title?: string;
+  maxHeight?: string;
   children: React.ReactNode;
 }
 
-export function Sheet({ visible, onClose, title, children }: SheetProps) {
+export function Sheet({ visible, onClose, title, maxHeight, children }: SheetProps) {
   const c = useColors();
   const insets = useSafeAreaInsets();
 
@@ -53,6 +54,7 @@ export function Sheet({ visible, onClose, title, children }: SheetProps) {
                 borderTopLeftRadius: Radius.xxl,
                 borderTopRightRadius: Radius.xxl,
                 paddingBottom: Math.max(insets.bottom, Space.xxxl),
+                ...(maxHeight ? { maxHeight } : {}),
               },
             ]}
           >
