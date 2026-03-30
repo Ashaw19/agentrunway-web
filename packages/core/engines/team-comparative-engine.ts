@@ -72,19 +72,17 @@ export function generateTeamComparativeInsights(
   if (agent.goal_gci && agent.goal_gci > 0 && seasonalFraction > 0) {
     const expectedGci = agent.goal_gci * seasonalFraction;
     const agentPace = agent.ytd_gci / expectedGci;
-    const teamExpected = team.avg_ytd_gci / seasonalFraction; // implied team avg goal
-    const teamPace =
-      teamExpected > 0
-        ? team.avg_ytd_gci / (teamExpected * seasonalFraction)
-        : 1;
+    // Note: team goal data (avg_goal_gci) is not available in the input,
+    // so we cannot compute a meaningful team pace. We only flag agents
+    // who are significantly behind their own goal pace.
 
-    if (agentPace < 0.75 && teamPace >= 0.9) {
+    if (agentPace < 0.75) {
       insights.push({
         id: "pace_behind_team",
         category: "pace",
         severity: "warning",
         title: "Behind team pace",
-        message: `You're at ${Math.round(agentPace * 100)}% of your goal pace while the team average is on track. Consider reviewing your pipeline strategy with ${leaderFirstName}.`,
+        message: `You're at ${Math.round(agentPace * 100)}% of your goal pace. Consider reviewing your pipeline strategy with ${leaderFirstName}.`,
         priority: 90,
       });
     } else if (agentPace >= 1.25) {

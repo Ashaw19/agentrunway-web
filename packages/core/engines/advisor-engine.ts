@@ -113,7 +113,11 @@ export function generateAdvisory(input: AdvisorInput, limit: number = 5): Adviso
 
   // 2. Expense Benchmarking
   if (ytdGCI > 0 && input.projectedYearEndGCI > 0) {
-    const annualExpenses = input.expensesYTD + input.monthlyRecurringExpenses * 12;
+    // expensesYTD already includes elapsed months of recurring costs,
+    // so only add the remaining months to avoid double-counting.
+    const currentMonth = new Date().getMonth(); // 0-indexed (Jan=0)
+    const remainingMonths = 12 - (currentMonth + 1);
+    const annualExpenses = input.expensesYTD + input.monthlyRecurringExpenses * remainingMonths;
     const ratio = annualExpenses / input.projectedYearEndGCI;
     if (ratio > 0.3) {
       const targetExpenses = input.projectedYearEndGCI * 0.25;

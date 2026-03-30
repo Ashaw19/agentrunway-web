@@ -479,9 +479,11 @@ export function AltimeterContent({
   }, {});
 
   // ── Insights ───────────────────────────────────────────────────────────
-  // Build a minimal health report and runway score needed for insights
-  const monthlyRecurring = 0; // Not fetched on this page — use 0 as safe default
-  const expensesYTD = 0;      // Not fetched on this page
+  // Expense data is not fetched on this page, so we pass 0 and omit
+  // the runway score from insights to avoid showing inaccurate values.
+  // The Dashboard already displays the accurate Runway Score.
+  const monthlyRecurring = 0;
+  const expensesYTD = 0;
 
   const survival = survivalResult(
     settings?.monthly_brokerage_fee ?? 0,
@@ -513,9 +515,11 @@ export function AltimeterContent({
         estimatedCapMonth: null,
         forecastReadiness: goalGCI > 0 ? 0.6 : 0,
         historyItems,
-        runwayScore: runwayScore.score,
-        runwayGrade: runwayScore.grade,
-        runwayWeakestLabel: healthReport.weakestLabel,
+        // Omit runway score — expense data not available on this page,
+        // so score would be inaccurate. Dashboard shows the real score.
+        runwayScore: undefined,
+        runwayGrade: undefined,
+        runwayWeakestLabel: undefined,
       }, 5)
     : [];
 
