@@ -117,7 +117,7 @@ In Settings, agents can write a personal AI Voice Guide — a short paragraph de
 
 **Projected Year-End GCI:** (Closed YTD GCI ÷ Seasonal Fraction) + (Pipeline Weighted GCI × 50%).
 
-**Runway Score:** Composite 0–100. Components: Pace vs Goal (30%), Pipeline Health (20%), Expense Ratio (15%), Survival Runway (15%), Benchmark Rank (10%), Setup Completeness (10%). Grades: A+ (92+), A (85–91), B (75–84), C (62–74), D (50–61), F (0–49).
+**Runway Score:** Composite 0–100. Components: Pace vs Goal (35%), Pipeline Health (25%), Expense Ratio (15%), Survival Runway (15%), Benchmark Rank (10%). Grades: A+ (92+), A (85–91), B (75–84), C (62–74), D (50–61), F (0–49).
 
 **Benchmark:** CREA 2023 national cohort comparison. Cohorts: Rookie (0–2yr), Growth (3–5yr), Established (6–10yr), Top Producer (10+yr).
 
@@ -294,7 +294,7 @@ The AI should frame these as helpful observations, not alarms. Example: "Looking
 A: GCI = Sale Price × Commission %. If you manually override GCI in the deal form, that value is used instead of the calculation.
 
 **Q: What does the Runway Score measure?**
-A: A composite 0–100 score across 6 factors: pace vs goal (30%), pipeline health (20%), expense ratio (15%), survival runway (15%), benchmark rank (10%), and setup completeness (10%). Grades: A+ (92+), A (85–91), B (75–84), C (62–74), D (50–61), F (0–49).
+A: A composite 0–100 score across 5 factors: pace vs goal (35%), pipeline health (25%), expense ratio (15%), survival runway (15%), and benchmark rank (10%). Grades: A+ (92+), A (85–91), B (75–84), C (62–74), D (50–61), F (0–49).
 
 **Q: How much should I set aside for taxes per deal?**
 A: Check the Forecast page → Tax Planning card. It calculates a per-deal set-aside amount based on your projected annual tax ÷ expected deal count. This is a planning estimate — consult an accountant for precise figures.

@@ -18,7 +18,7 @@ const TOUR_STEPS: TourStep[] = [
     selector: "[data-tour='dashboard-score']",
     title: "Your Command Center",
     description:
-      "This is your Runway Score — a composite grade across 6 business health factors. It updates in real time as you add deals, expenses, and pipeline activity.",
+      "This is your Runway Score — a composite grade across 5 business health factors. It updates in real time as you add deals, expenses, and pipeline activity.",
     icon: <LayoutDashboard className="h-5 w-5" />,
     position: "bottom",
   },

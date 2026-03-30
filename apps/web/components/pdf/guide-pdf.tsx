@@ -234,14 +234,13 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
 
         <Text style={S.sectionSubtitle}>Runway Score (0–100)</Text>
         <Text style={S.body}>
-          Your Runway Score is a composite grade across 6 business health factors:
+          Your Runway Score is a composite grade across 5 business health factors:
         </Text>
-        <Text style={S.bullet}>{"\u2022"} Pace vs Goal (30%) — Are you on track for your annual GCI target?</Text>
-        <Text style={S.bullet}>{"\u2022"} Pipeline Health (20%) — Do you have enough deals in progress?</Text>
+        <Text style={S.bullet}>{"\u2022"} Pace vs Goal (35%) — Are you on track for your annual GCI target?</Text>
+        <Text style={S.bullet}>{"\u2022"} Pipeline Health (25%) — Do you have enough deals in progress?</Text>
         <Text style={S.bullet}>{"\u2022"} Expense Ratio (15%) — Are your expenses under control?</Text>
         <Text style={S.bullet}>{"\u2022"} Survival Runway (15%) — How many months could you survive without income?</Text>
         <Text style={S.bullet}>{"\u2022"} Benchmark Rank (10%) — How you compare to CREA 2023 peers</Text>
-        <Text style={S.bullet}>{"\u2022"} Setup Completeness (10%) — Have you configured the platform fully?</Text>
 
         <Text style={S.body}>
           Grades: A+ (92+), A (85–91), B (75–84), C (62–74), D (50–61), F (0–49)
@@ -390,7 +389,7 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
 
         <Text style={S.sectionSubtitle}>What is the Runway Score?</Text>
         <Text style={S.body}>
-          A composite 0–100 score across 6 factors. Grades from A+ (92+) to F (0–49). See page 2 for the full breakdown.
+          A composite 0–100 score across 5 factors. Grades from A+ (92+) to F (0–49). See page 2 for the full breakdown.
         </Text>
 
         <Text style={S.sectionSubtitle}>What is survival runway?</Text>

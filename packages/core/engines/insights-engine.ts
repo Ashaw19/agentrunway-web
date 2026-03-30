@@ -328,7 +328,7 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
       insights.push({
         id: nextId(), type: "praise", icon: "star",
         title: "Strong Business Health",
-        message: `Health score: ${input.runwayScore}/100 (${input.runwayGrade ?? "A"}). Pace, pipeline, expenses, and setup are all firing well.`,
+        message: `Health score: ${input.runwayScore}/100 (${input.runwayGrade ?? "A"}). Pace, pipeline, expenses, and survival are all firing well.`,
         priority: 48,
       });
     }

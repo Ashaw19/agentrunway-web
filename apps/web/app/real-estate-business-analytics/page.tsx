@@ -86,7 +86,7 @@ const FEATURES = [
       "Track monthly recurring expenses by category",
       "Calculate runway from your actual cash reserve",
       "Risk classification: Critical, Warning, Healthy, Strong",
-      "Composite runway score across 6 financial dimensions",
+      "Composite runway score across 5 financial dimensions",
     ],
   },
   {

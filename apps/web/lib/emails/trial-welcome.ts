@@ -106,7 +106,7 @@ export function trialWelcomeEmail({
               <!-- Feature list -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
                 ${[
-                  ["🏆", "Runway Score", "A-to-F health grade across 6 business dimensions"],
+                  ["🏆", "Runway Score", "A-to-F health grade across 5 business dimensions"],
                   ["🤖", "AI Business Advisor", "GPT-powered Q&A about your specific numbers"],
                   ["📊", "Probability Forecast", "P10–P90 income bands for the months ahead"],
                   ["💰", "Tax Planning", "Quarterly instalment targets + per-deal set-aside"],
@@ -178,7 +178,7 @@ Your Agent Runway Professional trial is now live!
 ${trialEndsOn ? `Your free trial runs until ${trialEndsOn}` : "Your 14-day free trial has started"} — no credit card required.
 
 What's unlocked:
-• Runway Score — A-to-F health grade across 6 business dimensions
+• Runway Score — A-to-F health grade across 5 business dimensions
 • AI Business Advisor — GPT-powered Q&A about your specific numbers
 • Probability Forecast — P10–P90 income bands for the months ahead
 • Tax Planning — Quarterly instalment targets + per-deal set-aside

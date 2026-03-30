@@ -1,6 +1,6 @@
 // RunwayScoreEngine — ported from Swift
 // Versioned composite score wrapping BusinessHealthReport + benchmark + survival.
-// 6-component health score.
+// 5-component health score (Setup removed in v1.1).
 
 export const SCORE_VERSION = "1.1";
 

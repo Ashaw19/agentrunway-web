@@ -75,7 +75,7 @@ const FEATURES = [
     bullets: [
       "Calculate runway in months from your cash reserve and monthly fixed costs",
       "Risk classification: Critical, Warning, Healthy, or Strong",
-      "Composite runway score across 6 financial dimensions (A+ to F)",
+      "Composite runway score across 5 financial dimensions (A+ to F)",
       "Understand your break-even deal volume to cover monthly costs",
     ],
     bg: "bg-white",

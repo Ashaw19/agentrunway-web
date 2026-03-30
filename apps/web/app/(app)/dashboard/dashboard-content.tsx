@@ -2794,13 +2794,13 @@ function NarrativeSection({
 const SCORE_COMPONENTS_INFO = [
   {
     label: "Goal Pace",
-    weight: "30%",
+    weight: "35%",
     description:
       "Measures how your YTD GCI tracks against your annual goal, adjusted for seasonal patterns. Full credit when you're at or ahead of expected pace.",
   },
   {
     label: "Pipeline",
-    weight: "20%",
+    weight: "25%",
     description:
       "Your probability-weighted pipeline value relative to the remaining goal gap. A healthy pipeline provides a cushion for the months ahead.",
   },
@@ -2815,12 +2815,6 @@ const SCORE_COMPONENTS_INFO = [
     weight: "15%",
     description:
       "Months of cash runway based on your burn rate (brokerage fee + recurring expenses) and cash reserves. 6+ months is considered strong.",
-  },
-  {
-    label: "Setup",
-    weight: "10%",
-    description:
-      "How complete your business profile is — annual goal, province, commission split, experience, and brokerage fee. A complete profile means more accurate projections.",
   },
   {
     label: "Benchmark",
@@ -2859,7 +2853,7 @@ function RunwayScoreInfoDialog() {
         <div className="space-y-5 text-sm">
           <p className="text-muted-foreground">
             Your Runway Score is a composite 0–100 number that grades the overall
-            health of your real estate business across six dimensions. It updates
+            health of your real estate business across five dimensions. It updates
             in real time as you enter data.
           </p>
 
@@ -2994,7 +2988,6 @@ function buildScoreNarrative(
         : `you're ${paceAbs}% behind your goal pace — closing pipeline deals will move this`,
     Pipeline: "your pipeline is thin relative to your remaining goal",
     Expenses: "your expense ratio is above the 25–30% benchmark",
-    Setup: "your forecast profile is incomplete — finishing Settings will improve this",
     Benchmark: "your projected GCI is below your experience-group cohort median",
     Survival:
       survival.monthlyBurn > 0
@@ -3180,8 +3173,6 @@ function generateBusinessHealthNarrative({
     nextMove = `Push ${pipelineCount > 2 ? "top 2" : "your"} pipeline deal${pipelineCount !== 1 ? "s" : ""} toward closing this month to improve both GCI and pipeline score.`;
   } else if (weakest.label === "Expenses") {
     nextMove = "Review your Expenses page and identify at least $500/month in reducible recurring costs to bring the expense ratio below 30%.";
-  } else if (weakest.label === "Setup") {
-    nextMove = "Complete your Settings profile — set your annual GCI goal, brokerage split, and experience years to unlock full forecast accuracy.";
   } else if (weakest.label === "Survival" && survival.monthlyBurn > 0) {
     nextMove = `Build your cash reserve to cover at least 3 months of the ${fmtCurrency(survival.monthlyBurn)}/month burn rate (${fmtCurrency(survival.monthlyBurn * 3)} target).`;
   } else if (pipelineCount > 0 && gciGap > 0) {
