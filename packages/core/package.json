@@ -7,7 +7,8 @@
     "./engines/*": "./engines/*.ts",
     "./types/database": "./types/database.ts",
     "./types/organizations": "./types/organizations.ts",
-    "./formatters": "./formatters.ts"
+    "./formatters": "./formatters.ts",
+    "./validation/input-guards": "./validation/input-guards.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

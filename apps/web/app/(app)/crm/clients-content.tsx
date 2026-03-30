@@ -164,6 +164,7 @@ import { guardSandboxWrite } from "@/lib/sandbox-guard";
 import { useSandboxMode } from "@/lib/sandbox-mode-context";
 import { markMemoryStaleClient } from "@/lib/ai/mark-memory-stale";
 import * as XLSX from "xlsx";
+import { validateClient, validateEmail, validatePhone, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -1613,18 +1614,30 @@ export function ClientsContent({
       return;
     }
 
+    // ── Validate client fields before writing ────────────────────────────────
+    const clientValidation = validateClient({
+      name: newClientName,
+      email: newClientEmail.trim() || null,
+      phone: newClientPhone.trim() || null,
+    });
+    if (!clientValidation.valid) {
+      clientValidation.errors.forEach((msg) => toast.error(msg));
+      setAddClientSaving(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("clients")
       .insert({
         user_id: user.id,
-        name: newClientName.trim(),
+        name: newClientName.trim().slice(0, FIELD_LIMITS.clientName),
         name_search: nameSearch,
-        email: newClientEmail.trim() || null,
-        phone: newClientPhone.trim() || null,
+        email: newClientEmail.trim().slice(0, FIELD_LIMITS.email) || null,
+        phone: newClientPhone.trim().slice(0, FIELD_LIMITS.phone) || null,
         status: newClientStatus,
         lead_source: newClientSource || null,
         tags: newClientTags,
-        street_address:  newClientStreet.trim()   || null,
+        street_address:  newClientStreet.trim().slice(0, FIELD_LIMITS.address)   || null,
         unit_number:     newClientUnit.trim()      || null,
         city:            newClientCity.trim()      || null,
         province_region: newClientProvince.trim()  || null,

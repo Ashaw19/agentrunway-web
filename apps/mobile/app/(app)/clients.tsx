@@ -63,6 +63,7 @@ import {
 import { Card, Sheet, Badge, Avatar, Button, Input, EmptyState } from "@/components/ui";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useTranslation } from "react-i18next";
+import { validateClient, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1544,12 +1545,17 @@ function AddClientSheet({
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async () => {
-    if (!name.trim()) return;
-    setSaving(true);
-    const ok = await onAdd({
-      name: name.trim(),
+    const v = validateClient({
+      name: name,
       email: email.trim() || null,
       phone: phone.trim() || null,
+    });
+    if (!v.valid) { Alert.alert("Invalid", v.errors[0]); return; }
+    setSaving(true);
+    const ok = await onAdd({
+      name: name.trim().slice(0, FIELD_LIMITS.clientName),
+      email: email.trim().slice(0, FIELD_LIMITS.email) || null,
+      phone: phone.trim().slice(0, FIELD_LIMITS.phone) || null,
       status: "boarding",
       tags: [],
       lead_source: null,

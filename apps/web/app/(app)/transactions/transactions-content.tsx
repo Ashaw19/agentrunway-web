@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { validateTransaction, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 import {
   Dialog,
   DialogContent,
@@ -194,20 +195,34 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSaving(false); return; }
 
+    // ── Validate all numeric fields before writing ──────────────────────────
+    const validation = validateTransaction({
+      sale_price: form.sale_price,
+      commission_pct: form.commission_pct,
+      gci_override: form.gci_override || undefined,
+      team_split_pct: form.has_team_split ? form.team_split_pct : null,
+      has_team_split: form.has_team_split,
+      address: form.address,
+      notes: form.notes,
+    });
+    if (!validation.valid || !validation.parsed) {
+      validation.errors.forEach((msg) => toast.error(msg));
+      setSaving(false);
+      return;
+    }
+    const { parsed } = validation;
+
     const payload = {
       date: form.date,
-      address: form.address,
-      client_name: form.client_name,
+      address: form.address.slice(0, FIELD_LIMITS.address),
+      client_name: form.client_name.slice(0, FIELD_LIMITS.clientName),
       side: form.side,
       status: form.status,
-      sale_price: parseFloat(form.sale_price) || 0,
-      commission_pct: (parseFloat(form.commission_pct) || 0) / 100,
-      gci_override: form.gci_override ? parseFloat(form.gci_override) : null,
-      notes: form.notes,
-      // Convert display % (e.g. "60") → decimal (0.60); null when toggle is off
-      team_split_pct: form.has_team_split
-        ? (parseFloat(form.team_split_pct) || 0) / 100
-        : null,
+      sale_price: parsed.sale_price,
+      commission_pct: parsed.commission_pct,
+      gci_override: parsed.gci_override,
+      notes: form.notes.slice(0, FIELD_LIMITS.notes),
+      team_split_pct: parsed.team_split_pct,
     };
 
     if (editingId) {

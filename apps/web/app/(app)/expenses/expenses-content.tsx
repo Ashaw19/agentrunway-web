@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { validateExpenseAmount, validateMonthlyRecurring, validateVehicleBusinessPct, parseDollar, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 import { ExplainButton } from "@/components/explain-button";
 import { GuideLink } from "@/components/guide-link";
 import { Progress } from "@/components/ui/progress";
@@ -206,12 +207,21 @@ export function ExpensesContent({
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setQeSaving(false); return; }
 
+    // ── Validate expense amount before writing ─────────────────────────────
+    const amount = parseDollar(qeAmount);
+    const amountCheck = validateExpenseAmount(amount);
+    if (!amountCheck.valid) {
+      amountCheck.errors.forEach((msg) => toast.error(msg));
+      setQeSaving(false);
+      return;
+    }
+
     const { error } = await supabase.from("receipt_expenses").insert({
       user_id: user.id,
       category_key: qeCategory || null,
-      total_amount: parseFloat(qeAmount) || 0,
-      vendor: qeVendor || null,
-      notes: qeDesc || null,
+      total_amount: amount!,
+      vendor: (qeVendor || "").slice(0, FIELD_LIMITS.vendor) || null,
+      notes: (qeDesc || "").slice(0, FIELD_LIMITS.notes) || null,
       expense_date: qeDate || new Date().toISOString().split("T")[0],
       currency: "CAD",
     });
@@ -376,7 +386,12 @@ export function ExpensesContent({
     value: string,
   ) {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
-    const numValue = parseFloat(value) || 0;
+    const numValue = parseDollar(value) ?? 0;
+    const recurringCheck = validateMonthlyRecurring(numValue);
+    if (!recurringCheck.valid) {
+      recurringCheck.errors.forEach((msg) => toast.error(msg));
+      return;
+    }
     const supabase = createClient();
     const { error } = await supabase.from("expense_items").update({ [field]: numValue }).eq("id", itemId);
     if (error) {
@@ -456,6 +471,11 @@ export function ExpensesContent({
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const pct = Math.min(1, Math.max(0, parseFloat(raw) / 100));
     if (isNaN(pct)) return;
+    const pctCheck = validateVehicleBusinessPct(pct);
+    if (!pctCheck.valid) {
+      pctCheck.errors.forEach((msg) => toast.error(msg));
+      return;
+    }
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -522,7 +542,12 @@ export function ExpensesContent({
 
   async function saveYoyExpenses(yr: number, field: "annual_expenses" | "annual_mileage_km" | "annual_mileage_deduct", rawValue: string) {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
-    const val = parseFloat(rawValue) || 0;
+    const val = parseDollar(rawValue) ?? 0;
+    const yoyCheck = validateExpenseAmount(val);
+    if (!yoyCheck.valid) {
+      yoyCheck.errors.forEach((msg) => toast.error(msg));
+      return;
+    }
     setPriorRows((prev) => prev.map((r) => r.year === yr ? { ...r, [field]: val } : r));
     setSavingYoy(yr);
     const supabase = createClient();

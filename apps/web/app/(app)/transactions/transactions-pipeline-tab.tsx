@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useSandboxMode } from "@/lib/sandbox-mode-context";
 import { guardSandboxWrite } from "@/lib/sandbox-guard";
+import { validateTransaction, validatePipelineDeal, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 import {
   Card,
   CardContent,
@@ -206,18 +207,31 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSaving(false); return; }
 
-    const payload = {
+    // ── Validate all numeric fields before writing ──────────────────────────
+    const validation = validatePipelineDeal({
+      estimated_price: form.estimated_price,
+      estimated_commission_pct: form.estimated_commission_pct,
+      probability_override: form.probability_override || undefined,
       address: form.address,
-      client_name: form.client_name,
-      estimated_price: parseFloat(form.estimated_price) || 0,
-      estimated_commission_pct: (parseFloat(form.estimated_commission_pct) || 0) / 100,
+      notes: form.notes,
+    });
+    if (!validation.valid || !validation.parsed) {
+      validation.errors.forEach((msg) => toast.error(msg));
+      setSaving(false);
+      return;
+    }
+    const { parsed } = validation;
+
+    const payload = {
+      address: form.address.slice(0, FIELD_LIMITS.address),
+      client_name: form.client_name.slice(0, FIELD_LIMITS.clientName),
+      estimated_price: parsed.estimated_price,
+      estimated_commission_pct: parsed.estimated_commission_pct,
       side: form.side,
       stage: form.stage,
       expected_close_date: form.expected_close_date || null,
-      probability_override: form.probability_override
-        ? parseFloat(form.probability_override) / 100
-        : null,
-      notes: form.notes,
+      probability_override: parsed.probability_override,
+      notes: form.notes.slice(0, FIELD_LIMITS.notes),
     };
 
     if (editingId) {
@@ -279,9 +293,19 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setClosing(false); return; }
 
-    const salePrice  = parseFloat(closeForm.sale_price) || 0;
-    const commPct    = (parseFloat(closeForm.commission_pct) || 0) / 100;
-    const gci        = salePrice * commPct;
+    // ── Validate close-deal form ─────────────────────────────────────────────
+    const closeValidation = validateTransaction({
+      sale_price: closeForm.sale_price,
+      commission_pct: closeForm.commission_pct,
+    });
+    if (!closeValidation.valid || !closeValidation.parsed) {
+      closeValidation.errors.forEach((msg) => toast.error(msg));
+      setClosing(false);
+      return;
+    }
+    const salePrice = closeValidation.parsed.sale_price;
+    const commPct   = closeValidation.parsed.commission_pct;
+    const gci       = salePrice * commPct;
 
     const { error: txErr } = await supabase.from("transactions").insert({
       user_id: user.id,

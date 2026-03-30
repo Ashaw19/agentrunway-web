@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   View,
   Text,
@@ -49,6 +50,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useTranslation } from "react-i18next";
+import { validateSalePrice, validateCommissionPct, parsePercent, parseDollar } from "@agent-runway/core/validation/input-guards";
 
 type Tab = "pipeline" | "closed" | "pending";
 
@@ -989,14 +991,17 @@ function AddTransactionModal({
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async () => {
-    const salePrice = parseFloat(price.replace(/[^0-9.]/g, ""));
-    const pct = parseFloat(commPct);
-    if (!salePrice || !pct) return;
+    const salePrice = parseDollar(price);
+    const pct = parsePercent(commPct);
+    const spCheck = validateSalePrice(salePrice);
+    const cpCheck = validateCommissionPct(pct);
+    if (!spCheck.valid) { Alert.alert("Invalid", spCheck.errors[0]); return; }
+    if (!cpCheck.valid) { Alert.alert("Invalid", cpCheck.errors[0]); return; }
     setSaving(true);
     const ok = await onAdd({
       address: address || null,
-      sale_price: salePrice,
-      commission_pct: pct / 100,
+      sale_price: salePrice!,
+      commission_pct: pct!,
       gci_override: null,
       side,
       status: "closed",
