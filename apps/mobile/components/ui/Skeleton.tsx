@@ -1,18 +1,10 @@
 /**
  * Skeleton — Shimmer loading placeholder with sweeping highlight animation.
- * Uses Reanimated for smooth 60fps shimmer on the native UI thread.
+ * Uses React Native's built-in Animated API for broad compatibility (including Expo Go).
  */
 
-import React from "react";
-import { type ViewStyle } from "react-native";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  interpolate,
-  Easing,
-} from "react-native-reanimated";
+import React, { useEffect, useRef } from "react";
+import { Animated, type ViewStyle } from "react-native";
 import { useColors, Radius } from "@/lib/theme";
 
 interface SkeletonProps {
@@ -29,19 +21,26 @@ export function Skeleton({
   style,
 }: SkeletonProps) {
   const c = useColors();
-  const progress = useSharedValue(0);
+  const opacity = useRef(new Animated.Value(0.3)).current;
 
-  React.useEffect(() => {
-    progress.value = withRepeat(
-      withTiming(1, { duration: 1200, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 0.7,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0.3,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ]),
     );
-  }, [progress]);
-
-  const shimmerStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0, 0.5, 1], [0.3, 0.7, 0.3]),
-  }));
+    animation.start();
+    return () => animation.stop();
+  }, [opacity]);
 
   return (
     <Animated.View
@@ -52,8 +51,8 @@ export function Skeleton({
           borderRadius,
           backgroundColor: c.textFaint,
           overflow: "hidden",
+          opacity,
         },
-        shimmerStyle,
         style,
       ]}
     />

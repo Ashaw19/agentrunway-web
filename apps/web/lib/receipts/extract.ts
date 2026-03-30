@@ -15,12 +15,19 @@ const VISION_PROMPT = `You are a receipt data extraction assistant for Canadian 
 Extract structured data from this receipt image.
 Return ONLY a raw JSON object — no markdown, no code fences, no explanation.
 
+CRITICAL RULES FOR AMOUNTS:
+- "total_amount" MUST be the FINAL TOTAL on the receipt — the very last amount, the grand total, the amount paid. This is usually labeled "TOTAL", "AMOUNT DUE", "BALANCE", or appears at the very bottom near the payment method. It is NEVER a line item price.
+- "subtotal" is the pre-tax subtotal, usually labeled "SUBTOTAL" or "SUB-TOTAL". This is the sum of all items BEFORE tax.
+- "tax_amount" is the ACTUAL tax printed on the receipt (GST, HST, QST, PST, or combined). Read the exact tax amount — do NOT calculate it yourself.
+- If the receipt shows multiple items, IGNORE individual item prices. Only extract the TOTAL, SUBTOTAL, and TAX lines that summarize the entire transaction.
+- Look at the BOTTOM of the receipt first for totals. Scan upward for subtotal and tax lines.
+
 Required JSON structure:
 {
   "vendor":             "<merchant or store name, or null>",
   "expense_date":       "<YYYY-MM-DD, or null if not visible>",
-  "total_amount":       <total as a plain number without currency symbols, or null>,
-  "tax_amount":         <GST/HST/QST/PST combined tax as a plain number, or null>,
+  "total_amount":       <FINAL TOTAL PAID as a plain number, or null>,
+  "tax_amount":         <tax amount printed on receipt as a plain number, or null>,
   "subtotal":           <pre-tax subtotal as a plain number, or null>,
   "currency":           "<3-letter ISO code — default CAD for Canadian receipts>",
   "suggested_category": "<one of the keys listed below — or null if uncertain>",
@@ -56,6 +63,7 @@ Rules:
 - Amounts must be plain numbers (e.g. 25.99, not "$25.99")
 - If currency is ambiguous but the receipt looks Canadian, use "CAD"
 - Never invent data — use null for any field not clearly visible
+- ALWAYS read the actual total from the receipt — NEVER use a line item price as the total
 - Confidence: 0.9+ all key fields visible; 0.65–0.9 minor gaps; <0.65 significant issues`;
 
 /** Build and return a Groq client using the OpenAI-compatible endpoint */
@@ -103,7 +111,7 @@ export async function extractReceiptData(
         },
       ],
       temperature: 0.05,
-      max_tokens:  512,
+      max_tokens:  1024,
     }),
     { label: "groq/receipt-ocr", attempts: 3 },
   );
@@ -142,6 +150,26 @@ export async function extractReceiptData(
                           : 0.5,
   };
 
-  console.log(`[receipt/extract] Extracted: vendor=${result.vendor}, total=${result.total_amount}, confidence=${result.confidence}`);
+  // ── Sanity checks ──────────────────────────────────────────────────────────
+  // If subtotal is greater than total, they're likely swapped
+  if (result.subtotal != null && result.total_amount != null && result.subtotal > result.total_amount) {
+    console.warn(`[receipt/extract] Swapped subtotal/total (subtotal ${result.subtotal} > total ${result.total_amount})`);
+    const tmp = result.total_amount;
+    result.total_amount = result.subtotal;
+    result.subtotal = tmp;
+  }
+
+  // If tax + subtotal exist and roughly equal total, trust them; if total is way off, recalculate
+  if (result.subtotal != null && result.tax_amount != null && result.total_amount != null) {
+    const expectedTotal = Math.round((result.subtotal + result.tax_amount) * 100) / 100;
+    const diff = Math.abs(expectedTotal - result.total_amount);
+    if (diff > 0.5 && diff > result.total_amount * 0.1) {
+      console.warn(`[receipt/extract] Total mismatch: subtotal(${result.subtotal}) + tax(${result.tax_amount}) = ${expectedTotal}, but total=${result.total_amount}. Using higher value.`);
+      // Use the higher of the two as total (line item vs real total)
+      result.total_amount = Math.max(result.total_amount, expectedTotal);
+    }
+  }
+
+  console.log(`[receipt/extract] Extracted: vendor=${result.vendor}, total=${result.total_amount}, tax=${result.tax_amount}, subtotal=${result.subtotal}, confidence=${result.confidence}`);
   return result;
 }
