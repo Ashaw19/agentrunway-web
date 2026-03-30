@@ -68,8 +68,8 @@ export default function TermsPage() {
                 </li>
                 <li>
                   <strong className="text-slate-300">&ldquo;Service&rdquo;</strong>{" "}
-                  means the Agent Runway web application at agentrunway.ca, the
-                  Agent Runway mobile application, all associated APIs, and any
+                  means the Agent Runway web application at agentrunway.ca, its
+                  mobile-optimized web experience, all associated APIs, and any
                   related documentation, updates, and support services.
                 </li>
                 <li>
@@ -151,8 +151,8 @@ export default function TermsPage() {
               </ul>
               <p className="mt-4 leading-relaxed">
                 The Service is provided via the web application at agentrunway.ca
-                and may also be accessed through our mobile application for iOS
-                and Android. We reserve the right to modify, suspend, add, or
+                and is optimized for use on mobile devices through your browser.
+                We reserve the right to modify, suspend, add, or
                 discontinue any feature of the Service at any time, with or
                 without notice.
               </p>

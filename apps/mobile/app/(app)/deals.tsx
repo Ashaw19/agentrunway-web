@@ -54,7 +54,7 @@ import { validateSalePrice, validateCommissionPct, parsePercent, parseDollar } f
 
 type Tab = "pipeline" | "closed" | "pending";
 
-const STAGE_ORDER = ["lead", "showing", "offer", "conditional", "firm"] as const;
+const STAGE_ORDER = ["lead", "showing", "offer", "conditional", "firm", "closed"] as const;
 
 const DEFAULT_PROBABILITIES: Record<string, number> = {
   lead: 0.1,
@@ -62,6 +62,7 @@ const DEFAULT_PROBABILITIES: Record<string, number> = {
   offer: 0.5,
   conditional: 0.75,
   firm: 0.9,
+  closed: 1.0,
 };
 
 // ── Deals Skeleton ──────────────────────────────────────────────────────────

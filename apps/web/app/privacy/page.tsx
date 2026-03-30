@@ -45,7 +45,7 @@ export default function PrivacyPage() {
             </p>
             <p className="mt-3 text-base leading-relaxed text-slate-400">
               This policy applies to all users of the Agent Runway web
-              application (agentrunway.ca), mobile application, and related
+              application (agentrunway.ca), mobile-optimized web experience, and related
               services. By using the Service, you consent to the collection,
               use, and disclosure of your information as described in this
               policy.

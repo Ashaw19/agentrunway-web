@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 const PILLARS = [
   {
     label: "Runway Score",
-    description: "Real-time business health. Six factors. One number.",
+    description: "Real-time business health. Five factors. One number.",
     accentColor: "amber",
     border: "rgba(240,168,0,0.35)",
     borderHover: "rgba(240,168,0,0.6)",

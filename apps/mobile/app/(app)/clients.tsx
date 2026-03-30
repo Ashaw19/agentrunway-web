@@ -55,7 +55,6 @@ import {
   Radius,
   Type,
   STATUS_COLORS,
-  StatusColors,
   STAGE_COLORS,
   getInitials,
   fmtCurrency,
@@ -1022,12 +1021,12 @@ function ClientDetailSheet({
   const deals = useMemo(() => getClientDeals(client.name), [client.name]);
 
   const FLIGHT_STATUSES: { key: string; label: string }[] = [
-    { key: "cruising", label: t("status.cruising") },
-    { key: "turbulence", label: t("status.turbulence") },
-    { key: "grounded", label: t("status.grounded") },
     { key: "boarding", label: t("status.boarding") },
+    { key: "taxiing", label: t("status.taxiing") },
+    { key: "approach", label: t("status.approach") },
+    { key: "in_flight", label: t("status.in_flight") },
     { key: "landed", label: t("status.landed") },
-    { key: "departed", label: t("status.departed") },
+    { key: "cruising", label: t("status.cruising") },
   ];
 
   return (
@@ -1081,7 +1080,7 @@ function ClientDetailSheet({
             <View style={styles.statusPillRow}>
               {FLIGHT_STATUSES.map((fs) => {
                 const isSelected = editStatus === fs.key;
-                const pillColor = StatusColors[fs.key] ?? c.textDim;
+                const pillColor = STATUS_COLORS[fs.key] ?? c.textDim;
                 return (
                   <Pressable
                     key={fs.key}

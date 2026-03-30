@@ -4,7 +4,7 @@ import { ExpensesContent } from "./expenses-content";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlaidItem, PlaidTransaction } from "@/lib/types/database";
 
-// ── Default categories mirroring the iOS app exactly ─────────────────────────
+// ── Default expense categories ───────────────────────────────────────────────
 const DEFAULT_CATEGORIES = [
   {
     key: "vehicle",

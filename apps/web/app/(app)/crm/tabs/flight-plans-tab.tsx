@@ -389,6 +389,7 @@ export function FlightPlansTab({
                   <SelectItem value="none">No trigger (manual only)</SelectItem>
                   <SelectItem value="boarding">Boarding — New lead</SelectItem>
                   <SelectItem value="taxiing">Taxiing — Actively shopping</SelectItem>
+                  <SelectItem value="approach">Approach — Preparing offer</SelectItem>
                   <SelectItem value="in_flight">In-Flight — Under contract</SelectItem>
                   <SelectItem value="landed">Landed — Deal closed</SelectItem>
                   <SelectItem value="cruising">Cruising — Past client</SelectItem>

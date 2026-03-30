@@ -674,7 +674,7 @@ export function generateSandboxData(
     } else if (cn.source === "pipeline") {
       const stageMap: Record<string, ClientStatus> = {
         lead: "boarding", showing: "taxiing", offer: "approach",
-        conditional: "in_flight", firm: "in_flight",
+        conditional: "in_flight", firm: "in_flight", closed: "landed",
       };
       const dealStage = pipelineDeals.find(d => d.client_name === cn.full)?.stage ?? "lead";
       status = stageMap[dealStage] ?? "boarding";

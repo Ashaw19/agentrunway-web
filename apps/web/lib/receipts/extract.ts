@@ -39,7 +39,8 @@ Category keys (pick the most specific match):
 - vehicle_service:  Oil change, tire shop, auto repair, parking, Midas, Mr Lube, Canadian Tire service
 - vehicle_insurance: Car insurance premiums
 - vehicle_payment:  Car loan or lease payments
-- marketing_ads:    Facebook/Instagram/Google/LinkedIn Ads, Mailchimp, photography, signage
+- marketing_ads:    Facebook/Instagram/Google/LinkedIn Ads, Mailchimp, signage
+- marketing_photography: Photography, videography, drone photo, virtual tour, Matterport
 - marketing_print:  Print shops, Vistaprint, Minuteman Press, flyers, signs
 - marketing_gifts:  Client gifts, gift cards
 - office_supplies:  Staples, paper, toner, office supplies, Walmart, Amazon (non-device)

@@ -38,11 +38,6 @@ export function isValidPhone(phone: string): boolean {
   return digits.length >= 7 && digits.length <= 15;
 }
 
-/** Clamp a string to maxLength, trimming whitespace. */
-export function clampText(raw: string, maxLength: number): string {
-  return raw.trim().slice(0, maxLength);
-}
-
 // ── Validation result type ──────────────────────────────────────────────────
 
 export interface ValidationResult {

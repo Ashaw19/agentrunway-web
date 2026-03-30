@@ -951,7 +951,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
             <CardTitle>Profile Identity</CardTitle>
           </div>
           <CardDescription>
-            Your public-facing name and social links — synced from the iOS app and shown across your reports.
+            Your public-facing name and social links — shown across your reports and client-facing materials.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-5">

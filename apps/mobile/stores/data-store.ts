@@ -35,7 +35,7 @@ export interface PipelineDeal {
   address: string | null;
   estimated_price: number;
   estimated_commission_pct: number;
-  stage: "lead" | "showing" | "offer" | "conditional" | "firm";
+  stage: "lead" | "showing" | "offer" | "conditional" | "firm" | "closed";
   probability_override: number | null;
   expected_close_date: string | null;
   client_name: string | null;

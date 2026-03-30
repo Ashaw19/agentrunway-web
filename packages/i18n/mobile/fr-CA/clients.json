@@ -19,10 +19,7 @@
     "approach": "Approche",
     "in_flight": "En vol",
     "landed": "Atterri",
-    "cruising": "Croisi\u00e8re",
-    "turbulence": "Turbulence",
-    "grounded": "Au sol",
-    "departed": "D\u00e9part\u00e9"
+    "cruising": "Croisi\u00e8re"
   },
   "contact": {
     "logCall": "Enregistrer un appel",

@@ -19,10 +19,7 @@
     "approach": "Approach",
     "in_flight": "In Flight",
     "landed": "Landed",
-    "cruising": "Cruising",
-    "turbulence": "Turbulence",
-    "grounded": "Grounded",
-    "departed": "Departed"
+    "cruising": "Cruising"
   },
   "contact": {
     "logCall": "Log Call",

@@ -90,6 +90,7 @@ const PIPELINE_STAGE_CONFIG: Array<{
   { key: "offer",       label: "Offer",       dotClass: "bg-amber-500",   chipClass: "border-amber-200 bg-amber-50 text-amber-700" },
   { key: "conditional", label: "Conditional", dotClass: "bg-amber-600",   chipClass: "border-amber-300 bg-amber-100 text-amber-800" },
   { key: "firm",        label: "Firm",        dotClass: "bg-emerald-500", chipClass: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  { key: "closed",      label: "Closed",      dotClass: "bg-green-600",   chipClass: "border-green-300 bg-green-50 text-green-800" },
 ];
 
 // ── Insight icons ──────────────────────────────────────────────────────────

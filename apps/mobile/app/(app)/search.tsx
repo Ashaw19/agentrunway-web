@@ -37,7 +37,7 @@ import {
   shadows,
   fmtCurrency,
   STAGE_COLORS,
-  StatusColors,
+  STATUS_COLORS,
 } from "@/lib/theme";
 import { useT } from "@/lib/useT";
 import { storage } from "@/lib/mmkv";
@@ -361,7 +361,7 @@ function ClientRowView({
   onPress: () => void;
   onQuickNote: () => void;
 }) {
-  const statusColor = StatusColors[item.status] ?? c.textMuted;
+  const statusColor = STATUS_COLORS[item.status] ?? c.textMuted;
   const statusLabel = item.status
     ? item.status.charAt(0).toUpperCase() + item.status.slice(1)
     : "Unknown";

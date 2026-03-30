@@ -252,7 +252,7 @@ export const Motion = {
 
 export const STAGE_COLORS: Record<string, string> = {
   lead: "#6B7280", showing: "#3B82F6", offer: "#F59E0B",
-  conditional: "#8B5CF6", firm: "#10B981",
+  conditional: "#8B5CF6", firm: "#10B981", closed: "#16A34A",
 };
 
 // ── Client Flight Status Colors ───────────────────────────────────────────────
@@ -262,15 +262,6 @@ export const STATUS_COLORS: Record<string, string> = {
   in_flight: "#10B981", landed: "#6B7280", cruising: "#06B6D4",
 };
 
-/** Canonical flight-status color mapping (preferred over STATUS_COLORS) */
-export const StatusColors: Record<string, string> = {
-  cruising:   "#10B981",   // green
-  turbulence: "#F59E0B",   // amber
-  grounded:   "#EF4444",   // red
-  boarding:   "#3B5EF6",   // runway blue
-  landed:     "#8B5CF6",   // purple
-  departed:   "#06B6D4",   // cyan
-};
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 

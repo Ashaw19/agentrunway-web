@@ -129,7 +129,7 @@ export function PricingCards() {
         setStatus("unavailable");
         setNotice(
           data.message ??
-            "Professional billing is coming soon — email hello@agentrunway.ca to upgrade."
+            "Billing is temporarily unavailable — please try again shortly or email hello@agentrunway.ca for help."
         );
         return;
       }

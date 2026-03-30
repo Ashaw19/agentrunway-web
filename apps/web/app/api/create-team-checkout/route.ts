@@ -2,7 +2,7 @@
  * POST /api/create-team-checkout
  *
  * Creates a Stripe Checkout session for a team subscription.
- * Two line items: leader seat ($149/mo) + member seats ($55/mo x member_count).
+ * Two line items: leader seat (tiered: $149–$249/mo) + member seats (tiered: $49–$79/mo x member_count).
  *
  * Expects: { org_id: string, member_count: number, billing: "monthly" | "annual" }
  */

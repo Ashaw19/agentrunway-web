@@ -10,7 +10,7 @@ export async function POST(request: Request) {
       {
         error: "Payments are not yet activated.",
         message:
-          "Professional billing is coming soon. Email hello@agentrunway.ca to be notified when it's ready.",
+          "Billing is temporarily unavailable. Please try again shortly or email hello@agentrunway.ca for help.",
       },
       { status: 503 }
     );
