@@ -2372,7 +2372,8 @@ export function DashboardContent({
             })}
           </div>
           {/* Deviation insights — personal baseline comparisons */}
-          {deviationMessages.length > 0 && (
+          {/* Suppress before mid-Feb: annualization math unreliable with < 2 months YTD data */}
+          {fraction * 12 >= 2 && deviationMessages.length > 0 && (
             <div className="mt-3 border-t border-slate-100 pt-3 space-y-1.5">
               {deviationMessages.map((msg, i) => (
                 <p key={i} className="text-[11px] text-slate-500 leading-snug flex items-start gap-1.5">

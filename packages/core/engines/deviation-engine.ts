@@ -158,6 +158,11 @@ const MIN_BASELINES: Record<string, number> = {
   monthlyTouchpoints: 5,  // 5 touchpoints/month minimum
 };
 
+/** Minimum absolute difference — suppress when % is technically high but gap is trivial. */
+const MIN_ABSOLUTE_DIFF: Record<string, number> = {
+  monthlyDeals: 0.75,     // < 0.75 deals/month difference is noise, not signal
+};
+
 /**
  * Detect deviation from personal baseline.
  * Returns null if:
@@ -178,6 +183,10 @@ export function detectDeviation(
 
   // Avoid division by zero
   if (baseline === 0) return null;
+
+  // Minimum absolute difference — suppress when gap is trivially small
+  const minAbsDiff = MIN_ABSOLUTE_DIFF[metricName];
+  if (minAbsDiff != null && Math.abs(current - baseline) < minAbsDiff) return null;
 
   const pctChange = Math.round(((current - baseline) / baseline) * 100);
 
@@ -246,9 +255,14 @@ export function deviationInsight(d: Deviation, tier: ExperienceTier): string {
   const label = METRIC_LABELS[d.metric] ?? d.metric;
   const phrase = directionPhrase(d);
 
+  const absChange = Math.abs(d.pctChange);
+
   switch (tier) {
     case "early":
       if (d.direction === "below") {
+        if (absChange >= 50) {
+          return `Your ${label} is ${phrase} your recent average. That's a meaningful gap — worth checking what changed.`;
+        }
         return `Your ${label} is ${phrase} your recent average. This is common as you build consistency.`;
       }
       return `Your ${label} is ${phrase} your recent average — nice momentum.`;
@@ -261,6 +275,9 @@ export function deviationInsight(d: Deviation, tier: ExperienceTier): string {
 
     case "established":
       if (d.direction === "below") {
+        if (absChange < 40) {
+          return `Your ${label} is ${phrase} your normal — likely a timing difference, but worth tracking.`;
+        }
         return `Your ${label} is ${phrase} your normal. This is unusual for your business and worth attention.`;
       }
       return `Your ${label} is ${phrase} your normal — an exceptionally strong period.`;

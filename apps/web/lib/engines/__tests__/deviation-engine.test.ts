@@ -121,29 +121,64 @@ describe("Deviation Detection", () => {
   it("suppresses when baseline below minimum", () => {
     expect(detectDeviation(100, 500, "monthlyGCI")).toBeNull();
   });
+
+  it("suppresses deal count when absolute difference < 0.75", () => {
+    // 1.0 vs 1.5 = -33% but only 0.5 deals/month difference — noise
+    expect(detectDeviation(1.0, 1.5, "monthlyDeals")).toBeNull();
+  });
+
+  it("fires deal count when absolute difference ≥ 0.75", () => {
+    // 0.5 vs 1.5 = -67% and 1.0 deals/month difference — real signal
+    const d = detectDeviation(0.5, 1.5, "monthlyDeals");
+    expect(d).not.toBeNull();
+    expect(d!.pctChange).toBe(-67);
+  });
 });
 
 // ── 4. Experience-Based Tone ────────────────────────────────────────────────
 
 describe("Deviation Insights — Tone", () => {
-  const belowDev: Deviation = {
+  const mildDrop: Deviation = {
+    metric: "monthlyGCI", current: 7500, baseline: 10000, pctChange: -25, direction: "below",
+  };
+  const severeDrop: Deviation = {
+    metric: "monthlyGCI", current: 4000, baseline: 10000, pctChange: -60, direction: "below",
+  };
+  const moderateDrop: Deviation = {
     metric: "monthlyGCI", current: 6000, baseline: 10000, pctChange: -40, direction: "below",
   };
 
-  it("early: normalizes", () => {
-    const msg = deviationInsight(belowDev, "early");
-    expect(msg).toContain("40% below");
+  // ── Early tier: severity split at 50% ──
+  it("early: normalizes mild drops", () => {
+    const msg = deviationInsight(mildDrop, "early");
+    expect(msg).toContain("25% below");
     expect(msg).toContain("common");
   });
 
+  it("early: acknowledges severe drops ≥ 50%", () => {
+    const msg = deviationInsight(severeDrop, "early");
+    expect(msg).toContain("60% below");
+    expect(msg).toContain("meaningful gap");
+    expect(msg).not.toContain("common");
+  });
+
+  // ── Mid tier: unchanged ──
   it("mid: direct", () => {
-    const msg = deviationInsight(belowDev, "mid");
+    const msg = deviationInsight(moderateDrop, "mid");
     expect(msg).toContain("40% below");
     expect(msg).toContain("usual level");
   });
 
-  it("established: flags as unusual", () => {
-    const msg = deviationInsight(belowDev, "established");
+  // ── Established tier: severity split at 40% ──
+  it("established: soft framing for mild drops < 40%", () => {
+    const msg = deviationInsight(mildDrop, "established");
+    expect(msg).toContain("25% below");
+    expect(msg).toContain("timing difference");
+    expect(msg).not.toContain("unusual");
+  });
+
+  it("established: flags severe drops ≥ 40% as unusual", () => {
+    const msg = deviationInsight(moderateDrop, "established");
     expect(msg).toContain("40% below");
     expect(msg).toContain("unusual");
   });
