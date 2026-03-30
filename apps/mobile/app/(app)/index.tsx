@@ -718,10 +718,9 @@ export default function DashboardScreen() {
 
             {/* Score component mini-bar */}
             <View style={{ flexDirection: "row", marginTop: Space.lg, gap: Space.xs, width: "100%" }}>
-              <ScoreBar label={t("scoreBar.pace")} pct={30} color="#6366F1" c={c} />
-              <ScoreBar label={t("scoreBar.pipeline")} pct={20} color="#818CF8" c={c} />
+              <ScoreBar label={t("scoreBar.pace")} pct={35} color="#6366F1" c={c} />
+              <ScoreBar label={t("scoreBar.pipeline")} pct={25} color="#818CF8" c={c} />
               <ScoreBar label={t("scoreBar.expenses")} pct={15} color="#10B981" c={c} />
-              <ScoreBar label={t("scoreBar.setup")} pct={10} color="#F59E0B" c={c} />
               <ScoreBar label={t("scoreBar.bench")} pct={10} color="#06B6D4" c={c} />
               <ScoreBar label={t("scoreBar.survival")} pct={15} color="#8B5CF6" c={c} />
             </View>

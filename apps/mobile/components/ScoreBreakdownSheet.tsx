@@ -1,5 +1,5 @@
 /**
- * ScoreBreakdownSheet — Tap the Runway Score to see the 6-component breakdown.
+ * ScoreBreakdownSheet — Tap the Runway Score to see the 5-component breakdown.
  * Reads component scores directly from the web dashboard's snapshot in Supabase.
  * No local recomputation — guaranteed parity with web.
  */
@@ -9,7 +9,6 @@ import {
   TrendingUp,
   Briefcase,
   Receipt,
-  Settings,
   BarChart3,
   Shield,
 } from "lucide-react-native";
@@ -25,7 +24,6 @@ const COMPONENT_META: Record<
   "Goal Pace": { key: "pace", icon: TrendingUp, color: "#3B5EF6" },
   Pipeline: { key: "pipeline", icon: Briefcase, color: "#8B5CF6" },
   Expenses: { key: "expenses", icon: Receipt, color: "#10B981" },
-  Setup: { key: "setup", icon: Settings, color: "#F59E0B" },
   Benchmark: { key: "benchmark", icon: BarChart3, color: "#06B6D4" },
   Survival: { key: "survival", icon: Shield, color: "#8B5CF6" },
 };

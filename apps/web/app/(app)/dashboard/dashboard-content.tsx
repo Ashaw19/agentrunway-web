@@ -2192,7 +2192,7 @@ export function DashboardContent({
                 <div className="flex items-center gap-1">
                   <span className="flex items-center gap-1">
                     <p className="text-sm font-semibold text-slate-500">Runway Score</p>
-                    <MetricInfo tip="A composite score across 6 factors: pace vs goal, expense ratio, pipeline health, cash runway, trend direction, and deal consistency." />
+                    <MetricInfo tip="A composite score across 5 factors: pace vs goal (35%), pipeline health (25%), expense ratio (15%), cash survival (15%), and benchmark ranking (10%)." />
                     <GuideLink anchor="runway-score" label="Runway Score explained in Guide" />
                     {isPro && <ExplainButton question="How is my Runway Score calculated and what can I do to improve it?" />}
                   </span>
@@ -2223,25 +2223,27 @@ export function DashboardContent({
                 <p className="mt-1 text-xs text-slate-500">{scoreNarrative}</p>
               </div>
             </div>
-            {/* Right: survival + benchmark */}
-            <div className="flex gap-6 text-right sm:gap-8">
-              <div>
-                <span className="flex items-center gap-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Cash Runway</p>
+            {/* Right: survival + pace — aligned two-column mini-grid */}
+            <div className="grid grid-cols-2 gap-px rounded-lg border border-slate-100 bg-slate-100 overflow-hidden">
+              {/* Cash Runway */}
+              <div className="bg-white px-4 py-3 text-center">
+                <div className="flex items-center justify-center gap-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Cash Runway</p>
                   <MetricInfo tip="How many months you could sustain current expenses using only your cash reserve, with zero new income." />
                   <GuideLink anchor="cash-runway" label="Cash Runway explained in Guide" />
                   {isPro && <ExplainButton question="What is my current cash runway and how can I extend it?" />}
-                </span>
-                <p className={cn("text-xl font-bold mt-0.5", riskColors[survival.riskLevel])}>
+                </div>
+                <p className={cn("text-2xl font-bold mt-1 leading-none", riskColors[survival.riskLevel])}>
                   {formatSurvivalDisplay(survival)}
                 </p>
-                <p className="text-xs text-slate-400">cash coverage</p>
+                <p className="text-[10px] text-slate-400 mt-1">cash coverage</p>
               </div>
-              <div>
+              {/* Your Pace */}
+              <div className="bg-white px-4 py-3 text-center">
                 {marketMomentum && marketMomentum.momentumTier !== "no_data" ? (
                   <>
-                    <span className="flex items-center gap-1">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Your Pace</p>
+                    <div className="flex items-center justify-center gap-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Your Pace</p>
                       <MetricInfo tip={
                         marketMomentum.agentDealGrowthPct != null
                           ? `Your deal count is ${marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}${marketMomentum.agentDealGrowthPct.toFixed(0)}% vs this point last year.${marketMomentum.boardSalesYoYPct != null ? ` Your board (${marketMomentum.boardName}) reported ${marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}${marketMomentum.boardSalesYoYPct.toFixed(0)}% YoY as of ${marketMomentum.reportMonth}.` : ""} Source: CREA MLS® Statistics.`
@@ -2249,12 +2251,11 @@ export function DashboardContent({
                       } />
                       <GuideLink anchor="market-position" label="Market Momentum explained in Guide" />
                       {isPro && <ExplainButton question="How is my business pace compared to last year and how does my local real estate market look?" />}
-                    </span>
+                    </div>
                     {marketMomentum.agentDealGrowthPct != null ? (
                       <>
-                        {/* Agent YoY — primary metric */}
                         <p
-                          className="text-xl font-bold mt-0.5 leading-tight"
+                          className="text-2xl font-bold mt-1 leading-none"
                           style={{
                             color: marketMomentum.momentumTier === "gaining"  ? "#059669"
                                  : marketMomentum.momentumTier === "trailing" ? "#DC2626"
@@ -2264,7 +2265,7 @@ export function DashboardContent({
                           {marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}{marketMomentum.agentDealGrowthPct.toFixed(0)}% YoY
                         </p>
                         <p
-                          className="text-[10px] font-semibold mt-0.5"
+                          className="text-[10px] font-semibold mt-1"
                           style={{
                             color: marketMomentum.momentumTier === "gaining"  ? "#059669"
                                  : marketMomentum.momentumTier === "trailing" ? "#DC2626"
@@ -2272,17 +2273,14 @@ export function DashboardContent({
                           }}
                         >
                           {marketMomentum.momentumLabel}
+                          {marketMomentum.boardSalesYoYPct != null && (
+                            <span className="text-slate-400 font-normal"> · Mkt {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}%</span>
+                          )}
                         </p>
-                        {/* Board context — separate, with reporting period */}
-                        {marketMomentum.boardSalesYoYPct != null && (
-                          <p className="text-[9px] text-slate-400 mt-1 leading-tight">
-                            Market {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}% · {marketMomentum.reportMonth}
-                          </p>
-                        )}
                       </>
                     ) : (
                       <p
-                        className="text-xl font-bold mt-0.5"
+                        className="text-2xl font-bold mt-1 leading-none"
                         style={{
                           color: marketMomentum.momentumTier === "gaining"  ? "#059669"
                                : marketMomentum.momentumTier === "trailing" ? "#DC2626"
@@ -2292,31 +2290,28 @@ export function DashboardContent({
                         {marketMomentum.momentumLabel}
                       </p>
                     )}
-                    <p className="text-[9px] text-slate-500 mt-1 leading-tight">
-                      Source: CREA MLS® Statistics · © {new Date().getFullYear()} CREA
+                    <p className="text-[9px] text-slate-400 mt-1 leading-tight">
+                      CREA MLS® · {marketMomentum.reportMonth ?? new Date().getFullYear()}
                     </p>
                   </>
                 ) : marketMomentum ? (
                   <>
-                    <span className="flex items-center gap-1">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Your Pace</p>
+                    <div className="flex items-center justify-center gap-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Your Pace</p>
                       <MetricInfo tip="Close your first deal or add a prior year in History to unlock your pace comparison." />
-                    </span>
-                    <p className="text-xl font-bold mt-0.5 text-slate-300">—</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">Needs prior year data</p>
-                    <p className="text-[9px] text-slate-500 mt-1 leading-tight">
-                      Source: CREA MLS® Statistics · © {new Date().getFullYear()} CREA
-                    </p>
+                    </div>
+                    <p className="text-2xl font-bold mt-1 leading-none text-slate-300">—</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Needs prior year data</p>
                   </>
                 ) : (
                   <>
-                    <span className="flex items-center gap-1">
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Your Pace</p>
+                    <div className="flex items-center justify-center gap-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Your Pace</p>
                       <MetricInfo tip="Select your local real estate board in Settings to see how your business pace compares to your market." />
                       <GuideLink anchor="market-position" label="Board benchmarking explained in Guide" />
-                    </span>
-                    <p className="text-xl font-bold mt-0.5 text-slate-300">—</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">
+                    </div>
+                    <p className="text-2xl font-bold mt-1 leading-none text-slate-300">—</p>
+                    <p className="text-[10px] text-slate-400 mt-1">
                       <Link href="/settings" className="underline hover:text-slate-600">Set board</Link> in Settings
                     </p>
                   </>
@@ -2325,7 +2320,7 @@ export function DashboardContent({
             </div>
           </div>
           {/* Score components */}
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6 border-t border-slate-100 pt-4">
+          <div className="mt-5 grid grid-cols-5 gap-3 border-t border-slate-100 pt-4">
             {runwayScore.components.map((c) => {
               // Bar colour reflects score tier — colour carries meaning, not decoration
               const barColor = c.score >= 80 ? "[&>div]:bg-amber-500"
