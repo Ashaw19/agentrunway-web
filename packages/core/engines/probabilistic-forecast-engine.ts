@@ -30,9 +30,12 @@ export function probabilityBands(
   const nonZeroMonths = totals.filter((v) => v > 0);
   const monthCount = nonZeroMonths.length;
 
+  // Use ALL elapsed months (including zeros) for variance so bands widen
+  // appropriately when there are zero-GCI months, but keep nonZeroMonths
+  // count for the mean/projection midpoint so zeros don't drag it down.
   const { lowBand, highBand, confidence } = varianceBands(
-    nonZeroMonths,
-    monthCount,
+    totals,
+    totals.length,
   );
 
   // Floor at 0 — negative projections (clawbacks) produce nonsensical bands

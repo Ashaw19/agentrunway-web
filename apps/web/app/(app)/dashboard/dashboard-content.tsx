@@ -2545,15 +2545,11 @@ function getPeriodRecap(
 
   const monthName = new Date(recapYear, recapMonth).toLocaleString("en-CA", { month: "long" });
 
-  // Average monthly GCI across distinct months with transactions
-  const monthsWithData = new Set(
-    transactions.map((tx) => {
-      const d = new Date(tx.date);
-      return `${d.getFullYear()}-${d.getMonth()}`;
-    }),
-  ).size;
+  // Average monthly GCI across all elapsed months (not just months with data)
+  // so that zero-GCI months don't inflate the average.
+  const elapsedMonths = now.getMonth() + 1; // Jan=1 … Dec=12
   const totalGCI = transactions.reduce((s, tx) => s + computeGCI(tx), 0);
-  const avgMonthly = monthsWithData > 0 ? totalGCI / monthsWithData : 0;
+  const avgMonthly = elapsedMonths > 0 ? totalGCI / elapsedMonths : 0;
   const vsAvg = avgMonthly > 0 ? monthGCI / avgMonthly : 0;
 
   return { monthName, monthGCI, monthTx: monthTxList.length, vsAvg };

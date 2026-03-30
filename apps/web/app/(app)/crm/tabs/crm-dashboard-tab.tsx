@@ -461,16 +461,16 @@ export function CrmDashboardTab({
         />
         <SummaryCard
           icon={
-            dashboard.kpis.touchpointTrend >= 0 ? (
+            dashboard.kpis.touchpointTrend === null || dashboard.kpis.touchpointTrend >= 0 ? (
               <TrendingUp className="h-4 w-4 text-emerald-500" />
             ) : (
               <TrendingDown className="h-4 w-4 text-red-500" />
             )
           }
           label="Trend"
-          value={`${dashboard.kpis.touchpointTrend >= 0 ? "+" : ""}${dashboard.kpis.touchpointTrend}%`}
-          sub={`vs prior ${periodDays}d`}
-          accent={dashboard.kpis.touchpointTrend >= 0 ? "emerald" : "red"}
+          value={dashboard.kpis.touchpointTrend === null ? "New" : `${dashboard.kpis.touchpointTrend >= 0 ? "+" : ""}${dashboard.kpis.touchpointTrend}%`}
+          sub={dashboard.kpis.touchpointTrend === null ? "No prior period" : `vs prior ${periodDays}d`}
+          accent={dashboard.kpis.touchpointTrend === null ? "emerald" : dashboard.kpis.touchpointTrend >= 0 ? "emerald" : "red"}
         />
       </div>
 

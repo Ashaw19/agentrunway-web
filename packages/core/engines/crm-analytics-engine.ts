@@ -62,7 +62,7 @@ export interface CrmDashboardResult {
     totalTouchpoints: number;
     avgContactsPerClient: number;
     overdueCount: number;
-    touchpointTrend: number; // % vs prior period, positive = up
+    touchpointTrend: number | null; // % vs prior period, positive = up; null = no prior data
   };
   frequencyBuckets: FrequencyBucket[];
   overdueClients: OverdueClient[];
@@ -203,7 +203,7 @@ export function computeCrmDashboard(input: CrmDashboardInput): CrmDashboardResul
             priorActivities.length) *
             100,
         )
-      : 0; // No prior period → 0% (UI should check priorActivities to show "New")
+      : null; // No prior period → null (UI displays "New" instead of misleading 0%)
 
   // Overdue: clients with no activity in 30+ days (among non-landed/cruising)
   const lastActivityByClient = new Map<string, Date>();
