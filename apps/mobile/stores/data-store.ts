@@ -10,6 +10,7 @@ import { supabase } from "../lib/supabase";
 import { storage } from "../lib/mmkv";
 import { useToastStore } from "./toast-store";
 import { useOfflineQueueStore } from "./offline-queue";
+import { safeDateMs } from "../lib/safe-date";
 // Score is read directly from the web dashboard's snapshot in user_settings.
 // No local recomputation needed — guarantees exact parity.
 
@@ -236,21 +237,44 @@ interface DataStore {
   ) => Promise<boolean>;
 }
 
-// Cache key
+// Cache key — bump version when schema changes to avoid stale data crashes
+const CACHE_VERSION = 2;
 const CACHE_KEY = "data_store_cache";
+const CACHE_VERSION_KEY = "data_store_cache_version";
 
 function loadCache(): Partial<DataStore> {
   try {
+    const version = storage.getNumber(CACHE_VERSION_KEY);
+    if (version !== CACHE_VERSION) {
+      // Schema changed — clear stale cache to avoid runtime crashes
+      storage.delete(CACHE_KEY);
+      storage.set(CACHE_VERSION_KEY, CACHE_VERSION);
+      return {};
+    }
     const raw = storage.getString(CACHE_KEY);
     if (raw) return JSON.parse(raw);
   } catch {
-    // ignore
+    // Corrupted cache — wipe it
+    try { storage.delete(CACHE_KEY); } catch { /* noop */ }
   }
   return {};
 }
 
+/** Timeout wrapper for network requests */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Network timeout")), ms)
+    ),
+  ]);
+}
+
+const FETCH_TIMEOUT_MS = 15_000; // 15-second network timeout
+
 function saveCache(state: Partial<DataStore>) {
   try {
+    storage.set(CACHE_VERSION_KEY, CACHE_VERSION);
     storage.set(
       CACHE_KEY,
       JSON.stringify({
@@ -297,39 +321,42 @@ export const useDataStore = create<DataStore>((set, get) => {
         const currentYear = new Date().getFullYear();
 
         const [txRes, pipeRes, clientRes, taskRes, settingsRes] =
-          await Promise.all([
-            supabase
-              .from("transactions")
-              .select("*")
-              .eq("user_id", user.id)
-              .gte("date", `${currentYear}-01-01`)
-              .order("date", { ascending: false }),
-            supabase
-              .from("pipeline_deals")
-              .select("*")
-              .eq("user_id", user.id)
-              .order("created_at", { ascending: false }),
-            supabase
-              .from("clients")
-              .select("*")
-              .eq("user_id", user.id)
-              .order("last_contact_at", { ascending: false, nullsFirst: false })
-              .limit(200),
-            supabase
-              .from("contact_tasks")
-              .select("*")
-              .eq("user_id", user.id)
-              .is("completed_at", null)
-              .order("due_date", { ascending: true })
-              .limit(50),
-            supabase
-              .from("user_settings")
-              .select(
-                "user_id, display_name, avatar_url, goal_gci, goal_transactions, split_preset, province, experience_years, subscription_tier, cash_reserve, growth_goal_year_pcts, monthly_brokerage_fee, runway_score_snapshot"
-              )
-              .eq("user_id", user.id)
-              .single(),
-          ]);
+          await withTimeout(
+            Promise.all([
+              supabase
+                .from("transactions")
+                .select("*")
+                .eq("user_id", user.id)
+                .gte("date", `${currentYear}-01-01`)
+                .order("date", { ascending: false }),
+              supabase
+                .from("pipeline_deals")
+                .select("*")
+                .eq("user_id", user.id)
+                .order("created_at", { ascending: false }),
+              supabase
+                .from("clients")
+                .select("*")
+                .eq("user_id", user.id)
+                .order("last_contact_at", { ascending: false, nullsFirst: false })
+                .limit(200),
+              supabase
+                .from("contact_tasks")
+                .select("*")
+                .eq("user_id", user.id)
+                .is("completed_at", null)
+                .order("due_date", { ascending: true })
+                .limit(50),
+              supabase
+                .from("user_settings")
+                .select(
+                  "user_id, display_name, avatar_url, goal_gci, goal_transactions, split_preset, province, experience_years, subscription_tier, cash_reserve, growth_goal_year_pcts, monthly_brokerage_fee, runway_score_snapshot"
+                )
+                .eq("user_id", user.id)
+                .single(),
+            ]),
+            FETCH_TIMEOUT_MS,
+          );
 
         const tasks = (taskRes.data ?? []) as ContactTask[];
         const newState = {
@@ -349,6 +376,11 @@ export const useDataStore = create<DataStore>((set, get) => {
         saveCache(newState);
       } catch (err) {
         console.error("fetchAll error:", err);
+        const toast = useToastStore.getState();
+        const msg = err instanceof Error && err.message === "Network timeout"
+          ? "Connection timed out — showing cached data"
+          : "Couldn't reach server — showing cached data";
+        toast.show(msg, "error");
         set({ loading: false, isLoading: false });
       }
     },
@@ -443,7 +475,7 @@ export const useDataStore = create<DataStore>((set, get) => {
         // Keep optimistic data — enqueue for retry when online
         useOfflineQueueStore.getState().enqueue("addTransaction", tx);
         toast.show("Saved locally \u2014 will sync when online", "info");
-        return true;
+        return false; // Signal failure so caller knows sync is pending
       }
 
       // Refresh with real server data
@@ -480,7 +512,7 @@ export const useDataStore = create<DataStore>((set, get) => {
         // Keep optimistic data — enqueue for retry when online
         useOfflineQueueStore.getState().enqueue("advanceStage", { dealId, newStage });
         toast.show("Saved locally \u2014 will sync when online", "info");
-        return true;
+        return false; // Signal failure so caller knows sync is pending
       }
 
       toast.show("Stage updated \u2713", "success");
@@ -515,7 +547,7 @@ export const useDataStore = create<DataStore>((set, get) => {
         // Keep optimistic data — enqueue for retry when online
         useOfflineQueueStore.getState().enqueue("addClient", client);
         toast.show("Saved locally \u2014 will sync when online", "info");
-        return true;
+        return false; // Signal failure so caller knows sync is pending
       }
 
       // Refresh with real server data
@@ -541,7 +573,7 @@ export const useDataStore = create<DataStore>((set, get) => {
         // Enqueue for retry when online
         useOfflineQueueStore.getState().enqueue("addActivity", activity);
         toast.show("Saved locally \u2014 will sync when online", "info");
-        return true;
+        return false; // Signal failure so caller knows sync is pending
       }
 
       toast.show("Activity logged \u2713", "success");
@@ -769,9 +801,8 @@ export const useDataStore = create<DataStore>((set, get) => {
         (cl) => cl.status === "boarding" && !cl.last_contact_at
       );
       for (const cl of uncontacted.slice(0, 3)) {
-        const daysOld = Math.floor(
-          (now - new Date(cl.created_at).getTime()) / DAY
-        );
+        const createdMs = safeDateMs(cl.created_at);
+        const daysOld = createdMs ? Math.floor((now - createdMs) / DAY) : 0;
         items.push({
           id: `uncontacted_${cl.id}`,
           type: "uncontacted_lead",
@@ -927,7 +958,8 @@ export const useDataStore = create<DataStore>((set, get) => {
         overdueFollowups: state.clients.filter((cl) => {
           if (!activeStatuses.has(cl.status)) return false;
           if (!cl.last_contact_at) return cl.status === "boarding";
-          return now - new Date(cl.last_contact_at).getTime() > 14 * DAY;
+          const ms = safeDateMs(cl.last_contact_at);
+          return ms ? now - ms > 14 * DAY : false;
         }).length,
         hotPipeline: state.pipeline.filter(
           (d) =>
@@ -955,15 +987,12 @@ export const useDataStore = create<DataStore>((set, get) => {
         .filter((cl) => {
           if (!activeStatuses.has(cl.status)) return false;
           if (!cl.last_contact_at) return cl.status === "boarding";
-          return now - new Date(cl.last_contact_at).getTime() > 14 * DAY;
+          const ms = safeDateMs(cl.last_contact_at);
+          return ms ? now - ms > 14 * DAY : false;
         })
         .sort((a, b) => {
-          const aT = a.last_contact_at
-            ? new Date(a.last_contact_at).getTime()
-            : 0;
-          const bT = b.last_contact_at
-            ? new Date(b.last_contact_at).getTime()
-            : 0;
+          const aT = safeDateMs(a.last_contact_at) ?? 0;
+          const bT = safeDateMs(b.last_contact_at) ?? 0;
           return aT - bT;
         });
     },
