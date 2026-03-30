@@ -325,11 +325,14 @@ export function ReportsContent({
   const agentNet = agentGross - txFees - brokerageFeeYTD;
 
   // ── Expenses ──────────────────────────────────────────────────────────────────
-  const expensesYTD = Object.values(receiptTotalsByKey).reduce((s, v) => s + v, 0);
+  const receiptTotal = Object.values(receiptTotalsByKey).reduce((s, v) => s + v, 0);
   const monthlyRecurring = expenseCategories.reduce(
     (sum, cat) => sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
     0,
   );
+  const monthsElapsed = now.getMonth() + (now.getDate() / 30);
+  const recurringYTDEstimate = monthlyRecurring * monthsElapsed;
+  const expensesYTD = Math.max(receiptTotal, recurringYTDEstimate);
   const netPreTax = agentNet - expensesYTD;
   const expenseRatio = ytdGCI > 0 ? (expensesYTD / ytdGCI) * 100 : 0;
 

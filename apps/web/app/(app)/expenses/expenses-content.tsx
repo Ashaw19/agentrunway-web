@@ -306,9 +306,26 @@ export function ExpensesContent({
     0,
   );
 
+  // ── Months elapsed for recurring YTD estimates ──────────────────────
+  const now = new Date();
+  const monthsElapsed = now.getMonth() + (now.getDate() / 30); // fractional months in current year
+
+  // ── Effective YTD per item: receipts if available, else recurring estimate ──
+  // Avoids double-counting: receipts represent actuals, recurring fills gaps
+  const effectiveYTD = (item: { key: string; monthly_recurring: number | string }) => {
+    const receipt = receiptTotals[item.key] ?? 0;
+    const recurringEst = Number(item.monthly_recurring) * monthsElapsed;
+    return Math.max(receipt, recurringEst);
+  };
+
+  const effectiveTotal = categories.reduce(
+    (sum, cat) => sum + cat.items.reduce((s, item) => s + effectiveYTD(item), 0),
+    0,
+  );
+
   // ── YTD GCI for expense ratio ─────────────────────────────────────────
   const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
-  const expenseRatio = ytdGCI > 0 ? ytdTotal / ytdGCI : 0;
+  const expenseRatio = ytdGCI > 0 ? effectiveTotal / ytdGCI : 0;
   const ratioStatus =
     expenseRatio > 0.5 ? "critical" : expenseRatio > 0.35 ? "warning" : "healthy";
   const ratioColors: Record<string, string> = {
@@ -321,7 +338,7 @@ export function ExpensesContent({
   const deductBreakdown = categories.reduce(
     (acc, cat) => {
       for (const item of cat.items) {
-        const ytd = receiptTotals[item.key] ?? 0;
+        const ytd = effectiveYTD(item);
         if (ytd === 0) continue;
         const map = EXPENSE_KEY_TO_T2125[item.key];
         if (!map) {
@@ -353,11 +370,11 @@ export function ExpensesContent({
     strong: "text-emerald-600",
   };
 
-  // ── Donut chart data — per-category receipt totals ────────────────────
+  // ── Donut chart data — per-category effective YTD (receipts + recurring estimates) ──
   const donutData: DonutDataPoint[] = categories
     .map((cat) => ({
       name: cat.title,
-      value: cat.items.reduce((s, i) => s + (receiptTotals[i.key] ?? 0), 0),
+      value: cat.items.reduce((s, i) => s + effectiveYTD(i), 0),
     }))
     .filter((d) => d.value > 0);
 
@@ -366,12 +383,12 @@ export function ExpensesContent({
   const ytdClosedCount = transactions.filter(
     (t) => t.status === "closed" && t.date.startsWith(String(thisYear)),
   ).length;
-  const costPerDeal = ytdClosedCount > 0 && ytdTotal > 0 ? ytdTotal / ytdClosedCount : null;
+  const costPerDeal = ytdClosedCount > 0 && effectiveTotal > 0 ? effectiveTotal / ytdClosedCount : null;
 
   // Marketing ROI: YTD GCI ÷ marketing spend
   const marketingCat = categories.find((cat) => cat.key === "marketing");
   const marketingSpend = marketingCat
-    ? marketingCat.items.reduce((sum, i) => sum + (receiptTotals[i.key] ?? 0), 0)
+    ? marketingCat.items.reduce((sum, i) => sum + effectiveYTD(i), 0)
     : 0;
   const ytdGCIThisYear = transactions
     .filter((t) => t.status === "closed" && t.date.startsWith(String(thisYear)))
@@ -714,7 +731,7 @@ export function ExpensesContent({
             <CardDescription className="text-xs font-semibold uppercase tracking-wide text-rose-700">YTD Expenses</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-slate-800">{fmtCurrency(ytdTotal)}</div>
+            <div className="text-3xl font-bold tracking-tight text-slate-800">{fmtCurrency(effectiveTotal)}</div>
             <p className="mt-1 text-xs text-rose-600/80">This calendar year</p>
           </CardContent>
         </Card>
@@ -865,7 +882,7 @@ export function ExpensesContent({
       {tab === "receipts" && (<>
 
       {/* ── Tax Deductibility Summary ────────────────────────────────────── */}
-      {ytdTotal > 0 && (
+      {effectiveTotal > 0 && (
         <Card className="border-l-4 border-l-emerald-500">
           <CardHeader className="pb-2">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -881,7 +898,7 @@ export function ExpensesContent({
                   {fmtCurrency(totalDeductible)}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  of {fmtCurrency(ytdTotal)} spent ({Math.round((totalDeductible / ytdTotal) * 100)}% deductible)
+                  of {fmtCurrency(effectiveTotal)} spent ({effectiveTotal > 0 ? Math.round((totalDeductible / effectiveTotal) * 100) : 0}% deductible)
                 </p>
               </div>
             </div>
@@ -921,7 +938,7 @@ export function ExpensesContent({
                     max={100}
                     defaultValue={Math.round(vehiclePct * 100)}
                     onBlur={(e) => saveVehiclePct(e.target.value)}
-                    className="h-6 w-16 pr-5 text-right text-xs"
+                    className="h-6 w-[4.5rem] pr-5 text-right text-xs"
                   />
                   <span className="pointer-events-none absolute right-1.5 text-[10px] text-muted-foreground">%</span>
                 </div>
@@ -945,7 +962,7 @@ export function ExpensesContent({
       )}
 
       {/* ── Year-over-Year Expense History ──────────────────────────────── */}
-      {(priorRows.length > 0 || ytdTotal > 0) && (
+      {(priorRows.length > 0 || effectiveTotal > 0) && (
         <Card className="rounded-2xl shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -980,7 +997,7 @@ export function ExpensesContent({
                       </span>
                     </TableCell>
                     <TableCell className="text-right font-semibold tabular-nums text-emerald-700">
-                      {fmtCurrency(ytdTotal)}
+                      {fmtCurrency(effectiveTotal)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">—</TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">—</TableCell>
@@ -1168,10 +1185,10 @@ export function ExpensesContent({
         <div className="space-y-2">
           {categories.map((cat) => {
             const isOpen = expanded.has(cat.id);
-            const catYtd = cat.items.reduce((s, i) => s + (receiptTotals[i.key] ?? 0), 0);
+            const catYtd = cat.items.reduce((s, i) => s + effectiveYTD(i), 0);
             const catMonthly = cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0);
             const catDeductible = cat.items.reduce((s, i) => {
-              const ytd = receiptTotals[i.key] ?? 0;
+              const ytd = effectiveYTD(i);
               const map = EXPENSE_KEY_TO_T2125[i.key];
               if (!map) return s + ytd;
               if (map.applyVehicleUse) return s + ytd * vehiclePct;
@@ -1243,7 +1260,7 @@ export function ExpensesContent({
 
                         {/* Items */}
                         {cat.items.map((item) => {
-                          const ytd = receiptTotals[item.key] ?? 0;
+                          const ytd = effectiveYTD(item);
                           const map = EXPENSE_KEY_TO_T2125[item.key];
                           let deductAmt = ytd;
                           let deductLabel: string | null = null;

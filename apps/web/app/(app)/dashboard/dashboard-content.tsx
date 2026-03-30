@@ -550,13 +550,16 @@ export function DashboardContent({
   });
 
   // ── Expenses ──────────────────────────────────────────────────────────
-  // expensesYTD is now sourced from receipt_expenses (not the manual ytd_amount field)
-  const expensesYTD = receiptYTD;
+  // Effective YTD: higher of receipt-verified actuals or recurring estimates
+  const receiptTotal = receiptYTD;
   const monthlyRecurring = expenseCategories.reduce(
     (sum, cat) =>
       sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
     0,
   );
+  const expMonthsElapsed = now.getMonth() + (now.getDate() / 30);
+  const recurringYTDEstimate = monthlyRecurring * expMonthsElapsed;
+  const expensesYTD = Math.max(receiptTotal, recurringYTDEstimate);
 
   // ── Survival ──────────────────────────────────────────────────────────
   // Pipeline monthly estimate: annualize weighted pipeline GCI, then divide by 12

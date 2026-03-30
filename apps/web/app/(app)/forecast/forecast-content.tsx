@@ -155,17 +155,18 @@ export function ForecastContent({
   const projectedNet = agentGross - txFees - brokerageFeeAnnual;
 
   // ── Expenses ──────────────────────────────────────────────────────────
-  // Use receipt-based totals (same source as Dashboard/Reports) for accuracy
-  const expensesYTD = receiptYTDProp;
+  const receiptTotal = receiptYTDProp;
   const monthlyRecurring = expenseCategories.reduce(
     (sum, cat) => sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
     0,
   );
-  // Project full-year expenses: actual YTD + remaining months of recurring.
-  // Using remainingMonths avoids double-counting recurring costs already in expensesYTD.
+  // Effective YTD: higher of receipt-verified actuals or recurring estimates
   const _now = new Date();
-  const _monthsElapsed = _now.getMonth() + 1; // 1–12
-  const remainingMonths = Math.max(0, 12 - _monthsElapsed);
+  const _monthsElapsed = _now.getMonth() + (_now.getDate() / 30);
+  const recurringYTDEstimate = monthlyRecurring * _monthsElapsed;
+  const expensesYTD = Math.max(receiptTotal, recurringYTDEstimate);
+  // Project full-year: actual YTD + remaining months of recurring
+  const remainingMonths = Math.max(0, 12 - Math.ceil(_monthsElapsed));
   const annualExpenses = expensesYTD + monthlyRecurring * remainingMonths;
 
   // ── Tax estimate ──────────────────────────────────────────────────────

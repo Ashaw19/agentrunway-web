@@ -7,6 +7,7 @@ import { KNOWLEDGE_BASE } from "@/lib/knowledge-base";
 import { AGENT_RUNWAY_VOICE } from "@/lib/outreach-prompts";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
+import { seasonalFractionElapsed, paceVsGoalPercent } from "@agent-runway/core/engines/projection-engine";
 import { generateTeamComparativeInsights } from "@agent-runway/core/engines";
 
 export async function POST(req: NextRequest) {
@@ -80,11 +81,21 @@ export async function POST(req: NextRequest) {
       );
       const splitMatch = settings.split_preset?.match(/p(\d+)_(\d+)/);
       const splitLabel = splitMatch ? `${splitMatch[1]}% agent / ${splitMatch[2]}% brokerage` : settings.split_preset;
+      // ── Compute pace vs goal (same engine as dashboard) ──────────────
+      const fraction = seasonalFractionElapsed(settings.seasonal_weights);
+      const pacePercent = settings.goal_gci > 0
+        ? paceVsGoalPercent(settings.goal_gci, ytdGCI, fraction)
+        : 0;
+      const paceLabel = settings.goal_gci > 0
+        ? `Pace vs Annual Goal: ${pacePercent >= 0 ? "+" : ""}${Math.round(pacePercent)}% (${pacePercent >= 0 ? "ahead of" : "behind"} expected pace for this point in the year)`
+        : null;
+
       financialContext = [
         `Current Year: ${currentYear}`,
         `YTD GCI: ${fmtCurrency(ytdGCI)}`,
         `Closed Deals YTD: ${ytdTx.length}`,
         ytdTx.length > 0 ? `Average Deal GCI: ${fmtCurrency(ytdGCI / ytdTx.length)}` : null,
+        paceLabel,
         `Pipeline (Probability-Weighted GCI): ${fmtCurrency(pipelineWeighted)} across ${pipeline?.length ?? 0} active deals`,
         `Province: ${settings.province}`,
         `Commission Split: ${splitLabel}`,
@@ -234,7 +245,7 @@ CORE GUIDELINES:
 
 PROACTIVE INSIGHTS:
 When the agent's data shows any of these patterns, surface them naturally in your response — not as alarms, but as observations a good advisor would notice:
-- YTD GCI significantly below seasonal pace → mention it and suggest pipeline review
+- Use the "Pace vs Annual Goal" percentage provided in the data — do NOT calculate your own pace. If pace is significantly negative, mention it and suggest pipeline review
 - Expense ratio above 35% → flag it and offer to dig into the cause
 - Stale active clients (30+ days no contact) exist → suggest Flight Control outreach sweep
 - Pipeline is thin relative to goal → recommend adding pipeline deals or outreach
