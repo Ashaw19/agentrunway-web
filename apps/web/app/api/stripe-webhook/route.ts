@@ -253,7 +253,7 @@ export async function POST(request: Request) {
           const { data: members } = await db
             .from("organization_members")
             .select("user_id")
-            .eq("organization_id", orgId)
+            .eq("org_id", orgId)
             .eq("status", "active");
 
           if (members && members.length > 0) {

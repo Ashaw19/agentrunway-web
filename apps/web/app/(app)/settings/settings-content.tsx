@@ -231,7 +231,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
     if (error) {
       console.error("[saveBoard] Supabase error:", error.code, error.message);
       const hint = error.code === "42703"
-        ? "Database migration missing — run migration 00031 in the Supabase SQL Editor."
+        ? "Something went wrong saving your board. Please try again or contact support at hello@agentrunway.ca."
         : error.message;
       toast.error("Failed to save board", { description: hint });
       return;

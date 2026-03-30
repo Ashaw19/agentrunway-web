@@ -175,7 +175,8 @@ Basic Personal Amount (BPA): $16,129.
 **GST/HST rates by province:**
 - 5%: AB, BC, MB, SK, territories
 - 13%: ON
-- 15%: NB, NL, NS, PE
+- 14%: NS
+- 15%: NB, NL, PE
 Registration is mandatory when taxable revenue exceeds $30,000 in any 12-month period.
 
 **Corporate (CCPC):** Federal Small Business Deduction: 9% on first $500K active business income. General rate: 15%. Provincial rates vary (SBD: 0–4.5%, General: 8–15%).
