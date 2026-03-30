@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import {
   getValidAccessToken,
   encrypt,
@@ -38,6 +39,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         { ok: false, error: "Invalid or expired token" },
         { status: 401 },
       );
+    }
+
+    const rl = await checkRateLimit(user.id, "outreach_send", 50, 60);
+    if (!rl.allowed) {
+      return new Response("Too many requests. Please wait before sending more messages.", {
+        status: 429,
+        headers: rateLimitHeaders(rl),
+      });
     }
 
     // ── Sandbox guard ───────────────────────────────────────────────────────

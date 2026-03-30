@@ -810,7 +810,7 @@ function DealDetailSheet({
 
   const sc = STAGE_COLORS[deal.stage] ?? c.textDim;
   const prob = deal.probability_override ?? DEFAULT_PROBABILITIES[deal.stage] ?? 0.5;
-  const isLastStage = deal.stage === "firm";
+  const isLastStage = deal.stage === "closed";
 
   const handleAdvance = async () => {
     setAdvancing(true);

@@ -87,7 +87,7 @@ export function InviteContent({ invitation, token }: Props) {
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Expires</span>
             <span className="text-xs text-muted-foreground">
-              {new Date(invitation.expires_at).toLocaleDateString()}
+              {new Date(invitation.expires_at).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" })}
             </span>
           </div>
         </div>

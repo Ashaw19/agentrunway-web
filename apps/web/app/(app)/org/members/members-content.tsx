@@ -192,7 +192,7 @@ export function MembersContent({
                   <p className="text-sm font-medium">{inv.email}</p>
                   <p className="text-xs text-muted-foreground">
                     {ORG_MEMBER_ROLE_LABELS[inv.role]} · Expires{" "}
-                    {new Date(inv.expires_at).toLocaleDateString()}
+                    {new Date(inv.expires_at).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" })}
                   </p>
                 </div>
                 <button

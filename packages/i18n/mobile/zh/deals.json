@@ -6,9 +6,13 @@
     "pending": "Pending"
   },
   "stats": {
+    "gciClosed": "GCI Closed",
     "totalGci": "Total GCI",
     "pipelineValue": "Pipeline",
     "pendingCount": "Pending"
+  },
+  "search": {
+    "placeholder": "Search by address or client..."
   },
   "stages": {
     "lead": "Lead",
@@ -16,7 +20,7 @@
     "offer": "Offer",
     "conditional": "Conditional",
     "firm": "Firm",
-    "closed": "已关闭",
+    "closed": "\u5df2\u5173\u95ed",
     "breakdown": "STAGE BREAKDOWN"
   },
   "pipeline": {
@@ -27,14 +31,22 @@
     },
     "probability": "{{pct}}% probability",
     "estimatedGci": "Est. GCI",
-    "advanceStage": "Advance Stage"
+    "advanceStage": "Advance Stage",
+    "close": "Close:",
+    "untitledDeal": "Untitled Deal"
   },
   "transaction": {
     "closedDate": "Closed {{date}}",
     "pendingDate": "Expected {{date}}",
     "gci": "GCI",
     "salePrice": "Sale Price",
-    "commission": "Commission"
+    "sale": "Sale:",
+    "commission": "Commission",
+    "commissionPct": "{{pct}}% commission",
+    "side": "Side",
+    "status": "STATUS",
+    "date": "Date",
+    "transactionLabel": "Transaction"
   },
   "closedEmpty": {
     "title": "No closed deals this year",
@@ -44,6 +56,10 @@
     "title": "No pending deals",
     "subtitle": "Deals awaiting close will appear here"
   },
+  "searchEmpty": {
+    "title": "No matches",
+    "subtitle": "No deals match \"{{query}}\""
+  },
   "addDeal": {
     "title": "Add Deal",
     "addressLabel": "Address",
@@ -52,19 +68,31 @@
     "clientPlaceholder": "Client name",
     "priceLabel": "Price",
     "pricePlaceholder": "Estimated price",
+    "commissionLabel": "Commission %",
+    "commissionPlaceholder": "2.5",
     "stageLabel": "Stage",
     "typeLabel": "Side",
     "buy": "Buy",
     "sell": "Sell",
-    "save": "Save Deal"
+    "save": "Save Deal",
+    "saving": "Saving..."
   },
   "detail": {
     "title": "Deal Details",
     "address": "Address",
     "client": "Client",
     "stage": "Stage",
+    "estimatedPrice": "Estimated Price",
     "price": "Price",
+    "probability": "Probability",
+    "expectedClose": "Expected Close",
     "closingDate": "Closing Date",
-    "notes": "Notes"
+    "notes": "Notes",
+    "advanceTo": "Advance to {{stage}}",
+    "markClosed": "Mark Closed",
+    "updating": "Updating..."
+  },
+  "transactionDetail": {
+    "title": "Transaction Details"
   }
 }

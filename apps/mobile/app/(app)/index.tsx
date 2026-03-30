@@ -43,7 +43,6 @@ import {
   Type,
   fmtCurrency,
   fmtCompact,
-  dayOfYear,
 } from "@/lib/theme";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Sheet } from "@/components/ui/Sheet";
@@ -75,11 +74,11 @@ function formatLastSyncedKey(ts: number): { key: string; count?: number } {
 
 // Web status badges: Strong (emerald), On Track (blue), Building (amber), At Risk (red)
 function runwayScoreMeta(score: number) {
-  if (score >= 85) return { grade: "A+", labelKey: "score.strong", color: "#10B981" };
-  if (score >= 75) return { grade: "A", labelKey: "score.strong", color: "#10B981" };
-  if (score >= 62) return { grade: "B", labelKey: "score.onTrack", color: "#3B5EF6" };
-  if (score >= 50) return { grade: "C", labelKey: "score.building", color: "#F59E0B" };
-  if (score >= 35) return { grade: "D", labelKey: "score.building", color: "#F59E0B" };
+  if (score >= 92) return { grade: "A+", labelKey: "score.strong", color: "#10B981" };
+  if (score >= 85) return { grade: "A", labelKey: "score.strong", color: "#10B981" };
+  if (score >= 75) return { grade: "B", labelKey: "score.onTrack", color: "#3B5EF6" };
+  if (score >= 62) return { grade: "C", labelKey: "score.building", color: "#F59E0B" };
+  if (score >= 50) return { grade: "D", labelKey: "score.building", color: "#F59E0B" };
   return { grade: "F", labelKey: "score.atRisk", color: "#EF4444" };
 }
 

@@ -186,12 +186,8 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
 
   // ── Expense Ratio ──
   if (ytdGCI > 0) {
-    // expensesYTD already includes elapsed months of recurring costs,
-    // so only add the remaining months to avoid double-counting.
-    const currentMonth = new Date().getMonth(); // 0-indexed (Jan=0)
-    const remainingMonths = 12 - (currentMonth + 1);
-    const totalExpenses =
-      input.expensesYTD + input.monthlyRecurringExpenses * remainingMonths;
+    // Compare YTD expenses to YTD GCI (apples-to-apples).
+    const totalExpenses = input.expensesYTD;
     if (totalExpenses > 0) {
       const ratio = totalExpenses / ytdGCI;
       if (ratio > 0.5) {

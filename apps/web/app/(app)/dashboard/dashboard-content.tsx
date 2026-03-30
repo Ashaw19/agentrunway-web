@@ -2537,7 +2537,9 @@ function getPeriodRecap(
 
   // Average monthly GCI across all elapsed months (not just months with data)
   // so that zero-GCI months don't inflate the average.
-  const elapsedMonths = now.getMonth() + 1; // Jan=1 … Dec=12
+  // When recapping the previous month (day <= 3), use recapMonth + 1 (0-indexed → count).
+  // Otherwise (recapping current month at month-end), use current month count.
+  const elapsedMonths = day <= 3 ? recapMonth + 1 : now.getMonth() + 1;
   const totalGCI = transactions.reduce((s, tx) => s + computeGCI(tx), 0);
   const avgMonthly = elapsedMonths > 0 ? totalGCI / elapsedMonths : 0;
   const vsAvg = avgMonthly > 0 ? monthGCI / avgMonthly : 0;

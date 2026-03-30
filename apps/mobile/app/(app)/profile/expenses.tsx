@@ -139,7 +139,8 @@ function categoryColor(key: string | null): string {
     signage: "#06B6D4",
     other: "#6B7280",
   };
-  return key ? (map[key] ?? "#6366F1") : "#6366F1";
+  const prefix = key ? key.split("_")[0] : null;
+  return prefix ? (map[prefix] ?? "#6366F1") : "#6366F1";
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────

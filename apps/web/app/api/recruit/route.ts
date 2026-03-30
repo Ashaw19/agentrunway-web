@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
@@ -65,6 +66,15 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const rl = await checkRateLimit(ip, "recruit_apply", 5, 60);
+    if (!rl.allowed) {
+      return new Response("Too many requests. Please wait before sending more messages.", {
+        status: 429,
+        headers: rateLimitHeaders(rl),
+      });
+    }
+
     const body = await req.json();
     const {
       token,

@@ -585,6 +585,10 @@ export const useDataStore = create<DataStore>((set, get) => {
         return false; // Signal failure so caller knows sync is pending
       }
 
+      // Invalidate activity cache for this client
+      const prev = get()._clientActivitiesFetchedAt;
+      set({ _clientActivitiesFetchedAt: { ...prev, [activity.client_id]: 0 } });
+
       toast.show("Activity logged \u2713", "success");
       return true;
     }, false),
@@ -1119,7 +1123,7 @@ export const useDataStore = create<DataStore>((set, get) => {
           activity_date: new Date().toISOString(),
         });
         toast.show("Saved locally — will sync when online", "info");
-        return true;
+        return false;
       }
 
       // Invalidate activity cache for this client

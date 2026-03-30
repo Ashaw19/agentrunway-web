@@ -109,12 +109,12 @@ export async function GET(req: NextRequest) {
       // Fetch closed transactions for this year
       const { data: txRows } = await admin
         .from("transactions")
-        .select("*")
+        .select("date, sale_price, commission_pct, team_split_pct, gci_override, status")
         .eq("user_id", user.user_id)
         .eq("status", "closed")
         .gte("date", `${year}-01-01`)
         .order("date", { ascending: false })
-        .limit(10000);
+        .limit(1000);
 
       const transactions = (txRows ?? []) as Transaction[];
 
@@ -132,9 +132,9 @@ export async function GET(req: NextRequest) {
       // Pipeline deals
       const { data: pipelineRows } = await admin
         .from("pipeline_deals")
-        .select("*")
+        .select("estimated_price, estimated_commission_pct, probability_override, stage")
         .eq("user_id", user.user_id)
-        .limit(10000);
+        .limit(1000);
 
       const pipeline = (pipelineRows ?? []) as PipelineDeal[];
       const pipelineValue = pipeline.reduce(

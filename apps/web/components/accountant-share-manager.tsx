@@ -223,7 +223,7 @@ export function AccountantShareManager() {
                 <span className="flex items-center gap-1">
                   <Eye className="h-3 w-3" />
                   Last viewed{" "}
-                  {new Date(share.last_accessed_at).toLocaleDateString()} ·{" "}
+                  {new Date(share.last_accessed_at).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" })} ·{" "}
                   {share.access_count} view{share.access_count !== 1 ? "s" : ""}
                 </span>
               ) : (

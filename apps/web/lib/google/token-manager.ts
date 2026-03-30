@@ -30,6 +30,7 @@ function getKey(): Buffer {
  * Encrypt a plaintext string → "iv:ciphertext:tag" (all hex-encoded).
  */
 export function encrypt(plaintext: string): string {
+  if (!ENCRYPTION_KEY_HEX) throw new Error("GOOGLE_TOKEN_ENCRYPTION_KEY is not configured");
   const key = getKey();
   const iv  = crypto.randomBytes(12); // 96-bit IV for GCM
   const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
@@ -45,6 +46,7 @@ export function encrypt(plaintext: string): string {
  * Decrypt an "iv:ciphertext:tag" string back to plaintext.
  */
 export function decrypt(encoded: string): string {
+  if (!ENCRYPTION_KEY_HEX) throw new Error("GOOGLE_TOKEN_ENCRYPTION_KEY is not configured");
   const key = getKey();
   const [ivHex, cipherHex, tagHex] = encoded.split(":");
 

@@ -11,6 +11,7 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { AGENT_RUNWAY_VOICE } from "@/lib/outreach-prompts";
 
 export const maxDuration = 30;
@@ -36,6 +37,14 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) {
     return new Response("Unauthorized", { status: 401 });
+  }
+
+  const rl = await checkRateLimit(user.id, "listing_description", 20, 60);
+  if (!rl.allowed) {
+    return new Response("Too many requests. Please wait before sending more messages.", {
+      status: 429,
+      headers: rateLimitHeaders(rl),
+    });
   }
 
   const groqKey = process.env.GROQ_API_KEY;

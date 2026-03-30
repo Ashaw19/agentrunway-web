@@ -22,7 +22,9 @@ export const maxDuration = 300; // 5 min — enough for ~100 users
 
 export async function GET(req: NextRequest) {
   // ── Auth ─────────────────────────────────────────────────────────────────
-  const secret = req.headers.get("x-cron-secret") ??
+  const secret =
+    req.headers.get("authorization")?.replace("Bearer ", "") ??
+    req.headers.get("x-cron-secret") ??
     req.nextUrl.searchParams.get("secret");
 
   if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {

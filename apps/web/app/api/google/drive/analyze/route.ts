@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import OpenAI from "openai";
 import {
   getValidAccessToken,
@@ -53,6 +54,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const rl = await checkRateLimit(user.id, "drive_analyze", 15, 60);
+  if (!rl.allowed) {
+    return new Response("Too many requests. Please wait before sending more messages.", {
+      status: 429,
+      headers: rateLimitHeaders(rl),
+    });
   }
 
   const body = (await req.json()) as { file_id?: string };

@@ -254,10 +254,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
       const form = new FormData();
       form.append("file", imageFile);
 
-      console.log("[ReceiptCapture] Uploading file:", imageFile.size, "bytes", imageFile.type);
-
       const res  = await fetch("/api/receipts/process", { method: "POST", body: form });
-      console.log("[ReceiptCapture] Response status:", res.status);
 
       // Handle non-JSON responses (e.g. Vercel 413 body too large, 504 timeout)
       const data = await safeJson<(ProcessReceiptResponse & { ocrError?: string }) | ProcessReceiptError>(res);

@@ -131,18 +131,17 @@ export async function POST(): Promise<NextResponse> {
       }
     }
 
-    // Upsert pulled events
-    let pulled = 0;
+    // Batch upsert pulled events
+    const upsertPayloads: Array<Record<string, unknown>> = [];
+    const cancelledIds: string[] = [];
+    const nowISO = new Date().toISOString();
+
     for (const event of events) {
       if (!event.id) continue;
 
-      // Cancelled events → mark as deleted
+      // Cancelled events → collect IDs for batch update
       if (event.status === "cancelled") {
-        await supabase
-          .from("calendar_events")
-          .update({ sync_status: "deleted", updated_at: new Date().toISOString() })
-          .eq("user_id", user.id)
-          .eq("google_event_id", event.id);
+        cancelledIds.push(event.id);
         continue;
       }
 
@@ -152,30 +151,41 @@ export async function POST(): Promise<NextResponse> {
 
       const isAllDay = !event.start?.dateTime;
 
+      upsertPayloads.push({
+        user_id:         user.id,
+        google_event_id: event.id,
+        source:          "google",
+        title:           event.summary ?? "(No title)",
+        description:     event.description ?? null,
+        location:        event.location ?? null,
+        start_at:        isAllDay ? `${startAt}T00:00:00Z` : startAt,
+        end_at:          isAllDay ? `${endAt}T00:00:00Z` : endAt,
+        all_day:         isAllDay,
+        google_updated:  event.updated ?? null,
+        synced_at:       nowISO,
+        sync_status:     "synced",
+      });
+    }
+
+    // Batch upsert all non-cancelled events in one call
+    let pulled = 0;
+    if (upsertPayloads.length > 0) {
       const { error: upsertErr } = await supabase
         .from("calendar_events")
-        .upsert(
-          {
-            user_id:         user.id,
-            google_event_id: event.id,
-            source:          "google",
-            title:           event.summary ?? "(No title)",
-            description:     event.description ?? null,
-            location:        event.location ?? null,
-            start_at:        isAllDay ? `${startAt}T00:00:00Z` : startAt,
-            end_at:          isAllDay ? `${endAt}T00:00:00Z` : endAt,
-            all_day:         isAllDay,
-            google_updated:  event.updated ?? null,
-            synced_at:       new Date().toISOString(),
-            sync_status:     "synced",
-          },
-          {
-            onConflict: "user_id,google_event_id",
-            ignoreDuplicates: false,
-          }
-        );
+        .upsert(upsertPayloads, {
+          onConflict: "user_id,google_event_id",
+          ignoreDuplicates: false,
+        });
+      if (!upsertErr) pulled = upsertPayloads.length;
+    }
 
-      if (!upsertErr) pulled++;
+    // Batch update cancelled events in one call
+    if (cancelledIds.length > 0) {
+      await supabase
+        .from("calendar_events")
+        .update({ sync_status: "deleted", updated_at: nowISO })
+        .eq("user_id", user.id)
+        .in("google_event_id", cancelledIds);
     }
 
     // ── PUSH: Sync Agent Runway events TO Google ────────────────────────
