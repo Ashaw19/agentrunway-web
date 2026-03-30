@@ -833,7 +833,7 @@ export function AltimeterContent({
               <span>{fmtCurrency(benchmark.cohortMedianGCI)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">National percentile</span>
+              <span className="text-muted-foreground">vs Established Agents</span>
               <span>P{benchmark.nationalPercentile}</span>
             </div>
             {benchmark.distanceToNextTier != null && benchmark.distanceToNextTier > 0 && (

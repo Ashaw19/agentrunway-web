@@ -877,10 +877,6 @@ export function SocialContent({ settings, transactions, connections }: Props) {
                   <span>Instagram — coming soon</span>
                 </div>
               )}
-              <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-muted-foreground flex items-center gap-2">
-                <Facebook className="h-3.5 w-3.5" />
-                <span>Facebook (coming soon)</span>
-              </div>
             </CardContent>
           </Card>
         </div>

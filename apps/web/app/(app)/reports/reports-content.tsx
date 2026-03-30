@@ -1231,7 +1231,7 @@ export function ReportsContent({
                   <span className="font-medium">{fmtCurrency(benchmark.cohortMedianGCI)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">National percentile</span>
+                  <span className="text-muted-foreground">vs Established Agents</span>
                   <span className="font-medium">P{benchmark.nationalPercentile}</span>
                 </div>
                 {benchmark.distanceToNextTier != null && benchmark.distanceToNextTier > 0 && (

@@ -42,6 +42,7 @@ import {
   Radius,
   Type,
   fmtCurrency,
+  fmtCompact,
   dayOfYear,
 } from "@/lib/theme";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -531,7 +532,7 @@ export default function DashboardScreen() {
       if (t.status !== "closed") continue;
       const d = new Date(t.date);
       if (d.getFullYear() === year) {
-        const gci = t.gci_override ?? (t.sale_price * t.commission_pct);
+        const gci = t.gci_override ?? (t.sale_price * t.commission_pct * (t.team_split_pct ?? 1));
         months[d.getMonth()] += gci;
       }
     }
@@ -802,7 +803,7 @@ export default function DashboardScreen() {
           <View style={{ flexDirection: "row", gap: Space.md, marginBottom: Space.md }}>
             <MetricCard
               label={t("metrics.ytdGci")}
-              value={fmtCurrency(gci)}
+              value={fmtCompact(gci)}
               icon={<TrendingUp size={16} color={c.gold} />}
               color={c.gold}
               c={c} sh={sh}
@@ -820,7 +821,7 @@ export default function DashboardScreen() {
           <View style={{ flexDirection: "row", gap: Space.md }}>
             <MetricCard
               label={t("metrics.pipeline")}
-              value={fmtCurrency(pipVal)}
+              value={fmtCompact(pipVal)}
               subtitle={t("metrics.deals", { count: pipeline.length })}
               icon={<Briefcase size={16} color={c.primaryLight} />}
               color={c.primaryLight}
@@ -948,7 +949,7 @@ export default function DashboardScreen() {
                   </Text>
                 </View>
                 <Text style={{ ...Type.caption, color: c.gold, fontWeight: "700" }}>
-                  {fmtCurrency(deal.estimated_price)}
+                  {fmtCompact(deal.estimated_price)}
                 </Text>
               </View>
             ))}

@@ -151,7 +151,7 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
     if (txErr) { setSaving(false); return; }
 
     // DELETE pipeline deal
-    await supabase.from("pipeline_deals").delete().eq("id", current.id);
+    await supabase.from("pipeline_deals").delete().eq("id", current.id).eq("user_id", user.id);
 
     // Compute celebration data
     const province   = settings?.province ?? "ontario";

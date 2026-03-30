@@ -261,10 +261,10 @@ export function generateAdvisory(input: AdvisorInput, limit: number = 5): Adviso
         id: nextId(), category: "benchmarkGap", icon: "bar-chart-2",
         title: "Close the Benchmark Gap",
         evidence: [
-          `You're in the ${input.benchmarkPercentile}th percentile nationally`,
+          `You're in the ${input.benchmarkPercentile}th percentile vs established agents`,
           `Median agent GCI: ${fmtCurrency(targetGCI)}`,
         ],
-        action: "Set a stretch goal above the national median and review your prospecting strategy.",
+        action: "Set a stretch goal above the established-agent median and review your prospecting strategy.",
         estimatedImpact: `+${fmtCurrency(gap)}/yr`,
         impactValue: gap, priority: 65,
       });

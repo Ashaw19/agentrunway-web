@@ -252,7 +252,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
         }
         toast.success("Deal updated ✓");
       } else if (error) {
-        const detail = error.code === "23514" ? "Value out of allowed range" : error.message;
+        const detail = error.code === "23514" ? "Value out of allowed range" : "Something went wrong. Please try again.";
         toast.error(`Couldn't update deal: ${detail}`);
       }
     } else {
@@ -265,7 +265,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
         setDeals((prev) => [data, ...prev]);
         toast.success("In the pipeline. Let's see it through. 🎯");
       } else if (error) {
-        const detail = error.code === "23514" ? "Value out of allowed range" : error.message;
+        const detail = error.code === "23514" ? "Value out of allowed range" : "Something went wrong. Please try again.";
         toast.error(`Couldn't save deal: ${detail}`);
       }
     }
@@ -277,7 +277,9 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
   async function handleDelete(id: string) {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const supabase = createClient();
-    const { error } = await supabase.from("pipeline_deals").delete().eq("id", id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await supabase.from("pipeline_deals").delete().eq("id", id).eq("user_id", user.id);
     if (!error) {
       setDeals((prev) => prev.filter((d) => d.id !== id));
       toast("Removed. On to the next one.");

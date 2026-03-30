@@ -281,9 +281,10 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
           Bank Imports (Plaid integration for automatic categorization).
         </Text>
         <Text style={S.bullet}>{"\u2022"} Expense Ratio target: 25–30% of GCI is healthy</Text>
+        {/* Source of truth for mileage rates: CRA_MILEAGE_RATES in packages/core/types/database.ts */}
         <Text style={S.bullet}>{"\u2022"} Mileage: $0.72/km first 5,000 km, $0.66/km after</Text>
         <Text style={S.bullet}>{"\u2022"} Meals: 50% deductible (CRA rule)</Text>
-        <Text style={S.bullet}>{"\u2022"} Client gifts: $25 CRA limit per person per year</Text>
+        <Text style={S.bullet}>{"\u2022"} Client gifts: keep reasonable (~$25/person/year) — must be business-related and documented</Text>
 
         <Text style={S.sectionSubtitle}>CRM & Client Management</Text>
         <Text style={S.body}>

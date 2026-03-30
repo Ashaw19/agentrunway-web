@@ -17,6 +17,14 @@ import { Plane, CheckCircle2 } from "lucide-react";
 
 type Mode = "signin" | "signup" | "reset" | "reset-sent";
 
+function friendlyAuthError(msg: string): string {
+  if (msg.includes("Invalid login credentials")) return "Incorrect email or password.";
+  if (msg.includes("User already registered")) return "An account with this email already exists.";
+  if (msg.includes("Email not confirmed")) return "Please check your email to confirm your account.";
+  if (msg.includes("rate limit")) return "Too many attempts. Please wait a moment and try again.";
+  return "Something went wrong. Please try again.";
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("signin");
@@ -40,7 +48,7 @@ export default function LoginPage() {
     if (mode === "signup") {
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) {
-        setError(error.message);
+        setError(friendlyAuthError(error.message));
       } else {
         switchMode("signin");
         // Show inline confirmation instead of alert()
@@ -56,7 +64,7 @@ export default function LoginPage() {
         redirectTo: `${origin}/auth/callback?next=/auth/update-password`,
       });
       if (error) {
-        setError(error.message);
+        setError(friendlyAuthError(error.message));
       } else {
         switchMode("reset-sent");
       }
@@ -66,7 +74,7 @@ export default function LoginPage() {
         password,
       });
       if (error) {
-        setError(error.message);
+        setError(friendlyAuthError(error.message));
       } else {
         router.push("/dashboard");
         return;

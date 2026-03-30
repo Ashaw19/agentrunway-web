@@ -1221,6 +1221,7 @@ export function ClientsContent({
         .from("client_notes")
         .select("*")
         .eq("client_id", selectedClientId)
+        .eq("user_id", userId!)
         .order("created_at", { ascending: false });
       if (!cancelled && data) setClientNotes(data as ClientNote[]);
     })();
@@ -1512,7 +1513,7 @@ export function ClientsContent({
       prev.map((a) => (a.id === id ? { ...a, [field]: value } : a)),
     );
     const supabase = createClient();
-    const { error } = await supabase.from("listing_appointments").update({ [field]: value }).eq("id", id);
+    const { error } = await supabase.from("listing_appointments").update({ [field]: value }).eq("id", id).eq("user_id", userId!);
     if (error) toast.error("Failed to update appointment");
   }, []);
 
@@ -1520,7 +1521,7 @@ export function ClientsContent({
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setLocalListingAppointments((prev) => prev.filter((a) => a.id !== id));
     const supabase = createClient();
-    const { error } = await supabase.from("listing_appointments").delete().eq("id", id);
+    const { error } = await supabase.from("listing_appointments").delete().eq("id", id).eq("user_id", userId!);
     if (error) toast.error("Failed to delete appointment");
   }, []);
 
@@ -1543,7 +1544,8 @@ export function ClientsContent({
     const { error } = await supabase
       .from("clients")
       .update({ archived_at: archivedAt, archive_reason: reason })
-      .eq("id", clientId);
+      .eq("id", clientId)
+      .eq("user_id", userId!);
     if (error) {
       toast.error("Failed to archive client");
       return;
@@ -1562,7 +1564,8 @@ export function ClientsContent({
     const { error } = await supabase
       .from("clients")
       .update({ archived_at: null, archive_reason: null })
-      .eq("id", clientId);
+      .eq("id", clientId)
+      .eq("user_id", userId!);
     if (error) {
       toast.error("Failed to restore client");
       return;
@@ -1578,7 +1581,7 @@ export function ClientsContent({
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setDeleteLoading(true);
     const supabase = createClient();
-    const { error } = await supabase.from("clients").delete().eq("id", clientId);
+    const { error } = await supabase.from("clients").delete().eq("id", clientId).eq("user_id", userId!);
     setDeleteLoading(false);
     if (error) {
       toast.error("Failed to delete client");
@@ -1890,7 +1893,7 @@ export function ClientsContent({
   const handleDeleteFlightPlan = useCallback(async (planId: string) => {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const supabase = createClient();
-    const { error } = await supabase.from("flight_plans").delete().eq("id", planId);
+    const { error } = await supabase.from("flight_plans").delete().eq("id", planId).eq("user_id", userId!);
     if (error) {
       toast.error("Failed to delete flight plan");
       return;
@@ -1902,7 +1905,7 @@ export function ClientsContent({
   const handleToggleFlightPlan = useCallback(async (planId: string, isActive: boolean) => {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const supabase = createClient();
-    const { error } = await supabase.from("flight_plans").update({ is_active: isActive }).eq("id", planId);
+    const { error } = await supabase.from("flight_plans").update({ is_active: isActive }).eq("id", planId).eq("user_id", userId!);
     if (error) {
       toast.error("Failed to update flight plan");
       return;
@@ -3673,7 +3676,8 @@ export function ClientsContent({
                               const { error } = await supabase
                                 .from("client_notes")
                                 .delete()
-                                .eq("id", note.id);
+                                .eq("id", note.id)
+                                .eq("user_id", userId!);
                               if (!error) {
                                 setClientNotes((prev) => prev.filter((n) => n.id !== note.id));
                                 if (selectedClient) markMemoryStaleClient(selectedClient.id);

@@ -265,10 +265,18 @@ export const STATUS_COLORS: Record<string, string> = {
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
-export function fmtCurrency(n: number): string {
+export function fmtCompact(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
   return `$${Math.round(n)}`;
+}
+
+const _cadFmt = new Intl.NumberFormat("en-CA", {
+  style: "currency", currency: "CAD",
+  minimumFractionDigits: 0, maximumFractionDigits: 0,
+});
+export function fmtCurrency(n: number): string {
+  return _cadFmt.format(n);
 }
 
 export function getInitials(name: string): string {

@@ -15,6 +15,13 @@ import {
 } from "@/components/ui/card";
 import { Plane } from "lucide-react";
 
+function friendlyPasswordError(msg: string): string {
+  if (msg.includes("at least 6 characters")) return msg;
+  if (msg.includes("same as")) return "New password must be different from your current password.";
+  if (msg.includes("rate limit")) return "Too many attempts. Please wait a moment and try again.";
+  return "Something went wrong. Please try again.";
+}
+
 export default function UpdatePasswordPage() {
   const router = useRouter();
   const [password, setPassword] = useState("");
@@ -40,7 +47,7 @@ export default function UpdatePasswordPage() {
     const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
-      setError(error.message);
+      setError(friendlyPasswordError(error.message));
       setLoading(false);
     } else {
       router.push("/dashboard");

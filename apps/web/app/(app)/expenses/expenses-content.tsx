@@ -479,7 +479,9 @@ export function ExpensesContent({
   async function deleteItem(categoryId: string, itemId: string) {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const supabase = createClient();
-    const { error } = await supabase.from("expense_items").delete().eq("id", itemId);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await supabase.from("expense_items").delete().eq("id", itemId).eq("user_id", user.id);
     if (error) {
       toast.error("Couldn't remove item — please try again.");
       return;
@@ -1148,7 +1150,7 @@ export function ExpensesContent({
               </p>
               <p className="mt-2 text-xs text-blue-600">
                 Tap <strong>Capture Receipt</strong> above to snap your first expense in seconds.{" "}
-                <span className="font-medium">QuickBooks sync is coming soon.</span>
+                <span className="font-medium">Want QuickBooks sync? Email hello@agentrunway.ca to let us know.</span>
               </p>
             </div>
           </CardContent>

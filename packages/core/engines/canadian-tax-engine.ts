@@ -7,6 +7,11 @@
 
 import type { Province } from "../types/database";
 
+// ⚠️  TAX_YEAR = 2025 — Update all three engine files together:
+// - canadian-tax-engine.ts
+// - corporate-tax-engine.ts
+// - tax-optimization-engine.ts
+
 /** Round to the nearest cent (CRA rounds to the penny). */
 const cents = (n: number) => Math.round(n * 100) / 100;
 

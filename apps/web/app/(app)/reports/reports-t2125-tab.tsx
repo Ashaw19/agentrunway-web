@@ -203,7 +203,7 @@ export function ReportsT2125Tab({
       .update(updates)
       .eq("user_id", userId);
     setSaving(false);
-    if (error) toast.error("Failed to save: " + error.message);
+    if (error) toast.error("Failed to save your tax data. Please try again.");
     else toast.success("Saved");
   }, [localSettings, supabase, userId]);
 
@@ -235,7 +235,7 @@ export function ReportsT2125Tab({
       .select()
       .single();
     setAddingAsset(false);
-    if (error) { toast.error(error.message); return; }
+    if (error) { toast.error("Failed to save your tax data. Please try again."); return; }
     if (data) {
       setCcaAssets((prev) => [...prev, data]);
       setNewAsset({
@@ -250,8 +250,8 @@ export function ReportsT2125Tab({
 
   const deleteCcaAsset = async (id: string) => {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
-    const { error } = await supabase.from("t2125_cca_assets").delete().eq("id", id);
-    if (error) { toast.error(error.message); return; }
+    const { error } = await supabase.from("t2125_cca_assets").delete().eq("id", id).eq("user_id", userId);
+    if (error) { toast.error("Failed to save your tax data. Please try again."); return; }
     setCcaAssets((prev) => prev.filter((a) => a.id !== id));
     toast.success("Asset removed");
   };

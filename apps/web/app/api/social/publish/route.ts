@@ -193,7 +193,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Step 4: Record in social_posts ────────────────────────────────────────
-    await supabase.from("social_posts").insert({
+    const { error: insertError } = await supabase.from("social_posts").insert({
       user_id: user.id,
       month: body.month,
       year: body.year,
@@ -204,6 +204,7 @@ export async function POST(req: NextRequest) {
       status: "published",
       published_at: new Date().toISOString(),
     });
+    if (insertError) console.error("[social] post record insert failed:", insertError);
 
     return NextResponse.json({
       success: true,

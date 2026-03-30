@@ -9,6 +9,11 @@
  * Update annually when CRA publishes new rates. Last updated: March 2025.
  */
 
+// Source of truth for mileage rate strings used in the knowledge base below.
+// Update here when CRA publishes new rates — all three occurrences are interpolated.
+const KB_MILEAGE_FIRST_5K = "$0.72/km";
+const KB_MILEAGE_AFTER_5K = "$0.66/km";
+
 export const KNOWLEDGE_BASE = `
 ## AGENT RUNWAY PLATFORM — COMPLETE KNOWLEDGE BASE
 
@@ -40,7 +45,7 @@ Four tabs:
 **EXPENSES**
 Three tabs:
 - Receipts: Manual or receipt-photo entry with OCR extraction, organized by category (Vehicle, Marketing, Office, Professional, Education, Meals, Entertainment, Other), KPIs (YTD expenses, monthly avg, expense ratio, projected annual).
-- Mileage: Trip logging with CRA 2025 rates ($0.72/km first 5K, $0.66/km after), KPIs (YTD km, total deduction, projected annual).
+- Mileage: Trip logging with CRA 2025 rates (${KB_MILEAGE_FIRST_5K} first 5K, ${KB_MILEAGE_AFTER_5K} after), KPIs (YTD km, total deduction, projected annual).
 - Bank Imports: Plaid integration for automatic bank transaction import with auto-categorization.
 
 **FORECAST**
@@ -183,7 +188,7 @@ Registration is mandatory when taxable revenue exceeds $30,000 in any 12-month p
 
 **RRSP limit:** 18% of prior year earned income, max $32,490 (2025). Dividend-only compensation (PREC) does not generate RRSP room.
 
-**Mileage:** $0.72/km for first 5,000 km, $0.66/km thereafter.
+**Mileage:** ${KB_MILEAGE_FIRST_5K} for first 5,000 km, ${KB_MILEAGE_AFTER_5K} thereafter.
 
 **Home office — Simplified method:** $5/sqft, max 300 sqft = max $1,500 deduction.
 **Home office — Detailed method:** Actual home costs × (office sqft ÷ total home sqft) × business-use %.
@@ -205,7 +210,7 @@ Registration is mandatory when taxable revenue exceeds $30,000 in any 12-month p
 8215: Office supplies, software subscriptions, internet.
 8216: Meals & entertainment (only 50% deductible per CRA).
 8220: Professional fees, licensing, phone, continuing education.
-8226: Client gifts ($25 per client per year CRA limit).
+8226: Client gifts: keep reasonable (~$25/person/year) — must be business-related and documented.
 8228: Other allowable business expenses.
 
 ---
@@ -325,7 +330,7 @@ A: Your YTD GCI is compared against CREA 2023 cohort data for agents at a simila
 A: Tap the microphone in the Quick Actions FAB, speak naturally. The system transcribes your audio, classifies your intent (new client, expense, transaction, or note), and routes you to the correct page with fields pre-filled in amber.
 
 **Q: What CRA mileage rates are used?**
-A: 2025 CRA rates: $0.72/km for the first 5,000 km, $0.66/km thereafter.
+A: 2025 CRA rates: ${KB_MILEAGE_FIRST_5K} for the first 5,000 km, ${KB_MILEAGE_AFTER_5K} thereafter.
 
 **Q: What does "stale lead" mean?**
 A: An active client (Boarding/Taxiing/Approach/In-Flight) with no recorded contact activity in 14+ days (dashboard alert) or 30+ days (CRM Insights). The AI will flag stale leads and suggest outreach.

@@ -16,6 +16,7 @@ import {
   Radius,
   Type,
   fmtCurrency,
+  fmtCompact,
   dayOfYear,
 } from "@/lib/theme";
 import {
@@ -28,6 +29,8 @@ import {
   Briefcase,
   Users,
 } from "lucide-react-native";
+
+const daysInYear = (y: number) => ((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0) ? 366 : 365;
 
 const SEVERITY_ORDER = { urgent: 0, attention: 1, upcoming: 2 } as const;
 
@@ -125,7 +128,7 @@ export default function BriefingScreen() {
 
   // Progress through the year
   const doy = dayOfYear();
-  const yearProgress = Math.round((doy / 365) * 100);
+  const yearProgress = Math.round((doy / daysInYear(new Date().getFullYear())) * 100);
 
   return (
     <ScrollView
@@ -182,7 +185,7 @@ export default function BriefingScreen() {
         <QuickStat
           icon={<Briefcase size={14} color={c.primaryLight} />}
           label={t("briefing.ytdGci")}
-          value={fmtCurrency(gci)}
+          value={fmtCompact(gci)}
           c={c}
         />
         <QuickStat
@@ -237,7 +240,7 @@ export default function BriefingScreen() {
                 width:
                   `${Math.min(Math.round((gci / goalGci) * 100), 100)}%` as DimensionValue,
                 backgroundColor:
-                  gci / goalGci >= doy / 365 ? "#10B981" : "#F59E0B",
+                  gci / goalGci >= doy / daysInYear(new Date().getFullYear()) ? "#10B981" : "#F59E0B",
               }}
             />
           </View>
@@ -248,9 +251,9 @@ export default function BriefingScreen() {
               marginTop: Space.xs,
             }}
           >
-            {gci / goalGci >= doy / 365
+            {gci / goalGci >= doy / daysInYear(new Date().getFullYear())
               ? t("briefing.aheadOfPace")
-              : t("briefing.behindPace", { amount: fmtCurrency(Math.max(0, goalGci * (doy / 365) - gci)) })}
+              : t("briefing.behindPace", { amount: fmtCompact(Math.max(0, goalGci * (doy / daysInYear(new Date().getFullYear())) - gci)) })}
           </Text>
         </View>
       )}

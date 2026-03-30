@@ -459,7 +459,7 @@ function TransactionRowView({
   };
   const statusColor = statusColorMap[item.status] ?? c.textMuted;
   const statusLabel = item.status.charAt(0).toUpperCase() + item.status.slice(1);
-  const gci = item.gci_override ?? item.sale_price * item.commission_pct;
+  const gci = item.gci_override ?? (item.sale_price * item.commission_pct * (item.team_split_pct ?? 1));
 
   return (
     <Pressable

@@ -30,6 +30,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
 import { useDataStore, type ReceiptExpense } from "@/stores/data-store";
 import { supabase } from "@/lib/supabase";
+import { validateExpenseAmount } from "@agent-runway/core/validation/input-guards";
 import {
   useColors,
   useTheme,
@@ -37,6 +38,8 @@ import {
   Space,
   Radius,
   Type,
+  fmtCurrency,
+  fmtCompact,
 } from "@/lib/theme";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -91,17 +94,6 @@ interface OcrResult {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function fmtCurrency(n: number | null): string {
-  if (n == null) return "$0.00";
-  return `$${n.toFixed(2)}`;
-}
-
-function fmtCurrencyCompact(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 10_000) return `$${(n / 1_000).toFixed(1)}K`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(2)}K`;
-  return `$${Math.round(n)}`;
-}
 
 function fmtDate(d: string | null): string {
   if (!d) return "Unknown date";
@@ -175,6 +167,7 @@ export default function ScanScreen() {
   const [notes, setNotes] = useState("");
   const [ocrConfidence, setOcrConfidence] = useState(0);
   const [showCategories, setShowCategories] = useState(false);
+  const [uploadedReceiptId, setUploadedReceiptId] = useState<string | null>(null);
 
   // ── Expense Summary Metrics ──────────────────────────────────────────────
 
@@ -308,6 +301,7 @@ export default function ScanScreen() {
 
       // Populate review fields from OCR
       const receipt = json.receipt;
+      setUploadedReceiptId(receipt.id ?? null);
       setVendor(receipt.vendor ?? "");
       setAmount(receipt.total_amount?.toString() ?? "");
       setTaxAmount(receipt.tax_amount?.toString() ?? "");
@@ -320,6 +314,7 @@ export default function ScanScreen() {
     } catch (err) {
       console.error("Upload/OCR failed:", err);
       // Still show review with empty fields so user can fill manually
+      setUploadedReceiptId(null);
       setVendor("");
       setAmount("");
       setTaxAmount("");
@@ -347,31 +342,32 @@ export default function ScanScreen() {
       const parsedAmount = parseFloat(amount) || null;
       const parsedTax = parseFloat(taxAmount) || null;
 
-      // Find the most recent receipt (just created by OCR)
-      const { data: latest } = await supabase
-        .from("receipt_expenses")
-        .select("id")
-        .eq("user_id", session.user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-
-      if (latest) {
-        await supabase
-          .from("receipt_expenses")
-          .update({
-            vendor: vendor || null,
-            total_amount: parsedAmount,
-            tax_amount: parsedTax,
-            subtotal: parsedAmount && parsedTax
-              ? parsedAmount - parsedTax
-              : null,
-            expense_date: expenseDate || null,
-            category_key: category || null,
-            notes: notes || null,
-          })
-          .eq("id", latest.id);
+      // Validate expense amount
+      const amountCheck = validateExpenseAmount(parsedAmount);
+      if (!amountCheck.valid) {
+        Alert.alert("Invalid Amount", amountCheck.errors[0]);
+        return;
       }
+
+      if (!uploadedReceiptId) {
+        Alert.alert("Save Failed", "No receipt ID found. Please re-scan the receipt.");
+        return;
+      }
+
+      await supabase
+        .from("receipt_expenses")
+        .update({
+          vendor: vendor || null,
+          total_amount: parsedAmount,
+          tax_amount: parsedTax,
+          subtotal: parsedAmount && parsedTax
+            ? parsedAmount - parsedTax
+            : null,
+          expense_date: expenseDate || null,
+          category_key: category || null,
+          notes: notes || null,
+        })
+        .eq("id", uploadedReceiptId);
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       resetState();
@@ -380,13 +376,14 @@ export default function ScanScreen() {
       console.error("Save failed:", err);
       Alert.alert("Save Failed", "Please try again.");
     }
-  }, [vendor, amount, taxAmount, expenseDate, category, notes, fetchReceipts]);
+  }, [vendor, amount, taxAmount, expenseDate, category, notes, fetchReceipts, uploadedReceiptId]);
 
   // ── Reset ─────────────────────────────────────────────────────────────────
 
   const resetState = useCallback(() => {
     setState("idle");
     setImageUri(null);
+    setUploadedReceiptId(null);
     setVendor("");
     setAmount("");
     setTaxAmount("");
@@ -767,14 +764,14 @@ export default function ScanScreen() {
             icon={<DollarSign size={18} color={c.danger} />}
             iconBg={c.dangerDim}
             label="YTD Total"
-            value={fmtCurrencyCompact(summaryMetrics.ytdTotal)}
+            value={fmtCompact(summaryMetrics.ytdTotal)}
             valueColor={c.text}
           />
           <SummaryCard
             icon={<TrendingDown size={18} color={c.warning} />}
             iconBg={c.warningDim}
             label="This Month"
-            value={fmtCurrencyCompact(summaryMetrics.monthTotal)}
+            value={fmtCompact(summaryMetrics.monthTotal)}
             valueColor={c.text}
           />
           <SummaryCard
@@ -955,7 +952,7 @@ function ReceiptCard({ receipt }: { receipt: ReceiptExpense }) {
             color: c.primary,
           }}
         >
-          {fmtCurrency(receipt.total_amount)}
+          {fmtCurrency(receipt.total_amount ?? 0)}
         </Text>
       </View>
 

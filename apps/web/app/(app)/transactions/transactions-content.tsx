@@ -230,6 +230,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
         .from("transactions")
         .update(payload)
         .eq("id", editingId)
+        .eq("user_id", user.id)
         .select()
         .single();
       if (!error && data) {
@@ -239,7 +240,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
         );
         toast.success("Updated. Clean records win deals. ✓");
       } else if (error) {
-        const detail = error.code === "23514" ? "Value out of allowed range" : error.message;
+        const detail = error.code === "23514" ? "Value out of allowed range" : "Something went wrong. Please try again.";
         toast.error(`Couldn't update transaction: ${detail}`);
       }
     } else {
@@ -256,7 +257,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
           description: form.address ? `${form.address} added to your record.` : undefined,
         });
       } else if (error) {
-        const detail = error.code === "23514" ? "Value out of allowed range" : error.message;
+        const detail = error.code === "23514" ? "Value out of allowed range" : "Something went wrong. Please try again.";
         toast.error(`Couldn't save transaction: ${detail}`);
       }
     }
@@ -268,7 +269,9 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
   async function handleDelete(id: string) {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const supabase = createClient();
-    const { error } = await supabase.from("transactions").delete().eq("id", id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await supabase.from("transactions").delete().eq("id", id).eq("user_id", user.id);
     if (!error) {
       setTransactions((prev) => prev.filter((t) => t.id !== id));
       toast("Deal removed", { description: "Your numbers have been updated." });

@@ -104,7 +104,7 @@ export function compare(
   const pct = percentileRank(projectedGCI, cohort);
   const cohortBench = BENCHMARKS[cohort];
 
-  // National percentile uses "established" as proxy
+  // Percentile vs established agents (used as broad benchmark proxy)
   const nationalPct = percentileRank(projectedGCI, "established");
 
   // Distance to next cohort's median

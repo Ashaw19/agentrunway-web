@@ -41,6 +41,7 @@ import {
   Motion,
   STAGE_COLORS,
   fmtCurrency,
+  fmtCompact,
 } from "@/lib/theme";
 import { Card } from "@/components/ui/Card";
 import { Sheet } from "@/components/ui/Sheet";
@@ -185,7 +186,7 @@ export default function DealsScreen() {
   // Stats always from unfiltered data
   const totalGci = transactions
     .filter((t) => t.status === "closed")
-    .reduce((s, t) => s + (t.gci_override ?? t.sale_price * t.commission_pct), 0);
+    .reduce((s, t) => s + (t.gci_override ?? (t.sale_price * t.commission_pct * (t.team_split_pct ?? 1))), 0);
   const pipelineValue = pipeline.reduce((s, d) => s + d.estimated_price, 0);
   const pendingCount = transactions.filter((t) => t.status === "pending").length;
 
@@ -332,8 +333,8 @@ export default function DealsScreen() {
 
         {/* Summary stats */}
         <View style={{ flexDirection: "row", gap: Space.sm, marginTop: Space.lg }}>
-          <StatPill label={t("stats.gciClosed")} value={fmtCurrency(totalGci)} color={c.success} />
-          <StatPill label={t("stats.pipelineValue")} value={fmtCurrency(pipelineValue)} color={c.primary} />
+          <StatPill label={t("stats.gciClosed")} value={fmtCompact(totalGci)} color={c.success} />
+          <StatPill label={t("stats.pipelineValue")} value={fmtCompact(pipelineValue)} color={c.primary} />
           <StatPill label={t("stats.pendingCount")} value={String(pendingCount)} color={c.warning} />
         </View>
 
@@ -614,7 +615,7 @@ function PipelineCard({ deal, onPress }: { deal: PipelineDeal; onPress: () => vo
                     letterSpacing: -0.3,
                   }}
                 >
-                  {fmtCurrency(deal.estimated_price)}
+                  {fmtCompact(deal.estimated_price)}
                 </Text>
                 <Badge
                   label={deal.stage.toUpperCase()}
@@ -679,7 +680,7 @@ function TransactionCard({ tx, onPress }: { tx: Transaction; onPress: () => void
   const sh = shadows(mode);
   const scale = useRef(new Animated.Value(1)).current;
 
-  const gci = tx.gci_override ?? tx.sale_price * tx.commission_pct;
+  const gci = tx.gci_override ?? (tx.sale_price * tx.commission_pct * (tx.team_split_pct ?? 1));
   const isPending = tx.status === "pending";
   const accentColor = isPending ? c.warning : c.success;
 
@@ -900,7 +901,7 @@ function TransactionDetailSheet({
 
   if (!tx) return null;
 
-  const gci = tx.gci_override ?? tx.sale_price * tx.commission_pct;
+  const gci = tx.gci_override ?? (tx.sale_price * tx.commission_pct * (tx.team_split_pct ?? 1));
   const isPending = tx.status === "pending";
   const accentColor = isPending ? c.warning : c.success;
 

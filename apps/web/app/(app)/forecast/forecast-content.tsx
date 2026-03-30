@@ -950,9 +950,9 @@ export function ForecastContent({
           <Card className="rounded-2xl border border-violet-200 bg-violet-50/40 shadow-sm">
             <CardHeader className="flex flex-row items-start justify-between">
               <div>
-                <CardTitle className="text-base">5-Year Growth Plan</CardTitle>
+                <CardTitle className="text-base">5-Year Growth Plan (Illustrative)</CardTitle>
                 <CardDescription>
-                  Compound projections using your annual growth rates
+                  Illustrative compound projections using your annual growth rates
                 </CardDescription>
               </div>
               <Link

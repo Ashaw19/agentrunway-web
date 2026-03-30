@@ -23,6 +23,7 @@ export interface Transaction {
   sale_price: number;
   commission_pct: number;
   gci_override: number | null;
+  team_split_pct: number | null;
   side: "buyer" | "seller" | "both";
   status: "closed" | "pending" | "fallen";
   client_name: string | null;
@@ -766,7 +767,7 @@ export const useDataStore = create<DataStore>((set, get) => {
         .filter((t) => t.status === "closed")
         .reduce((sum, t) => {
           if (t.gci_override) return sum + t.gci_override;
-          return sum + t.sale_price * t.commission_pct;
+          return sum + t.sale_price * t.commission_pct * (t.team_split_pct ?? 1);
         }, 0);
     },
 

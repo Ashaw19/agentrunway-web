@@ -38,6 +38,7 @@ import {
   useTheme,
   shadows,
   fmtCurrency,
+  fmtCompact,
   getInitials,
   Space,
   Radius,
@@ -241,7 +242,7 @@ export default function ProfileScreen() {
           >
             <StatCell
               label={t("stats.ytdGci")}
-              value={fmtCurrency(ytdGci)}
+              value={fmtCompact(ytdGci)}
               color={c.success}
               textDim={c.textDim}
             />

@@ -168,7 +168,11 @@ export const PROVINCE_ISO_CODES: Record<Province, string> = {
   yukon: "YT",
 };
 
-export const PROVINCE_GST_HST_RATES: Record<Province, number> = {
+/**
+ * Consumer rates including PST — NOT for real estate commission tax calculations.
+ * Use gstHstRate() from canadian-tax-engine.ts for commissions.
+ */
+export const PROVINCE_CONSUMER_TAX_RATES: Record<Province, number> = {
   alberta: 0.05,
   britishColumbia: 0.12,
   manitoba: 0.12,

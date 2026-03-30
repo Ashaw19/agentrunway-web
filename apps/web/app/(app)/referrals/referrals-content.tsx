@@ -325,7 +325,7 @@ export function ReferralsContent({
 
   async function handleDelete(id: string) {
     const supabase = createClient();
-    const { error } = await supabase.from("referrals").delete().eq("id", id);
+    const { error } = await supabase.from("referrals").delete().eq("id", id).eq("user_id", userId);
     if (error) {
       toast.error("Failed to delete referral.");
     } else {

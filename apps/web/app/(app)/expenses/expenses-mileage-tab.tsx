@@ -130,7 +130,9 @@ export function ExpensesMileageTab({ mileageLogs, year, settings }: Props) {
   async function handleDelete(id: string) {
     setDeleting(id);
     const supabase = createClient();
-    const { error } = await supabase.from("mileage_logs").delete().eq("id", id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setDeleting(null); return; }
+    const { error } = await supabase.from("mileage_logs").delete().eq("id", id).eq("user_id", user.id);
     if (error) {
       setDeleting(null);
       toast.error("Failed to remove trip — please try again.");
@@ -267,7 +269,7 @@ export function ExpensesMileageTab({ mileageLogs, year, settings }: Props) {
               <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
               <span className="text-sm">
                 <span className="font-semibold text-blue-700">{rateBreakdown.firstKm.toLocaleString()} km</span>
-                <span className="text-muted-foreground"> @ $0.72/km = </span>
+                <span className="text-muted-foreground"> @ ${RATE_FIRST}/km = </span>
                 <span className="font-semibold">{fmtCurrency(rateBreakdown.firstKm * RATE_FIRST)}</span>
               </span>
             </div>
@@ -276,7 +278,7 @@ export function ExpensesMileageTab({ mileageLogs, year, settings }: Props) {
                 <span className="inline-block h-2 w-2 rounded-full bg-violet-400" />
                 <span className="text-sm">
                   <span className="font-semibold text-violet-700">{rateBreakdown.beyondKm.toLocaleString()} km</span>
-                  <span className="text-muted-foreground"> @ $0.66/km = </span>
+                  <span className="text-muted-foreground"> @ ${RATE_BEYOND}/km = </span>
                   <span className="font-semibold">{fmtCurrency(rateBreakdown.beyondKm * RATE_BEYOND)}</span>
                 </span>
               </div>
@@ -483,7 +485,7 @@ export function ExpensesMileageTab({ mileageLogs, year, settings }: Props) {
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
           <div className="text-xs text-amber-800 space-y-1.5">
             <p>
-              <strong>Important:</strong> The CRA per-km rates shown ($0.72/$0.66) are <em>reasonable automobile allowance</em> benchmarks
+              <strong>Important:</strong> The CRA per-km rates shown (${RATE_FIRST}/${RATE_BEYOND}) are <em>reasonable automobile allowance</em> benchmarks
               (employer-to-employee). Your actual T2125 vehicle deduction is based on your <strong>logged expenses</strong> (fuel,
               insurance, maintenance, CCA/lease) prorated by business-use percentage, not a per-km calculation.
             </p>

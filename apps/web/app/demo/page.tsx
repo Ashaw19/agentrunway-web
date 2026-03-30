@@ -300,21 +300,21 @@ export default function DemoPage() {
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link
-                href="/login"
+                href="/demo/dashboard"
                 className="group inline-flex items-center rounded-xl px-8 py-3.5 text-sm font-bold text-white transition-all duration-200"
                 style={{
                   background: "linear-gradient(135deg, #2563eb, #7c3aed)",
                   boxShadow: "0 0 30px rgba(99,102,241,0.35)",
                 }}
               >
-                Try It Free — No Card Required
+                See It in Action
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
               <Link
-                href="/pricing"
+                href="/login"
                 className="inline-flex items-center rounded-xl border border-slate-700 px-8 py-3.5 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-800"
               >
-                See Pricing
+                Try It Free — No Card Required
               </Link>
             </div>
           </div>

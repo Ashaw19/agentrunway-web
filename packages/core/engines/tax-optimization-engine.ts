@@ -18,6 +18,11 @@ import {
 } from "./canadian-tax-engine";
 import { calculateCorporateTax } from "./corporate-tax-engine";
 
+// ⚠️  TAX_YEAR = 2025 — Update all three engine files together:
+// - canadian-tax-engine.ts
+// - corporate-tax-engine.ts
+// - tax-optimization-engine.ts
+
 // ── CRA-sourced constants (2025 tax year) ────────────────────────────────────
 
 /** CRA: canada.ca/en/revenue-agency/services/tax/individuals/topics/rrsp-mp/rrsp-limit.html */

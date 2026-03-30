@@ -30,6 +30,8 @@ import {
   dayOfYear,
 } from "@/lib/theme";
 
+const daysInYear = (y: number) => ((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0) ? 366 : 365;
+
 export default function ForecastScreen() {
   const c = useColors();
   const { mode } = useTheme();
@@ -46,8 +48,9 @@ export default function ForecastScreen() {
 
   const forecast = useMemo(() => {
     const doy = dayOfYear();
-    const fractionElapsed = Math.max(doy / 365, 0.01);
-    const daysRemaining = 365 - doy;
+    const totalDays = daysInYear(new Date().getFullYear());
+    const fractionElapsed = Math.max(doy / totalDays, 0.01);
+    const daysRemaining = totalDays - doy;
 
     // Pace-based projection: annualize current rate
     const projectedGci = ytdGci / fractionElapsed;

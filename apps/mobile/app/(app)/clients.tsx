@@ -1430,7 +1430,7 @@ function ClientDetailSheet({
             {/* Transactions */}
             {deals.transactions.map((tx) => {
               const txColor = TX_STATUS_COLORS[tx.status] ?? c.textDim;
-              const gci = tx.gci_override ?? tx.sale_price * tx.commission_pct;
+              const gci = tx.gci_override ?? (tx.sale_price * tx.commission_pct * (tx.team_split_pct ?? 1));
               return (
                 <View
                   key={tx.id}

@@ -20,6 +20,11 @@ import {
   provincialInfo,
 } from "./canadian-tax-engine";
 
+// ⚠️  TAX_YEAR = 2025 — Update all three engine files together:
+// - canadian-tax-engine.ts
+// - corporate-tax-engine.ts
+// - tax-optimization-engine.ts
+
 // Ontario surtax (mirrors canadian-tax-engine.ts — applied to ALL provincial tax including dividends)
 function ontarioSurtax(provTax: number): number {
   let surtax = 0;

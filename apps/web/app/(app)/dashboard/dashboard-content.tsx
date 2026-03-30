@@ -109,7 +109,6 @@ import {
   paceVsGoalPercent,
   daysRemaining,
   trendDirection,
-  dayOfYear,
 } from "@/lib/engines/projection-engine";
 import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { compare, COHORT_LABELS, cohortFromYears } from "@/lib/engines/benchmark-engine";
@@ -662,10 +661,6 @@ export function DashboardContent({
     }
     return Math.round(guess);
   })();
-
-  // Revenue per working day (approximate: 5/7 of calendar days)
-  const workingDaysElapsed = Math.max(1, Math.round(dayOfYear() * (5 / 7)));
-  const revenuePerWorkingDay = ytdGCI > 0 ? ytdGCI / workingDaysElapsed : 0;
 
   // ── Corporate tax estimate (incorporated users only) ──────────────────
   const corpTaxResult: CorporateTaxResult | null =
@@ -1250,11 +1245,6 @@ export function DashboardContent({
                 : `↓ ${fmtCurrency(Math.abs(vsLastYearGCI))} vs last year`}
             </p>
           )}
-          {revenuePerWorkingDay > 0 && (
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {fmtCurrency(revenuePerWorkingDay)}/working day
-            </p>
-          )}
         </CardContent>
       </Card>
 
@@ -1788,7 +1778,7 @@ export function DashboardContent({
               <span>{fmtCurrency(benchmark.cohortMedianGCI)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">National percentile</span>
+              <span className="text-muted-foreground">vs Established Agents</span>
               <span>P{benchmark.nationalPercentile}</span>
             </div>
             {benchmark.distanceToNextTier != null && benchmark.distanceToNextTier > 0 && (
