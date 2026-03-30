@@ -138,6 +138,27 @@ export interface LocalMarketData {
   marketCondition: "seller" | "balanced" | "buyer";
   marketConditionLabel: string;
 
+  // YoY percentage changes (current month vs same month last year)
+  salesYoYPct?: number;
+  avgPriceYoYPct?: number;
+  dollarVolumeYoYPct?: number;
+  newListingsYoYPct?: number;
+
+  // YTD data
+  ytdSales?: number;
+  ytdSalesYoYPct?: number;
+  ytdAvgPrice?: number;
+  ytdAvgPriceYoYPct?: number;
+  ytdDollarVolume?: number;
+
+  // Multi-year historical comparisons
+  historicalComparisons?: Array<{
+    year: number;
+    salesPct: number | null;
+    avgPricePct: number | null;
+    dollarVolumePct: number | null;
+  }>;
+
   // Quarterly (from MLS market conditions page)
   quarterlyUnitSales?: number;
   quarterlyPriorYearSales?: number;
@@ -243,6 +264,263 @@ const URL_CODE_TO_PREFIX: Record<string, string> = {
   cent: "Cent",
 };
 
+// ── Historical Comparison Parsing ────────────────────────────────────────────
+// Extracts YoY and multi-year comparison data from raw Gatsby JSON tables.
+
+function parsePct(s: string): number | null {
+  if (!s) return null;
+  const cleaned = s.replace(/[%,\s]/g, "");
+  const val = parseFloat(cleaned);
+  return isNaN(val) ? null : val;
+}
+
+interface HistoricalResult {
+  salesYoYPct?: number;
+  avgPriceYoYPct?: number;
+  dollarVolumeYoYPct?: number;
+  newListingsYoYPct?: number;
+  ytdSales?: number;
+  ytdSalesYoYPct?: number;
+  ytdAvgPrice?: number;
+  ytdAvgPriceYoYPct?: number;
+  ytdDollarVolume?: number;
+  historicalComparisons?: Array<{
+    year: number;
+    salesPct: number | null;
+    avgPricePct: number | null;
+    dollarVolumePct: number | null;
+  }>;
+}
+
+/**
+ * Detect whether a table uses Format A (multi-year comparison) or Format B (simple YoY).
+ *
+ * Format A header example: "Monthly" | "Feb 2026" | "Feb 2025" | "Feb 2024" | ...
+ *   - field_2 has a month+year like "Feb 2026" (current), field_3+ have older years
+ *   - Data rows have metric names in field_1 ("Sales Activity", "Average Price", etc.)
+ *   - Current month has absolute values; historical columns have % change strings
+ *
+ * Format B header example: "February 2026" | "Residential Sales" | "Year-over-year % change" | ...
+ *   - field_1 is a full month+year, field_2+ are metric columns alternating abs/yoy
+ *   - Data rows are sub-regions; last row is the board total
+ */
+function parseHistoricalComparisons(
+  rawData: Record<string, { edges?: Array<{ node: Record<string, string> }> }>,
+  prefix: string,
+): HistoricalResult {
+  const result: HistoricalResult = {};
+
+  // Collect all table keys belonging to this board prefix
+  const tableKeys = Object.keys(rawData).filter((k) => k.startsWith(prefix));
+
+  // ── Try Format A: multi-year comparison tables ──────────────────────────
+  // These typically appear in ChatHome1, ChatHome2, NbreaHome2, etc.
+  for (const key of tableKeys) {
+    const edges = rawData[key]?.edges ?? [];
+    if (edges.length < 2) continue;
+
+    const header = edges[0]?.node ?? {};
+    const headerField1 = (header.field_1 ?? "").toLowerCase().trim();
+
+    // Format A signature: field_1 is "monthly" or similar label,
+    // field_2 contains a month+year (the current period),
+    // field_3+ contain month+year strings for previous years
+    const monthYearPattern = /^[a-z]{3,9}\s+\d{4}$/i;
+    const field2 = (header.field_2 ?? "").trim();
+    const field3 = (header.field_3 ?? "").trim();
+
+    if (
+      (headerField1.includes("monthly") || headerField1.includes("ytd") || headerField1 === "") &&
+      monthYearPattern.test(field2) &&
+      monthYearPattern.test(field3)
+    ) {
+      // Extract years from header columns (field_3, field_4, field_5, ...)
+      const historicalYears: number[] = [];
+      for (let i = 3; i <= 10; i++) {
+        const colVal = (header[`field_${i}`] ?? "").trim();
+        const yearMatch = colVal.match(/\d{4}/);
+        if (yearMatch) {
+          historicalYears.push(parseInt(yearMatch[0], 10));
+        } else {
+          break;
+        }
+      }
+
+      // Parse data rows
+      for (const { node } of edges.slice(1)) {
+        const metric = (node.field_1 ?? "").toLowerCase().trim();
+
+        if (metric.includes("sales") && metric.includes("activit")) {
+          // "Sales Activity" row — field_2 is absolute current, field_3+ are % changes
+          const comparisons: HistoricalResult["historicalComparisons"] = [];
+          for (let i = 0; i < historicalYears.length; i++) {
+            const pct = parsePct(node[`field_${i + 3}`] ?? "");
+            comparisons.push({
+              year: historicalYears[i],
+              salesPct: pct,
+              avgPricePct: null,
+              dollarVolumePct: null,
+            });
+          }
+          // Merge into existing comparisons
+          if (!result.historicalComparisons) {
+            result.historicalComparisons = comparisons;
+          } else {
+            for (const c of comparisons) {
+              const existing = result.historicalComparisons.find((e) => e.year === c.year);
+              if (existing) {
+                existing.salesPct = c.salesPct;
+              } else {
+                result.historicalComparisons.push(c);
+              }
+            }
+          }
+          // First historical year = YoY
+          if (historicalYears.length > 0) {
+            result.salesYoYPct = parsePct(node.field_3 ?? "") ?? undefined;
+          }
+        } else if (metric.includes("average") && metric.includes("price")) {
+          // "Average Price" row
+          for (let i = 0; i < historicalYears.length; i++) {
+            const pct = parsePct(node[`field_${i + 3}`] ?? "");
+            if (!result.historicalComparisons) {
+              result.historicalComparisons = [{ year: historicalYears[i], salesPct: null, avgPricePct: pct, dollarVolumePct: null }];
+            } else {
+              const existing = result.historicalComparisons.find((e) => e.year === historicalYears[i]);
+              if (existing) {
+                existing.avgPricePct = pct;
+              } else {
+                result.historicalComparisons.push({ year: historicalYears[i], salesPct: null, avgPricePct: pct, dollarVolumePct: null });
+              }
+            }
+          }
+          if (historicalYears.length > 0) {
+            result.avgPriceYoYPct = parsePct(node.field_3 ?? "") ?? undefined;
+          }
+        } else if (metric.includes("dollar") && metric.includes("volume")) {
+          // "Dollar Volume" row
+          for (let i = 0; i < historicalYears.length; i++) {
+            const pct = parsePct(node[`field_${i + 3}`] ?? "");
+            if (!result.historicalComparisons) {
+              result.historicalComparisons = [{ year: historicalYears[i], salesPct: null, avgPricePct: null, dollarVolumePct: pct }];
+            } else {
+              const existing = result.historicalComparisons.find((e) => e.year === historicalYears[i]);
+              if (existing) {
+                existing.dollarVolumePct = pct;
+              } else {
+                result.historicalComparisons.push({ year: historicalYears[i], salesPct: null, avgPricePct: null, dollarVolumePct: pct });
+              }
+            }
+          }
+          if (historicalYears.length > 0) {
+            result.dollarVolumeYoYPct = parsePct(node.field_3 ?? "") ?? undefined;
+          }
+        } else if (metric.includes("new") && metric.includes("listing")) {
+          // "New Listings" row
+          if (historicalYears.length > 0) {
+            result.newListingsYoYPct = parsePct(node.field_3 ?? "") ?? undefined;
+          }
+        }
+      }
+
+      // If we found Format A data, check for a YTD table in the same set
+      // (often the next table, e.g. ChatHome2 or NbreaHome3)
+      if (result.historicalComparisons && result.historicalComparisons.length > 0) {
+        // Look for YTD variant: headerField1 contains "ytd"
+        if (headerField1.includes("ytd")) {
+          for (const { node } of edges.slice(1)) {
+            const metric = (node.field_1 ?? "").toLowerCase().trim();
+            if (metric.includes("sales") && metric.includes("activit")) {
+              result.ytdSales = parseNum(node.field_2 ?? "0") || undefined;
+              result.ytdSalesYoYPct = parsePct(node.field_3 ?? "") ?? undefined;
+            } else if (metric.includes("average") && metric.includes("price")) {
+              result.ytdAvgPrice = parseDollar(node.field_2 ?? "0") || undefined;
+              result.ytdAvgPriceYoYPct = parsePct(node.field_3 ?? "") ?? undefined;
+            } else if (metric.includes("dollar") && metric.includes("volume")) {
+              result.ytdDollarVolume = parseDollar(node.field_2 ?? "0") || undefined;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // If we already got Format A data, return it
+  if (result.historicalComparisons && result.historicalComparisons.length > 0) {
+    return result;
+  }
+
+  // ── Try Format B: simple YoY tables ─────────────────────────────────────
+  // Header: "February 2026" | "Residential Sales" | "Year-over-year % change" | ...
+  // Data rows: region | abs sales | yoy% | abs price | yoy% | ...
+  for (const key of tableKeys) {
+    const edges = rawData[key]?.edges ?? [];
+    if (edges.length < 2) continue;
+
+    const header = edges[0]?.node ?? {};
+
+    // Format B signature: look for "year-over-year" in any header field
+    const headerVals = Object.values(header).map((v) => (v ?? "").toLowerCase());
+    const hasYoY = headerVals.some((v) => v.includes("year-over-year") || v.includes("y-o-y") || v.includes("yoy"));
+
+    if (!hasYoY) continue;
+
+    // Find which fields contain YoY columns and what they measure
+    const yoyFields: Array<{ field: string; metric: string }> = [];
+    for (const [field, val] of Object.entries(header)) {
+      const lower = (val ?? "").toLowerCase();
+      if (lower.includes("year-over-year") || lower.includes("y-o-y") || lower.includes("yoy")) {
+        // Look at the PREVIOUS field to determine the metric
+        const fieldNum = parseInt(field.replace("field_", ""), 10);
+        const prevField = `field_${fieldNum - 1}`;
+        const prevLabel = (header[prevField] ?? "").toLowerCase();
+        let metric = "unknown";
+        if (prevLabel.includes("sales") || prevLabel.includes("unit")) metric = "sales";
+        else if (prevLabel.includes("price") || prevLabel.includes("average")) metric = "avgPrice";
+        else if (prevLabel.includes("dollar") || prevLabel.includes("volume")) metric = "dollarVolume";
+        else if (prevLabel.includes("listing")) metric = "newListings";
+        yoyFields.push({ field, metric });
+      }
+    }
+
+    if (yoyFields.length === 0) continue;
+
+    // Use the LAST data row as the board total (it's typically the sum/total row)
+    const lastRow = edges[edges.length - 1]?.node ?? {};
+
+    for (const { field, metric } of yoyFields) {
+      const pct = parsePct(lastRow[field] ?? "");
+      if (pct == null) continue;
+
+      if (metric === "sales" && result.salesYoYPct == null) {
+        result.salesYoYPct = pct;
+      } else if (metric === "avgPrice" && result.avgPriceYoYPct == null) {
+        result.avgPriceYoYPct = pct;
+      } else if (metric === "dollarVolume" && result.dollarVolumeYoYPct == null) {
+        result.dollarVolumeYoYPct = pct;
+      } else if (metric === "newListings" && result.newListingsYoYPct == null) {
+        result.newListingsYoYPct = pct;
+      }
+    }
+
+    // Build a single-year comparison entry from YoY data
+    const currentYear = new Date().getFullYear();
+    if (result.salesYoYPct != null || result.avgPriceYoYPct != null || result.dollarVolumeYoYPct != null) {
+      result.historicalComparisons = [{
+        year: currentYear - 1,
+        salesPct: result.salesYoYPct ?? null,
+        avgPricePct: result.avgPriceYoYPct ?? null,
+        dollarVolumePct: result.dollarVolumeYoYPct ?? null,
+      }];
+    }
+
+    // Found Format B data, stop searching
+    break;
+  }
+
+  return result;
+}
+
 // ── Main Fetch Function ───────────────────────────────────────────────────────
 
 export async function fetchBoardData(board: CreaBoard): Promise<LocalMarketData | null> {
@@ -285,7 +563,10 @@ export async function fetchBoardData(board: CreaBoard): Promise<LocalMarketData 
     const ratio = totalListings > 0 ? totalSales / totalListings : 0;
     const { condition, label: conditionLabel } = parseMarketCondition(ratio);
 
-    // 4. Fetch MLS market conditions (quarterly data)
+    // 4. Extract historical comparison data from raw tables
+    const historical = parseHistoricalComparisons(d, prefix);
+
+    // 5. Fetch MLS market conditions (quarterly data)
     let quarterlyUnitSales: number | undefined;
     let quarterlyPriorYearSales: number | undefined;
     let quarterlyUnitSalesYoY: number | undefined;
@@ -345,6 +626,16 @@ export async function fetchBoardData(board: CreaBoard): Promise<LocalMarketData 
       salesToNewListingsRatio: ratio,
       marketCondition: condition,
       marketConditionLabel: conditionLabel,
+      salesYoYPct: historical.salesYoYPct,
+      avgPriceYoYPct: historical.avgPriceYoYPct,
+      dollarVolumeYoYPct: historical.dollarVolumeYoYPct,
+      newListingsYoYPct: historical.newListingsYoYPct,
+      ytdSales: historical.ytdSales,
+      ytdSalesYoYPct: historical.ytdSalesYoYPct,
+      ytdAvgPrice: historical.ytdAvgPrice,
+      ytdAvgPriceYoYPct: historical.ytdAvgPriceYoYPct,
+      ytdDollarVolume: historical.ytdDollarVolume,
+      historicalComparisons: historical.historicalComparisons,
       quarterlyUnitSales,
       quarterlyPriorYearSales,
       quarterlyUnitSalesYoY,
