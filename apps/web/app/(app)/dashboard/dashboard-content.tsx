@@ -119,6 +119,12 @@ import type { BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { survivalResult, type SurvivalResult } from "@/lib/engines/survival-engine";
 import { compute as computeRunwayScore, type BusinessHealthReport, type RunwayScoreResult } from "@/lib/engines/runway-score-engine";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
+import {
+  experienceTier,
+  computeBaselines,
+  detectAllDeviations,
+  generateDeviationInsights,
+} from "@/lib/engines/deviation-engine";
 import { calculate as calculateTax, marginalRate } from "@/lib/engines/canadian-tax-engine";
 import { calculateCorporateTax, type CorporateTaxResult } from "@/lib/engines/corporate-tax-engine";
 import { generateTaxOptimizations, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
@@ -848,6 +854,29 @@ export function DashboardContent({
       body: `Your costs are ${fmtPct(expenseRatioForAlert)} of GCI — above the 25–30% benchmark. Every dollar saved here goes straight to your net.`,
     });
   }
+
+  // ── Personal Deviation Detection ─────────────────────────────────────
+  const tier = experienceTier(settings?.experience_years);
+  const baselines = useMemo(
+    () => {
+      const monthlyExpenses = monthlyRecurring;
+      const monthlyGCIForRatio = fraction > 0 ? ytdGCI / (fraction * 12) : 0;
+      return computeBaselines(transactions, [], monthlyExpenses, monthlyGCIForRatio);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [transactions.length, monthlyRecurring, ytdGCI, fraction],
+  );
+  const currentMonthlyGCI = fraction > 0 ? ytdGCI / (fraction * 12) : 0;
+  const currentMonthlyDeals = fraction > 0 ? ytdDealCount / (fraction * 12) : 0;
+  const currentExpenseRatio = ytdGCI > 0 ? expensesYTD / ytdGCI : 0;
+  const deviations = useMemo(
+    () => detectAllDeviations(baselines, currentMonthlyGCI, currentMonthlyDeals, currentExpenseRatio, 0),
+    [baselines, currentMonthlyGCI, currentMonthlyDeals, currentExpenseRatio],
+  );
+  const deviationMessages = useMemo(
+    () => generateDeviationInsights(deviations, tier),
+    [deviations, tier],
+  );
 
   // ── Confetti on goal milestone ────────────────────────────────────────
   // Fires once per session when the agent crosses 50%, 75%, or 100% of goal
@@ -2342,6 +2371,17 @@ export function DashboardContent({
               );
             })}
           </div>
+          {/* Deviation insights — personal baseline comparisons */}
+          {deviationMessages.length > 0 && (
+            <div className="mt-3 border-t border-slate-100 pt-3 space-y-1.5">
+              {deviationMessages.map((msg, i) => (
+                <p key={i} className="text-[11px] text-slate-500 leading-snug flex items-start gap-1.5">
+                  <span className="shrink-0 mt-px text-slate-400">{"·"}</span>
+                  {msg}
+                </p>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 
