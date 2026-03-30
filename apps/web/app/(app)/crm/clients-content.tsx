@@ -4390,7 +4390,7 @@ export function ClientsContent({
                 <Label className="text-xs">Phone</Label>
                 <Input
                   type="tel"
-                  placeholder="(555) 555-5555"
+                  placeholder="(613) 555-0123"
                   value={newClientPhone}
                   onChange={(e) => setNewClientPhone(e.target.value)}
                   className={cn("h-8 text-sm", voiceTint("phone"))}

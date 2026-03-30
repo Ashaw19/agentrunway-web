@@ -265,7 +265,7 @@ export default function RecruitPage() {
                         onChange={(e) =>
                           setForm({ ...form, phone: e.target.value })
                         }
-                        placeholder="(555) 123-4567"
+                        placeholder="(613) 555-0123"
                       />
                     </div>
                     <div>

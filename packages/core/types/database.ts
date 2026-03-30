@@ -1032,7 +1032,7 @@ export const PREDEFINED_TAGS: TagCategory[] = [
   },
   {
     category: "Status & Priority",
-    tags: ["VIP", "High Value", "Nurture", "Closed 2025", "Out of Area"],
+    tags: ["VIP", "High Value", "Nurture", `Closed ${new Date().getFullYear()}`, "Out of Area"],
   },
   {
     category: "Action / Restriction",

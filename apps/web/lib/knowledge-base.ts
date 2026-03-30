@@ -161,7 +161,7 @@ Lead (10%), Showing (20%), Offer (40%), Conditional (60%), Firm (90%).
 *Data version: 2025 CRA published rates. Verify annually at canada.ca.*
 
 **Federal brackets (2025):**
-$0–$57,375 @ 15%, $57,375–$114,750 @ 20.5%, $114,750–$177,882 @ 26%, $177,882–$253,414 @ 29%, $253,414+ @ 33%.
+$0–$57,375 @ 14.5% (blended — 15% Jan-Jun, 14% Jul-Dec), $57,375–$114,750 @ 20.5%, $114,750–$177,882 @ 26%, $177,882–$253,414 @ 29%, $253,414+ @ 33%.
 Basic Personal Amount (BPA): $16,129.
 
 **CPP — Self-employed pay both employee and employer halves:**

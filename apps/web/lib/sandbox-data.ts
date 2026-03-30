@@ -1090,7 +1090,7 @@ export function generateSandboxData(
       const tripDay = randInt(rng, 1, 28);
       const tripDate = `${currentYear}-${String(m + 1).padStart(2, "0")}-${String(tripDay).padStart(2, "0")}`;
       const km = Math.round(randRange(rng, 8, 65) * 10) / 10;
-      const craRate = 0.70; // 2026 CRA rate
+      const craRate = 0.72; // 2025 CRA rate for first 5,000 km — source of truth: CRA_MILEAGE_RATES in packages/core/types/database.ts
 
       mileageLogs.push({
         id: uuid(rng),
