@@ -187,7 +187,7 @@ describe("Full Dashboard Pipeline", () => {
       paceScore,
       pipelineScore,
       expenseScore,
-      readinessScore: 85,
+      readinessScore: 0,
       weakestLabel: "Pipeline",
       hasEnoughData: true,
     };

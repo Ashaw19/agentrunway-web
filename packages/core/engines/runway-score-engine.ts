@@ -2,7 +2,7 @@
 // Versioned composite score wrapping BusinessHealthReport + benchmark + survival.
 // 6-component health score.
 
-export const SCORE_VERSION = "1.0";
+export const SCORE_VERSION = "1.1";
 
 // ── Component ───────────────────────────────────────────────────────────────
 
@@ -32,7 +32,7 @@ export interface BusinessHealthReport {
   paceScore: number; // 0–100
   pipelineScore: number;
   expenseScore: number;
-  readinessScore: number;
+  readinessScore: number; // kept for backward compat — NOT used in score
   weakestLabel: string;
   hasEnoughData: boolean;
 }
@@ -54,12 +54,15 @@ function grade(score: number): string {
  * Compute the Runway Score.
  *
  * Component weights (total = 100%):
- * - Goal Pace:  30%
- * - Pipeline:   20%
+ * - Goal Pace:  35%
+ * - Pipeline:   25%
  * - Expenses:   15%
- * - Setup:      10%
  * - Benchmark:  10%
  * - Survival:   15%
+ *
+ * NOTE: "Setup" (readinessScore) was removed in v1.1 — it measured app
+ * configuration completeness, not business health.  Its 10% was
+ * redistributed to Goal Pace (+5%) and Pipeline (+5%).
  */
 export function compute(
   healthReport: BusinessHealthReport,
@@ -77,10 +80,9 @@ export function compute(
   else survivalScore = 10;
 
   const components: ScoreComponent[] = [
-    { label: "Goal Pace", score: healthReport.paceScore, weight: "30%", weightValue: 0.3 },
-    { label: "Pipeline", score: healthReport.pipelineScore, weight: "20%", weightValue: 0.2 },
+    { label: "Goal Pace", score: healthReport.paceScore, weight: "35%", weightValue: 0.35 },
+    { label: "Pipeline", score: healthReport.pipelineScore, weight: "25%", weightValue: 0.25 },
     { label: "Expenses", score: healthReport.expenseScore, weight: "15%", weightValue: 0.15 },
-    { label: "Setup", score: healthReport.readinessScore, weight: "10%", weightValue: 0.1 },
     { label: "Benchmark", score: benchmarkPercentile, weight: "10%", weightValue: 0.1 },
     { label: "Survival", score: survivalScore, weight: "15%", weightValue: 0.15 },
   ];

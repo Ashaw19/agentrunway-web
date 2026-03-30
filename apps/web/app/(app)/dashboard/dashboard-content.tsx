@@ -3146,7 +3146,6 @@ function generateBusinessHealthNarrative({
       expenseRatio > 0
         ? `Expense ratio is elevated at ${fmtPct(expenseRatio)} of YTD GCI (score: ${healthReport.expenseScore}/100), above the 25–30% benchmark. Monthly burn of ${fmtCurrency(survival.monthlyBurn)} is compressing net take-home.`
         : `Expense tracking (score: ${healthReport.expenseScore}/100) — configure your costs in Settings to see expense ratio and burn analysis.`,
-    Setup: `Forecast profile is incomplete (score: ${healthReport.readinessScore}/100). Missing settings — such as goal, split structure, and experience years — reduce projection accuracy across all dashboard metrics.`,
     Benchmark: `Projected GCI of ${fmtCurrency(projectedGCI)} ranks at the ${benchmark.percentile}th percentile for your experience cohort, with a median of ${fmtCurrency(benchmark.cohortMedianGCI)} (CREA 2023 data).`,
     Survival:
       survival.monthlyBurn > 0
@@ -3268,23 +3267,14 @@ function buildHealthReport(
     else expenseScore = 90;
   }
 
-  // Readiness score: based on forecast setup completeness
-  let readinessScore = 25;
-  if (settings) {
-    let points = 0;
-    if (settings.goal_gci > 0) points += 30;
-    if (settings.goal_transactions > 0) points += 20;
-    const growthRates = settings.growth_goal_year_pcts as number[] | null;
-    if (growthRates && growthRates.some((r) => r > 0)) points += 25;
-    if (settings.cash_reserve > 0) points += 15;
-    if (settings.experience_years != null) points += 10;
-    readinessScore = points;
-  }
+  // Readiness score: kept for backward compat but NO LONGER part of Runway Score.
+  // It measures app setup completeness, not business health.
+  const readinessScore = 0;
 
-  const components = [paceScore, pipelineScore, expenseScore, readinessScore];
-  const avg = components.reduce((a, b) => a + b, 0) / 4;
+  const components = [paceScore, pipelineScore, expenseScore];
+  const avg = components.reduce((a, b) => a + b, 0) / 3;
   const weakest = Math.min(...components);
-  const weakestLabels = ["Pace", "Pipeline", "Expenses", "Setup"];
+  const weakestLabels = ["Pace", "Pipeline", "Expenses"];
   const weakestIdx = components.indexOf(weakest);
 
   return {

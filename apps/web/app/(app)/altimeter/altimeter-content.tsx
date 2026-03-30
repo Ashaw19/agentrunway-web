@@ -299,22 +299,13 @@ function buildHealthReport(
     else expenseScore = 90;
   }
 
-  let readinessScore = 25;
-  if (settings) {
-    let points = 0;
-    if (settings.goal_gci > 0) points += 30;
-    if (settings.goal_transactions > 0) points += 20;
-    const growthRates = settings.growth_goal_year_pcts as number[] | null;
-    if (growthRates && growthRates.some((r) => r > 0)) points += 25;
-    if (settings.cash_reserve > 0) points += 15;
-    if (settings.experience_years != null) points += 10;
-    readinessScore = points;
-  }
+  // Readiness score removed from Runway Score — it measured app setup, not business health.
+  const readinessScore = 0;
 
-  const components = [paceScore, pipelineScore, expenseScore, readinessScore];
-  const avg = components.reduce((a, b) => a + b, 0) / 4;
+  const components = [paceScore, pipelineScore, expenseScore];
+  const avg = components.reduce((a, b) => a + b, 0) / 3;
   const weakest = Math.min(...components);
-  const weakestLabels = ["Pace", "Pipeline", "Expenses", "Setup"];
+  const weakestLabels = ["Pace", "Pipeline", "Expenses"];
   const weakestIdx = components.indexOf(weakest);
 
   return {
