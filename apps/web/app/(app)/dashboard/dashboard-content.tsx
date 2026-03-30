@@ -2270,76 +2270,51 @@ export function DashboardContent({
                 </p>
                 <p className="text-[10px] text-slate-400 mt-1">cash coverage</p>
               </div>
-              {/* Your Pace */}
+              {/* Your Pace — agent vs average agent in board */}
               <div className="bg-white px-4 py-3 text-center">
-                {marketMomentum && marketMomentum.momentumTier !== "no_data" ? (
-                  <>
-                    <div className="flex items-center justify-center gap-1">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Your Pace</p>
-                      <MetricInfo tip={
-                        marketMomentum.agentDealGrowthPct != null
-                          ? `Your deal count is ${marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}${marketMomentum.agentDealGrowthPct.toFixed(0)}% vs this point last year.${marketMomentum.boardSalesYoYPct != null ? ` Your board (${marketMomentum.boardName}) reported ${marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}${marketMomentum.boardSalesYoYPct.toFixed(0)}% YoY as of ${marketMomentum.reportMonth}.` : ""} Source: CREA MLS® Statistics.`
-                          : `Compares your deal pace against this point last year. Source: CREA MLS® Statistics.`
-                      } />
-                      <GuideLink anchor="market-position" label="Market Momentum explained in Guide" />
-                      {isPro && <ExplainButton question="How is my business pace compared to last year and how does my local real estate market look?" />}
-                    </div>
-                    {marketMomentum.agentDealGrowthPct != null ? (
-                      <>
-                        <p
-                          className="text-2xl font-bold mt-1 leading-none"
-                          style={{
-                            color: marketMomentum.momentumTier === "gaining"  ? "#059669"
-                                 : marketMomentum.momentumTier === "trailing" ? "#DC2626"
-                                 : "#D97706",
-                          }}
-                        >
-                          {marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}{marketMomentum.agentDealGrowthPct.toFixed(0)}% YoY
-                        </p>
-                        <p
-                          className="text-[10px] font-semibold mt-1"
-                          style={{
-                            color: marketMomentum.momentumTier === "gaining"  ? "#059669"
-                                 : marketMomentum.momentumTier === "trailing" ? "#DC2626"
-                                 : "#D97706",
-                          }}
-                        >
-                          {marketMomentum.momentumLabel}
-                          {marketMomentum.boardSalesYoYPct != null && (
-                            <span className="text-slate-400 font-normal"> · Mkt {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}%</span>
-                          )}
-                        </p>
-                      </>
-                    ) : (
-                      <p
-                        className="text-2xl font-bold mt-1 leading-none"
-                        style={{
-                          color: marketMomentum.momentumTier === "gaining"  ? "#059669"
-                               : marketMomentum.momentumTier === "trailing" ? "#DC2626"
-                               : "#D97706",
-                        }}
-                      >
-                        {marketMomentum.momentumLabel}
+                {marketMomentum && marketMomentum.avgDealsPerAgentPerYear != null && marketMomentum.agentAnnualizedDeals != null ? (() => {
+                  const avg = marketMomentum.avgDealsPerAgentPerYear!;
+                  const agent = marketMomentum.agentAnnualizedDeals!;
+                  const ratio = avg > 0 ? agent / avg : 0;
+                  const pctVsAvg = avg > 0 ? Math.round(((agent - avg) / avg) * 100) : 0;
+                  const tierColor = ratio >= 1.15 ? "#059669" : ratio <= 0.85 ? "#DC2626" : "#D97706";
+                  const tierLabel = ratio >= 1.15 ? "Above Board Avg" : ratio <= 0.85 ? "Below Board Avg" : "At Board Avg";
+                  return (
+                    <>
+                      <div className="flex items-center justify-center gap-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Your Pace</p>
+                        <MetricInfo tip={`You're on pace for ~${agent} deals/yr. The average agent on your board (${marketMomentum.boardName}) closes ~${avg.toFixed(1)} deals/yr based on CREA MLS® data.${marketMomentum.boardSalesYoYPct != null ? ` Board sales are ${marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}${marketMomentum.boardSalesYoYPct.toFixed(0)}% YoY.` : ""}`} />
+                        <GuideLink anchor="market-position" label="Market Momentum explained in Guide" />
+                        {isPro && <ExplainButton question="How does my deal pace compare to the average agent on my board and what does my local market look like?" />}
+                      </div>
+                      <p className="text-2xl font-bold mt-1 leading-none" style={{ color: tierColor }}>
+                        {ratio >= 1 ? `${ratio.toFixed(1)}×` : `${ratio.toFixed(1)}×`}
                       </p>
-                    )}
-                    <p className="text-[9px] text-slate-400 mt-1 leading-tight">
-                      CREA MLS® · {marketMomentum.reportMonth ?? new Date().getFullYear()}
-                    </p>
-                  </>
-                ) : marketMomentum ? (
+                      <p className="text-[10px] font-semibold mt-1" style={{ color: tierColor }}>
+                        {tierLabel}
+                        {marketMomentum.boardSalesYoYPct != null && (
+                          <span className="text-slate-400 font-normal"> · Mkt {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}%</span>
+                        )}
+                      </p>
+                      <p className="text-[9px] text-slate-400 mt-1 leading-tight">
+                        CREA MLS® · {marketMomentum.reportMonth ?? new Date().getFullYear()}
+                      </p>
+                    </>
+                  );
+                })() : marketMomentum ? (
                   <>
                     <div className="flex items-center justify-center gap-1">
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Your Pace</p>
-                      <MetricInfo tip="Close your first deal or add a prior year in History to unlock your pace comparison." />
+                      <MetricInfo tip="We need deal data and your board selection to compare your pace against the market." />
                     </div>
                     <p className="text-2xl font-bold mt-1 leading-none text-slate-300">—</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Needs prior year data</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Needs more data</p>
                   </>
                 ) : (
                   <>
                     <div className="flex items-center justify-center gap-1">
                       <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Your Pace</p>
-                      <MetricInfo tip="Select your local real estate board in Settings to see how your business pace compares to your market." />
+                      <MetricInfo tip="Select your local real estate board in Settings to see how your deal pace compares to the average agent in your market." />
                       <GuideLink anchor="market-position" label="Board benchmarking explained in Guide" />
                     </div>
                     <p className="text-2xl font-bold mt-1 leading-none text-slate-300">—</p>

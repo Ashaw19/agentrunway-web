@@ -8,6 +8,7 @@ import { AGENT_RUNWAY_VOICE } from "@/lib/outreach-prompts";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
 import { seasonalFractionElapsed, paceVsGoalPercent } from "@agent-runway/core/engines/projection-engine";
+import { CREA_BOARDS, fetchBoardData, computeMarketMomentum } from "@/lib/crea-board";
 import { generateTeamComparativeInsights } from "@agent-runway/core/engines";
 
 export async function POST(req: NextRequest) {
@@ -90,12 +91,39 @@ export async function POST(req: NextRequest) {
         ? `Pace vs Annual Goal: ${pacePercent >= 0 ? "+" : ""}${Math.round(pacePercent)}% (${pacePercent >= 0 ? "ahead of" : "behind"} expected pace for this point in the year)`
         : null;
 
+      // ── Board comparison (same engine as dashboard "Your Pace" card) ──
+      let boardPaceLabel: string | null = null;
+      const boardCode = settings.board_code ?? "";
+      if (boardCode) {
+        try {
+          const board = CREA_BOARDS.find((b) => b.slug === boardCode);
+          if (board) {
+            const { data: historyRows } = await supabase
+              .from("annual_history")
+              .select("year, annual_tx, annual_gci")
+              .eq("user_id", user.id);
+            const boardData = await fetchBoardData(board);
+            if (boardData) {
+              const mm = computeMarketMomentum(boardCode, ytdTx.length, ytdGCI, boardData, historyRows ?? [], currentYear);
+              if (mm.avgDealsPerAgentPerYear != null && mm.agentAnnualizedDeals != null) {
+                const ratio = mm.avgDealsPerAgentPerYear > 0 ? mm.agentAnnualizedDeals / mm.avgDealsPerAgentPerYear : 0;
+                const label = ratio >= 1.15 ? "above" : ratio <= 0.85 ? "below" : "at";
+                boardPaceLabel = `Board Comparison (${mm.boardName}): You're on pace for ~${mm.agentAnnualizedDeals} deals/yr, which is ${ratio.toFixed(1)}× the average agent on your board (~${mm.avgDealsPerAgentPerYear.toFixed(1)} deals/yr). You are ${label} the board average.${mm.boardSalesYoYPct != null ? ` Board market trend: ${mm.boardSalesYoYPct >= 0 ? "+" : ""}${mm.boardSalesYoYPct.toFixed(0)}% YoY.` : ""}`;
+              }
+            }
+          }
+        } catch {
+          // Non-critical — board data may be temporarily unavailable
+        }
+      }
+
       financialContext = [
         `Current Year: ${currentYear}`,
         `YTD GCI: ${fmtCurrency(ytdGCI)}`,
         `Closed Deals YTD: ${ytdTx.length}`,
         ytdTx.length > 0 ? `Average Deal GCI: ${fmtCurrency(ytdGCI / ytdTx.length)}` : null,
         paceLabel,
+        boardPaceLabel,
         `Pipeline (Probability-Weighted GCI): ${fmtCurrency(pipelineWeighted)} across ${pipeline?.length ?? 0} active deals`,
         `Province: ${settings.province}`,
         `Commission Split: ${splitLabel}`,
@@ -245,7 +273,7 @@ CORE GUIDELINES:
 
 PROACTIVE INSIGHTS:
 When the agent's data shows any of these patterns, surface them naturally in your response — not as alarms, but as observations a good advisor would notice:
-- Use the "Pace vs Annual Goal" percentage provided in the data — do NOT calculate your own pace. If pace is significantly negative, mention it and suggest pipeline review
+- Use the "Pace vs Annual Goal" and "Board Comparison" data provided — do NOT calculate your own pace or market position. When discussing the agent's pace, reference their position relative to the average agent on their board (the "Your Pace" metric on their dashboard). If pace vs goal is significantly negative, mention it and suggest pipeline review
 - Expense ratio above 35% → flag it and offer to dig into the cause
 - Stale active clients (30+ days no contact) exist → suggest Flight Control outreach sweep
 - Pipeline is thin relative to goal → recommend adding pipeline deals or outreach
