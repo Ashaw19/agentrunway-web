@@ -1,10 +1,16 @@
 /**
- * Receipt OCR extraction via Groq vision (llama-4-scout).
+ * Receipt OCR extraction via Groq vision.
  * Sends the receipt image as a base64 data URL and returns structured JSON.
+ *
+ * Primary model: llama-4-scout (multimodal)
+ * Fallback model: llama-3.2-90b-vision-preview
  */
 import OpenAI from "openai";
 import type { OcrExtraction } from "@/lib/types/receipt";
 import { withRetry } from "@/lib/retry";
+
+const PRIMARY_MODEL  = "meta-llama/llama-4-scout-17b-16e-instruct";
+const FALLBACK_MODEL = "llama-3.2-90b-vision-preview";
 
 const VISION_PROMPT = `You are a receipt data extraction assistant for Canadian real estate agents.
 Extract structured data from this receipt image.
@@ -63,30 +69,24 @@ function groqClient(): OpenAI {
   });
 }
 
-/**
- * Send a base64-encoded receipt image to Groq vision and return extracted fields.
- *
- * @param imageBase64  raw base64 string (no data-URI prefix)
- * @param mimeType     image MIME type, e.g. "image/jpeg"
- */
-export async function extractReceiptData(
-  imageBase64: string,
-  mimeType: string = "image/jpeg",
+/** Attempt a single model call and parse the response JSON. */
+async function callVisionModel(
+  groq: OpenAI,
+  model: string,
+  dataUrl: string,
 ): Promise<OcrExtraction> {
-  const groq = groqClient();
+  console.log(`[receipt/extract] Calling model=${model}, dataUrl length=${dataUrl.length}`);
 
   const response = await withRetry(
     () => groq.chat.completions.create({
-      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      model,
       messages: [
         {
           role: "user",
           content: [
             {
               type: "image_url",
-              image_url: {
-                url: `data:${mimeType};base64,${imageBase64}`,
-              },
+              image_url: { url: dataUrl },
             },
             {
               type: "text",
@@ -98,10 +98,15 @@ export async function extractReceiptData(
       temperature: 0.05,
       max_tokens:  512,
     }),
-    { label: "groq/receipt-ocr", attempts: 3 },
+    { label: `groq/receipt-ocr/${model}`, attempts: 2 },
   );
 
   const raw = response.choices[0]?.message?.content ?? "";
+  console.log(`[receipt/extract] model=${model} raw response (first 400):`, raw.slice(0, 400));
+
+  if (!raw.trim()) {
+    throw new Error(`Empty response from model ${model}`);
+  }
 
   // Strip markdown fences if the model wraps output
   const cleaned = raw
@@ -113,18 +118,7 @@ export async function extractReceiptData(
   try {
     parsed = JSON.parse(cleaned) as Partial<OcrExtraction>;
   } catch {
-    // If the model fails to return valid JSON, return a zero-confidence extraction
-    console.error("[receipt/extract] JSON parse failed. Raw:", raw.slice(0, 300));
-    return {
-      vendor:             null,
-      expense_date:       null,
-      total_amount:       null,
-      tax_amount:         null,
-      subtotal:           null,
-      currency:           "CAD",
-      suggested_category: null,
-      confidence:         0,
-    };
+    throw new Error(`JSON parse failed for model ${model}. Raw: ${raw.slice(0, 300)}`);
   }
 
   return {
@@ -139,4 +133,44 @@ export async function extractReceiptData(
                           ? Math.max(0, Math.min(1, parsed.confidence))
                           : 0.5,
   };
+}
+
+/**
+ * Send a base64-encoded receipt image to Groq vision and return extracted fields.
+ * Tries the primary model first; falls back to a secondary vision model on failure.
+ *
+ * @param imageBase64  raw base64 string (no data-URI prefix)
+ * @param mimeType     image MIME type, e.g. "image/jpeg"
+ */
+export async function extractReceiptData(
+  imageBase64: string,
+  mimeType: string = "image/jpeg",
+): Promise<OcrExtraction> {
+  const groq = groqClient();
+  const dataUrl = `data:${mimeType};base64,${imageBase64}`;
+
+  console.log(`[receipt/extract] Starting OCR. mimeType=${mimeType}, base64 length=${imageBase64.length} (~${Math.round(imageBase64.length * 0.75 / 1024)}KB)`);
+
+  let primaryErrMsg = "";
+
+  // Try primary model
+  try {
+    return await callVisionModel(groq, PRIMARY_MODEL, dataUrl);
+  } catch (primaryErr) {
+    primaryErrMsg = primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
+    console.error(`[receipt/extract] Primary model (${PRIMARY_MODEL}) failed:`, primaryErrMsg);
+  }
+
+  // Try fallback model
+  try {
+    console.log(`[receipt/extract] Trying fallback model: ${FALLBACK_MODEL}`);
+    return await callVisionModel(groq, FALLBACK_MODEL, dataUrl);
+  } catch (fallbackErr) {
+    const fallbackErrMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+    console.error(`[receipt/extract] Fallback model (${FALLBACK_MODEL}) also failed:`, fallbackErrMsg);
+    // Re-throw so the caller knows extraction truly failed
+    throw new Error(
+      `OCR extraction failed on both models. Primary: ${primaryErrMsg}. Fallback: ${fallbackErrMsg}.`,
+    );
+  }
 }

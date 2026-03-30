@@ -255,9 +255,14 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
       form.append("file", imageFile);
 
       const res  = await fetch("/api/receipts/process", { method: "POST", body: form });
-      const data = (await res.json()) as ProcessReceiptResponse | ProcessReceiptError;
+      const data = (await res.json()) as (ProcessReceiptResponse & { ocrError?: string }) | ProcessReceiptError;
 
       if (!data.ok) throw new Error(data.error ?? "Processing failed");
+
+      if (data.ocrError) {
+        console.warn("[ReceiptCapture] OCR failed:", data.ocrError);
+        toast.error("Receipt scanning couldn't read the image. Please enter details manually.");
+      }
 
       const normalized = normalizeExtraction(data.extraction, data.path);
       setDraft(normalized);

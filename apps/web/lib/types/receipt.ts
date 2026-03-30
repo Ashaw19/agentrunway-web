@@ -131,6 +131,7 @@ export interface ProcessReceiptResponse {
   ok:          true;
   path:        string;           // Supabase Storage path
   extraction:  OcrExtraction;
+  ocrError?:   string;           // Set when OCR failed — extraction is blank, user fills manually
 }
 
 export interface ProcessReceiptError {

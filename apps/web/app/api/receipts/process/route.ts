@@ -126,10 +126,13 @@ export async function POST(
 
   // ── 6. Run OCR extraction ──────────────────────────────────────────────────
   let extraction;
+  let ocrError: string | undefined;
   try {
     extraction = await extractReceiptData(base64, mimeType);
   } catch (err) {
-    console.error("[receipts/process] OCR extraction failed:", err);
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[receipts/process] OCR extraction failed:", errMsg);
+    ocrError = errMsg;
     // Return a zero-confidence blank extraction — the user will fill in manually.
     extraction = {
       vendor:             null,
@@ -148,5 +151,6 @@ export async function POST(
     ok:         true,
     path:       storagePath,
     extraction,
+    ...(ocrError ? { ocrError } : {}),
   });
 }
