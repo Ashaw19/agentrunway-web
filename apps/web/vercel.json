@@ -2,6 +2,7 @@
   "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
   "buildCommand": "pnpm build",
   "framework": "nextjs",
+  "ignoreCommand": "if [[ \"$VERCEL_GIT_COMMIT_REF\" == dependabot/* ]]; then exit 0; fi; exit 1",
   "crons": [
     {
       "path": "/api/cron/outreach-detector",
