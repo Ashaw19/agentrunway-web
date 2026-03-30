@@ -151,7 +151,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     try {
       extraction = await extractReceiptData(base64, mimeType);
     } catch (err) {
-      console.error("[mobile/receipts/scan] OCR failed:", err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error("[mobile/receipts/scan] OCR failed:", errMsg);
       extraction = {
         vendor:             null,
         expense_date:       null,

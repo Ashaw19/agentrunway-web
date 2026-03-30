@@ -56,8 +56,8 @@ const securityHeaders = [
   // Only send origin in the Referer header for same-site requests;
   // strip it entirely for cross-origin requests
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // Disable browser features the app doesn't use
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), interest-cohort=()" },
+  // Disable browser features the app doesn't use (camera allowed for receipt scanning)
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(), interest-cohort=()" },
   // Content Security Policy
   { key: "Content-Security-Policy", value: CSP },
 ];
