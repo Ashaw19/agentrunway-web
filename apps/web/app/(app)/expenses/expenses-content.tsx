@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -244,7 +244,17 @@ export function ExpensesContent({
     setQeSaving(false);
   }
 
+  // Debounce receipt refresh to prevent concurrent fetches from rapid saves
+  const receiptRefreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleReceiptSaved = async () => {
+    // Cancel any pending refresh from a previous rapid save
+    if (receiptRefreshTimer.current) clearTimeout(receiptRefreshTimer.current);
+
+    // Small delay so back-to-back saves only trigger one refresh
+    await new Promise<void>((resolve) => {
+      receiptRefreshTimer.current = setTimeout(resolve, 300);
+    });
+
     const supabase = createClient();
     const year = new Date().getFullYear();
 

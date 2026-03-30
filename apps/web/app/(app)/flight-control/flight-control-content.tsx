@@ -293,15 +293,23 @@ function ReviewDrawer({
     }
   }, [item]);
 
+  // Debounced save captures latest editSubject/editBody at execution time
+  // to prevent stale values when user edits during an active save.
+  const latestEditsRef = useRef({ subject: "", body: "" });
+  latestEditsRef.current = { subject: editSubject, body: editBody };
+
   const saveEdits = useCallback(async () => {
     if (!item) return;
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
+    if (saving) return; // Prevent concurrent saves
     setSaving(true);
     try {
+      // Read latest values at save time (not from closure)
+      const { subject, body } = latestEditsRef.current;
       const res = await fetch(`/api/ai/outreach-queue/${item.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ final_subject: editSubject, final_body: editBody }),
+        body: JSON.stringify({ final_subject: subject, final_body: body }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch {
@@ -309,7 +317,7 @@ function ReviewDrawer({
     } finally {
       setSaving(false);
     }
-  }, [item, editSubject, editBody, sandbox.sandboxMode]);
+  }, [item, saving, sandbox.sandboxMode]);
 
   const markAsSent = useCallback(async () => {
     if (!item) return;

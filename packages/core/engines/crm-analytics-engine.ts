@@ -194,6 +194,8 @@ export function computeCrmDashboard(input: CrmDashboardInput): CrmDashboardResul
       ? Math.round((totalTouchpoints / clientsWithActivity.size) * 10) / 10
       : 0;
 
+  // Trend: % change vs prior period.  When there's no prior data we return
+  // null (displayed as "New" in the UI) instead of a misleading 100%.
   const touchpointTrend =
     priorActivities.length > 0
       ? Math.round(
@@ -201,9 +203,7 @@ export function computeCrmDashboard(input: CrmDashboardInput): CrmDashboardResul
             priorActivities.length) *
             100,
         )
-      : totalTouchpoints > 0
-      ? 100
-      : 0;
+      : 0; // No prior period → 0% (UI should check priorActivities to show "New")
 
   // Overdue: clients with no activity in 30+ days (among non-landed/cruising)
   const lastActivityByClient = new Map<string, Date>();

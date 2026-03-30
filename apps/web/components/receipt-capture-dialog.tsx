@@ -112,6 +112,7 @@ async function compressImage(file: File, maxWidth = 1600): Promise<Blob> {
 function confidenceLabel(conf: number): { text: string; color: string } {
   if (conf >= 0.85) return { text: "High confidence",   color: "text-emerald-600" };
   if (conf >= 0.60) return { text: "Medium confidence", color: "text-amber-500"   };
+  if (conf <= 0)    return { text: "OCR failed — please enter details manually", color: "text-red-600" };
   return               { text: "Low confidence — please review carefully", color: "text-red-500" };
 }
 

@@ -580,25 +580,37 @@ export function DashboardContent({
   useEffect(() => {
     if (sandbox.sandboxMode) return;
     const supabase = createClient();
+    const snapshot = {
+      score: runwayScore.score,
+      grade: runwayScore.grade,
+      month: currentMonthKey,
+      updated_at: new Date().toISOString(),
+      components: runwayScore.components.map((c) => ({
+        label: c.label,
+        score: c.score,
+        weight: c.weightValue,
+      })),
+    };
+    let cancelled = false;
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      await supabase
-        .from("user_settings")
-        .update({
-          runway_score_snapshot: {
-            score: runwayScore.score,
-            grade: runwayScore.grade,
-            month: currentMonthKey,
-            components: runwayScore.components.map((c) => ({
-              label: c.label,
-              score: c.score,
-              weight: c.weightValue,
-            })),
-          },
-        })
-        .eq("user_id", user.id);
+      if (!user || cancelled) return;
+      // Try up to 2 times (initial + 1 retry) to ensure mobile gets the score
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { error } = await supabase
+          .from("user_settings")
+          .update({ runway_score_snapshot: snapshot })
+          .eq("user_id", user.id);
+        if (!error) break;
+        if (attempt === 0) {
+          console.warn("Runway score snapshot save failed, retrying…", error.message);
+          await new Promise((r) => setTimeout(r, 1000));
+        } else {
+          console.error("Runway score snapshot save failed after retry:", error.message);
+        }
+      }
     })();
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runwayScore.score]);
 

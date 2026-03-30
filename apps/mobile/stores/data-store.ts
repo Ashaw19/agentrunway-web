@@ -272,6 +272,14 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 const FETCH_TIMEOUT_MS = 15_000; // 15-second network timeout
 
+/** Simple mutex to prevent duplicate concurrent mutations (e.g. double-tap). */
+const _mutationLocks = new Set<string>();
+function withMutationGuard<T>(key: string, fn: () => Promise<T>, fallback: T): Promise<T> {
+  if (_mutationLocks.has(key)) return Promise.resolve(fallback);
+  _mutationLocks.add(key);
+  return fn().finally(() => _mutationLocks.delete(key));
+}
+
 function saveCache(state: Partial<DataStore>) {
   try {
     storage.set(CACHE_VERSION_KEY, CACHE_VERSION);
@@ -447,7 +455,7 @@ export const useDataStore = create<DataStore>((set, get) => {
       }
     },
 
-    addTransaction: async (tx) => {
+    addTransaction: (tx) => withMutationGuard("addTransaction", async () => {
       const toast = useToastStore.getState();
       const {
         data: { user },
@@ -482,9 +490,9 @@ export const useDataStore = create<DataStore>((set, get) => {
       await get().fetchAll();
       toast.show("Transaction logged \u2713", "success");
       return true;
-    },
+    }, false),
 
-    advancePipelineStage: async (dealId, newStage) => {
+    advancePipelineStage: (dealId, newStage) => withMutationGuard(`advanceStage_${dealId}`, async () => {
       const toast = useToastStore.getState();
       const {
         data: { user },
@@ -517,9 +525,9 @@ export const useDataStore = create<DataStore>((set, get) => {
 
       toast.show("Stage updated \u2713", "success");
       return true;
-    },
+    }, false),
 
-    addClient: async (client) => {
+    addClient: (client) => withMutationGuard("addClient", async () => {
       const toast = useToastStore.getState();
       const {
         data: { user },
@@ -554,9 +562,9 @@ export const useDataStore = create<DataStore>((set, get) => {
       await get().fetchClients();
       toast.show("Client added", "success");
       return true;
-    },
+    }, false),
 
-    addActivity: async (activity) => {
+    addActivity: (activity) => withMutationGuard("addActivity", async () => {
       const toast = useToastStore.getState();
       const {
         data: { user },
@@ -578,7 +586,7 @@ export const useDataStore = create<DataStore>((set, get) => {
 
       toast.show("Activity logged \u2713", "success");
       return true;
-    },
+    }, false),
 
     updateClient: async (clientId, updates) => {
       const toast = useToastStore.getState();

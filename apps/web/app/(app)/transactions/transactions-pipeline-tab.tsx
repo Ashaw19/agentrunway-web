@@ -252,7 +252,8 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
         }
         toast.success("Deal updated ✓");
       } else if (error) {
-        toast.error("Couldn't save — try again");
+        const detail = error.code === "23514" ? "Value out of allowed range" : error.message;
+        toast.error(`Couldn't update deal: ${detail}`);
       }
     } else {
       const { data, error } = await supabase
@@ -264,7 +265,8 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
         setDeals((prev) => [data, ...prev]);
         toast.success("In the pipeline. Let's see it through. 🎯");
       } else if (error) {
-        toast.error("Couldn't save — try again");
+        const detail = error.code === "23514" ? "Value out of allowed range" : error.message;
+        toast.error(`Couldn't save deal: ${detail}`);
       }
     }
 
@@ -319,7 +321,8 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
       source: "manual",
     });
     if (txErr) {
-      toast.error("Couldn't close deal — try again");
+      const detail = txErr.code === "23514" ? "Value out of allowed range" : txErr.message;
+      toast.error(`Couldn't close deal: ${detail}`);
       setClosing(false);
       return;
     }

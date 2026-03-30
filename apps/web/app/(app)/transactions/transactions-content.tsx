@@ -239,7 +239,8 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
         );
         toast.success("Updated. Clean records win deals. ✓");
       } else if (error) {
-        toast.error("Couldn't save — try again");
+        const detail = error.code === "23514" ? "Value out of allowed range" : error.message;
+        toast.error(`Couldn't update transaction: ${detail}`);
       }
     } else {
       const { data, error } = await supabase
@@ -255,7 +256,8 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
           description: form.address ? `${form.address} added to your record.` : undefined,
         });
       } else if (error) {
-        toast.error("Couldn't save — try again");
+        const detail = error.code === "23514" ? "Value out of allowed range" : error.message;
+        toast.error(`Couldn't save transaction: ${detail}`);
       }
     }
 
