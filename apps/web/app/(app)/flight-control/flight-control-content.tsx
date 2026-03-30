@@ -280,6 +280,9 @@ function ReviewDrawer({
   const [saving,      setSaving]      = useState(false);
   const [copied,      setCopied]      = useState(false);
 
+  // Track the server's updated_at for optimistic locking
+  const updatedAtRef = useRef<string | null>(null);
+
   const prevIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (item && item.id !== prevIdRef.current) {
@@ -287,13 +290,15 @@ function ReviewDrawer({
       setEditSubject(item.final_subject ?? item.ai_subject ?? "");
       setEditBody(item.final_body ?? item.ai_body ?? "");
       setCopied(false);
+      updatedAtRef.current = item.updated_at ?? null;
     }
     if (!item) {
       prevIdRef.current = null;
+      updatedAtRef.current = null;
     }
   }, [item]);
 
-  // Debounced save captures latest editSubject/editBody at execution time
+  // Captures latest editSubject/editBody at execution time
   // to prevent stale values when user edits during an active save.
   const latestEditsRef = useRef({ subject: "", body: "" });
   latestEditsRef.current = { subject: editSubject, body: editBody };
@@ -306,12 +311,27 @@ function ReviewDrawer({
     try {
       // Read latest values at save time (not from closure)
       const { subject, body } = latestEditsRef.current;
+      const payload: Record<string, unknown> = {
+        final_subject: subject,
+        final_body: body,
+      };
+      // Send optimistic lock token if we have one
+      if (updatedAtRef.current) {
+        payload.expected_updated_at = updatedAtRef.current;
+      }
       const res = await fetch(`/api/ai/outreach-queue/${item.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ final_subject: subject, final_body: body }),
+        body: JSON.stringify(payload),
       });
+      if (res.status === 409) {
+        toast.error("This draft was edited elsewhere — please refresh the page");
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // Update the lock token with the server's new updated_at
+      const json = await res.json();
+      if (json.updated_at) updatedAtRef.current = json.updated_at;
     } catch {
       toast.error("Couldn't save edits — your changes may not persist");
     } finally {

@@ -4,16 +4,22 @@
  * Update an outreach_queue row for the authenticated user.
  * Used for: Skip (status → 'skipped'), Mark as Sent (status → 'sent'),
  *           and saving user edits (final_subject, final_body).
+ *
+ * Supports optimistic locking: if `expected_updated_at` is provided, the
+ * update only succeeds when the row's `updated_at` matches.  A 409 Conflict
+ * is returned if the row was modified since the client last read it.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 interface PatchBody {
-  status?:        "draft" | "ready" | "sent" | "skipped";
-  final_subject?: string | null;
-  final_body?:    string | null;
-  sent_at?:       string | null;
+  status?:              "draft" | "ready" | "sent" | "skipped";
+  final_subject?:       string | null;
+  final_body?:          string | null;
+  sent_at?:             string | null;
+  /** Optimistic lock — if set, update is rejected when the server value differs. */
+  expected_updated_at?: string;
 }
 
 export async function PATCH(
@@ -31,7 +37,7 @@ export async function PATCH(
 
   // Whitelist allowed fields to prevent arbitrary column writes
   const VALID_STATUSES = new Set<PatchBody["status"]>(["draft", "ready", "sent", "skipped"]);
-  const allowed: PatchBody = {};
+  const allowed: Record<string, unknown> = {};
   if (body.status !== undefined) {
     if (!VALID_STATUSES.has(body.status)) {
       return NextResponse.json({ error: "Invalid status value" }, { status: 400 });
@@ -46,16 +52,40 @@ export async function PATCH(
     return NextResponse.json({ error: "No updatable fields provided" }, { status: 400 });
   }
 
-  const { error } = await supabase
+  // ── Optimistic locking ──────────────────────────────────────────────────
+  // If the client sends expected_updated_at, verify the row hasn't changed.
+  if (body.expected_updated_at) {
+    const { data: current } = await supabase
+      .from("outreach_queue")
+      .select("updated_at")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (current && current.updated_at !== body.expected_updated_at) {
+      return NextResponse.json(
+        {
+          error: "Conflict — this draft was edited elsewhere. Please refresh and try again.",
+          code: "CONFLICT",
+          server_updated_at: current.updated_at,
+        },
+        { status: 409 },
+      );
+    }
+  }
+
+  const { data, error } = await supabase
     .from("outreach_queue")
     .update(allowed)
     .eq("id", id)
-    .eq("user_id", user.id); // RLS + explicit ownership guard
+    .eq("user_id", user.id)
+    .select("updated_at")
+    .single();
 
   if (error) {
     console.error("[outreach-queue] PATCH error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, updated_at: data?.updated_at });
 }

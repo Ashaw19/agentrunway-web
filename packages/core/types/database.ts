@@ -633,6 +633,7 @@ export interface OutreachQueueItem {
   final_body:       string | null;
   sent_at:          string | null;
   created_at:       string;
+  updated_at:       string;
 }
 
 /** Top Opportunities — structured insight card for the Business Brain. */
