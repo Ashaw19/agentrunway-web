@@ -311,6 +311,13 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
     const commPct   = closeValidation.parsed.commission_pct;
     const gci       = salePrice * commPct;
 
+    // Preserve original estimate for accuracy tracking
+    if (!closeTarget.original_estimated_price) {
+      await supabase.from("pipeline_deals")
+        .update({ original_estimated_price: closeTarget.estimated_price })
+        .eq("id", closeTarget.id);
+    }
+
     const { error: txErr } = await supabase.from("transactions").insert({
       user_id: user.id,
       address: closeTarget.address,
@@ -321,6 +328,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
       status: "closed",
       date: closeForm.date,
       source: "manual",
+      pipeline_deal_id: closeTarget.id,
     });
     if (txErr) {
       const detail = txErr.code === "23514" ? "Value out of allowed range" : txErr.message;
@@ -329,12 +337,15 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
       return;
     }
 
-    const { error: delErr } = await supabase
+    const { error: closeErr } = await supabase
       .from("pipeline_deals")
-      .delete()
+      .update({
+        stage: "closed",
+        original_estimated_price: closeTarget.original_estimated_price || closeTarget.estimated_price,
+      })
       .eq("id", closeTarget.id);
 
-    if (!delErr) {
+    if (!closeErr) {
       setDeals((prev) => prev.filter((d) => d.id !== closeTarget.id));
 
       // ── Compute celebration data ──────────────────────────────────────────
@@ -381,7 +392,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
       setTimeout(() => fireConfetti("goal"), 150);
 
     } else {
-      toast.error("Deal closed but couldn't remove from pipeline — refresh the page.");
+      toast.error("Deal closed but couldn't update pipeline status — refresh the page.");
     }
     setClosing(false);
   }

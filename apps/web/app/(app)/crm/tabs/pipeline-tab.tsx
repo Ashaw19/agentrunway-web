@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import {
   Flame,
@@ -244,7 +245,12 @@ export function PipelineTab({
       {/* Header */}
       <div className="flex items-center justify-between pt-1">
         <div>
-          <h2 className="text-base font-bold text-foreground">Weekly Pipeline</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-base font-bold text-foreground">Weekly Pipeline</h2>
+            <Link href="/pipeline" className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors">
+              View full pipeline →
+            </Link>
+          </div>
           <p className="text-xs text-muted-foreground mt-0.5">{today}</p>
         </div>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
