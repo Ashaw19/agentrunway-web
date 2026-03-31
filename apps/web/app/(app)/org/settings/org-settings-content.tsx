@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Settings, Eye, EyeOff, AlertTriangle, Loader2, Target } from "lucide-react";
+import { Settings, Eye, EyeOff, AlertTriangle, Loader2, Target, CreditCard, Users, Shield, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { updateOrgSettings } from "@/lib/actions/org-actions";
 import { fmtCurrency } from "@/lib/formatters";
 import type { Organization } from "@/lib/types/organizations";
@@ -13,9 +14,10 @@ import { ORG_TYPE_LABELS } from "@/lib/types/organizations";
 interface Props {
   org: Organization;
   isOwner: boolean;
+  activeMemberCount?: number;
 }
 
-export function OrgSettingsContent({ org, isOwner }: Props) {
+export function OrgSettingsContent({ org, isOwner, activeMemberCount = 0 }: Props) {
   const router = useRouter();
   const [name, setName] = useState(org.name);
   const [anonymize, setAnonymize] = useState(org.anonymize_agents);
@@ -192,6 +194,120 @@ export function OrgSettingsContent({ org, isOwner }: Props) {
           </button>
         </div>
       </div>
+
+      {/* Billing & Subscription */}
+      {isOwner && (
+        <div className="rounded-xl border bg-card p-5 space-y-5">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <CreditCard className="h-4 w-4 text-emerald-500" />
+            Billing & Subscription
+          </h3>
+
+          <div className="grid gap-3 text-sm">
+            {/* Status */}
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Status</span>
+              <div className="flex items-center gap-2">
+                {org.is_beta ? (
+                  <Badge className="bg-violet-100 text-violet-700 hover:bg-violet-100">
+                    <Shield className="h-3 w-3 mr-1" />
+                    Beta — Lifetime Free
+                  </Badge>
+                ) : org.subscription_status === "active" ? (
+                  <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    Active
+                  </Badge>
+                ) : org.subscription_status === "trialing" ? (
+                  <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">
+                    Trial
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary">
+                    {org.subscription_status ?? "No subscription"}
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            {/* Seats */}
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Seats</span>
+              <span className="flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                {activeMemberCount} / {org.max_seats}
+              </span>
+            </div>
+
+            {/* Billing email */}
+            {org.billing_email && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Billing email</span>
+                <span>{org.billing_email}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Manage billing or Subscribe */}
+          {!org.is_beta && (
+            <div className="pt-2">
+              {org.stripe_subscription_id ? (
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("/api/customer-portal", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ org_id: org.id }),
+                      });
+                      const data = await res.json();
+                      if (data.url) {
+                        window.location.href = data.url;
+                      } else {
+                        toast.error("Could not open billing portal");
+                      }
+                    } catch {
+                      toast.error("Could not open billing portal");
+                    }
+                  }}
+                >
+                  <CreditCard className="h-4 w-4" />
+                  Manage Billing
+                </Button>
+              ) : (
+                <Button
+                  className="gap-2"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch("/api/create-team-checkout", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          org_id: org.id,
+                          member_count: Math.max(0, activeMemberCount - 1),
+                          billing: "monthly",
+                        }),
+                      });
+                      const data = await res.json();
+                      if (data.url) {
+                        window.location.href = data.url;
+                      } else {
+                        toast.error(data.error ?? "Could not start checkout");
+                      }
+                    } catch {
+                      toast.error("Could not start checkout");
+                    }
+                  }}
+                >
+                  Subscribe Team
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Save */}
       <Button onClick={handleSave} disabled={saving} className="gap-2">

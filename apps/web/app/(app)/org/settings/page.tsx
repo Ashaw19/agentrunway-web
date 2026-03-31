@@ -15,10 +15,18 @@ export default async function OrgSettingsPage() {
     redirect("/org");
   }
 
+  // Count active members for billing display
+  const { count: activeMemberCount } = await supabase
+    .from("organization_members")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", orgContext.org.id)
+    .eq("status", "active");
+
   return (
     <OrgSettingsContent
       org={orgContext.org}
       isOwner={orgContext.isOwner}
+      activeMemberCount={activeMemberCount ?? 0}
     />
   );
 }

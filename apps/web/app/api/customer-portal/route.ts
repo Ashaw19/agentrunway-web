@@ -1,19 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Opens the Stripe Customer Portal for the authenticated user.
+ * Opens the Stripe Customer Portal for the authenticated user or their org.
  *
  * The portal lets subscribers:
  *   - Cancel their subscription
  *   - Update their payment method
  *   - View billing history and invoices
  *
- * Requires the Stripe Customer Portal to be configured at:
- *   https://dashboard.stripe.com/settings/billing/portal
+ * Pass { org_id } in the body to open the org's billing portal instead.
  */
-export async function POST() {
+export async function POST(req: NextRequest) {
   if (!stripe) {
     return NextResponse.json({ error: "Stripe not configured." }, { status: 503 });
   }
@@ -30,13 +29,47 @@ export async function POST() {
     );
   }
 
-  const { data: settings } = await supabase
-    .from("user_settings")
-    .select("stripe_customer_id")
-    .eq("user_id", user.id)
-    .single();
+  const body = await req.json().catch(() => ({}));
+  const orgId = body.org_id as string | undefined;
 
-  if (!settings?.stripe_customer_id) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://agentrunway.ca";
+  let customerId: string | null = null;
+  let returnUrl = `${appUrl}/settings`;
+
+  if (orgId) {
+    // Org billing portal — verify user is owner/admin
+    const { data: member } = await supabase
+      .from("organization_members")
+      .select("role")
+      .eq("org_id", orgId)
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .single();
+
+    if (!member || !["owner", "admin", "team_leader"].includes(member.role)) {
+      return NextResponse.json({ error: "Not authorized." }, { status: 403 });
+    }
+
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("stripe_customer_id")
+      .eq("id", orgId)
+      .single();
+
+    customerId = org?.stripe_customer_id ?? null;
+    returnUrl = `${appUrl}/org/settings`;
+  } else {
+    // Individual billing portal
+    const { data: settings } = await supabase
+      .from("user_settings")
+      .select("stripe_customer_id")
+      .eq("user_id", user.id)
+      .single();
+
+    customerId = settings?.stripe_customer_id ?? null;
+  }
+
+  if (!customerId) {
     return NextResponse.json(
       {
         error: "No billing account found.",
@@ -47,12 +80,10 @@ export async function POST() {
     );
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://agentrunway.ca";
-
   try {
     const session = await stripe.billingPortal.sessions.create({
-      customer: settings.stripe_customer_id,
-      return_url: `${appUrl}/settings`,
+      customer: customerId,
+      return_url: returnUrl,
     });
 
     return NextResponse.json({ url: session.url });
