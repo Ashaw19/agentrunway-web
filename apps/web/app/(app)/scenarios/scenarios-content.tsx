@@ -299,8 +299,9 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
       <div className="flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/30 px-3 py-2 text-xs text-slate-400">
         <Info className="h-3.5 w-3.5 shrink-0 text-slate-500" />
         <span>
-          Your Projection uses your real dashboard data. What If is hypothetical
-          and does not change your records. {new Date().getFullYear()} Canadian tax rates. Not financial advice.
+          &ldquo;Your Projection&rdquo; reflects your actual dashboard data. &ldquo;What If&rdquo; is
+          a hypothetical estimate only&mdash;it never changes your records. Based on {new Date().getFullYear()} Canadian
+          tax rates; not financial advice.
         </span>
       </div>
 
@@ -540,15 +541,15 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
               </div>
               <div className="space-y-1">
                 {/* Primary metrics — larger */}
-                <PrimaryMetricRow label="Net Income" value={fmtCurrency(current.netIncome)} />
+                <PrimaryMetricRow label="Take-Home" value={fmtCurrency(current.netIncome)} />
                 <PrimaryMetricRow label="Tax Owed" value={fmtCurrency(current.taxOwed)} />
                 <div className="!mt-3 space-y-2 border-t border-slate-700/50 pt-3">
                   <MetricRow
-                    label="Effective Rate"
+                    label="Eff. Tax Rate"
                     value={fmtPct(current.effectiveRate)}
                   />
                   <MetricRow
-                    label="Quarterly Instalment"
+                    label="CRA Instalments"
                     value={fmtCurrency(current.quarterlyInstalment)}
                   />
                   <MetricRow
@@ -564,7 +565,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                     badgeColor={gradeColor(current.runwayGrade)}
                   />
                   <MetricRow
-                    label="Survival"
+                    label="Cash Runway"
                     value={
                       current.survivalMonths >= 24
                         ? "24+ mo"
@@ -585,15 +586,15 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
               </div>
               <div className="space-y-1">
                 {/* Primary metrics — larger */}
-                <PrimaryMetricRow label="Net Income" value={fmtCurrency(scenario.netIncome)} />
+                <PrimaryMetricRow label="Take-Home" value={fmtCurrency(scenario.netIncome)} />
                 <PrimaryMetricRow label="Tax Owed" value={fmtCurrency(scenario.taxOwed)} />
                 <div className="!mt-3 space-y-2 border-t border-slate-700/50 pt-3">
                   <MetricRow
-                    label="Effective Rate"
+                    label="Eff. Tax Rate"
                     value={fmtPct(scenario.effectiveRate)}
                   />
                   <MetricRow
-                    label="Quarterly Instalment"
+                    label="CRA Instalments"
                     value={fmtCurrency(scenario.quarterlyInstalment)}
                   />
                   <MetricRow
@@ -609,7 +610,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                     badgeColor={gradeColor(scenario.runwayGrade)}
                   />
                   <MetricRow
-                    label="Survival"
+                    label="Cash Runway"
                     value={
                       scenario.survivalMonths >= 24
                         ? "24+ mo"
@@ -635,7 +636,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                   inverted
                 />
                 <DeltaCard
-                  label="Net Income"
+                  label="Take-Home"
                   delta={deltas.netIncome}
                   formatted={fmtCurrency(Math.abs(deltas.netIncome))}
                 />
@@ -651,7 +652,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                   formatted={`${Math.abs(deltas.runwayScore)} pts`}
                 />
                 <DeltaCard
-                  label="Survival"
+                  label="Cash Runway"
                   delta={deltas.survivalMonths}
                   formatted={`${Math.abs(deltas.survivalMonths).toFixed(1)} mo`}
                 />
