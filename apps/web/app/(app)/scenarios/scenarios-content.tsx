@@ -316,7 +316,10 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
             {/* 1. Projected Annual GCI */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-slate-300">Projected Annual GCI</label>
+                <div>
+                  <label className="text-sm font-medium text-slate-300">Projected Annual GCI</label>
+                  <span className="block text-[10px] text-slate-500">Changes take-home, tax, and runway score</span>
+                </div>
                 <span className="text-sm font-semibold text-white tabular-nums">
                   {fmtCurrency(scenarioGCI)}
                 </span>
@@ -339,6 +342,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
             {/* 2. Deal Count */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-300">Deal Count</label>
+              <span className="block text-[10px] text-slate-500 -mt-1">Only changes per-deal set-aside — total tax stays the same</span>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
@@ -363,6 +367,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
             {/* 3. RRSP Contribution */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-300">RRSP Contribution</label>
+              <span className="block text-[10px] text-slate-500 -mt-1">Lowers your tax owed and increases take-home</span>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
                   $
@@ -382,6 +387,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
             {/* 4. Business Structure */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-300">Business Structure</label>
+              <span className="block text-[10px] text-slate-500 -mt-1">Changes how your income is taxed</span>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -414,6 +420,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                 <label className="text-sm font-medium text-slate-300">
                   Compensation Method
                 </label>
+                <span className="block text-[10px] text-slate-500">Splits income between salary and dividends</span>
                 <div className="grid grid-cols-3 gap-2">
                   {(["salary", "dividends", "mixed"] as const).map((method) => (
                     <button
@@ -454,6 +461,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                   <label className="text-sm font-medium text-slate-300">
                     Monthly Recurring
                   </label>
+                  <span className="block text-[10px] text-slate-500 -mt-1">Lowers tax owed but also shortens cash runway</span>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
                       $
@@ -477,6 +485,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                 {/* 7. Cash Reserve */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">Cash Reserve</label>
+                  <span className="block text-[10px] text-slate-500 -mt-1">Affects cash runway only — no tax impact</span>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
                       $
