@@ -237,10 +237,10 @@ const PIPELINE_STAGE_CONFIG: Array<{
 ];
 
 function scoreBand(score: number): { label: string; colorClass: string } {
-  if (score >= 81) return { label: "Strong",   colorClass: "text-emerald-700 bg-emerald-50 border-emerald-200" };
-  if (score >= 61) return { label: "On Track",  colorClass: "text-blue-700 bg-blue-50 border-blue-200" };
-  if (score >= 41) return { label: "Building",  colorClass: "text-amber-700 bg-amber-50 border-amber-200" };
-  return                   { label: "At Risk",  colorClass: "text-red-700 bg-red-50 border-red-200" };
+  if (score >= 81) return { label: "Strong",   colorClass: "text-emerald-400 bg-emerald-500/15 border-emerald-500/30" };
+  if (score >= 61) return { label: "On Track",  colorClass: "text-blue-400 bg-blue-500/15 border-blue-500/30" };
+  if (score >= 41) return { label: "Building",  colorClass: "text-amber-400 bg-amber-500/15 border-amber-500/30" };
+  return                   { label: "At Risk",  colorClass: "text-red-400 bg-red-500/15 border-red-500/30" };
 }
 
 const INSIGHT_ICONS: Record<string, React.ElementType> = {
@@ -2209,12 +2209,12 @@ export function DashboardContent({
       <SandboxExpiryModal open={showExpiryModal} onDismiss={() => setShowExpiryModal(false)} />
 
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-5">
+      <div className="flex flex-wrap items-start justify-between gap-3 pb-5">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight greet-fade">
+          <h1 className="text-2xl font-semibold tracking-tight greet-fade text-foreground">
             {emoji} {greeting}{firstName ? `, ${firstName}` : ""}
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground mt-0.5">
             {motivationalTag}
           </p>
           {streakLabel && (
@@ -2271,8 +2271,10 @@ export function DashboardContent({
       </div>
 
       {/* Runway Score Hero — always first */}
-      <Card data-tour="dashboard-score" className="rounded-2xl border-slate-200 bg-white shadow-sm">
-        <CardContent className="pt-6 pb-6">
+      <Card data-tour="dashboard-score" className="rounded-2xl border-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-lg overflow-hidden relative">
+        {/* Subtle brand gradient accent at top */}
+        <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: "linear-gradient(90deg, #F0A800 0%, #1E72F2 45%, #7C3AED 80%, #10B981 100%)" }} />
+        <CardContent className="pt-7 pb-6">
           <div className="flex flex-wrap items-center justify-between gap-6">
             {/* Left: grade circle + score */}
             <div className="flex items-center gap-5">
@@ -2291,16 +2293,16 @@ export function DashboardContent({
               <div>
                 <div className="flex items-center gap-1">
                   <span className="flex items-center gap-1">
-                    <p className="text-sm font-semibold text-slate-500">Runway Score</p>
+                    <p className="text-sm font-semibold text-slate-400">Runway Score</p>
                     <MetricInfo tip="A composite score across 5 factors: pace vs goal (35%), pipeline health (25%), expense ratio (15%), cash survival (15%), and benchmark ranking (10%)." />
                     <GuideLink anchor="runway-score" label="Runway Score explained in Guide" />
                     {isPro && <ExplainButton question="How is my Runway Score calculated and what can I do to improve it?" />}
                   </span>
                   <RunwayScoreInfoDialog />
                 </div>
-                <p className="text-4xl font-extrabold text-slate-800 leading-none mt-0.5">
+                <p className="text-4xl font-extrabold text-white leading-none mt-0.5">
                   {runwayScore.score}
-                  <span className="text-base font-medium text-slate-400">/100</span>
+                  <span className="text-base font-medium text-slate-500">/100</span>
                 </p>
                 <div className="flex items-center gap-2 mt-1.5">
                   {/* Named band */}
@@ -2320,15 +2322,15 @@ export function DashboardContent({
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-xs text-slate-500">{scoreNarrative}</p>
+                <p className="mt-1 text-xs text-slate-400">{scoreNarrative}</p>
               </div>
             </div>
             {/* Right: survival + pace — aligned two-column mini-grid */}
-            <div className="grid grid-cols-2 gap-px rounded-lg border border-slate-100 bg-slate-100 overflow-hidden">
+            <div className="grid grid-cols-2 gap-px rounded-lg border border-slate-700 bg-slate-700 overflow-hidden">
               {/* Cash Runway */}
-              <div className="bg-white px-4 py-3 text-center">
+              <div className="bg-slate-800/50 px-4 py-3 text-center">
                 <div className="flex items-center justify-center gap-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Cash Runway</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cash Runway</p>
                   <MetricInfo tip="How many months you could sustain current expenses using only your cash reserve, with zero new income." />
                   <GuideLink anchor="cash-runway" label="Cash Runway explained in Guide" />
                   {isPro && <ExplainButton question="What is my current cash runway and how can I extend it?" />}
@@ -2336,10 +2338,10 @@ export function DashboardContent({
                 <p className={cn("text-2xl font-bold mt-1 leading-none", riskColors[survival.riskLevel])}>
                   {formatSurvivalDisplay(survival)}
                 </p>
-                <p className="text-[10px] text-slate-400 mt-1">cash coverage</p>
+                <p className="text-[10px] text-slate-500 mt-1">cash coverage</p>
               </div>
               {/* Your Pace — agent vs average agent in board */}
-              <div className="bg-white px-4 py-3 text-center">
+              <div className="bg-slate-800/50 px-4 py-3 text-center">
                 {marketMomentum && marketMomentum.avgDealsPerAgentPerYear != null && marketMomentum.agentAnnualizedDeals != null ? (() => {
                   const avg = marketMomentum.avgDealsPerAgentPerYear!;
                   const agent = marketMomentum.agentAnnualizedDeals!;
@@ -2350,7 +2352,7 @@ export function DashboardContent({
                   return (
                     <>
                       <div className="flex items-center justify-center gap-1">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Your Pace</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Your Pace</p>
                         <MetricInfo tip={`You're on pace for ~${agent} deals/yr. The average agent on your board (${marketMomentum.boardName}) closes ~${avg.toFixed(1)} deals/yr based on CREA MLS® data.${marketMomentum.boardSalesYoYPct != null ? ` Board sales are ${marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}${marketMomentum.boardSalesYoYPct.toFixed(0)}% YoY.` : ""}`} />
                         <GuideLink anchor="market-position" label="Market Momentum explained in Guide" />
                         {isPro && <ExplainButton question="How does my deal pace compare to the average agent on my board and what does my local market look like?" />}
@@ -2361,32 +2363,33 @@ export function DashboardContent({
                       <p className="text-[10px] font-semibold mt-1" style={{ color: tierColor }}>
                         {tierLabel}
                         {marketMomentum.boardSalesYoYPct != null && (
-                          <span className="text-slate-400 font-normal"> · Mkt {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}%</span>
+                          <span className="text-slate-500 font-normal"> · Mkt {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}%</span>
                         )}
                       </p>
-                      <p className="text-[9px] text-slate-400 mt-1 leading-tight">
+                      <p className="text-[9px] text-slate-500 mt-1 leading-tight">
                         CREA MLS® · {marketMomentum.reportMonth ?? new Date().getFullYear()}
                       </p>
+
                     </>
                   );
                 })() : marketMomentum ? (
                   <>
                     <div className="flex items-center justify-center gap-1">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Your Pace</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Your Pace</p>
                       <MetricInfo tip="We need deal data and your board selection to compare your pace against the market." />
                     </div>
-                    <p className="text-2xl font-bold mt-1 leading-none text-slate-300">—</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Needs more data</p>
+                    <p className="text-2xl font-bold mt-1 leading-none text-slate-600">—</p>
+                    <p className="text-[10px] text-slate-500 mt-1">Needs more data</p>
                   </>
                 ) : (
                   <>
                     <div className="flex items-center justify-center gap-1">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Your Pace</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Your Pace</p>
                       <MetricInfo tip="Select your local real estate board in Settings to see how your deal pace compares to the average agent in your market." />
                       <GuideLink anchor="market-position" label="Board benchmarking explained in Guide" />
                     </div>
-                    <p className="text-2xl font-bold mt-1 leading-none text-slate-300">—</p>
-                    <p className="text-[10px] text-slate-400 mt-1">
+                    <p className="text-2xl font-bold mt-1 leading-none text-slate-600">—</p>
+                    <p className="text-[10px] text-slate-500 mt-1">
                       <Link href="/settings" className="underline hover:text-slate-600">Set board</Link> in Settings
                     </p>
                   </>
@@ -2395,7 +2398,7 @@ export function DashboardContent({
             </div>
           </div>
           {/* Score components */}
-          <div className="mt-5 grid grid-cols-5 gap-3 border-t border-slate-100 pt-4">
+          <div className="mt-5 grid grid-cols-5 gap-3 border-t border-slate-700 pt-4">
             {runwayScore.components.map((c) => {
               // Bar colour reflects score tier — colour carries meaning, not decoration
               const barColor = c.score >= 80 ? "[&>div]:bg-amber-500"
@@ -2408,7 +2411,7 @@ export function DashboardContent({
                               :                 "#ef4444";
               return (
               <div key={c.label} className="text-center">
-                <p className="text-[10px] font-semibold text-slate-500">{c.label}</p>
+                <p className="text-[10px] font-semibold text-slate-400">{c.label}</p>
                 <p className="text-sm font-bold mt-0.5" style={{ color: textColor }}>
                   {c.score}
                 </p>
@@ -2420,10 +2423,10 @@ export function DashboardContent({
           {/* Deviation insights — personal baseline comparisons */}
           {/* Suppress before mid-Feb: annualization math unreliable with < 2 months YTD data */}
           {fraction * 12 >= 2 && deviationMessages.length > 0 && (
-            <div className="mt-3 border-t border-slate-100 pt-3 space-y-1.5">
+            <div className="mt-3 border-t border-slate-700 pt-3 space-y-1.5">
               {deviationMessages.map((msg, i) => (
-                <p key={i} className="text-[11px] text-slate-500 leading-snug flex items-start gap-1.5">
-                  <span className="shrink-0 mt-px text-slate-400">{"·"}</span>
+                <p key={i} className="text-[11px] text-slate-400 leading-snug flex items-start gap-1.5">
+                  <span className="shrink-0 mt-px text-slate-600">{"·"}</span>
                   {msg}
                 </p>
               ))}
