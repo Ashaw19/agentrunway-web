@@ -20,6 +20,7 @@ import {
   Lock,
   BarChart2,
   Handshake,
+  Layers,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
@@ -40,6 +41,10 @@ const sidebarEntries: SidebarEntry[] = [
   {
     type: "item", label: "Transactions", href: "/transactions", icon: ArrowLeftRight,
     iconActive: "text-emerald-300", iconInactive: "text-emerald-400/60", borderActive: "border-l-emerald-400",
+  },
+  {
+    type: "item", label: "Pipeline", href: "/pipeline", icon: Layers,
+    iconActive: "text-cyan-300", iconInactive: "text-cyan-400/60", borderActive: "border-l-cyan-400",
   },
   {
     type: "item", label: "Expenses", href: "/expenses", icon: Receipt,
