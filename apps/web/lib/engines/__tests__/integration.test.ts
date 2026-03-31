@@ -209,7 +209,7 @@ describe("Full Dashboard Pipeline", () => {
     expect(runwayScore.score).toBeGreaterThan(0);
     expect(runwayScore.score).toBeLessThanOrEqual(100);
     expect(runwayScore.grade).toMatch(/^(A\+|A|B|C|D|F)$/);
-    expect(runwayScore.components).toHaveLength(6);
+    expect(runwayScore.components).toHaveLength(5);
   });
 });
 

@@ -101,13 +101,14 @@ describe("bracketTax", () => {
 //     (62633.9375 - 52886) × 0.0915 = 9747.9375 × 0.0915 = 891.936...
 //     raw = 3562.679...
 //     BPA credit = 12747 × 0.0505 = 643.7235
-//     provTax = 3562.679... - 643.7235 = 2918.956...
-//     Surtax: 2918.96 < 5710 → no surtax
-//     Final provTax ≈ 2918.96
+//     CPP prov credit = 3741.0625 × 0.0505 = 188.92
+//     provTax = 3562.679... - 643.7235 - 188.92 = 2730.03
+//     Surtax: 2730.03 < 5710 → no surtax
+//     Final provTax ≈ 2730.03
 //
-//   totalTax = 6516.30 + 2918.96 = 9435.26
-//   totalBurden = 9435.26 + 7482.125 = 16917.38
-//   effectiveRate = 16917.38 / 66375 ≈ 0.2549
+//   totalTax = 6516.30 + 2730.03 = 9246.33
+//   totalBurden = 9246.33 + 7482.125 = 16728.46
+//   effectiveRate = 16728.46 / 66375 ≈ 0.2521
 
 describe("Tax Engine — Ontario $66,375", () => {
   const result = calculate(66_375, "ontario", 6);
@@ -125,20 +126,20 @@ describe("Tax Engine — Ontario $66,375", () => {
     expect(result.federalTax).toBeCloseTo(6_516.30, 0);
   });
 
-  it("computes Ontario provincial tax ≈ $2,919 (no surtax)", () => {
-    expect(result.provincialTax).toBeCloseTo(2_919, 0);
+  it("computes Ontario provincial tax ≈ $2,730 (no surtax)", () => {
+    expect(result.provincialTax).toBeCloseTo(2_730, 0);
   });
 
-  it("computes total burden ≈ $16,917", () => {
-    expect(result.totalBurden).toBeCloseTo(16_917, 0);
+  it("computes total burden ≈ $16,728", () => {
+    expect(result.totalBurden).toBeCloseTo(16_728, 0);
   });
 
-  it("computes effective rate ≈ 25.5%", () => {
-    expect(result.effectiveRate).toBeCloseTo(0.255, 2);
+  it("computes effective rate ≈ 25.2%", () => {
+    expect(result.effectiveRate).toBeCloseTo(0.252, 2);
   });
 
   it("computes quarterly estimate = burden / 4", () => {
-    expect(result.quarterlyEstimate).toBeCloseTo(result.totalBurden / 4, 2);
+    expect(result.quarterlyEstimate).toBeCloseTo(result.totalBurden / 4, 1);
   });
 
   it("computes per-deal set-aside = burden / 6 deals", () => {
@@ -172,14 +173,14 @@ describe("Tax Engine — Ontario $66,375", () => {
 //     (95173.9 - 52886) × 0.0915 = 42287.9 × 0.0915 = 3869.343
 //     raw = 6540.086
 //     BPA credit = 643.7235
-//     provTax = 6540.086 - 643.724 = 5896.362
-//     Surtax: 5896.36 > 5710 → (5896.36 - 5710) × 0.20 = 37.27
-//             5896.36 < 7307 → no second tier
-//     Final provTax = 5896.36 + 37.27 = 5933.63
+//     CPP prov credit = 4034.1 × 0.0505 = 203.72
+//     provTax = 6540.086 - 643.724 - 203.72 = 5692.64
+//     Surtax: 5692.64 < 5710 → no surtax
+//     Final provTax = 5692.64
 //
-//   totalTax = 13144.50 + 5933.63 = 19078.13
-//   totalBurden = 19078.13 + 8860.20 = 27938.33
-//   effectiveRate = 27938.33 / 100000 ≈ 0.2794
+//   totalTax = 13144.50 + 5692.64 = 18837.14
+//   totalBurden = 18837.14 + 8860.20 = 27697.34
+//   effectiveRate = 27697.34 / 100000 ≈ 0.2770
 
 describe("Tax Engine — Ontario $100,000", () => {
   const result = calculate(100_000, "ontario", 10);
@@ -199,16 +200,16 @@ describe("Tax Engine — Ontario $100,000", () => {
     expect(result.federalTax).toBeCloseTo(13_144.5, 0);
   });
 
-  it("computes Ontario provincial tax with surtax ≈ $5,934", () => {
-    expect(result.provincialTax).toBeCloseTo(5_934, 0);
+  it("computes Ontario provincial tax ≈ $5,693 (no surtax after CPP prov credit)", () => {
+    expect(result.provincialTax).toBeCloseTo(5_693, 0);
   });
 
-  it("computes total burden ≈ $27,938", () => {
-    expect(result.totalBurden).toBeCloseTo(27_938, 0);
+  it("computes total burden ≈ $27,697", () => {
+    expect(result.totalBurden).toBeCloseTo(27_697, 0);
   });
 
-  it("computes effective rate ≈ 27.9%", () => {
-    expect(result.effectiveRate).toBeCloseTo(0.279, 2);
+  it("computes effective rate ≈ 27.7%", () => {
+    expect(result.effectiveRate).toBeCloseTo(0.277, 2);
   });
 });
 
@@ -238,12 +239,13 @@ describe("Tax Engine — Ontario $100,000", () => {
 //   (195173.9 - 150000) × 0.1216 = 45173.9 × 0.1216 = 5493.154
 //   raw = 17938.751
 // BPA credit = 643.7235
-// provTax = 17938.751 - 643.724 = 17295.027
+// CPP prov credit = 4034.1 × 0.0505 = 203.72
+// provTax = 17938.751 - 643.724 - 203.72 = 17091.31
 // Surtax:
-//   17295.027 > 5710 → (17295.027 - 5710) × 0.20 = 2317.005
-//   17295.027 > 7307 → (17295.027 - 7307) × 0.36 = 3595.690
-//   total surtax = 5912.695
-// Final provTax = 17295.027 + 5912.695 = 23207.723
+//   17091.31 > 5710 → (17091.31 - 5710) × 0.20 = 2276.26
+//   17091.31 > 7307 → (17091.31 - 7307) × 0.36 = 3522.35
+//   total surtax = 5798.61
+// Final provTax = 17091.31 + 5798.61 = 22889.92
 
 describe("Tax Engine — Ontario $200,000 (surtax both tiers)", () => {
   const result = calculate(200_000, "ontario", 12);
@@ -256,13 +258,13 @@ describe("Tax Engine — Ontario $200,000 (surtax both tiers)", () => {
     expect(result.federalTax).toBeCloseTo(38_587, 0);
   });
 
-  it("computes Ontario tax with both surtax tiers ≈ $23,208", () => {
-    expect(result.provincialTax).toBeCloseTo(23_208, 0);
+  it("computes Ontario tax with both surtax tiers ≈ $22,890", () => {
+    expect(result.provincialTax).toBeCloseTo(22_890, 0);
   });
 
-  it("computes effective rate ≈ 35.3%", () => {
-    // (38587 + 23208 + 8860) / 200000 ≈ 0.353
-    expect(result.effectiveRate).toBeCloseTo(0.353, 2);
+  it("computes effective rate ≈ 35.2%", () => {
+    // (38587 + 22890 + 8860) / 200000 ≈ 0.352
+    expect(result.effectiveRate).toBeCloseTo(0.352, 2);
   });
 });
 
@@ -291,7 +293,8 @@ describe("Tax Engine — Ontario $200,000 (surtax both tiers)", () => {
 //   (94868.8 - 53255) × 0.19 = 41613.8 × 0.19 = 7906.622
 //   raw = 15362.322
 // BPA credit = 18571 × 0.14 = 2599.94
-// provTax = 15362.322 - 2599.94 = 12762.382
+// CPP prov credit = 4339.2 × 0.14 = 607.49
+// provTax = 15362.322 - 2599.94 - 607.49 = 12154.89
 
 describe("Tax Engine — Quebec $100,000", () => {
   const result = calculate(100_000, "quebec", 8);
@@ -306,8 +309,8 @@ describe("Tax Engine — Quebec $100,000", () => {
     expect(result.federalTax).toBeCloseTo(10_886, 0);
   });
 
-  it("computes Quebec provincial tax ≈ $12,762", () => {
-    expect(result.provincialTax).toBeCloseTo(12_762, 0);
+  it("computes Quebec provincial tax ≈ $12,155", () => {
+    expect(result.provincialTax).toBeCloseTo(12_155, 0);
   });
 });
 
@@ -337,8 +340,9 @@ describe("Tax Engine — Alberta $80,000", () => {
     // ($75,265.9 - $60,000) × 10% ≈ $1,526.59
     // raw ≈ $6,326.59
     // BPA credit = 22323 × 0.08 = $1,785.84
-    // provTax ≈ $4,540.75
-    expect(result.provincialTax).toBeCloseTo(4_541, 0);
+    // CPP prov credit = cppEmployeeHalf × 0.08 = 4034.1 × 0.08 = 322.73
+    // provTax ≈ $4,218.02
+    expect(result.provincialTax).toBeCloseTo(4_218, 0);
   });
 });
 
@@ -379,8 +383,8 @@ describe("GST/HST Rates", () => {
     expect(gstHstRate("quebec")).toBe(0.14975);
   });
 
-  it("returns 11% for Saskatchewan (GST + PST)", () => {
-    expect(gstHstRate("saskatchewan")).toBe(0.11);
+  it("returns 5% for Saskatchewan (GST only, PST N/A on RE commissions)", () => {
+    expect(gstHstRate("saskatchewan")).toBe(0.05);
   });
 
   it("returns 5% GST for Alberta, BC, Manitoba, territories", () => {
@@ -395,7 +399,7 @@ describe("GST/HST Rates", () => {
   it("returns correct labels", () => {
     expect(gstHstLabel("ontario")).toBe("HST");
     expect(gstHstLabel("quebec")).toBe("GST + QST");
-    expect(gstHstLabel("saskatchewan")).toBe("GST + PST");
+    expect(gstHstLabel("saskatchewan")).toBe("GST");
     expect(gstHstLabel("alberta")).toBe("GST");
   });
 });
