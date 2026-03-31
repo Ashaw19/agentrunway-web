@@ -8,7 +8,7 @@ import {
   Receipt,
   FileText,
   ArrowLeftRight,
-  SlidersHorizontal,
+
   Sparkles,
   Users,
   Share2,
@@ -57,10 +57,6 @@ const sidebarEntries: SidebarEntry[] = [
   {
     type: "item", label: "Overhead", subLabel: "Taxes", href: "/overhead", icon: Receipt,
     iconActive: "text-amber-300", iconInactive: "text-amber-400/60", borderActive: "border-l-amber-400",
-  },
-  {
-    type: "item", label: "Scenarios", href: "/scenarios", icon: SlidersHorizontal,
-    iconActive: "text-violet-300", iconInactive: "text-violet-400/60", borderActive: "border-l-violet-400",
   },
   {
     type: "item", label: "Forecast", href: "/forecast", icon: TrendingUp,

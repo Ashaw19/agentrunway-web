@@ -64,6 +64,9 @@ import {
 } from "@/components/ui/tooltip";
 import { ExplainButton } from "@/components/explain-button";
 import { GuideLink } from "@/components/guide-link";
+import { ScenariosContent } from "@/app/(app)/scenarios/scenarios-content";
+import type { ScenarioSeedData } from "@/app/(app)/scenarios/page";
+import { SlidersHorizontal } from "lucide-react";
 
 // ── Tax Savings — icon map ─────────────────────────────────────────────────
 
@@ -505,7 +508,10 @@ interface Props {
   historyItems?: HistoryItem[];
   pipelineDeals?: PipelineDeal[];
   subscriptionTier?: string;
+  scenarioSeed?: ScenarioSeedData | null;
 }
+
+type OverheadTab = "overview" | "scenarios";
 
 // ── OverheadBanner ─────────────────────────────────────────────────────────
 
@@ -563,7 +569,9 @@ export function OverheadContent({
   historyItems = [],
   pipelineDeals = [],
   subscriptionTier = "starter",
+  scenarioSeed = null,
 }: Props) {
+  const [activeTab, setActiveTab] = useState<OverheadTab>("overview");
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -764,8 +772,46 @@ export function OverheadContent({
         <p className="text-sm text-muted-foreground mt-0.5">
           Tax command centre — readiness, take-home estimates, cap tracking, and savings opportunities.
         </p>
+        {/* Tab bar */}
+        <div className="flex gap-1 mt-4">
+          <button
+            onClick={() => setActiveTab("overview")}
+            className={cn(
+              "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+              activeTab === "overview"
+                ? "border-primary text-foreground"
+                : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300",
+            )}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab("scenarios")}
+            className={cn(
+              "flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+              activeTab === "scenarios"
+                ? "border-primary text-foreground"
+                : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300",
+            )}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Scenario Engine
+          </button>
+        </div>
       </div>
 
+      {/* ── Scenario Engine tab ──────────────────────────────────── */}
+      {activeTab === "scenarios" && scenarioSeed && (
+        <ScenariosContent seed={scenarioSeed} />
+      )}
+      {activeTab === "scenarios" && !scenarioSeed && (
+        <div className="text-center py-16 text-sm text-muted-foreground">
+          Scenario data could not be loaded. Please try refreshing the page.
+        </div>
+      )}
+
+      {/* ── Overview tab (existing Overhead content) ─────────────── */}
+      {activeTab === "overview" && <>
       {/* Funny dismissible banner */}
       <OverheadBanner />
 
@@ -1057,6 +1103,7 @@ export function OverheadContent({
         </a>
         .
       </p>
+      </>}
     </div>
   );
 }
