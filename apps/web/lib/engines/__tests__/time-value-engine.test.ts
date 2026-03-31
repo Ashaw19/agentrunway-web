@@ -4,6 +4,7 @@ import { computeTimeValue, type TimeValueInput } from "@/lib/engines/time-value"
 function makeInput(overrides: Partial<TimeValueInput> = {}): TimeValueInput {
   return {
     estimatedWeeklyHours: 45,
+    vacationWeeks: 0,
     ytdGCI: 75_000,
     ytdNetIncome: 45_000,
     projectedAnnualNet: 120_000,
@@ -21,6 +22,7 @@ describe("time-value-engine", () => {
     // 120,000 / (45 * 52) = 120,000 / 2,340 ≈ $51.28
     expect(result.effectiveHourlyRate).toBeCloseTo(51.28, 1);
     expect(result.annualHours).toBe(2340);
+    expect(result.workingWeeks).toBe(52);
   });
 
   it("computes gross hourly rate from projected GCI / annual hours", () => {
@@ -91,5 +93,30 @@ describe("time-value-engine", () => {
     const low = computeTimeValue(makeInput({ projectedAnnualNet: 80_000 }));
     const high = computeTimeValue(makeInput({ projectedAnnualNet: 200_000 }));
     expect(high.effectiveHourlyRate).toBeGreaterThan(low.effectiveHourlyRate);
+  });
+
+  // ── Vacation weeks ────────────────────────────────────────────────────
+  it("vacation weeks reduce annual hours and increase hourly rate", () => {
+    const noVacation = computeTimeValue(makeInput({ vacationWeeks: 0 }));
+    const withVacation = computeTimeValue(makeInput({ vacationWeeks: 4 }));
+    // 45 * (52 - 4) = 45 * 48 = 2,160
+    expect(withVacation.annualHours).toBe(2160);
+    expect(withVacation.workingWeeks).toBe(48);
+    // Same income over fewer hours → higher hourly rate
+    expect(withVacation.effectiveHourlyRate).toBeGreaterThan(noVacation.effectiveHourlyRate);
+  });
+
+  it("6 weeks vacation significantly changes hourly rate", () => {
+    const result = computeTimeValue(makeInput({ vacationWeeks: 6 }));
+    // 45 * 46 = 2,070 hours
+    // 120,000 / 2,070 ≈ $57.97
+    expect(result.annualHours).toBe(2070);
+    expect(result.effectiveHourlyRate).toBeCloseTo(57.97, 0);
+  });
+
+  it("handles excessive vacation weeks gracefully", () => {
+    const result = computeTimeValue(makeInput({ vacationWeeks: 52 }));
+    expect(result.annualHours).toBe(0);
+    expect(result.effectiveHourlyRate).toBe(0);
   });
 });

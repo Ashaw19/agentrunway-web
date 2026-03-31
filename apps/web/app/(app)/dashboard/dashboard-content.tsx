@@ -2061,6 +2061,7 @@ export function DashboardContent({
       : Math.max(0, projectedNet - annualExpenses);
     const tv = computeTimeValue({
       estimatedWeeklyHours: weeklyHours,
+      vacationWeeks: settings?.vacation_weeks_per_year ?? 0,
       ytdGCI,
       ytdNetIncome: ytdEstimatedTakeHome,
       projectedAnnualNet,

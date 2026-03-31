@@ -282,11 +282,14 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
   const hasChanges = modifiedCount > 0;
 
   // ── Hourly rate (only when weekly hours are set) ──────────────────────
-  const currentHourlyRate = (seed.estimatedWeeklyHours ?? 0) > 0
-    ? current.netIncome / ((seed.estimatedWeeklyHours ?? 1) * 52)
+  const vacationWeeks = seed.vacationWeeks ?? 0;
+  const currentWorkingWeeks = Math.max(0, 52 - vacationWeeks);
+  const currentHourlyRate = (seed.estimatedWeeklyHours ?? 0) > 0 && currentWorkingWeeks > 0
+    ? current.netIncome / ((seed.estimatedWeeklyHours ?? 1) * currentWorkingWeeks)
     : null;
-  const scenarioHourlyRate = scenarioWeeklyHours > 0
-    ? scenario.netIncome / (scenarioWeeklyHours * 52)
+  const scenarioWorkingWeeks = Math.max(0, 52 - vacationWeeks);
+  const scenarioHourlyRate = scenarioWeeklyHours > 0 && scenarioWorkingWeeks > 0
+    ? scenario.netIncome / (scenarioWeeklyHours * scenarioWorkingWeeks)
     : null;
   const hourlyRateDelta = currentHourlyRate != null && scenarioHourlyRate != null
     ? scenarioHourlyRate - currentHourlyRate

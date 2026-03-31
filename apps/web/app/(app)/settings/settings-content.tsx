@@ -351,6 +351,9 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const [estimatedWeeklyHours, setEstimatedWeeklyHours] = useState(
     settings.estimated_weekly_hours != null ? String(settings.estimated_weekly_hours) : "",
   );
+  const [vacationWeeks, setVacationWeeks] = useState(
+    settings.vacation_weeks_per_year != null ? String(settings.vacation_weeks_per_year) : "",
+  );
   const [savingRunway, setSavingRunway] = useState(false);
   const runwaySaved = useSaved();
 
@@ -603,6 +606,9 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
           : null,
         estimated_weekly_hours: estimatedWeeklyHours
           ? parseFloat(estimatedWeeklyHours) || null
+          : null,
+        vacation_weeks_per_year: vacationWeeks
+          ? parseFloat(vacationWeeks) || null
           : null,
       })
       .eq("user_id", settings.user_id);
@@ -1441,7 +1447,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-1.5">
               <Label>Cash Reserve ($)</Label>
               <Input
@@ -1483,6 +1489,22 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
               <p className="text-xs text-muted-foreground">
                 Your estimated average working hours per week — used to
                 calculate your effective hourly rate and time-value metrics.
+              </p>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Vacation Weeks / Year</Label>
+              <Input
+                type="number"
+                min="0"
+                max="52"
+                step="0.5"
+                placeholder="e.g. 3"
+                value={vacationWeeks}
+                onChange={(e) => setVacationWeeks(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Weeks of vacation or time-off per year — reduces your annual
+                working hours for a more accurate hourly rate.
               </p>
             </div>
           </div>

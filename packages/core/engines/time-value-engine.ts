@@ -7,6 +7,8 @@
 export interface TimeValueInput {
   /** Self-reported average weekly working hours */
   estimatedWeeklyHours: number;
+  /** Weeks of vacation/time-off per year (default 0) */
+  vacationWeeks: number;
   /** YTD gross commission income */
   ytdGCI: number;
   /** YTD net income (after splits, fees, tax) */
@@ -28,8 +30,10 @@ export interface TimeValueResult {
   effectiveHourlyRate: number;
   /** Gross hourly rate based on projected annual GCI / annual hours */
   grossHourlyRate: number;
-  /** Estimated annual working hours */
+  /** Estimated annual working hours (accounts for vacation) */
   annualHours: number;
+  /** Working weeks per year (52 minus vacation) */
+  workingWeeks: number;
   /** Average revenue (GCI) per deal */
   revenuePerDeal: number;
   /** Estimated hours per deal (annual hours / deal count, annualized) */
@@ -53,6 +57,7 @@ export interface TimeValueResult {
 export function computeTimeValue(input: TimeValueInput): TimeValueResult {
   const {
     estimatedWeeklyHours,
+    vacationWeeks,
     ytdGCI,
     ytdNetIncome,
     projectedAnnualNet,
@@ -62,8 +67,9 @@ export function computeTimeValue(input: TimeValueInput): TimeValueResult {
     yearFractionElapsed,
   } = input;
 
-  // Annual hours: weekly hours × 52 weeks
-  const annualHours = estimatedWeeklyHours * 52;
+  // Annual hours: weekly hours × (52 weeks minus vacation)
+  const workingWeeks = Math.max(0, 52 - (vacationWeeks || 0));
+  const annualHours = estimatedWeeklyHours * workingWeeks;
 
   // Effective hourly rates
   const effectiveHourlyRate = annualHours > 0 ? projectedAnnualNet / annualHours : 0;
@@ -87,6 +93,7 @@ export function computeTimeValue(input: TimeValueInput): TimeValueResult {
     effectiveHourlyRate: Math.round(effectiveHourlyRate * 100) / 100,
     grossHourlyRate: Math.round(grossHourlyRate * 100) / 100,
     annualHours,
+    workingWeeks,
     revenuePerDeal: Math.round(revenuePerDeal),
     hoursPerDeal: Math.round(hoursPerDeal * 10) / 10,
     netPerDeal: Math.round(netPerDeal),

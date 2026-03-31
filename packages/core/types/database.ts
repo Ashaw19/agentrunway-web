@@ -318,6 +318,7 @@ export interface UserSettings {
   cash_reserve: number;
   experience_years: number | null;
   estimated_weekly_hours: number | null;
+  vacation_weeks_per_year: number | null;
 
   // Profile display
   display_name: string;
