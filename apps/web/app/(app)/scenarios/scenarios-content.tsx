@@ -277,6 +277,46 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
   };
   const hasChanges = modifiedCount > 0;
 
+  // ── Situational observation (single most-notable thing about current state) ──
+  const observation = useMemo(() => {
+    // Pick the single most interesting observation from existing current values.
+    // Priority: low survival → high tax rate → strong runway → low projected GCI
+    if (current.survivalMonths < 3 && current.survivalMonths > 0) {
+      return {
+        column: `Cash runway is ${current.survivalMonths.toFixed(1)} months at your current expense level`,
+        nudge: `Your cash runway is under 3 months — try adjusting your reserve to see the effect.`,
+      };
+    }
+    if (current.effectiveRate > 0.35) {
+      return {
+        column: `Your effective tax rate is ${(current.effectiveRate * 100).toFixed(1)}% at this income level`,
+        nudge: `Your effective rate is ${(current.effectiveRate * 100).toFixed(0)}% — try adjusting RRSP or business structure to see the tax impact.`,
+      };
+    }
+    if (current.runwayGrade === "A+" || current.runwayGrade === "A") {
+      return {
+        column: `Runway grade ${current.runwayGrade} — your financial position is strong`,
+        nudge: `You're in a strong position — explore what happens if you increase RRSP contributions or close more deals.`,
+      };
+    }
+    if (seed.projectedAnnualGCI < seed.goalGCI * 0.6 && seed.goalGCI > 0) {
+      return {
+        column: `Projected GCI is tracking below your annual goal`,
+        nudge: `Your projection is below your goal — try exploring what a few more deals would change.`,
+      };
+    }
+    if (current.effectiveRate > 0.25) {
+      return {
+        column: `Your effective tax rate is ${(current.effectiveRate * 100).toFixed(1)}% at this income level`,
+        nudge: `Adjust an input or try a quick scenario to see the impact.`,
+      };
+    }
+    return {
+      column: null,
+      nudge: `Adjust an input or try a quick scenario to see the impact.`,
+    };
+  }, [current, seed.projectedAnnualGCI, seed.goalGCI]);
+
   // ── GCI slider bounds ────────────────────────────────────────────────
   const gciMin = 0;
   const gciMax = Math.max(500_000, seed.goalGCI * 2, seed.projectedAnnualGCI * 2);
@@ -582,6 +622,11 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                     }
                   />
                 </div>
+                {observation.column && (
+                  <p className="!mt-3 text-[10px] text-slate-500 italic leading-relaxed">
+                    {observation.column}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -668,7 +713,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
               </div>
             ) : (
               <p className="text-center text-sm text-slate-500 py-2">
-                Adjust an input or try a quick scenario to see the impact.
+                {observation.nudge}
               </p>
             )}
           </div>
