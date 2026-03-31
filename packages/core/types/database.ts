@@ -317,6 +317,7 @@ export interface UserSettings {
   // Defensibility
   cash_reserve: number;
   experience_years: number | null;
+  estimated_weekly_hours: number | null;
 
   // Profile display
   display_name: string;

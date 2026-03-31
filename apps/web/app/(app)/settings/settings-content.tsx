@@ -348,6 +348,9 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const [experienceYears, setExperienceYears] = useState(
     settings.experience_years != null ? String(settings.experience_years) : "",
   );
+  const [estimatedWeeklyHours, setEstimatedWeeklyHours] = useState(
+    settings.estimated_weekly_hours != null ? String(settings.estimated_weekly_hours) : "",
+  );
   const [savingRunway, setSavingRunway] = useState(false);
   const runwaySaved = useSaved();
 
@@ -598,10 +601,13 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
         experience_years: experienceYears
           ? parseInt(experienceYears) || null
           : null,
+        estimated_weekly_hours: estimatedWeeklyHours
+          ? parseFloat(estimatedWeeklyHours) || null
+          : null,
       })
       .eq("user_id", settings.user_id);
     setSavingRunway(false);
-    if (error) { toast.error("Failed to save cash reserve — please try again."); return; }
+    if (error) { toast.error("Failed to save runway inputs — please try again."); return; }
     runwaySaved.flash();
     toast.success("Cash reserve updated ✓");
   }
@@ -1431,11 +1437,11 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
         <CardHeader>
           <CardTitle>Runway Inputs</CardTitle>
           <CardDescription>
-            Powers your cash runway and benchmark calculations.
+            Powers your cash runway, benchmark, and time-value calculations.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="grid gap-1.5">
               <Label>Cash Reserve ($)</Label>
               <Input
@@ -1461,6 +1467,22 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
               />
               <p className="text-xs text-muted-foreground">
                 Years licensed as an agent — used for benchmark peer comparison.
+              </p>
+            </div>
+            <div className="grid gap-1.5">
+              <Label>Avg. Weekly Hours</Label>
+              <Input
+                type="number"
+                min="0"
+                max="168"
+                step="0.5"
+                placeholder="e.g. 45"
+                value={estimatedWeeklyHours}
+                onChange={(e) => setEstimatedWeeklyHours(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Your estimated average working hours per week — used to
+                calculate your effective hourly rate and time-value metrics.
               </p>
             </div>
           </div>

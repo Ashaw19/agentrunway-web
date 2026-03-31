@@ -14,7 +14,8 @@ export type CardId =
   | "tax_planning"
   | "corp_tax"
   | "tax_savings"
-  | "recent_activity";
+  | "recent_activity"
+  | "time_value";
 
 export interface CardDef {
   id: CardId;
@@ -39,6 +40,7 @@ export const CARD_REGISTRY: CardDef[] = [
   { id: "corp_tax",         label: "Corporate Tax Estimate",      description: "PREC/corporation combined tax breakdown" },
   { id: "tax_savings",      label: "Tax Savings Opportunities",   description: "Estimated tax savings you may be missing" },
   { id: "recent_activity",  label: "Recent Transactions",         description: "Latest closed deals" },
+  { id: "time_value",       label: "Time Value",                  description: "Effective hourly rate and per-deal time metrics" },
 ];
 
 // Cards shown by default on the dashboard.
@@ -57,6 +59,7 @@ export const DEFAULT_ORDER: CardId[] = [
   "corp_tax",
   "tax_savings",
   "recent_activity",
+  "time_value",
 ];
 
 // Hidden by default (advanced / niche cards)

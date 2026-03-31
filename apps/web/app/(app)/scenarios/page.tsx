@@ -52,6 +52,8 @@ export interface ScenarioSeedData {
   txFeeRate: number;
   /** Transaction fee annual cap */
   txFeeCap: number;
+  /** Self-reported average weekly working hours (null = not set) */
+  estimatedWeeklyHours: number | null;
 }
 
 export default async function ScenariosPage() {
@@ -127,6 +129,7 @@ export default async function ScenariosPage() {
       postCapBrokeragePct: merged.post_cap_brokerage_pct ?? 0,
       txFeeRate: merged.tx_fee_rate_pct ?? 0,
       txFeeCap: merged.tx_fee_annual_cap ?? 0,
+      estimatedWeeklyHours: merged.estimated_weekly_hours ?? null,
     };
   } else {
     // Live Supabase queries
@@ -206,6 +209,7 @@ export default async function ScenariosPage() {
       postCapBrokeragePct: settingsRow?.post_cap_brokerage_pct ?? 0,
       txFeeRate: settingsRow?.tx_fee_rate_pct ?? 0,
       txFeeCap: settingsRow?.tx_fee_annual_cap ?? 0,
+      estimatedWeeklyHours: settingsRow?.estimated_weekly_hours ?? null,
     };
   }
 

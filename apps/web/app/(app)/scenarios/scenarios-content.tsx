@@ -10,9 +10,11 @@ import { survivalResult } from "@/lib/engines/survival-engine";
 import { buildHealthReport } from "@/lib/engines/health-report";
 import { compute as computeRunwayScore } from "@/lib/engines/runway-score-engine";
 import { seasonalFractionElapsed } from "@/lib/engines/projection-engine";
+import { computeTimeValue } from "@/lib/engines/time-value";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   SlidersHorizontal,
+  Clock,
   TrendingUp,
   TrendingDown,
   Minus,
@@ -185,6 +187,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
   );
   const [scenarioMonthlyRecurring, setScenarioMonthlyRecurring] = useState(seed.monthlyRecurring);
   const [scenarioCashReserve, setScenarioCashReserve] = useState(seed.cashReserve);
+  const [scenarioWeeklyHours, setScenarioWeeklyHours] = useState(seed.estimatedWeeklyHours ?? 0);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const province = (seed.province || "ontario") as Province;
@@ -198,6 +201,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
     scenarioCompMethod !== ((seed.compensationMethod as "salary" | "dividends" | "mixed") || "salary"),
     scenarioMonthlyRecurring !== seed.monthlyRecurring,
     scenarioCashReserve !== seed.cashReserve,
+    scenarioWeeklyHours !== (seed.estimatedWeeklyHours ?? 0),
   ].filter(Boolean).length;
 
   // Shared args for split/fee deductions (passed to computeResult)
@@ -276,6 +280,17 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
     survivalMonths: scenario.survivalMonths - current.survivalMonths,
   };
   const hasChanges = modifiedCount > 0;
+
+  // ── Hourly rate (only when weekly hours are set) ──────────────────────
+  const currentHourlyRate = (seed.estimatedWeeklyHours ?? 0) > 0
+    ? current.netIncome / ((seed.estimatedWeeklyHours ?? 1) * 52)
+    : null;
+  const scenarioHourlyRate = scenarioWeeklyHours > 0
+    ? scenario.netIncome / (scenarioWeeklyHours * 52)
+    : null;
+  const hourlyRateDelta = currentHourlyRate != null && scenarioHourlyRate != null
+    ? scenarioHourlyRate - currentHourlyRate
+    : null;
 
   // ── Situational observation (single most-notable thing about current state) ──
   const observation = useMemo(() => {
@@ -545,6 +560,26 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                     />
                   </div>
                 </div>
+
+                {/* 8. Weekly Hours */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-600">Weekly Hours</label>
+                  <span className="block text-[10px] text-slate-400 -mt-1">Changes your effective hourly rate only</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={168}
+                    step={1}
+                    value={scenarioWeeklyHours || ""}
+                    placeholder="e.g. 45"
+                    onChange={(e) =>
+                      setScenarioWeeklyHours(
+                        clamp(Number(e.target.value), 0, 168),
+                      )
+                    }
+                    className="w-full rounded-lg border border-slate-300 bg-white py-2 px-3 text-sm text-slate-800 tabular-nums placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  />
+                </div>
               </div>
             )}
 
@@ -562,6 +597,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                 );
                 setScenarioMonthlyRecurring(seed.monthlyRecurring);
                 setScenarioCashReserve(seed.cashReserve);
+                setScenarioWeeklyHours(seed.estimatedWeeklyHours ?? 0);
               }}
               className={`w-full rounded-lg border py-2 text-xs font-medium transition-colors ${
                 modifiedCount > 0
@@ -622,6 +658,14 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                     }
                   />
                 </div>
+                {currentHourlyRate != null && (
+                  <div className="!mt-3 space-y-2 border-t border-slate-200 pt-3">
+                    <MetricRow
+                      label="Eff. Hourly Rate"
+                      value={`${fmtCurrency(currentHourlyRate)}/hr`}
+                    />
+                  </div>
+                )}
                 {observation.column && (
                   <p className="!mt-3 text-[10px] text-slate-400 italic leading-relaxed">
                     {observation.column}
@@ -672,6 +716,14 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                     }
                   />
                 </div>
+                {scenarioHourlyRate != null && scenarioWeeklyHours > 0 && (
+                  <div className="!mt-3 space-y-2 border-t border-slate-200 pt-3">
+                    <MetricRow
+                      label="Eff. Hourly Rate"
+                      value={`${fmtCurrency(scenarioHourlyRate)}/hr`}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -710,6 +762,13 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                   delta={deltas.survivalMonths}
                   formatted={`${Math.abs(deltas.survivalMonths).toFixed(1)} mo`}
                 />
+                {hourlyRateDelta != null && (
+                  <DeltaCard
+                    label="Hourly Rate"
+                    delta={hourlyRateDelta}
+                    formatted={`${fmtCurrency(Math.abs(hourlyRateDelta))}/hr`}
+                  />
+                )}
               </div>
             ) : (
               <p className="text-center text-sm text-slate-500 py-2">
