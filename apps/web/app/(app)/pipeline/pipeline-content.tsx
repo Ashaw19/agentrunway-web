@@ -34,12 +34,12 @@ import { cn } from "@/lib/utils";
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 const STAGE_BADGE_COLORS: Record<UnifiedStage, string> = {
-  pre_qualifying: "bg-slate-500/20 text-slate-300 border-slate-500/30",
-  active:         "bg-blue-500/20 text-blue-300 border-blue-500/30",
-  offer:          "bg-indigo-500/20 text-indigo-300 border-indigo-500/30",
-  conditional:    "bg-violet-500/20 text-violet-300 border-violet-500/30",
-  firm:           "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-  closed:         "bg-green-500/20 text-green-300 border-green-500/30",
+  pre_qualifying: "bg-slate-100 text-slate-600 border-slate-200",
+  active:         "bg-blue-50 text-blue-600 border-blue-200",
+  offer:          "bg-indigo-50 text-indigo-600 border-indigo-200",
+  conditional:    "bg-violet-50 text-violet-600 border-violet-200",
+  firm:           "bg-emerald-50 text-emerald-600 border-emerald-200",
+  closed:         "bg-green-50 text-green-600 border-green-200",
 };
 
 const STAGE_LABELS: Record<UnifiedStage, string> = {
@@ -53,9 +53,9 @@ const STAGE_LABELS: Record<UnifiedStage, string> = {
 
 function sourceIcon(source: "deal" | "listing" | "buyer") {
   switch (source) {
-    case "deal":    return <Layers className="h-4 w-4 text-cyan-400" />;
-    case "listing": return <Home className="h-4 w-4 text-amber-400" />;
-    case "buyer":   return <User className="h-4 w-4 text-teal-400" />;
+    case "deal":    return <Layers className="h-4 w-4 text-cyan-500" />;
+    case "listing": return <Home className="h-4 w-4 text-amber-500" />;
+    case "buyer":   return <User className="h-4 w-4 text-teal-500" />;
   }
 }
 
@@ -70,18 +70,18 @@ function sourceLabel(source: "deal" | "listing" | "buyer") {
 function sideBadge(side: "buy" | "sell" | "both") {
   switch (side) {
     case "buy":
-      return <span className="inline-flex items-center rounded-md border border-blue-500/30 bg-blue-500/10 px-1.5 py-0.5 text-[11px] font-medium text-blue-300">Buy</span>;
+      return <span className="inline-flex items-center rounded-md border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[11px] font-medium text-blue-600">Buy</span>;
     case "sell":
-      return <span className="inline-flex items-center rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-300">Sell</span>;
+      return <span className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-600">Sell</span>;
     case "both":
-      return <span className="inline-flex items-center rounded-md border border-violet-500/30 bg-violet-500/10 px-1.5 py-0.5 text-[11px] font-medium text-violet-300">Both</span>;
+      return <span className="inline-flex items-center rounded-md border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[11px] font-medium text-violet-600">Both</span>;
   }
 }
 
 function accuracyColor(score: number): string {
-  if (score >= 80) return "text-emerald-400";
-  if (score >= 60) return "text-amber-400";
-  return "text-red-400";
+  if (score >= 80) return "text-emerald-600";
+  if (score >= 60) return "text-amber-500";
+  return "text-red-500";
 }
 
 function formatDate(iso: string | null): string {
@@ -134,33 +134,33 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
         <SummaryCard
           label="Total Weighted GCI"
           value={fmtCurrency(result.totalWeightedGCI)}
-          icon={<TrendingUp className="h-4 w-4 text-cyan-400" />}
+          icon={<TrendingUp className="h-4 w-4 text-cyan-500" />}
           primary
         />
         <SummaryCard
           label="Pipeline Deals"
           value={String(result.dealCount)}
           subValue={fmtCurrency(result.dealWeightedGCI)}
-          icon={<Layers className="h-4 w-4 text-cyan-400" />}
+          icon={<Layers className="h-4 w-4 text-cyan-500" />}
         />
         <SummaryCard
           label="Active Listings"
           value={String(result.listingCount)}
           subValue={fmtCurrency(result.listingWeightedGCI)}
-          icon={<Home className="h-4 w-4 text-amber-400" />}
+          icon={<Home className="h-4 w-4 text-amber-500" />}
         />
         <SummaryCard
           label="Tracked Buyers"
           value={String(result.buyerCount)}
           subValue={fmtCurrency(result.buyerWeightedGCI)}
-          icon={<User className="h-4 w-4 text-teal-400" />}
+          icon={<User className="h-4 w-4 text-teal-500" />}
         />
         {result.accuracy.overallScore != null ? (
           <SummaryCard
             label="Forecast Accuracy"
             value={`${result.accuracy.overallScore}%`}
             subValue={`${result.accuracy.sampleSize} closed`}
-            icon={<Target className="h-4 w-4 text-violet-400" />}
+            icon={<Target className="h-4 w-4 text-violet-500" />}
             valueClassName={accuracyColor(result.accuracy.overallScore)}
           />
         ) : (
@@ -320,7 +320,7 @@ function AccuracyCard({
     return (
       <div className="rounded-xl border border-border bg-card p-6">
         <div className="flex items-center gap-2 mb-4">
-          <Target className="h-5 w-5 text-violet-400" />
+          <Target className="h-5 w-5 text-violet-500" />
           <h3 className="text-sm font-semibold text-foreground">
             Forecast Accuracy
           </h3>
@@ -335,7 +335,7 @@ function AccuracyCard({
   return (
     <div className="rounded-xl border border-border bg-card p-6">
       <div className="flex items-center gap-2 mb-4">
-        <Target className="h-5 w-5 text-violet-400" />
+        <Target className="h-5 w-5 text-violet-500" />
         <h3 className="text-sm font-semibold text-foreground">
           Forecast Accuracy
         </h3>
@@ -386,7 +386,7 @@ function FunnelCard({ funnel }: { funnel: FunnelStep[] }) {
   return (
     <div className="rounded-xl border border-border bg-card p-6">
       <div className="flex items-center gap-2 mb-4">
-        <BarChart3 className="h-5 w-5 text-cyan-400" />
+        <BarChart3 className="h-5 w-5 text-cyan-500" />
         <h3 className="text-sm font-semibold text-foreground">
           Conversion Funnel
         </h3>

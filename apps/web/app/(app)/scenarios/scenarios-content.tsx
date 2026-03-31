@@ -30,8 +30,8 @@ function clamp(val: number, min: number, max: number) {
 function deltaColor(delta: number, inverted = false) {
   const positive = inverted ? delta < 0 : delta > 0;
   const negative = inverted ? delta > 0 : delta < 0;
-  if (positive) return "text-emerald-400";
-  if (negative) return "text-red-400";
+  if (positive) return "text-emerald-600";
+  if (negative) return "text-red-500";
   return "text-slate-400";
 }
 
@@ -44,11 +44,11 @@ function DeltaIcon({ delta, inverted = false }: { delta: number; inverted?: bool
 }
 
 function gradeColor(grade: string) {
-  if (grade.startsWith("A")) return "text-emerald-400";
-  if (grade === "B") return "text-blue-400";
-  if (grade === "C") return "text-amber-400";
-  if (grade === "D") return "text-orange-400";
-  return "text-red-400";
+  if (grade.startsWith("A")) return "text-emerald-600";
+  if (grade === "B") return "text-blue-500";
+  if (grade === "C") return "text-amber-500";
+  if (grade === "D") return "text-orange-500";
+  return "text-red-500";
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -326,18 +326,18 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-          <SlidersHorizontal className="h-6 w-6 text-violet-400" />
+        <h1 className="text-2xl font-bold tracking-tight text-slate-800 flex items-center gap-2">
+          <SlidersHorizontal className="h-6 w-6 text-violet-500" />
           Scenario Engine
         </h1>
-        <p className="mt-1 text-sm text-slate-400">
+        <p className="mt-1 text-sm text-slate-500">
           Adjust inputs to see how changes affect your tax burden, net income, and runway score.
         </p>
       </div>
 
       {/* Trust indicator */}
-      <div className="flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/30 px-3 py-2 text-xs text-slate-400">
-        <Info className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+      <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+        <Info className="h-3.5 w-3.5 shrink-0 text-slate-400" />
         <span>
           &ldquo;Your Projection&rdquo; reflects your actual dashboard data. &ldquo;What If&rdquo; is
           a hypothetical estimate only&mdash;it never changes your records. Based on {new Date().getFullYear()} Canadian
@@ -348,8 +348,8 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
       <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         {/* ── LEFT: Input Controls ─────────────────────────────────────── */}
         <div className="space-y-4">
-          <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-5 space-y-5">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5 space-y-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
               Scenario Inputs
             </h2>
 
@@ -357,10 +357,10 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <label className="text-sm font-medium text-slate-300">Projected Annual GCI</label>
-                  <span className="block text-[10px] text-slate-500">Changes take-home, tax, and runway score</span>
+                  <label className="text-sm font-medium text-slate-600">Projected Annual GCI</label>
+                  <span className="block text-[10px] text-slate-400">Changes take-home, tax, and runway score</span>
                 </div>
-                <span className="text-sm font-semibold text-white tabular-nums">
+                <span className="text-sm font-semibold text-slate-800 tabular-nums">
                   {fmtCurrency(scenarioGCI)}
                 </span>
               </div>
@@ -373,7 +373,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                 onChange={(e) => setScenarioGCI(Number(e.target.value))}
                 className="w-full accent-violet-500"
               />
-              <div className="flex justify-between text-[10px] text-slate-500">
+              <div className="flex justify-between text-[10px] text-slate-400">
                 <span>{fmtCurrency(gciMin)}</span>
                 <span>{fmtCurrency(gciMax)}</span>
               </div>
@@ -381,23 +381,23 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
 
             {/* 2. Deal Count */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Deal Count</label>
-              <span className="block text-[10px] text-slate-500 -mt-1">Only changes per-deal set-aside — total tax stays the same</span>
+              <label className="text-sm font-medium text-slate-600">Deal Count</label>
+              <span className="block text-[10px] text-slate-400 -mt-1">Only changes per-deal set-aside — total tax stays the same</span>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setScenarioDealCount((c) => Math.max(0, c - 1))}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-600 bg-slate-700/50 text-white hover:bg-slate-600 transition-colors"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors"
                 >
                   -
                 </button>
-                <span className="min-w-[3rem] text-center text-lg font-semibold text-white tabular-nums">
+                <span className="min-w-[3rem] text-center text-lg font-semibold text-slate-800 tabular-nums">
                   {scenarioDealCount}
                 </span>
                 <button
                   type="button"
                   onClick={() => setScenarioDealCount((c) => c + 1)}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-600 bg-slate-700/50 text-white hover:bg-slate-600 transition-colors"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors"
                 >
                   +
                 </button>
@@ -406,10 +406,10 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
 
             {/* 3. RRSP Contribution */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">RRSP Contribution</label>
-              <span className="block text-[10px] text-slate-500 -mt-1">Lowers your tax owed and increases take-home</span>
+              <label className="text-sm font-medium text-slate-600">RRSP Contribution</label>
+              <span className="block text-[10px] text-slate-400 -mt-1">Lowers your tax owed and increases take-home</span>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">
                   $
                 </span>
                 <input
@@ -419,23 +419,23 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                   step={500}
                   value={scenarioRRSP}
                   onChange={(e) => setScenarioRRSP(clamp(Number(e.target.value), 0, 100_000))}
-                  className="w-full rounded-lg border border-slate-600 bg-slate-700/50 py-2 pl-7 pr-3 text-sm text-white tabular-nums placeholder:text-slate-500 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-7 pr-3 text-sm text-slate-800 tabular-nums placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                 />
               </div>
             </div>
 
             {/* 4. Business Structure */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-300">Business Structure</label>
-              <span className="block text-[10px] text-slate-500 -mt-1">Changes how your income is taxed</span>
+              <label className="text-sm font-medium text-slate-600">Business Structure</label>
+              <span className="block text-[10px] text-slate-400 -mt-1">Changes how your income is taxed</span>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setScenarioIncorporated(false)}
                   className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                     !scenarioIncorporated
-                      ? "border-violet-500 bg-violet-500/20 text-violet-300"
-                      : "border-slate-600 bg-slate-700/30 text-slate-400 hover:text-white"
+                      ? "border-violet-500 bg-violet-50 text-violet-600"
+                      : "border-slate-300 bg-white text-slate-500 hover:text-slate-700"
                   }`}
                 >
                   Sole Prop
@@ -445,8 +445,8 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                   onClick={() => setScenarioIncorporated(true)}
                   className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
                     scenarioIncorporated
-                      ? "border-violet-500 bg-violet-500/20 text-violet-300"
-                      : "border-slate-600 bg-slate-700/30 text-slate-400 hover:text-white"
+                      ? "border-violet-500 bg-violet-50 text-violet-600"
+                      : "border-slate-300 bg-white text-slate-500 hover:text-slate-700"
                   }`}
                 >
                   Incorporated
@@ -457,10 +457,10 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
             {/* 5. Compensation Method (only if incorporated) */}
             {scenarioIncorporated && (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300">
+                <label className="text-sm font-medium text-slate-600">
                   Compensation Method
                 </label>
-                <span className="block text-[10px] text-slate-500">Splits income between salary and dividends</span>
+                <span className="block text-[10px] text-slate-400">Splits income between salary and dividends</span>
                 <div className="grid grid-cols-3 gap-2">
                   {(["salary", "dividends", "mixed"] as const).map((method) => (
                     <button
@@ -484,7 +484,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
-              className="flex w-full items-center justify-between rounded-lg px-1 py-1 text-xs font-medium text-slate-500 hover:text-slate-300 transition-colors"
+              className="flex w-full items-center justify-between rounded-lg px-1 py-1 text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors"
             >
               <span>Advanced</span>
               {showAdvanced ? (
@@ -495,15 +495,15 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
             </button>
 
             {showAdvanced && (
-              <div className="space-y-4 border-t border-slate-700/50 pt-4">
+              <div className="space-y-4 border-t border-slate-200 pt-4">
                 {/* 6. Monthly Recurring Expenses */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-300">
+                  <label className="text-sm font-medium text-slate-600">
                     Monthly Recurring
                   </label>
-                  <span className="block text-[10px] text-slate-500 -mt-1">Lowers tax owed but also shortens cash runway</span>
+                  <span className="block text-[10px] text-slate-400 -mt-1">Lowers tax owed but also shortens cash runway</span>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">
                       $
                     </span>
                     <input
@@ -517,17 +517,17 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                           clamp(Number(e.target.value), 0, 50_000),
                         )
                       }
-                      className="w-full rounded-lg border border-slate-600 bg-slate-700/50 py-2 pl-7 pr-3 text-sm text-white tabular-nums placeholder:text-slate-500 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                      className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-7 pr-3 text-sm text-slate-800 tabular-nums placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                     />
                   </div>
                 </div>
 
                 {/* 7. Cash Reserve */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-300">Cash Reserve</label>
-                  <span className="block text-[10px] text-slate-500 -mt-1">Affects cash runway only — no tax impact</span>
+                  <label className="text-sm font-medium text-slate-600">Cash Reserve</label>
+                  <span className="block text-[10px] text-slate-400 -mt-1">Affects cash runway only — no tax impact</span>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">
                       $
                     </span>
                     <input
@@ -541,7 +541,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                           clamp(Number(e.target.value), 0, 1_000_000),
                         )
                       }
-                      className="w-full rounded-lg border border-slate-600 bg-slate-700/50 py-2 pl-7 pr-3 text-sm text-white tabular-nums placeholder:text-slate-500 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                      className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-7 pr-3 text-sm text-slate-800 tabular-nums placeholder:text-slate-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500"
                     />
                   </div>
                 </div>
@@ -565,8 +565,8 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
               }}
               className={`w-full rounded-lg border py-2 text-xs font-medium transition-colors ${
                 modifiedCount > 0
-                  ? "border-slate-600 bg-slate-700/30 text-slate-300 hover:text-white hover:bg-slate-700/60"
-                  : "border-slate-700/30 bg-slate-800/20 text-slate-600 cursor-default"
+                  ? "border-slate-300 bg-white text-slate-600 hover:text-slate-800 hover:bg-slate-50"
+                  : "border-slate-200 bg-slate-50 text-slate-400 cursor-default"
               }`}
             >
               {modifiedCount > 0
@@ -581,18 +581,18 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
           {/* Two-column comparison */}
           <div className="grid grid-cols-2 gap-4">
             {/* Current Column */}
-            <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-5">
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
               <div className="mb-4">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                   Your Projection
                 </h3>
-                <p className="mt-0.5 text-[10px] text-slate-600">Based on your dashboard data</p>
+                <p className="mt-0.5 text-[10px] text-slate-400">Based on your dashboard data</p>
               </div>
               <div className="space-y-1">
                 {/* Primary metrics — larger */}
                 <PrimaryMetricRow label="Take-Home" value={fmtCurrency(current.netIncome)} />
                 <PrimaryMetricRow label="Tax Owed" value={fmtCurrency(current.taxOwed)} />
-                <div className="!mt-3 space-y-2 border-t border-slate-700/50 pt-3">
+                <div className="!mt-3 space-y-2 border-t border-slate-200 pt-3">
                   <MetricRow
                     label="Eff. Tax Rate"
                     value={fmtPct(current.effectiveRate)}
@@ -606,7 +606,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                     value={fmtCurrency(current.perDealSetAside)}
                   />
                 </div>
-                <div className="!mt-3 space-y-2 border-t border-slate-700/50 pt-3">
+                <div className="!mt-3 space-y-2 border-t border-slate-200 pt-3">
                   <MetricRow
                     label="Runway Score"
                     value={`${current.runwayScore}`}
@@ -623,7 +623,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                   />
                 </div>
                 {observation.column && (
-                  <p className="!mt-3 text-[10px] text-slate-500 italic leading-relaxed">
+                  <p className="!mt-3 text-[10px] text-slate-400 italic leading-relaxed">
                     {observation.column}
                   </p>
                 )}
@@ -631,18 +631,18 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
             </div>
 
             {/* Scenario Column */}
-            <div className="rounded-xl border border-violet-500/30 bg-violet-950/20 p-5">
+            <div className="rounded-xl border border-violet-200 bg-violet-50/50 shadow-sm p-5">
               <div className="mb-4">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-violet-400">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-violet-600">
                   What If
                 </h3>
-                <p className="mt-0.5 text-[10px] text-violet-400/50">Hypothetical — does not change your data</p>
+                <p className="mt-0.5 text-[10px] text-violet-400">Hypothetical — does not change your data</p>
               </div>
               <div className="space-y-1">
                 {/* Primary metrics — larger */}
                 <PrimaryMetricRow label="Take-Home" value={fmtCurrency(scenario.netIncome)} />
                 <PrimaryMetricRow label="Tax Owed" value={fmtCurrency(scenario.taxOwed)} />
-                <div className="!mt-3 space-y-2 border-t border-slate-700/50 pt-3">
+                <div className="!mt-3 space-y-2 border-t border-slate-200 pt-3">
                   <MetricRow
                     label="Eff. Tax Rate"
                     value={fmtPct(scenario.effectiveRate)}
@@ -656,7 +656,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                     value={fmtCurrency(scenario.perDealSetAside)}
                   />
                 </div>
-                <div className="!mt-3 space-y-2 border-t border-slate-700/50 pt-3">
+                <div className="!mt-3 space-y-2 border-t border-slate-200 pt-3">
                   <MetricRow
                     label="Runway Score"
                     value={`${scenario.runwayScore}`}
@@ -677,7 +677,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
           </div>
 
           {/* Delta Section */}
-          <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-5">
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
             <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
               Impact
             </h3>
@@ -719,7 +719,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
           </div>
 
           {/* Quick question shortcuts */}
-          <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-5">
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
               Quick Scenarios
             </h3>
@@ -768,8 +768,8 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
 function PrimaryMetricRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between py-1">
-      <span className="text-sm font-medium text-slate-300">{label}</span>
-      <span className="text-lg font-bold text-white tabular-nums">{value}</span>
+      <span className="text-sm font-medium text-slate-600">{label}</span>
+      <span className="text-lg font-bold text-slate-800 tabular-nums">{value}</span>
     </div>
   );
 }
@@ -787,8 +787,8 @@ function MetricRow({
 }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-sm text-slate-400">{label}</span>
-      <span className="flex items-center gap-2 text-sm font-semibold text-white tabular-nums">
+      <span className="text-sm text-slate-500">{label}</span>
+      <span className="flex items-center gap-2 text-sm font-semibold text-slate-800 tabular-nums">
         {value}
         {badge && (
           <span className={`text-xs font-bold ${badgeColor ?? "text-slate-400"}`}>
@@ -834,7 +834,7 @@ function QuickButton({ label, onClick }: { label: string; onClick: () => void })
     <button
       type="button"
       onClick={onClick}
-      className="rounded-lg border border-slate-600 bg-slate-700/30 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-violet-500/20 hover:border-violet-500/50 hover:text-violet-300 transition-colors"
+      className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-violet-50 hover:border-violet-300 hover:text-violet-600 transition-colors"
     >
       {label}
     </button>
