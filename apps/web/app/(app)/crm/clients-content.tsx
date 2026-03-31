@@ -1278,7 +1278,7 @@ export function ClientsContent({
     return gci > 0 ? calcRewardBudget(gci, rewardGenerosity) : undefined;
   }, [clientDeals, rewardGenerosity]);
 
-  // Auto-transition countdown: days until Landed -> Cruising (90 days after last close)
+  // Auto-transition countdown: days until Landed -> Cruising (30 days after last close)
   const landedTransitionDays = useMemo(() => {
     if (!selectedClient || selectedClient.status !== "landed") return null;
     const closeDates = clientDeals
@@ -1289,8 +1289,8 @@ export function ClientsContent({
     const lastClose = closeDates[0];
     if (!lastClose) return null;
     const daysSince = Math.floor((Date.now() - new Date(lastClose + "T00:00:00").getTime()) / 86400000);
-    const daysLeft = 90 - daysSince;
-    return daysSince > 60 && daysLeft > 0 ? daysLeft : null;
+    const daysLeft = 30 - daysSince;
+    return daysSince > 20 && daysLeft > 0 ? daysLeft : null;
   }, [selectedClient, clientDeals]);
 
   // Showings for the selected client
@@ -2659,11 +2659,11 @@ export function ClientsContent({
                                       <span className={cn("h-1.5 w-1.5 rounded-full", sc.dot)} />
                                       {CLIENT_STATUS_LABELS[client.status]}
                                     </span>
-                                    {/* Auto-transition countdown for Landed clients approaching 90-day mark */}
+                                    {/* Auto-transition countdown for Landed clients approaching 30-day mark */}
                                     {client.status === "landed" && group.lastDeal && (() => {
                                       const daysSinceClose = Math.floor((Date.now() - new Date(group.lastDeal + "T00:00:00").getTime()) / 86400000);
-                                      const daysLeft = 90 - daysSinceClose;
-                                      if (daysSinceClose > 60 && daysLeft > 0) {
+                                      const daysLeft = 30 - daysSinceClose;
+                                      if (daysSinceClose > 20 && daysLeft > 0) {
                                         return (
                                           <span className="text-[9px] text-amber-600 dark:text-amber-400 whitespace-nowrap pl-0.5">
                                             Cruising in {daysLeft}d

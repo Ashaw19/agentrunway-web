@@ -752,12 +752,12 @@ export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
 };
 
 export const CLIENT_STATUS_DESCRIPTIONS: Record<ClientStatus, string> = {
-  boarding:  "New lead or prospect",
-  taxiing:   "Gearing up to act",
-  approach:  "Actively viewing homes, preparing to offer",
-  in_flight: "Under contract",
-  landed:    "Deal closed",
-  cruising:  "Past client, nurturing",
+  boarding:  "Just added to CRM — move to Taxiing ASAP",
+  taxiing:   "Engaged and warming up — gearing up to act",
+  approach:  "Actively viewing homes or preparing to offer",
+  in_flight: "In a transaction — offer made, conditional, or firm",
+  landed:    "Just closed — 30-day post-close window",
+  cruising:  "Post-transaction, settled — seasonal check-ins",
 };
 
 // ── Flight status colour arc ───────────────────────────────────────────────

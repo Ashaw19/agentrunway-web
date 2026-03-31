@@ -1,17 +1,17 @@
 {
   "flight_status": {
     "boarding": "Boarding",
-    "boarding_description": "New lead or prospect",
+    "boarding_description": "تمت الإضافة للتو إلى CRM — انقله إلى التاكسي فوراً",
     "taxiing": "Taxiing",
-    "taxiing_description": "Gearing up to act",
+    "taxiing_description": "متفاعل ويتقدم — يستعد للتصرف",
     "approach": "Approach",
-    "approach_description": "Actively viewing homes, preparing to offer",
+    "approach_description": "يشاهد المنازل بنشاط أو يستعد لتقديم عرض",
     "in_flight": "In-Flight",
-    "in_flight_description": "Under contract",
+    "in_flight_description": "في صفقة — عرض مقدم، مشروط، أو ثابت",
     "landed": "Landed",
-    "landed_description": "Deal closed",
+    "landed_description": "أُغلقت للتو — فترة 30 يوماً بعد الإغلاق",
     "cruising": "Cruising",
-    "cruising_description": "Past client, nurturing"
+    "cruising_description": "بعد الصفقة، مستقر — متابعات موسمية"
   },
   "provinces": {
     "alberta": "Alberta",

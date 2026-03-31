@@ -1,17 +1,17 @@
 {
   "flight_status": {
     "boarding": "Boarding",
-    "boarding_description": "New lead or prospect",
+    "boarding_description": "अभी CRM में जोड़ा गया — जल्द से जल्द टैक्सीइंग में ले जाएं",
     "taxiing": "Taxiing",
-    "taxiing_description": "Gearing up to act",
+    "taxiing_description": "जुड़ा हुआ और आगे बढ़ रहा — कार्रवाई की तैयारी",
     "approach": "Approach",
-    "approach_description": "Actively viewing homes, preparing to offer",
+    "approach_description": "सक्रिय रूप से घर देख रहा है या ऑफ़र की तैयारी कर रहा है",
     "in_flight": "In-Flight",
-    "in_flight_description": "Under contract",
+    "in_flight_description": "लेन-देन में — ऑफ़र दिया, शर्तसापेक्ष, या पक्का",
     "landed": "Landed",
-    "landed_description": "Deal closed",
+    "landed_description": "अभी बंद हुआ — 30 दिन का पोस्ट-क्लोज़ विंडो",
     "cruising": "Cruising",
-    "cruising_description": "Past client, nurturing"
+    "cruising_description": "लेन-देन के बाद, स्थिर — मौसमी फ़ॉलो-अप"
   },
   "provinces": {
     "alberta": "Alberta",

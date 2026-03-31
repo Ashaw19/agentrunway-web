@@ -1,17 +1,17 @@
 {
   "flight_status": {
     "boarding": "ਬੋਰਡਿੰਗ",
-    "boarding_description": "ਨਵਾਂ ਸੰਭਾਵੀ ਗਾਹਕ",
+    "boarding_description": "ਹੁਣੇ CRM ਵਿੱਚ ਜੋੜਿਆ — ਜਲਦੀ ਟੈਕਸੀਇੰਗ ਵਿੱਚ ਲੈ ਜਾਓ",
     "taxiing": "ਟੈਕਸੀਇੰਗ",
-    "taxiing_description": "ਕਾਰਵਾਈ ਲਈ ਤਿਆਰੀ",
+    "taxiing_description": "ਜੁੜਿਆ ਅਤੇ ਅੱਗੇ ਵਧ ਰਿਹਾ — ਕਾਰਵਾਈ ਲਈ ਤਿਆਰੀ",
     "approach": "ਅਪਰੋਚ",
-    "approach_description": "ਸਰਗਰਮੀ ਨਾਲ ਘਰ ਦੇਖ ਰਿਹਾ ਹੈ, ਪੇਸ਼ਕਸ਼ ਲਈ ਤਿਆਰ",
+    "approach_description": "ਸਰਗਰਮੀ ਨਾਲ ਘਰ ਦੇਖ ਰਿਹਾ ਹੈ ਜਾਂ ਪੇਸ਼ਕਸ਼ ਲਈ ਤਿਆਰ",
     "in_flight": "ਉਡਾਣ ਵਿੱਚ",
-    "in_flight_description": "ਇਕਰਾਰਨਾਮੇ ਅਧੀਨ",
+    "in_flight_description": "ਲੈਣ-ਦੇਣ ਵਿੱਚ — ਪੇਸ਼ਕਸ਼ ਦਿੱਤੀ, ਸ਼ਰਤੀਆ, ਜਾਂ ਪੱਕੀ",
     "landed": "ਲੈਂਡ ਹੋਇਆ",
-    "landed_description": "ਸੌਦਾ ਪੂਰਾ ਹੋਇਆ",
+    "landed_description": "ਹੁਣੇ ਬੰਦ ਹੋਇਆ — 30 ਦਿਨਾਂ ਦੀ ਪੋਸਟ-ਕਲੋਜ਼ ਵਿੰਡੋ",
     "cruising": "ਕਰੂਜ਼ਿੰਗ",
-    "cruising_description": "ਪੁਰਾਣਾ ਗਾਹਕ, ਸੰਬੰਧ ਬਣਾਈ ਰੱਖਣਾ"
+    "cruising_description": "ਲੈਣ-ਦੇਣ ਤੋਂ ਬਾਅਦ, ਸਥਿਰ — ਮੌਸਮੀ ਫ਼ਾਲੋ-ਅੱਪ"
   },
   "provinces": {
     "alberta": "ਅਲਬਰਟਾ",

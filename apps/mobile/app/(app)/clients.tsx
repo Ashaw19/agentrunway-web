@@ -625,8 +625,8 @@ function ClientRow({
       .reverse();
     if (!closedDates[0]) return null;
     const daysSince = Math.floor((Date.now() - new Date(closedDates[0] + "T00:00:00").getTime()) / 86400000);
-    const left = 90 - daysSince;
-    return daysSince > 60 && left > 0 ? left : null;
+    const left = 30 - daysSince;
+    return daysSince > 20 && left > 0 ? left : null;
   }, [client.status, client.name, getClientDeals]);
 
   const daysSince = client.last_contact_at
@@ -1171,8 +1171,8 @@ function ClientDetailSheet({
               .reverse();
             if (!closedDates[0]) return null;
             const daysSince = Math.floor((Date.now() - new Date(closedDates[0] + "T00:00:00").getTime()) / 86400000);
-            const left = 90 - daysSince;
-            if (daysSince > 60 && left > 0) {
+            const left = 30 - daysSince;
+            if (daysSince > 20 && left > 0) {
               return (
                 <Text style={[Type.micro, { color: "#D97706", marginTop: 2 }]}>
                   {t(left !== 1 ? "detail.transitioningToCruising_plural" : "detail.transitioningToCruising", { count: left })}

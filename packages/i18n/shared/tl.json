@@ -1,17 +1,17 @@
 {
   "flight_status": {
     "boarding": "Boarding",
-    "boarding_description": "Bagong prospect o lead",
+    "boarding_description": "Kakadagdag lang sa CRM — ilipat sa Taxiing agad",
     "taxiing": "Taxiing",
-    "taxiing_description": "Naghahanda para kumilos",
+    "taxiing_description": "Engaged at umuunlad — naghahanda para kumilos",
     "approach": "Approach",
-    "approach_description": "Aktibong tumitingin ng mga bahay, handang mag-alok",
+    "approach_description": "Aktibong tumitingin ng mga bahay o naghahanda mag-alok",
     "in_flight": "In-Flight",
-    "in_flight_description": "Nasa kontrata",
+    "in_flight_description": "Nasa transaksyon — nag-alok na, may kundisyon, o firm",
     "landed": "Landed",
-    "landed_description": "Naisara ang deal",
+    "landed_description": "Kakasara lang — 30-araw na post-close window",
     "cruising": "Cruising",
-    "cruising_description": "Dating kliyente, pinapanatili ang relasyon"
+    "cruising_description": "Pagkatapos ng transaksyon, settled — seasonal na follow-up"
   },
   "provinces": {
     "alberta": "Alberta",

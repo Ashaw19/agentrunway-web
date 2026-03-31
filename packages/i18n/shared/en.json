@@ -1,17 +1,17 @@
 {
   "flight_status": {
     "boarding": "Boarding",
-    "boarding_description": "New lead or prospect",
+    "boarding_description": "Just added to CRM — move to Taxiing ASAP",
     "taxiing": "Taxiing",
-    "taxiing_description": "Gearing up to act",
+    "taxiing_description": "Engaged and warming up — gearing up to act",
     "approach": "Approach",
-    "approach_description": "Actively viewing homes, preparing to offer",
+    "approach_description": "Actively viewing homes or preparing to offer",
     "in_flight": "In-Flight",
-    "in_flight_description": "Under contract",
+    "in_flight_description": "In a transaction — offer made, conditional, or firm",
     "landed": "Landed",
-    "landed_description": "Deal closed",
+    "landed_description": "Just closed — 30-day post-close window",
     "cruising": "Cruising",
-    "cruising_description": "Past client, nurturing"
+    "cruising_description": "Post-transaction, settled — seasonal check-ins"
   },
   "provinces": {
     "alberta": "Alberta",

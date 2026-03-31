@@ -1,17 +1,17 @@
 {
   "flight_status": {
     "boarding": "Boarding",
-    "boarding_description": "New lead or prospect",
+    "boarding_description": "刚添加到CRM — 尽快转到滑行",
     "taxiing": "Taxiing",
-    "taxiing_description": "Gearing up to act",
+    "taxiing_description": "已参与并在推进 — 准备行动",
     "approach": "Approach",
-    "approach_description": "Actively viewing homes, preparing to offer",
+    "approach_description": "正在积极看房或准备出价",
     "in_flight": "In-Flight",
-    "in_flight_description": "Under contract",
+    "in_flight_description": "交易中 — 已出价、有条件、或已确认",
     "landed": "Landed",
-    "landed_description": "Deal closed",
+    "landed_description": "刚成交 — 30天交割后跟进期",
     "cruising": "Cruising",
-    "cruising_description": "Past client, nurturing"
+    "cruising_description": "交易后已稳定 — 季节性跟进"
   },
   "provinces": {
     "alberta": "Alberta",
