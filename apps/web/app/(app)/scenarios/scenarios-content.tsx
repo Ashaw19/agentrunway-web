@@ -189,6 +189,17 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
 
   const province = (seed.province || "ontario") as Province;
 
+  // Track how many inputs differ from seed (for Reset button)
+  const modifiedCount = [
+    scenarioGCI !== seed.projectedAnnualGCI,
+    scenarioDealCount !== seed.dealCount,
+    scenarioRRSP !== 0,
+    scenarioIncorporated !== seed.isIncorporated,
+    scenarioCompMethod !== ((seed.compensationMethod as "salary" | "dividends" | "mixed") || "salary"),
+    scenarioMonthlyRecurring !== seed.monthlyRecurring,
+    scenarioCashReserve !== seed.cashReserve,
+  ].filter(Boolean).length;
+
   // Shared args for split/fee deductions (passed to computeResult)
   const deductionArgs = [
     seed.splitPreset,
@@ -264,6 +275,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
     runwayScore: scenario.runwayScore - current.runwayScore,
     survivalMonths: scenario.survivalMonths - current.survivalMonths,
   };
+  const hasChanges = modifiedCount > 0;
 
   // ── GCI slider bounds ────────────────────────────────────────────────
   const gciMin = 0;
@@ -287,8 +299,8 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
       <div className="flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/30 px-3 py-2 text-xs text-slate-400">
         <Info className="h-3.5 w-3.5 shrink-0 text-slate-500" />
         <span>
-          Estimates based on your current data and {new Date().getFullYear()} Canadian tax rates.
-          Not financial advice.
+          Your Projection uses your real dashboard data. What If is hypothetical
+          and does not change your records. {new Date().getFullYear()} Canadian tax rates. Not financial advice.
         </span>
       </div>
 
@@ -489,6 +501,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
             {/* Reset button */}
             <button
               type="button"
+              disabled={modifiedCount === 0}
               onClick={() => {
                 setScenarioGCI(seed.projectedAnnualGCI);
                 setScenarioDealCount(seed.dealCount);
@@ -500,9 +513,15 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                 setScenarioMonthlyRecurring(seed.monthlyRecurring);
                 setScenarioCashReserve(seed.cashReserve);
               }}
-              className="w-full rounded-lg border border-slate-600 bg-slate-700/30 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-700/60 transition-colors"
+              className={`w-full rounded-lg border py-2 text-xs font-medium transition-colors ${
+                modifiedCount > 0
+                  ? "border-slate-600 bg-slate-700/30 text-slate-300 hover:text-white hover:bg-slate-700/60"
+                  : "border-slate-700/30 bg-slate-800/20 text-slate-600 cursor-default"
+              }`}
             >
-              Reset to Current
+              {modifiedCount > 0
+                ? `Reset to Current (${modifiedCount} changed)`
+                : "No changes"}
             </button>
           </div>
         </div>
@@ -513,82 +532,90 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
           <div className="grid grid-cols-2 gap-4">
             {/* Current Column */}
             <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-5">
-              <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Current
-              </h3>
-              <div className="space-y-4">
-                <MetricRow label="Tax Owed" value={fmtCurrency(current.taxOwed)} />
-                <MetricRow label="Net Income" value={fmtCurrency(current.netIncome)} />
-                <MetricRow
-                  label="Effective Rate"
-                  value={fmtPct(current.effectiveRate)}
-                />
-                <MetricRow
-                  label="Quarterly Instalment"
-                  value={fmtCurrency(current.quarterlyInstalment)}
-                />
-                <MetricRow
-                  label="Per-Deal Set-Aside"
-                  value={fmtCurrency(current.perDealSetAside)}
-                />
-                <div className="border-t border-slate-700/50 pt-3">
+              <div className="mb-4">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Your Projection
+                </h3>
+                <p className="mt-0.5 text-[10px] text-slate-600">Based on your dashboard data</p>
+              </div>
+              <div className="space-y-1">
+                {/* Primary metrics — larger */}
+                <PrimaryMetricRow label="Net Income" value={fmtCurrency(current.netIncome)} />
+                <PrimaryMetricRow label="Tax Owed" value={fmtCurrency(current.taxOwed)} />
+                <div className="!mt-3 space-y-2 border-t border-slate-700/50 pt-3">
+                  <MetricRow
+                    label="Effective Rate"
+                    value={fmtPct(current.effectiveRate)}
+                  />
+                  <MetricRow
+                    label="Quarterly Instalment"
+                    value={fmtCurrency(current.quarterlyInstalment)}
+                  />
+                  <MetricRow
+                    label="Per-Deal Set-Aside"
+                    value={fmtCurrency(current.perDealSetAside)}
+                  />
+                </div>
+                <div className="!mt-3 space-y-2 border-t border-slate-700/50 pt-3">
                   <MetricRow
                     label="Runway Score"
                     value={`${current.runwayScore}`}
                     badge={current.runwayGrade}
                     badgeColor={gradeColor(current.runwayGrade)}
                   />
-                  <div className="mt-2">
-                    <MetricRow
-                      label="Survival"
-                      value={
-                        current.survivalMonths >= 24
-                          ? "24+ mo"
-                          : `${current.survivalMonths.toFixed(1)} mo`
-                      }
-                    />
-                  </div>
+                  <MetricRow
+                    label="Survival"
+                    value={
+                      current.survivalMonths >= 24
+                        ? "24+ mo"
+                        : `${current.survivalMonths.toFixed(1)} mo`
+                    }
+                  />
                 </div>
               </div>
             </div>
 
             {/* Scenario Column */}
             <div className="rounded-xl border border-violet-500/30 bg-violet-950/20 p-5">
-              <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-violet-400">
-                Scenario
-              </h3>
-              <div className="space-y-4">
-                <MetricRow label="Tax Owed" value={fmtCurrency(scenario.taxOwed)} />
-                <MetricRow label="Net Income" value={fmtCurrency(scenario.netIncome)} />
-                <MetricRow
-                  label="Effective Rate"
-                  value={fmtPct(scenario.effectiveRate)}
-                />
-                <MetricRow
-                  label="Quarterly Instalment"
-                  value={fmtCurrency(scenario.quarterlyInstalment)}
-                />
-                <MetricRow
-                  label="Per-Deal Set-Aside"
-                  value={fmtCurrency(scenario.perDealSetAside)}
-                />
-                <div className="border-t border-slate-700/50 pt-3">
+              <div className="mb-4">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-violet-400">
+                  What If
+                </h3>
+                <p className="mt-0.5 text-[10px] text-violet-400/50">Hypothetical — does not change your data</p>
+              </div>
+              <div className="space-y-1">
+                {/* Primary metrics — larger */}
+                <PrimaryMetricRow label="Net Income" value={fmtCurrency(scenario.netIncome)} />
+                <PrimaryMetricRow label="Tax Owed" value={fmtCurrency(scenario.taxOwed)} />
+                <div className="!mt-3 space-y-2 border-t border-slate-700/50 pt-3">
+                  <MetricRow
+                    label="Effective Rate"
+                    value={fmtPct(scenario.effectiveRate)}
+                  />
+                  <MetricRow
+                    label="Quarterly Instalment"
+                    value={fmtCurrency(scenario.quarterlyInstalment)}
+                  />
+                  <MetricRow
+                    label="Per-Deal Set-Aside"
+                    value={fmtCurrency(scenario.perDealSetAside)}
+                  />
+                </div>
+                <div className="!mt-3 space-y-2 border-t border-slate-700/50 pt-3">
                   <MetricRow
                     label="Runway Score"
                     value={`${scenario.runwayScore}`}
                     badge={scenario.runwayGrade}
                     badgeColor={gradeColor(scenario.runwayGrade)}
                   />
-                  <div className="mt-2">
-                    <MetricRow
-                      label="Survival"
-                      value={
-                        scenario.survivalMonths >= 24
-                          ? "24+ mo"
-                          : `${scenario.survivalMonths.toFixed(1)} mo`
-                      }
-                    />
-                  </div>
+                  <MetricRow
+                    label="Survival"
+                    value={
+                      scenario.survivalMonths >= 24
+                        ? "24+ mo"
+                        : `${scenario.survivalMonths.toFixed(1)} mo`
+                    }
+                  />
                 </div>
               </div>
             </div>
@@ -599,35 +626,41 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
             <h3 className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
               Impact
             </h3>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-5">
-              <DeltaCard
-                label="Tax"
-                delta={deltas.taxOwed}
-                formatted={fmtCurrency(Math.abs(deltas.taxOwed))}
-                inverted
-              />
-              <DeltaCard
-                label="Net Income"
-                delta={deltas.netIncome}
-                formatted={fmtCurrency(Math.abs(deltas.netIncome))}
-              />
-              <DeltaCard
-                label="Eff. Rate"
-                delta={deltas.effectiveRate}
-                formatted={`${Math.abs(deltas.effectiveRate * 100).toFixed(1)}pp`}
-                inverted
-              />
-              <DeltaCard
-                label="Runway"
-                delta={deltas.runwayScore}
-                formatted={`${Math.abs(deltas.runwayScore)} pts`}
-              />
-              <DeltaCard
-                label="Survival"
-                delta={deltas.survivalMonths}
-                formatted={`${Math.abs(deltas.survivalMonths).toFixed(1)} mo`}
-              />
-            </div>
+            {hasChanges ? (
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-5">
+                <DeltaCard
+                  label="Tax"
+                  delta={deltas.taxOwed}
+                  formatted={fmtCurrency(Math.abs(deltas.taxOwed))}
+                  inverted
+                />
+                <DeltaCard
+                  label="Net Income"
+                  delta={deltas.netIncome}
+                  formatted={fmtCurrency(Math.abs(deltas.netIncome))}
+                />
+                <DeltaCard
+                  label="Eff. Rate"
+                  delta={deltas.effectiveRate}
+                  formatted={`${Math.abs(deltas.effectiveRate * 100).toFixed(1)}%`}
+                  inverted
+                />
+                <DeltaCard
+                  label="Runway"
+                  delta={deltas.runwayScore}
+                  formatted={`${Math.abs(deltas.runwayScore)} pts`}
+                />
+                <DeltaCard
+                  label="Survival"
+                  delta={deltas.survivalMonths}
+                  formatted={`${Math.abs(deltas.survivalMonths).toFixed(1)} mo`}
+                />
+              </div>
+            ) : (
+              <p className="text-center text-sm text-slate-500 py-2">
+                Adjust an input or try a quick scenario to see the impact.
+              </p>
+            )}
           </div>
 
           {/* Quick question shortcuts */}
@@ -676,6 +709,15 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
 }
 
 // ── Subcomponents ──────────────────────────────────────────────────────────
+
+function PrimaryMetricRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between py-1">
+      <span className="text-sm font-medium text-slate-300">{label}</span>
+      <span className="text-lg font-bold text-white tabular-nums">{value}</span>
+    </div>
+  );
+}
 
 function MetricRow({
   label,
