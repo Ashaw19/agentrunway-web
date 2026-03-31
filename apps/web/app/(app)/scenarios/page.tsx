@@ -91,15 +91,17 @@ export default async function ScenariosPage() {
       0,
     );
     const sbExpenseItems = getSandboxExpenseItems(sb);
-    const categoryExpenses = sbExpenseItems.reduce(
-      (sum, item) => sum + Number(item.amount ?? 0),
-      0,
-    );
     const receiptYTD = getSandboxReceiptYTD(sb);
+    // Monthly recurring from expense items — matches dashboard (line 554–557)
     const monthlyRecurring = sbExpenseItems.reduce(
       (sum, item) => sum + Number(item.monthly_recurring ?? 0),
       0,
     );
+    // expensesYTD: max(receiptTotal, recurringYTDEstimate) — matches dashboard (line 559–561)
+    const now = new Date();
+    const expMonthsElapsed = now.getMonth() + (now.getDate() / 30);
+    const recurringYTDEstimate = monthlyRecurring * expMonthsElapsed;
+    const expensesYTD = Math.max(receiptYTD, recurringYTDEstimate);
 
     const qPcts = merged.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25];
     const fraction = seasonalFractionElapsed(qPcts);
@@ -113,7 +115,7 @@ export default async function ScenariosPage() {
       dealCount: closedTx.length,
       pipelineWeightedGCI,
       monthlyRecurring,
-      expensesYTD: categoryExpenses + receiptYTD,
+      expensesYTD,
       monthlyBrokerageFee: merged.monthly_brokerage_fee ?? 0,
       cashReserve: merged.cash_reserve ?? 0,
       isIncorporated: merged.is_incorporated ?? false,
@@ -128,7 +130,7 @@ export default async function ScenariosPage() {
     };
   } else {
     // Live Supabase queries
-    const [txResult, pipelineResult, expCatResult, expItemResult, receiptResult] =
+    const [txResult, pipelineResult, expItemResult, receiptResult] =
       await Promise.all([
         supabase
           .from("transactions")
@@ -139,11 +141,6 @@ export default async function ScenariosPage() {
           .limit(10000),
         supabase
           .from("pipeline_deals")
-          .select("*")
-          .eq("user_id", user.id)
-          .limit(10000),
-        supabase
-          .from("expense_categories")
           .select("*")
           .eq("user_id", user.id)
           .limit(10000),
@@ -169,26 +166,21 @@ export default async function ScenariosPage() {
       0,
     );
 
-    // Build expense total: category items + receipt expenses (matches dashboard logic)
+    // Monthly recurring from expense items — matches dashboard (line 554–557)
     const expenseItems = expItemResult.data ?? [];
-    const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
-      ...cat,
-      items: expenseItems.filter((i) => i.category_id === cat.id),
-    }));
-    const categoryExpenses = expenseCategories.reduce(
-      (sum, cat) =>
-        sum + cat.items.reduce((s: number, i: { amount: number }) => s + Number(i.amount ?? 0), 0),
-      0,
-    );
-    const receiptYTD = (receiptResult.data ?? []).reduce(
-      (sum, r) => sum + Number(r.total_amount ?? 0),
-      0,
-    );
-    // Monthly recurring from expense items — same computation as dashboard
     const monthlyRecurring = expenseItems.reduce(
       (sum, i) => sum + Number(i.monthly_recurring ?? 0),
       0,
     );
+    // expensesYTD: max(receiptTotal, recurringYTDEstimate) — matches dashboard (line 559–561)
+    const receiptYTD = (receiptResult.data ?? []).reduce(
+      (sum, r) => sum + Number(r.total_amount ?? 0),
+      0,
+    );
+    const now = new Date();
+    const expMonthsElapsed = now.getMonth() + (now.getDate() / 30);
+    const recurringYTDEstimate = monthlyRecurring * expMonthsElapsed;
+    const expensesYTD = Math.max(receiptYTD, recurringYTDEstimate);
 
     const qPcts = settingsRow?.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25];
     const fraction = seasonalFractionElapsed(qPcts);
@@ -202,7 +194,7 @@ export default async function ScenariosPage() {
       dealCount: transactions.length,
       pipelineWeightedGCI,
       monthlyRecurring,
-      expensesYTD: categoryExpenses + receiptYTD,
+      expensesYTD,
       monthlyBrokerageFee: settingsRow?.monthly_brokerage_fee ?? 0,
       cashReserve: settingsRow?.cash_reserve ?? 0,
       isIncorporated: settingsRow?.is_incorporated ?? false,
