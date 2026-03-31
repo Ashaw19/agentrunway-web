@@ -446,6 +446,8 @@ export interface Transaction {
   // Waterfall: sale_price × commission_pct × team_split_pct × brokerage_split = net
   team_split_pct?: number | null;
 
+  pipeline_deal_id: string | null;  // FK to pipeline_deals for accuracy tracking
+
   created_at: string;
   updated_at: string;
 }
@@ -463,6 +465,8 @@ export interface PipelineDeal {
   client_name: string;
   notes: string;
   probability_override: number | null;
+  client_id: string | null;                // FK to clients table
+  original_estimated_price: number | null;  // snapshot at creation for accuracy tracking
 
   created_at: string;
   updated_at: string;
@@ -800,6 +804,9 @@ export interface ListingAppointment {
   actual_list_price:    number | null; // what it listed for
   actual_sale_price:    number | null; // what it sold for
   status:               string;        // ListingStatus value
+  estimated_commission_pct: number | null; // agent's expected commission rate
+  expected_close_date:      string | null; // when the agent expects the listing to sell
+  listing_agreement_date:   string | null; // when the listing agreement was signed
   notes:                string | null;
   created_at:           string;
   updated_at:           string;
