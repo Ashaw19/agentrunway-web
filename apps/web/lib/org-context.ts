@@ -56,7 +56,7 @@ export async function getOrgContext(): Promise<OrgContext | null> {
   return {
     org,
     membership,
-    isAdmin: membership.role === "owner" || membership.role === "admin",
-    isOwner: membership.role === "owner",
+    isAdmin: ["owner", "admin", "team_leader"].includes(membership.role),
+    isOwner: org.owner_id === user.id,
   };
 }

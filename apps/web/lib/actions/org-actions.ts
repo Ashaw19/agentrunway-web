@@ -55,7 +55,7 @@ async function verifyAdminRole(
 
   if (!data) return { isAdmin: false, membership: null };
   return {
-    isAdmin: data.role === "owner" || data.role === "admin",
+    isAdmin: ["owner", "admin", "team_leader"].includes(data.role),
     membership: data as OrganizationMember,
   };
 }
@@ -406,9 +406,9 @@ export async function updateMemberRole(
   const { isAdmin, membership } = await verifyAdminRole(orgId, userId);
   if (!isAdmin) return { data: null, error: "Only admins can change roles" };
 
-  // Only owners can promote to admin
-  if (newRole === "admin" && membership?.role !== "owner") {
-    return { data: null, error: "Only the owner can promote members to admin" };
+  // Only team_leaders/admins can promote to admin or team_leader
+  if (["admin", "team_leader"].includes(newRole) && !["owner", "admin", "team_leader"].includes(membership?.role ?? "")) {
+    return { data: null, error: "Only team leaders and admins can promote members" };
   }
 
   const supabase = await createClient();
