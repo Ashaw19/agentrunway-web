@@ -26,6 +26,7 @@ export default async function OrgSettingsPage() {
     <OrgSettingsContent
       org={orgContext.org}
       isOwner={orgContext.isOwner}
+      role={orgContext.membership.role}
       activeMemberCount={activeMemberCount ?? 0}
     />
   );

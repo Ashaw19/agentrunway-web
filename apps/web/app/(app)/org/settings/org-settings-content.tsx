@@ -14,10 +14,11 @@ import { ORG_TYPE_LABELS } from "@/lib/types/organizations";
 interface Props {
   org: Organization;
   isOwner: boolean;
+  role: string;
   activeMemberCount?: number;
 }
 
-export function OrgSettingsContent({ org, isOwner, activeMemberCount = 0 }: Props) {
+export function OrgSettingsContent({ org, isOwner, role, activeMemberCount = 0 }: Props) {
   const router = useRouter();
   const [name, setName] = useState(org.name);
   const [anonymize, setAnonymize] = useState(org.anonymize_agents);
@@ -195,8 +196,8 @@ export function OrgSettingsContent({ org, isOwner, activeMemberCount = 0 }: Prop
         </div>
       </div>
 
-      {/* Billing & Subscription — visible to all admin-level roles */}
-      <div className="rounded-xl border bg-card p-5 space-y-5">
+      {/* Billing & Subscription — team_leader only */}
+      {["team_leader", "owner"].includes(role) && <div className="rounded-xl border bg-card p-5 space-y-5">
           <h3 className="text-sm font-semibold flex items-center gap-2">
             <CreditCard className="h-4 w-4 text-emerald-500" />
             Billing & Subscription
@@ -305,7 +306,7 @@ export function OrgSettingsContent({ org, isOwner, activeMemberCount = 0 }: Prop
               )}
             </div>
           )}
-      </div>
+      </div>}
 
       {/* Save */}
       <Button onClick={handleSave} disabled={saving} className="gap-2">
