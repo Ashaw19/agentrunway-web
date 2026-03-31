@@ -360,7 +360,7 @@ export function ReferralsContent({
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+        <div className="border-l-[3px] border-orange-500 pl-4">
           <h1 className="text-2xl font-bold tracking-tight">
             Referral Tracking
           </h1>

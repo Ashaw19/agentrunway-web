@@ -339,7 +339,7 @@ export function ForecastContent({
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/60 pb-5">
-        <div>
+        <div className="border-l-[3px] border-violet-500 pl-4">
           <h1 className="text-2xl font-semibold tracking-tight">Forecast</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Where you&apos;ll land this year — and what to do about the gap. &middot; {PROVINCE_LABELS[settings.province]}

@@ -494,7 +494,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
       {/* ── Page header ───────────────────────────────────────────────────── */}
       <div className="border-b border-border/60 pb-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+          <div className="border-l-[3px] border-rose-500 pl-4">
             <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
               Social Media Studio
               <Badge variant="outline" className="border-pink-300 bg-pink-50 text-pink-700 text-xs">

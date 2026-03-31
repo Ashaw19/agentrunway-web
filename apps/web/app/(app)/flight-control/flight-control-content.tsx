@@ -731,7 +731,7 @@ export function FlightControlContent({
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow-lg shadow-violet-500/20">
                   <Brain className="h-5 w-5 text-white" />
                 </span>
-                <div>
+                <div className="border-l-[3px] border-violet-500 pl-4">
                   <h1 className="text-xl font-bold tracking-tight text-foreground">
                     Flight Control
                   </h1>

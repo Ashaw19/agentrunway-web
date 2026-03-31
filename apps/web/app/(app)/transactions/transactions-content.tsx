@@ -345,7 +345,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
     <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-5">
-        <div>
+        <div className="border-l-[3px] border-emerald-500 pl-4">
           <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
           <p className="text-sm text-muted-foreground">
             {tab === "deals"

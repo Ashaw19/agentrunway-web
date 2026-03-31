@@ -2310,7 +2310,7 @@ export function ClientsContent({
     <div className="space-y-6">
       {/* ── Page header ──────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between border-b border-border/60 pb-5">
-        <div>
+        <div className="border-l-[3px] border-teal-500 pl-4">
           <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
           <p className="text-sm text-muted-foreground">
             The people who made your year — quantified.

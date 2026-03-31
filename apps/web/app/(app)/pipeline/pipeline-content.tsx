@@ -119,7 +119,7 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
   return (
     <div className="space-y-6">
       {/* ── Page Header ─────────────────────────────────────────────── */}
-      <div>
+      <div className="border-l-[3px] border-cyan-500 pl-4">
         <h1 className="text-2xl font-bold tracking-tight text-foreground">
           Pipeline
         </h1>

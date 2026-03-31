@@ -767,7 +767,7 @@ export function OverheadContent({
   return (
     <div className="space-y-8">
       {/* Page header */}
-      <div className="border-b border-border/60 pb-5">
+      <div className="border-b border-border/60 pb-5 border-l-[3px] border-l-amber-500 pl-4">
         <h1 className="text-2xl font-semibold tracking-tight">Overhead</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
           Tax command centre — readiness, take-home estimates, cap tracking, and savings opportunities.

@@ -676,7 +676,7 @@ export function ExpensesContent({
     <div className="space-y-8">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-5">
-        <div>
+        <div className="border-l-[3px] border-amber-500 pl-4">
           <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
           <p className="text-sm text-muted-foreground">
             Every dollar out counts. Know your burn, protect your runway.
