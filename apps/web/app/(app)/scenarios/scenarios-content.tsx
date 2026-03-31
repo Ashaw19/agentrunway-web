@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import type { ScenarioSeedData } from "./page";
 import type { Province } from "@/lib/types/database";
+import { computeAgentGross, computeTxFees } from "@/lib/types/database";
 import { calculate as calculateTax } from "@/lib/engines/canadian-tax-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
@@ -71,15 +72,41 @@ function computeResult(
   rrspContribution: number,
   isIncorporated: boolean,
   compensationMethod: "salary" | "dividends" | "mixed",
-  monthlyExpenses: number,
+  monthlyRecurring: number,
   cashReserve: number,
   goalGCI: number,
   pipelineWeightedGCI: number,
   province: Province,
   quarterPcts: number[],
   monthlyBrokerageFee: number,
+  splitPreset: ScenarioSeedData["splitPreset"],
+  postCapThreshold: number,
+  postCapAgentPct: number,
+  postCapBrokeragePct: number,
+  txFeeRate: number,
+  txFeeCap: number,
+  expensesYTD: number,
 ): ComputedResult {
-  const netIncomeSoleProp = Math.max(0, annualGCI - rrspContribution);
+  // ── Match dashboard: deduct split, fees, brokerage, expenses before tax ──
+  // Dashboard: projectedNet = agentGross - txFees - brokerageFeeAnnual
+  //            netForTax     = projectedNet - annualExpenses
+  const { agentGross } = computeAgentGross(
+    annualGCI,
+    splitPreset,
+    postCapThreshold,
+    postCapAgentPct,
+    postCapBrokeragePct,
+  );
+  const txFees = computeTxFees(annualGCI, txFeeRate, txFeeCap);
+  const brokerageFeeAnnual = monthlyBrokerageFee * 12;
+
+  // Dashboard projects annual expenses: expensesYTD + monthlyRecurring * remainingMonths
+  const now = new Date();
+  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
+  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
+
+  const projectedNet = agentGross - txFees - brokerageFeeAnnual;
+  const netForTax = Math.max(0, projectedNet - annualExpenses - rrspContribution);
 
   let taxOwed: number;
   let netIncome: number;
@@ -88,50 +115,45 @@ function computeResult(
   let perDealSetAside: number;
 
   if (isIncorporated) {
+    // Dashboard passes netForTax as corporateIncome (RRSP already deducted above for salary)
     const corpResult = calculateCorporateTax({
-      corporateIncome: annualGCI,
+      corporateIncome: netForTax,
       province,
       compensationMethod,
-      salaryAmount:
-        compensationMethod === "salary"
-          ? annualGCI
-          : compensationMethod === "mixed"
-            ? annualGCI * 0.5
-            : 0,
       dealCount: dealCount > 0 ? dealCount : 1,
     });
     taxOwed = corpResult.totalCombinedTax;
-    netIncome = corpResult.netPersonalIncome - rrspContribution;
-    effectiveRate = annualGCI > 0 ? taxOwed / annualGCI : 0;
+    netIncome = corpResult.netPersonalIncome;
+    effectiveRate = netForTax > 0 ? taxOwed / netForTax : 0;
     quarterlyInstalment = taxOwed / 4;
     perDealSetAside = dealCount > 0 ? taxOwed / dealCount : taxOwed;
   } else {
-    const taxResult = calculateTax(netIncomeSoleProp, province, dealCount > 0 ? dealCount : 1);
+    const taxResult = calculateTax(netForTax, province, dealCount > 0 ? dealCount : 1);
     taxOwed = taxResult.totalBurden;
-    netIncome = netIncomeSoleProp - taxOwed;
+    netIncome = netForTax - taxOwed;
     effectiveRate = taxResult.effectiveRate;
     quarterlyInstalment = taxResult.quarterlyEstimate;
     perDealSetAside = taxResult.perDealSetAside;
   }
 
-  // Runway score computation
+  // ── Runway score (uses YTD GCI for pace, not projected) ──────────────
   const fraction = seasonalFractionElapsed(quarterPcts);
   const healthReport = buildHealthReport(
     annualGCI,
     goalGCI,
     fraction,
     pipelineWeightedGCI,
-    monthlyExpenses * 12,
+    expensesYTD,
   );
 
-  // Survival months
+  // Survival months — uses monthlyRecurring (matches dashboard)
   const survival = survivalResult(
     monthlyBrokerageFee,
-    monthlyExpenses,
+    monthlyRecurring,
     cashReserve,
   );
 
-  const benchmarkPercentile = 50; // neutral benchmark for scenario comparison
+  const benchmarkPercentile = 50; // neutral — scenario isolates the effect of changes
   const runwayResult = computeRunwayScore(
     healthReport,
     benchmarkPercentile,
@@ -154,43 +176,49 @@ function computeResult(
 
 export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
   // ── Input state (scenario values — user adjusts these) ────────────────
-  const [scenarioGCI, setScenarioGCI] = useState(seed.ytdGCI);
+  const [scenarioGCI, setScenarioGCI] = useState(seed.projectedAnnualGCI);
   const [scenarioDealCount, setScenarioDealCount] = useState(seed.dealCount);
   const [scenarioRRSP, setScenarioRRSP] = useState(0);
   const [scenarioIncorporated, setScenarioIncorporated] = useState(seed.isIncorporated);
   const [scenarioCompMethod, setScenarioCompMethod] = useState<"salary" | "dividends" | "mixed">(
     (seed.compensationMethod as "salary" | "dividends" | "mixed") || "salary",
   );
-  const [scenarioMonthlyExpenses, setScenarioMonthlyExpenses] = useState(
-    Math.round(seed.expensesYTD / Math.max(1, new Date().getMonth() + 1)),
-  );
+  const [scenarioMonthlyRecurring, setScenarioMonthlyRecurring] = useState(seed.monthlyRecurring);
   const [scenarioCashReserve, setScenarioCashReserve] = useState(seed.cashReserve);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const province = (seed.province || "ontario") as Province;
 
-  // ── Current result (from real data) ───────────────────────────────────
-  const currentMonthlyExpenses = Math.round(
-    seed.expensesYTD / Math.max(1, new Date().getMonth() + 1),
-  );
+  // Shared args for split/fee deductions (passed to computeResult)
+  const deductionArgs = [
+    seed.splitPreset,
+    seed.postCapThreshold,
+    seed.postCapAgentPct,
+    seed.postCapBrokeragePct,
+    seed.txFeeRate,
+    seed.txFeeCap,
+    seed.expensesYTD,
+  ] as const;
 
+  // ── Current result (from real data — matches dashboard logic) ─────────
   const current = useMemo(
     () =>
       computeResult(
-        seed.ytdGCI,
+        seed.projectedAnnualGCI,
         seed.dealCount,
         0, // no RRSP adjustment for current
         seed.isIncorporated,
         (seed.compensationMethod as "salary" | "dividends" | "mixed") || "salary",
-        currentMonthlyExpenses,
+        seed.monthlyRecurring,
         seed.cashReserve,
         seed.goalGCI,
         seed.pipelineWeightedGCI,
         province,
         seed.quarterPcts,
         seed.monthlyBrokerageFee,
+        ...deductionArgs,
       ),
-    [seed, province, currentMonthlyExpenses],
+    [seed, province, deductionArgs],
   );
 
   // ── Scenario result (from user-adjusted inputs) ───────────────────────
@@ -202,13 +230,14 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
         scenarioRRSP,
         scenarioIncorporated,
         scenarioCompMethod,
-        scenarioMonthlyExpenses,
+        scenarioMonthlyRecurring,
         scenarioCashReserve,
         seed.goalGCI,
         seed.pipelineWeightedGCI,
         province,
         seed.quarterPcts,
         seed.monthlyBrokerageFee,
+        ...deductionArgs,
       ),
     [
       scenarioGCI,
@@ -216,13 +245,14 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
       scenarioRRSP,
       scenarioIncorporated,
       scenarioCompMethod,
-      scenarioMonthlyExpenses,
+      scenarioMonthlyRecurring,
       scenarioCashReserve,
       seed.goalGCI,
       seed.pipelineWeightedGCI,
       province,
       seed.quarterPcts,
       seed.monthlyBrokerageFee,
+      deductionArgs,
     ],
   );
 
@@ -237,7 +267,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
 
   // ── GCI slider bounds ────────────────────────────────────────────────
   const gciMin = 0;
-  const gciMax = Math.max(500_000, seed.goalGCI * 2, seed.ytdGCI * 2);
+  const gciMax = Math.max(500_000, seed.goalGCI * 2, seed.projectedAnnualGCI * 2);
   const gciStep = 5_000;
 
   return (
@@ -270,10 +300,10 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
               Scenario Inputs
             </h2>
 
-            {/* 1. Annual GCI */}
+            {/* 1. Projected Annual GCI */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-slate-300">Annual GCI</label>
+                <label className="text-sm font-medium text-slate-300">Projected Annual GCI</label>
                 <span className="text-sm font-semibold text-white tabular-nums">
                   {fmtCurrency(scenarioGCI)}
                 </span>
@@ -406,10 +436,10 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
 
             {showAdvanced && (
               <div className="space-y-4 border-t border-slate-700/50 pt-4">
-                {/* 6. Monthly Expenses */}
+                {/* 6. Monthly Recurring Expenses */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-300">
-                    Monthly Expenses
+                    Monthly Recurring
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
@@ -420,9 +450,9 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                       min={0}
                       max={50_000}
                       step={100}
-                      value={scenarioMonthlyExpenses}
+                      value={scenarioMonthlyRecurring}
                       onChange={(e) =>
-                        setScenarioMonthlyExpenses(
+                        setScenarioMonthlyRecurring(
                           clamp(Number(e.target.value), 0, 50_000),
                         )
                       }
@@ -460,14 +490,14 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
             <button
               type="button"
               onClick={() => {
-                setScenarioGCI(seed.ytdGCI);
+                setScenarioGCI(seed.projectedAnnualGCI);
                 setScenarioDealCount(seed.dealCount);
                 setScenarioRRSP(0);
                 setScenarioIncorporated(seed.isIncorporated);
                 setScenarioCompMethod(
                   (seed.compensationMethod as "salary" | "dividends" | "mixed") || "salary",
                 );
-                setScenarioMonthlyExpenses(currentMonthlyExpenses);
+                setScenarioMonthlyRecurring(seed.monthlyRecurring);
                 setScenarioCashReserve(seed.cashReserve);
               }}
               className="w-full rounded-lg border border-slate-600 bg-slate-700/30 py-2 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-700/60 transition-colors"
@@ -608,16 +638,16 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
             <div className="flex flex-wrap gap-2">
               <QuickButton
                 label="What if I earn $30K more?"
-                onClick={() => setScenarioGCI(seed.ytdGCI + 30_000)}
+                onClick={() => setScenarioGCI(seed.projectedAnnualGCI + 30_000)}
               />
               <QuickButton
                 label="What if I close 5 more deals?"
                 onClick={() => {
                   setScenarioDealCount(seed.dealCount + 5);
                   setScenarioGCI(
-                    seed.ytdGCI +
+                    seed.projectedAnnualGCI +
                       (seed.dealCount > 0
-                        ? (seed.ytdGCI / seed.dealCount) * 5
+                        ? (seed.projectedAnnualGCI / seed.dealCount) * 5
                         : 50_000),
                   );
                 }}

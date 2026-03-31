@@ -1,8 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ScenariosContent } from "./scenarios-content";
-import type { UserSettings, Transaction, PipelineDeal } from "@/lib/types/database";
+import type { UserSettings, Transaction, PipelineDeal, SplitPreset } from "@/lib/types/database";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
+import { projectedYearEndGCI, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
 import {
   isSandboxActive,
   getSandboxData,
@@ -19,16 +20,18 @@ export interface ScenarioSeedData {
   goalGCI: number;
   /** YTD GCI (closed transactions this year) */
   ytdGCI: number;
+  /** Projected annual GCI (year-end projection from pace + pipeline) */
+  projectedAnnualGCI: number;
   /** YTD closed deal count */
   dealCount: number;
   /** Pipeline weighted GCI total */
   pipelineWeightedGCI: number;
+  /** Monthly recurring expenses (from expense item monthly_recurring fields — matches dashboard) */
+  monthlyRecurring: number;
   /** Sum of all expense items + receipt expenses YTD */
   expensesYTD: number;
   /** Monthly brokerage fee from settings */
   monthlyBrokerageFee: number;
-  /** Monthly recurring expenses from settings */
-  monthlyRecurringExpenses: number;
   /** Cash reserve from settings */
   cashReserve: number;
   /** Whether incorporated */
@@ -37,6 +40,18 @@ export interface ScenarioSeedData {
   compensationMethod: string;
   /** Seasonal quarter weights */
   quarterPcts: number[];
+  /** Brokerage split preset */
+  splitPreset: SplitPreset;
+  /** Post-cap threshold GCI */
+  postCapThreshold: number;
+  /** Post-cap agent percentage */
+  postCapAgentPct: number;
+  /** Post-cap brokerage percentage */
+  postCapBrokeragePct: number;
+  /** Transaction fee rate (decimal) */
+  txFeeRate: number;
+  /** Transaction fee annual cap */
+  txFeeCap: number;
 }
 
 export default async function ScenariosPage() {
@@ -75,25 +90,41 @@ export default async function ScenariosPage() {
       (sum, d) => sum + computeWeightedGCI(d as PipelineDeal),
       0,
     );
-    const categoryExpenses = getSandboxExpenseItems(sb).reduce(
+    const sbExpenseItems = getSandboxExpenseItems(sb);
+    const categoryExpenses = sbExpenseItems.reduce(
       (sum, item) => sum + Number(item.amount ?? 0),
       0,
     );
     const receiptYTD = getSandboxReceiptYTD(sb);
+    const monthlyRecurring = sbExpenseItems.reduce(
+      (sum, item) => sum + Number(item.monthly_recurring ?? 0),
+      0,
+    );
+
+    const qPcts = merged.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25];
+    const fraction = seasonalFractionElapsed(qPcts);
+    const projectedAnnualGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, merged.goal_gci ?? 0);
 
     seed = {
       province: merged.province ?? "ontario",
       goalGCI: merged.goal_gci ?? 0,
       ytdGCI,
+      projectedAnnualGCI,
       dealCount: closedTx.length,
       pipelineWeightedGCI,
+      monthlyRecurring,
       expensesYTD: categoryExpenses + receiptYTD,
       monthlyBrokerageFee: merged.monthly_brokerage_fee ?? 0,
-      monthlyRecurringExpenses: merged.monthly_recurring_expenses ?? 0,
       cashReserve: merged.cash_reserve ?? 0,
       isIncorporated: merged.is_incorporated ?? false,
       compensationMethod: merged.compensation_method ?? "salary",
-      quarterPcts: merged.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25],
+      quarterPcts: qPcts,
+      splitPreset: (merged.split_preset ?? "p80_20") as SplitPreset,
+      postCapThreshold: merged.post_cap_threshold_gci ?? 0,
+      postCapAgentPct: merged.post_cap_agent_pct ?? 1,
+      postCapBrokeragePct: merged.post_cap_brokerage_pct ?? 0,
+      txFeeRate: merged.tx_fee_rate_pct ?? 0,
+      txFeeCap: merged.tx_fee_annual_cap ?? 0,
     };
   } else {
     // Live Supabase queries
@@ -138,12 +169,11 @@ export default async function ScenariosPage() {
       0,
     );
 
-    // Build expense total: category items + receipt expenses
+    // Build expense total: category items + receipt expenses (matches dashboard logic)
+    const expenseItems = expItemResult.data ?? [];
     const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
       ...cat,
-      items: (expItemResult.data ?? []).filter(
-        (i) => i.category_id === cat.id,
-      ),
+      items: expenseItems.filter((i) => i.category_id === cat.id),
     }));
     const categoryExpenses = expenseCategories.reduce(
       (sum, cat) =>
@@ -154,20 +184,36 @@ export default async function ScenariosPage() {
       (sum, r) => sum + Number(r.total_amount ?? 0),
       0,
     );
+    // Monthly recurring from expense items — same computation as dashboard
+    const monthlyRecurring = expenseItems.reduce(
+      (sum, i) => sum + Number(i.monthly_recurring ?? 0),
+      0,
+    );
+
+    const qPcts = settingsRow?.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25];
+    const fraction = seasonalFractionElapsed(qPcts);
+    const projectedAnnualGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, settingsRow?.goal_gci ?? 0);
 
     seed = {
       province: settingsRow?.province ?? "ontario",
       goalGCI: settingsRow?.goal_gci ?? 0,
       ytdGCI,
+      projectedAnnualGCI,
       dealCount: transactions.length,
       pipelineWeightedGCI,
+      monthlyRecurring,
       expensesYTD: categoryExpenses + receiptYTD,
       monthlyBrokerageFee: settingsRow?.monthly_brokerage_fee ?? 0,
-      monthlyRecurringExpenses: settingsRow?.monthly_recurring_expenses ?? 0,
       cashReserve: settingsRow?.cash_reserve ?? 0,
       isIncorporated: settingsRow?.is_incorporated ?? false,
       compensationMethod: settingsRow?.compensation_method ?? "salary",
-      quarterPcts: settingsRow?.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25],
+      quarterPcts: qPcts,
+      splitPreset: (settingsRow?.split_preset ?? "p80_20") as SplitPreset,
+      postCapThreshold: settingsRow?.post_cap_threshold_gci ?? 0,
+      postCapAgentPct: settingsRow?.post_cap_agent_pct ?? 1,
+      postCapBrokeragePct: settingsRow?.post_cap_brokerage_pct ?? 0,
+      txFeeRate: settingsRow?.tx_fee_rate_pct ?? 0,
+      txFeeCap: settingsRow?.tx_fee_annual_cap ?? 0,
     };
   }
 
