@@ -12,6 +12,7 @@ import {
   Calculator,
   Award,
   LineChart,
+  Star,
   Zap,
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
@@ -296,6 +297,17 @@ export default async function Home() {
     avatarUrl = settings?.avatar_url ?? undefined;
     displayName = settings?.display_name || user.email?.split("@")[0] || undefined;
   }
+
+  // Fetch approved testimonials for the homepage
+  const { data: testimonials } = await supabase
+    .from("testimonials")
+    .select("id, name, title, quote, rating")
+    .eq("approved", true)
+    .order("featured", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(6);
+
+  const AVATAR_COLORS = ["blue", "emerald", "violet", "teal"] as const;
 
   return (
     <div className="flex min-h-screen flex-col" style={{ background: "#010D1F" }}>
@@ -665,6 +677,86 @@ export default async function Home() {
             </div>
           </div>
         </section>
+
+        {/* ════════════════════════════════════════════════════════
+            TESTIMONIALS (dynamic — only renders when approved reviews exist)
+        ════════════════════════════════════════════════════════ */}
+        {testimonials && testimonials.length > 0 && (
+          <section className="relative px-6 py-16 sm:px-10" style={{ background: "#010D1F" }}>
+            <div className="pointer-events-none absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/15 blur-[120px]" />
+
+            <div className="relative mx-auto max-w-6xl">
+              <ScrollRevealSection className="mb-12 text-center">
+                <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
+                  What agents are{" "}
+                  <span
+                    style={{
+                      background: "linear-gradient(135deg, #34d399, #22d3ee)",
+                      WebkitBackgroundClip: "text",
+                      WebkitTextFillColor: "transparent",
+                    }}
+                  >
+                    saying
+                  </span>
+                </h2>
+                <p className="mt-4 text-lg text-slate-400">
+                  Real feedback from agents using Agent Runway to run their business.
+                </p>
+              </ScrollRevealSection>
+
+              <div className={`grid gap-5 ${testimonials.length === 1 ? "max-w-lg mx-auto" : testimonials.length === 2 ? "md:grid-cols-2 max-w-4xl mx-auto" : "md:grid-cols-3"}`}>
+                {testimonials.map((t, tIdx) => {
+                  const color = AVATAR_COLORS[tIdx % AVATAR_COLORS.length];
+                  const c = colorConfig(color);
+                  const initials = t.name
+                    .split(" ")
+                    .map((w: string) => w[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2);
+                  return (
+                    <ScrollRevealSection
+                      key={t.id}
+                      delay={(tIdx % 4) as 0 | 1 | 2 | 3 | 4}
+                      className="rounded-2xl p-px"
+                      style={{ background: c.borderGrad } as React.CSSProperties}
+                    >
+                      <figure
+                        className="flex h-full flex-col rounded-[15px] p-6"
+                        style={{ background: "#07101F" }}
+                      >
+                        <div className="mb-4 flex gap-0.5">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star
+                              key={s}
+                              className={`h-4 w-4 ${s <= (t.rating ?? 5) ? "fill-amber-400 text-amber-400" : "fill-slate-700 text-slate-700"}`}
+                            />
+                          ))}
+                        </div>
+                        <blockquote className="flex-1">
+                          <p className="text-sm leading-relaxed text-slate-300">
+                            &ldquo;{t.quote}&rdquo;
+                          </p>
+                        </blockquote>
+                        <figcaption className="mt-6 flex items-center gap-3">
+                          <div
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${c.avatar}`}
+                          >
+                            <span className="text-xs font-bold text-white">{initials}</span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-white">{t.name}</p>
+                            {t.title && <p className="text-xs text-slate-500">{t.title}</p>}
+                          </div>
+                        </figcaption>
+                      </figure>
+                    </ScrollRevealSection>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ════════════════════════════════════════════════════════
             CTA BAND
