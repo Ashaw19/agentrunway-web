@@ -318,6 +318,12 @@ export default function TaxSavingsGuidePage() {
               ctaLabel="Get Early Access"
               source="tax_calculator"
               variant="dark"
+              successHeading="You're in."
+              successSubtext="Want to see how this looks with your full numbers?"
+              successCtaLabel="View the Demo"
+              successCtaHref="/demo"
+              successSecondaryLabel="Or read why I built Agent Runway →"
+              successSecondaryHref="/about"
             />
           </div>
         </section>
