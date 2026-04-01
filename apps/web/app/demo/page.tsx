@@ -318,6 +318,26 @@ export default function DemoPage() {
           </div>
         </section>
 
+        {/* ── Insight Panel ── */}
+        <section className="bg-slate-50 px-6 py-12 sm:px-10">
+          <div className="mx-auto max-w-2xl">
+            <div className="rounded-xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                What this means for you
+              </p>
+              <p className="text-sm leading-relaxed text-slate-600">
+                Based on these numbers, this agent is on pace to exceed their
+                annual goal — but their tax reserve is underfunded. If they
+                don&apos;t adjust, they could face a significant tax gap at
+                year-end.
+              </p>
+              <p className="mt-3 text-xs font-medium text-blue-600">
+                This is what Agent Runway does automatically.
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* ── Product Sections ── */}
         {SECTIONS.map(({ id, tag, tagClass, heading, hint, explanation, bullets, Mockup, bg }, idx) => (
           <section key={id} id={id} className={`${bg} px-6 py-20 sm:px-10`}>
