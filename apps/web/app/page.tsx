@@ -645,7 +645,7 @@ export default async function Home() {
                   Built for Canadian agents. Every province. Every tax bracket. Every slowdown season.
                 </p>
 
-                <div className="mt-8">
+                <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
                   <Link
                     href="/login"
                     className="group inline-flex items-center rounded-xl px-8 py-3.5 text-sm font-bold text-white transition-all duration-200"
@@ -656,6 +656,12 @@ export default async function Home() {
                   >
                     Get Started
                     <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </Link>
+                  <Link
+                    href="/about"
+                    className="text-sm font-medium text-slate-400 underline underline-offset-4 hover:text-white transition-colors"
+                  >
+                    Read why I built Agent Runway →
                   </Link>
                 </div>
               </ScrollRevealSection>

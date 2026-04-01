@@ -137,6 +137,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
     {
+      url: `${BASE_URL}/how-much-should-real-estate-agents-save-for-taxes-canada`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
       url: `${BASE_URL}/real-estate-analytics-vs-spreadsheets`,
       lastModified: now,
       changeFrequency: "monthly",

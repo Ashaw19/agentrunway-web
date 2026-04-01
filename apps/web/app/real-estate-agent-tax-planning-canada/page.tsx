@@ -475,10 +475,10 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
               <Link
-                href="/features"
+                href="/about"
                 className="inline-flex items-center rounded-lg border border-slate-700 px-8 py-3 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-800"
               >
-                See All Features
+                Read the Founder Story
               </Link>
             </div>
           </div>
