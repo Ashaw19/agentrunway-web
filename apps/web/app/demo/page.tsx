@@ -190,6 +190,7 @@ const SECTIONS = [
     tag: "Dashboard Overview",
     tagClass: "bg-blue-100 text-blue-700",
     heading: "Your entire business at a glance",
+    hint: "Start here — your Runway Score tells you how healthy your business is right now",
     explanation:
       "The Agent Runway dashboard brings every key number together in one place — updated the moment you log a deal. See your year-to-date GCI, net income after splits and fees, deal count, average commission, and real-time pace against your annual goal.",
     bullets: [
@@ -207,6 +208,7 @@ const SECTIONS = [
     tag: "Income Forecasting",
     tagClass: "bg-emerald-100 text-emerald-700",
     heading: "Know where you'll land before year-end",
+    hint: "This shows where you're headed — not just where you've been",
     explanation:
       "Agent Runway combines your closed history, probability-weighted pipeline, and Canadian market seasonality to project a realistic year-end income range. Every forecast is expressed as a band of outcomes — not a single guess — so you can plan for both the conservative and optimistic scenarios.",
     bullets: [
@@ -224,6 +226,7 @@ const SECTIONS = [
     tag: "Expenses + Runway",
     tagClass: "bg-violet-100 text-violet-700",
     heading: "Understand costs and business resilience",
+    hint: "Your runway tells you how long you can operate without new deals closing",
     explanation:
       "Track every business expense by category and see your expense ratio against the 25–30% industry benchmark. Your financial runway — the number of months your cash reserve covers your fixed costs — is calculated automatically and classified from Critical to Strong.",
     bullets: [
@@ -241,6 +244,7 @@ const SECTIONS = [
     tag: "Reports",
     tagClass: "bg-rose-100 text-rose-700",
     heading: "Exportable analytics for your whole business",
+    hint: "This is what you should be setting aside for taxes — and sharing with your accountant",
     explanation:
       "Agent Runway's reports section brings your P&L summary, projected tax breakdown, expense analysis, monthly performance trends, and full transaction log into one printable view. Export a polished PDF to share with your accountant, advisor, or brokerage.",
     bullets: [
@@ -276,27 +280,21 @@ export default function DemoPage() {
 
           <div className="relative mx-auto max-w-3xl">
             <div className="mb-5 inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold text-blue-400">
-              ✦ Product Tour
+              Product Tour
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-              What running your business{" "}
-              <span style={{
-                background: "linear-gradient(135deg, #60a5fa, #a78bfa)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}>
-                actually looks like
-              </span>
+              This is what your business could look like with Agent Runway
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
-              Not a sales deck. Not a video. A real look at the dashboard Canadian agents use to{" "}
+              A real-time view of your income, expenses, taxes, and runway — not just estimates.
+              See the dashboard Canadian agents use to{" "}
               <Link
                 href="/how-real-estate-agents-track-gci"
                 className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
               >
                 track GCI
               </Link>
-              , forecast income, plan taxes, and never get caught off guard again.
+              , forecast income, and plan ahead with confidence.
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link
@@ -321,7 +319,7 @@ export default function DemoPage() {
         </section>
 
         {/* ── Product Sections ── */}
-        {SECTIONS.map(({ id, tag, tagClass, heading, explanation, bullets, Mockup, bg }, idx) => (
+        {SECTIONS.map(({ id, tag, tagClass, heading, hint, explanation, bullets, Mockup, bg }, idx) => (
           <section key={id} id={id} className={`${bg} px-6 py-20 sm:px-10`}>
             <div className="mx-auto max-w-5xl">
               <div
@@ -334,9 +332,14 @@ export default function DemoPage() {
                   <span className={`mb-3 inline-block rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${tagClass}`}>
                     {tag}
                   </span>
-                  <h2 className="mb-3 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                  <h2 className="mb-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
                     {heading}
                   </h2>
+                  {hint && (
+                    <p className="mb-4 text-sm italic text-slate-400">
+                      {hint}
+                    </p>
+                  )}
                   <p className="mb-6 text-base leading-relaxed text-slate-600">
                     {explanation}
                   </p>
@@ -348,15 +351,6 @@ export default function DemoPage() {
                       </li>
                     ))}
                   </ul>
-                  <div className="mt-7">
-                    <Link
-                      href="/login"
-                      className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:underline underline-offset-2"
-                    >
-                      Try it free
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
-                  </div>
                 </div>
 
                 {/* Screenshot placeholder */}
@@ -372,26 +366,39 @@ export default function DemoPage() {
         <section className="bg-slate-950 px-6 py-24 text-center sm:px-10">
           <div className="mx-auto max-w-2xl">
             <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Ready to explore the full dashboard?
+              Start tracking your real numbers
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-400">
-              Create a free account and connect your real numbers. Set your
-              annual GCI goal, log your first deal, and see your year-end
-              forecast update in real time — no credit card required.
+              Set your annual GCI goal, log your first deal, and see your
+              year-end forecast update in real time. Setup takes five minutes
+              — no credit card required.
             </p>
-            <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+            <div className="mt-10">
               <Link
                 href="/login"
-                className="inline-flex items-center rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
+                className="group inline-flex items-center rounded-xl px-10 py-4 text-sm font-bold text-white transition-all duration-200"
+                style={{
+                  background: "linear-gradient(135deg, #2563eb, #7c3aed)",
+                  boxShadow: "0 0 40px rgba(99,102,241,0.4)",
+                }}
               >
-                Create Free Account
-                <ArrowRight className="ml-2 h-4 w-4" />
+                Try Agent Runway Free
+                <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
+            </div>
+            <div className="mt-5 flex items-center justify-center gap-4">
               <Link
                 href="/pricing"
-                className="inline-flex items-center rounded-lg border border-slate-700 px-8 py-3 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-800"
+                className="text-sm font-medium text-slate-500 underline underline-offset-4 hover:text-white transition-colors"
               >
-                View Pricing
+                View pricing
+              </Link>
+              <span className="text-slate-700">·</span>
+              <Link
+                href="/about"
+                className="text-sm font-medium text-slate-500 underline underline-offset-4 hover:text-white transition-colors"
+              >
+                Read the founder story
               </Link>
             </div>
           </div>
