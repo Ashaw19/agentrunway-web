@@ -153,12 +153,13 @@ function calculateTax(
   const cpp2 = Math.max(0, cpp2Pensionable) * CPP2_RATE;
   const cpp = cpp1 + cpp2;
 
-  // HST/GST (on gross commission — agent collects on full GCI before split)
+  // HST/GST — agent must register once revenue exceeds $30K (Small Supplier threshold)
   const hstRate = prov?.hstRate ?? 0.05;
-  const hstGst = gci > 30_000 ? afterSplit * hstRate : 0;
+  const hstGst = afterSplit > 30_000 ? afterSplit * hstRate : 0;
 
   const totalTax = federalTax + provincialTax + cpp + hstGst;
-  const effectiveRate = taxableIncome > 0 ? totalTax / taxableIncome : 0;
+  // Effective rate excludes HST (sales tax, not income tax) so the % feels realistic
+  const effectiveRate = taxableIncome > 0 ? (federalTax + provincialTax + cpp) / taxableIncome : 0;
   const perDealSetAside = avgDeals > 0 ? totalTax / avgDeals : 0;
   const monthlyReserve = totalTax / 12;
   const netIncome = taxableIncome - federalTax - provincialTax - cpp;
@@ -332,8 +333,13 @@ export function TaxSavingsCalculator() {
             <span className="text-2xl font-bold text-emerald-700 sm:text-3xl"> /mo</span>
           </p>
           <p className="mt-3 text-sm text-emerald-600">
-            {pct(result.effectiveRate)} of your {fmt(result.taxableIncome)} net business income
+            {pct(result.effectiveRate)} effective tax rate on {fmt(result.taxableIncome)} net business income
           </p>
+          {result.hstGst > 0 && (
+            <p className="mt-1 text-xs text-emerald-500/80">
+              Includes {fmt(result.hstGst)}/yr HST/GST remittance
+            </p>
+          )}
         </div>
 
         {/* Consequence line */}
