@@ -87,6 +87,13 @@ function Avatar({ src, name, size }: { src?: string; name?: string; size: number
   );
 }
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Capitalize the first letter of each word — "andrew shaw" → "Andrew Shaw" */
+function capitalize(s: string): string {
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface MarketingNavProps {
@@ -120,17 +127,40 @@ export function MarketingNav({
     let cancelled = false;
     const supabase = createClient();
 
+    async function resolveUser(userId: string, email?: string, meta?: Record<string, unknown>) {
+      // Fetch profile from user_settings (has real avatar + display name)
+      const { data: settings } = await supabase
+        .from("user_settings")
+        .select("avatar_url, display_name")
+        .eq("user_id", userId)
+        .single();
+
+      if (cancelled) return;
+
+      const avatar = settings?.avatar_url
+        ?? (meta?.avatar_url as string | undefined)
+        ?? (meta?.picture as string | undefined)
+        ?? undefined;
+
+      const rawName = settings?.display_name
+        || (meta?.full_name as string | undefined)
+        || (meta?.name as string | undefined)
+        || email?.split("@")[0]
+        || undefined;
+
+      setSessionUser({
+        loggedIn: true,
+        avatar,
+        name: rawName ? capitalize(rawName) : undefined,
+      });
+    }
+
     async function checkSession() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (cancelled) return;
         if (session?.user) {
-          const meta = session.user.user_metadata ?? {};
-          setSessionUser({
-            loggedIn: true,
-            avatar: meta.avatar_url ?? meta.picture ?? undefined,
-            name: meta.full_name ?? meta.name ?? session.user.email?.split("@")[0] ?? undefined,
-          });
+          resolveUser(session.user.id, session.user.email ?? undefined, session.user.user_metadata);
         } else {
           setSessionUser({ loggedIn: false });
         }
@@ -145,12 +175,7 @@ export function MarketingNav({
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (cancelled) return;
       if (session?.user) {
-        const meta = session.user.user_metadata ?? {};
-        setSessionUser({
-          loggedIn: true,
-          avatar: meta.avatar_url ?? meta.picture ?? undefined,
-          name: meta.full_name ?? meta.name ?? session.user.email?.split("@")[0] ?? undefined,
-        });
+        resolveUser(session.user.id, session.user.email ?? undefined, session.user.user_metadata);
       } else {
         setSessionUser({ loggedIn: false });
       }
@@ -165,7 +190,9 @@ export function MarketingNav({
   // Resolve final values: explicit props take priority over auto-detected
   const isLoggedIn  = isLoggedInProp ?? sessionUser?.loggedIn ?? false;
   const avatarUrl   = avatarUrlProp  ?? sessionUser?.avatar;
-  const displayName = displayNameProp ?? sessionUser?.name;
+  const displayName = (displayNameProp ?? sessionUser?.name)
+    ? capitalize((displayNameProp ?? sessionUser?.name)!)
+    : undefined;
   const firstName   = displayName?.trim().split(/\s+/)[0];
 
   // Close avatar dropdown on outside click
