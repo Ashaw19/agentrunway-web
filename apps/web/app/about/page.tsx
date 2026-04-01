@@ -236,13 +236,38 @@ export default function AboutPage() {
                     <div className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
                     <span className="ml-3 text-[10px] text-slate-500">agentrunway.ca/dashboard</span>
                   </div>
-                  <div className="flex aspect-[16/10] items-center justify-center p-8">
-                    <div className="text-center">
-                      <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600/20">
-                        <BarChart3 className="h-7 w-7 text-blue-400" />
+                  <div className="flex aspect-[16/10] items-center justify-center bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 p-8">
+                    {/* Stylized placeholder — simulated dashboard elements */}
+                    <div className="w-full max-w-[280px] space-y-3">
+                      {/* Score bar */}
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/20">
+                          <BarChart3 className="h-4 w-4 text-blue-400" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="h-2 w-16 rounded-full bg-slate-700" />
+                          <div className="mt-1.5 h-3 w-24 rounded-full bg-blue-500/30" />
+                        </div>
+                        <div className="h-6 w-12 rounded-md bg-emerald-500/20" />
                       </div>
-                      <p className="text-sm font-medium text-slate-400">Dashboard Preview</p>
-                      <p className="mt-1 text-xs text-slate-600">Screenshot coming soon</p>
+                      {/* KPI row */}
+                      <div className="grid grid-cols-3 gap-2">
+                        {[0.6, 0.8, 0.45].map((w, i) => (
+                          <div key={i} className="rounded-md border border-slate-700/50 bg-slate-800/50 p-2">
+                            <div className="h-1.5 w-8 rounded-full bg-slate-700" />
+                            <div className="mt-1.5 h-2.5 rounded-full bg-slate-600" style={{ width: `${w * 100}%` }} />
+                          </div>
+                        ))}
+                      </div>
+                      {/* Chart placeholder */}
+                      <div className="flex items-end gap-1 rounded-md border border-slate-700/50 bg-slate-800/50 p-2.5 pt-4">
+                        {[35, 50, 40, 65, 75, 55, 85, 70, 48, 60, 80, 58].map((h, i) => (
+                          <div key={i} className="flex-1 rounded-sm bg-blue-500/25" style={{ height: `${h * 0.4}px` }} />
+                        ))}
+                      </div>
+                      <p className="text-center text-[10px] font-medium tracking-wider text-slate-600 uppercase">
+                        Live dashboard preview
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -302,13 +327,35 @@ export default function AboutPage() {
                     <div className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
                     <span className="ml-3 text-[10px] text-slate-500">agentrunway.ca/overhead</span>
                   </div>
-                  <div className="flex aspect-[16/10] items-center justify-center p-8">
-                    <div className="text-center">
-                      <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600/20">
-                        <Calculator className="h-7 w-7 text-emerald-400" />
+                  <div className="flex aspect-[16/10] items-center justify-center bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 p-8">
+                    {/* Stylized placeholder — simulated tax breakdown */}
+                    <div className="w-full max-w-[280px] space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20">
+                          <Calculator className="h-4 w-4 text-emerald-400" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="h-2 w-20 rounded-full bg-slate-700" />
+                          <div className="mt-1.5 h-3 w-16 rounded-full bg-emerald-500/30" />
+                        </div>
                       </div>
-                      <p className="text-sm font-medium text-slate-400">Tax Planning Preview</p>
-                      <p className="mt-1 text-xs text-slate-600">Screenshot coming soon</p>
+                      {/* Tax breakdown rows */}
+                      {[0.7, 0.5, 0.35, 0.55].map((w, i) => (
+                        <div key={i} className="flex items-center justify-between rounded-md border border-slate-700/50 bg-slate-800/50 px-3 py-2">
+                          <div className="h-1.5 w-16 rounded-full bg-slate-700" />
+                          <div className="h-2 rounded-full bg-emerald-500/25" style={{ width: `${w * 60}px` }} />
+                        </div>
+                      ))}
+                      {/* Total bar */}
+                      <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5">
+                        <div className="flex items-center justify-between">
+                          <div className="h-2 w-12 rounded-full bg-emerald-500/30" />
+                          <div className="h-3 w-20 rounded-full bg-emerald-500/25" />
+                        </div>
+                      </div>
+                      <p className="text-center text-[10px] font-medium tracking-wider text-slate-600 uppercase">
+                        Live tax planning preview
+                      </p>
                     </div>
                   </div>
                 </div>

@@ -326,7 +326,7 @@ export default function TaxSavingsGuidePage() {
               automatically — federal, provincial, CPP, and HST/GST. No
               spreadsheets. No surprises at tax time.
             </p>
-            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            <div className="mt-8">
               <Link
                 href="/demo"
                 className="group inline-flex items-center rounded-xl px-10 py-4 text-sm font-bold text-white transition-all duration-200"
@@ -338,11 +338,17 @@ export default function TaxSavingsGuidePage() {
                 See Your Full Financial Picture
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
+            </div>
+            {/* Trust bridge */}
+            <div className="mt-6 border-t border-white/10 pt-6">
+              <p className="text-sm text-slate-500">
+                Want to understand how this fits into your full business?
+              </p>
               <Link
                 href="/about"
-                className="text-sm font-medium text-slate-400 underline underline-offset-4 hover:text-white transition-colors"
+                className="mt-1 inline-flex text-sm font-medium text-slate-400 underline underline-offset-4 hover:text-white transition-colors"
               >
-                Read the founder story →
+                Read why I built Agent Runway →
               </Link>
             </div>
           </div>

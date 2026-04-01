@@ -229,6 +229,7 @@ export function TaxSavingsCalculator() {
             <input
               id="gci"
               type="number"
+              inputMode="numeric"
               min={0}
               step={5000}
               value={gci}
@@ -247,6 +248,7 @@ export function TaxSavingsCalculator() {
             <input
               id="split"
               type="number"
+              inputMode="numeric"
               min={0}
               max={100}
               step={5}
@@ -268,6 +270,7 @@ export function TaxSavingsCalculator() {
             <input
               id="expenses"
               type="number"
+              inputMode="numeric"
               min={0}
               step={1000}
               value={expenses}
@@ -306,6 +309,7 @@ export function TaxSavingsCalculator() {
           <input
             id="deals"
             type="number"
+            inputMode="numeric"
             min={1}
             max={200}
             step={1}
@@ -319,20 +323,23 @@ export function TaxSavingsCalculator() {
       {/* ── Results ── */}
       <div className="mt-10">
         {/* ── HERO: Monthly reserve ── */}
-        <div className="mb-2 rounded-xl border-2 border-emerald-300 bg-emerald-50 px-6 py-8 text-center">
-          <p className="text-sm font-medium text-emerald-700">Recommended Monthly Tax Reserve</p>
+        <div className="mb-3 rounded-xl border-2 border-emerald-300 bg-emerald-50 px-6 py-8 text-center">
+          <p className="text-sm font-medium text-emerald-700">
+            You should be setting aside approximately:
+          </p>
           <p className="mt-2 text-5xl font-black tracking-tight text-emerald-900 sm:text-6xl">
             {fmt(result.monthlyReserve)}
+            <span className="text-2xl font-bold text-emerald-700 sm:text-3xl"> /mo</span>
           </p>
           <p className="mt-3 text-sm text-emerald-600">
             {pct(result.effectiveRate)} of your {fmt(result.taxableIncome)} net business income
           </p>
         </div>
 
-        {/* Actionable insight */}
-        <p className="mb-8 text-center text-sm text-slate-500">
+        {/* Consequence line */}
+        <p className="mb-8 text-center text-[13px] leading-relaxed text-slate-500">
           If you&apos;re not consistently setting this aside, you&apos;re likely
-          underestimating your tax liability.
+          underestimating your tax liability — and that gap compounds quickly.
         </p>
 
         {/* ── Secondary: key numbers ── */}
