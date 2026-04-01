@@ -22,6 +22,7 @@ import { SortableCard } from "./sortable-card";
 import {
   type CardId,
   CARD_REGISTRY,
+  SECTIONS,
   DEFAULT_ORDER,
   DEFAULT_HIDDEN,
   type DashboardLayout,
@@ -1007,13 +1008,13 @@ export function DashboardContent({
       ))}
 
       {/* Daily Briefing card */}
-      <div className="rounded-xl border border-blue-200/70 bg-white overflow-hidden">
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
         {/* Header */}
-        <div className="px-4 pt-3 pb-2 border-b border-blue-100/50">
+        <div className="px-4 pt-3 pb-2 border-b border-slate-100">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Zap className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-              <p className="text-xs font-semibold text-blue-800 uppercase tracking-wide">Daily Briefing</p>
+              <Zap className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+              <p className="text-xs font-semibold text-slate-800 uppercase tracking-wide">Daily Briefing</p>
             </div>
             <p className="text-[11px] text-slate-400">{dateLabel}</p>
           </div>
@@ -1054,11 +1055,11 @@ export function DashboardContent({
 
         {/* Start Here — primary action */}
         {startHereItem && (
-          <div className="px-4 py-2.5 bg-blue-50/60 border-b border-blue-100/50">
+          <div className="px-4 py-2.5 bg-slate-50/60 border-b border-slate-100">
             <div className="flex items-start gap-2">
-              <Crosshair className="h-3.5 w-3.5 text-blue-600 shrink-0 mt-0.5" />
+              <Crosshair className="h-3.5 w-3.5 text-slate-600 shrink-0 mt-0.5" />
               <div className="min-w-0">
-                <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-0.5">Start here</p>
+                <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">Start here</p>
                 <p className="text-xs font-medium text-slate-800 leading-snug">{startHereItem.title}</p>
                 <p className="text-[11px] text-slate-500 leading-snug">{startHereItem.detail}</p>
               </div>
@@ -1068,7 +1069,7 @@ export function DashboardContent({
 
         {/* Condition dates this week */}
         {upcomingConditions.length > 0 && (
-          <div className="px-4 py-2 border-b border-blue-100/50">
+          <div className="px-4 py-2 border-b border-slate-100">
             <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1">
               <Calendar className="h-3 w-3" />
               Condition dates
@@ -1123,8 +1124,8 @@ export function DashboardContent({
                 </div>
               )}
             </div>
-            <div className="mt-2 pt-1.5 border-t border-blue-100/50">
-              <Link href="/crm" className="text-[11px] text-blue-600 hover:text-blue-800 font-medium">
+            <div className="mt-2 pt-1.5 border-t border-slate-100">
+              <Link href="/crm" className="text-[11px] text-slate-500 hover:text-slate-800 font-medium">
                 View full briefing in CRM →
               </Link>
             </div>
@@ -1180,12 +1181,12 @@ export function DashboardContent({
     return (
       <div className="space-y-4">
         {periodRecap && (
-          <div className="rounded-xl border border-violet-200 bg-white px-4 py-3 flex items-center justify-between gap-3">
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-violet-800">
+              <p className="text-sm font-semibold text-slate-800">
                 {periodRecap.monthName} recap — {fmtCurrency(periodRecap.monthGCI)} · {periodRecap.monthTx} deal{periodRecap.monthTx !== 1 ? "s" : ""}
               </p>
-              <p className="text-xs text-violet-600 mt-0.5">
+              <p className="text-xs text-slate-500 mt-0.5">
                 {periodRecap.vsAvg >= 1.2
                   ? `↑ ${Math.round((periodRecap.vsAvg - 1) * 100)}% above your monthly average`
                   : periodRecap.vsAvg <= 0.8 && periodRecap.vsAvg > 0
@@ -1193,7 +1194,7 @@ export function DashboardContent({
                   : "Right in line with your monthly average"}
               </p>
             </div>
-            <CalendarCheck className="h-5 w-5 text-violet-400 shrink-0" />
+            <CalendarCheck className="h-5 w-5 text-slate-400 shrink-0" />
           </div>
         )}
         {narrative && (
@@ -1580,14 +1581,14 @@ export function DashboardContent({
     const upcoming = localTasks.filter((t) => t.due_date > todayStr).slice(0, 3);
     const shown    = [...overdue, ...dueToday, ...upcoming].slice(0, 5);
     return (
-      <Card className="rounded-2xl border-blue-200 bg-white shadow-sm">
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-semibold text-blue-900 flex items-center gap-2">
-              <CheckSquare className="h-4 w-4 text-blue-500" />
+            <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+              <CheckSquare className="h-4 w-4 text-slate-500" />
               Follow-up Tasks
             </CardTitle>
-            <Link href="/crm" className="text-xs text-blue-600 hover:underline font-medium">
+            <Link href="/crm" className="text-xs text-slate-500 hover:text-slate-800 hover:underline font-medium">
               View all →
             </Link>
           </div>
@@ -1642,9 +1643,9 @@ export function DashboardContent({
             );
           })}
           {localTasks.length > 5 && (
-            <p className="text-xs text-blue-700 text-center pt-1">
+            <p className="text-xs text-slate-500 text-center pt-1">
               +{localTasks.length - 5} more tasks —{" "}
-              <Link href="/crm" className="underline font-medium">view all in CRM</Link>
+              <Link href="/crm" className="underline font-medium text-slate-700">view all in CRM</Link>
             </p>
           )}
           {localTasks.length === 0 && staleLeadCount > 0 && (
@@ -1712,7 +1713,7 @@ export function DashboardContent({
 
   cardRenders["probability"] = (
     <div className="grid gap-4 sm:grid-cols-2">
-      <Card className="rounded-2xl border-blue-200 bg-white shadow-sm">
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-center gap-1.5">
             <CardTitle className="text-base">Projection Range</CardTitle>
@@ -1755,7 +1756,7 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-violet-200 bg-white shadow-sm">
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-center gap-1.5">
             <CardTitle className="text-base">Benchmark</CardTitle>
@@ -1898,11 +1899,11 @@ export function DashboardContent({
   })();
 
   cardRenders["corp_tax"] = (corpTaxResult && settings) ? (
-    <Card className="rounded-2xl border-violet-200 bg-white shadow-sm">
+    <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-violet-600" />
+            <Building2 className="h-4 w-4 text-slate-500" />
             <div>
               <CardTitle className="text-base">Corporate Tax Estimate</CardTitle>
               <CardDescription>
@@ -1928,9 +1929,9 @@ export function DashboardContent({
           <p className="text-xs text-slate-500">combined corp + personal tax at year-end</p>
         </div>
         <div className="space-y-2 text-sm">
-          <div className="flex justify-between items-center rounded-md bg-violet-100/80 px-3 py-1.5">
-            <span className="text-violet-900 font-medium">Corporate tax ({fmtPct(corpTaxResult.totalCorpRate)})</span>
-            <span className="font-bold text-violet-900">{fmtCurrency(corpTaxResult.corporateTax)}</span>
+          <div className="flex justify-between items-center rounded-md bg-slate-100 px-3 py-1.5">
+            <span className="text-slate-800 font-medium">Corporate tax ({fmtPct(corpTaxResult.totalCorpRate)})</span>
+            <span className="font-bold text-slate-800">{fmtCurrency(corpTaxResult.corporateTax)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">After-tax corp income</span>
@@ -1949,8 +1950,8 @@ export function DashboardContent({
         </div>
         {corpTaxResult.optimalSaving > 500 &&
           corpTaxResult.optimalMethod !== settings.compensation_method && (
-          <div className="mt-3 rounded-md bg-violet-100 border border-violet-200 px-3 py-2">
-            <p className="text-xs text-violet-800 font-medium">
+          <div className="mt-3 rounded-md bg-slate-50 border border-slate-200 px-3 py-2">
+            <p className="text-xs text-slate-700 font-medium">
               💡 Switching to {corpTaxResult.optimalMethod === "salary" ? "salary" : "dividends"} could save ~{fmtCurrency(corpTaxResult.optimalSaving)}/yr at your income level. Talk to your accountant before changing compensation structure.
             </p>
           </div>
@@ -1962,7 +1963,7 @@ export function DashboardContent({
             </p>
           </div>
         )}
-        <p className="mt-3 text-[10px] text-violet-700/70 leading-relaxed">
+        <p className="mt-3 text-[10px] text-slate-400 leading-relaxed">
           Estimates only · Not tax advice · Consult a qualified accountant
         </p>
       </CardContent>
@@ -1970,29 +1971,29 @@ export function DashboardContent({
   ) : null;
 
   cardRenders["tax_savings"] = (taxOptResult && taxOptResult.cardCount > 0) ? (
-    <Card className="rounded-2xl border-amber-200 bg-white shadow-sm">
+    <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base">💰 Tax Savings Opportunities</CardTitle>
+            <CardTitle className="text-base">Tax Savings Opportunities</CardTitle>
             <CardDescription>
               Estimated ~{fmtCurrency(taxOptResult.totalEstimatedSavings)}/yr in potential savings
             </CardDescription>
           </div>
           <Link
             href="/forecast"
-            className="text-xs text-amber-700 hover:text-amber-900 font-medium transition-colors shrink-0"
+            className="text-xs text-slate-500 hover:text-slate-800 font-medium transition-colors shrink-0"
           >
             See all on Forecast →
           </Link>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-[10px] text-amber-700/70 leading-relaxed italic">
+        <p className="text-[10px] text-slate-400 leading-relaxed italic">
           For educational purposes only — not tax advice. Consult a qualified accountant.
         </p>
         {taxOptResult.cards.map((card: TaxOptimizationCard) => (
-          <div key={card.id} className="rounded-lg border border-amber-100 bg-white p-3">
+          <div key={card.id} className="rounded-lg border border-slate-100 bg-white p-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-semibold truncate">{card.title}</p>
               <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-xs shrink-0 font-semibold">
@@ -2460,43 +2461,64 @@ export function DashboardContent({
       >
         <SortableContext items={cardOrder} strategy={verticalListSortingStrategy}>
           <div className="space-y-4">
-            {cardOrder
-              .filter((id) => customizeMode || !hiddenCards.has(id))
-              .map((id) => {
+            {(() => {
+              let lastSection: string | null = null;
+              const visibleCards = cardOrder.filter((id) => customizeMode || !hiddenCards.has(id));
+              return visibleCards.map((id) => {
                 const content = cardRenders[id];
                 const cardDef = CARD_REGISTRY.find((c) => c.id === id);
                 const isHidden = hiddenCards.has(id);
                 if (!customizeMode && (content == null || isHidden)) return null;
+
+                // Section header — show when section changes (skip in customize mode)
+                let sectionHeader: React.ReactNode = null;
+                if (!customizeMode && cardDef?.section && cardDef.section !== lastSection) {
+                  lastSection = cardDef.section;
+                  const sectionDef = SECTIONS.find((s) => s.id === cardDef.section);
+                  if (sectionDef) {
+                    sectionHeader = (
+                      <div key={`section-${sectionDef.id}`} className="pt-4 pb-1">
+                        <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+                          {sectionDef.label}
+                        </p>
+                      </div>
+                    );
+                  }
+                }
+
                 return (
-                  <SortableCard
-                    key={id}
-                    id={id}
-                    label={cardDef?.label ?? id}
-                    customizeMode={customizeMode}
-                    onHide={() => toggleHide(id)}
-                  >
-                    {isHidden ? (
-                      <div className="rounded-xl border-2 border-dashed border-border/50 bg-muted/20 px-4 py-3 flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-muted-foreground">{cardDef?.label}</p>
-                          <p className="text-xs text-muted-foreground/70">{cardDef?.description}</p>
+                  <div key={id}>
+                    {sectionHeader}
+                    <SortableCard
+                      id={id}
+                      label={cardDef?.label ?? id}
+                      customizeMode={customizeMode}
+                      onHide={() => toggleHide(id)}
+                    >
+                      {isHidden ? (
+                        <div className="rounded-xl border-2 border-dashed border-border/50 bg-muted/20 px-4 py-3 flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground">{cardDef?.label}</p>
+                            <p className="text-xs text-muted-foreground/70">{cardDef?.description}</p>
+                          </div>
+                          <button
+                            onClick={() => toggleShow(id)}
+                            className="flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg px-2.5 py-1.5 hover:bg-primary/5"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            Show
+                          </button>
                         </div>
-                        <button
-                          onClick={() => toggleShow(id)}
-                          className="flex items-center gap-1.5 text-xs font-medium text-primary border border-primary/30 rounded-lg px-2.5 py-1.5 hover:bg-primary/5"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          Show
-                        </button>
-                      </div>
-                    ) : content ?? (
-                      <div className="rounded-xl border border-dashed border-border/40 bg-muted/10 px-4 py-3 text-xs text-muted-foreground text-center">
-                        {cardDef?.label} — no data yet
-                      </div>
-                    )}
-                  </SortableCard>
+                      ) : content ?? (
+                        <div className="rounded-xl border border-dashed border-border/40 bg-muted/10 px-4 py-3 text-xs text-muted-foreground text-center">
+                          {cardDef?.label} — no data yet
+                        </div>
+                      )}
+                    </SortableCard>
+                  </div>
                 );
-              })}
+              });
+            })()}
           </div>
         </SortableContext>
       </DndContext>
