@@ -344,14 +344,10 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="rounded-xl bg-emerald-50/60 border border-emerald-200/50 border-b-2 border-b-emerald-500/40 px-6 py-5 flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
-            <ArrowLeftRight className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
-            <p className="text-sm text-muted-foreground">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             {tab === "deals"
               ? ytdCount > 0
                 ? <>{ytdCount} closed deal{ytdCount !== 1 ? "s" : ""} this year &middot; {fmtCurrency(ytdGCI)} GCI</>
@@ -360,7 +356,6 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
                 ? "Track deals in progress before they close."
                 : "Year-by-year production history and seasonal patterns."}
           </p>
-          </div>
         </div>
         {tab === "deals" && (
           <Button onClick={openAdd}>

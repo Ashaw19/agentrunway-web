@@ -36,59 +36,59 @@ const sidebarEntries: SidebarEntry[] = [
   { type: "header", label: "FINANCIALS" },
   {
     type: "item", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard,
-    iconActive: "text-blue-300", iconInactive: "text-blue-400/60", borderActive: "border-l-blue-400",
+    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
   },
   {
     type: "item", label: "Transactions", href: "/transactions", icon: ArrowLeftRight,
-    iconActive: "text-emerald-300", iconInactive: "text-emerald-400/60", borderActive: "border-l-emerald-400",
+    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
   },
   {
     type: "item", label: "Pipeline", href: "/pipeline", icon: Layers,
-    iconActive: "text-cyan-300", iconInactive: "text-cyan-400/60", borderActive: "border-l-cyan-400",
+    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
   },
   {
     type: "item", label: "Expenses", href: "/expenses", icon: Receipt,
-    iconActive: "text-amber-300", iconInactive: "text-amber-400/60", borderActive: "border-l-amber-400",
+    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
   },
   {
     type: "item", label: "Altimeter", subLabel: "Analytics", href: "/altimeter", icon: BarChart2,
-    iconActive: "text-blue-300", iconInactive: "text-blue-400/60", borderActive: "border-l-blue-400",
+    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
   },
   {
     type: "item", label: "Overhead", subLabel: "Taxes", href: "/overhead", icon: Receipt,
-    iconActive: "text-amber-300", iconInactive: "text-amber-400/60", borderActive: "border-l-amber-400",
+    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
   },
   {
     type: "item", label: "Forecast", href: "/forecast", icon: TrendingUp,
-    iconActive: "text-violet-300", iconInactive: "text-violet-400/60", borderActive: "border-l-violet-400",
+    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
   },
   {
     type: "item", label: "Reports", href: "/reports", icon: FileText,
-    iconActive: "text-slate-200", iconInactive: "text-slate-400/60", borderActive: "border-l-slate-400",
+    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
   },
   // ── CRM ────────────────────────────────────────────────────────
   { type: "header", label: "CRM" },
   {
     type: "item", label: "CRM", href: "/crm", icon: Users,
-    iconActive: "text-teal-300", iconInactive: "text-teal-400/60", borderActive: "border-l-teal-400",
+    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
   },
   {
     type: "item", label: "Flight Control", href: "/flight-control", icon: Sparkles,
-    iconActive: "text-violet-300", iconInactive: "text-violet-400/60", borderActive: "border-l-violet-400",
+    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
   },
   {
     type: "item", label: "Referrals", href: "/referrals", icon: Handshake,
-    iconActive: "text-orange-300", iconInactive: "text-orange-400/60", borderActive: "border-l-orange-400",
+    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
   },
   // ── TOOLS ──────────────────────────────────────────────────────
   { type: "header", label: "TOOLS" },
   {
     type: "item", label: "Social", href: "/social", icon: Share2,
-    iconActive: "text-rose-300", iconInactive: "text-rose-400/60", borderActive: "border-l-rose-400",
+    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
   },
   {
     type: "item", label: "Guide", href: "/guide", icon: BookOpen,
-    iconActive: "text-cyan-300", iconInactive: "text-cyan-400/60", borderActive: "border-l-cyan-400",
+    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
     dataTour: "guide-link",
   },
 ];
@@ -114,9 +114,9 @@ export function SidebarNav({
             : orgContext.org.name,
           href: "/org",
           icon: Building2,
-          iconActive: "text-orange-300",
-          iconInactive: "text-orange-400/60",
-          borderActive: "border-l-orange-400",
+          iconActive: "text-white",
+          iconInactive: "text-sidebar-foreground/50",
+          borderActive: "border-l-primary",
         },
         ...(orgContext.isAdmin
           ? [

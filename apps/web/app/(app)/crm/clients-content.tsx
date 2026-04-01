@@ -2309,17 +2309,12 @@ export function ClientsContent({
   return (
     <div className="space-y-6">
       {/* ── Page header ──────────────────────────────────────────────────── */}
-      <div className="rounded-xl bg-teal-50/60 border border-teal-200/50 border-b-2 border-b-teal-500/40 px-6 py-5 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-100 text-teal-600">
-            <Users className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
-            <p className="text-sm text-muted-foreground">
-              The people who made your year — quantified.
-            </p>
-          </div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            The people who made your year — quantified.
+          </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Button

@@ -722,22 +722,17 @@ export function FlightControlContent({
     <>
       <div className="flex flex-col h-full">
         {/* ── Hero header ────────────────────────────────────────────────── */}
-        <div className="shrink-0 rounded-xl bg-violet-50/60 border border-violet-200/50 border-b-2 border-b-violet-500/40">
+        <div className="shrink-0">
           <div className="px-6 pt-6 pb-5 space-y-4">
             {/* Title row */}
             <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
-                  <Sparkles className="h-5 w-5" />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold tracking-tight">
-                    Flight Control
-                  </h1>
-                  <p className="text-xs text-muted-foreground">
-                    Who should you focus on today?
-                  </p>
-                </div>
+              <div>
+                <h1 className="text-xl font-bold tracking-tight">
+                  Flight Control
+                </h1>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Who should you focus on today?
+                </p>
               </div>
               <Button
                 onClick={loadOpportunities}

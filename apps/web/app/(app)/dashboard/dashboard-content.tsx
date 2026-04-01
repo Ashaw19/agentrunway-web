@@ -1209,11 +1209,11 @@ export function DashboardContent({
 
   cardRenders["kpi_row"] = (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <Card className="rounded-2xl border-emerald-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardDescription className="font-semibold text-emerald-800">YTD GCI</CardDescription>
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-200">
-            <DollarSign className="h-4 w-4 text-emerald-700" />
+          <CardDescription className="font-semibold text-slate-600">YTD GCI</CardDescription>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100">
+            <DollarSign className="h-4 w-4 text-slate-500" />
           </div>
         </CardHeader>
         <CardContent>
@@ -1249,11 +1249,11 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-blue-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardDescription className="font-semibold text-blue-800">Deals Closed</CardDescription>
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-200">
-            <Briefcase className="h-4 w-4 text-blue-700" />
+          <CardDescription className="font-semibold text-slate-600">Deals Closed</CardDescription>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100">
+            <Briefcase className="h-4 w-4 text-slate-500" />
           </div>
         </CardHeader>
         <CardContent>
@@ -1289,16 +1289,16 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-violet-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardDescription className="font-semibold text-violet-800">
+          <CardDescription className="font-semibold text-slate-600">
             <span className="flex items-center gap-1">
               Pipeline Weighted
               <MetricInfo tip="Your in-progress deals weighted by their probability of closing. A $50K deal at 60% odds counts as $30K here." />
             </span>
           </CardDescription>
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-200">
-            <TrendingUp className="h-4 w-4 text-violet-700" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100">
+            <TrendingUp className="h-4 w-4 text-slate-500" />
           </div>
         </CardHeader>
         <CardContent>
@@ -1313,11 +1313,11 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-blue-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
+      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardDescription className="font-semibold text-blue-800">Projected Year-End</CardDescription>
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-200">
-            <Target className="h-4 w-4 text-blue-700" />
+          <CardDescription className="font-semibold text-slate-600">Projected Year-End</CardDescription>
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100">
+            <Target className="h-4 w-4 text-slate-500" />
           </div>
         </CardHeader>
         <CardContent>
