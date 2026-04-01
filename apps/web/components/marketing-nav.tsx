@@ -90,21 +90,83 @@ function Avatar({ src, name, size }: { src?: string; name?: string; size: number
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface MarketingNavProps {
+  /** @deprecated — nav now auto-detects auth. Kept for backwards compatibility. */
   isLoggedIn?: boolean;
   avatarUrl?: string;
   displayName?: string;
 }
 
 export function MarketingNav({
-  isLoggedIn = false,
-  avatarUrl,
-  displayName,
+  isLoggedIn: isLoggedInProp,
+  avatarUrl: avatarUrlProp,
+  displayName: displayNameProp,
 }: MarketingNavProps) {
   const [open, setOpen]             = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const avatarRef                   = useRef<HTMLDivElement>(null);
   const router                      = useRouter();
-  const firstName                   = displayName?.trim().split(/\s+/)[0];
+
+  // ── Auto-detect auth session when props aren't provided ────────────
+  const [sessionUser, setSessionUser] = useState<{
+    loggedIn: boolean;
+    avatar?: string;
+    name?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    // If props were explicitly provided, skip auto-detection
+    if (isLoggedInProp !== undefined) return;
+
+    let cancelled = false;
+    const supabase = createClient();
+
+    async function checkSession() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (session?.user) {
+          const meta = session.user.user_metadata ?? {};
+          setSessionUser({
+            loggedIn: true,
+            avatar: meta.avatar_url ?? meta.picture ?? undefined,
+            name: meta.full_name ?? meta.name ?? session.user.email?.split("@")[0] ?? undefined,
+          });
+        } else {
+          setSessionUser({ loggedIn: false });
+        }
+      } catch {
+        if (!cancelled) setSessionUser({ loggedIn: false });
+      }
+    }
+
+    checkSession();
+
+    // Listen for auth state changes (sign in/out while on page)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (cancelled) return;
+      if (session?.user) {
+        const meta = session.user.user_metadata ?? {};
+        setSessionUser({
+          loggedIn: true,
+          avatar: meta.avatar_url ?? meta.picture ?? undefined,
+          name: meta.full_name ?? meta.name ?? session.user.email?.split("@")[0] ?? undefined,
+        });
+      } else {
+        setSessionUser({ loggedIn: false });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, [isLoggedInProp]);
+
+  // Resolve final values: explicit props take priority over auto-detected
+  const isLoggedIn  = isLoggedInProp ?? sessionUser?.loggedIn ?? false;
+  const avatarUrl   = avatarUrlProp  ?? sessionUser?.avatar;
+  const displayName = displayNameProp ?? sessionUser?.name;
+  const firstName   = displayName?.trim().split(/\s+/)[0];
 
   // Close avatar dropdown on outside click
   useEffect(() => {
