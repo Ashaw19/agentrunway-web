@@ -5,6 +5,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 import { TaxSavingsCalculator } from "./tax-savings-calculator";
+import { EmailCapture } from "@/components/email-capture";
 
 export const metadata: Metadata = {
   title: "How Much Should Real Estate Agents Save for Taxes in Canada? | Agent Runway",
@@ -300,6 +301,24 @@ export default function TaxSavingsGuidePage() {
                 assumes no liability for tax-related decisions.
               </p>
             </div>
+          </div>
+        </section>
+
+        {/* ════════════════════════════════════════════════════════
+            EMAIL CAPTURE
+        ════════════════════════════════════════════════════════ */}
+        <section
+          className="px-6 py-16 sm:px-10"
+          style={{ background: "rgba(255,255,255,0.02)", borderTop: "1px solid rgba(255,255,255,0.05)" }}
+        >
+          <div className="mx-auto max-w-2xl">
+            <EmailCapture
+              heading="Want to see your full financial picture?"
+              subheading="Get a clearer view of your income, taxes, and runway — not just estimates."
+              ctaLabel="Get Early Access"
+              source="tax_calculator"
+              variant="dark"
+            />
           </div>
         </section>
 
