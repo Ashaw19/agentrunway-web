@@ -8,7 +8,6 @@ import {
   Sparkles,
   ArrowRight,
   Check,
-  Star,
   DollarSign,
   Calculator,
   Award,
@@ -120,35 +119,6 @@ const WHY_CALLOUTS = [
     title: "Pipeline Forecasts",
     description: "Every deal in your pipeline weighted by close probability and adjusted for seasonal patterns.",
     color: "teal",
-  },
-];
-
-// ── Testimonials ──────────────────────────────────────────────────────────────
-
-const TESTIMONIALS = [
-  {
-    quote:
-      "I used to look at my GCI and assume I was fine. Agent Runway showed me I was burning through my reserve faster than I realized — I caught it before it became a real problem.",
-    name: "Sarah M.",
-    title: "Residential Agent, Toronto ON",
-    initials: "SM",
-    color: "blue",
-  },
-  {
-    quote:
-      "The forecasting actually accounts for the Q1 slowdown instead of projecting a straight line. No other tool I've used does that — it changed how I plan my year.",
-    name: "Jason T.",
-    title: "RE/MAX Agent, Calgary AB",
-    initials: "JT",
-    color: "emerald",
-  },
-  {
-    quote:
-      "Knowing my quarterly tax instalments without calling my accountant every month saves me time and money. The tax planning alone is worth the subscription.",
-    name: "Michelle L.",
-    title: "Independent Agent, Ottawa ON",
-    initials: "ML",
-    color: "violet",
   },
 ];
 
@@ -692,75 +662,6 @@ export default async function Home() {
                   );
                 })}
               </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ════════════════════════════════════════════════════════
-            SOCIAL PROOF
-        ════════════════════════════════════════════════════════ */}
-        <section className="relative px-6 py-16 sm:px-10" style={{ background: "#010D1F" }}>
-          {/* Centered glow */}
-          <div className="pointer-events-none absolute left-1/2 top-1/2 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-emerald-500/15 blur-[120px]" />
-
-          <div className="relative mx-auto max-w-6xl">
-            <ScrollRevealSection className="mb-12 text-center">
-              <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
-                Agents who fly blind{" "}
-                <span
-                  style={{
-                    background: "linear-gradient(135deg, #34d399, #22d3ee)",
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                  }}
-                >
-                  don&apos;t last
-                </span>
-              </h2>
-              <p className="mt-4 text-lg text-slate-400">
-                Agents who stopped guessing and started making decisions with real data.
-              </p>
-            </ScrollRevealSection>
-
-            <div className="grid gap-5 md:grid-cols-3">
-              {TESTIMONIALS.map(({ quote, name, title, initials, color }, tIdx) => {
-                const c = colorConfig(color);
-                return (
-                  <ScrollRevealSection
-                    key={name}
-                    delay={(tIdx % 4) as 0 | 1 | 2 | 3 | 4}
-                    className="rounded-2xl p-px"
-                    style={{ background: c.borderGrad } as React.CSSProperties}
-                  >
-                    <figure
-                      className="flex h-full flex-col rounded-[15px] p-6"
-                      style={{ background: "#07101F" }}
-                    >
-                      <div className="mb-4 flex gap-0.5">
-                        {[1, 2, 3, 4, 5].map((s) => (
-                          <Star key={s} className="h-4 w-4 fill-amber-400 text-amber-400" />
-                        ))}
-                      </div>
-                      <blockquote className="flex-1">
-                        <p className="text-sm leading-relaxed text-slate-300">
-                          &ldquo;{quote}&rdquo;
-                        </p>
-                      </blockquote>
-                      <figcaption className="mt-6 flex items-center gap-3">
-                        <div
-                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${c.avatar}`}
-                        >
-                          <span className="text-xs font-bold text-white">{initials}</span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-white">{name}</p>
-                          <p className="text-xs text-slate-500">{title}</p>
-                        </div>
-                      </figcaption>
-                    </figure>
-                  </ScrollRevealSection>
-                );
-              })}
             </div>
           </div>
         </section>
