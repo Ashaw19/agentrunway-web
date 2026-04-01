@@ -122,6 +122,7 @@ interface TaxResult {
   totalTax: number;
   effectiveRate: number;
   perDealSetAside: number;
+  monthlyReserve: number;
   netIncome: number;
   taxableIncome: number;
 }
@@ -159,6 +160,7 @@ function calculateTax(
   const totalTax = federalTax + provincialTax + cpp + hstGst;
   const effectiveRate = taxableIncome > 0 ? totalTax / taxableIncome : 0;
   const perDealSetAside = avgDeals > 0 ? totalTax / avgDeals : 0;
+  const monthlyReserve = totalTax / 12;
   const netIncome = taxableIncome - federalTax - provincialTax - cpp;
 
   return {
@@ -169,6 +171,7 @@ function calculateTax(
     totalTax,
     effectiveRate,
     perDealSetAside,
+    monthlyReserve,
     netIncome,
     taxableIncome,
   };
@@ -197,6 +200,13 @@ export function TaxSavingsCalculator() {
 
   return (
     <div>
+      {/* Anchor text */}
+      <p className="mb-8 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-600">
+        Most Canadian real estate agents should set aside{" "}
+        <strong className="text-slate-900">25&ndash;40% of their commission</strong>{" "}
+        for taxes. Use the calculator below to refine your number.
+      </p>
+
       <div className="mb-8 flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600">
           <Calculator className="h-5 w-5 text-white" />
@@ -308,49 +318,73 @@ export function TaxSavingsCalculator() {
 
       {/* ── Results ── */}
       <div className="mt-10">
-        {/* Hero stat */}
-        <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-center">
-          <p className="text-sm font-medium text-emerald-700">Estimated Tax Set-Aside Rate</p>
-          <p className="mt-1 text-5xl font-black text-emerald-800">{pct(result.effectiveRate)}</p>
-          <p className="mt-2 text-sm text-emerald-600">
-            of your {fmt(result.taxableIncome)} net business income
+        {/* ── HERO: Monthly reserve ── */}
+        <div className="mb-2 rounded-xl border-2 border-emerald-300 bg-emerald-50 px-6 py-8 text-center">
+          <p className="text-sm font-medium text-emerald-700">Recommended Monthly Tax Reserve</p>
+          <p className="mt-2 text-5xl font-black tracking-tight text-emerald-900 sm:text-6xl">
+            {fmt(result.monthlyReserve)}
+          </p>
+          <p className="mt-3 text-sm text-emerald-600">
+            {pct(result.effectiveRate)} of your {fmt(result.taxableIncome)} net business income
           </p>
         </div>
 
-        {/* Breakdown grid */}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <ResultCard label="Federal Income Tax" value={fmt(result.federalTax)} />
-          <ResultCard label="Provincial Income Tax" value={fmt(result.provincialTax)} sub={PROVINCES[province]?.label} />
-          <ResultCard label="CPP (Both Portions)" value={fmt(result.cpp)} />
-          <ResultCard label="HST/GST Obligation" value={fmt(result.hstGst)} sub={`${(PROVINCES[province]?.hstRate * 100).toFixed(1)}% rate`} />
+        {/* Actionable insight */}
+        <p className="mb-8 text-center text-sm text-slate-500">
+          If you&apos;re not consistently setting this aside, you&apos;re likely
+          underestimating your tax liability.
+        </p>
+
+        {/* ── Secondary: key numbers ── */}
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-slate-200 bg-white p-4 text-center">
+            <p className="text-xs font-medium text-slate-500">Total Annual Tax</p>
+            <p className="mt-1 text-lg font-bold text-slate-900">{fmt(result.totalTax)}</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4 text-center">
+            <p className="text-xs font-medium text-slate-500">Set Aside Per Deal</p>
+            <p className="mt-1 text-lg font-bold text-slate-900">{fmt(result.perDealSetAside)}</p>
+          </div>
+          <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-4 text-center">
+            <p className="text-xs font-medium text-blue-600">Estimated Net Income</p>
+            <p className="mt-1 text-lg font-bold text-blue-900">{fmt(result.netIncome)}</p>
+          </div>
         </div>
 
-        {/* Summary row */}
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-center">
-            <p className="text-xs font-medium text-slate-500">Total Annual Tax</p>
-            <p className="mt-1 text-xl font-bold text-slate-900">{fmt(result.totalTax)}</p>
+        {/* ── Tertiary: detailed breakdown (collapsed feel) ── */}
+        <details className="mt-4 rounded-lg border border-slate-200 bg-slate-50">
+          <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-slate-500 hover:text-slate-700">
+            View full breakdown
+          </summary>
+          <div className="grid gap-2 border-t border-slate-200 p-4 sm:grid-cols-2">
+            <div className="flex items-center justify-between rounded-md bg-white px-3 py-2">
+              <span className="text-xs text-slate-500">Federal Income Tax</span>
+              <span className="text-sm font-semibold text-slate-800">{fmt(result.federalTax)}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-md bg-white px-3 py-2">
+              <span className="text-xs text-slate-500">Provincial Tax ({PROVINCES[province]?.label})</span>
+              <span className="text-sm font-semibold text-slate-800">{fmt(result.provincialTax)}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-md bg-white px-3 py-2">
+              <span className="text-xs text-slate-500">CPP (Both Portions)</span>
+              <span className="text-sm font-semibold text-slate-800">{fmt(result.cpp)}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-md bg-white px-3 py-2">
+              <span className="text-xs text-slate-500">HST/GST ({(PROVINCES[province]?.hstRate * 100).toFixed(1)}%)</span>
+              <span className="text-sm font-semibold text-slate-800">{fmt(result.hstGst)}</span>
+            </div>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-center">
-            <p className="text-xs font-medium text-slate-500">Set Aside Per Deal</p>
-            <p className="mt-1 text-xl font-bold text-slate-900">{fmt(result.perDealSetAside)}</p>
-          </div>
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-center">
-            <p className="text-xs font-medium text-blue-600">Estimated Net Income</p>
-            <p className="mt-1 text-xl font-bold text-blue-900">{fmt(result.netIncome)}</p>
-          </div>
-        </div>
+        </details>
 
         {/* Info note */}
-        <div className="mt-6 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <div className="mt-5 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
           <p className="text-xs leading-relaxed text-slate-500">
-            This calculator provides a simplified estimate. It does not account
-            for RRSP contributions, other tax credits, PREC/corporate structures,
-            or ITCs on HST/GST. For precise calculations tailored to your
-            business, use{" "}
-            <a href="/login" className="text-blue-600 underline underline-offset-2 hover:text-blue-500">
-              Agent Runway&apos;s tax engine
+            This is a simplified estimate. It does not account for RRSP
+            contributions, other tax credits, PREC/corporate structures, or ITCs
+            on HST/GST. For real-time tracking tailored to your business,{" "}
+            <a href="/demo" className="text-blue-600 underline underline-offset-2 hover:text-blue-500">
+              try Agent Runway
             </a>
             .
           </p>
@@ -360,14 +394,3 @@ export function TaxSavingsCalculator() {
   );
 }
 
-// ── Result card sub-component ────────────────────────────────────────────────
-
-function ResultCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-bold text-slate-900">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-slate-400">{sub}</p>}
-    </div>
-  );
-}

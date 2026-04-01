@@ -328,14 +328,14 @@ export default function TaxSavingsGuidePage() {
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Link
-                href="/login"
+                href="/demo"
                 className="group inline-flex items-center rounded-xl px-10 py-4 text-sm font-bold text-white transition-all duration-200"
                 style={{
                   background: "linear-gradient(135deg, #2563eb, #7c3aed)",
                   boxShadow: "0 0 40px rgba(99,102,241,0.4)",
                 }}
               >
-                Start Your Free Trial
+                See Your Full Financial Picture
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
               <Link

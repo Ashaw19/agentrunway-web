@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
 import {
   ArrowRight,
   User,
@@ -8,7 +7,6 @@ import {
   TrendingUp,
   MapPin,
   BarChart3,
-  Shield,
   Calculator,
   Sparkles,
   Check,
@@ -108,14 +106,9 @@ export default function AboutPage() {
               Our Story
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-              Built by a Real Estate Agent.{" "}
-              <span
-                style={{
-                  background: "linear-gradient(135deg, #93c5fd, #c084fc)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                }}
-              >
+              Built by a Real Estate Agent.
+              <br className="hidden sm:block" />
+              <span className="text-slate-300">
                 For Real Estate Agents.
               </span>
             </h1>
@@ -156,7 +149,7 @@ export default function AboutPage() {
             </ScrollRevealSection>
 
             {/* Story prose */}
-            <ScrollRevealSection delay={1}>
+            <ScrollRevealSection>
               <div className="mt-8 space-y-5 text-base leading-relaxed text-slate-600">
                 <p>
                   Agent Runway started as a spreadsheet. Andrew Shaw, a real estate
@@ -190,7 +183,7 @@ export default function AboutPage() {
             </ScrollRevealSection>
 
             {/* Pull quote */}
-            <ScrollRevealSection delay={2}>
+            <ScrollRevealSection>
               <blockquote className="my-10 border-l-4 border-blue-600 pl-5">
                 <p className="text-lg font-medium leading-relaxed text-slate-800">
                   &ldquo;Real estate agents are running multi-six-figure businesses.
@@ -261,18 +254,9 @@ export default function AboutPage() {
         {/* ════════════════════════════════════════════════════════
             MID-PAGE CTA — Trust Bridge
         ════════════════════════════════════════════════════════ */}
-        <section className="relative overflow-hidden px-6 py-16 sm:px-10">
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(37,99,235,0.20) 0%, rgba(124,58,237,0.15) 50%, rgba(37,99,235,0.10) 100%)",
-            }}
-          />
-          <div className="absolute inset-0 border-y" style={{ borderColor: "rgba(255,255,255,0.05)" }} />
-
+        <section className="bg-slate-900 px-6 py-16 sm:px-10">
           <ScrollRevealSection>
-            <div className="relative mx-auto max-w-2xl text-center">
+            <div className="mx-auto max-w-2xl text-center">
               <h3 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
                 If this sounds familiar, you should see what your numbers actually look like.
               </h3>
@@ -281,14 +265,14 @@ export default function AboutPage() {
               </p>
               <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
                 <Link
-                  href="/login"
+                  href="/demo"
                   className="inline-flex items-center rounded-xl px-8 py-3.5 text-sm font-bold text-white transition-all duration-200"
                   style={{
                     background: "linear-gradient(135deg, #2563eb, #7c3aed)",
                     boxShadow: "0 0 30px rgba(99,102,241,0.3)",
                   }}
                 >
-                  See Agent Runway
+                  Try Agent Runway
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
                 <Link
@@ -305,6 +289,7 @@ export default function AboutPage() {
         {/* ════════════════════════════════════════════════════════
             SCREENSHOT SHOWCASE — Tax & Forecasting
         ════════════════════════════════════════════════════════ */}
+
         <section className="bg-white px-6 py-20 sm:px-10">
           <div className="mx-auto max-w-5xl">
             <ScrollRevealSection>
@@ -389,16 +374,14 @@ export default function AboutPage() {
             </ScrollRevealSection>
 
             <div className="grid gap-8 sm:grid-cols-3">
-              {AUDIENCE.map(({ icon: Icon, heading, body }, idx) => (
-                <ScrollRevealSection key={heading} delay={(idx % 4) as 0 | 1 | 2 | 3 | 4}>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-8">
-                    <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600">
-                      <Icon className="h-5 w-5 text-white" />
-                    </div>
-                    <h3 className="mb-3 text-lg font-semibold text-slate-900">{heading}</h3>
-                    <p className="text-sm leading-relaxed text-slate-500">{body}</p>
+              {AUDIENCE.map(({ icon: Icon, heading, body }) => (
+                <div key={heading} className="rounded-xl border border-slate-200 bg-slate-50 p-8">
+                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600">
+                    <Icon className="h-5 w-5 text-white" />
                   </div>
-                </ScrollRevealSection>
+                  <h3 className="mb-3 text-lg font-semibold text-slate-900">{heading}</h3>
+                  <p className="text-sm leading-relaxed text-slate-500">{body}</p>
+                </div>
               ))}
             </div>
           </div>
@@ -448,20 +431,9 @@ export default function AboutPage() {
         {/* ════════════════════════════════════════════════════════
             FINAL CTA
         ════════════════════════════════════════════════════════ */}
-        <section className="relative overflow-hidden px-6 py-20 text-center sm:px-10">
-          {/* Dramatic gradient background */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(135deg, rgba(37,99,235,0.25) 0%, rgba(124,58,237,0.20) 50%, rgba(37,99,235,0.15) 100%)",
-            }}
-          />
-          <div className="absolute -left-20 top-1/2 h-64 w-64 -translate-y-1/2 rounded-full bg-blue-500/30 blur-[80px]" />
-          <div className="absolute -right-20 top-1/2 h-64 w-64 -translate-y-1/2 rounded-full bg-violet-500/25 blur-[80px]" />
-
+        <section className="bg-slate-950 px-6 py-20 text-center sm:px-10">
           <ScrollRevealSection>
-            <div className="relative mx-auto max-w-2xl">
+            <div className="mx-auto max-w-2xl">
               <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-semibold text-slate-300">
                 <Zap className="h-3 w-3 text-amber-400" />
                 Start free · No credit card required
@@ -475,14 +447,14 @@ export default function AboutPage() {
               </p>
               <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
                 <Link
-                  href="/login"
+                  href="/demo"
                   className="group inline-flex items-center rounded-xl px-10 py-4 text-sm font-bold text-white transition-all duration-200"
                   style={{
                     background: "linear-gradient(135deg, #2563eb, #7c3aed)",
                     boxShadow: "0 0 40px rgba(99,102,241,0.4)",
                   }}
                 >
-                  Start Your Free Trial
+                  Try Agent Runway Free
                   <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Link>
                 <Link
