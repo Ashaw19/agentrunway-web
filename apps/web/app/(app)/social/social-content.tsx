@@ -40,6 +40,7 @@ import {
   ToggleRight,
   ImagePlus,
   X as XIcon,
+  Globe,
 } from "lucide-react";
 import { Instagram, Facebook } from "@/components/icons/brand-icons";
 import { toast } from "sonner";
@@ -492,37 +493,42 @@ export function SocialContent({ settings, transactions, connections }: Props) {
     <div className="space-y-8">
 
       {/* ── Page header ───────────────────────────────────────────────────── */}
-      <div className="rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 px-6 py-5 shadow-md">
+      <div className="rounded-xl bg-rose-50/60 border border-rose-200/50 border-b-2 border-b-rose-500/40 px-6 py-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2 text-white">
-              Social Media Studio
-              <Badge variant="outline" className="border-pink-300/40 bg-white/15 text-white text-xs">
-                <Sparkles className="h-3 w-3 mr-1" />
-                Beta
-              </Badge>
-            </h1>
-            <p className="text-sm text-rose-100/80 mt-0.5">
-              Generate polished Month in Review carousels from your closed deals
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-100 text-rose-600">
+              <Globe className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+                Social Media Studio
+                <Badge variant="outline" className="border-rose-300/40 bg-rose-50 text-rose-600 text-xs">
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  Beta
+                </Badge>
+              </h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Generate polished Month in Review carousels from your closed deals
+              </p>
+            </div>
           </div>
           {/* Connection badges */}
           <div className="flex items-center gap-2">
             {igConn ? (
-              <Badge variant="outline" className="border-white/30 bg-white/15 text-white">
+              <Badge variant="outline" className="border-rose-200 bg-white text-rose-600">
                 <Instagram className="h-3 w-3 mr-1" />@{igConn.account_name ?? "Connected"}
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-white/60 border-dashed border-white/20">
+              <Badge variant="outline" className="text-muted-foreground border-dashed">
                 <Instagram className="h-3 w-3 mr-1" />Not connected
               </Badge>
             )}
             {fbConn ? (
-              <Badge variant="outline" className="border-white/30 bg-white/15 text-white">
+              <Badge variant="outline" className="border-rose-200 bg-white text-rose-600">
                 <Facebook className="h-3 w-3 mr-1" />{fbConn.account_name ?? "Connected"}
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-white/60 border-dashed border-white/20">
+              <Badge variant="outline" className="text-muted-foreground border-dashed">
                 <Facebook className="h-3 w-3 mr-1" />Not connected
               </Badge>
             )}

@@ -119,14 +119,21 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
   return (
     <div className="space-y-6">
       {/* ── Page Header ─────────────────────────────────────────────── */}
-      <div className="rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-700 px-6 py-5 shadow-md">
-        <h1 className="text-2xl font-bold tracking-tight text-white">
-          Pipeline
-        </h1>
-        <p className="mt-1 text-sm text-cyan-100/80">
-          Unified view of deals, listings, and tracked buyers with
-          probability-weighted GCI forecasting.
-        </p>
+      <div className="rounded-xl bg-cyan-50/60 border border-cyan-200/50 border-b-2 border-b-cyan-500/40 px-6 py-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-100 text-cyan-600">
+            <Layers className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              Pipeline
+            </h1>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Unified view of deals, listings, and tracked buyers with
+              probability-weighted GCI forecasting.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* ── Summary Strip ───────────────────────────────────────────── */}

@@ -13,6 +13,7 @@ import {
   XCircle,
   Trash2,
   Lock,
+  Handshake,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -359,14 +360,19 @@ export function ReferralsContent({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="rounded-xl bg-gradient-to-r from-orange-600 to-orange-700 px-6 py-5 shadow-md flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">
-            Referral Tracking
-          </h1>
-          <p className="text-sm text-orange-100/80 mt-1">
-            Track inbound and outbound referrals with fee tracking
-          </p>
+      <div className="rounded-xl bg-orange-50/60 border border-orange-200/50 border-b-2 border-b-orange-500/40 px-6 py-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-100 text-orange-600">
+            <Handshake className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Referral Tracking
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Track inbound and outbound referrals with fee tracking
+            </p>
+          </div>
         </div>
         <Button onClick={openNew} className="gap-2">
           <Plus className="h-4 w-4" />

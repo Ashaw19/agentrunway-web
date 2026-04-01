@@ -531,11 +531,18 @@ export function AltimeterContent({
   return (
     <div className="space-y-8">
       {/* Page header */}
-      <div className="rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-5 shadow-md">
-        <h1 className="text-2xl font-semibold tracking-tight text-white">Altimeter</h1>
-        <p className="text-sm text-blue-100/80 mt-0.5">
-          Business analytics — monthly performance, pipeline health, and goal tracking.
-        </p>
+      <div className="rounded-xl bg-blue-50/60 border border-blue-200/50 border-b-2 border-b-blue-500/40 px-6 py-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+            <BarChart2 className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Altimeter</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Business analytics — monthly performance, pipeline health, and goal tracking.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Funny dismissible banner */}
