@@ -2309,10 +2309,10 @@ export function ClientsContent({
   return (
     <div className="space-y-6">
       {/* ── Page header ──────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between border-b border-border/60 pb-5">
-        <div className="border-l-[3px] border-teal-500 pl-4">
-          <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
-          <p className="text-sm text-muted-foreground">
+      <div className="rounded-xl bg-gradient-to-r from-teal-600 to-teal-700 px-6 py-5 shadow-md flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-white">Clients</h1>
+          <p className="text-sm text-teal-100/80">
             The people who made your year — quantified.
           </p>
         </div>
@@ -2332,7 +2332,7 @@ export function ClientsContent({
               resetImport();
               setImportOpen(true);
             }}
-            className="gap-1.5 bg-white border-slate-300 text-slate-600 hover:text-slate-900 hover:border-slate-400"
+            className="gap-1.5 bg-white/15 border-white/20 text-white hover:bg-white/25 hover:border-white/30"
           >
             <Upload className="h-3.5 w-3.5" />
             Import CSV

@@ -338,15 +338,15 @@ export function ForecastContent({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border/60 pb-5">
-        <div className="border-l-[3px] border-violet-500 pl-4">
-          <h1 className="text-2xl font-semibold tracking-tight">Forecast</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+      <div className="rounded-xl bg-gradient-to-r from-violet-600 to-violet-700 px-6 py-5 shadow-md flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-white">Forecast</h1>
+          <p className="mt-1 text-sm text-violet-100/80">
             Where you&apos;ll land this year — and what to do about the gap. &middot; {PROVINCE_LABELS[settings.province]}
           </p>
         </div>
         {/* Scenario selector — applies a multiplier to the projected GCI and all downstream numbers */}
-        <div className="flex shrink-0 rounded-lg border border-border p-0.5 text-xs">
+        <div className="flex shrink-0 rounded-lg border border-white/20 p-0.5 text-xs">
           {(["conservative", "base", "optimistic"] as const).map((s) => (
             <button
               key={s}
@@ -354,8 +354,8 @@ export function ForecastContent({
               className={cn(
                 "rounded-md px-3 py-1.5 font-medium transition-colors",
                 scenario === s
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "bg-white text-violet-700"
+                  : "text-violet-100/70 hover:text-white",
               )}
             >
               {s === "conservative" ? "−15%" : s === "optimistic" ? "+15%" : "Base"}

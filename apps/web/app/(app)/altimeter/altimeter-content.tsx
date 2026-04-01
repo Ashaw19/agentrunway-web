@@ -531,9 +531,9 @@ export function AltimeterContent({
   return (
     <div className="space-y-8">
       {/* Page header */}
-      <div className="border-b border-border/60 pb-5 border-l-[3px] border-l-blue-500 pl-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Altimeter</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
+      <div className="rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-5 shadow-md">
+        <h1 className="text-2xl font-semibold tracking-tight text-white">Altimeter</h1>
+        <p className="text-sm text-blue-100/80 mt-0.5">
           Business analytics — monthly performance, pipeline health, and goal tracking.
         </p>
       </div>

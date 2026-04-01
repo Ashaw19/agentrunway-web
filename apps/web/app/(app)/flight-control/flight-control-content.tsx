@@ -722,8 +722,7 @@ export function FlightControlContent({
     <>
       <div className="flex flex-col h-full">
         {/* ── Hero header ────────────────────────────────────────────────── */}
-        <div className="shrink-0 relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-violet-600/8 via-indigo-500/5 to-transparent pointer-events-none" />
+        <div className="shrink-0 relative overflow-hidden rounded-xl bg-gradient-to-r from-violet-600 to-violet-700 shadow-md">
           <div className="relative px-6 pt-6 pb-5 space-y-4">
             {/* Title row */}
             <div className="flex items-center justify-between gap-4">
@@ -731,11 +730,11 @@ export function FlightControlContent({
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow-lg shadow-violet-500/20">
                   <Brain className="h-5 w-5 text-white" />
                 </span>
-                <div className="border-l-[3px] border-violet-500 pl-4">
-                  <h1 className="text-xl font-bold tracking-tight text-foreground">
+                <div>
+                  <h1 className="text-xl font-bold tracking-tight text-white">
                     Flight Control
                   </h1>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-violet-100/80">
                     Who should you focus on today?
                   </p>
                 </div>

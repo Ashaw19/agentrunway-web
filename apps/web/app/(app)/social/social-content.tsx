@@ -492,37 +492,37 @@ export function SocialContent({ settings, transactions, connections }: Props) {
     <div className="space-y-8">
 
       {/* ── Page header ───────────────────────────────────────────────────── */}
-      <div className="border-b border-border/60 pb-5">
+      <div className="rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 px-6 py-5 shadow-md">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="border-l-[3px] border-rose-500 pl-4">
-            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-2 text-white">
               Social Media Studio
-              <Badge variant="outline" className="border-pink-300 bg-pink-50 text-pink-700 text-xs">
+              <Badge variant="outline" className="border-pink-300/40 bg-white/15 text-white text-xs">
                 <Sparkles className="h-3 w-3 mr-1" />
                 Beta
               </Badge>
             </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <p className="text-sm text-rose-100/80 mt-0.5">
               Generate polished Month in Review carousels from your closed deals
             </p>
           </div>
           {/* Connection badges */}
           <div className="flex items-center gap-2">
             {igConn ? (
-              <Badge variant="outline" className="border-pink-300 bg-pink-50 text-pink-700">
+              <Badge variant="outline" className="border-white/30 bg-white/15 text-white">
                 <Instagram className="h-3 w-3 mr-1" />@{igConn.account_name ?? "Connected"}
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-muted-foreground border-dashed">
+              <Badge variant="outline" className="text-white/60 border-dashed border-white/20">
                 <Instagram className="h-3 w-3 mr-1" />Not connected
               </Badge>
             )}
             {fbConn ? (
-              <Badge variant="outline" className="border-blue-300 bg-blue-50 text-blue-700">
+              <Badge variant="outline" className="border-white/30 bg-white/15 text-white">
                 <Facebook className="h-3 w-3 mr-1" />{fbConn.account_name ?? "Connected"}
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-muted-foreground border-dashed">
+              <Badge variant="outline" className="text-white/60 border-dashed border-white/20">
                 <Facebook className="h-3 w-3 mr-1" />Not connected
               </Badge>
             )}

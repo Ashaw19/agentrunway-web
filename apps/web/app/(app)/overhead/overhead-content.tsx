@@ -767,9 +767,9 @@ export function OverheadContent({
   return (
     <div className="space-y-8">
       {/* Page header */}
-      <div className="border-b border-border/60 pb-5 border-l-[3px] border-l-amber-500 pl-4">
-        <h1 className="text-2xl font-semibold tracking-tight">Overhead</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
+      <div className="rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 px-6 py-5 shadow-md">
+        <h1 className="text-2xl font-semibold tracking-tight text-white">Overhead</h1>
+        <p className="text-sm text-amber-100/80 mt-0.5">
           Tax command centre — readiness, take-home estimates, cap tracking, and savings opportunities.
         </p>
         {/* Tab bar */}
@@ -779,8 +779,8 @@ export function OverheadContent({
             className={cn(
               "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
               activeTab === "overview"
-                ? "border-primary text-foreground"
-                : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300",
+                ? "border-white text-white"
+                : "border-transparent text-amber-100/60 hover:text-white hover:border-amber-200/40",
             )}
           >
             Overview
@@ -790,8 +790,8 @@ export function OverheadContent({
             className={cn(
               "flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
               activeTab === "scenarios"
-                ? "border-primary text-foreground"
-                : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300",
+                ? "border-white text-white"
+                : "border-transparent text-amber-100/60 hover:text-white hover:border-amber-200/40",
             )}
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />

@@ -359,12 +359,12 @@ export function ReferralsContent({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="border-l-[3px] border-orange-500 pl-4">
-          <h1 className="text-2xl font-bold tracking-tight">
+      <div className="rounded-xl bg-gradient-to-r from-orange-600 to-orange-700 px-6 py-5 shadow-md flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-white">
             Referral Tracking
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-orange-100/80 mt-1">
             Track inbound and outbound referrals with fee tracking
           </p>
         </div>

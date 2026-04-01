@@ -344,10 +344,10 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-5">
-        <div className="border-l-[3px] border-emerald-500 pl-4">
-          <h1 className="text-2xl font-semibold tracking-tight">Transactions</h1>
-          <p className="text-sm text-muted-foreground">
+      <div className="rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-5 shadow-md flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-white">Transactions</h1>
+          <p className="text-sm text-emerald-100/80">
             {tab === "deals"
               ? ytdCount > 0
                 ? <>{ytdCount} closed deal{ytdCount !== 1 ? "s" : ""} this year &middot; {fmtCurrency(ytdGCI)} GCI</>

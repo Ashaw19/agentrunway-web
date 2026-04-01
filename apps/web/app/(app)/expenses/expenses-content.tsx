@@ -675,10 +675,10 @@ export function ExpensesContent({
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-5">
-        <div className="border-l-[3px] border-amber-500 pl-4">
-          <h1 className="text-2xl font-bold tracking-tight">Expenses</h1>
-          <p className="text-sm text-muted-foreground">
+      <div className="rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 px-6 py-5 shadow-md flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Expenses</h1>
+          <p className="text-sm text-amber-100/80">
             Every dollar out counts. Know your burn, protect your runway.
           </p>
         </div>

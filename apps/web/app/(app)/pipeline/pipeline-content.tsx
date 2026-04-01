@@ -119,11 +119,11 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
   return (
     <div className="space-y-6">
       {/* ── Page Header ─────────────────────────────────────────────── */}
-      <div className="border-l-[3px] border-cyan-500 pl-4">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+      <div className="rounded-xl bg-gradient-to-r from-cyan-600 to-cyan-700 px-6 py-5 shadow-md">
+        <h1 className="text-2xl font-bold tracking-tight text-white">
           Pipeline
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 text-sm text-cyan-100/80">
           Unified view of deals, listings, and tracked buyers with
           probability-weighted GCI forecasting.
         </p>
