@@ -52,7 +52,7 @@ const FEATURES = [
     icon: BarChart3,
     title: "Track GCI",
     description:
-      "Log every deal and watch your year-to-date commission income build against your annual goal. Know exactly where you stand at every point in the year.",
+      "See your year-to-date commission income update with every deal. Always know if you're ahead of pace, behind, or right on target.",
     iconBg: "bg-blue-500",
     borderColor: "rgba(96,165,250,0.55)",
     iconShadow: "0 0 20px rgba(59,130,246,0.4)",
@@ -63,7 +63,7 @@ const FEATURES = [
     icon: TrendingUp,
     title: "Forecast Income",
     description:
-      "Seasonality-aware projections combine your closed deals and probability-weighted pipeline to show where you'll land at year-end.",
+      "Know where you'll finish the year — not a straight-line guess, but a seasonality-adjusted forecast built from your closed deals and active pipeline.",
     iconBg: "bg-emerald-500",
     borderColor: "rgba(52,211,153,0.55)",
     iconShadow: "0 0 20px rgba(16,185,129,0.4)",
@@ -74,7 +74,7 @@ const FEATURES = [
     icon: Shield,
     title: "Measure Financial Runway",
     description:
-      "See how many months your cash reserves cover your fixed costs. Know your number before you need it — not after.",
+      "How many months can you cover your costs if no new deals close? Your runway number answers the question most agents are afraid to ask.",
     iconBg: "bg-violet-500",
     borderColor: "rgba(167,139,250,0.55)",
     iconShadow: "0 0 20px rgba(139,92,246,0.4)",
@@ -85,7 +85,7 @@ const FEATURES = [
     icon: Sparkles,
     title: "AI Business Insights",
     description:
-      "Contextual advisor cards surface risks, opportunities, and next steps based on your live business data — not generic advice.",
+      "Your data analyzed in real time. AI flags what needs attention, warns you before problems hit, and tells you exactly what to do next — specific to your numbers, not generic tips.",
     iconBg: "bg-amber-500",
     borderColor: "rgba(251,191,36,0.55)",
     iconShadow: "0 0 20px rgba(245,158,11,0.4)",
@@ -100,25 +100,25 @@ const WHY_CALLOUTS = [
   {
     icon: DollarSign,
     title: "Net Income Clarity",
-    description: "True take-home after splits, fees, and expenses.",
+    description: "What you actually keep after splits, brokerage fees, and business expenses.",
     color: "blue",
   },
   {
     icon: Calculator,
     title: "Tax Estimates",
-    description: "Quarterly instalments calculated before filing season.",
+    description: "Federal, provincial, CPP, and HST — calculated quarterly so you're never caught off guard.",
     color: "violet",
   },
   {
     icon: Award,
     title: "CREA Benchmarks",
-    description: "See how you rank against national cohort data.",
+    description: "Compare your GCI, expenses, and conversion rate against national agent averages.",
     color: "emerald",
   },
   {
     icon: LineChart,
     title: "Pipeline Forecasts",
-    description: "Probability-weighted projections from real deals.",
+    description: "Every deal in your pipeline weighted by close probability and adjusted for seasonal patterns.",
     color: "teal",
   },
 ];
@@ -128,7 +128,7 @@ const WHY_CALLOUTS = [
 const TESTIMONIALS = [
   {
     quote:
-      "I used to just look at my GCI and hope for the best. Agent Runway showed me I was burning through my reserve faster than I thought — woke me up before it became a real problem.",
+      "I used to look at my GCI and assume I was fine. Agent Runway showed me I was burning through my reserve faster than I realized — I caught it before it became a real problem.",
     name: "Sarah M.",
     title: "Residential Agent, Toronto ON",
     initials: "SM",
@@ -136,7 +136,7 @@ const TESTIMONIALS = [
   },
   {
     quote:
-      "The seasonality-aware forecasting is something I've never seen in any other tool. It actually accounts for the Q1 slowdown instead of projecting a straight line.",
+      "The forecasting actually accounts for the Q1 slowdown instead of projecting a straight line. No other tool I've used does that — it changed how I plan my year.",
     name: "Jason T.",
     title: "RE/MAX Agent, Calgary AB",
     initials: "JT",
@@ -144,7 +144,7 @@ const TESTIMONIALS = [
   },
   {
     quote:
-      "The tax planning cards alone are worth the subscription. Knowing my quarterly instalments without calling my accountant every month saves time and money.",
+      "Knowing my quarterly tax instalments without calling my accountant every month saves me time and money. The tax planning alone is worth the subscription.",
     name: "Michelle L.",
     title: "Independent Agent, Ottawa ON",
     initials: "ML",
@@ -394,15 +394,15 @@ export default async function Home() {
                 </h1>
 
                 <p className="mt-4 text-2xl font-semibold text-white sm:text-3xl">
-                  Your back office. Automated.
+                  Know exactly where your business stands.
                 </p>
 
                 <p className="mt-5 max-w-lg text-base leading-relaxed text-slate-400 sm:text-lg">
-                  The world&apos;s first platform built to run a real estate agent&apos;s entire business — automatically. GCI tracking, tax planning, client outreach, income forecasting. Most of it requires no data entry. You upload. It handles the rest.
+                  Agent Runway tracks your income, estimates your taxes, forecasts your year-end, and tells you how long your cash will last — automatically. Upload your deals. See the full picture.
                 </p>
 
                 <p className="mt-3 max-w-lg text-sm leading-relaxed text-slate-500">
-                  Agents who know their numbers close more confidently, plan smarter, and sleep better.
+                  Built for Canadian agents who want clarity, not more spreadsheets.
                 </p>
 
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -502,7 +502,7 @@ export default async function Home() {
                 </span>
               </h2>
               <p className="mt-4 text-lg text-slate-400">
-                Purpose-built for agents who treat their business like a business.
+                Know your real income. See your tax liability. Track your runway. Plan your year with data, not instinct.
               </p>
             </ScrollRevealSection>
 
@@ -631,18 +631,18 @@ export default async function Home() {
                 </h2>
 
                 <p className="mt-6 text-lg leading-relaxed text-slate-400">
-                  GCI is just the start. Agent Runway shows what you actually take home — after splits, fees, and expenses. It estimates your taxes before your accountant calls. It benchmarks you against real CREA data. And it builds{" "}
+                  Knowing your GCI doesn&apos;t tell you if you&apos;re profitable. Agent Runway shows what you actually take home, estimates your taxes before filing season, benchmarks you against real CREA data, and builds{" "}
                   <Link
                     href="/real-estate-business-analytics"
                     className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
                   >
                     forward-looking forecasts
                   </Link>{" "}
-                  from your actual pipeline — not wishful thinking.
+                  from your pipeline — not wishful thinking.
                 </p>
 
                 <p className="mt-4 text-lg leading-relaxed text-slate-400">
-                  Built for Canadian agents. Every province. Every tax bracket. Every slowdown season.
+                  All 13 provinces and territories. Every tax bracket. Every slowdown season accounted for.
                 </p>
 
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -718,7 +718,7 @@ export default async function Home() {
                 </span>
               </h2>
               <p className="mt-4 text-lg text-slate-400">
-                These are real agents who stopped guessing and started knowing.
+                Agents who stopped guessing and started making decisions with real data.
               </p>
             </ScrollRevealSection>
 
@@ -788,7 +788,7 @@ export default async function Home() {
               Start free · No credit card required
             </div>
             <h2 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
-              Stop flying blind.
+              Stop guessing.
               <br />
               <span
                 style={{
@@ -797,12 +797,12 @@ export default async function Home() {
                   WebkitTextFillColor: "transparent",
                 }}
               >
-                Take off in 5 minutes.
+                Start knowing.
               </span>
             </h2>
             <p className="mt-5 text-lg text-slate-400">
-              14-day free trial. No credit card. No fluff.
-              Just the clarity your business has been missing.
+              Upload your first deal and see where you stand in 5 minutes.
+              14-day free trial. No credit card required.
             </p>
             <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Link
@@ -835,8 +835,8 @@ export default async function Home() {
         >
           <div className="mx-auto max-w-2xl">
             <EmailCapture
-              heading="Stay ahead of your numbers"
-              subheading="Practical tips for running a more profitable real estate business. Sent occasionally — no spam."
+              heading="Get smarter about your business"
+              subheading="Tax tips, benchmarking insights, and strategies that help Canadian agents keep more of what they earn. Sent occasionally — no spam."
               source="homepage"
             />
           </div>
