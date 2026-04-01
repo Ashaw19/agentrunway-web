@@ -326,6 +326,24 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                 </li>
               </ul>
 
+              <p>
+                For a complete breakdown by CRA category with T2125 line numbers, see our{" "}
+                <Link
+                  href="/real-estate-agent-business-expenses-canada"
+                  className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                >
+                  full guide to deductible business expenses
+                </Link>
+                . When you&apos;re ready to file, our{" "}
+                <Link
+                  href="/t2125-guide-real-estate-agents-canada"
+                  className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                >
+                  T2125 line-by-line guide
+                </Link>
+                {" "}walks you through every section.
+              </p>
+
               <h3>What is not deductible</h3>
 
               <p>

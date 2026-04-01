@@ -207,13 +207,26 @@ export default function TaxSavingsGuidePage() {
                   The fix is straightforward but requires discipline: know your
                   estimated rate, set aside that percentage from every cheque,
                   and pay your quarterly instalments on time. The calculator
-                  above gives you a starting point. For continuous, real-time
-                  tracking,{" "}
+                  above gives you a starting point. For a deeper look, see our{" "}
                   <Link
                     href="/real-estate-agent-tax-planning-canada"
                     className="text-blue-600 underline underline-offset-2 hover:text-blue-500"
                   >
-                    read our full Canadian tax planning guide
+                    full tax planning guide
+                  </Link>
+                  , learn{" "}
+                  <Link
+                    href="/real-estate-agent-business-expenses-canada"
+                    className="text-blue-600 underline underline-offset-2 hover:text-blue-500"
+                  >
+                    what expenses you can deduct
+                  </Link>
+                  , or walk through the{" "}
+                  <Link
+                    href="/t2125-guide-real-estate-agents-canada"
+                    className="text-blue-600 underline underline-offset-2 hover:text-blue-500"
+                  >
+                    T2125 line by line
                   </Link>
                   .
                 </p>
