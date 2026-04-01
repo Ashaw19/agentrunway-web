@@ -116,7 +116,7 @@ export default function AboutPage() {
               Real estate agents run complex businesses — managing hundreds of
               thousands in annual transaction value, navigating commission splits,
               and planning around a seasonal market. Yet the tools most agents rely
-              on were built for transaction management, not business intelligence.
+              on were built for transaction management — not for showing agents where they actually stand.
               Agent Runway exists to close that gap.
             </p>
           </div>

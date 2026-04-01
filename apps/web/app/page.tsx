@@ -21,9 +21,9 @@ import { EmailCapture } from "@/components/email-capture";
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 
 export const metadata: Metadata = {
-  title: "Agent Runway | Canada's First Agent Business Platform",
+  title: "Agent Runway | Know Where Your Business Stands",
   description:
-    "The world's first platform built to run a real estate agent's entire business automatically. GCI tracking, tax planning, client outreach, and income forecasting — with uploads, not spreadsheets.",
+    "Agent Runway connects your income, taxes, expenses, clients, and pipeline into one system — so you always know where you stand and what to do next. Built for Canadian real estate agents.",
   openGraph: {
     url: "https://agentrunway.ca",
     images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
@@ -37,7 +37,7 @@ const JSON_LD = {
   "@type": "SoftwareApplication",
   name: "Agent Runway",
   description:
-    "Business analytics software for real estate agents that tracks GCI, forecasts income, and measures financial runway.",
+    "Agent Runway connects income, taxes, expenses, clients, and pipeline into one system for Canadian real estate agents — so you always know where you stand and what to do next.",
   applicationCategory: "BusinessApplication",
   operatingSystem: "Web",
   url: "https://agentrunway.ca",
@@ -50,9 +50,9 @@ const JSON_LD = {
 const FEATURES = [
   {
     icon: BarChart3,
-    title: "Track GCI",
+    title: "Income Tracking",
     description:
-      "See your year-to-date commission income update with every deal. Always know if you're ahead of pace, behind, or right on target.",
+      "Every deal updates your real income — after splits, fees, and expenses. Always know if you're ahead, behind, or right on target.",
     iconBg: "bg-blue-500",
     borderColor: "rgba(96,165,250,0.55)",
     iconShadow: "0 0 20px rgba(59,130,246,0.4)",
@@ -61,9 +61,9 @@ const FEATURES = [
   },
   {
     icon: TrendingUp,
-    title: "Forecast Income",
+    title: "Year-End Forecast",
     description:
-      "Know where you'll finish the year — not a straight-line guess, but a seasonality-adjusted forecast built from your closed deals and active pipeline.",
+      "Know where you'll finish the year — adjusted for seasonality and weighted by your actual pipeline, not a straight-line guess.",
     iconBg: "bg-emerald-500",
     borderColor: "rgba(52,211,153,0.55)",
     iconShadow: "0 0 20px rgba(16,185,129,0.4)",
@@ -72,9 +72,9 @@ const FEATURES = [
   },
   {
     icon: Shield,
-    title: "Measure Financial Runway",
+    title: "Financial Runway",
     description:
-      "How many months can you cover your costs if no new deals close? Your runway number answers the question most agents are afraid to ask.",
+      "How long can you cover your costs if no new deals close? Your runway number answers the question most agents avoid asking.",
     iconBg: "bg-violet-500",
     borderColor: "rgba(167,139,250,0.55)",
     iconShadow: "0 0 20px rgba(139,92,246,0.4)",
@@ -83,9 +83,9 @@ const FEATURES = [
   },
   {
     icon: Sparkles,
-    title: "AI Business Insights",
+    title: "What To Do Next",
     description:
-      "Your data analyzed in real time. AI flags what needs attention, warns you before problems hit, and tells you exactly what to do next — specific to your numbers, not generic tips.",
+      "AI reads your live business data and tells you what needs attention — flag a tax instalment, prioritize a client, close a pipeline gap. Specific to your numbers, not generic advice.",
     iconBg: "bg-amber-500",
     borderColor: "rgba(251,191,36,0.55)",
     iconShadow: "0 0 20px rgba(245,158,11,0.4)",
@@ -99,26 +99,26 @@ const FEATURES = [
 const WHY_CALLOUTS = [
   {
     icon: DollarSign,
-    title: "Net Income Clarity",
-    description: "What you actually keep after splits, brokerage fees, and business expenses.",
+    title: "Real Take-Home",
+    description: "See what you actually keep — after splits, brokerage fees, and every business expense.",
     color: "blue",
   },
   {
     icon: Calculator,
-    title: "Tax Estimates",
-    description: "Federal, provincial, CPP, and HST — calculated quarterly so you're never caught off guard.",
+    title: "No Tax Surprises",
+    description: "Federal, provincial, CPP, and HST — calculated quarterly so you know what you owe before your accountant calls.",
     color: "violet",
   },
   {
     icon: Award,
-    title: "CREA Benchmarks",
-    description: "Compare your GCI, expenses, and conversion rate against national agent averages.",
+    title: "How You Compare",
+    description: "Benchmark your GCI, expenses, and conversion rate against real national agent data.",
     color: "emerald",
   },
   {
     icon: LineChart,
-    title: "Pipeline Forecasts",
-    description: "Every deal in your pipeline weighted by close probability and adjusted for seasonal patterns.",
+    title: "Pipeline You Can Trust",
+    description: "Every deal weighted by close probability and adjusted for seasonal patterns — not wishful thinking.",
     color: "teal",
   },
 ];
@@ -360,7 +360,7 @@ export default async function Home() {
               <div>
                 <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-400/10 px-4 py-1.5 text-xs font-semibold text-blue-300">
                   <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
-                  Canada&apos;s First Agent Business Platform
+                  Built for Canadian Real Estate Agents
                 </div>
 
                 <h1 className="text-6xl font-extrabold tracking-tight sm:text-7xl lg:text-[76px] lg:leading-[1.02]">
@@ -376,15 +376,15 @@ export default async function Home() {
                 </h1>
 
                 <p className="mt-4 text-2xl font-semibold text-white sm:text-3xl">
-                  Know exactly where your business stands.
+                  Know where you stand. Know what to do next.
                 </p>
 
                 <p className="mt-5 max-w-lg text-base leading-relaxed text-slate-400 sm:text-lg">
-                  Agent Runway tracks your income, estimates your taxes, forecasts your year-end, and tells you how long your cash will last — automatically. Upload your deals. See the full picture.
+                  Agent Runway connects your income, taxes, expenses, clients, and pipeline into one system — so every decision you make is based on what&apos;s actually happening in your business.
                 </p>
 
                 <p className="mt-3 max-w-lg text-sm leading-relaxed text-slate-500">
-                  Built for Canadian agents who want clarity, not more spreadsheets.
+                  Stop running your business from three tabs and a spreadsheet.
                 </p>
 
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -439,8 +439,8 @@ export default async function Home() {
           <div className="mx-auto max-w-3xl px-6 py-10 sm:px-10">
             <div className="grid grid-cols-3 divide-x text-center" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
               {[
-                { value: "World's First", label: "Agent Business Platform", sub: "Nothing else like it exists" },
-                { value: "13", label: "Provinces & Territories", sub: "Full Canadian tax coverage" },
+                { value: "5-in-1", label: "Connected System", sub: "Income · Taxes · Expenses · Clients · Pipeline" },
+                { value: "13", label: "Provinces & Territories", sub: "Every tax bracket covered" },
                 { value: "14-day", label: "Free Trial", sub: "No card required" },
               ].map(({ value, label, sub }) => (
                 <div key={label} className="px-4 py-2 sm:px-8">
@@ -472,7 +472,7 @@ export default async function Home() {
           <div className="relative mx-auto max-w-6xl">
             <ScrollRevealSection className="mb-14 text-center">
               <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
-                Everything you need to{" "}
+                One system.{" "}
                 <span
                   style={{
                     background: "linear-gradient(135deg, #60a5fa, #a78bfa)",
@@ -480,11 +480,11 @@ export default async function Home() {
                     WebkitTextFillColor: "transparent",
                   }}
                 >
-                  run like a CEO
+                  The full picture.
                 </span>
               </h2>
               <p className="mt-4 text-lg text-slate-400">
-                Know your real income. See your tax liability. Track your runway. Plan your year with data, not instinct.
+                Your income, taxes, runway, and pipeline — connected, so you see what&apos;s really happening and what to do about it.
               </p>
             </ScrollRevealSection>
 
@@ -599,7 +599,7 @@ export default async function Home() {
 
               <ScrollRevealSection>
                 <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
-                  Most agents track deals.
+                  GCI is not profit.
                   <br />
                   <span
                     style={{
@@ -608,19 +608,19 @@ export default async function Home() {
                       WebkitTextFillColor: "transparent",
                     }}
                   >
-                    You&apos;ll run a real business.
+                    Know the difference.
                   </span>
                 </h2>
 
                 <p className="mt-6 text-lg leading-relaxed text-slate-400">
-                  Knowing your GCI doesn&apos;t tell you if you&apos;re profitable. Agent Runway shows what you actually take home, estimates your taxes before filing season, benchmarks you against real CREA data, and builds{" "}
+                  Most agents know what they earned. Almost none know what they actually kept. Agent Runway shows your real take-home, estimates your taxes before filing season, and builds{" "}
                   <Link
                     href="/real-estate-business-analytics"
                     className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
                   >
                     forward-looking forecasts
                   </Link>{" "}
-                  from your pipeline — not wishful thinking.
+                  from your pipeline — so you can make decisions from the full picture, not just the top line.
                 </p>
 
                 <p className="mt-4 text-lg leading-relaxed text-slate-400">
@@ -688,7 +688,7 @@ export default async function Home() {
             <div className="relative mx-auto max-w-6xl">
               <ScrollRevealSection className="mb-12 text-center">
                 <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
-                  What agents are{" "}
+                  Agents who stopped{" "}
                   <span
                     style={{
                       background: "linear-gradient(135deg, #34d399, #22d3ee)",
@@ -696,11 +696,11 @@ export default async function Home() {
                       WebkitTextFillColor: "transparent",
                     }}
                   >
-                    saying
+                    guessing
                   </span>
                 </h2>
                 <p className="mt-4 text-lg text-slate-400">
-                  Real feedback from agents using Agent Runway to run their business.
+                  Real agents. Real results. In their own words.
                 </p>
               </ScrollRevealSection>
 
@@ -828,8 +828,8 @@ export default async function Home() {
         >
           <div className="mx-auto max-w-2xl">
             <EmailCapture
-              heading="Get smarter about your business"
-              subheading="Tax tips, benchmarking insights, and strategies that help Canadian agents keep more of what they earn. Sent occasionally — no spam."
+              heading="Know more. Keep more."
+              subheading="Tax strategies, benchmarking insights, and business clarity for Canadian real estate agents. Sent occasionally — no spam."
               source="homepage"
             />
           </div>
