@@ -1,5 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { resend, FROM_ADDRESS } from "@/lib/resend";
+import { charterWelcomeEmail } from "@/lib/emails/charter-welcome";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -72,6 +74,24 @@ export async function POST(request: NextRequest) {
       { error: "Could not save your email. Please try again." },
       { status: 500 }
     );
+  }
+
+  // Send charter welcome email for waitlist signups (non-blocking)
+  if (source === "waitlist_event" && resend) {
+    const firstName = name?.trim()?.split(" ")[0] ?? null;
+    const { subject, html, text } = charterWelcomeEmail({ firstName });
+
+    resend.emails
+      .send({
+        from: FROM_ADDRESS,
+        to: email.toLowerCase().trim(),
+        subject,
+        html,
+        text,
+      })
+      .catch((err) => {
+        console.error("[resend] charter welcome email failed:", err);
+      });
   }
 
   return NextResponse.json({ success: true });

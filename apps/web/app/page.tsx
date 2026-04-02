@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
-import { EmailCapture } from "@/components/email-capture";
+
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 
 export const metadata: Metadata = {
@@ -820,18 +820,33 @@ export default async function Home() {
         </section>
 
         {/* ════════════════════════════════════════════════════════
-            EMAIL CAPTURE
+            CHARTER CTA
         ════════════════════════════════════════════════════════ */}
         <section
           className="px-6 py-16 sm:px-10"
           style={{ background: "rgba(255,255,255,0.02)", borderTop: "1px solid rgba(255,255,255,0.05)" }}
         >
-          <div className="mx-auto max-w-2xl">
-            <EmailCapture
-              heading="Know more. Keep more."
-              subheading="Tax strategies, benchmarking insights, and business clarity for Canadian real estate agents. Sent occasionally — no spam."
-              source="homepage"
-            />
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              Get early access to Agent Runway
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-slate-400">
+              First 50 Charter Members get 3 months free and a lifetime price lock. No credit card required.
+            </p>
+            <div className="mt-6">
+              <Link
+                href="/waitlist"
+                className="inline-flex items-center gap-2 rounded-xl px-7 py-3.5 text-sm font-bold transition-all duration-200 hover:brightness-110"
+                style={{
+                  background: "linear-gradient(135deg, #F0A800 0%, #D97706 100%)",
+                  boxShadow: "0 0 30px rgba(240,168,0,0.30), 0 0 60px rgba(240,168,0,0.10)",
+                  color: "#15110A",
+                }}
+              >
+                Claim your Charter spot
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
         </section>
 

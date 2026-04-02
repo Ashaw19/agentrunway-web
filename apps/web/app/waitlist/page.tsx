@@ -396,10 +396,14 @@ export default function WaitlistPage() {
                   </h1>
                 </div>
 
+                {/* Problem statement */}
+                <p className="text-base leading-relaxed text-slate-400 sm:text-lg max-w-lg">
+                  Most agents don&apos;t know what they actually keep, what they owe, or how long they can operate without a closing.
+                </p>
+
                 {/* Subheadline */}
                 <p className="text-base leading-relaxed text-slate-400 sm:text-xl max-w-lg">
-                  Agent Runway is the only all-in-one platform built exclusively for Canadian real estate agents.
-                  CRM. Tax engine. AI that sounds like you. Every number that matters.
+                  Agent Runway connects income, expenses, taxes, pipeline, and clients into one dashboard — so you always know where your business stands.
                 </p>
 
                 {/* Inline trust signals */}
