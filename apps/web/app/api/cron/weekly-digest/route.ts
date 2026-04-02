@@ -18,6 +18,7 @@ import {
   type Transaction,
   type PipelineDeal,
 } from "@/lib/types/database";
+import { buildUnsubscribeUrl } from "@/lib/email-tokens";
 
 export const maxDuration = 300; // 5 minutes max
 
@@ -105,6 +106,16 @@ export async function GET(req: NextRequest) {
       const { data: authUser } = await admin.auth.admin.getUserById(user.user_id);
       const email = authUser?.user?.email;
       if (!email) continue;
+
+      // Check if user has opted out of the weekly digest
+      const { data: prefs } = await admin
+        .from("notification_preferences")
+        .select("weekly_digest_enabled")
+        .eq("user_id", user.user_id)
+        .maybeSingle();
+
+      // If a row exists and weekly_digest_enabled is explicitly false, skip
+      if (prefs && prefs.weekly_digest_enabled === false) continue;
 
       // Fetch closed transactions for this year
       const { data: txRows } = await admin
@@ -204,9 +215,10 @@ export async function GET(req: NextRequest) {
         runwayGrade: gradeFromScore(runwayScore),
         runwayScore,
         dashboardUrl: "https://agentrunway.ca/dashboard",
+        unsubscribeUrl: buildUnsubscribeUrl(user.user_id, "weekly-digest"),
       };
 
-      const { subject, html, text } = weeklyDigestEmail(digestData);
+      const { subject, html, text, unsubscribeUrl } = weeklyDigestEmail(digestData);
 
       await resend.emails.send({
         from: FROM_ADDRESS,
@@ -214,6 +226,14 @@ export async function GET(req: NextRequest) {
         subject,
         html,
         text,
+        headers: {
+          ...(unsubscribeUrl
+            ? {
+                "List-Unsubscribe": `<${unsubscribeUrl}>`,
+                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+              }
+            : {}),
+        },
       });
 
       sent++;

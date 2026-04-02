@@ -37,6 +37,8 @@ export interface WeeklyDigestData {
   aiInsight?: string;
   /** Dashboard URL */
   dashboardUrl?: string;
+  /** Unsubscribe URL for one-click opt-out */
+  unsubscribeUrl?: string;
 }
 
 function fmt(n: number): string {
@@ -52,9 +54,10 @@ function pctBar(pct: number): string {
     </div>`;
 }
 
-export function weeklyDigestEmail(data: WeeklyDigestData): { subject: string; html: string; text: string } {
+export function weeklyDigestEmail(data: WeeklyDigestData): { subject: string; html: string; text: string; unsubscribeUrl?: string } {
   const greeting = data.firstName ? `Hi ${data.firstName}` : "Hi there";
   const dashboardUrl = data.dashboardUrl ?? "https://agentrunway.ca/dashboard";
+  const unsubscribeUrl = data.unsubscribeUrl;
 
   const subject = `Your Week in Review — ${data.weekLabel}`;
 
@@ -216,6 +219,8 @@ export function weeklyDigestEmail(data: WeeklyDigestData): { subject: string; ht
                 <a href="https://agentrunway.ca" style="color:#1E72F2;text-decoration:none;">agentrunway.ca</a>.
                 &nbsp;&middot;&nbsp;
                 <a href="https://agentrunway.ca/settings" style="color:#1E72F2;text-decoration:none;">Manage preferences</a>
+                ${unsubscribeUrl ? `&nbsp;&middot;&nbsp;
+                <a href="${unsubscribeUrl}" style="color:#94a3b8;text-decoration:none;">Unsubscribe from weekly digest</a>` : ""}
               </p>
             </td>
           </tr>
@@ -250,7 +255,8 @@ Open your dashboard: ${dashboardUrl}
 
 Have a great week!
 — Agent Runway
-https://agentrunway.ca`;
+https://agentrunway.ca
+${unsubscribeUrl ? `\nUnsubscribe from weekly digest: ${unsubscribeUrl}` : ""}`;
 
-  return { subject, html, text };
+  return { subject, html, text, unsubscribeUrl };
 }
