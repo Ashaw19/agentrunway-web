@@ -197,6 +197,23 @@ export default function LoginPage() {
             </form>
           )}
 
+          {/* ── Data processing disclosure (signup) ────────────────────── */}
+          {mode === "signup" && (
+            <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground/70 text-center">
+              By creating an account, you acknowledge that your data may be
+              processed by service providers located in the United States. See
+              our{" "}
+              <a href="/subprocessors" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground transition-colors">
+                Sub-Processors list
+              </a>{" "}
+              and{" "}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground transition-colors">
+                Privacy Policy
+              </a>{" "}
+              for details.
+            </p>
+          )}
+
           {/* ── Mode switcher links ────────────────────────────────────────── */}
           {(mode === "signin" || mode === "signup") && (
             <div className="mt-4 text-center text-sm text-muted-foreground">

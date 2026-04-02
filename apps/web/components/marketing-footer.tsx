@@ -23,6 +23,7 @@ const FOOTER_LINKS = {
     { label: "Terms of Service", href: "/terms" },
     { label: "Security", href: "/security" },
     { label: "Cookie Policy", href: "/cookie-policy" },
+    { label: "Sub-Processors", href: "/subprocessors" },
     { label: "Acceptable Use", href: "/acceptable-use" },
     { label: "AI Disclaimer", href: "/ai-disclaimer" },
   ],

@@ -1,24 +1,32 @@
 "use client";
 
-// PIPEDA/CASL-compliant cookie notice banner.
+// PIPEDA / Quebec Law 25 compliant cookie consent banner.
 //
-// Canada's PIPEDA does not require opt-in consent for analytics cookies as long
-// as they are clearly disclosed. This banner informs users and records their
-// preference in localStorage. The banner is non-blocking — users can continue
-// using the app without responding.
+// Quebec's Law 25 requires opt-in consent for non-essential cookies/tracking.
+// Default state (no choice made) = NO tracking loaded.
+// Accept = load analytics and session replay.
+// Decline = only essential services (Sentry error tracking without replay).
 //
-// Key: "ar-cookie-consent" in localStorage → "accepted" | "declined"
+// Key: "ar-cookie-consent" in localStorage -> "accepted" | "declined"
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Cookie } from "lucide-react";
 
+/** Check if user has accepted cookies. Returns true only if explicitly accepted. */
+export function hasConsentedToCookies(): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem("ar-cookie-consent") === "accepted";
+}
+
+/** Custom event name dispatched when consent changes */
+export const CONSENT_CHANGE_EVENT = "ar-cookie-consent-change";
+
 export function CookieConsent() {
-  // null = hydrating (don't render), false = show banner, true = hide banner
+  // null = hydrating (don't render), true = show banner, false = hide banner
   const [visible, setVisible] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Read preference on mount — avoid hydration flash by deferring to client
     const stored = localStorage.getItem("ar-cookie-consent");
     setVisible(!stored); // show if no preference recorded yet
   }, []);
@@ -28,6 +36,10 @@ export function CookieConsent() {
 
   const dismiss = (choice: "accepted" | "declined") => {
     localStorage.setItem("ar-cookie-consent", choice);
+    // Dispatch custom event so other components can react
+    window.dispatchEvent(
+      new CustomEvent(CONSENT_CHANGE_EVENT, { detail: choice })
+    );
     setVisible(false);
   };
 

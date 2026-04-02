@@ -587,6 +587,14 @@ export default function PrivacyPage() {
                 </li>
               </ul>
               <p className="mt-4 leading-relaxed">
+                For a complete list of our sub-processors, including the data
+                they process and their locations, see our{" "}
+                <a href="/subprocessors" className="text-blue-400 hover:text-blue-300 underline">
+                  Sub-Processors page
+                </a>
+                .
+              </p>
+              <p className="mt-4 leading-relaxed">
                 We may also disclose information if: (a) required by law, court
                 order, subpoena, or governmental authority; (b) necessary to
                 protect the rights, property, or safety of Agent Runway, our
@@ -1105,16 +1113,17 @@ export default function PrivacyPage() {
               <address className="mt-4 not-italic text-slate-400">
                 <strong className="text-slate-300">Agent Runway</strong>
                 <br />
-                Andrew Shaw — Privacy Officer
+                Privacy Officer: Andrew Shaw
                 <br />
-                New Brunswick, Canada
-                <br />
+                Email:{" "}
                 <a
-                  href="mailto:privacy@agentrunway.ca"
+                  href="mailto:andrew@agentrunway.ca"
                   className="text-blue-400 hover:text-blue-300"
                 >
-                  privacy@agentrunway.ca
+                  andrew@agentrunway.ca
                 </a>
+                <br />
+                Address: 13 Susan Street, Quispamsis, NB, E2E 4T5
               </address>
               <p className="mt-4 leading-relaxed text-slate-500 text-sm">
                 You may also contact the{" "}

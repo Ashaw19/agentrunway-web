@@ -1124,6 +1124,19 @@ function DoneStep({
         </span>
       </label>
 
+      <p className="text-[11px] leading-relaxed text-white/30 text-center px-2">
+        By creating an account, you acknowledge that your data may be processed
+        by service providers located in the United States. See our{" "}
+        <a href="/subprocessors" target="_blank" rel="noopener noreferrer" className="text-white/40 underline hover:text-white/60 transition-colors">
+          Sub-Processors list
+        </a>{" "}
+        and{" "}
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-white/40 underline hover:text-white/60 transition-colors">
+          Privacy Policy
+        </a>{" "}
+        for details.
+      </p>
+
       <Button
         onClick={onFinish}
         disabled={saving || !termsAccepted}

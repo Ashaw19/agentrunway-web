@@ -215,6 +215,20 @@ export function WaitlistForm() {
         </div>
       )}
 
+      {/* Data processing disclosure */}
+      <p className="text-[11px] leading-relaxed text-slate-600 text-center">
+        By signing up, you acknowledge that your data may be processed by
+        service providers located in the United States. See our{" "}
+        <a href="/subprocessors" target="_blank" rel="noopener noreferrer" className="text-slate-500 underline hover:text-slate-400 transition-colors">
+          Sub-Processors list
+        </a>{" "}
+        and{" "}
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-slate-500 underline hover:text-slate-400 transition-colors">
+          Privacy Policy
+        </a>{" "}
+        for details.
+      </p>
+
       {/* Submit */}
       <div className="pt-1">
         <button

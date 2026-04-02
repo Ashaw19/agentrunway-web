@@ -1,17 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Analytics } from "@vercel/analytics/react";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import { CookieConsent } from "@/components/cookie-consent";
+import { ConsentAwareAnalytics } from "@/components/consent-aware-analytics";
 import { rtlLocales, type Locale } from "@/i18n/routing";
 import "./globals.css";
-
-const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
-const PLAUSIBLE_DOMAIN = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -101,36 +96,8 @@ export default async function RootLayout({
           </ThemeProvider>
         </NextIntlClientProvider>
 
-        {/* Google Analytics — loads only when NEXT_PUBLIC_GA_MEASUREMENT_ID is set */}
-        {GA_ID && (
-          <>
-            <Script
-              src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
-              strategy="afterInteractive"
-            />
-            <Script id="google-analytics" strategy="afterInteractive">
-              {`
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', '${GA_ID}', { page_path: window.location.pathname });
-              `}
-            </Script>
-          </>
-        )}
-
-        {/* Plausible Analytics — loads only when NEXT_PUBLIC_PLAUSIBLE_DOMAIN is set */}
-        {PLAUSIBLE_DOMAIN && (
-          <Script
-            defer
-            data-domain={PLAUSIBLE_DOMAIN}
-            src="https://plausible.io/js/script.js"
-            strategy="afterInteractive"
-          />
-        )}
-
-        <Analytics />
-        <SpeedInsights />
+        {/* All analytics (Vercel, GA, Plausible) are consent-gated */}
+        <ConsentAwareAnalytics />
       </body>
     </html>
   );
