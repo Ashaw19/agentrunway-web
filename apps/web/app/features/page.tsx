@@ -122,11 +122,11 @@ const FEATURES = [
     iconClass: "text-sky-300",
     heading: "Get AI-Powered Insights About Your Business",
     explanation:
-      "Agent Runway includes an AI assistant with full access to your live business data. Ask natural-language questions, review advisor cards ranked by potential impact, and get tax planning guidance — all grounded in your actual numbers, not generic templates.",
+      "Agent Runway includes an AI assistant with full access to your live business data. Ask natural-language questions, review insight cards ranked by potential impact, and explore tax estimate tools — all grounded in your actual numbers, not generic templates.",
     bullets: [
       "AI chat assistant that understands your GCI, pipeline, expenses, and runway",
-      "Contextual advisor cards ranked by potential business impact",
-      "Tax planning: quarterly instalment amounts and per-deal set-asides",
+      "Contextual insight cards ranked by potential business impact",
+      "Tax estimates: quarterly instalment amounts and per-deal set-asides",
       "Benchmark comparison against CREA national cohort data",
     ],
     bg: "bg-slate-50",

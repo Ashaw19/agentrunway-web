@@ -436,12 +436,12 @@ export default function HowRealEstateAgentsTrackGCIPage() {
                   {
                     icon: Layers,
                     title: "Tax planning built in",
-                    body: "Federal and provincial tax obligations calculated for all 13 provinces and territories, including CPP and Quebec QPP. Shows your recommended quarterly instalment and per-deal set-aside amount.",
+                    body: "Federal and provincial tax obligations estimated for all 13 provinces and territories, including CPP and Quebec QPP. Shows your estimated quarterly instalment and per-deal set-aside amount.",
                   },
                   {
                     icon: Rocket,
                     title: "AI business insights",
-                    body: "An AI chat assistant with access to your live data — GCI pace, pipeline, expenses, runway, and projections. Contextual advisor cards surface the highest-impact observations automatically.",
+                    body: "An AI chat assistant with access to your live data — GCI pace, pipeline, expenses, runway, and projections. Contextual insight cards surface the highest-impact observations automatically.",
                   },
                 ].map(({ icon: Icon, title, body }) => (
                   <div key={title} className="rounded-2xl border border-slate-100 bg-slate-50 p-5">

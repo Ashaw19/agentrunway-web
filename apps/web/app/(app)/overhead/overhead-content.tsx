@@ -306,7 +306,7 @@ function TaxSavingsSection({
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <CardTitle className="text-base">Tax Savings Opportunities</CardTitle>
+            <CardTitle className="text-base">Tax Deduction Estimates</CardTitle>
             <CardDescription>
               {visibleCards.length > 0
                 ? <>Estimated ~{fmtCurrency(potential)}/yr in untapped potential</>
@@ -991,7 +991,7 @@ export function OverheadContent({
         </Card>
       )}
 
-      {/* Tax Savings Opportunities */}
+      {/* Tax Deduction Estimates */}
       {taxOptResult && (
         <TaxSavingsSection
           taxOptResult={taxOptResult}

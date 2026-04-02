@@ -30,7 +30,7 @@ const PILLARS = [
   },
   {
     label: "Canadian Tax Engine",
-    description: "T2125. CCA. PREC optimization. Built for how you actually get paid.",
+    description: "T2125. CCA. PREC estimation tools. Built for how you actually get paid.",
     accentColor: "emerald",
     border: "rgba(16,185,129,0.35)",
     borderHover: "rgba(16,185,129,0.6)",

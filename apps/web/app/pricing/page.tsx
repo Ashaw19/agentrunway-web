@@ -31,7 +31,7 @@ const FAQS = [
   },
   {
     q: "Who is Agent Runway designed for?",
-    a: "Agent Runway is built specifically for Canadian real estate agents — from solo agents building their first business plan to high-producing agents who want deep financial analytics and tax planning.",
+    a: "Agent Runway is built specifically for Canadian real estate agents — from solo agents building their first business plan to high-producing agents who want deep financial analytics and tax estimation tools.",
   },
   {
     q: "Which provinces and territories are supported?",
@@ -43,7 +43,7 @@ const FAQS = [
   },
   {
     q: "What's the difference between Starter and Professional?",
-    a: "Starter gives you the core GCI tracking and basic forecasting to get organised. Professional adds probability-weighted forecasts, a financial runway score, PDF reports, AI advisor cards, tax planning, and CREA benchmark data — everything serious agents need to run their business with clarity.",
+    a: "Starter gives you the core GCI tracking and basic forecasting to get organised. Professional adds probability-weighted forecasts, a financial runway score, PDF reports, AI insight cards, tax estimation tools, and CREA benchmark data — everything serious agents need to run their business with clarity.",
   },
 ];
 
@@ -95,7 +95,7 @@ export default function PricingPage() {
               </span>
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
-              One commission. That&apos;s all it takes to cover a full year of Pro. Most agents say the tax planning alone saves them more than that.{" "}
+              One commission. That&apos;s all it takes to cover a full year of Pro. Most agents say the tax estimation tools alone justify the cost.{" "}
               <Link
                 href="/how-real-estate-agents-track-gci"
                 className="text-blue-400 underline underline-offset-2 hover:text-blue-300"

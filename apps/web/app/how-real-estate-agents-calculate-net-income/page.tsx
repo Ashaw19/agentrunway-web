@@ -358,7 +358,7 @@ export default function HowRealEstateAgentsCalculateNetIncomePage() {
                 net income calculation problem. Rather than tracking GCI and leaving the
                 rest to a spreadsheet or an end-of-year accountant visit, Agent Runway
                 processes every transaction through the full deduction chain automatically
-                — giving you a live, accurate net income figure at every point in the year.
+                — giving you a live, up-to-date net income estimate at every point in the year.
               </p>
 
               <h3>Your brokerage split and fees, applied to every deal</h3>
@@ -389,7 +389,7 @@ export default function HowRealEstateAgentsCalculateNetIncomePage() {
                 Agent Runway&apos;s built-in tax engine calculates your estimated federal
                 income tax, provincial income tax for your province, and CPP contributions
                 (or QPP if you are in Quebec) using current Canadian rate tables. It shows
-                your recommended quarterly instalment amount, the per-deal tax set-aside
+                your estimated quarterly instalment amount, the per-deal tax set-aside
                 that keeps you on track, and your projected effective tax rate — all
                 updated automatically as your income and expenses change through the year.
               </p>

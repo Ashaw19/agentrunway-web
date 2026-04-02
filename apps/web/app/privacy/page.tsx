@@ -192,7 +192,7 @@ export default function PrivacyPage() {
               </p>
               <ul className="list-disc space-y-2 pl-6 text-slate-400">
                 <li>To create and manage your account and authenticate your identity</li>
-                <li>To deliver the features of Agent Runway (dashboards, forecasts, reports, CRM, AI advisor)</li>
+                <li>To deliver the features of Agent Runway (dashboards, forecasts, reports, CRM, AI assistant)</li>
                 <li>To process subscription payments and send billing confirmations</li>
                 <li>To import and categorize bank transactions when you use the optional bank sync feature</li>
                 <li>To provide Google Workspace integration features when you connect your Google account</li>
@@ -487,7 +487,7 @@ export default function PrivacyPage() {
                   <strong className="text-white">Automated decision-making.</strong>{" "}
                   Agent Runway does not make automated decisions with legal or
                   significant effects on you without human review. AI outputs
-                  (advisor cards, outreach drafts, insights) are presented as
+                  (insight cards, outreach drafts, insights) are presented as
                   suggestions for your review, not as automated actions.
                 </li>
               </ul>
@@ -784,7 +784,7 @@ export default function PrivacyPage() {
                   <strong className="text-slate-300">
                     Automated decision-making (Law 25, s. 12.1)
                   </strong>{" "}
-                  — Agent Runway&apos;s AI Advisor feature uses automated
+                  — Agent Runway&apos;s AI Assistant feature uses automated
                   processing of your personal business data (GCI, pipeline
                   metrics, expense ratios, activity data) to generate
                   insights and recommendations presented to you. Under

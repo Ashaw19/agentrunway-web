@@ -52,18 +52,18 @@ const STARTER_FEATURES = [
 const PRO_FEATURES = [
   "Everything in Starter, plus:",
   "Full CRM with flight statuses and outreach",
-  "AI business advisor with financial context",
+  "AI business assistant with financial context",
   "AI-powered outreach (21 opportunity types)",
   "Receipt scanning with AI categorization",
   "Canadian tax centre (T2125, all provinces)",
-  "Tax optimization advisor (10 rules)",
+  "Tax estimation tools (10 categories)",
   "Probabilistic forecasting (P10–P90)",
   "Business health score (A+ to F)",
   "Bank sync with auto-categorization",
   "Google Calendar, Gmail, and Drive",
   "CREA benchmark comparison",
   "Business reports and PDF export",
-  "Mileage tracking (CRA-compliant)",
+  "Mileage tracking (CRA-format logs)",
 ];
 
 const TEAM_FEATURES = [

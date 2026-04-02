@@ -85,7 +85,7 @@ const FEATURES = [
     icon: Sparkles,
     title: "What To Do Next",
     description:
-      "AI reads your live business data and tells you what needs attention — flag a tax instalment, prioritize a client, close a pipeline gap. Specific to your numbers, not generic advice.",
+      "AI reads your live business data and surfaces patterns worth noting — instalment timing, pipeline gaps, client activity. Specific to your numbers, for informational purposes only.",
     iconBg: "bg-amber-500",
     borderColor: "rgba(251,191,36,0.55)",
     iconShadow: "0 0 20px rgba(245,158,11,0.4)",
@@ -106,7 +106,7 @@ const WHY_CALLOUTS = [
   {
     icon: Calculator,
     title: "No Tax Surprises",
-    description: "Federal, provincial, CPP, and HST — calculated quarterly so you know what you owe before your accountant calls.",
+    description: "Federal, provincial, CPP, and HST — estimated quarterly so you can prepare before your accountant calls.",
     color: "violet",
   },
   {

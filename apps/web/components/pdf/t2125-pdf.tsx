@@ -571,7 +571,7 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
         <Footer year={taxYear} agentName={result.agentName} />
       </Page>
 
-      {/* ── PAGE 3: Mileage Summary + Tax Optimization Suggestions ── */}
+      {/* ── PAGE 3: Mileage Summary + Tax Deduction Estimates ── */}
       {(mileageSummary || (taxOptCards && taxOptCards.length > 0)) && (
         <Page size="LETTER" style={s.page}>
           <View style={s.headerBar} />
@@ -580,7 +580,7 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
           {/* Mileage Summary */}
           {mileageSummary && mileageSummary.tripCount > 0 && (
             <>
-              <SectionHeader title="Vehicle Mileage Summary" subtitle="CRA-compliant mileage log totals for vehicle expense deduction" color="#7C3AED" />
+              <SectionHeader title="Vehicle Mileage Summary" subtitle="Mileage log totals formatted for vehicle expense tracking" color="#7C3AED" />
               <View style={s.kpiRow}>
                 <View style={s.kpiTile}>
                   <Text style={s.kpiLabel}>Total Kilometres</Text>
@@ -607,11 +607,11 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
             </>
           )}
 
-          {/* Tax Optimization Suggestions */}
+          {/* Tax Deduction Estimates */}
           {taxOptCards && taxOptCards.length > 0 && (
             <>
               <SectionHeader
-                title="Tax Optimization Opportunities"
+                title="Common Deduction Categories (Estimates Only)"
                 subtitle={totalEstimatedSavings ? `${taxOptCards.length} opportunities · Est. ${fmt(totalEstimatedSavings)} total potential savings` : `${taxOptCards.length} opportunities identified`}
                 color="#059669"
               />

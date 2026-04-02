@@ -1423,11 +1423,11 @@ export function ReportsContent({
         </Card>
       )}
 
-      {/* ── 9. AI Advisor Intelligence ────────────────────────────────────────── */}
+      {/* ── 9. AI Business Intelligence ────────────────────────────────────────── */}
       <div>
         <div className="mb-3 flex items-center gap-2">
           <Zap className="h-4 w-4 text-amber-500" />
-          <h2 className="text-base font-semibold">Advisor Intelligence</h2>
+          <h2 className="text-base font-semibold">Business Intelligence</h2>
           <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700 text-xs">
             AI-powered
           </Badge>
@@ -1469,7 +1469,7 @@ export function ReportsContent({
             <Zap className="h-8 w-8 text-slate-300 mx-auto mb-2" />
             <p className="text-sm font-medium text-slate-500">No recommendations right now</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Add more transaction data and set an annual goal to unlock personalised advisor cards.
+              Add more transaction data and set an annual goal to unlock personalised insight cards.
             </p>
           </div>
         )}

@@ -1,4 +1,4 @@
-// TaxOptimizationEngine — Canadian tax optimization advisory for self-employed RE agents.
+// TaxOptimizationEngine — Canadian tax estimation tools for self-employed RE agents.
 //
 // Surfaces educational insights about common tax strategies. Each rule is based on
 // CRA-published, objectively verifiable thresholds and rates.
@@ -6,7 +6,7 @@
 // ⚠️  ESTIMATE ONLY — For educational purposes only. Not personalized tax advice.
 //     All calculations are approximate. Users must consult a qualified Canadian
 //     accountant or tax professional before making tax decisions.
-//     Agent Runway is not a tax advisor and accepts no liability for tax outcomes.
+//     Agent Runway does not provide tax advice and accepts no liability for tax outcomes.
 
 import type { Province } from "../types/database";
 import { fmtCurrency, fmtPct } from "../formatters";

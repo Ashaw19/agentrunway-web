@@ -5,7 +5,7 @@ import { useAiChat } from "@/lib/ai-chat-context";
 import { cn } from "@/lib/utils";
 
 interface Props {
-  /** The question to auto-send to the AI advisor */
+  /** The question to auto-send to the AI assistant */
   question: string;
   /** Accessible aria-label (defaults to "Ask AI about this") */
   label?: string;

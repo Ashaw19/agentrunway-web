@@ -480,7 +480,7 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               See your estimated quarterly instalments in real time.
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-400">
-              Agent Runway calculates your projected federal tax, provincial tax, and CPP
+              Agent Runway estimates your projected federal tax, provincial tax, and CPP
               obligations automatically — and tells you exactly how much to set aside
               from every deal. Built for Canadian real estate agents.
             </p>

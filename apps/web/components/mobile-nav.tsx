@@ -279,7 +279,7 @@ export function MobileNav({ isPro = false }: { isPro?: boolean }) {
                 </span>
               </div>
               <p className="mb-3 text-[11px] leading-relaxed text-sidebar-foreground/45">
-                Runway score, tax planning, AI advisor &amp; more. Pays for itself.
+                Runway score, tax estimates, AI assistant &amp; more.
               </p>
               <Link
                 href="/pricing"

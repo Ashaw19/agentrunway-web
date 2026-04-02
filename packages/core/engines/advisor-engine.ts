@@ -1,5 +1,5 @@
 // AdvisorEngine — ported from Swift
-// Structured actionable advisor cards with evidence, actions, and quantified impact.
+// Structured actionable insight cards with evidence, actions, and quantified impact.
 
 import { fmtCurrency } from "../formatters";
 import {

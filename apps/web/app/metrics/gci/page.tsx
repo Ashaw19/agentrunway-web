@@ -184,7 +184,7 @@ export default function GCIMetricPage() {
                 <Link href="/metrics/net-income" className="text-blue-600 underline underline-offset-2">
                   net income
                 </Link>{" "}
-                is essential for accurate financial planning.
+                is essential for informed business planning.
               </p>
             </div>
 

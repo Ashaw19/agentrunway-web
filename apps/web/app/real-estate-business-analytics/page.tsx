@@ -94,12 +94,12 @@ const FEATURES = [
     tag: "AI Business Insights",
     heading: "Get AI-Powered Business Insights",
     subheading:
-      "Contextual advisor cards surface risks, opportunities, and action items based on your live data.",
+      "Contextual insight cards surface patterns, opportunities, and data points based on your live data.",
     bullets: [
       "Insights tied to your actual numbers — not generic tips",
-      "Advisor cards ranked by potential impact",
+      "Insight cards ranked by potential impact",
       "Built-in AI chat assistant for business Q&A",
-      "Tax planning: quarterly instalments and per-deal set-asides",
+      "Tax estimates: quarterly instalments and per-deal set-asides",
     ],
   },
 ];

@@ -196,7 +196,7 @@ export default function NetIncomeMetricPage() {
                 in the business — only net income is actionable.
               </p>
               <p className="mt-3 leading-relaxed text-slate-600">
-                Tracking pre-tax net income throughout the year also enables accurate tax planning.
+                Tracking pre-tax net income throughout the year also enables preparing for tax obligations.
                 Rather than discovering a large tax obligation at filing time, agents who monitor
                 net income can calculate their quarterly instalment obligations and set aside the
                 right amount from each commission cheque.

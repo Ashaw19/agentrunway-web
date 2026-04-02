@@ -25,7 +25,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Live Demo | Agent Runway Dashboard",
   description:
-    "Explore the Agent Runway dashboard with realistic sample data — no sign-up required. See GCI tracking, income forecasting, tax planning and AI-powered insights.",
+    "Explore the Agent Runway dashboard with realistic sample data — no sign-up required. See GCI tracking, income forecasting, tax estimates, and AI-powered data exploration.",
   robots: { index: false, follow: false },
 };
 

@@ -215,7 +215,7 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
           {"\u2022"} Forecast with financial waterfall, probability bands, and 5-year projections
         </Text>
         <Text style={S.bullet}>
-          {"\u2022"} AI Business Advisor that sees your live data (Pro plan)
+          {"\u2022"} AI Business Assistant that sees your live data (Pro plan)
         </Text>
         <Text style={S.bullet}>
           {"\u2022"} Social media carousel builder for Instagram month-in-review posts
@@ -320,9 +320,9 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
         <Text style={S.bullet}>{"\u2022"} CPP/QPP self-employment (both halves: 11.90% on $3,500–$71,300)</Text>
         <Text style={S.bullet}>{"\u2022"} CPP2 (8.00% on $71,300–$81,200, 100% deductible)</Text>
 
-        <Text style={S.sectionSubtitle}>Tax Planning</Text>
+        <Text style={S.sectionSubtitle}>Tax Estimates</Text>
         <Text style={S.body}>
-          The Forecast page shows your tax planning card with:
+          The Forecast page shows your tax estimates card with:
         </Text>
         <Text style={S.bullet}>{"\u2022"} Quarterly instalment amount (total annual tax {"\u00F7"} 4)</Text>
         <Text style={S.bullet}>{"\u2022"} Per-deal set-aside (total annual tax {"\u00F7"} projected deal count)</Text>
@@ -411,7 +411,7 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
         <View style={{ ...S.infoBox, marginTop: 16 }}>
           <Text style={S.infoBoxText}>
             For the complete knowledge base — including all metrics, formulas, tax rules, and detailed feature
-            descriptions — visit the Guide page in your Agent Runway dashboard or ask the AI Advisor.
+            descriptions — visit the Guide page in your Agent Runway dashboard or ask the AI Assistant.
           </Text>
         </View>
 

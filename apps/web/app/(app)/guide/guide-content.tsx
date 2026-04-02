@@ -454,7 +454,7 @@ export function GuideContent({
                     onClick={() => askQuestion(searchQuery)}
                     className="text-primary underline underline-offset-2"
                   >
-                    ask your AI advisor
+                    ask your AI assistant
                   </button>
                 ) : (
                   "check the FAQ section"

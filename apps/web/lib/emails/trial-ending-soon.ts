@@ -106,11 +106,11 @@ export function trialEndingSoonEmail({
                 <tr><td style="padding:16px 20px;">
                   ${[
                     ["🏆", "Runway Score", "Your A–F business health grade"],
-                    ["🤖", "AI Business Advisor", "GPT-powered Q&A about your numbers"],
+                    ["🤖", "AI Business Assistant", "GPT-powered Q&A about your numbers"],
                     ["📊", "Probability Forecast", "P10–P90 income bands"],
-                    ["💰", "Tax Planning", "Quarterly instalments + per-deal set-aside"],
+                    ["💰", "Tax Estimates", "Quarterly instalments + per-deal set-aside"],
                     ["📈", "5-Year Growth Plan", "Long-range projections"],
-                    ["🎯", "Advisor Insights", "Ranked action items with impact scores"],
+                    ["🎯", "Business Insights", "Ranked action items with impact scores"],
                   ].map(([icon, title, desc]) => `
                   <div style="display:flex;align-items:flex-start;gap:10px;padding:6px 0;">
                     <span style="font-size:15px;line-height:1.4;">${icon}</span>
@@ -176,11 +176,11 @@ Your Agent Runway Professional trial ends in 3 days${trialEndsOn ? ` (${trialEnd
 
 After your trial, you'll lose access to:
 • Runway Score — A–F health grade
-• AI Business Advisor — GPT-powered Q&A
+• AI Business Assistant — GPT-powered Q&A
 • Probability Forecast — P10–P90 income bands
-• Tax Planning — quarterly instalments + per-deal set-aside
+• Tax Estimates — quarterly instalments + per-deal set-aside
 • 5-Year Growth Plan — long-range projections
-• Advisor Insights — ranked action items
+• Business Insights — ranked action items
 
 Upgrade now to keep access: ${upgradeUrl}
 

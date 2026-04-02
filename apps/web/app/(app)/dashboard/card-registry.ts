@@ -43,10 +43,10 @@ export const CARD_REGISTRY: CardDef[] = [
   { id: "probability",      label: "Projection Range & Benchmark",description: "Probability bands and cohort comparison", section: "performance" },
   { id: "client_briefing",  label: "Daily Briefing",               description: "Pipeline status, pace, market conditions, and priority actions", section: "actions" },
   { id: "tasks",            label: "Follow-up Tasks",             description: "Open CRM tasks and stale leads", section: "actions" },
-  { id: "insights",         label: "Insights & Actions",          description: "AI-generated business recommendations", section: "actions" },
+  { id: "insights",         label: "Insights & Actions",          description: "AI-generated business observations (estimates only)", section: "actions" },
   { id: "business_brief",   label: "Weekly Business Brief",       description: "AI-generated health narrative and month recap", section: "financial" },
   { id: "corp_tax",         label: "Corporate Tax Estimate",      description: "PREC/corporation combined tax breakdown", section: "financial" },
-  { id: "tax_savings",      label: "Tax Savings Opportunities",   description: "Estimated tax savings you may be missing", section: "financial" },
+  { id: "tax_savings",      label: "Tax Deduction Estimates",   description: "Common deduction categories for self-employed agents (estimates only)", section: "financial" },
   { id: "recent_activity",  label: "Recent Transactions",         description: "Latest closed deals", section: "financial" },
   { id: "time_value",       label: "Time Value",                  description: "Effective hourly rate and per-deal time metrics", section: "financial" },
   // Moved cards — kept for backwards compatibility with saved layouts
@@ -55,7 +55,7 @@ export const CARD_REGISTRY: CardDef[] = [
   { id: "commission_mix",   label: "Commission Mix & Pipeline",   description: "Buyer/seller split and active pipeline deals", section: "performance" },
   { id: "cap_progress",     label: "Cap Progress",                description: "Commission cap tracking", section: "financial" },
   { id: "trends",           label: "Monthly Performance Chart",   description: "GCI by month with projected months", section: "performance" },
-  { id: "tax_planning",     label: "Tax Planning",                description: "Tax readiness and goal progress", section: "financial" },
+  { id: "tax_planning",     label: "Tax Estimates",               description: "Tax estimate overview and goal progress", section: "financial" },
 ];
 
 // Cards shown by default on the dashboard.

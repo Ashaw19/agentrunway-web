@@ -304,7 +304,7 @@ export default function AboutPage() {
                   href="/real-estate-agent-tax-planning-canada"
                   className="text-sm font-medium text-slate-400 underline underline-offset-4 hover:text-white transition-colors"
                 >
-                  Read our tax planning guide →
+                  Read our tax guide →
                 </Link>
               </div>
             </div>
@@ -354,7 +354,7 @@ export default function AboutPage() {
                         </div>
                       </div>
                       <p className="text-center text-[10px] font-medium tracking-wider text-slate-600 uppercase">
-                        Live tax planning preview
+                        Live tax estimate preview
                       </p>
                     </div>
                   </div>
@@ -362,10 +362,10 @@ export default function AboutPage() {
                 <div className="order-1 lg:order-2">
                   <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
                     <Calculator className="h-3.5 w-3.5" />
-                    Tax Planning
+                    Tax Estimates
                   </div>
                   <h3 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                    Know what you owe — before the CRA asks
+                    Estimate what you may owe — before the CRA asks
                   </h3>
                   <p className="mt-4 text-base leading-relaxed text-slate-600">
                     Canadian real estate agents are self-employed. That means
@@ -378,7 +378,7 @@ export default function AboutPage() {
                     href="/real-estate-agent-tax-planning-canada"
                     className="mt-5 inline-flex items-center text-sm font-semibold text-blue-600 hover:text-blue-500 transition-colors"
                   >
-                    Read our Canadian tax planning guide
+                    Read our Canadian tax guide
                     <ArrowRight className="ml-1 h-3.5 w-3.5" />
                   </Link>
                 </div>
@@ -400,7 +400,7 @@ export default function AboutPage() {
                 Give every Canadian real estate agent the financial visibility to
                 run their business with confidence — not guesswork. Agent Runway
                 brings together GCI tracking, income forecasting, expense
-                management, tax planning, and AI-powered insights in a single
+                management, tax estimation tools, and AI-powered data exploration in a single
                 platform built around how real estate agents actually work.
               </p>
             </div>

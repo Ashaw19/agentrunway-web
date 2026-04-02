@@ -35,11 +35,11 @@ const FAQ_SECTIONS = [
     faqs: [
       {
         q: "Is there a free trial for the Professional plan?",
-        a: "Yes. The Professional plan includes a 14-day free trial with no credit card required. You can explore every Pro feature — runway score, tax planning, AI advisor, probability bands, and CREA benchmarks — before committing.",
+        a: "Yes. The Professional plan includes a 14-day free trial with no credit card required. You can explore every Pro feature — runway score, tax estimates, AI assistant, probability bands, and CREA benchmarks — before committing.",
       },
       {
         q: "What's the difference between Starter and Professional?",
-        a: "Starter gives you core GCI tracking and basic forecasting so you can get organised immediately. Professional adds probability-weighted forecasts (P10–P90), a six-component Runway Score, per-deal and quarterly tax planning, AI advisor cards, CREA benchmark comparisons, and PDF-ready reports. It's everything serious agents need to run their business with clarity.",
+        a: "Starter gives you core GCI tracking and basic forecasting so you can get organised immediately. Professional adds probability-weighted forecasts (P10–P90), a six-component Runway Score, per-deal and quarterly tax estimates, AI insight cards, CREA benchmark comparisons, and PDF-ready reports. It's everything serious agents need to run their business with clarity.",
       },
       {
         q: "Can I cancel at any time?",
@@ -63,7 +63,7 @@ const FAQ_SECTIONS = [
     faqs: [
       {
         q: "Who is Agent Runway designed for?",
-        a: "Agent Runway is built specifically for Canadian real estate agents — from solo agents building their first business plan to high-producing agents who want deep financial analytics, tax planning, and AI-powered insights.",
+        a: "Agent Runway is built specifically for Canadian real estate agents — from solo agents building their first business plan to high-producing agents who want deep financial analytics, tax estimation tools, and AI-powered insights.",
       },
       {
         q: "Which provinces and territories are supported?",
@@ -134,8 +134,8 @@ const FAQ_SECTIONS = [
         a: "No. Agent Runway outputs — including tax estimates, income projections, GCI figures, and net income calculations — are for internal planning and self-management purposes only. They are not verified, audited, or certified financial statements. Do not submit them as evidence of income to the CRA, a mortgage lender, a financial institution, or any other third party. Always use professionally prepared financial statements from a licensed accountant for official purposes.",
       },
       {
-        q: "Is the AI advisor giving me financial advice?",
-        a: "No. The AI chat assistant and advisor cards in Agent Runway generate contextual observations and suggestions based on your data. This content is informational only and does not constitute financial advice, tax advice, investment advice, or professional accounting services. AI outputs may be inaccurate or incomplete. Do not make consequential financial decisions based solely on AI-generated content. Always consult a qualified professional.",
+        q: "Is the AI assistant giving me financial advice?",
+        a: "No. The AI chat assistant and insight cards in Agent Runway generate contextual observations and suggestions based on your data. This content is informational only and does not constitute financial advice, tax advice, investment advice, or professional accounting services. AI outputs may be inaccurate or incomplete. Do not make consequential financial decisions based solely on AI-generated content. Always consult a qualified professional.",
       },
       {
         q: "What if the tax rates in the app are out of date?",

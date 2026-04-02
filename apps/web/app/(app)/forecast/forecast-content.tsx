@@ -617,7 +617,7 @@ export function ForecastContent({
         <Card className="rounded-2xl border border-amber-200 bg-amber-50/50 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-1.5">
-              Tax Planning
+              Tax Estimates
               <GuideLink anchor="tax-estimate" label="Tax estimate methodology explained in Guide" />
               {isPro && <ExplainButton question="How are my tax estimates calculated and how much should I set aside per deal?" />}
             </CardTitle>
@@ -679,12 +679,12 @@ export function ForecastContent({
           </CardContent>
         </Card>
 
-      {/* Tax Savings Opportunities */}
+      {/* Tax Deduction Estimates */}
       {taxOptResult.cardCount > 0 && (
         <Card className="rounded-2xl border border-amber-200 bg-amber-50/40 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
-              💰 Tax Savings Opportunities
+              💰 Tax Deduction Estimates
             </CardTitle>
             <CardDescription>
               Estimated ~{fmtCurrency(taxOptResult.totalEstimatedSavings)}/yr in potential savings &middot; {taxOptResult.cardCount} {taxOptResult.cardCount === 1 ? "opportunity" : "opportunities"} found
@@ -696,12 +696,12 @@ export function ForecastContent({
               <div className="flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-700 mt-0.5 shrink-0" />
                 <p className="text-xs text-amber-800 leading-relaxed">
-                  <span className="font-semibold">Tax Optimization Insights — For Educational Purposes Only.</span>{" "}
+                  <span className="font-semibold">Tax Deduction Estimates — For Informational Purposes Only.</span>{" "}
                   These suggestions highlight common tax strategies for Canadian self-employed
                   real estate agents. They are NOT personalized tax advice. Estimated savings are
                   approximate and depend on your individual circumstances. Always consult a
                   qualified Canadian accountant or tax professional before making tax decisions.
-                  Agent Runway is not a tax advisor and accepts no liability for tax filing outcomes.
+                  Agent Runway does not provide tax advice and accepts no liability for tax filing outcomes.
                 </p>
               </div>
             </div>
@@ -1006,7 +1006,7 @@ export function ForecastContent({
 
       {/* Disclaimer */}
       <p className="text-center text-xs leading-relaxed text-muted-foreground/60 pb-2">
-        All projections, tax estimates, and advisor recommendations are approximations
+        All projections, tax estimates, and suggested actions are approximations
         for planning purposes only — not financial, tax, or professional advice. Actual
         results will differ. Always consult a qualified accountant or tax professional.{" "}
         <a href="/terms" className="underline underline-offset-2 hover:text-muted-foreground">

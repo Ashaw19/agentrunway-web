@@ -1975,7 +1975,7 @@ export function DashboardContent({
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base">Tax Savings Opportunities</CardTitle>
+            <CardTitle className="text-base">Tax Deduction Estimates</CardTitle>
             <CardDescription>
               Estimated ~{fmtCurrency(taxOptResult.totalEstimatedSavings)}/yr in potential savings
             </CardDescription>
@@ -2560,7 +2560,7 @@ export function DashboardContent({
 
       {/* Disclaimer */}
       <p className="text-center text-xs leading-relaxed text-muted-foreground/60 pb-2">
-        All projections, tax estimates, and advisor recommendations are approximations
+        All projections, tax estimates, and suggested actions are approximations
         for planning purposes only — not financial, tax, or professional advice. Actual
         results will differ. Always consult a qualified accountant or tax professional.{" "}
         <a href="/terms" className="underline underline-offset-2 hover:text-muted-foreground">

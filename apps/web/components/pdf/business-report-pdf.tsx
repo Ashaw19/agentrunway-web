@@ -108,13 +108,13 @@ function generateAssessment(
     "B":  "Your business is performing well with solid fundamentals. You have meaningful pipeline coverage and a disciplined approach to expenses. With targeted focus on your weakest component, you can reach top-tier performance this year.",
     "C":  "Your business shows promising foundations but has clear opportunities for improvement. Several key indicators suggest you're leaving growth potential on the table. A focused strategy on the highlighted areas below can meaningfully shift your trajectory.",
     "D":  "Your business faces meaningful headwinds that warrant immediate attention. While there is active momentum, the underlying metrics reveal gaps in efficiency, pipeline strength, or goal alignment that require strategic correction.",
-    "F":  "Your business requires urgent strategic intervention. Multiple critical indicators are flagging below-threshold performance. The advisor recommendations below are prioritized to help you stabilize and rebuild momentum quickly.",
+    "F":  "Your business requires urgent strategic intervention. Multiple critical indicators are flagging below-threshold performance. The observations below are prioritized by potential impact on your business.",
   };
 
   const weakest = runwayScore.components.reduce((a, b) => (a.score < b.score ? a : b));
   const survivalNote =
     survival.riskLevel === "critical" || survival.riskLevel === "warning"
-      ? ` Your cash runway of ${survival.months.toFixed(1)} months is below the recommended 4-month safety buffer — building your reserve should be a near-term priority.`
+      ? ` Your cash runway of ${survival.months.toFixed(1)} months is below the commonly cited 4-month safety buffer — building your reserve should be a near-term priority.`
       : survival.riskLevel === "strong"
       ? ` Your cash runway is strong, giving you the financial stability to take calculated risks and invest in growth.`
       : "";
@@ -1446,7 +1446,7 @@ export function BusinessReportPDF({
 
           {/* Tax summary */}
           <View style={s.col}>
-            <Text style={s.sectionTitle}>Tax Projection — {taxResult.taxYear}</Text>
+            <Text style={s.sectionTitle}>Tax Estimate — {taxResult.taxYear}</Text>
             <View style={s.plCard}>
               <View style={s.plCardHeader}>
                 <Text style={s.plCardHeaderText}>Projected Annual Tax Burden</Text>
@@ -1904,7 +1904,7 @@ export function BusinessReportPDF({
         {advisorCards.length > 0 && (
           <>
             <Text style={s.sectionTitle}>
-              Top Recommendations for {year}
+              Key Observations for {year}
             </Text>
             {advisorCards.map((card, idx) => (
               <View key={card.id} style={s.advisorCard}>

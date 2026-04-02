@@ -355,7 +355,7 @@ export default function CommissionCalculatorPage() {
           <div className="mx-auto max-w-2xl">
             <EmailCapture
               heading="Want to track every deal automatically?"
-              subheading="Agent Runway logs each commission, calculates your split, and tells you exactly what to set aside."
+              subheading="Agent Runway logs each commission, calculates your split, and estimates what you may need to set aside."
               ctaLabel="Get Early Access"
               source="commission_calculator"
               variant="dark"
@@ -389,7 +389,7 @@ export default function CommissionCalculatorPage() {
             </h2>
             <p className="mt-5 text-lg text-slate-400">
               Agent Runway tracks every deal, calculates your split
-              automatically, and tells you exactly what to set aside for taxes.
+              automatically, and estimates what you may need to set aside for taxes.
               No spreadsheets. No surprises.
             </p>
             <div className="mt-8">

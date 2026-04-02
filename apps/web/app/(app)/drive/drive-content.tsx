@@ -145,7 +145,7 @@ export function DriveContent({ isDriveConnected, connectedEmail, documents }: Pr
             <div>
               <h2 className="text-lg font-semibold">Connect Google Drive</h2>
               <p className="text-sm text-muted-foreground mt-1 max-w-md">
-                Connect your Drive to let the AI advisor read, analyze, and improve your listing
+                Connect your Drive to let the AI assistant read, analyze, and improve your listing
                 agreements, marketing materials, and training documents.
               </p>
             </div>

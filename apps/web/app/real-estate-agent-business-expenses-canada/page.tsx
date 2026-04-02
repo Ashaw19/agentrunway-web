@@ -739,7 +739,7 @@ export default function BusinessExpensesGuidePage() {
           <div className="mx-auto max-w-2xl">
             <EmailCapture
               heading="Want your expenses tracked and categorized automatically?"
-              subheading="Agent Runway categorizes every business expense and calculates your deductions in real time."
+              subheading="Agent Runway categorizes every business expense and estimates potential deduction amounts in real time."
               source="expenses_guide"
               variant="dark"
               successHeading="You're in."
@@ -772,7 +772,7 @@ export default function BusinessExpensesGuidePage() {
             </h2>
             <p className="mt-5 text-lg text-slate-400">
               Agent Runway tracks every business expense by CRA category,
-              calculates your deductions in real time, and shows you exactly
+              estimates potential deduction amounts in real time, and shows you exactly
               where your money goes. No spreadsheets. No shoebox of receipts.
             </p>
             <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">

@@ -390,7 +390,7 @@
   .glow-gold   { box-shadow: 0 0 24px oklch(0.75 0.19 73 / 0.50),  0 0 60px oklch(0.75 0.19 73 / 0.18), 0 0 4px oklch(0.75 0.19 73 / 0.80); }
 
   /* Card lift — interactive cards that should respond to hover              */
-  /* Apply .card-lift to pipeline deals, transaction rows, advisor cards    */
+  /* Apply .card-lift to pipeline deals, transaction rows, insight cards    */
   .card-lift {
     transition: box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1),
                 transform   0.22s cubic-bezier(0.22, 1, 0.36, 1);

@@ -90,7 +90,7 @@ export default function TermsPage() {
                   <strong className="text-slate-300">&ldquo;AI Features&rdquo;</strong>{" "}
                   means any feature of the Service that uses artificial intelligence,
                   machine learning, or large language models to generate content,
-                  recommendations, insights, outreach drafts, advisor cards, chat
+                  recommendations, insights, outreach drafts, insight cards, chat
                   responses, or other automated outputs.
                 </li>
                 <li>
@@ -144,7 +144,7 @@ export default function TermsPage() {
                 <li>Manage client relationships with flight-status-based CRM workflows</li>
                 <li>Log and categorize business expenses (manually or via optional bank sync)</li>
                 <li>Generate income forecasts and tax estimates</li>
-                <li>Receive AI-generated business insights, outreach drafts, and advisor recommendations</li>
+                <li>Receive AI-generated business insights, outreach drafts, and suggested actions</li>
                 <li>View performance analytics including the Runway Score</li>
                 <li>Scan and digitize receipts using device cameras</li>
                 <li>Connect to third-party services including banking (via Plaid), payments (via Stripe), and Google Workspace (Gmail, Calendar, Drive)</li>
@@ -564,7 +564,7 @@ export default function TermsPage() {
                 <p>
                   Agent Runway incorporates AI Features powered by third-party
                   artificial intelligence and large language model providers. These
-                  features include, but are not limited to: AI Advisor cards,
+                  features include, but are not limited to: AI insight cards,
                   automated outreach drafting, chat-based business insights, smart
                   categorization suggestions, and performance recommendations.
                 </p>
@@ -662,7 +662,7 @@ export default function TermsPage() {
                     Agent Runway is a self-management and organizational tool for
                     informational purposes only. Nothing in Agent Runway —
                     including but not limited to tax estimates, income projections,
-                    forecasts, Runway Scores, advisor cards, AI-generated content,
+                    forecasts, Runway Scores, insight cards, AI-generated content,
                     chat responses, benchmarking data, market data, or any other
                     output — constitutes financial advice, tax advice, investment
                     advice, legal advice, real estate advice, or professional

@@ -40,9 +40,9 @@ const TOUR_STEPS: TourStep[] = [
   },
   {
     selector: "[data-tour='ai-chat']",
-    title: "AI Business Advisor",
+    title: "AI Business Assistant",
     description:
-      "Your personal AI advisor sees your live financial data. Ask about taxes, pace, strategy, or any platform feature — it knows your numbers and can explain anything.",
+      "Your AI assistant can explore your business data. Ask about pace, pipeline, expenses, or any platform feature. All outputs are estimates for informational purposes only.",
     icon: <Sparkles className="h-5 w-5" />,
     position: "left",
   },

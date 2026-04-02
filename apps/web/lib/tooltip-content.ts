@@ -146,7 +146,7 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
   },
 
   insights: {
-    what: "AI-generated business recommendations based on your current performance, expense ratios, pipeline health, and market conditions.",
+    what: "AI-generated business observations based on your current performance data. For informational purposes only.",
     drivers: [
       { label: "All dashboard metrics", href: "/dashboard" },
       { label: "Market data", href: "/settings" },
@@ -194,7 +194,7 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
       check: (taxOwing, ctx) => taxOwing > 5000 && (ctx?.instalmentsPaid ?? 0) === 0,
       message: "CRA may charge interest if quarterly instalments aren't made. Consider setting aside funds now.",
       href: "/overhead",
-      ctaLabel: "Tax Planning",
+      ctaLabel: "Tax Estimates",
     },
     sandboxNote: "Tax is calculated using real Canadian federal/provincial rates. Change the province in Settings to see how tax varies.",
   },
@@ -210,7 +210,7 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
   },
 
   tax_savings: {
-    what: "Estimated tax deductions you may be underutilizing — home office, vehicle, CCA assets, and GST/HST input tax credits.",
+    what: "Common tax deduction categories for self-employed agents. Estimates only.",
     drivers: [
       { label: "Home office details", href: "/overhead" },
       { label: "Vehicle usage", href: "/overhead" },

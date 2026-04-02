@@ -107,11 +107,11 @@ export function trialWelcomeEmail({
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
                 ${[
                   ["🏆", "Runway Score", "A-to-F health grade across 5 business dimensions"],
-                  ["🤖", "AI Business Advisor", "GPT-powered Q&A about your specific numbers"],
+                  ["🤖", "AI Business Assistant", "GPT-powered Q&A about your specific numbers"],
                   ["📊", "Probability Forecast", "P10–P90 income bands for the months ahead"],
-                  ["💰", "Tax Planning", "Quarterly instalment targets + per-deal set-aside"],
+                  ["💰", "Tax Estimates", "Quarterly instalment targets + per-deal set-aside"],
                   ["📈", "5-Year Growth Plan", "Long-range projections with widening uncertainty bands"],
-                  ["🎯", "Advisor Insights", "Ranked action items with evidence and impact scores"],
+                  ["🎯", "Business Insights", "Ranked action items with evidence and impact scores"],
                 ].map(([icon, title, desc]) => `
                 <tr>
                   <td style="padding:7px 0;vertical-align:top;width:28px;font-size:16px;">${icon}</td>
@@ -179,11 +179,11 @@ ${trialEndsOn ? `Your free trial runs until ${trialEndsOn}` : "Your 14-day free 
 
 What's unlocked:
 • Runway Score — A-to-F health grade across 5 business dimensions
-• AI Business Advisor — GPT-powered Q&A about your specific numbers
+• AI Business Assistant — GPT-powered Q&A about your specific numbers
 • Probability Forecast — P10–P90 income bands for the months ahead
-• Tax Planning — Quarterly instalment targets + per-deal set-aside
+• Tax Estimates — Quarterly instalment targets + per-deal set-aside
 • 5-Year Growth Plan — Long-range projections with widening uncertainty bands
-• Advisor Insights — Ranked action items with evidence and impact scores
+• Business Insights — Ranked action items with evidence and impact scores
 
 Open your dashboard: ${dashboardUrl}
 

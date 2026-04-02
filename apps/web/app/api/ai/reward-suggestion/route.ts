@@ -97,7 +97,7 @@ function buildPrompt(req: RewardSuggestionRequest, venues: PlacesVenue[]): strin
     ? `\nReal nearby venues (choose the best fit if appropriate):\n${venues.map((v) => `  - ${v.name} (${v.rating}★) at ${v.vicinity}`).join("\n")}`
     : "";
 
-  return `You are a thoughtful real estate gifting advisor helping a Canadian real estate agent thank a client.
+  return `You are a thoughtful gift suggestion tool helping a Canadian real estate agent thank a client.
 
 Context:
 - Client name: ${req.clientName}

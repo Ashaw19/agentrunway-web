@@ -79,7 +79,7 @@ const COMPARISON_ROWS: ComparisonRow[] = [
     agentRunwayNote: "National cohort percentile ranking",
   },
   {
-    feature: "AI advisor insights",
+    feature: "AI business insights",
     spreadsheet: "no",
     agentRunway: "yes",
     agentRunwayNote: "Ranked by potential business impact",

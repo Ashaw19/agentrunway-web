@@ -988,9 +988,9 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
       {/* Feature bullets */}
       <div className="flex w-full max-w-xs flex-col gap-2">
         {[
-          { color: "bg-emerald-400", text: "Tax calculations tailored to your province" },
+          { color: "bg-emerald-400", text: "Tax estimates tailored to your province (informational only)" },
           { color: "bg-blue-400", text: "Projections based on your actual split & fees" },
-          { color: "bg-violet-400", text: "Runway score, pipeline health, advisor insights" },
+          { color: "bg-violet-400", text: "Runway score, pipeline health, business insights" },
         ].map((item) => (
           <div
             key={item.text}

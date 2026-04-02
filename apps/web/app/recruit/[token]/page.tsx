@@ -44,7 +44,7 @@ const DEFAULT_VALUE_PROPS = [
   {
     icon: Star,
     title: "Cutting-Edge Technology",
-    desc: "Agent Runway platform included — CRM, tax planning, AI advisor, and more.",
+    desc: "Agent Runway platform included — CRM, tax estimation tools, AI assistant, and more.",
   },
 ];
 

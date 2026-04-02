@@ -2094,7 +2094,7 @@ function PlanBillingCard({ settings }: { settings: UserSettings }) {
         {!isPro && (
           <p className="text-xs leading-relaxed text-muted-foreground">
             Upgrade to Professional for runway scoring, probability-weighted forecasts,
-            PDF reports, AI insights, tax planning tools, and CREA benchmarking.
+            PDF reports, AI insights, tax estimation tools, and CREA benchmarking.
             Starts with a 14-day free trial — no credit card required.
           </p>
         )}

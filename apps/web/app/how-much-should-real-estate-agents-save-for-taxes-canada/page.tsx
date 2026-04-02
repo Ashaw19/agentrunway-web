@@ -51,7 +51,7 @@ const JSON_LD_FAQ = {
       name: "How much should a real estate agent save for taxes in Canada?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Most Canadian real estate agents should save between 25% and 40% of their net business income for taxes, depending on their province and total income. This covers federal income tax, provincial income tax, CPP contributions, and HST/GST remittances.",
+        text: "Most Canadian real estate agents typically set aside between 25% and 40% of their net business income for taxes, depending on their province and total income. This covers federal income tax, provincial income tax, CPP contributions, and HST/GST remittances.",
       },
     },
     {
@@ -250,7 +250,7 @@ export default function TaxSavingsGuidePage() {
                     How much should a real estate agent save for taxes in Canada?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Most Canadian real estate agents should save between 25% and
+                    Most Canadian real estate agents typically set aside between 25% and
                     40% of their net business income for taxes. This covers
                     federal income tax, provincial income tax, CPP
                     contributions, and HST/GST remittances. The exact percentage
@@ -360,7 +360,7 @@ export default function TaxSavingsGuidePage() {
               Stop guessing. Start tracking.
             </h2>
             <p className="mt-5 text-lg text-slate-400">
-              Agent Runway calculates your tax set-aside from every deal
+              Agent Runway estimates your tax set-aside from every deal
               automatically — federal, provincial, CPP, and HST/GST. No
               spreadsheets. No surprises at tax time.
             </p>

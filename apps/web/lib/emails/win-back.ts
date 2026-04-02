@@ -123,7 +123,7 @@ export function winBackEmail({
               </table>
 
               <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#334155;">
-                Whenever you're ready to come back, your full Professional feature set — Runway Score, AI Advisor, probability forecasting, and tax planning — is waiting for you.
+                Whenever you're ready to come back, your full Professional feature set — Runway Score, AI assistant, probability forecasting, and tax estimates — is waiting for you.
               </p>
 
               <!-- Two CTAs -->
