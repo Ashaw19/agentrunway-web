@@ -81,23 +81,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  console.log("[subscribe] ✓ upsert success for", email.toLowerCase().trim());
+  console.log(`[subscribe] ✓ upsert OK | email=${email.toLowerCase().trim()} source=${source} resend=${!!resend} apiKey=${!!process.env.RESEND_API_KEY}`);
 
-  // Send charter welcome email for waitlist signups
-  console.log("[subscribe] email check:", {
-    source,
-    resendAvailable: !!resend,
-    resendApiKeySet: !!process.env.RESEND_API_KEY,
-    willSendEmail: source === "waitlist_event" && !!resend,
-  });
-
+  // Send charter welcome email for waitlist signups (awaited to prevent Vercel lambda termination)
   if (source === "waitlist_event" && resend) {
     const firstName = name?.trim()?.split(" ")[0] ?? null;
     const { subject, html, text } = charterWelcomeEmail({ firstName });
 
-    console.log("[subscribe] ▶ sending charter welcome email to", email.toLowerCase().trim());
-
-    // Await the send so we can log the result before returning
     try {
       const result = await resend.emails.send({
         from: FROM_ADDRESS,
@@ -106,12 +96,12 @@ export async function POST(request: NextRequest) {
         html,
         text,
       });
-      console.log("[subscribe] ✓ charter welcome email sent:", JSON.stringify(result));
+      console.log(`[subscribe] ✓ email sent | id=${result.data?.id ?? "unknown"} error=${result.error ? JSON.stringify(result.error) : "none"}`);
     } catch (err) {
-      console.error("[subscribe] ✗ charter welcome email failed:", err);
+      console.error(`[subscribe] ✗ email FAILED |`, err instanceof Error ? err.message : err);
     }
   } else if (source === "waitlist_event" && !resend) {
-    console.warn("[subscribe] ⚠ source is waitlist_event but resend is null — RESEND_API_KEY not set in environment");
+    console.warn("[subscribe] ⚠ RESEND_API_KEY NOT SET — email skipped");
   }
 
   return NextResponse.json({ success: true });
