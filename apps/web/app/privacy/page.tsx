@@ -490,6 +490,12 @@ export default function PrivacyPage() {
                   (insight cards, outreach drafts, insights) are presented as
                   suggestions for your review, not as automated actions.
                 </li>
+                <li>
+                  <strong className="text-white">AI-assisted development.</strong>{" "}
+                  AI-assisted development tools are used in building the
+                  platform. These tools process source code only and are never
+                  provided access to user personal information.
+                </li>
               </ul>
             </section>
 

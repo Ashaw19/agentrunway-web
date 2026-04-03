@@ -260,6 +260,16 @@ export default function SecurityPage() {
               </ul>
             </Section>
 
+            {/* Development practices */}
+            <Section icon={<Shield className="h-5 w-5" />} title="Development Practices">
+              <p>
+                Our development process uses AI-assisted coding tools. These
+                tools operate in a development environment only and have no
+                access to production user data. We maintain strict internal
+                policies separating development tools from user information.
+              </p>
+            </Section>
+
             {/* Responsible disclosure */}
             <Section icon={<Mail className="h-5 w-5" />} title="Vulnerability Disclosure">
               <p>

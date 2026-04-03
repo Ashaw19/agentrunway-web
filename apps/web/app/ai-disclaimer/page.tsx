@@ -334,7 +334,23 @@ export default function AiDisclaimerPage() {
             {/* ─── 6 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                6. Contact
+                6. AI-Assisted Development
+              </h2>
+              <p className="leading-relaxed">
+                Agent Runway is built with the assistance of AI development
+                tools, including Anthropic&apos;s Claude. These tools assist
+                with code generation, architecture, and development workflows.
+                They are not part of the live platform and do not have access
+                to user accounts, data, or any information entered into Agent
+                Runway. As a matter of internal policy, user data is never
+                provided to development tools.
+              </p>
+            </section>
+
+            {/* ─── 7 ─── */}
+            <section>
+              <h2 className="mb-4 text-xl font-semibold text-white">
+                7. Contact
               </h2>
               <p className="leading-relaxed">
                 If you have questions about our AI features or this disclaimer,
