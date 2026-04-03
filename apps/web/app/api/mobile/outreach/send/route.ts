@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { sendEmail } from "@/lib/email-sender";
+import { markMemoryStale } from "@/lib/ai/client-memory-engine";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
@@ -61,17 +62,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // ── 3. Fetch the outreach item ────────────────────────────────────────
+    // ── 3. Fetch the outreach item (only if not already sent) ──────────
     const { data: item, error: itemErr } = await admin
       .from("outreach_queue")
       .select("*, clients(email, name)")
       .eq("id", outreachId)
       .eq("user_id", user.id)
+      .neq("status", "sent")
       .single();
 
     if (itemErr || !item) {
       return NextResponse.json(
-        { ok: false, error: "Outreach item not found" },
+        { ok: false, error: "Outreach item not found or already sent" },
         { status: 404 },
       );
     }
@@ -116,6 +118,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .eq("id", outreachId)
       .eq("user_id", user.id);
 
+    // ── 6. Mark client memory as stale (fire-and-forget) ────────────────
+    if (item.client_id) {
+      markMemoryStale(admin, user.id, item.client_id).catch(() => {});
+    }
+
     return NextResponse.json({
       ok: true,
       provider: result.provider,
@@ -123,15 +130,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   } catch (err) {
     console.error("[mobile/outreach/send] Error:", err);
 
-    const message = err instanceof Error ? err.message : String(err);
+    const rawMessage = err instanceof Error ? err.message : String(err);
     const isAuthError =
-      message.includes("401") || message.includes("invalid_grant");
+      rawMessage.includes("401") || rawMessage.includes("invalid_grant");
 
     return NextResponse.json(
       {
         ok: false,
-        error: "Failed to send email",
-        message,
+        error: isAuthError
+          ? "Email authentication expired — please reconnect your email provider"
+          : "Failed to send email",
         code: isAuthError ? "AUTH_EXPIRED" : "SEND_FAILED",
       },
       { status: isAuthError ? 401 : 500 },

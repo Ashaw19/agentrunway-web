@@ -1440,13 +1440,18 @@ export function ClientsContent({
 
   // Allowlisted fields for dynamic client updates (prevents mass assignment of user_id, created_at, etc.)
   const ALLOWED_CLIENT_FIELDS = new Set([
-    "name", "name_search", "email", "phone", "phone_type", "status", "tags",
-    "lead_source", "notes", "street_address", "city", "province_region",
-    "postal_code", "country", "birthday", "contact_anniversary",
-    "preferred_contact_method", "archived_at", "archive_reason",
+    "name", "name_search", "first_name", "last_name", "email", "phone", "phone_type",
+    "secondary_phone", "secondary_phone_type", "status", "tags",
+    "lead_source", "notes", "street_address", "unit_number", "city", "province_region",
+    "postal_code", "country", "birthday", "birthdate", "contact_anniversary",
+    "preferred_contact_method", "preferred_contact", "communication_tone",
+    "archived_at", "archive_reason",
     "mortgage_lender", "mortgage_renewal_date", "mortgage_rate", "mortgage_type",
     "pre_approved", "pre_approval_amount", "buying_timeframe", "ideal_property_type",
     "ideal_bedrooms", "ideal_bathrooms", "ideal_areas", "max_budget",
+    "property_interest_type", "property_interest", "timeframe",
+    "buyer_pre_approved", "buyer_financing_type", "buyer_pre_approval_amount",
+    "buyer_target_close_date",
   ]);
 
   // Update a single field on a client record

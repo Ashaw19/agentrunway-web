@@ -61,17 +61,18 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // ── 1. Fetch the outreach item ──────────────────────────────────────
+    // ── 1. Fetch the outreach item (only if not already sent) ─────────
     const { data: item, error: itemErr } = await supabase
       .from("outreach_queue")
       .select("*, clients(email, name)")
       .eq("id", outreachId)
       .eq("user_id", user.id)
+      .neq("status", "sent")
       .single();
 
     if (itemErr || !item) {
       return NextResponse.json(
-        { error: "Outreach item not found" },
+        { error: "Outreach item not found or already sent" },
         { status: 404 }
       );
     }
