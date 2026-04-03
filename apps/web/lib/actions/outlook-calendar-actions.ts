@@ -15,6 +15,37 @@ import {
   type MicrosoftConnection,
 } from "@/lib/microsoft/token-manager";
 
+// ── Outlook datetime → UTC ISO helper ────────────────────────────────────────
+
+function outlookDateToISO(dateTime: string, timeZone: string): string {
+  if (timeZone === "UTC" || timeZone === "Etc/UTC") {
+    return dateTime.replace(/\.0+$/, "").replace(/Z$/, "") + "Z";
+  }
+  try {
+    const clean = dateTime.replace(/\.0+$/, "");
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hour12: false,
+      timeZoneName: "shortOffset",
+    });
+    const refDate = new Date(clean + "Z");
+    const parts = formatter.formatToParts(refDate);
+    const offsetPart = parts.find((p) => p.type === "timeZoneName")?.value ?? "";
+    const offsetMatch = offsetPart.match(/GMT([+-]?\d{1,2})(?::(\d{2}))?/);
+    if (offsetMatch) {
+      const hours = parseInt(offsetMatch[1], 10);
+      const minutes = parseInt(offsetMatch[2] ?? "0", 10);
+      const totalOffsetMs = (hours * 60 + (hours < 0 ? -minutes : minutes)) * 60 * 1000;
+      const localAsUtc = new Date(clean + "Z");
+      const utc = new Date(localAsUtc.getTime() - totalOffsetMs);
+      return utc.toISOString();
+    }
+  } catch { /* fallback */ }
+  return dateTime.replace(/\.0+$/, "") + "Z";
+}
+
 // ── Sync function (called by cron) ──────────────────────────────────────────
 
 export async function syncUserOutlookCalendar(userId: string): Promise<{
@@ -119,10 +150,10 @@ export async function syncUserOutlookCalendar(userId: string): Promise<{
         } else {
           const startAt = ev.isAllDay
             ? `${ev.start.dateTime.slice(0, 10)}T00:00:00Z`
-            : new Date(ev.start.dateTime).toISOString();
+            : outlookDateToISO(ev.start.dateTime, ev.start.timeZone);
           const endAt = ev.isAllDay
             ? `${ev.end.dateTime.slice(0, 10)}T00:00:00Z`
-            : new Date(ev.end.dateTime).toISOString();
+            : outlookDateToISO(ev.end.dateTime, ev.end.timeZone);
 
           await admin.from("calendar_events").upsert(
             {
@@ -156,14 +187,15 @@ export async function syncUserOutlookCalendar(userId: string): Promise<{
     }
 
     // Push Agent Runway events to Outlook (if not yet pushed)
+    // Push Agent Runway events that don't yet have an Outlook event ID
+    // (regardless of whether they've been pushed to Google — dual-provider users need both)
     const { data: pendingEvents } = await admin
       .from("calendar_events")
       .select("*")
       .eq("user_id", userId)
       .eq("source", "agent_runway")
-      .eq("sync_status", "pending")
       .is("outlook_event_id", null)
-      .is("google_event_id", null); // Only push to Outlook if not already pushed to Google
+      .in("sync_status", ["pending", "synced"]);
 
     if (pendingEvents) {
       for (const arEvent of pendingEvents) {

@@ -28,6 +28,52 @@ import {
   type OutlookCalendarEvent,
 } from "@/lib/microsoft/calendar-client";
 
+/**
+ * Convert Outlook's local dateTime + timeZone to a UTC ISO string.
+ * Outlook returns e.g. "2026-04-15T10:00:00.0000000" with timeZone "America/Toronto".
+ * We need to store this as a proper UTC timestamp.
+ */
+function outlookDateToISO(dateTime: string, timeZone: string): string {
+  // If the timezone is UTC, just append Z
+  if (timeZone === "UTC" || timeZone === "Etc/UTC") {
+    return dateTime.replace(/\.0+$/, "").replace(/Z$/, "") + "Z";
+  }
+
+  // For other timezones, use Intl to compute the UTC offset
+  // The dateTime from Outlook has no offset, so we construct a Date in that timezone
+  try {
+    // Clean the datetime string (remove trailing zeros from fractional seconds)
+    const clean = dateTime.replace(/\.0+$/, "");
+    // Use the timezone to format and compute offset
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hour12: false,
+      timeZoneName: "shortOffset",
+    });
+    // Create a reference date to get the UTC offset for this timezone at this time
+    const refDate = new Date(clean + "Z"); // parse as UTC first
+    const parts = formatter.formatToParts(refDate);
+    const offsetPart = parts.find((p) => p.type === "timeZoneName")?.value ?? "";
+    // Parse offset like "GMT-4" or "GMT+5:30"
+    const offsetMatch = offsetPart.match(/GMT([+-]?\d{1,2})(?::(\d{2}))?/);
+    if (offsetMatch) {
+      const hours = parseInt(offsetMatch[1], 10);
+      const minutes = parseInt(offsetMatch[2] ?? "0", 10);
+      const totalOffsetMs = (hours * 60 + (hours < 0 ? -minutes : minutes)) * 60 * 1000;
+      // The dateTime is local time = UTC + offset, so UTC = local - offset
+      const localAsUtc = new Date(clean + "Z");
+      const utc = new Date(localAsUtc.getTime() - totalOffsetMs);
+      return utc.toISOString();
+    }
+  } catch {
+    // Fallback: treat as UTC if timezone parsing fails
+  }
+  // Fallback: append Z (imperfect but better than crashing)
+  return dateTime.replace(/\.0+$/, "") + "Z";
+}
+
 export async function POST(): Promise<NextResponse> {
   // ── Auth ────────────────────────────────────────────────────────────────
   const supabase = await createClient();
@@ -152,13 +198,17 @@ export async function POST(): Promise<NextResponse> {
         continue;
       }
 
-      // Parse dates — Outlook uses { dateTime, timeZone } format
+      // Parse dates — Outlook returns local time + timeZone, NOT UTC.
+      // We must append the timezone or treat the dateTime as-is with its zone context.
+      // For all-day events, just use the date portion.
+      // For timed events, append "Z" only if the timezone IS UTC, otherwise store as-is
+      // (Outlook dateTime format: "2026-04-15T10:00:00.0000000")
       const startAt = event.isAllDay
         ? `${event.start.dateTime.slice(0, 10)}T00:00:00Z`
-        : new Date(`${event.start.dateTime}`).toISOString();
+        : outlookDateToISO(event.start.dateTime, event.start.timeZone);
       const endAt = event.isAllDay
         ? `${event.end.dateTime.slice(0, 10)}T00:00:00Z`
-        : new Date(`${event.end.dateTime}`).toISOString();
+        : outlookDateToISO(event.end.dateTime, event.end.timeZone);
 
       upsertPayloads.push({
         user_id:          user.id,

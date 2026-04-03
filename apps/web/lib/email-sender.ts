@@ -62,15 +62,19 @@ export async function sendEmail(
         googleConn as unknown as GoogleConnection
       );
 
-      // Persist refreshed token if needed
+      // Persist refreshed token if needed (including rotated refresh token)
       if (tokenResult.refreshed && tokenResult.newAccessTokenEnc) {
+        const updatePayload: Record<string, string> = {
+          access_token_enc: tokenResult.newAccessTokenEnc,
+          expires_at: tokenResult.newExpiresAt!.toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        if (tokenResult.newRefreshTokenEnc) {
+          updatePayload.refresh_token_enc = tokenResult.newRefreshTokenEnc;
+        }
         await supabase
           .from("google_connections")
-          .update({
-            access_token_enc: tokenResult.newAccessTokenEnc,
-            expires_at: tokenResult.newExpiresAt!.toISOString(),
-            updated_at: new Date().toISOString(),
-          })
+          .update(updatePayload)
           .eq("id", googleConn.id);
       }
 

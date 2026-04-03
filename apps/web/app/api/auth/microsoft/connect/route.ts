@@ -12,7 +12,8 @@ import crypto from "crypto";
 const MS_AUTH_URL =
   "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
 
-const SCOPES = [
+// Shared with callback route — keep in sync
+export const MS_SCOPES = [
   "openid",
   "email",
   "offline_access",
@@ -50,7 +51,7 @@ export async function GET() {
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", SCOPES);
+  url.searchParams.set("scope", MS_SCOPES);
   url.searchParams.set("response_mode", "query");
   url.searchParams.set("state", state);
   url.searchParams.set("prompt", "consent"); // always show consent

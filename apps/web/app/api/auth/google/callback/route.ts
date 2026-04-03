@@ -157,10 +157,9 @@ export async function GET(req: NextRequest) {
     return response;
   } catch (err) {
     console.error("[google/callback] Error:", err);
+    // Sanitize error — don't leak internal details to URL bar
     return NextResponse.redirect(
-      `${siteUrl}/settings?google_error=${encodeURIComponent(
-        err instanceof Error ? err.message : String(err)
-      )}`
+      `${siteUrl}/settings?google_error=connection_failed`
     );
   }
 }

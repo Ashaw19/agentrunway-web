@@ -71,6 +71,7 @@ export function decrypt(encoded: string): string {
 export interface TokenPair {
   access_token: string;
   expires_at: Date;
+  new_refresh_token?: string; // Google may rotate refresh tokens
 }
 
 /**
@@ -100,11 +101,13 @@ export async function refreshAccessToken(
   const json = (await res.json()) as {
     access_token: string;
     expires_in: number;
+    refresh_token?: string; // Google may rotate refresh tokens
   };
 
   return {
     access_token: json.access_token,
     expires_at: new Date(Date.now() + json.expires_in * 1000),
+    new_refresh_token: json.refresh_token, // may be rotated
   };
 }
 
@@ -126,6 +129,7 @@ export async function getValidAccessToken(conn: GoogleConnection): Promise<{
   accessToken: string;
   refreshed: boolean;
   newAccessTokenEnc?: string;
+  newRefreshTokenEnc?: string;
   newExpiresAt?: Date;
 }> {
   const expiresAt = new Date(conn.expires_at);
@@ -140,14 +144,15 @@ export async function getValidAccessToken(conn: GoogleConnection): Promise<{
   }
 
   // Expired or expiring soon — refresh
-  const { access_token, expires_at } = await refreshAccessToken(
-    conn.refresh_token_enc
-  );
+  const result = await refreshAccessToken(conn.refresh_token_enc);
 
   return {
-    accessToken: access_token,
+    accessToken: result.access_token,
     refreshed: true,
-    newAccessTokenEnc: encrypt(access_token),
-    newExpiresAt: expires_at,
+    newAccessTokenEnc: encrypt(result.access_token),
+    newRefreshTokenEnc: result.new_refresh_token
+      ? encrypt(result.new_refresh_token)
+      : undefined,
+    newExpiresAt: result.expires_at,
   };
 }

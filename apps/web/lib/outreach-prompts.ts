@@ -76,7 +76,7 @@ THE AI PROBLEM:
 People can spot AI-generated text instantly. It's not that the words are wrong individually — it's the pattern. When every listing says "stunning", every email says "excited to share", and every post opens with "just listed!" followed by emoji bullets, it creates a psychological effect: the reader feels like the sender didn't care enough to write something real. It devalues the sentiment. Even if the message is technically fine, it comes across as lazy. Our job is to avoid that feeling entirely.
 
 NEVER DISCLOSE AI AUTHORSHIP:
-Studies show a 7-14 point trust penalty when recipients learn a message was AI-generated — even if they liked the message before learning this. The email should be indistinguishable from something the agent actually wrote. This means: no perfect grammar throughout (a minor natural imperfection is fine), no perfectly balanced structure, no marketing-speak.
+Studies show a measurable trust penalty when recipients learn a message was AI-generated — even if they liked the message before learning this. The email should be indistinguishable from something the agent actually wrote. This means: no perfectly balanced structure, no marketing-speak. Use natural human rhythm — not flawless prose, but not sloppy either.
 
 WORDS AND PATTERNS TO STRONGLY AVOID (not absolutely banned, but treat them as red flags — if you're reaching for these, find something more specific instead):
 - "nestled", "boasts", "stunning", "gorgeous", "gem", "exquisite", "sprawling" — these are the hallmarks of AI real estate text. Use them only when genuinely earned and never more than one per piece.
@@ -600,6 +600,12 @@ export function buildContactAnniversaryPrompt(
 Context:
 - It's been ${years} year${years !== 1 ? "s" : ""} since they first connected as agent and client
 
+RESEARCH CONTEXT:
+- This is a pure warmth touchpoint — no competence demonstration needed. The relationship IS the value.
+- Reciprocity: the gift here is remembering. Most agents don't track this. The fact that ${agentFirst} noticed is itself meaningful.
+- Canadian calibration: understated appreciation ("it's been a good ${ordinal} year") beats American-style effusive gratitude ("I'm SO grateful for you!").
+- Keep personalization light — one genuine reflection > three generic warm phrases.
+
 ${TONE_INSTRUCTIONS[tone]}
 
 Write a brief 2-paragraph note (under 100 words) that:
@@ -610,6 +616,7 @@ Write a brief 2-paragraph note (under 100 words) that:
 - Keeps it light — maybe a small reflection on what's changed in the market or their life
 - Sign off with just "${agentFirst}"
 
+${SUBJECT_LINE_RULES}
 On the very last line, write exactly:
 SUBJECT: [warm, personal subject — reference the ${ordinal} year naturally]`;
 }
@@ -688,6 +695,12 @@ Context:
 - It's the fall real estate season in Canada
 - ${market} enters one of its two active selling periods
 
+RESEARCH CONTEXT:
+- Same mass-blast risk as spring — specificity is the antidote. One concrete local observation beats three generic market statements.
+- Warmth first: open with something personal or seasonal before any market content.
+- Canadian calibration: "things tend to move a bit in the fall" beats "HOT FALL MARKET!" — Canadians distrust market hype.
+- Reciprocity: the insight should be genuinely useful to them as a homeowner, not a pitch disguised as information.
+
 ${TONE_INSTRUCTIONS[tone]}
 
 Write a 2–3 paragraph fall note (under 150 words) that:
@@ -709,6 +722,12 @@ export function buildSeasonalYearEndPrompt(
   tone:       Tone = "friendly",
 ): string {
   return `You are ghostwriting a genuine year-end note from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}.
+
+RESEARCH CONTEXT:
+- This is a pure warmth touchpoint — no competence needed. The relationship IS the value.
+- Year-end messages are extremely common — the antidote is specificity. One genuine, personal reflection beats a generic "wishing you all the best."
+- Canadian calibration: understated sincerity ("it's been a good year") beats effusive gratitude ("WHAT AN AMAZING YEAR").
+- Reciprocity: the gift here is a genuine human moment in a sea of automated holiday emails.
 
 ${TONE_INSTRUCTIONS[tone]}
 
@@ -733,6 +752,12 @@ export function buildSeasonalTaxPrompt(
 ): string {
   const prov = province ?? "Canada";
   return `You are ghostwriting a helpful tax-season tip email from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}, who owns real estate in ${prov}.
+
+RESEARCH CONTEXT:
+- Warmth-competence balance is critical here: open with warmth (how's it going, tax season groan), THEN demonstrate competence (the useful tax tip).
+- Reciprocity: you're GIVING them genuinely useful tax knowledge. Frame this as doing them a favour, not showing off expertise.
+- Canadian calibration: "you might want to check with your accountant about..." beats "you NEED to make sure you claim..."
+- Personalization: if you know they own rental or investment property, tailor the tips. If not, stick to homeowner basics.
 
 ${TONE_INSTRUCTIONS[tone]}
 

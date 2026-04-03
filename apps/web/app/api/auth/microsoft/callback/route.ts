@@ -8,7 +8,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { encrypt } from "@/lib/google/token-manager";
+import { encrypt } from "@/lib/microsoft/token-manager";
+import { MS_SCOPES } from "../connect/route";
 
 const MS_TOKEN_URL =
   "https://login.microsoftonline.com/common/oauth2/v2.0/token";
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
         code,
         grant_type:    "authorization_code",
         redirect_uri:  redirectUri,
-        scope:         "openid email offline_access Mail.Send Calendars.ReadWrite",
+        scope:         MS_SCOPES,
       }),
     });
 
@@ -111,6 +112,9 @@ export async function GET(req: NextRequest) {
     };
 
     const email = meJson.mail || meJson.userPrincipalName || "";
+    if (!email) {
+      throw new Error("Microsoft account has no email address — cannot connect");
+    }
 
     // Step 3: Parse granted scopes and detect calendar access
     const grantedScopes = tokenJson.scope ? tokenJson.scope.split(" ") : [];
@@ -164,10 +168,9 @@ export async function GET(req: NextRequest) {
     return response;
   } catch (err) {
     console.error("[microsoft/callback] Error:", err);
+    // Sanitize error — don't leak internal details to URL bar
     return NextResponse.redirect(
-      `${siteUrl}/settings?ms_error=${encodeURIComponent(
-        err instanceof Error ? err.message : String(err)
-      )}`
+      `${siteUrl}/settings?ms_error=connection_failed`
     );
   }
 }

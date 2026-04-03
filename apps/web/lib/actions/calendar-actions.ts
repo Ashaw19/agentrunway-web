@@ -11,6 +11,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getValidAccessToken, type GoogleConnection } from "@/lib/google/token-manager";
+import { getValidMicrosoftToken, type MicrosoftConnection } from "@/lib/microsoft/token-manager";
 import { createEvent, updateEvent, deleteEvent, type CalendarEventInput } from "@/lib/google/calendar-client";
 import { revalidatePath } from "next/cache";
 
@@ -53,6 +54,43 @@ async function getCalendarToken(
           expires_at:       tokenResult.newExpiresAt!.toISOString(),
           updated_at:       new Date().toISOString(),
         })
+        .eq("id", conn.id);
+    }
+
+    return { accessToken: tokenResult.accessToken, connId: conn.id };
+  } catch {
+    return null;
+  }
+}
+
+async function getOutlookCalendarToken(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+): Promise<{ accessToken: string; connId: string } | null> {
+  const { data: conn } = await supabase
+    .from("email_connections")
+    .select("id, access_token_enc, refresh_token_enc, expires_at, calendar_sync_enabled")
+    .eq("user_id", userId)
+    .eq("provider", "microsoft")
+    .maybeSingle();
+
+  if (!conn?.calendar_sync_enabled) return null;
+
+  try {
+    const tokenResult = await getValidMicrosoftToken(conn as unknown as MicrosoftConnection);
+
+    if (tokenResult.refreshed) {
+      const updatePayload: Record<string, string> = {
+        access_token_enc: tokenResult.newAccessTokenEnc!,
+        expires_at: tokenResult.newExpiresAt!.toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      if (tokenResult.newRefreshTokenEnc) {
+        updatePayload.refresh_token_enc = tokenResult.newRefreshTokenEnc;
+      }
+      await supabase
+        .from("email_connections")
+        .update(updatePayload)
         .eq("id", conn.id);
     }
 
@@ -130,6 +168,38 @@ export async function createCalendarEvent(input: CreateCalendarEventInput) {
     }
   }
 
+  // 3. Push to Outlook Calendar (fire-and-forget — cron will retry failures)
+  const outlookTokenCtx = await getOutlookCalendarToken(supabase, user.id);
+  if (outlookTokenCtx) {
+    try {
+      const { createEvent: createOutlookEvent } = await import("@/lib/microsoft/calendar-client");
+      const tz = "America/Toronto";
+      const created = await createOutlookEvent(outlookTokenCtx.accessToken, {
+        subject: input.title,
+        body: input.description ? { contentType: "Text", content: input.description } : undefined,
+        location: input.location ? { displayName: input.location } : undefined,
+        start: input.all_day
+          ? { dateTime: `${input.start_at.split("T")[0]}T00:00:00`, timeZone: "UTC" }
+          : { dateTime: input.start_at.replace("Z", ""), timeZone: tz },
+        end: input.all_day
+          ? { dateTime: `${input.end_at.split("T")[0]}T00:00:00`, timeZone: "UTC" }
+          : { dateTime: input.end_at.replace("Z", ""), timeZone: tz },
+        isAllDay: input.all_day ?? false,
+      });
+
+      await supabase
+        .from("calendar_events")
+        .update({
+          outlook_event_id: created.id,
+          synced_at: new Date().toISOString(),
+          sync_status: "synced",
+        })
+        .eq("id", localEvent.id);
+    } catch (err) {
+      console.error("[calendar-actions] Outlook push failed:", err);
+    }
+  }
+
   revalidatePath("/dashboard");
   return { ok: true, id: localEvent.id };
 }
@@ -148,15 +218,17 @@ export async function updateCalendarEvent(
   const { data: sbCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();
   if (sbCheck?.sandbox_mode === true) return { error: "Blocked in Sandbox Mode" };
 
-  // Fetch existing record (to get google_event_id)
+  // Fetch existing record (to get google_event_id + outlook_event_id)
   const { data: existing } = await supabase
     .from("calendar_events")
-    .select("id, google_event_id, user_id")
+    .select("id, google_event_id, outlook_event_id, user_id")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
 
   if (!existing) return { error: "Event not found" };
+
+  const hasSyncedProvider = existing.google_event_id || existing.outlook_event_id;
 
   // Update local record
   await supabase
@@ -167,10 +239,13 @@ export async function updateCalendarEvent(
       ...(input.start_at    && { start_at:    input.start_at }),
       ...(input.end_at      && { end_at:      input.end_at }),
       ...(input.location    !== undefined && { location:    input.location ?? null }),
-      sync_status: existing.google_event_id ? "pending" : "synced",
+      sync_status: hasSyncedProvider ? "pending" : "synced",
       updated_at:  new Date().toISOString(),
     })
     .eq("id", id);
+
+  let googleSynced = false;
+  let outlookSynced = false;
 
   // Push update to Google Calendar
   if (existing.google_event_id) {
@@ -185,14 +260,45 @@ export async function updateCalendarEvent(
         if (input.end_at)      updates.end         = { dateTime: input.end_at,   timeZone: "America/Toronto" };
 
         await updateEvent(tokenCtx.accessToken, existing.google_event_id, updates);
-        await supabase
-          .from("calendar_events")
-          .update({ sync_status: "synced", synced_at: new Date().toISOString() })
-          .eq("id", id);
+        googleSynced = true;
       } catch (err) {
         console.error("[calendar-actions] Google update failed:", err);
       }
     }
+  }
+
+  // Push update to Outlook Calendar
+  if (existing.outlook_event_id) {
+    const outlookTokenCtx = await getOutlookCalendarToken(supabase, user.id);
+    if (outlookTokenCtx) {
+      try {
+        const { updateEvent: updateOutlookEvent } = await import("@/lib/microsoft/calendar-client");
+        const tz = "America/Toronto";
+        const outlookUpdates: Record<string, unknown> = {};
+        if (input.title)       outlookUpdates.subject = input.title;
+        if (input.description) outlookUpdates.body = { contentType: "Text", content: input.description };
+        if (input.location)    outlookUpdates.location = { displayName: input.location };
+        if (input.start_at)    outlookUpdates.start = { dateTime: input.start_at.replace("Z", ""), timeZone: tz };
+        if (input.end_at)      outlookUpdates.end = { dateTime: input.end_at.replace("Z", ""), timeZone: tz };
+
+        await updateOutlookEvent(outlookTokenCtx.accessToken, existing.outlook_event_id, outlookUpdates);
+        outlookSynced = true;
+      } catch (err) {
+        console.error("[calendar-actions] Outlook update failed:", err);
+      }
+    }
+  }
+
+  // Mark synced if all providers succeeded
+  const allSynced =
+    (!existing.google_event_id || googleSynced) &&
+    (!existing.outlook_event_id || outlookSynced);
+
+  if (allSynced && hasSyncedProvider) {
+    await supabase
+      .from("calendar_events")
+      .update({ sync_status: "synced", synced_at: new Date().toISOString() })
+      .eq("id", id);
   }
 
   return { ok: true };
@@ -211,14 +317,14 @@ export async function deleteCalendarEvent(id: string) {
 
   const { data: existing } = await supabase
     .from("calendar_events")
-    .select("id, google_event_id, user_id")
+    .select("id, google_event_id, outlook_event_id, user_id")
     .eq("id", id)
     .eq("user_id", user.id)
     .single();
 
   if (!existing) return { error: "Event not found" };
 
-  // Delete from Google Calendar first (best-effort)
+  // Delete from Google Calendar (best-effort)
   if (existing.google_event_id) {
     const tokenCtx = await getCalendarToken(supabase, user.id);
     if (tokenCtx) {
@@ -226,6 +332,19 @@ export async function deleteCalendarEvent(id: string) {
         await deleteEvent(tokenCtx.accessToken, existing.google_event_id);
       } catch (err) {
         console.error("[calendar-actions] Google delete failed:", err);
+      }
+    }
+  }
+
+  // Delete from Outlook Calendar (best-effort)
+  if (existing.outlook_event_id) {
+    const outlookTokenCtx = await getOutlookCalendarToken(supabase, user.id);
+    if (outlookTokenCtx) {
+      try {
+        const { deleteEvent: deleteOutlookEvent } = await import("@/lib/microsoft/calendar-client");
+        await deleteOutlookEvent(outlookTokenCtx.accessToken, existing.outlook_event_id);
+      } catch (err) {
+        console.error("[calendar-actions] Outlook delete failed:", err);
       }
     }
   }
@@ -356,6 +475,55 @@ export async function syncUserCalendar(userId: string): Promise<{
       } catch (evErr) {
         console.error(`[calendar-sync] Failed to upsert event ${ev.id}:`, evErr);
         errorCount++;
+      }
+    }
+
+    // ── PUSH: Sync Agent Runway events TO Google Calendar ──────────────────
+    // Push events that don't yet have a google_event_id (regardless of whether
+    // they've been pushed to Outlook — dual-provider users need both)
+    const { createEvent: createGcalEvent } = await import("@/lib/google/calendar-client");
+
+    const { data: pendingEvents } = await admin
+      .from("calendar_events")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("source", "agent_runway")
+      .is("google_event_id", null)
+      .in("sync_status", ["pending", "synced"]);
+
+    if (pendingEvents) {
+      for (const arEvent of pendingEvents) {
+        try {
+          const gcalInput: CalendarEventInput = {
+            summary:     arEvent.title,
+            description: arEvent.description ?? undefined,
+            location:    arEvent.location ?? undefined,
+            start: arEvent.all_day
+              ? { date: arEvent.start_at.slice(0, 10) }
+              : { dateTime: arEvent.start_at, timeZone: "America/Toronto" },
+            end: arEvent.all_day
+              ? { date: arEvent.end_at.slice(0, 10) }
+              : { dateTime: arEvent.end_at, timeZone: "America/Toronto" },
+            reminders: { useDefault: true },
+          };
+
+          const created = await createGcalEvent(tokenResult.accessToken, gcalInput);
+
+          await admin
+            .from("calendar_events")
+            .update({
+              google_event_id: created.id,
+              google_updated:  created.updated ?? new Date().toISOString(),
+              synced_at:       new Date().toISOString(),
+              sync_status:     "synced",
+            })
+            .eq("id", arEvent.id);
+
+          syncedCount++;
+        } catch (pushErr) {
+          console.error(`[calendar-sync] Failed to push event ${arEvent.id} to Google:`, pushErr);
+          errorCount++;
+        }
       }
     }
 
