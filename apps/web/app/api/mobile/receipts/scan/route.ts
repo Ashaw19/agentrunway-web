@@ -15,6 +15,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
+import { requirePro }                from "@/lib/require-pro";
 import { extractReceiptData }        from "@/lib/receipts/extract";
 
 // Allow up to 30 seconds for Groq vision OCR extraction
@@ -65,6 +66,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         { status: 401 },
       );
     }
+
+    const proCheck = await requirePro(admin, user.id);
+    if (!proCheck.allowed) return proCheck.response!;
 
     // ── Block in sandbox mode (avoid wasting OCR credits + storage) ────────
     const { data: sbCheck } = await admin

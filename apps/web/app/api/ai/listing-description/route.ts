@@ -12,6 +12,7 @@ import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { requirePro } from "@/lib/require-pro";
 import { AGENT_RUNWAY_VOICE } from "@/lib/outreach-prompts";
 
 export const maxDuration = 30;
@@ -38,6 +39,9 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return new Response("Unauthorized", { status: 401 });
   }
+
+  const proCheck = await requirePro(supabase, user.id);
+  if (!proCheck.allowed) return proCheck.response!;
 
   const rl = await checkRateLimit(user.id, "listing_description", 20, 60);
   if (!rl.allowed) {

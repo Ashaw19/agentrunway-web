@@ -5,6 +5,7 @@ import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { KNOWLEDGE_BASE } from "@/lib/knowledge-base";
 import { AGENT_RUNWAY_VOICE } from "@/lib/outreach-prompts";
+import { requirePro } from "@/lib/require-pro";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
 import { seasonalFractionElapsed, paceVsGoalPercent } from "@agent-runway/core/engines/projection-engine";
@@ -24,6 +25,9 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return new Response("Unauthorized", { status: 401 });
   }
+
+  const proCheck = await requirePro(supabase, user.id);
+  if (!proCheck.allowed) return proCheck.response!;
 
   // ── 2. Rate limit: 30 AI messages per 60-minute window ──────────────────
   const rl = await checkRateLimit(user.id, "chat", 30, 60);

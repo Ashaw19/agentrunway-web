@@ -12,6 +12,7 @@ import { NextRequest, NextResponse }                  from "next/server";
 import { Configuration, PlaidApi, PlaidEnvironments } from "plaid";
 import { createClient }                               from "@/lib/supabase/server";
 import { createAdminClient }                          from "@/lib/supabase/admin";
+import { requirePro }                                 from "@/lib/require-pro";
 
 function buildPlaidClient() {
   const env    = (process.env.PLAID_ENV ?? "sandbox") as keyof typeof PlaidEnvironments;
@@ -34,6 +35,9 @@ export async function DELETE(req: NextRequest) {
   if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const proCheck = await requirePro(supabase, user.id);
+  if (!proCheck.allowed) return proCheck.response!;
 
   // ── Sandbox guard ────────────────────────────────────────────────────────
   const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();

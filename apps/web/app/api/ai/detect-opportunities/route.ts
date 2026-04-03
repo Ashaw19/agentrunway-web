@@ -20,6 +20,7 @@ import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }       from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { requirePro } from "@/lib/require-pro";
 import type { OutreachQueueItem, AgentState } from "@agent-runway/core/types/database";
 import type { SupabaseClient }    from "@supabase/supabase-js";
 import type { ClientMemoryFacts, ClientMemoryProfile } from "@/lib/ai/client-memory-engine";
@@ -2771,6 +2772,9 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return new Response("Unauthorized", { status: 401 });
   }
+
+  const proCheck = await requirePro(supabase, user.id);
+  if (!proCheck.allowed) return proCheck.response!;
 
   const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();
   if (sandboxCheck?.sandbox_mode === true) {

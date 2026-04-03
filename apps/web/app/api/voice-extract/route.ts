@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { requirePro } from "@/lib/require-pro";
 import type { VoiceDraft } from "@/lib/voice/types";
 
 // ── Multi-intent extraction prompt ───────────────────────────────────────────
@@ -143,6 +144,9 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const proCheck = await requirePro(supabase, user.id);
+  if (!proCheck.allowed) return proCheck.response!;
 
   // ── Rate limit: 20 extractions per 60-minute window ────────────────────
   const rl = await checkRateLimit(user.id, "voice-extract", 20, 60);

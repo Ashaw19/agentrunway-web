@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 // Import rate limit: 30 per 60 min
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { requirePro } from "@/lib/require-pro";
 import { TEXT_PROMPT } from "@/lib/import-prompt";
 import { applyValidation } from "@/lib/import/validation/validate-transactions";
 import { normalizeTextDocument } from "@/lib/import/normalizers/normalize-text";
@@ -501,6 +502,9 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const proCheck = await requirePro(supabase, user.id);
+  if (!proCheck.allowed) return proCheck.response!;
 
   // ── Rate limit: 10 document imports per 60-minute window ─────────────────
   const rl = await checkRateLimit(user.id, "import-history", 30, 60);

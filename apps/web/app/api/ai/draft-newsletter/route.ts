@@ -24,6 +24,7 @@ import OpenAI from "openai";
 import { NextRequest, NextResponse }  from "next/server";
 import { createClient }               from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { requirePro } from "@/lib/require-pro";
 import type { NewsletterTemplateType } from "@agent-runway/core/types/database";
 import type { MarketStats }            from "@/lib/newsletter-prompts";
 import {
@@ -49,6 +50,9 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
+
+  const proCheck = await requirePro(supabase, user.id);
+  if (!proCheck.allowed) return proCheck.response!;
 
   // Check sandbox mode
   const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();

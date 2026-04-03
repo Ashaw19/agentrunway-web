@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
+import { requirePro }                from "@/lib/require-pro";
 import { extractReceiptData }        from "@/lib/receipts/extract";
 import type {
   ProcessReceiptResponse,
@@ -53,6 +54,9 @@ export async function POST(
   if (authError || !user) {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
   }
+
+  const proCheck = await requirePro(supabase, user.id);
+  if (!proCheck.allowed) return proCheck.response!;
 
   // ── Block in sandbox mode (avoid wasting OCR credits + storage) ───────────
   const { data: sbCheck } = await supabase

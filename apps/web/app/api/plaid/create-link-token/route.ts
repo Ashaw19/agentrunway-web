@@ -11,6 +11,7 @@ import { NextResponse }                                     from "next/server";
 import { Configuration, PlaidApi, PlaidEnvironments,
          Products, CountryCode }                            from "plaid";
 import { createClient }                                     from "@/lib/supabase/server";
+import { requirePro }                                       from "@/lib/require-pro";
 
 function buildPlaidClient() {
   const env    = (process.env.PLAID_ENV ?? "sandbox") as keyof typeof PlaidEnvironments;
@@ -41,6 +42,9 @@ export async function POST() {
   if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const proCheck = await requirePro(supabase, user.id);
+  if (!proCheck.allowed) return proCheck.response!;
 
   // ── 3. Create link token ──────────────────────────────────────────────────
   try {
