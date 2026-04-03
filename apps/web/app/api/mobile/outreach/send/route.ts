@@ -3,7 +3,7 @@
  *
  * Mobile-native outreach send endpoint.
  * Accepts Bearer token auth (Supabase access token) instead of cookies.
- * Delegates to the same Gmail send logic as the web endpoint.
+ * Delegates to the unified email sender (Gmail → Microsoft → SMTP).
  *
  * Expects: { outreach_id: string }
  */
@@ -11,12 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
-import {
-  getValidAccessToken,
-  encrypt,
-  type GoogleConnection,
-} from "@/lib/google/token-manager";
-import { sendGmail } from "@/lib/google/gmail-client";
+import { sendEmail } from "@/lib/email-sender";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
@@ -92,65 +87,26 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const subject = item.final_subject || item.ai_subject || "Hello";
     const messageBody = item.final_body || item.ai_body || "";
 
-    // ── 4. Fetch Google connection ────────────────────────────────────────
-    const { data: conn, error: connErr } = await admin
-      .from("google_connections")
-      .select(
-        "id, access_token_enc, refresh_token_enc, expires_at, email_address, display_name, gmail_send_enabled"
-      )
-      .eq("user_id", user.id)
-      .single();
-
-    if (connErr || !conn) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "No Gmail connection found",
-          code: "NO_CONNECTION",
-        },
-        { status: 422 },
-      );
-    }
-
-    if (!conn.gmail_send_enabled) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Gmail send permission not granted",
-          code: "NO_GMAIL_SCOPE",
-        },
-        { status: 403 },
-      );
-    }
-
-    // ── 5. Get valid access token ─────────────────────────────────────────
-    const tokenResult = await getValidAccessToken(conn as GoogleConnection);
-
-    if (tokenResult.refreshed && tokenResult.newAccessTokenEnc) {
-      await admin
-        .from("google_connections")
-        .update({
-          access_token_enc: tokenResult.newAccessTokenEnc,
-          expires_at: tokenResult.newExpiresAt!.toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", conn.id);
-    }
-
-    // Signature is already appended at draft time — do NOT append again here.
-    const fullBody = messageBody;
-
-    // ── 7. Send via Gmail ─────────────────────────────────────────────────
-    const gmailMessageId = await sendGmail({
-      accessToken: tokenResult.accessToken,
+    // ── 4. Send via unified email sender (Gmail → Microsoft → SMTP) ──────
+    const result = await sendEmail(admin, user.id, {
       to: toEmail,
       subject,
-      body: fullBody,
-      fromName: conn.display_name ?? undefined,
-      fromEmail: conn.email_address,
+      body: messageBody,
     });
 
-    // ── 8. Mark as sent ───────────────────────────────────────────────────
+    if (!result.ok) {
+      const isNoProvider = result.error?.includes("No email provider");
+      return NextResponse.json(
+        {
+          ok: false,
+          error: result.error ?? "Failed to send email",
+          code: isNoProvider ? "NO_CONNECTION" : "SEND_FAILED",
+        },
+        { status: isNoProvider ? 422 : 500 },
+      );
+    }
+
+    // ── 5. Mark as sent ───────────────────────────────────────────────────
     await admin
       .from("outreach_queue")
       .update({
@@ -162,7 +118,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({
       ok: true,
-      gmail_message_id: gmailMessageId,
+      provider: result.provider,
     });
   } catch (err) {
     console.error("[mobile/outreach/send] Error:", err);

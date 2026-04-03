@@ -18,8 +18,8 @@ export default async function SettingsPage() {
     process.env.PLAID_ENV
   );
 
-  // Run upsert and both selects in parallel
-  const [, { data: settingsRaw }, { data: plaidItems }, { data: googleConnection }] = await Promise.all([
+  // Run upsert and all selects in parallel
+  const [, { data: settingsRaw }, { data: plaidItems }, { data: googleConnection }, { data: emailConnections }] = await Promise.all([
     supabase
       .from("user_settings")
       .upsert({ user_id: user.id }, { onConflict: "user_id", ignoreDuplicates: true }),
@@ -39,6 +39,11 @@ export default async function SettingsPage() {
       .select("id, email_address, display_name, gmail_send_enabled, calendar_sync_enabled, drive_read_enabled, connected_at")
       .eq("user_id", user.id)
       .maybeSingle(),
+    supabase
+      .from("email_connections")
+      .select("id, provider, email_address, display_name, connection_name, smtp_host, smtp_port, connected_at")
+      .eq("user_id", user.id)
+      .order("connected_at", { ascending: false }),
   ]);
 
   if (!settingsRaw) redirect("/dashboard");
@@ -56,6 +61,7 @@ export default async function SettingsPage() {
         plaidItems={(plaidItems ?? []) as PlaidItem[]}
         plaidConfigured={plaidConfigured}
         googleConnection={googleConnection ?? null}
+        emailConnections={emailConnections ?? []}
       />
       {(settings as UserSettings).subscription_tier === "professional" ||
       (settings as UserSettings).subscription_tier === "team" ||

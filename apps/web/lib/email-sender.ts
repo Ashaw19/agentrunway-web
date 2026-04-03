@@ -17,7 +17,11 @@
 
 import { type SupabaseClient } from "@supabase/supabase-js";
 import { sendGmail } from "@/lib/google/gmail-client";
-import { getValidAccessToken, type GoogleConnection } from "@/lib/google/token-manager";
+import { getValidAccessToken, decrypt, type GoogleConnection } from "@/lib/google/token-manager";
+import {
+  getValidMicrosoftToken,
+  type MicrosoftConnection,
+} from "@/lib/microsoft/token-manager";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -88,14 +92,34 @@ export async function sendEmail(
   // ── 2. Try Microsoft / Outlook ───────────────────────────────────────────────
   const { data: msConn } = await supabase
     .from("email_connections")
-    .select("id, email_address, access_token, provider")
+    .select("id, email_address, access_token_enc, refresh_token_enc, expires_at, provider")
     .eq("user_id", userId)
     .eq("provider", "microsoft")
     .maybeSingle();
 
-  if (msConn?.access_token) {
+  if (msConn?.access_token_enc) {
     try {
-      const result = await sendMicrosoftEmail(msConn.access_token, {
+      const tokenResult = await getValidMicrosoftToken(
+        msConn as unknown as MicrosoftConnection
+      );
+
+      // Persist refreshed token if needed
+      if (tokenResult.refreshed) {
+        const updatePayload: Record<string, string> = {
+          access_token_enc: tokenResult.newAccessTokenEnc!,
+          expires_at: tokenResult.newExpiresAt!.toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        if (tokenResult.newRefreshTokenEnc) {
+          updatePayload.refresh_token_enc = tokenResult.newRefreshTokenEnc;
+        }
+        await supabase
+          .from("email_connections")
+          .update(updatePayload)
+          .eq("id", msConn.id);
+      }
+
+      const result = await sendMicrosoftEmail(tokenResult.accessToken, {
         to: input.to,
         subject: input.subject,
         body: input.body,
@@ -191,6 +215,16 @@ async function sendSmtpEmail(
     throw new Error("nodemailer is not installed. Run: pnpm add nodemailer @types/nodemailer");
   }
 
+  // Decrypt the stored password before use
+  let smtpPassword = "";
+  if (conn.smtp_password_enc) {
+    try {
+      smtpPassword = decrypt(conn.smtp_password_enc);
+    } catch {
+      throw new Error("Failed to decrypt SMTP password — connection may be corrupted");
+    }
+  }
+
   const transporter = nodemailer.default.createTransport({
     host: conn.smtp_host,
     port: conn.smtp_port ?? 587,
@@ -198,7 +232,7 @@ async function sendSmtpEmail(
     auth: conn.smtp_username
       ? {
           user: conn.smtp_username,
-          pass: conn.smtp_password_enc ?? "",
+          pass: smtpPassword,
         }
       : undefined,
   });

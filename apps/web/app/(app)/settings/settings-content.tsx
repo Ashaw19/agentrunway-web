@@ -68,11 +68,23 @@ type GoogleConnection = {
   connected_at: string;
 } | null;
 
+type EmailConnection = {
+  id: string;
+  provider: "microsoft" | "smtp";
+  email_address: string;
+  display_name: string | null;
+  connection_name: string | null;
+  smtp_host: string | null;
+  smtp_port: number | null;
+  connected_at: string;
+};
+
 interface Props {
   settings: UserSettings;
   plaidItems?: PlaidItem[];
   plaidConfigured?: boolean;
   googleConnection?: GoogleConnection;
+  emailConnections?: EmailConnection[];
 }
 
 const SPLIT_OPTIONS: { value: SplitPreset; label: string }[] = [
@@ -94,16 +106,41 @@ function useSaved() {
   return { saved, flash };
 }
 
-export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], plaidConfigured = false, googleConnection = null }: Props) {
+export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], plaidConfigured = false, googleConnection = null, emailConnections: initialEmailConnections = [] }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sandbox = useSandboxMode();
   const [googleConn, setGoogleConn] = useState<GoogleConnection>(googleConnection);
   const [googleDisconnecting, setGoogleDisconnecting] = useState(false);
+  const [emailConns, setEmailConns] = useState<EmailConnection[]>(initialEmailConnections);
+  const [msDisconnecting, setMsDisconnecting] = useState(false);
+  const [smtpDisconnecting, setSmtpDisconnecting] = useState(false);
+  const [showSmtpForm, setShowSmtpForm] = useState(false);
+  const [smtpSaving, setSmtpSaving] = useState(false);
+  const [smtpTesting, setSmtpTesting] = useState(false);
+  const [smtpForm, setSmtpForm] = useState({
+    email_address: "",
+    connection_name: "",
+    smtp_host: "",
+    smtp_port: "587",
+    smtp_username: "",
+    smtp_password: "",
+  });
+
+  const msConn = emailConns.find((c) => c.provider === "microsoft") ?? null;
+  const smtpConn = emailConns.find((c) => c.provider === "smtp") ?? null;
 
   useEffect(() => {
     if (searchParams.get("google_connected") === "true") {
       toast.success("Google account connected successfully!");
+      router.replace("/settings");
+    }
+    if (searchParams.get("ms_connected") === "true") {
+      toast.success("Microsoft account connected successfully!");
+      router.replace("/settings");
+    }
+    if (searchParams.get("ms_error")) {
+      toast.error(`Microsoft connection failed: ${searchParams.get("ms_error")}`);
       router.replace("/settings");
     }
   }, [searchParams, router]);
@@ -120,6 +157,96 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       toast.error("Could not disconnect. Please try again.");
     } finally {
       setGoogleDisconnecting(false);
+    }
+  }
+
+  async function handleMsDisconnect() {
+    if (guardSandboxExternalAction(sandbox.sandboxMode, "Microsoft disconnect")) return;
+    setMsDisconnecting(true);
+    try {
+      const res = await fetch("/api/auth/microsoft/disconnect", { method: "POST" });
+      if (!res.ok) throw new Error("Failed to disconnect");
+      setEmailConns((prev) => prev.filter((c) => c.provider !== "microsoft"));
+      toast.success("Microsoft account disconnected.");
+    } catch {
+      toast.error("Could not disconnect. Please try again.");
+    } finally {
+      setMsDisconnecting(false);
+    }
+  }
+
+  async function handleSmtpTest() {
+    setSmtpTesting(true);
+    try {
+      const res = await fetch("/api/email-connections/smtp/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          smtp_host: smtpForm.smtp_host,
+          smtp_port: parseInt(smtpForm.smtp_port) || 587,
+          smtp_username: smtpForm.smtp_username || undefined,
+          smtp_password: smtpForm.smtp_password || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success("SMTP connection verified!");
+      } else {
+        toast.error(data.error || "SMTP test failed.");
+      }
+    } catch {
+      toast.error("Could not test SMTP connection.");
+    } finally {
+      setSmtpTesting(false);
+    }
+  }
+
+  async function handleSmtpSave() {
+    if (guardSandboxExternalAction(sandbox.sandboxMode, "SMTP save")) return;
+    if (!smtpForm.email_address || !smtpForm.smtp_host) {
+      toast.error("Email address and SMTP host are required.");
+      return;
+    }
+    setSmtpSaving(true);
+    try {
+      const res = await fetch("/api/email-connections/smtp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email_address: smtpForm.email_address,
+          connection_name: smtpForm.connection_name || undefined,
+          smtp_host: smtpForm.smtp_host,
+          smtp_port: parseInt(smtpForm.smtp_port) || 587,
+          smtp_username: smtpForm.smtp_username || undefined,
+          smtp_password: smtpForm.smtp_password || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to save");
+      }
+      toast.success("SMTP connection saved!");
+      setShowSmtpForm(false);
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save SMTP connection.");
+    } finally {
+      setSmtpSaving(false);
+    }
+  }
+
+  async function handleSmtpDisconnect() {
+    if (guardSandboxExternalAction(sandbox.sandboxMode, "SMTP disconnect")) return;
+    setSmtpDisconnecting(true);
+    try {
+      const res = await fetch("/api/email-connections/smtp", { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to disconnect");
+      setEmailConns((prev) => prev.filter((c) => c.provider !== "smtp"));
+      toast.success("SMTP connection removed.");
+    } catch {
+      toast.error("Could not remove. Please try again.");
+    } finally {
+      setSmtpDisconnecting(false);
     }
   }
 
@@ -1963,6 +2090,293 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Card — Other Email Providers (Microsoft + SMTP) */}
+      <Card className="rounded-2xl border-l-4 border-l-violet-400 shadow-sm">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Mail className="h-5 w-5 text-violet-500" />
+            <div>
+              <CardTitle>Other Email Providers</CardTitle>
+              <CardDescription className="mt-0.5">
+                Connect Outlook or a custom SMTP server to send outreach from{" "}
+                <Link href="/flight-control" className="underline underline-offset-2">
+                  Flight Control
+                </Link>
+                . Google is configured above.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* ── Microsoft / Outlook ─────────────────────────────────────── */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">Microsoft / Outlook</p>
+              {msConn ? (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={msDisconnecting}
+                      className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0"
+                    >
+                      {msDisconnecting ? (
+                        <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                      ) : (
+                        <XCircle className="h-3.5 w-3.5 mr-1.5" />
+                      )}
+                      Disconnect
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Disconnect Microsoft Account?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This removes your Outlook email connection. Outreach emails will
+                        no longer be sent through this account.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleMsDisconnect}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Disconnect
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : (
+                <a href="/api/auth/microsoft/connect">
+                  <Button size="sm" variant="outline" className="shrink-0">
+                    <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                    Connect Outlook
+                  </Button>
+                </a>
+              )}
+            </div>
+            {msConn ? (
+              <div className="flex items-center gap-3 rounded-xl border bg-card p-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-950/30 shrink-0">
+                  <Mail className="h-4 w-4 text-violet-500" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">
+                    {msConn.display_name ?? msConn.email_address}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {msConn.email_address}
+                  </p>
+                </div>
+                <Badge className="ml-auto gap-1 bg-violet-100 text-violet-700 dark:bg-violet-950/30 dark:text-violet-400 hover:bg-violet-100 shrink-0">
+                  <Check className="h-3 w-3" /> Mail Send
+                </Badge>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Connect your Microsoft 365 or Outlook.com account to send emails via Outlook.
+              </p>
+            )}
+          </div>
+
+          <hr className="border-border" />
+
+          {/* ── SMTP ────────────────────────────────────────────────────── */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold">Custom SMTP</p>
+                <p className="text-xs text-muted-foreground">
+                  Yahoo, custom domains, or any provider with SMTP access.
+                </p>
+              </div>
+              {smtpConn ? (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={smtpDisconnecting}
+                      className="text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0"
+                    >
+                      {smtpDisconnecting ? (
+                        <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                      )}
+                      Remove
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Remove SMTP Connection?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This removes your custom SMTP connection and its stored credentials.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleSmtpDisconnect}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Remove
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : !showSmtpForm ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={() => setShowSmtpForm(true)}
+                >
+                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                  Add SMTP
+                </Button>
+              ) : null}
+            </div>
+
+            {smtpConn && !showSmtpForm ? (
+              <div className="flex items-center gap-3 rounded-xl border bg-card p-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-950/30 shrink-0">
+                  <Mail className="h-4 w-4 text-amber-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">
+                    {smtpConn.connection_name ?? smtpConn.email_address}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {smtpConn.email_address} &middot; {smtpConn.smtp_host}:{smtpConn.smtp_port ?? 587}
+                  </p>
+                </div>
+                <Badge className="ml-auto gap-1 bg-amber-100 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 hover:bg-amber-100 shrink-0">
+                  <Check className="h-3 w-3" /> SMTP
+                </Badge>
+              </div>
+            ) : showSmtpForm ? (
+              <div className="rounded-xl border bg-card p-4 space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="smtp-email" className="text-xs">Email Address *</Label>
+                    <Input
+                      id="smtp-email"
+                      type="email"
+                      placeholder="you@yourdomain.com"
+                      value={smtpForm.email_address}
+                      onChange={(e) => setSmtpForm((p) => ({ ...p, email_address: e.target.value }))}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="smtp-name" className="text-xs">Connection Name</Label>
+                    <Input
+                      id="smtp-name"
+                      placeholder="e.g. Work Email"
+                      value={smtpForm.connection_name}
+                      onChange={(e) => setSmtpForm((p) => ({ ...p, connection_name: e.target.value }))}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="sm:col-span-2">
+                    <Label htmlFor="smtp-host" className="text-xs">SMTP Host *</Label>
+                    <Input
+                      id="smtp-host"
+                      placeholder="smtp.yourdomain.com"
+                      value={smtpForm.smtp_host}
+                      onChange={(e) => setSmtpForm((p) => ({ ...p, smtp_host: e.target.value }))}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="smtp-port" className="text-xs">Port</Label>
+                    <Input
+                      id="smtp-port"
+                      type="number"
+                      placeholder="587"
+                      value={smtpForm.smtp_port}
+                      onChange={(e) => setSmtpForm((p) => ({ ...p, smtp_port: e.target.value }))}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="smtp-user" className="text-xs">Username</Label>
+                    <Input
+                      id="smtp-user"
+                      placeholder="SMTP username (often your email)"
+                      value={smtpForm.smtp_username}
+                      onChange={(e) => setSmtpForm((p) => ({ ...p, smtp_username: e.target.value }))}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="smtp-pass" className="text-xs">Password / App Password</Label>
+                    <Input
+                      id="smtp-pass"
+                      type="password"
+                      placeholder="SMTP password"
+                      value={smtpForm.smtp_password}
+                      onChange={(e) => setSmtpForm((p) => ({ ...p, smtp_password: e.target.value }))}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSmtpTest}
+                    disabled={smtpTesting || !smtpForm.smtp_host}
+                  >
+                    {smtpTesting ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                    )}
+                    Test Connection
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSmtpSave}
+                    disabled={smtpSaving || !smtpForm.email_address || !smtpForm.smtp_host}
+                  >
+                    {smtpSaving ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    ) : (
+                      <Check className="h-3.5 w-3.5 mr-1.5" />
+                    )}
+                    Save
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowSmtpForm(false)}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Priority note */}
+          <div className="rounded-lg border border-border bg-muted/50 p-3">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              <Info className="inline h-3 w-3 mr-1 -mt-0.5" />
+              <strong>Send priority:</strong> When multiple providers are connected,
+              Flight Control sends via Google first, then Microsoft, then SMTP.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
