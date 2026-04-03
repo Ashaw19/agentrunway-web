@@ -1,6 +1,16 @@
 import * as XLSX from "xlsx";
 import { type HistoryItem, type ClientRecord } from "@/lib/types/database";
 
+/** Sanitize cell values to prevent Excel formula injection */
+function sanitizeExcelCell(val: string): string {
+  if (!val) return val;
+  const first = val.charAt(0);
+  if (first === "=" || first === "+" || first === "-" || first === "@" || first === "|" || first === "\t") {
+    return "'" + val;
+  }
+  return val;
+}
+
 interface ReportData {
   historyItems: HistoryItem[];
   clientRecords: ClientRecord[];
@@ -88,12 +98,12 @@ export function generateProductionExcel(data: ReportData, yearFilter?: number): 
       sheetData.push(["Date", "Address", "Client", "Side", "GCI", "Source"]);
       yearRecords.forEach(r => {
         sheetData.push([
-          r.close_date ?? "",
-          r.address ?? "",
-          r.name ?? "",
-          (r.side ?? "").toUpperCase(),
+          sanitizeExcelCell(r.close_date ?? ""),
+          sanitizeExcelCell(r.address ?? ""),
+          sanitizeExcelCell(r.name ?? ""),
+          sanitizeExcelCell((r.side ?? "").toUpperCase()),
           r.gci ?? 0,
-          r.source ?? "",
+          sanitizeExcelCell(r.source ?? ""),
         ]);
       });
     } else {
