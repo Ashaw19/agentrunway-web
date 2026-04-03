@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
         code,
         grant_type:    "authorization_code",
         redirect_uri:  redirectUri,
-        scope:         "openid email offline_access Mail.Send",
+        scope:         "openid email offline_access Mail.Send Calendars.ReadWrite",
       }),
     });
 
@@ -112,7 +112,16 @@ export async function GET(req: NextRequest) {
 
     const email = meJson.mail || meJson.userPrincipalName || "";
 
-    // Step 3: Encrypt tokens and upsert
+    // Step 3: Parse granted scopes and detect calendar access
+    const grantedScopes = tokenJson.scope ? tokenJson.scope.split(" ") : [];
+    const calendarEnabled = grantedScopes.some(
+      (s) => s.toLowerCase() === "calendars.readwrite"
+    );
+    const mailSendEnabled = grantedScopes.some(
+      (s) => s.toLowerCase() === "mail.send"
+    );
+
+    // Step 4: Encrypt tokens and upsert
     const accessTokenEnc  = encrypt(tokenJson.access_token);
     const refreshTokenEnc = encrypt(tokenJson.refresh_token);
     const expiresAt       = new Date(
@@ -123,15 +132,22 @@ export async function GET(req: NextRequest) {
       .from("email_connections")
       .upsert(
         {
-          user_id:           user.id,
-          provider:          "microsoft",
-          email_address:     email,
-          display_name:      meJson.displayName ?? null,
-          connection_name:   "Outlook",
-          access_token_enc:  accessTokenEnc,
-          refresh_token_enc: refreshTokenEnc,
-          expires_at:        expiresAt,
-          updated_at:        new Date().toISOString(),
+          user_id:                user.id,
+          provider:               "microsoft",
+          email_address:          email,
+          display_name:           meJson.displayName ?? null,
+          connection_name:        mailSendEnabled && calendarEnabled
+            ? "Outlook (Mail + Calendar)"
+            : mailSendEnabled
+            ? "Outlook (Mail)"
+            : calendarEnabled
+            ? "Outlook (Calendar)"
+            : "Outlook",
+          access_token_enc:       accessTokenEnc,
+          refresh_token_enc:      refreshTokenEnc,
+          expires_at:             expiresAt,
+          calendar_sync_enabled:  calendarEnabled,
+          updated_at:             new Date().toISOString(),
         },
         { onConflict: "user_id,provider" }
       );

@@ -17,6 +17,7 @@ const SCOPES = [
   "email",
   "offline_access",
   "Mail.Send",
+  "Calendars.ReadWrite",
 ].join(" ");
 
 export async function GET() {

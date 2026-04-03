@@ -38,7 +38,7 @@ export async function refreshMicrosoftToken(
       client_secret: MS_CLIENT_SECRET,
       refresh_token: refreshToken,
       grant_type:    "refresh_token",
-      scope:         "openid email Mail.Send offline_access",
+      scope:         "openid email Mail.Send Calendars.ReadWrite offline_access",
     }),
   });
 

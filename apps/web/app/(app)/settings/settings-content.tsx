@@ -76,6 +76,7 @@ type EmailConnection = {
   connection_name: string | null;
   smtp_host: string | null;
   smtp_port: number | null;
+  calendar_sync_enabled: boolean;
   connected_at: string;
 };
 
@@ -2173,9 +2174,16 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
                     {msConn.email_address}
                   </p>
                 </div>
-                <Badge className="ml-auto gap-1 bg-violet-100 text-violet-700 dark:bg-violet-950/30 dark:text-violet-400 hover:bg-violet-100 shrink-0">
-                  <Check className="h-3 w-3" /> Mail Send
-                </Badge>
+                <div className="ml-auto flex gap-1.5 shrink-0">
+                  <Badge className="gap-1 bg-violet-100 text-violet-700 dark:bg-violet-950/30 dark:text-violet-400 hover:bg-violet-100">
+                    <Check className="h-3 w-3" /> Mail Send
+                  </Badge>
+                  {msConn?.calendar_sync_enabled && (
+                    <Badge className="gap-1 bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 hover:bg-blue-100">
+                      <Check className="h-3 w-3" /> Calendar
+                    </Badge>
+                  )}
+                </div>
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">

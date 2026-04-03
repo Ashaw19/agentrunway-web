@@ -41,7 +41,7 @@ export default async function SettingsPage() {
       .maybeSingle(),
     supabase
       .from("email_connections")
-      .select("id, provider, email_address, display_name, connection_name, smtp_host, smtp_port, connected_at")
+      .select("id, provider, email_address, display_name, connection_name, smtp_host, smtp_port, calendar_sync_enabled, connected_at")
       .eq("user_id", user.id)
       .order("connected_at", { ascending: false }),
   ]);
