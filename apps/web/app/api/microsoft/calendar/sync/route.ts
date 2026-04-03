@@ -61,7 +61,9 @@ function outlookDateToISO(dateTime: string, timeZone: string): string {
     if (offsetMatch) {
       const hours = parseInt(offsetMatch[1], 10);
       const minutes = parseInt(offsetMatch[2] ?? "0", 10);
-      const totalOffsetMs = (hours * 60 + (hours < 0 ? -minutes : minutes)) * 60 * 1000;
+      // Correctly handle negative offsets with minutes (e.g., GMT-3:30 for Newfoundland)
+      const sign = hours < 0 ? -1 : 1;
+      const totalOffsetMs = (Math.abs(hours) * 60 + minutes) * sign * 60 * 1000;
       // The dateTime is local time = UTC + offset, so UTC = local - offset
       const localAsUtc = new Date(clean + "Z");
       const utc = new Date(localAsUtc.getTime() - totalOffsetMs);
@@ -228,6 +230,7 @@ export async function POST(): Promise<NextResponse> {
 
     // Batch upsert
     let pulled = 0;
+    let upsertFailed = false;
     if (upsertPayloads.length > 0) {
       const { error: upsertErr } = await supabase
         .from("calendar_events")
@@ -235,7 +238,12 @@ export async function POST(): Promise<NextResponse> {
           onConflict: "user_id,outlook_event_id",
           ignoreDuplicates: false,
         });
-      if (!upsertErr) pulled = upsertPayloads.length;
+      if (upsertErr) {
+        console.error("[outlook-calendar/sync] Batch upsert failed:", upsertErr.message);
+        upsertFailed = true;
+      } else {
+        pulled = upsertPayloads.length;
+      }
     }
 
     // Batch update deleted events
@@ -300,10 +308,11 @@ export async function POST(): Promise<NextResponse> {
     }
 
     // ── Update sync state ───────────────────────────────────────────────
+    // Only advance sync token if upsert succeeded — otherwise next run re-fetches lost events
     await supabase
       .from("email_connections")
       .update({
-        calendar_sync_token: deltaLink,
+        calendar_sync_token: upsertFailed ? conn.calendar_sync_token : deltaLink,
         last_calendar_sync:  new Date().toISOString(),
         updated_at:          new Date().toISOString(),
       })
@@ -316,16 +325,17 @@ export async function POST(): Promise<NextResponse> {
       total_events: events.length,
     });
   } catch (err) {
-    console.error("[outlook-calendar/sync] Error:", err);
+    const rawMessage = err instanceof Error ? err.message : String(err);
+    console.error("[outlook-calendar/sync] Error:", rawMessage);
 
-    const message = err instanceof Error ? err.message : String(err);
     const isAuthError =
-      message.includes("401") || message.includes("InvalidAuthenticationToken");
+      rawMessage.includes("401") || rawMessage.includes("InvalidAuthenticationToken");
 
     return NextResponse.json(
       {
-        error: "Outlook calendar sync failed",
-        message,
+        error: isAuthError
+          ? "Outlook authentication expired — please reconnect"
+          : "Outlook calendar sync failed",
         code: isAuthError ? "AUTH_EXPIRED" : "SYNC_FAILED",
       },
       { status: isAuthError ? 401 : 500 }

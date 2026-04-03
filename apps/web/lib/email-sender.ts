@@ -22,6 +22,56 @@ import {
   getValidMicrosoftToken,
   type MicrosoftConnection,
 } from "@/lib/microsoft/token-manager";
+import dns from "dns/promises";
+
+// ── SSRF protection (shared with SMTP routes) ────────────────────────────────
+
+function isPrivateIPv4(ip: string): boolean {
+  const parts = ip.split(".").map(Number);
+  if (parts.length !== 4) return false;
+  if (parts[0] === 10) return true;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  if (parts[0] === 192 && parts[1] === 168) return true;
+  if (parts[0] === 127) return true;
+  if (parts[0] === 169 && parts[1] === 254) return true;
+  if (parts[0] === 0) return true;
+  return false;
+}
+
+function isPrivateIPv6(ip: string): boolean {
+  const normalized = ip.toLowerCase().replace(/^\[|\]$/g, "");
+  if (normalized === "::1" || normalized === "::") return true;
+  if (normalized.startsWith("fe80:")) return true;  // link-local
+  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true;  // unique-local
+  if (normalized === "::ffff:127.0.0.1") return true;  // IPv4-mapped loopback
+  // Check IPv4-mapped addresses (::ffff:x.x.x.x)
+  const v4Mapped = normalized.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+  if (v4Mapped) return isPrivateIPv4(v4Mapped[1]);
+  return false;
+}
+
+async function isPrivateSmtpHost(host: string): Promise<boolean> {
+  const lower = host.toLowerCase().trim();
+  if (lower === "localhost" || lower === "0.0.0.0" || lower === "[::]" || lower === "::1") return true;
+  if (lower.endsWith(".local") || lower.endsWith(".internal")) return true;
+  // Direct IPv4
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(lower)) return isPrivateIPv4(lower);
+  // Direct IPv6
+  if (lower.includes(":")) return isPrivateIPv6(lower);
+  // Resolve DNS and check both A and AAAA records
+  try {
+    const [v4Addrs, v6Addrs] = await Promise.all([
+      dns.resolve4(host).catch(() => [] as string[]),
+      dns.resolve6(host).catch(() => [] as string[]),
+    ]);
+    if (v4Addrs.length === 0 && v6Addrs.length === 0) return true; // can't resolve = block
+    if (v4Addrs.some(isPrivateIPv4)) return true;
+    if (v6Addrs.some(isPrivateIPv6)) return true;
+    return false;
+  } catch {
+    return true; // If we can't resolve, block it
+  }
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -145,6 +195,10 @@ export async function sendEmail(
 
   if (smtpConn?.smtp_host) {
     try {
+      // SSRF check at send time (not just save time) to prevent DNS rebinding
+      if (await isPrivateSmtpHost(smtpConn.smtp_host)) {
+        return { ok: false, provider: "smtp", error: "SMTP host resolves to a private/internal address" };
+      }
       const result = await sendSmtpEmail(smtpConn, {
         to: input.to,
         subject: input.subject,

@@ -10,9 +10,9 @@ import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import dns from "dns/promises";
 
-// ── SSRF protection (with DNS resolution) ───────────────────────────────────
+// ── SSRF protection (with DNS resolution + IPv6) ────────────────────────────
 
-function isPrivateIP(ip: string): boolean {
+function isPrivateIPv4(ip: string): boolean {
   const parts = ip.split(".").map(Number);
   if (parts.length !== 4) return false;
   if (parts[0] === 10) return true;                          // 10.0.0.0/8
@@ -24,18 +24,34 @@ function isPrivateIP(ip: string): boolean {
   return false;
 }
 
+function isPrivateIPv6(ip: string): boolean {
+  const normalized = ip.toLowerCase().replace(/^\[|\]$/g, "");
+  if (normalized === "::1" || normalized === "::") return true;
+  if (normalized.startsWith("fe80:")) return true;             // link-local
+  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true; // unique-local
+  if (normalized === "::ffff:127.0.0.1") return true;         // IPv4-mapped loopback
+  const v4Mapped = normalized.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+  if (v4Mapped) return isPrivateIPv4(v4Mapped[1]);
+  return false;
+}
+
 async function isPrivateHost(host: string): Promise<boolean> {
   const lower = host.toLowerCase().trim();
-  if (lower === "localhost" || lower === "0.0.0.0" || lower === "[::]") return true;
+  if (lower === "localhost" || lower === "0.0.0.0" || lower === "[::]" || lower === "::1") return true;
   if (lower.endsWith(".local") || lower.endsWith(".internal")) return true;
-  // Check if host is already an IP
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(lower)) return isPrivateIP(lower);
-  // Resolve and check all A records
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(lower)) return isPrivateIPv4(lower);
+  if (lower.includes(":")) return isPrivateIPv6(lower);
   try {
-    const addresses = await dns.resolve4(host);
-    return addresses.some(isPrivateIP);
+    const [v4Addrs, v6Addrs] = await Promise.all([
+      dns.resolve4(host).catch(() => [] as string[]),
+      dns.resolve6(host).catch(() => [] as string[]),
+    ]);
+    if (v4Addrs.length === 0 && v6Addrs.length === 0) return true;
+    if (v4Addrs.some(isPrivateIPv4)) return true;
+    if (v6Addrs.some(isPrivateIPv6)) return true;
+    return false;
   } catch {
-    return true; // If we can't resolve, block it
+    return true;
   }
 }
 

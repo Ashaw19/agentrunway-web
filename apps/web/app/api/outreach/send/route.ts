@@ -45,7 +45,12 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Parse body ──────────────────────────────────────────────────────────
-  const body = (await req.json()) as { outreach_id?: string };
+  let body: { outreach_id?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   const outreachId = body.outreach_id;
 
   if (!outreachId) {
@@ -122,16 +127,17 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, provider: result.provider });
   } catch (err) {
-    console.error("[outreach/send] Error:", err);
+    const rawMessage = err instanceof Error ? err.message : String(err);
+    console.error("[outreach/send] Error:", rawMessage);
 
-    const message = err instanceof Error ? err.message : String(err);
     const isAuthError =
-      message.includes("401") || message.includes("invalid_grant");
+      rawMessage.includes("401") || rawMessage.includes("invalid_grant");
 
     return NextResponse.json(
       {
-        error: "Failed to send email",
-        message,
+        error: isAuthError
+          ? "Email authentication expired — please reconnect your email provider"
+          : "Failed to send email",
         code: isAuthError ? "AUTH_EXPIRED" : "SEND_FAILED",
       },
       { status: isAuthError ? 401 : 500 }

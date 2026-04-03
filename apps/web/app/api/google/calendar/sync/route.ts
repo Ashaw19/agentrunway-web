@@ -169,6 +169,7 @@ export async function POST(): Promise<NextResponse> {
 
     // Batch upsert all non-cancelled events in one call
     let pulled = 0;
+    let upsertFailed = false;
     if (upsertPayloads.length > 0) {
       const { error: upsertErr } = await supabase
         .from("calendar_events")
@@ -176,7 +177,12 @@ export async function POST(): Promise<NextResponse> {
           onConflict: "user_id,google_event_id",
           ignoreDuplicates: false,
         });
-      if (!upsertErr) pulled = upsertPayloads.length;
+      if (upsertErr) {
+        console.error("[calendar/sync] Batch upsert failed:", upsertErr.message);
+        upsertFailed = true;
+      } else {
+        pulled = upsertPayloads.length;
+      }
     }
 
     // Batch update cancelled events in one call
@@ -235,10 +241,11 @@ export async function POST(): Promise<NextResponse> {
     }
 
     // ── Update sync state ───────────────────────────────────────────────
+    // Only advance sync token if upsert succeeded — otherwise next run re-fetches lost events
     await supabase
       .from("google_connections")
       .update({
-        calendar_sync_token: nextSyncToken,
+        calendar_sync_token: upsertFailed ? conn.calendar_sync_token : nextSyncToken,
         last_calendar_sync:  new Date().toISOString(),
         updated_at:          new Date().toISOString(),
       })

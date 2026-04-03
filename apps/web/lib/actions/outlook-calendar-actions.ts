@@ -37,7 +37,9 @@ function outlookDateToISO(dateTime: string, timeZone: string): string {
     if (offsetMatch) {
       const hours = parseInt(offsetMatch[1], 10);
       const minutes = parseInt(offsetMatch[2] ?? "0", 10);
-      const totalOffsetMs = (hours * 60 + (hours < 0 ? -minutes : minutes)) * 60 * 1000;
+      // Correctly handle negative offsets with minutes (e.g., GMT-3:30 for Newfoundland)
+      const sign = hours < 0 ? -1 : 1;
+      const totalOffsetMs = (Math.abs(hours) * 60 + minutes) * sign * 60 * 1000;
       const localAsUtc = new Date(clean + "Z");
       const utc = new Date(localAsUtc.getTime() - totalOffsetMs);
       return utc.toISOString();
