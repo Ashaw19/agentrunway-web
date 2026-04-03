@@ -10,9 +10,10 @@ import { fmtCurrency } from "@/lib/formatters";
 import { seasonalFractionElapsed, paceVsGoalPercent } from "@agent-runway/core/engines/projection-engine";
 import { CREA_BOARDS, fetchBoardData, computeMarketMomentum } from "@/lib/crea-board";
 import { generateTeamComparativeInsights } from "@agent-runway/core/engines";
-import { classifyTopicMulti, type TroubleshootingTopic } from "@/lib/troubleshooting-classifier";
+import { classifyTopic, classifyTopicMulti, type TroubleshootingTopic } from "@/lib/troubleshooting-classifier";
 import { getPlaybooks } from "@/lib/troubleshooting-playbooks";
 import { buildDiagnostics } from "@/lib/chat-diagnostics";
+import { logChatAnalytics, countTopicFollowUps } from "@/lib/chat-analytics";
 
 export async function POST(req: NextRequest) {
   const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
@@ -345,6 +346,26 @@ ${AGENT_RUNWAY_VOICE}`;
     }, { signal: controller.signal });
 
     clearTimeout(timeout);
+
+    // ── 7. Log analytics (fire-and-forget — never blocks response) ─────────
+    const userMsgCount = safeMessages.filter((m) => m.role === "user").length;
+    const followUps = countTopicFollowUps(
+      safeMessages,
+      classifyTopic,
+      topTopics[0] ?? "general",
+    );
+    logChatAnalytics(supabase, {
+      userId: user.id,
+      message: String(latestUserMessage),
+      primaryTopic: topTopics[0] ?? "general",
+      secondaryTopic: topTopics[1] ?? null,
+      classifierScore: matchedTopics[0]?.score ?? 0,
+      hadDiagnostics: troubleshootingContext.includes("["),
+      hadPlaybook: isTroubleshooting,
+      followUpCount: followUps,
+      sessionMessageCount: userMsgCount,
+      currentPage: safePage || null,
+    }).catch(() => {}); // Swallow errors — analytics must never break chat
 
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
