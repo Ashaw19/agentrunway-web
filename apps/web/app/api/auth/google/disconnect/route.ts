@@ -23,8 +23,10 @@ export async function POST() {
     .delete()
     .eq("user_id", user.id);
 
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[google/disconnect] Error:", error.message);
+    return NextResponse.json({ error: "Failed to disconnect Google account." }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true });
 }

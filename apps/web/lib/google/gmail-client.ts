@@ -21,26 +21,37 @@ export interface GmailSendParams {
  * Build an RFC 2822 email and send it via Gmail API.
  * Returns the Gmail message ID on success.
  */
+/** Strip CRLF characters to prevent email header injection */
+function sanitizeHeader(value: string): string {
+  return value.replace(/[\r\n]/g, "");
+}
+
 export async function sendGmail(params: GmailSendParams): Promise<string> {
   const { accessToken, to, subject, body, fromName, fromEmail, replyTo } =
     params;
 
+  // Sanitize all header values to prevent CRLF injection
+  const safeTo      = sanitizeHeader(to);
+  const safeSubject = sanitizeHeader(subject);
+
   // Build MIME headers — send as HTML so formatting matches Outlook/SMTP
   const headers = [
-    `To: ${to}`,
-    `Subject: ${subject}`,
+    `To: ${safeTo}`,
+    `Subject: ${safeSubject}`,
     `MIME-Version: 1.0`,
     `Content-Type: text/html; charset="UTF-8"`,
   ];
 
   if (fromEmail) {
+    const safeFromEmail = sanitizeHeader(fromEmail);
+    const safeFromName  = fromName ? sanitizeHeader(fromName) : undefined;
     headers.unshift(
-      fromName ? `From: ${fromName} <${fromEmail}>` : `From: ${fromEmail}`
+      safeFromName ? `From: ${safeFromName} <${safeFromEmail}>` : `From: ${safeFromEmail}`
     );
   }
 
   if (replyTo) {
-    headers.push(`Reply-To: ${replyTo}`);
+    headers.push(`Reply-To: ${sanitizeHeader(replyTo)}`);
   }
 
   const raw = `${headers.join("\r\n")}\r\n\r\n${body}`;

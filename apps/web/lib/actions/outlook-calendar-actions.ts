@@ -200,7 +200,7 @@ export async function syncUserOutlookCalendar(userId: string): Promise<{
     if (pendingEvents) {
       for (const arEvent of pendingEvents) {
         try {
-          const tz = "America/Toronto"; // Default timezone for Canadian agents
+          // start_at/end_at are stored as UTC ISO strings — tell Outlook they're UTC
           const created = await createOutlookEvent(tokenResult.accessToken, {
             subject: arEvent.title,
             body: arEvent.description
@@ -216,7 +216,7 @@ export async function syncUserOutlookCalendar(userId: string): Promise<{
                 }
               : {
                   dateTime: arEvent.start_at.replace("Z", ""),
-                  timeZone: tz,
+                  timeZone: "UTC",
                 },
             end: arEvent.all_day
               ? {
@@ -225,7 +225,7 @@ export async function syncUserOutlookCalendar(userId: string): Promise<{
                 }
               : {
                   dateTime: arEvent.end_at.replace("Z", ""),
-                  timeZone: tz,
+                  timeZone: "UTC",
                 },
             isAllDay: arEvent.all_day ?? false,
           });

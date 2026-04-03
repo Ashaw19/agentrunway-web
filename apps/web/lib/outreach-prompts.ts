@@ -110,7 +110,7 @@ The person reading this should think "my agent actually wrote this" — not "my 
 export const SUBJECT_LINE_RULES = `SUBJECT LINE RULES (apply strictly):
 - 2–6 words max. Lowercase unless a proper noun.
 - Must sound like a human typed it on their phone — not a marketing team.
-- Should create mild curiosity or feel personally directed — research shows subject lines that feel "from a person" get 2-3x open rates vs. "from a brand".
+- Should create mild curiosity or feel personally directed — research shows subject lines that feel "from a person" get significantly higher open rates vs. "from a brand".
 - NEVER start with "checking in", "just following up", "quick note", or "touching base".
 - NEVER use "[action] at [address]" patterns like "all done at 123 Main St" — these sound robotic.
 - NEVER use exclamation marks, emojis, or ALL CAPS words.
@@ -200,6 +200,11 @@ Context:
 - CRITICAL: ${clientName} was the SELLER — they no longer own this property. Do NOT ask "how's life at the house" or imply they still live there.
 - This is about acknowledging a meaningful moment and staying in touch
 
+RESEARCH CONTEXT:
+- This is a pure warmth touchpoint — the relationship itself is the value.
+- Reciprocity: remembering this date IS the gift. Most agents don't track this.
+- Canadian calibration: understated reflection ("it's been a good ${years} year${years !== 1 ? "s" : ""}") beats effusive gratitude.
+
 ${TONE_INSTRUCTIONS[tone]}
 
 Write a ${years}-year sale anniversary email (3–4 short paragraphs, under 180 words total).
@@ -221,6 +226,11 @@ SUBJECT: [your subject line]`;
 Context:
 - Milestone: ${years}-year anniversary of the client's home purchase
 - Property: ${location || "their home"}
+
+RESEARCH CONTEXT:
+- This is a warmth-first touchpoint — the home anniversary is personally meaningful.
+- Reciprocity: offer something useful (home value update) as a natural extension of the check-in.
+- Canadian calibration: understated nostalgia, not performed excitement. "Hard to believe it's been ${years} year${years !== 1 ? "s" : ""}" is fine; "AMAZING ${years} years!" is not.
 
 ${TONE_INSTRUCTIONS[tone]}
 
@@ -261,7 +271,7 @@ Context:
 - It's the ${season} in Canada
 
 RESEARCH CONTEXT (apply to this email):
-- Persistence matters: industry data shows 95% of real estate conversions happen after the 6th contact. This is one touchpoint in a long-term relationship — it doesn't need to "close" anything.
+- Persistence matters: industry data shows most real estate conversions happen after multiple contacts. This is one touchpoint in a long-term relationship — it doesn't need to "close" anything.
 - Reciprocity principle: give before asking. Lead with something USEFUL (a market observation, a seasonal tip, genuine curiosity about their life) before any CTA.
 - Light contextual personalization: reference the season, their neighbourhood, or their general area. Do NOT invent personal details you don't have.
 - Canadian tone: pick up naturally, no apology for the gap, no urgency. "Figured I'd drop a line" energy.
@@ -290,6 +300,11 @@ export function buildBirthdayPrompt(
   tone: Tone = "friendly",
 ): string {
   return `You are ghostwriting a short, warm birthday email from a Canadian real estate agent named ${agentFirst} to their past client ${clientName}.
+
+RESEARCH CONTEXT:
+- Pure warmth — zero competence needed. This is about being human, not being an agent.
+- Reciprocity: the gift is remembering. Keep it simple and genuine.
+- Canadian calibration: warm and understated. No "HAPPY BIRTHDAY!!!" energy.
 
 ${TONE_INSTRUCTIONS[tone]}
 
@@ -326,6 +341,10 @@ Context:
 - This is a post-sale check-in, not a move-in note.
 - The agent was there through the whole process — inspections, negotiations, the emotional weight of letting go of a place. Reference something real about the experience you shared.
 
+RESEARCH CONTEXT:
+- Warmth-first: they just went through an emotional event. Lead with genuine care, not business.
+- Canadian calibration: acknowledge that selling can be bittersweet — understated empathy.
+
 ${TONE_INSTRUCTIONS[tone]}
 
 Write a brief 2-paragraph note (under 100 words) that:
@@ -348,6 +367,10 @@ SUBJECT: [your subject line]`;
 Context:
 - Property: ${propLabel}
 ${contextNote ? `- ${contextNote}` : ""}
+
+RESEARCH CONTEXT:
+- Warmth-first: 3 days post-close is emotional. Lead with genuine excitement and care.
+- Reciprocity: offer something useful (local recs, tradespeople contacts) — give before any ask.
 
 ${TONE_INSTRUCTIONS[tone]}
 
@@ -382,6 +405,10 @@ Context:
 - CRITICAL: ${clientName} was the SELLER. Do NOT reference settling in, moving in, or the new place — they sold this home.
 - Two weeks out from a sale — the paperwork is done, the adrenaline has faded, emotions can be mixed.
 
+RESEARCH CONTEXT:
+- Pure warmth touchpoint — no agenda. Just checking in as a human being.
+- Canadian calibration: open questions ("how has the transition been?") over assumptions.
+
 ${TONE_INSTRUCTIONS[tone]}
 
 Write a 2-paragraph check-in (under 100 words) that:
@@ -402,6 +429,10 @@ SUBJECT: [your subject line]`;
 Context:
 - Property: ${propLabel}
 ${contextNote ? `- ${contextNote}` : ""}
+
+RESEARCH CONTEXT:
+- Warmth-first: two weeks in, the chaos is settling. Genuine curiosity about how they're finding things.
+- Canadian calibration: open questions, not assumptions. "How are you finding the neighbourhood?" beats "I hope you're loving it!"
 
 ${TONE_INSTRUCTIONS[tone]}
 
@@ -435,6 +466,11 @@ Context:
 - It's been 90 days since ${clientName} sold — three months since closing
 - CRITICAL: ${clientName} was the SELLER. Do NOT reference "their home" as something they still own. They sold it.
 
+RESEARCH CONTEXT:
+- Warmth-first: 3 months out, life has shifted. Genuine interest in how they're doing.
+- Reciprocity: offer yourself as a resource for whatever comes next — give before asking.
+- Canadian calibration: soft, open CTA. "Whenever you're ready" energy.
+
 ${TONE_INSTRUCTIONS[tone]}
 
 Write a warm 2–3 paragraph check-in (under 150 words) that:
@@ -461,6 +497,11 @@ Context:
 - Property: ${propLabel}
 - It's been 90 days since closing${isPreCon ? " — they may still be waiting on occupancy" : isInvestment ? " — enough time to have tenants in or be actively looking" : " — three months in their new home"}
 ${contextNote ? `- ${contextNote}` : ""}
+
+RESEARCH CONTEXT:
+- Warmth-competence balance: open with warmth, then offer the value-add (home value update, investment check-in).
+- Reciprocity: the value update is a gift. Frame it as "just so you have the number."
+- Canadian calibration: soft CTA — "if you're curious" beats "you should know."
 
 ${TONE_INSTRUCTIONS[tone]}
 
@@ -538,6 +579,11 @@ export function buildReferralAskPrompt(
 Context:
 - Property: ${prop}
 - ${settledLine}
+
+RESEARCH CONTEXT:
+- This asks for something — reciprocity demands you give first. Open with genuine warmth and value before the ask.
+- Canadian calibration: "if you happen to know anyone" is the correct Canadian framing. Direct asks feel pushy.
+- The ask should feel like an afterthought, not the purpose of the email.
 
 ${TONE_INSTRUCTIONS[tone]}
 
@@ -629,6 +675,11 @@ export function buildMultiDealMilestonePrompt(
 ): string {
   const ordinal = dealCount === 2 ? "second" : dealCount === 3 ? "third" : `${dealCount}th`;
   return `You are ghostwriting a short thank-you from a Canadian real estate agent named ${agentFirst} to their repeat client ${clientName}, who has just completed their ${ordinal} deal together.
+
+RESEARCH CONTEXT:
+- Pure warmth — returning clients are rare and meaningful. The gratitude should feel earned, not performed.
+- Canadian calibration: understated appreciation. "It means a lot" beats "I'm SO grateful!"
+- Reciprocity: acknowledge the trust they've shown by coming back.
 
 ${TONE_INSTRUCTIONS[tone]}
 
@@ -840,6 +891,11 @@ Context:
 - The client's home (${prop}, purchased ${closeYear}) has a 5-year mortgage term renewing in approximately ${monthsUntilRenewal} months
 - This is early — the goal is to start the conversation, not pressure them
 
+RESEARCH CONTEXT:
+- Warmth-first: this is a seed-planting touchpoint. No urgency whatsoever.
+- Reciprocity: the value is awareness — most people don't think about rates this early. You're doing them a favour.
+- Canadian calibration: "worth keeping an eye on" beats "you need to start comparing."
+
 ${TONE_INSTRUCTIONS[tone]}
 
 Write a brief 2-paragraph email (under 130 words) that:
@@ -924,6 +980,10 @@ Context:
 - ${budgetLine}
 - The agent wants to check in: are they still on track? Is there anything blocking them?
 
+RESEARCH CONTEXT:
+- Warmth-competence balance: open with warm acknowledgement of their timeline, then demonstrate competence by offering a clear next step.
+- Canadian calibration: collaborative, not closing. "Where are things at?" beats "Are you ready to move forward?"
+
 ${TONE_INSTRUCTIONS[tone]}
 
 Write a focused 2-paragraph email (under 130 words) that:
@@ -960,7 +1020,7 @@ export function buildPropertyValueMilestonePrompt(
 Context:
 - It's been ${milestoneYears} year${milestoneYears !== 1 ? "s" : ""} since ${clientName} SOLD ${location}
 - CRITICAL: ${clientName} was the SELLER — they no longer own this property. Do NOT offer a home value update as if they still own it.
-- This is a neighbourood/market update framed as useful context — great for someone thinking about their next move
+- This is a neighbourhood/market update framed as useful context — great for someone thinking about their next move
 
 ${TONE_INSTRUCTIONS[tone]}
 
@@ -1051,6 +1111,11 @@ Context:
 ${budgetContext ? `- Budget context: ${budgetContext}` : ""}
 ${memorySummary ? `- Background: ${memorySummary}` : ""}
 - The agent is reaching out proactively with a market/inventory update for their areas of interest
+
+RESEARCH CONTEXT:
+- Competence-forward (one of the few email types where this is appropriate): the value IS the market intelligence.
+- Reciprocity: you're being a scout, not a salesperson. The information is the gift.
+- Canadian calibration: "a few interesting things have come up" beats "HOT NEW LISTINGS!"
 
 ${TONE_INSTRUCTIONS[tone]}
 
@@ -1158,6 +1223,11 @@ Context:
 ${memorySummary ? `- Background: ${memorySummary}` : ""}
 - The agent is re-engaging with something genuinely useful — not a sales pitch
 - The goal: provide real value that reminds them why ${agentFirst} is a good person to know
+
+RESEARCH CONTEXT:
+- Pure reciprocity: you're giving knowledge with no ask. This is the strongest trust-building email type.
+- Warmth-first: even educational content should open with a human touch, not a lecture.
+- Canadian calibration: share, don't teach. "Something I thought you'd find interesting" beats "Here's what you need to know."
 
 ${TONE_INSTRUCTIONS[tone]}
 

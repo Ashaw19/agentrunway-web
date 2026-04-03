@@ -173,17 +173,17 @@ export async function createCalendarEvent(input: CreateCalendarEventInput) {
   if (outlookTokenCtx) {
     try {
       const { createEvent: createOutlookEvent } = await import("@/lib/microsoft/calendar-client");
-      const tz = "America/Toronto";
+      // start_at/end_at are stored as UTC ISO strings — tell Outlook they're UTC
       const created = await createOutlookEvent(outlookTokenCtx.accessToken, {
         subject: input.title,
         body: input.description ? { contentType: "Text", content: input.description } : undefined,
         location: input.location ? { displayName: input.location } : undefined,
         start: input.all_day
           ? { dateTime: `${input.start_at.split("T")[0]}T00:00:00`, timeZone: "UTC" }
-          : { dateTime: input.start_at.replace("Z", ""), timeZone: tz },
+          : { dateTime: input.start_at.replace("Z", ""), timeZone: "UTC" },
         end: input.all_day
           ? { dateTime: `${input.end_at.split("T")[0]}T00:00:00`, timeZone: "UTC" }
-          : { dateTime: input.end_at.replace("Z", ""), timeZone: tz },
+          : { dateTime: input.end_at.replace("Z", ""), timeZone: "UTC" },
         isAllDay: input.all_day ?? false,
       });
 
@@ -273,13 +273,13 @@ export async function updateCalendarEvent(
     if (outlookTokenCtx) {
       try {
         const { updateEvent: updateOutlookEvent } = await import("@/lib/microsoft/calendar-client");
-        const tz = "America/Toronto";
+        // start_at/end_at are UTC — tell Outlook they're UTC
         const outlookUpdates: Record<string, unknown> = {};
         if (input.title)       outlookUpdates.subject = input.title;
         if (input.description) outlookUpdates.body = { contentType: "Text", content: input.description };
         if (input.location)    outlookUpdates.location = { displayName: input.location };
-        if (input.start_at)    outlookUpdates.start = { dateTime: input.start_at.replace("Z", ""), timeZone: tz };
-        if (input.end_at)      outlookUpdates.end = { dateTime: input.end_at.replace("Z", ""), timeZone: tz };
+        if (input.start_at)    outlookUpdates.start = { dateTime: input.start_at.replace("Z", ""), timeZone: "UTC" };
+        if (input.end_at)      outlookUpdates.end = { dateTime: input.end_at.replace("Z", ""), timeZone: "UTC" };
 
         await updateOutlookEvent(outlookTokenCtx.accessToken, existing.outlook_event_id, outlookUpdates);
         outlookSynced = true;

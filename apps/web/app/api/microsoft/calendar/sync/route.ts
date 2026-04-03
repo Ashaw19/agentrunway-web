@@ -260,9 +260,7 @@ export async function POST(): Promise<NextResponse> {
     if (pendingEvents) {
       for (const arEvent of pendingEvents) {
         try {
-          // Determine timezone — default to America/Toronto
-          const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Toronto";
-
+          // start_at/end_at are stored as UTC ISO strings — tell Outlook they're UTC
           const created = await createOutlookEvent(accessToken, {
             subject: arEvent.title,
             body: arEvent.description
@@ -273,10 +271,10 @@ export async function POST(): Promise<NextResponse> {
               : undefined,
             start: arEvent.all_day
               ? { dateTime: `${arEvent.start_at.slice(0, 10)}T00:00:00`, timeZone: "UTC" }
-              : { dateTime: arEvent.start_at.replace("Z", ""), timeZone: tz },
+              : { dateTime: arEvent.start_at.replace("Z", ""), timeZone: "UTC" },
             end: arEvent.all_day
               ? { dateTime: `${arEvent.end_at.slice(0, 10)}T00:00:00`, timeZone: "UTC" }
-              : { dateTime: arEvent.end_at.replace("Z", ""), timeZone: tz },
+              : { dateTime: arEvent.end_at.replace("Z", ""), timeZone: "UTC" },
             isAllDay: arEvent.all_day ?? false,
           });
 

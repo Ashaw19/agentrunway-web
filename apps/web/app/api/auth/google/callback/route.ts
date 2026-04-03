@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
     };
 
     // ── Step 3: Parse granted scopes ────────────────────────────────────
-    const grantedScopes = tokenJson.scope.split(" ");
+    const grantedScopes = tokenJson.scope ? tokenJson.scope.split(" ") : [];
     const gmailEnabled    = grantedScopes.includes("https://www.googleapis.com/auth/gmail.send");
     const calendarEnabled = grantedScopes.includes("https://www.googleapis.com/auth/calendar.events");
     const driveEnabled    = grantedScopes.includes("https://www.googleapis.com/auth/drive");

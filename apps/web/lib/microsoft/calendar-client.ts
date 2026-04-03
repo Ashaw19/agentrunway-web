@@ -7,6 +7,7 @@
 
 const GRAPH_EVENTS_BASE = "https://graph.microsoft.com/v1.0/me/events";
 const GRAPH_CALENDAR_VIEW = "https://graph.microsoft.com/v1.0/me/calendarView";
+const GRAPH_CALENDAR_VIEW_DELTA = "https://graph.microsoft.com/v1.0/me/calendarView/delta";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -74,8 +75,8 @@ export async function listEvents(
   } else if (options.deltaLink) {
     url = options.deltaLink;
   } else {
-    // Initial sync — use calendarView for date-range query
-    const u = new URL(GRAPH_CALENDAR_VIEW);
+    // Initial sync — use calendarView/delta to get both events AND a deltaLink for future incremental syncs
+    const u = new URL(GRAPH_CALENDAR_VIEW_DELTA);
     if (options.startDateTime) u.searchParams.set("startDateTime", options.startDateTime);
     if (options.endDateTime) u.searchParams.set("endDateTime", options.endDateTime);
     u.searchParams.set("$top", "250");
@@ -90,8 +91,13 @@ export async function listEvents(
   if (!res.ok) {
     const errText = await res.text();
 
-    // 410 Gone or sync token expired — caller should do full resync
-    if (res.status === 410) {
+    // Delta token expired — Microsoft Graph returns 410, or 400/404 with
+    // "SyncStateNotFound" / "resyncRequired" in the error body
+    if (
+      res.status === 410 ||
+      ((res.status === 400 || res.status === 404) &&
+        (errText.includes("SyncStateNotFound") || errText.includes("resyncRequired")))
+    ) {
       const err = new Error("Delta token expired — full resync required");
       (err as Error & { code: number }).code = 410;
       throw err;

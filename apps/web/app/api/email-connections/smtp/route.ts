@@ -9,6 +9,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { encrypt } from "@/lib/google/token-manager";
+import dns from "dns/promises";
+
+// ── SSRF protection ─────────────────────────────────────────────────────────
+
+function isPrivateIP(ip: string): boolean {
+  const parts = ip.split(".").map(Number);
+  if (parts.length !== 4) return false;
+  if (parts[0] === 10) return true;
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+  if (parts[0] === 192 && parts[1] === 168) return true;
+  if (parts[0] === 127) return true;
+  if (parts[0] === 169 && parts[1] === 254) return true;
+  if (parts[0] === 0) return true;
+  return false;
+}
+
+async function isPrivateHost(host: string): Promise<boolean> {
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return isPrivateIP(host);
+  if (host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0") return true;
+  try {
+    const addresses = await dns.resolve4(host);
+    return addresses.some(isPrivateIP);
+  } catch {
+    return true; // If we can't resolve, block it
+  }
+}
 
 // ── POST: Add / update SMTP connection ───────────────────────────────────────
 
@@ -29,7 +55,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Blocked in sandbox mode." }, { status: 403 });
   }
 
-  const body = await req.json();
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+  }
+
   const {
     email_address,
     connection_name,
@@ -62,28 +94,46 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Encrypt password if provided
-  const passwordEnc = smtp_password ? encrypt(smtp_password) : null;
+  // SSRF: block private/internal hosts at save time (not just test time)
+  if (await isPrivateHost(smtp_host)) {
+    return NextResponse.json(
+      { error: "SMTP host resolves to a private/internal address." },
+      { status: 400 }
+    );
+  }
+
+  // Port validation
+  const port = smtp_port ?? 587;
+  if (port < 1 || port > 65535) {
+    return NextResponse.json(
+      { error: "SMTP port must be between 1 and 65535." },
+      { status: 400 }
+    );
+  }
+
+  // Build upsert payload — only include password if provided (don't wipe existing on update)
+  const upsertPayload: Record<string, unknown> = {
+    user_id: user.id,
+    provider: "smtp",
+    email_address,
+    connection_name: connection_name || `SMTP (${smtp_host})`,
+    smtp_host,
+    smtp_port: port,
+    smtp_username: smtp_username || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (smtp_password) {
+    upsertPayload.smtp_password_enc = encrypt(smtp_password);
+  }
 
   const { error } = await supabase
     .from("email_connections")
-    .upsert(
-      {
-        user_id: user.id,
-        provider: "smtp",
-        email_address,
-        connection_name: connection_name || `SMTP (${smtp_host})`,
-        smtp_host,
-        smtp_port: smtp_port ?? 587,
-        smtp_username: smtp_username || null,
-        smtp_password_enc: passwordEnc,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,provider" }
-    );
+    .upsert(upsertPayload, { onConflict: "user_id,provider" });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[smtp/save] Upsert error:", error.message);
+    return NextResponse.json({ error: "Failed to save SMTP connection." }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
@@ -115,7 +165,8 @@ export async function DELETE() {
     .eq("provider", "smtp");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[smtp/delete] Error:", error.message);
+    return NextResponse.json({ error: "Failed to remove SMTP connection." }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
