@@ -646,6 +646,21 @@ function normalizePhoneType(raw: string): PhoneType {
 
 const CSV_ROW_CAP = 5_000;
 
+/**
+ * Sanitize a cell value to prevent CSV formula injection.
+ * Cells starting with =, +, -, @, |, \t could execute as formulas
+ * when exported data is opened in Excel/Google Sheets.
+ */
+function sanitizeCellValue(val: string): string {
+  if (!val) return val;
+  const first = val.charAt(0);
+  if (first === "=" || first === "+" || first === "-" || first === "@" || first === "|" || first === "\t") {
+    return "'" + val;
+  }
+  // Also strip null bytes
+  return val.replace(/\0/g, "");
+}
+
 function parseCsv(text: string): { headers: string[]; rows: CsvRow[]; truncated: boolean } {
   // Strip UTF-8 BOM if present (common in Excel-exported CSVs)
   const clean = text.startsWith("\uFEFF") ? text.slice(1) : text;
@@ -1409,7 +1424,8 @@ export function ClientsContent({
     const { error } = await supabase
       .from("contact_tasks")
       .update({ completed_at: new Date().toISOString() })
-      .eq("id", taskId);
+      .eq("id", taskId)
+      .eq("user_id", userId!);
     if (error) {
       if (removedTask) {
         setLocalTasks((prev) =>
@@ -1422,17 +1438,32 @@ export function ClientsContent({
     }
   }, []);
 
+  // Allowlisted fields for dynamic client updates (prevents mass assignment of user_id, created_at, etc.)
+  const ALLOWED_CLIENT_FIELDS = new Set([
+    "name", "name_search", "email", "phone", "phone_type", "status", "tags",
+    "lead_source", "notes", "street_address", "city", "province_region",
+    "postal_code", "country", "birthday", "contact_anniversary",
+    "preferred_contact_method", "archived_at", "archive_reason",
+    "mortgage_lender", "mortgage_renewal_date", "mortgage_rate", "mortgage_type",
+    "pre_approved", "pre_approval_amount", "buying_timeframe", "ideal_property_type",
+    "ideal_bedrooms", "ideal_bathrooms", "ideal_areas", "max_budget",
+  ]);
+
   // Update a single field on a client record
   const updateClientField = useCallback(
     async (clientId: string, field: string, value: unknown) => {
       if (guardSandboxWrite(sandbox.sandboxMode)) return;
+      if (!ALLOWED_CLIENT_FIELDS.has(field)) {
+        toast.error("Invalid field update");
+        return;
+      }
       const prevClient = localClients.find((c) => c.id === clientId);
       const prevValue = prevClient ? (prevClient as unknown as Record<string, unknown>)[field] : undefined;
       setLocalClients((prev) =>
         prev.map((c) => (c.id === clientId ? { ...c, [field]: value } : c)),
       );
       const supabase = createClient();
-      const { error } = await supabase.from("clients").update({ [field]: value }).eq("id", clientId);
+      const { error } = await supabase.from("clients").update({ [field]: value }).eq("id", clientId).eq("user_id", userId!);
       if (error) {
         setLocalClients((prev) =>
           prev.map((c) => (c.id === clientId ? { ...c, [field]: prevValue } : c)),
@@ -1525,12 +1556,23 @@ export function ClientsContent({
     if (error) toast.error("Failed to delete appointment");
   }, []);
 
+  // Allowlisted fields for client_record updates
+  const ALLOWED_RECORD_FIELDS = new Set([
+    "address", "sale_price", "commission_pct", "gci", "side", "status",
+    "date", "source", "year", "notes", "property_type", "property_use",
+    "team_split_pct", "gci_override",
+  ]);
+
   // Update a single field on a client_record (deal row) — no local state, DB write only
   const updateClientRecordField = useCallback(
     async (recordId: string, field: string, value: unknown) => {
       if (guardSandboxWrite(sandbox.sandboxMode)) return;
+      if (!ALLOWED_RECORD_FIELDS.has(field)) {
+        toast.error("Invalid field update");
+        return;
+      }
       const supabase = createClient();
-      const { error } = await supabase.from("client_records").update({ [field]: value }).eq("id", recordId);
+      const { error } = await supabase.from("client_records").update({ [field]: value }).eq("id", recordId).eq("user_id", userId!);
       if (error) toast.error("Failed to save changes");
     },
     [],
@@ -2158,25 +2200,25 @@ export function ClientsContent({
 
     for (const row of csvRows) {
       const rowNum = csvRows.indexOf(row) + 2; // +2 for 1-indexed header row
-      const rawName = (row[mapName] ?? "").trim();
+      const rawName = sanitizeCellValue((row[mapName] ?? "").trim());
       if (!rawName) { skipped++; errorMessages.push(`Row ${rowNum}: skipped — no name`); continue; }
       const nameSearch = rawName.toLowerCase();
 
-      let email    = mapEmail    !== "__none__" ? (row[mapEmail]    ?? "").trim() || null : null;
-      const phone    = mapPhone    !== "__none__" ? (row[mapPhone]    ?? "").trim() || null : null;
+      let email    = mapEmail    !== "__none__" ? sanitizeCellValue((row[mapEmail]    ?? "").trim()) || null : null;
+      const phone    = mapPhone    !== "__none__" ? sanitizeCellValue((row[mapPhone]    ?? "").trim()) || null : null;
 
       // Basic email format check — warn but don't reject
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         errorMessages.push(`Row ${rowNum} (${rawName}): invalid email "${email}" — skipped field`);
         email = null;
       }
-      const city     = mapCity     !== "__none__" ? (row[mapCity]     ?? "").trim() || null : null;
-      const street   = mapStreet   !== "__none__" ? (row[mapStreet]   ?? "").trim() || null : null;
-      const postal   = mapPostal   !== "__none__" ? (row[mapPostal]   ?? "").trim() || null : null;
-      const leadSource = mapSource !== "__none__" ? (row[mapSource]   ?? "").trim() || null : null;
+      const city     = mapCity     !== "__none__" ? sanitizeCellValue((row[mapCity]     ?? "").trim()) || null : null;
+      const street   = mapStreet   !== "__none__" ? sanitizeCellValue((row[mapStreet]   ?? "").trim()) || null : null;
+      const postal   = mapPostal   !== "__none__" ? sanitizeCellValue((row[mapPostal]   ?? "").trim()) || null : null;
+      const leadSource = mapSource !== "__none__" ? sanitizeCellValue((row[mapSource]   ?? "").trim()) || null : null;
       // Province: strip trailing commas (FUB exports "ON," sometimes)
       const province = mapProvince !== "__none__"
-        ? (row[mapProvince] ?? "").trim().replace(/,+$/, "") || null
+        ? sanitizeCellValue((row[mapProvince] ?? "").trim().replace(/,+$/, "")) || null
         : null;
 
       if (existingSearchNames.has(nameSearch)) {
@@ -2256,7 +2298,7 @@ export function ClientsContent({
       const chunk = toEnrich.slice(i, i + ENRICH_CONCURRENCY);
       const results = await Promise.allSettled(
         chunk.map(({ existingId, updates }) =>
-          supabase.from("clients").update(updates).eq("id", existingId),
+          supabase.from("clients").update(updates).eq("id", existingId).eq("user_id", user.id),
         ),
       );
       for (let j = 0; j < results.length; j++) {

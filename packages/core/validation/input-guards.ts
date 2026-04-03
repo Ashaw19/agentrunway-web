@@ -62,7 +62,7 @@ function merge(...results: ValidationResult[]): ValidationResult {
 
 export function validateSalePrice(value: number | null): ValidationResult {
   if (value === null) return fail("Sale price is required");
-  if (value < 0) return fail("Sale price cannot be negative");
+  if (value <= 0) return fail("Sale price must be greater than $0");
   if (value > 100_000_000) return fail("Sale price exceeds $100M — please double-check");
   return ok();
 }

@@ -515,6 +515,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "GROQ_API_KEY is not configured" }, { status: 503 });
   }
 
+  // Reject oversized payloads before parsing (prevent OOM on base64 images)
+  const contentLength = parseInt(req.headers.get("content-length") ?? "0", 10);
+  const MAX_BODY_SIZE = 50 * 1024 * 1024; // 50MB
+  if (contentLength > MAX_BODY_SIZE) {
+    return NextResponse.json(
+      { error: "Request too large — maximum 50MB" },
+      { status: 413 },
+    );
+  }
+
   const body = await req.json() as {
     imageBase64?: string;
     /** Multi-page images (e.g. scanned PDF pages). Takes precedence over imageBase64. */

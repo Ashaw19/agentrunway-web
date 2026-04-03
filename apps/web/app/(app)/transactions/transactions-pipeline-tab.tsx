@@ -239,6 +239,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
         .from("pipeline_deals")
         .update(payload)
         .eq("id", editingId)
+        .eq("user_id", user.id)
         .select()
         .single();
       if (!error && data) {
@@ -318,7 +319,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
         .eq("id", closeTarget.id);
     }
 
-    const { error: txErr } = await supabase.from("transactions").insert({
+    const { data: txData, error: txErr } = await supabase.from("transactions").insert({
       user_id: user.id,
       address: closeTarget.address,
       client_name: closeForm.client_name || null,
@@ -329,9 +330,9 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
       date: closeForm.date,
       source: "manual",
       pipeline_deal_id: closeTarget.id,
-    });
-    if (txErr) {
-      const detail = txErr.code === "23514" ? "Value out of allowed range" : txErr.message;
+    }).select("id").single();
+    if (txErr || !txData) {
+      const detail = txErr?.code === "23514" ? "Value out of allowed range" : "Failed to create transaction";
       toast.error(`Couldn't close deal: ${detail}`);
       setClosing(false);
       return;
@@ -343,57 +344,62 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
         stage: "closed",
         original_estimated_price: closeTarget.original_estimated_price || closeTarget.estimated_price,
       })
-      .eq("id", closeTarget.id);
+      .eq("id", closeTarget.id)
+      .eq("user_id", user.id);
 
-    if (!closeErr) {
-      setDeals((prev) => prev.filter((d) => d.id !== closeTarget.id));
-
-      // ── Compute celebration data ──────────────────────────────────────────
-      const province = settings?.province ?? "ontario";
-      const goalGCI  = settings?.goal_gci ?? 0;
-      const thisYear = new Date().getFullYear().toString();
-      const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
-
-      // YTD GCI from passed-in closed transactions (before this deal)
-      const ytdGCIBefore = closedTransactions
-        .filter((t) => t.date?.startsWith(thisYear))
-        .reduce((sum, t) => sum + t.sale_price * t.commission_pct, 0);
-
-      // Deals this month (from passed-in list + 1 for this deal)
-      const dealsThisMonthBefore = closedTransactions.filter(
-        (t) => t.date?.startsWith(thisMonth)
-      ).length;
-      const dealsThisMonth = dealsThisMonthBefore + 1;
-
-      // Total deals this year
-      const totalDealsThisYear = closedTransactions.filter(
-        (t) => t.date?.startsWith(thisYear)
-      ).length + 1;
-
-      // Estimated marginal rate at projected annual income
-      const projectedAnnual = ytdGCIBefore + gci;
-      const estMarginalRate = marginalRate(projectedAnnual > 0 ? projectedAnnual : goalGCI, province);
-
-      setCelebration({
-        address: closeTarget.address ?? "",
-        clientName: closeForm.client_name ?? "",
-        gci,
-        ytdGCIBefore,
-        goalGCI,
-        province,
-        dealsThisMonth,
-        totalDealsThisYear,
-        estimatedMarginalRate: estMarginalRate,
-      });
-
-      setCloseTarget(null);
-
-      // Fire confetti after a short delay so the modal is visible first
-      setTimeout(() => fireConfetti("goal"), 150);
-
-    } else {
-      toast.error("Deal closed but couldn't update pipeline status — refresh the page.");
+    if (closeErr) {
+      // Rollback: delete the transaction we just created to avoid inconsistent state
+      await supabase.from("transactions").delete().eq("id", txData.id).eq("user_id", user.id);
+      toast.error("Failed to close deal — changes rolled back");
+      setClosing(false);
+      return;
     }
+
+    setDeals((prev) => prev.filter((d) => d.id !== closeTarget.id));
+
+    // ── Compute celebration data ──────────────────────────────────────────
+    const province = settings?.province ?? "ontario";
+    const goalGCI  = settings?.goal_gci ?? 0;
+    const thisYear = new Date().getFullYear().toString();
+    const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+
+    // YTD GCI from passed-in closed transactions (before this deal)
+    const ytdGCIBefore = closedTransactions
+      .filter((t) => t.date?.startsWith(thisYear))
+      .reduce((sum, t) => sum + t.sale_price * t.commission_pct, 0);
+
+    // Deals this month (from passed-in list + 1 for this deal)
+    const dealsThisMonthBefore = closedTransactions.filter(
+      (t) => t.date?.startsWith(thisMonth)
+    ).length;
+    const dealsThisMonth = dealsThisMonthBefore + 1;
+
+    // Total deals this year
+    const totalDealsThisYear = closedTransactions.filter(
+      (t) => t.date?.startsWith(thisYear)
+    ).length + 1;
+
+    // Estimated marginal rate at projected annual income
+    const projectedAnnual = ytdGCIBefore + gci;
+    const estMarginalRate = marginalRate(projectedAnnual > 0 ? projectedAnnual : goalGCI, province);
+
+    setCelebration({
+      address: closeTarget.address ?? "",
+      clientName: closeForm.client_name ?? "",
+      gci,
+      ytdGCIBefore,
+      goalGCI,
+      province,
+      dealsThisMonth,
+      totalDealsThisYear,
+      estimatedMarginalRate: estMarginalRate,
+    });
+
+    setCloseTarget(null);
+
+    // Fire confetti after a short delay so the modal is visible first
+    setTimeout(() => fireConfetti("goal"), 150);
+
     setClosing(false);
   }
 
