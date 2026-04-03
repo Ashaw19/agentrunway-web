@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "April 2, 2026";
+const LAST_UPDATED = "April 3, 2026";
 
 const SUB_PROCESSORS = [
   {
@@ -90,8 +90,16 @@ export default function SubProcessorsPage() {
             <p className="mt-5 text-base leading-relaxed text-slate-400">
               Agent Runway uses the following third-party service providers
               (sub-processors) to operate our platform. Each provider processes
-              personal information on our behalf and is contractually bound to
-              protect your data.
+              personal information on our behalf and is bound by a{" "}
+              <strong className="text-slate-300">
+                Data Processing Agreement (DPA)
+              </strong>{" "}
+              requiring them to: use personal information only for specified
+              purposes, implement appropriate security safeguards, notify us of
+              any data breach, return or delete data upon termination, and permit
+              audit of their data handling practices. These contractual
+              protections ensure a comparable level of protection to Canadian
+              privacy law, as required under PIPEDA.
             </p>
           </div>
 
@@ -150,15 +158,33 @@ export default function SubProcessorsPage() {
             </p>
           </div>
 
+          {/* Change notification */}
+          <div className="mt-6 rounded-lg border border-slate-800 bg-slate-900/40 p-5">
+            <p className="text-sm leading-relaxed text-slate-400">
+              <strong className="text-slate-300">Sub-processor change notification:</strong>{" "}
+              We will update this page when we add, remove, or change a
+              sub-processor. Material changes (new providers processing
+              sensitive personal information) will be communicated via email to
+              active account holders at least 30&nbsp;days before the new
+              sub-processor begins processing data, giving you the opportunity
+              to review the change and exercise your rights under our{" "}
+              <a href="/privacy" className="text-blue-400 hover:text-blue-300 underline">
+                Privacy Policy
+              </a>
+              .
+            </p>
+          </div>
+
           {/* Contact note */}
           <p className="mt-6 text-sm leading-relaxed text-slate-500">
             We review our sub-processors regularly. If you have questions about
-            how your data is processed, contact our Privacy Officer at{" "}
+            how your data is processed or would like to review our DPAs,
+            contact our Privacy Officer at{" "}
             <a
-              href="mailto:andrew@agentrunway.ca"
+              href="mailto:privacy@agentrunway.ca"
               className="text-blue-400 hover:text-blue-300"
             >
-              andrew@agentrunway.ca
+              privacy@agentrunway.ca
             </a>
             .
           </p>

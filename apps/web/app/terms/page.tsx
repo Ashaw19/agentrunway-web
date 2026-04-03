@@ -12,8 +12,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "March 22, 2026";
-const EFFECTIVE_DATE = "March 22, 2026";
+const LAST_UPDATED = "April 3, 2026";
+const EFFECTIVE_DATE = "April 3, 2026";
 
 /* ──────────────────────────────────────────────────────────────────────────── */
 
@@ -926,51 +926,96 @@ export default function TermsPage() {
             </section>
 
             {/* ────────────────────────────── 19 ───────────────────────────── */}
-            <section>
-              <h2 className="mb-4 text-xl font-semibold text-white">
+            <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-6">
+              <h2 className="mb-4 text-xl font-semibold text-amber-400">
                 19. Communication Compliance (CASL and Anti-Spam)
               </h2>
-              <p className="mb-4 leading-relaxed">
-                Agent Runway may provide features that enable you to send
-                communications to your clients, including outreach emails
-                (whether manually composed or AI-drafted) and text messages. You
-                are solely responsible for ensuring that all communications you
-                send using or through the Service comply with all applicable
-                laws, including but not limited to:
-              </p>
-              <ul className="list-disc space-y-2 pl-6 text-slate-400">
-                <li>
-                  <strong className="text-slate-300">Canada&apos;s Anti-Spam Legislation (CASL)</strong>{" "}
-                  — including requirements for express or implied consent,
-                  identification of the sender, and an unsubscribe mechanism
-                </li>
-                <li>
-                  <strong className="text-slate-300">CAN-SPAM Act</strong> (if
-                  messaging recipients in the United States)
-                </li>
-                <li>
-                  <strong className="text-slate-300">TCPA</strong> (Telephone
-                  Consumer Protection Act, if sending text messages to U.S.
-                  recipients)
-                </li>
-                <li>
-                  Provincial privacy laws and regulations applicable in your
-                  jurisdiction
-                </li>
-                <li>
-                  Real estate board and association rules regarding solicitation
-                  and advertising
-                </li>
-              </ul>
-              <p className="mt-4 leading-relaxed">
-                Agent Runway provides tools for communication but does not verify
-                whether you have obtained the necessary consents from recipients,
-                and we make no representation that any AI-drafted communication
-                complies with applicable law. You agree to indemnify Agent Runway
-                from any claims, penalties, or damages arising from your
-                communications sent through the Service, including CASL
-                penalties, TCPA claims, and complaints from recipients.
-              </p>
+              <div className="space-y-4 text-amber-200/80 leading-relaxed">
+                <p>
+                  Agent Runway provides features that enable you to send
+                  communications to your clients, including outreach emails
+                  (whether manually composed or AI-drafted) and text messages.{" "}
+                  <strong className="text-amber-300">
+                    Both you and Agent Runway can be held liable under CASL for
+                    non-compliant messages. CASL penalties are up to $1,000,000
+                    per violation for individuals and $10,000,000 per violation
+                    for companies.
+                  </strong>
+                </p>
+
+                <p className="font-semibold text-white">
+                  Your CASL Obligations
+                </p>
+                <p>
+                  By using Agent Runway&apos;s outreach features, you represent
+                  and warrant that for every commercial electronic message (CEM)
+                  you send through the Service:
+                </p>
+                <ul className="list-disc space-y-2 pl-6">
+                  <li>
+                    <strong className="text-white">Consent.</strong>{" "}
+                    You have obtained either{" "}
+                    <strong className="text-white">express consent</strong>{" "}
+                    (recipient actively opted in) or{" "}
+                    <strong className="text-white">implied consent</strong>{" "}
+                    (existing business relationship within 2 years of last
+                    transaction, or 6 months of last inquiry) from each
+                    recipient, as required by CASL.
+                  </li>
+                  <li>
+                    <strong className="text-white">Sender identification.</strong>{" "}
+                    Each message identifies you (the sender) by name, includes
+                    your physical mailing address, and provides at least one of:
+                    phone number, email address, or website URL.
+                  </li>
+                  <li>
+                    <strong className="text-white">Unsubscribe mechanism.</strong>{" "}
+                    Each commercial message includes a functioning unsubscribe
+                    mechanism. You must process unsubscribe requests within{" "}
+                    <strong className="text-white">10 business days</strong>.
+                  </li>
+                  <li>
+                    <strong className="text-white">Consent record keeping.</strong>{" "}
+                    You maintain records of how and when consent was obtained from
+                    each recipient for a minimum of{" "}
+                    <strong className="text-white">3 years</strong> after the
+                    business relationship ends. The burden of proof for consent
+                    rests with you.
+                  </li>
+                </ul>
+
+                <p className="font-semibold text-white">
+                  Additional Anti-Spam Laws
+                </p>
+                <ul className="list-disc space-y-2 pl-6">
+                  <li>
+                    <strong className="text-white">CAN-SPAM Act</strong>{" "}
+                    — applies if messaging recipients in the United States
+                  </li>
+                  <li>
+                    <strong className="text-white">TCPA</strong>{" "}
+                    — applies if sending text messages to U.S. recipients
+                  </li>
+                  <li>
+                    Provincial privacy laws and real estate board rules
+                    regarding solicitation and advertising in your jurisdiction
+                  </li>
+                </ul>
+
+                <p>
+                  <strong className="text-amber-300">
+                    Agent Runway provides tools for communication but does not
+                    verify whether you have obtained the necessary consents from
+                    recipients.
+                  </strong>{" "}
+                  We make no representation that any AI-drafted communication
+                  complies with applicable law. You agree to indemnify and hold
+                  harmless Agent Runway from any claims, fines, penalties, or
+                  damages arising from your communications sent through the
+                  Service, including CASL penalties, CAN-SPAM violations, TCPA
+                  claims, and complaints from recipients.
+                </p>
+              </div>
             </section>
 
             {/* ────────────────────────────── 20 ───────────────────────────── */}

@@ -12,8 +12,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "March 22, 2026";
-const EFFECTIVE_DATE = "March 22, 2026";
+const LAST_UPDATED = "April 3, 2026";
+const EFFECTIVE_DATE = "April 3, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -49,6 +49,17 @@ export default function PrivacyPage() {
               services. By using the Service, you consent to the collection,
               use, and disclosure of your information as described in this
               policy.
+            </p>
+            <p className="mt-3 text-base leading-relaxed text-slate-400">
+              This policy is designed to reflect the{" "}
+              <strong className="text-slate-300">
+                10 fair information principles
+              </strong>{" "}
+              set out in Schedule&nbsp;1 of PIPEDA: accountability, identifying
+              purposes, consent, limiting collection, limiting use/disclosure/retention,
+              accuracy, safeguards, openness, individual access, and challenging
+              compliance. We are committed to upholding each of these principles
+              in our handling of your personal information.
             </p>
           </div>
 
@@ -218,38 +229,95 @@ export default function PrivacyPage() {
             {/* ─── 4 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                4. Legal Basis for Processing
+                4. Consent and Legal Basis for Processing
               </h2>
               <p className="mb-4 leading-relaxed">
-                Under PIPEDA and applicable privacy laws, we process your
-                personal information on the following legal bases:
+                Under PIPEDA, we process your personal information based on the
+                following grounds:
               </p>
               <ul className="list-disc space-y-2 pl-6 text-slate-400">
                 <li>
-                  <strong className="text-slate-300">Consent</strong>{" "}
-                  — you provide consent when you create an account, connect
-                  integrations, or use optional features. You may withdraw consent
-                  at any time (see Section&nbsp;10).
+                  <strong className="text-slate-300">Express consent</strong>{" "}
+                  — for sensitive data processing, including: connecting your bank
+                  account via Plaid, transmitting business data to AI providers
+                  (Groq), connecting Google Workspace integrations, and sending
+                  outreach communications on your behalf. Express consent is
+                  obtained through affirmative action (e.g., clicking
+                  &ldquo;Connect&rdquo; or &ldquo;Send&rdquo;) after you have
+                  been informed of what data will be processed and by whom.
+                </li>
+                <li>
+                  <strong className="text-slate-300">Implied consent</strong>{" "}
+                  — for processing that is reasonably expected as part of the
+                  Service you have signed up for, such as storing your business
+                  data, computing dashboards and reports, and sending essential
+                  service notifications (security alerts, billing receipts,
+                  policy change notices).
                 </li>
                 <li>
                   <strong className="text-slate-300">Contractual necessity</strong>{" "}
-                  — processing necessary to perform our contract with you (the
-                  Terms of Service), including providing the Service, processing
-                  payments, and delivering features.
+                  — processing required to fulfill our contract with you (the
+                  Terms of Service), including account management, payment
+                  processing, and feature delivery.
                 </li>
                 <li>
-                  <strong className="text-slate-300">Legitimate interests</strong>{" "}
-                  — processing necessary for our legitimate business interests,
-                  such as improving the Service, ensuring security, preventing
-                  fraud, and communicating service updates, where these interests
-                  are not overridden by your rights.
-                </li>
-                <li>
-                  <strong className="text-slate-300">Legal obligation</strong>{" "}
-                  — processing necessary to comply with applicable laws,
-                  regulations, or legal processes.
+                  <strong className="text-slate-300">
+                    Exceptions without consent (PIPEDA s.&nbsp;7)
+                  </strong>{" "}
+                  — in limited circumstances, we may process personal information
+                  without consent where permitted by law: to comply with a court
+                  order or subpoena, to investigate a breach of an agreement or
+                  contravention of law, to detect or prevent fraud, or where
+                  required to protect the safety of an individual.
                 </li>
               </ul>
+              <p className="mt-4 leading-relaxed">
+                You may withdraw consent at any time by disconnecting
+                integrations, adjusting your settings, or contacting{" "}
+                <a
+                  href="mailto:privacy@agentrunway.ca"
+                  className="text-blue-400 hover:text-blue-300"
+                >
+                  privacy@agentrunway.ca
+                </a>
+                . Withdrawal of consent may affect your ability to use certain
+                features. We will explain the consequences of withdrawal before
+                processing your request.
+              </p>
+
+              <h3 className="mb-2 mt-6 text-lg font-semibold text-slate-200">
+                4.1 Meaningful Consent and Just-in-Time Notices
+              </h3>
+              <p className="leading-relaxed">
+                Consistent with the OPC&apos;s{" "}
+                <em>Guidelines for Obtaining Meaningful Consent</em>, we provide
+                clear, specific information at the point of data collection
+                (&ldquo;just-in-time&rdquo; notices) so you can make informed
+                decisions. Before you connect Plaid, use AI features for the
+                first time, connect Google integrations, or send outreach
+                communications, the Service will clearly disclose: what data will
+                be collected, who will process it, where it will be processed
+                (including if outside Canada), and how to disconnect or withdraw
+                consent. We do not bundle consent for unrelated purposes or use
+                deceptive design patterns.
+              </p>
+
+              <h3 className="mb-2 mt-6 text-lg font-semibold text-slate-200">
+                4.2 CASL Compliance for Communications
+              </h3>
+              <p className="leading-relaxed">
+                When you use Agent Runway&apos;s outreach features to send
+                communications to your clients, Canada&apos;s Anti-Spam
+                Legislation (CASL) applies. You are solely responsible for
+                ensuring you have express or implied consent from each recipient
+                before sending any commercial electronic message. Agent Runway
+                provides communication tools but does not verify recipient
+                consent. See our{" "}
+                <a href="/terms" className="text-blue-400 hover:text-blue-300 underline">
+                  Terms of Service (Section&nbsp;19)
+                </a>{" "}
+                for your full CASL obligations.
+              </p>
             </section>
 
             {/* ─── 5 ─── */}
@@ -593,6 +661,18 @@ export default function PrivacyPage() {
                 </li>
               </ul>
               <p className="mt-4 leading-relaxed">
+                We maintain signed{" "}
+                <strong className="text-slate-300">
+                  Data Processing Agreements (DPAs)
+                </strong>{" "}
+                with each sub-processor listed above. These agreements require
+                each processor to: use personal information only for the
+                specific purposes outlined, implement security safeguards
+                comparable to our own, notify us promptly in the event of a
+                data breach, return or delete personal information upon
+                termination, and permit audit of their data handling practices.
+              </p>
+              <p className="mt-4 leading-relaxed">
                 For a complete list of our sub-processors, including the data
                 they process and their locations, see our{" "}
                 <a href="/subprocessors" className="text-blue-400 hover:text-blue-300 underline">
@@ -744,15 +824,26 @@ export default function PrivacyPage() {
                   tokens, Google OAuth tokens, and imported data).
                 </li>
                 <li>
-                  <strong className="text-slate-300">Data export</strong> — request
-                  a copy of your data in a structured, machine-readable format.
+                  <strong className="text-slate-300">Data export / portability</strong>{" "}
+                  — request a copy of your data in a structured, commonly used,
+                  machine-readable format (CSV or JSON). We are developing a
+                  self-serve &ldquo;Download My Data&rdquo; feature in your
+                  account settings. In the interim, email{" "}
+                  <a
+                    href="mailto:privacy@agentrunway.ca"
+                    className="text-blue-400 hover:text-blue-300"
+                  >
+                    privacy@agentrunway.ca
+                  </a>{" "}
+                  and we will provide your data export within 30 days at no cost.
                 </li>
                 <li>
                   <strong className="text-slate-300">
                     Object to processing
                   </strong>{" "}
-                  — object to processing based on legitimate interests where your
-                  rights override our interests.
+                  — object to specific uses of your data where you believe those
+                  uses are not necessary for the Service or where your rights
+                  outweigh the processing purpose.
                 </li>
                 <li>
                   <strong className="text-slate-300">Complaint</strong> — file a
@@ -1044,49 +1135,96 @@ export default function PrivacyPage() {
             {/* ─── 21 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                21. Data Breach Notification
+                21. Data Breach Notification and Response
               </h2>
               <p className="mb-4 leading-relaxed">
-                In the event of a data breach that creates a real risk of
-                significant harm to any user, Agent Runway will:
+                Under PIPEDA Section&nbsp;10.1, organizations must report
+                breaches of security safeguards that create a{" "}
+                <strong className="text-slate-300">
+                  &ldquo;real risk of significant harm&rdquo; (RROSH)
+                </strong>{" "}
+                to affected individuals and to the OPC. Given the sensitivity of
+                the data Agent Runway processes (financial records, bank
+                connection data, CRM contacts), we take this obligation
+                seriously.
+              </p>
+
+              <h3 className="mb-2 mt-4 text-lg font-semibold text-slate-200">
+                Breach Response Plan
+              </h3>
+              <p className="mb-4 leading-relaxed">
+                Agent Runway maintains a documented breach response plan that
+                includes the following steps:
               </p>
               <ul className="list-disc space-y-2 pl-6 text-slate-400">
                 <li>
-                  Notify affected users as soon as feasible following
-                  confirmation of the breach
+                  <strong className="text-slate-300">Detection and containment</strong>{" "}
+                  — immediately isolate affected systems, revoke compromised
+                  credentials, and engage security expertise to stop the breach
                 </li>
                 <li>
-                  Report to the{" "}
+                  <strong className="text-slate-300">Assessment</strong>{" "}
+                  — determine what personal information was involved, the
+                  sensitivity of that information, the number of affected
+                  individuals, and whether the breach creates a real risk of
+                  significant harm (financial loss, identity theft, damage to
+                  reputation, or other harm)
+                </li>
+                <li>
+                  <strong className="text-slate-300">OPC notification</strong>{" "}
+                  — if the breach meets the RROSH threshold, report to the{" "}
                   <strong className="text-slate-300">
                     Office of the Privacy Commissioner of Canada
                   </strong>{" "}
-                  as required under PIPEDA
+                  using the prescribed form, as soon as feasible
                 </li>
                 <li>
-                  Provide a description of the breach, what information was
-                  involved, the steps we have taken to address it, and
-                  recommendations for what you can do to protect yourself
+                  <strong className="text-slate-300">Individual notification</strong>{" "}
+                  — notify affected users as soon as feasible, including: a
+                  description of the breach, the types of personal information
+                  involved, what we have done to address it, what steps you can
+                  take to protect yourself, and contact information for questions
                 </li>
                 <li>
-                  Engage appropriate security expertise to contain and
-                  remediate the incident
+                  <strong className="text-slate-300">Third-party notification</strong>{" "}
+                  — if another organization or government institution can reduce
+                  the risk of harm, we will notify them as well
                 </li>
                 <li>
-                  Maintain records of all breaches — including breaches that do
-                  not meet the threshold for notification — for a minimum of{" "}
-                  <strong className="text-slate-300">24 months</strong>, as
-                  required under PIPEDA
-                </li>
-                <li>
-                  For Quebec residents: additionally report to the{" "}
-                  <strong className="text-slate-300">
-                    Commission d&apos;acc&egrave;s &agrave; l&apos;information
-                    (CAI)
-                  </strong>{" "}
-                  if the breach creates a risk of serious injury, and maintain
-                  an incident register as required under Law 25
+                  <strong className="text-slate-300">Remediation</strong>{" "}
+                  — address the root cause, implement additional safeguards, and
+                  update our security practices to prevent recurrence
                 </li>
               </ul>
+
+              <h3 className="mb-2 mt-6 text-lg font-semibold text-slate-200">
+                Breach Record Keeping
+              </h3>
+              <p className="mb-4 leading-relaxed">
+                We maintain records of{" "}
+                <strong className="text-slate-300">all</strong> breaches of
+                security safeguards — including breaches that do not meet the
+                RROSH threshold for notification — for a minimum of{" "}
+                <strong className="text-slate-300">24 months</strong>, as
+                required under PIPEDA. These records include: the date of the
+                breach, a description of the circumstances, the personal
+                information involved, our risk assessment, and the actions
+                taken. These records are available to the OPC upon request.
+              </p>
+
+              <h3 className="mb-2 mt-6 text-lg font-semibold text-slate-200">
+                Quebec Residents
+              </h3>
+              <p className="leading-relaxed">
+                For Quebec residents, we will additionally report qualifying
+                breaches to the{" "}
+                <strong className="text-slate-300">
+                  Commission d&apos;acc&egrave;s &agrave; l&apos;information
+                  (CAI)
+                </strong>{" "}
+                if the breach creates a risk of serious injury, and maintain an
+                incident register as required under Law&nbsp;25.
+              </p>
             </section>
 
             {/* ─── 22 ─── */}
@@ -1110,7 +1248,74 @@ export default function PrivacyPage() {
             {/* ─── 23 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                23. Contact Us
+                23. Privacy Impact Assessments
+              </h2>
+              <p className="leading-relaxed">
+                Agent Runway conducts Privacy Impact Assessments (PIAs) before
+                introducing new features or integrations that involve the
+                collection or processing of sensitive personal information. This
+                includes our AI-powered features (which transmit business data
+                to third-party providers), our Plaid bank sync integration
+                (which involves financial credentials and transaction data), and
+                our Google Workspace integrations. PIAs evaluate: the necessity
+                and proportionality of the data collection, the risks to
+                individuals, the safeguards in place to mitigate those risks,
+                and whether alternatives exist that are less privacy-intrusive.
+                We review and update our PIAs when material changes are made to
+                data processing activities.
+              </p>
+            </section>
+
+            {/* ─── 24 ─── */}
+            <section>
+              <h2 className="mb-4 text-xl font-semibold text-white">
+                24. Evolving Canadian Privacy Legislation
+              </h2>
+              <p className="mb-4 leading-relaxed">
+                Agent Runway actively monitors developments in Canadian privacy
+                law. Federal Bill&nbsp;C-27 (the{" "}
+                <em>Digital Charter Implementation Act</em>), which includes the
+                proposed{" "}
+                <strong className="text-slate-300">
+                  Consumer Privacy Protection Act (CPPA)
+                </strong>
+                , would introduce significant changes to Canadian privacy
+                obligations if enacted, including:
+              </p>
+              <ul className="list-disc space-y-2 pl-6 text-slate-400">
+                <li>
+                  Administrative monetary penalties for privacy violations
+                </li>
+                <li>
+                  Explicit rules for automated decision-making systems,
+                  including notice requirements, explanation of logic, and rights
+                  to human review
+                </li>
+                <li>
+                  Enhanced data portability rights
+                </li>
+                <li>
+                  A private right of action for individuals affected by privacy
+                  violations
+                </li>
+                <li>
+                  Stricter requirements for meaningful consent and de-identified
+                  data
+                </li>
+              </ul>
+              <p className="mt-4 leading-relaxed">
+                We are committed to adapting our privacy practices as Canadian
+                privacy law evolves. When material changes to our data
+                processing practices are required by new legislation, we will
+                update this policy and notify you in accordance with
+                Section&nbsp;22.
+              </p>
+            </section>
+
+            {/* ─── 25 ─── */}
+            <section>
+              <h2 className="mb-4 text-xl font-semibold text-white">
+                25. Contact Us
               </h2>
               <p className="leading-relaxed">
                 For questions about this policy, to exercise your privacy rights,

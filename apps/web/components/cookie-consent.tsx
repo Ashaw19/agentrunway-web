@@ -63,16 +63,17 @@ export function CookieConsent() {
           </p>
         </div>
 
+        {/* OPC guidance: both options must be equally prominent (no dark patterns) */}
         <div className="flex items-center gap-2 shrink-0 mt-0.5">
           <button
             onClick={() => dismiss("declined")}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1.5 rounded hover:bg-muted"
+            className="text-xs border border-border text-foreground rounded-lg px-3 py-1.5 hover:bg-muted transition-colors font-medium"
           >
             Decline
           </button>
           <button
             onClick={() => dismiss("accepted")}
-            className="text-xs bg-primary text-primary-foreground rounded-lg px-3 py-1.5 hover:bg-primary/90 transition-colors font-medium"
+            className="text-xs border border-border text-foreground rounded-lg px-3 py-1.5 hover:bg-muted transition-colors font-medium"
           >
             Accept
           </button>
