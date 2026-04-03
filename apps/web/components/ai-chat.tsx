@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
-import { Sparkles, X, Send, Bot, User, ChevronDown } from "lucide-react";
+import { Sparkles, X, Send, Bot, User, ChevronDown, ThumbsUp, ThumbsDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -99,6 +99,8 @@ export function AiChat({ financialContext }: Props) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [unread, setUnread] = useState(0);
+  // Enhancement #2: Tracks which message index has been given feedback
+  const [feedbackGiven, setFeedbackGiven] = useState<Record<number, "positive" | "negative">>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -216,6 +218,24 @@ export function AiChat({ financialContext }: Props) {
     }
   }
 
+  // Enhancement #2: Submit thumbs up/down feedback
+  const handleFeedback = useCallback(
+    async (messageIndex: number, feedback: "positive" | "negative") => {
+      if (feedbackGiven[messageIndex]) return; // Already submitted
+      setFeedbackGiven((prev) => ({ ...prev, [messageIndex]: feedback }));
+      try {
+        await fetch("/api/chat/feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ feedback }),
+        });
+      } catch {
+        // Silent failure — feedback is non-critical
+      }
+    },
+    [feedbackGiven],
+  );
+
   return (
     <>
       {/* Floating chat button */}
@@ -309,28 +329,59 @@ export function AiChat({ financialContext }: Props) {
                 >
                   {msg.role === "user" ? <User className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
                 </div>
-                {/* Bubble */}
-                <div
-                  className={cn(
-                    "max-w-[82%] rounded-2xl px-3 py-2 text-sm leading-relaxed",
-                    msg.role === "user"
-                      ? "rounded-tr-sm bg-blue-600 text-white"
-                      : "rounded-tl-sm text-slate-200",
-                  )}
-                  style={
-                    msg.role === "assistant"
-                      ? { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }
-                      : {}
-                  }
-                >
-                  {msg.content ? (
-                    <span style={{ whiteSpace: "pre-wrap" }}>{msg.content}</span>
-                  ) : (
-                    <span className="inline-flex gap-1 text-slate-500">
-                      <span className="animate-bounce">·</span>
-                      <span className="animate-bounce [animation-delay:0.15s]">·</span>
-                      <span className="animate-bounce [animation-delay:0.3s]">·</span>
-                    </span>
+                {/* Bubble + feedback */}
+                <div className="max-w-[82%]">
+                  <div
+                    className={cn(
+                      "rounded-2xl px-3 py-2 text-sm leading-relaxed",
+                      msg.role === "user"
+                        ? "rounded-tr-sm bg-blue-600 text-white"
+                        : "rounded-tl-sm text-slate-200",
+                    )}
+                    style={
+                      msg.role === "assistant"
+                        ? { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }
+                        : {}
+                    }
+                  >
+                    {msg.content ? (
+                      <span style={{ whiteSpace: "pre-wrap" }}>{msg.content}</span>
+                    ) : (
+                      <span className="inline-flex gap-1 text-slate-500">
+                        <span className="animate-bounce">·</span>
+                        <span className="animate-bounce [animation-delay:0.15s]">·</span>
+                        <span className="animate-bounce [animation-delay:0.3s]">·</span>
+                      </span>
+                    )}
+                  </div>
+                  {/* Enhancement #2: Thumbs up/down on assistant responses (skip initial greeting) */}
+                  {msg.role === "assistant" && msg.content && i > 0 && !loading && (
+                    <div className="mt-1 flex items-center gap-1 pl-1">
+                      {feedbackGiven[i] ? (
+                        <span className="text-[10px] text-slate-600">
+                          {feedbackGiven[i] === "positive" ? "Thanks!" : "Noted — we'll improve"}
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleFeedback(i, "positive")}
+                            className="rounded p-0.5 text-slate-600 transition-colors hover:text-emerald-400"
+                            aria-label="Helpful"
+                            title="Helpful"
+                          >
+                            <ThumbsUp className="h-3 w-3" />
+                          </button>
+                          <button
+                            onClick={() => handleFeedback(i, "negative")}
+                            className="rounded p-0.5 text-slate-600 transition-colors hover:text-rose-400"
+                            aria-label="Not helpful"
+                            title="Not helpful"
+                          >
+                            <ThumbsDown className="h-3 w-3" />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>

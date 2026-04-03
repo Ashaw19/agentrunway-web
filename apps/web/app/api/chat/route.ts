@@ -10,7 +10,7 @@ import { fmtCurrency } from "@/lib/formatters";
 import { seasonalFractionElapsed, paceVsGoalPercent } from "@agent-runway/core/engines/projection-engine";
 import { CREA_BOARDS, fetchBoardData, computeMarketMomentum } from "@/lib/crea-board";
 import { generateTeamComparativeInsights } from "@agent-runway/core/engines";
-import { classifyTopic, classifyTopicMulti, type TroubleshootingTopic } from "@/lib/troubleshooting-classifier";
+import { classifyTopic, classifyTopicMulti, PAGE_TO_TOPICS, TOPIC_ACTION_LINKS, type TroubleshootingTopic } from "@/lib/troubleshooting-classifier";
 import { getPlaybooks } from "@/lib/troubleshooting-playbooks";
 import { buildDiagnostics } from "@/lib/chat-diagnostics";
 import { logChatAnalytics, countTopicFollowUps } from "@/lib/chat-analytics";
@@ -54,11 +54,49 @@ export async function POST(req: NextRequest) {
     return new Response("Invalid request body", { status: 400 });
   }
 
+  // Sanitize currentPage to a plain path segment — prevents prompt injection
+  const safePage = typeof currentPage === "string"
+    ? currentPage.replace(/[^a-z0-9/\-_]/gi, "").slice(0, 64)
+    : "";
+
   // ── 4. Topic classification — route to relevant troubleshooting playbook ─
   const latestUserMessage = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
   const matchedTopics = classifyTopicMulti(String(latestUserMessage));
-  const topTopics: TroubleshootingTopic[] = matchedTopics.slice(0, 2).map((m) => m.topic);
+  let topTopics: TroubleshootingTopic[] = matchedTopics.slice(0, 2).map((m) => m.topic);
+
+  // Enhancement #5: Sticky topic context — if current message is vague but
+  // recent messages had a strong topic, carry that topic forward. This handles
+  // follow-ups like "what about the pipeline part?" after asking about runway score.
+  if (topTopics.length === 0) {
+    const userMessages = messages.filter((m: { role: string }) => m.role === "user").reverse();
+    for (const prevMsg of userMessages.slice(1, 4)) {
+      const prevTopics = classifyTopicMulti(String(prevMsg.content));
+      if (prevTopics.length > 0) {
+        topTopics = prevTopics.slice(0, 2).map((m) => m.topic);
+        break;
+      }
+    }
+  }
+
+  // Enhancement #1: Page-aware auto-injection — if classifier found nothing
+  // (or only weak matches), use the current page as a topic signal.
+  if (topTopics.length === 0 && safePage) {
+    const pageTopics = PAGE_TO_TOPICS[safePage];
+    if (pageTopics) {
+      topTopics = pageTopics.slice(0, 2);
+    }
+  }
+
   const isTroubleshooting = topTopics.length > 0;
+
+  // Enhancement #4: Escalation detection — if user has 4+ follow-ups on
+  // the same topic, they're likely stuck. We'll inject escalation guidance.
+  const preFollowUps = countTopicFollowUps(
+    messages.filter((m: { role: string }) => m.role === "user" || m.role === "assistant"),
+    classifyTopic,
+    topTopics[0] ?? "general",
+  );
+  const isEscalation = preFollowUps >= 4;
 
   // Build troubleshooting context (playbooks + live diagnostics) in parallel with financial context
   let troubleshootingContext = "";
@@ -268,24 +306,40 @@ IMPORTANT: When comparing this agent to team averages, always reference ${leader
   }
   const safeMessages = filtered.slice(startIdx);
 
-  // Sanitize currentPage to a plain path segment — prevents prompt injection
-  const safePage = typeof currentPage === "string"
-    ? currentPage.replace(/[^a-z0-9/\-_]/gi, "").slice(0, 64)
-    : "";
-
   const pageContext = safePage
     ? `\nThe user is currently viewing the "${safePage.replace(/^\//, "")}" page. Prioritize answers relevant to what they're looking at.`
     : "";
 
   // ── 6. Build troubleshooting injection ───────────────────────────────────
+  // Enhancement #3: Build deep link references for the matched topics
+  const actionLinks = topTopics
+    .flatMap((t) => TOPIC_ACTION_LINKS[t] ?? [])
+    .filter((link, i, arr) => arr.findIndex((l) => l.href === link.href) === i); // dedupe
+  const deepLinksBlock = actionLinks.length > 0
+    ? `\nRELEVANT PAGE LINKS (use these in your response when suggesting the user take action):
+${actionLinks.map((l) => `- [${l.label}](${l.href})`).join("\n")}
+When suggesting fixes, include the relevant link in markdown format so the user can navigate directly.`
+    : "";
+
+  // Enhancement #4: Escalation block when user is stuck
+  const escalationBlock = isEscalation
+    ? `\n\nESCALATION DETECTED: The user has asked ${preFollowUps}+ follow-up questions on this topic and may be stuck.
+Instead of another explanation, provide:
+1. A structured summary of what you've diagnosed so far
+2. The specific data points that seem unusual
+3. 2-3 concrete actions they can take right now
+4. A note: "If this still doesn't look right, reach out to support@agentrunway.com with this summary and we'll investigate your account directly."
+Keep your tone supportive, not defensive.`
+    : "";
+
   const troubleshootingInjection = troubleshootingContext
     ? `\n\n--- TOPIC-SPECIFIC TROUBLESHOOTING GUIDE ---
 The user's message matched these topics: [${topTopics.join(", ")}].
 Use the following playbook(s) and diagnostic data to give a precise, data-backed answer.
 When explaining calculations, walk through the steps using THEIR numbers from the diagnostic data.
 If their numbers reveal the cause of their issue, name it directly.
-
-${troubleshootingContext}
+${deepLinksBlock}
+${troubleshootingContext}${escalationBlock}
 --- END TROUBLESHOOTING GUIDE ---`
     : "";
 
@@ -349,11 +403,6 @@ ${AGENT_RUNWAY_VOICE}`;
 
     // ── 7. Log analytics (fire-and-forget — never blocks response) ─────────
     const userMsgCount = safeMessages.filter((m) => m.role === "user").length;
-    const followUps = countTopicFollowUps(
-      safeMessages,
-      classifyTopic,
-      topTopics[0] ?? "general",
-    );
     logChatAnalytics(supabase, {
       userId: user.id,
       message: String(latestUserMessage),
@@ -362,9 +411,10 @@ ${AGENT_RUNWAY_VOICE}`;
       classifierScore: matchedTopics[0]?.score ?? 0,
       hadDiagnostics: troubleshootingContext.includes("["),
       hadPlaybook: isTroubleshooting,
-      followUpCount: followUps,
+      followUpCount: preFollowUps,
       sessionMessageCount: userMsgCount,
       currentPage: safePage || null,
+      wasEscalation: isEscalation,
     }).catch(() => {}); // Swallow errors — analytics must never break chat
 
     const encoder = new TextEncoder();

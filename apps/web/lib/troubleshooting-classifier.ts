@@ -36,6 +36,98 @@ interface TopicRule {
   phrases: string[];
 }
 
+/**
+ * Enhancement #1: Page-aware auto-injection.
+ * Maps URL paths to default troubleshooting topics.
+ * When a user asks a vague question ("why is this wrong?"), the page they're
+ * on provides signal for which playbook to inject.
+ */
+export const PAGE_TO_TOPICS: Record<string, TroubleshootingTopic[]> = {
+  "/dashboard":    ["runway-score", "forecast"],
+  "/transactions": ["transactions"],
+  "/pipeline":     ["pipeline"],
+  "/expenses":     ["expenses"],
+  "/mileage":      ["expenses"],
+  "/forecast":     ["forecast", "tax"],
+  "/crm":          ["crm"],
+  "/clients":      ["crm"],
+  "/reports":      ["tax", "benchmark"],
+  "/settings":     ["settings"],
+  "/history":      ["import"],
+  "/guide":        ["onboarding"],
+};
+
+/**
+ * Enhancement #3: Deep links for AI responses.
+ * Maps each topic to action links the AI can reference when diagnosing issues.
+ * Injected into system prompt so the AI can say "Go to [Settings → Commission Split](/settings)".
+ */
+export const TOPIC_ACTION_LINKS: Record<TroubleshootingTopic, { label: string; href: string }[]> = {
+  "runway-score": [
+    { label: "Dashboard", href: "/dashboard" },
+    { label: "Settings → Annual Goal", href: "/settings" },
+  ],
+  tax: [
+    { label: "Forecast → Tax Estimates", href: "/forecast" },
+    { label: "Settings → Province & Structure", href: "/settings" },
+    { label: "Expenses", href: "/expenses" },
+  ],
+  pipeline: [
+    { label: "Pipeline", href: "/pipeline" },
+    { label: "Add Pipeline Deal", href: "/pipeline" },
+  ],
+  expenses: [
+    { label: "Expenses", href: "/expenses" },
+    { label: "Mileage Log", href: "/mileage" },
+    { label: "Settings → Vehicle Use %", href: "/settings" },
+  ],
+  forecast: [
+    { label: "Forecast", href: "/forecast" },
+    { label: "Settings → Seasonal Weights", href: "/settings" },
+    { label: "Settings → Annual Goal", href: "/settings" },
+  ],
+  crm: [
+    { label: "Clients (CRM)", href: "/crm" },
+    { label: "Flight Control", href: "/crm" },
+  ],
+  "flight-control": [
+    { label: "Clients (CRM)", href: "/crm" },
+    { label: "Settings → AI Voice Guide", href: "/settings" },
+  ],
+  transactions: [
+    { label: "Transactions", href: "/transactions" },
+    { label: "Add Transaction", href: "/transactions" },
+    { label: "Settings → Commission Split", href: "/settings" },
+  ],
+  settings: [
+    { label: "Settings", href: "/settings" },
+  ],
+  survival: [
+    { label: "Dashboard → Survival Runway", href: "/dashboard" },
+    { label: "Settings → Cash Reserve", href: "/settings" },
+    { label: "Expenses", href: "/expenses" },
+  ],
+  benchmark: [
+    { label: "Reports → Benchmark", href: "/reports" },
+    { label: "Settings → Experience Years", href: "/settings" },
+  ],
+  social: [
+    { label: "Social Studio", href: "/social" },
+  ],
+  import: [
+    { label: "Import History", href: "/history" },
+    { label: "Transactions", href: "/transactions" },
+  ],
+  voice: [
+    { label: "Dashboard (Voice FAB)", href: "/dashboard" },
+  ],
+  onboarding: [
+    { label: "Guide", href: "/guide" },
+    { label: "Settings", href: "/settings" },
+  ],
+  general: [],
+};
+
 const TOPIC_RULES: TopicRule[] = [
   {
     topic: "runway-score",

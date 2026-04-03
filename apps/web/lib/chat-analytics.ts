@@ -23,6 +23,7 @@ interface ChatAnalyticsEntry {
   followUpCount: number;
   sessionMessageCount: number;
   currentPage: string | null;
+  wasEscalation?: boolean;
 }
 
 /**
@@ -47,6 +48,7 @@ export async function logChatAnalytics(
       follow_up_count: entry.followUpCount,
       session_message_count: entry.sessionMessageCount,
       current_page: entry.currentPage,
+      was_escalation: entry.wasEscalation ?? false,
     });
   } catch {
     // Analytics logging should never break the chat flow
