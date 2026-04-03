@@ -81,6 +81,23 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
+  // ── Step 2b: Quebec geo-restriction ─────────────────────────────────────
+  // Quebec has strict language (Bill 96) and privacy (Law 25) requirements.
+  // Until French translation and full compliance are built, redirect Quebec
+  // visitors to an informational landing page. Bypass cookie allows override.
+  if (pathname !== "/quebec" && !pathname.startsWith("/quebec/")) {
+    const region = request.geo?.region;       // Vercel provides ISO 3166-2 subdivision
+    const country = request.geo?.country;
+    const isQuebec = country === "CA" && region === "QC";
+    const hasBypass = request.cookies.get("qc-bypass")?.value === "1";
+
+    if (isQuebec && !hasBypass) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/quebec";
+      return NextResponse.redirect(url);
+    }
+  }
+
   // ── Step 3: Auth guard ──────────────────────────────────────────────────
   // Use an explicit denylist (not an allowlist) so new public pages are
   // automatically public without requiring an allowlist update.
