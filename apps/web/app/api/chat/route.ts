@@ -10,6 +10,9 @@ import { fmtCurrency } from "@/lib/formatters";
 import { seasonalFractionElapsed, paceVsGoalPercent } from "@agent-runway/core/engines/projection-engine";
 import { CREA_BOARDS, fetchBoardData, computeMarketMomentum } from "@/lib/crea-board";
 import { generateTeamComparativeInsights } from "@agent-runway/core/engines";
+import { classifyTopicMulti, type TroubleshootingTopic } from "@/lib/troubleshooting-classifier";
+import { getPlaybooks } from "@/lib/troubleshooting-playbooks";
+import { buildDiagnostics } from "@/lib/chat-diagnostics";
 
 export async function POST(req: NextRequest) {
   const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
@@ -50,7 +53,25 @@ export async function POST(req: NextRequest) {
     return new Response("Invalid request body", { status: 400 });
   }
 
-  // ── 4. Build financial context server-side (never trust client-provided data) ─
+  // ── 4. Topic classification — route to relevant troubleshooting playbook ─
+  const latestUserMessage = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+  const matchedTopics = classifyTopicMulti(String(latestUserMessage));
+  const topTopics: TroubleshootingTopic[] = matchedTopics.slice(0, 2).map((m) => m.topic);
+  const isTroubleshooting = topTopics.length > 0;
+
+  // Build troubleshooting context (playbooks + live diagnostics) in parallel with financial context
+  let troubleshootingContext = "";
+  const troubleshootingPromise = isTroubleshooting
+    ? (async () => {
+        const [playbooks, diagnostics] = await Promise.all([
+          Promise.resolve(getPlaybooks(topTopics)),
+          buildDiagnostics(user.id, topTopics),
+        ]);
+        troubleshootingContext = playbooks + diagnostics;
+      })()
+    : Promise.resolve();
+
+  // ── 5. Build financial context server-side (never trust client-provided data) ─
   let financialContext = "No user data available.";
   try {
     const currentYear = new Date().getFullYear();
@@ -226,6 +247,9 @@ IMPORTANT: When comparing this agent to team averages, always reference ${leader
     financialContext = "Business data temporarily unavailable.";
   }
 
+  // Wait for troubleshooting context to finish building
+  await troubleshootingPromise;
+
   // Strip any system-role messages from the client — only user/assistant allowed.
   // Cap each message to 4000 chars and limit total conversation to ~80K chars
   // to leave room for the system prompt (~30K) within Groq's 128K context.
@@ -252,6 +276,21 @@ IMPORTANT: When comparing this agent to team averages, always reference ${leader
     ? `\nThe user is currently viewing the "${safePage.replace(/^\//, "")}" page. Prioritize answers relevant to what they're looking at.`
     : "";
 
+  // ── 6. Build troubleshooting injection ───────────────────────────────────
+  const troubleshootingInjection = troubleshootingContext
+    ? `\n\n--- TOPIC-SPECIFIC TROUBLESHOOTING GUIDE ---
+The user's message matched these topics: [${topTopics.join(", ")}].
+Use the following playbook(s) and diagnostic data to give a precise, data-backed answer.
+When explaining calculations, walk through the steps using THEIR numbers from the diagnostic data.
+If their numbers reveal the cause of their issue, name it directly.
+
+${troubleshootingContext}
+--- END TROUBLESHOOTING GUIDE ---`
+    : "";
+
+  // Dynamic max_tokens: troubleshooting responses need more room for step-by-step explanations
+  const maxTokens = isTroubleshooting ? 1200 : 600;
+
   const systemPrompt = `You are an AI business assistant for a Canadian real estate agent using Agent Runway — a financial analytics platform.
 
 Important: All outputs you generate are estimates for informational purposes only. You do not provide financial, tax, or legal advice. Always remind users to consult their accountant or professional advisor for decisions.
@@ -262,6 +301,7 @@ ${pageContext}
 
 You also have comprehensive knowledge of the Agent Runway platform. Use the following reference to answer ANY question about features, metrics, computations, terms, tax rules, or how things work:
 ${KNOWLEDGE_BASE}
+${troubleshootingInjection}
 
 CORE GUIDELINES:
 - Answer questions clearly and concisely (3-5 sentences unless a breakdown is requested)
@@ -272,6 +312,7 @@ CORE GUIDELINES:
 - Speak in a direct, expert tone — like a knowledgeable business tool, not a chatbot
 - If you don't have enough data to answer precisely, say so and suggest what data to add
 - Keep responses short and scannable. Prefer bullet points over long paragraphs.
+${isTroubleshooting ? "- TROUBLESHOOTING MODE: Walk through the relevant calculation step-by-step using the user's actual numbers from the diagnostic data. Name the specific cause if visible. Suggest the specific fix." : ""}
 
 PROACTIVE INSIGHTS:
 When the agent's data shows any of these patterns, surface them naturally in your response — not as alarms, but as observations worth noting:
@@ -299,7 +340,7 @@ ${AGENT_RUNWAY_VOICE}`;
         { role: "system", content: systemPrompt },
         ...safeMessages,
       ],
-      max_tokens: 600,
+      max_tokens: maxTokens,
       temperature: 0.7,
     }, { signal: controller.signal });
 

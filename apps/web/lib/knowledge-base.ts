@@ -29,12 +29,12 @@ Command center showing: Runway Score (0–100, graded A+ to F), KPI cards (GCI p
 **TRANSACTIONS**
 Three tabs:
 - Deals: Closed transactions with date, address, client link, sale price, commission %, GCI (auto-calculated or overridden), side (buyer/seller/both), status (closed/pending/fallen), team/referral split.
-- Pipeline: In-progress deals with stages (Lead 10%, Showing 20%, Offer 40%, Conditional 60%, Firm 90%), weighted GCI, convert-to-closed feature.
+- Pipeline: In-progress deals with stages (Lead 10%, Showing 20%, Offer 40%, Conditional 60%, Firm 90%), weighted GCI, convert-to-closed feature. Probability overrides replace stage default when set.
 - History: Annual summaries (year, GCI, deals, Q1–Q4 breakdown), YoY chart, seasonal profile, import from PDF/spreadsheet.
 
 **CRM**
 Four tabs:
-- Clients: Full contact records. Each client has: First name and last name (stored separately, displayed together), email, phone, city/province, address, birthday, lead source, tags, budget, timeframe, property interest (buy/sell/both), property type (residential/commercial/investment), communication tone preference, notes, relationship links (e.g., spouse, referral source), contact activity log (call/email/text/showing/meeting/note/task), status (Boarding→Taxiing→In-Flight→Landed→Cruising), valuation tier (Platinum/Gold/Silver/Bronze).
+- Clients: Full contact records. Each client has: First name and last name (stored separately, displayed together), email, phone, city/province, address, birthday, lead source, tags, budget, timeframe, property interest (buy/sell/both), property type (residential/commercial/investment), communication tone preference, notes, relationship links (e.g., spouse, referral source), contact activity log (call/email/text/showing/meeting/note/task), status (Boarding→Taxiing→Approach→In-Flight→Landed→Cruising), valuation tier (Platinum/Gold/Silver/Bronze).
 
   CLIENT DETAIL PANEL LAYOUT: The right-side detail panel has: (1) A gradient status banner at the top whose color matches the client's current flight status. (2) A circular avatar. (3) Separate First Name and Last Name input fields (not a single combined name field). (4) A Save button that commits first name, last name, and notes together — fields are not auto-saved on blur, they require the Save button. (5) A Flight Status strip showing the current stage. Below the header, colored section cards organize the detail view: Sky blue = Contact Information, Emerald green = Address, Amber = Details (budget, timeframe, property interest), Violet = Relationships, Slate = Notes, Blue = Activity Log, Orange = Tasks, Green = Deal History.
 
@@ -57,11 +57,11 @@ Three tabs:
 - Benchmark: CREA 2023 cohort comparison, percentile rank.
 - Tax (T2125): CRA T2125 summary with expense lines by CRA code, CCA assets, home office deduction (simplified $5/sqft max $1,500 or detailed), mileage summary.
 
-**SOCIAL**
+**SOCIAL STUDIO**
 Month-in-review carousel builder for Instagram. Select deals, choose template family, configure branding (logo, headshot, agent cutout), customize slides, add caption with hashtags, export to Instagram direct or Canva ZIP.
 
 **SETTINGS**
-Province, business structure (sole prop/PREC/corp), commission split (70/30 to 100/0), brokerage fees (monthly + per-deal + annual cap), post-cap commission structure, cash reserve, experience years, annual GCI goal, 5-year growth goals, vehicle business use %, home office method, GST/HST registration, tax instalments paid, seasonality (national vs custom), bank connections, AI Voice Guide (personal style instructions for AI-generated outreach).
+Province, business structure (sole prop/PREC/corp), commission split (70/30 to 100/0), brokerage fees (monthly + per-deal + annual cap + post-cap rate), cash reserve, experience years, annual GCI goal, 5-year growth goals, vehicle business use %, home office method (simplified or detailed), home office sqft, GST/HST registration, tax instalments paid, seasonality (national vs custom quarterly weights), bank connections, AI Voice Guide (personal style instructions for AI-generated outreach), CREA board selection (local market comparison).
 
 **PROFILE**
 Display name, brokerage, avatar, business identity (name, number, logo), 15 color themes, dark mode toggle, production stats (YTD GCI, YTD deals, lifetime deals, lifetime GCI, best year).
@@ -75,6 +75,9 @@ Chat-based assistant with access to live financial data. Answers questions about
 **KEYBOARD SHORTCUTS**
 N=New transaction, D=Dashboard, T=Transactions, P=Pipeline, F=Forecast, E=Expenses, R=Reports. Active only outside form fields.
 
+**SANDBOX MODE**
+Explore the platform with realistic demo data before entering real information. Sandbox data is clearly marked and separate from real data. Helps new users understand features and metrics before onboarding.
+
 ---
 
 ### FLIGHT CONTROL — AI OUTREACH AUTOMATION SYSTEM
@@ -83,10 +86,19 @@ Flight Control is Agent Runway's automated outreach system. It uses AI to detect
 
 **HOW IT WORKS:**
 1. The system scans all active clients on a scheduled basis (daily cron job).
-2. It identifies outreach opportunities: upcoming birthdays (within 7 days), recent deal closings (within 14 days), seasonal check-ins for long-dormant clients, and follow-up reminders for stale leads.
+2. It identifies outreach opportunities: upcoming birthdays (within 7 days), recent deal closings (within 14 days), seasonal check-ins for long-dormant clients, follow-up reminders for stale leads, purchase anniversaries, interest rate relevance alerts, and new listing matches.
 3. For each opportunity, it generates a personalized draft message tailored to: the client's communication tone preference (formal/casual/friendly), their side (buyer/seller/both), their property interest type, their city/province, and any relevant context from their notes and tags.
 4. Drafts are placed in the agent's Outreach Queue for review. The agent reads the draft, edits if desired, then sends.
 5. Agents never receive a message they didn't review and approve.
+
+**OUTREACH TYPES (7 briefing item types):**
+- Birthday outreach (within 7 days of birthday — NEVER suppressed)
+- Deal close follow-up (within 14 days of closing)
+- Stale lead check-in (active client, no contact 30+ days)
+- Seasonal market update (quarterly, configurable)
+- Purchase anniversary (annual anniversary of their home purchase)
+- Interest rate relevance (rate changes affecting buyers/sellers)
+- New listing match (new listing matching client criteria)
 
 **SMART SUPPRESSION:**
 Flight Control will not generate outreach for a client who was contacted within the past 14 days. This prevents over-messaging clients who are already in active conversation. Birthday outreach is exempt from this suppression (a birthday message is always appropriate).
@@ -96,11 +108,11 @@ Flight Control will not generate outreach for a client who was contacted within 
 - Casual: Relaxed, conversational, uses contractions. Good for long-standing relationships.
 - Friendly: Warm and personal, slightly more expressive. The default middle ground.
 
-**OUTREACH TYPES SUPPORTED:**
-Birthday, deal close follow-up, seasonal market update, check-in for dormant leads, new listing relevance, anniversary of purchase, interest rate change relevance, and more.
-
 **AI VOICE GUIDE:**
 In Settings, agents can write a personal AI Voice Guide — a short paragraph describing their communication style, personality, preferred phrases, and things to avoid. This guide is injected into every AI-generated outreach draft, ensuring messages sound like the agent wrote them personally. Example: "I prefer short, direct messages. I always end with an open question. I never use industry jargon. I like to reference local market conditions naturally."
+
+**NEWSLETTER SECTION:**
+Flight Control also includes a newsletter builder for mass market updates and seasonal messages to your client base.
 
 ---
 
@@ -110,33 +122,48 @@ In Settings, agents can write a personal AI Voice Guide — a short paragraph de
 
 **Agent Net:** GCI × Agent Split %. What the agent keeps after brokerage split.
 
-**Weighted GCI:** Pipeline deal's estimated GCI × probability of closing.
+**Weighted GCI:** Pipeline deal's estimated GCI × probability of closing (stage default or probability override if set).
 
 **Expense Ratio:** Total expenses ÷ YTD GCI. Benchmarks: <25% excellent, 25–30% healthy, 30–40% needs attention, >40% concerning, >50% warning.
 
-**Runway / Survival:** Cash Reserve ÷ Net Monthly Burn. Critical <2mo, Warning 2–4mo, Healthy 4–6mo, Strong 6+mo.
+**Runway / Survival:** Cash Reserve ÷ Net Monthly Burn. Critical <2mo, Warning 2–4mo, Healthy 4–6mo, Strong 6+mo. Capped at 24 months. If cash reserve is $0 or not set, displayed as "Not Configured" (neutral score, not zero).
 
-**Pace:** ((Actual YTD GCI − Expected GCI at this point in the year) ÷ Expected) × 100. Positive = ahead of pace, negative = behind.
+**Pace:** ((Actual YTD GCI − Expected GCI at this point in the year) ÷ Expected) × 100. Positive = ahead of pace, negative = behind. Expected = Goal × Seasonal Fraction Elapsed.
 
-**Seasonal Fraction:** Accounts for uneven quarterly income distribution (e.g., Q1 5%, Q2 30%, Q3 20%, Q4 45% for winter-heavy markets).
+**Seasonal Fraction:** Accounts for uneven quarterly income distribution (e.g., Q1 15%, Q2 30%, Q3 30%, Q4 25% nationally). Custom weights can be set in Settings. Interpolates within quarters for day-level precision.
 
-**Projected Year-End GCI:** (Closed YTD GCI ÷ Seasonal Fraction) + (Pipeline Weighted GCI × 50%).
+**Projected Year-End GCI:** (Closed YTD GCI ÷ Seasonal Fraction) + (Pipeline Weighted GCI × 50%). Early-year dampening (Jan–Feb): blends toward goal instead of raw extrapolation because too little data exists. Confidence ramp from 10% to 100% as the year progresses.
 
 **Runway Score:** Composite 0–100. Components: Pace vs Goal (35%), Pipeline Health (25%), Expense Ratio (15%), Survival Runway (15%), Benchmark Rank (10%). Grades: A+ (92+), A (85–91), B (75–84), C (62–74), D (50–61), F (0–49).
 
-**Benchmark:** CREA 2023 national cohort comparison. Cohorts: Rookie (0–2yr), Growth (3–5yr), Established (6–10yr), Top Producer (10+yr).
+Sub-scores:
+- Pace: Maps pace% [-50%, +50%] → [0, 100]. Dead center (on pace) = 50.
+- Pipeline: Weighted GCI vs remaining goal gap. Goal met → 100. Ratio 1.5x+ → 100, 1.0x → 80, 0.5x → 50, 0 → 20.
+- Expenses: Ratio >50% → 30, >35% → 55, >25% → 75, ≤25% → 90. Zero GCI → 50 (neutral).
+- Survival: ≥6mo → 95, ≥4 → 75, ≥2 → 50, ≥1 → 25, <1 → 10. Not configured → 50.
+- Benchmark: Direct percentile from CREA comparison.
 
-**Probability Bands:** P10/P25/P50/P75/P90 projections based on coefficient of variation (deal-to-deal GCI variance).
+**Benchmark:** CREA 2023 national cohort comparison. Cohorts: Rookie (0–2yr, median $42K/4 deals), Growth (3–5yr, $78K/7 deals), Established (6–10yr, $96K/8 deals), Top Producer (10+yr, $145K/12 deals). National median: $96K/8 deals.
 
-**Client Tiers:** Ranked by composite value score — Platinum (top 10%), Gold (10–25%), Silver (25–50%), Bronze (bottom 50%). Factors: GCI contributed, deal history, relationship duration, activity engagement.
+**Where You Stand:** Performance bands: Launching (0–10th percentile), Climbing (10–25th), Competitive (25–50th), Advancing (50–75th), Leading (75th+). Momentum: gaining, holding, losing, no_data. Position vs market: above (ratio >1.15), at (0.85–1.15), below (<0.85). Guards: early career (<3yr) softens messaging, too-early-in-year (<16% elapsed AND <3 deals) suppresses projection.
 
-**LGV (Lifetime GCI Value):** Historical GCI from client + estimated future value (avg deal × repeat/referral probability × estimated remaining relationship years).
+**Probability Bands:** P10/P25/P50/P75/P90 projections based on coefficient of variation (deal-to-deal GCI variance). P10 = base × (1−2σ), P25 = base × (1−σ), P50 = base, P75 = base × (1+σ), P90 = base × (1+2σ). CV clamped 5–50%. Confidence: low (<6 months data), medium (6–12), high (≥12 months). 5-year bands widen 5% per year.
+
+**Client Tiers:** Ranked by composite value score — Platinum (top 10%), Gold (10–25%), Silver (25–50%), Bronze (bottom 50%).
+Composite Score = LGV (40%) + Health (20%) + Runway Impact (15%) + Velocity (15%) + Tax Efficiency (10%).
+LGV = avg deal GCI × repeat probability × remaining relationship years.
+Repeat probability: 60% (multi-deal), 30% (recent single-deal), 10% (old/no deals).
+Portfolio Health: Concentrated (top 1 >40% or top 3 >70%), Balanced (top 3 50–70%), Diversified (top 3 <50%).
 
 **Speed to Lead:** Hours between client creation date and first recorded contact activity.
 
-**Stale Lead:** Active client (Boarding/Taxiing/Approach/In-Flight) with no recorded contact in 14+ days on dashboard, 30+ days in CRM view.
+**Stale Lead:** Active client (Boarding/Taxiing/Approach/In-Flight) with no recorded contact in 14+ days on dashboard, 30+ days in CRM view. Cruising clients are NOT flagged as stale.
 
 **CCA (Capital Cost Allowance):** CRA's depreciation method for business assets using prescribed rates with a half-year rule in the first year of acquisition.
+
+**Deviation Detection:** Compares current metrics against 12-month baseline. Requires ≥3 months of baseline data. Flags deviations ≥20% from baseline. Minimum volume protections: $1,000/mo GCI, 0.5 deals/mo, 5% expense ratio, 5 touchpoints/mo. Tone adjusts by experience: early (<3yr) normalizes, mid (3–8yr) direct, established (>8yr) flags as unusual.
+
+**Time Value Metrics:** Effective Hourly Rate = projected annual net ÷ (weekly hours × (52 − vacation weeks)). Revenue Per Deal = annualized GCI ÷ deal count. Break-Even Deals = annual expenses ÷ revenue per deal.
 
 ---
 
@@ -148,7 +175,7 @@ In Settings, agents can write a personal AI Voice Guide — a short paragraph de
 | Taxiing | Gearing up to act. Active engagement underway, needs consistent nurturing. |
 | Approach | Actively viewing homes and preparing to make an offer. High-touch stage. |
 | In-Flight | Engaged in a live transaction — showing, negotiating, or under contract. |
-| Landed | Deal just closed. Stays here for 30 days; AI focuses on post-close outreach. Auto-transitions to Cruising after 30 days post-close. |
+| Landed | Deal just closed. Stays here for exactly 30 days; AI focuses on post-close outreach. Auto-transitions to Cruising after 30 days post-close. |
 | Cruising | Settled past client. Light-touch communication; referral and repeat source. |
 
 **Status gradient colors in the detail panel:** Boarding = sky, Taxiing = amber/orange, Approach = orange/amber, In-Flight = emerald/teal, Landed = violet/purple, Cruising = rose/pink.
@@ -158,6 +185,9 @@ In Settings, agents can write a personal AI Voice Guide — a short paragraph de
 ### PIPELINE STAGES & PROBABILITIES
 
 Lead (10%), Showing (20%), Offer (40%), Conditional (60%), Firm (90%).
+Users can override the default probability on any individual deal. Override replaces stage probability in all calculations.
+
+Additional sub-stages tracked: Listings — scheduled (15%), active (40%). Buyers — taxiing (10%), approach (25%).
 
 ---
 
@@ -167,11 +197,12 @@ Lead (10%), Showing (20%), Offer (40%), Conditional (60%), Firm (90%).
 
 **Federal brackets (2025):**
 $0–$57,375 @ 14.5% (blended — 15% Jan-Jun, 14% Jul-Dec), $57,375–$114,750 @ 20.5%, $114,750–$177,882 @ 26%, $177,882–$253,414 @ 29%, $253,414+ @ 33%.
-Basic Personal Amount (BPA): $16,129.
+Basic Personal Amount (BPA): $16,129 credit at 14.5% = $2,338.71 reduction.
 
 **CPP — Self-employed pay both employee and employer halves:**
-- CPP1: 11.90% on earnings between $3,500 (exemption) and $71,300 (YMPE 2025).
-- CPP2: 8.00% on earnings between $71,300 (YMPE) and $81,200 (YAMPE 2025). CPP2 contributions are 100% deductible.
+- CPP1: 11.90% on earnings between $3,500 (exemption) and $71,300 (YMPE 2025). Max = $8,068.20.
+- CPP2: 8.00% on earnings between $71,300 (YMPE) and $81,200 (YAMPE 2025). Max = $792.00.
+- Deductions: 50% of CPP1 is deductible from taxable income. 100% of CPP2 is deductible.
 
 **QPP (Quebec):** CPP1-equivalent rate: 12.80%. Quebec abatement reduces federal tax by 16.5% (federal tax × 83.5%).
 
@@ -180,11 +211,11 @@ Basic Personal Amount (BPA): $16,129.
 **GST/HST rates by province:**
 - 5%: AB, BC, MB, SK, territories
 - 13%: ON
-- 14%: NS
+- 14%: NS (reduced April 1, 2025)
 - 15%: NB, NL, PE
-Registration is mandatory when taxable revenue exceeds $30,000 in any 12-month period.
+Registration is mandatory when taxable revenue exceeds $30,000 in any 12-month period (small supplier threshold).
 
-**Corporate (CCPC):** Federal Small Business Deduction: 9% on first $500K active business income. General rate: 15%. Provincial rates vary (SBD: 0–4.5%, General: 8–15%).
+**Corporate (CCPC):** Federal Small Business Deduction: 9% on first $500K active business income. General rate: 15%. SBD phase-out: $5 reduction per $1 of AAII over $50K. Provincial SBD rates: 0% (MB, YT) to 4.5% (NS). Non-eligible dividend gross-up: 15%. Federal DTC: 9.0301% of grossed-up amount. Compensation: salary (generates RRSP room + CPP), dividends (no RRSP room, no CPP), or mixed.
 
 **RRSP limit:** 18% of prior year earned income, max $32,490 (2025). Dividend-only compensation (PREC) does not generate RRSP room.
 
@@ -193,7 +224,7 @@ Registration is mandatory when taxable revenue exceeds $30,000 in any 12-month p
 **Home office — Simplified method:** $5/sqft, max 300 sqft = max $1,500 deduction.
 **Home office — Detailed method:** Actual home costs × (office sqft ÷ total home sqft) × business-use %.
 
-**Quarterly instalments:** Total annual estimated tax ÷ 4. CRA requires instalments if tax owing exceeds $3,000 ($1,800 in Quebec).
+**Quarterly instalments:** Total annual estimated tax ÷ 4. CRA requires instalments if tax owing exceeds $3,000 ($1,800 in Quebec). CRA interest rate on shortfalls: ~6% (adjusted quarterly).
 
 **Per-deal set-aside:** Total projected annual tax ÷ projected deal count. Useful rule of thumb to budget taxes incrementally.
 
@@ -202,6 +233,8 @@ Registration is mandatory when taxable revenue exceeds $30,000 in any 12-month p
 ---
 
 ### EXPENSE CATEGORIES — CRA T2125 MAPPING
+
+Industry code: 531210 (Real Estate Agents and Brokers).
 
 8210: Advertising, photography, print materials.
 8211: Vehicle lease payments.
@@ -212,6 +245,22 @@ Registration is mandatory when taxable revenue exceeds $30,000 in any 12-month p
 8220: Professional fees, licensing, phone, continuing education.
 8226: Client gifts: keep reasonable (~$25/person/year) — must be business-related and documented.
 8228: Other allowable business expenses.
+
+**T2125 Key Lines:** 8200 = Gross income, 9369 = Total expenses, 9936 = CCA, 9945 = Home office, 8270 = Net business income.
+
+---
+
+### COMMISSION STRUCTURE
+
+**Split:** Agent keeps agent_split% of GCI (e.g., 80/20 = agent keeps 80%). Range: 70/30 through 100/0.
+
+**Brokerage Fees:**
+- Monthly desk fee: Fixed amount deducted monthly
+- Per-deal fee: Percentage of GCI per closed transaction
+- Annual cap: Maximum total per-deal fees per year
+- Post-cap rate: Fee percentage after cap is reached (often 0%)
+
+**Cap Logic:** YTD per-deal fees accumulate toward the annual cap. Once cap reached, remaining deals use post_cap_rate instead of tx_fee_rate_pct. Post-cap deals yield higher net income.
 
 ---
 
@@ -232,13 +281,36 @@ Agent Runway connects to stats.crea.ca — CREA's official MLS® Statistics port
 **Market Position:** Compares your average deal size to local board average price. Above Market (+5%+), At Market (±5%), Below Market (−5% or lower).
 
 **Market Conditions (SNLR):**
-- Seller's Market 🔥: SNLR >65% — demand exceeds supply.
-- Balanced Market ⚖️: SNLR 45–65% — equilibrium. CREA long-run national avg: 54.8%.
-- Buyer's Market 🧊: SNLR <45% — supply exceeds demand.
+- Seller's Market: SNLR >65% — demand exceeds supply.
+- Balanced Market: SNLR 45–65% — equilibrium. CREA long-run national avg: 54.8%.
+- Buyer's Market: SNLR <45% — supply exceeds demand.
 
 SNLR = Monthly Sales ÷ New Listings × 100%.
 
 Monthly data points: unit sales, new listings, dollar volume, average sale price. National CREA 2023 cohort benchmark (by experience years) remains separate from local market position.
+
+---
+
+### INSIGHT & ADVISOR ENGINE THRESHOLDS
+
+**Advisor Cards** (top 5 by dollar impact):
+- Split optimization: Agent split <85% with YTD GCI >$50K
+- Expense benchmark: Expense ratio >30% of projected GCI
+- Pace correction: >10% behind goal
+- Survival warning: <3 months runway
+- Market timing: Board market trend ±2% dead zone
+- Deal size: Below national median per deal for cohort
+- Diversification: >80% or <20% single side (buyer vs seller)
+- Benchmark gap: Below 50th percentile for cohort
+- Cap strategy: Less than $30K to reaching annual fee cap
+
+**Insights Engine:**
+- Pace tiers: >15% ahead (praise), >0% ahead (mild praise), >−15% behind (tip), ≤−15% behind (warning)
+- Expense ratio: >50% (warning), >35% (tip), ≤35% (no flag)
+- Commission cap: At cap (praise), <$20K to cap (priority 88), projected later (info)
+- Monthly runway: Current month target vs actual, daily pace alert when <7 days remain
+- Health score: <50 (warning), ≥90 (praise)
+- Empty state nudges: Goal setting, forecast setup, first deal logging
 
 ---
 
@@ -312,19 +384,19 @@ A: Statistical confidence intervals for your year-end GCI. P50 is the median pro
 A: Expense Ratio = Total YTD Expenses ÷ YTD GCI. Under 25% is excellent, 25–30% is healthy, 30–40% needs attention, over 40% is concerning.
 
 **Q: What is the survival runway?**
-A: Cash Reserve ÷ Net Monthly Burn. Tells you how many months you could survive with zero new income. Under 2 months = critical, 2–4 = warning, 4–6 = healthy, 6+ = strong.
+A: Cash Reserve ÷ Net Monthly Burn. Tells you how many months you could survive with zero new income. Under 2 months = critical, 2–4 = warning, 4–6 = healthy, 6+ = strong. Not configured if cash reserve is $0.
 
 **Q: How do pipeline stage probabilities work?**
-A: Lead 10%, Showing 20%, Offer 40%, Conditional 60%, Firm 90%. Weighted GCI = Deal Estimated GCI × Stage Probability. This gives a probability-adjusted income forecast from your active pipeline.
+A: Lead 10%, Showing 20%, Offer 40%, Conditional 60%, Firm 90%. Weighted GCI = Deal Estimated GCI × Stage Probability. You can override the probability on any individual deal. This gives a probability-adjusted income forecast from your active pipeline.
 
 **Q: What's the difference between the Deals tab and Pipeline tab?**
 A: Deals are completed transactions (closed/pending/fallen). Pipeline deals are in-progress opportunities. When a pipeline deal closes, convert it to a closed deal to record the income.
 
 **Q: How are my taxes estimated?**
-A: The engine applies 2025 CRA federal brackets + your selected province's brackets + CPP/QPP self-employment contributions. It is an estimate — consult a qualified accountant for filing.
+A: The engine applies 2025 CRA federal brackets + your selected province's brackets + CPP/QPP self-employment contributions. It deducts 50% of CPP1 and 100% of CPP2 from taxable income. The result is an estimate — consult a qualified accountant for filing.
 
 **Q: What is the benchmark comparison?**
-A: Your YTD GCI is compared against CREA 2023 cohort data for agents at a similar experience level. Cohorts: Rookie (0–2yr), Growth (3–5yr), Established (6–10yr), Top Producer (10+yr).
+A: Your projected annual GCI is compared against CREA 2023 cohort data for agents at a similar experience level. Cohorts: Rookie (0–2yr, median $42K), Growth (3–5yr, $78K), Established (6–10yr, $96K), Top Producer (10+yr, $145K).
 
 **Q: How does voice input work?**
 A: Tap the microphone in the Quick Actions FAB, speak naturally. The system transcribes your audio, classifies your intent (new client, expense, transaction, or note), and routes you to the correct page with fields pre-filled in amber.
@@ -333,28 +405,28 @@ A: Tap the microphone in the Quick Actions FAB, speak naturally. The system tran
 A: 2025 CRA rates: ${KB_MILEAGE_FIRST_5K} for the first 5,000 km, ${KB_MILEAGE_AFTER_5K} thereafter.
 
 **Q: What does "stale lead" mean?**
-A: An active client (Boarding/Taxiing/Approach/In-Flight) with no recorded contact activity in 14+ days (dashboard alert) or 30+ days (CRM Insights). The AI will flag stale leads and suggest outreach.
+A: An active client (Boarding/Taxiing/Approach/In-Flight) with no recorded contact activity in 14+ days (dashboard alert) or 30+ days (CRM Insights). Cruising clients are NOT flagged as stale — they're past clients with light-touch expected. The AI will flag stale leads and suggest outreach.
 
 **Q: Can I change my province or business structure after onboarding?**
-A: Yes — go to Settings to change province, business structure, commission split, fees, goals, and all other configuration.
+A: Yes — go to Settings to change province, business structure, commission split, fees, goals, and all other configuration. Changes take effect immediately.
 
 **Q: What is CCA?**
 A: Capital Cost Allowance — CRA's depreciation method for business assets (laptops, cameras, etc.). Deducted over multiple years using prescribed rates with a half-year rule in year one.
 
 **Q: How does the home office deduction work?**
-A: Two methods: Simplified ($5/sqft, max 300 sqft = $1,500) or Detailed (actual home costs × business-use %). Configure in Settings.
+A: Two methods: Simplified ($5/sqft, max 300 sqft = $1,500) or Detailed (actual home costs × (office sqft ÷ total home sqft) × business-use %). Configure in Settings.
 
 **Q: What are Conservative, Base, and Optimistic scenarios?**
 A: Dashboard scenario modes adjust projections: Conservative = −15%, Base = actual projections, Optimistic = +15%.
 
 **Q: What are client tiers?**
-A: Platinum (top 10%), Gold (10–25%), Silver (25–50%), Bronze (bottom 50%) — ranked by composite client value score including GCI contributed, deal history, and relationship engagement.
+A: Platinum (top 10%), Gold (10–25%), Silver (25–50%), Bronze (bottom 50%) — ranked by composite client value score: LGV 40%, Health 20%, Runway Impact 15%, Velocity 15%, Tax Efficiency 10%.
 
 **Q: Why does the client detail panel have a Save button instead of auto-saving?**
 A: The Save button gives agents explicit control over their edits. First name, last name, and notes are committed together when Save is clicked, preventing accidental saves from partial edits.
 
 **Q: How does Flight Control work?**
-A: Flight Control is Agent Runway's automated AI outreach system. It scans your client list daily, detects relationship opportunities (birthdays, post-close follow-ups, stale check-ins), generates personalized draft messages matched to each client's communication tone, and queues them for your review. You read, optionally edit, then send. You always review before anything goes out.
+A: Flight Control is Agent Runway's automated AI outreach system. It scans your client list daily, detects 7 types of relationship opportunities (birthdays, post-close follow-ups, stale check-ins, seasonal updates, purchase anniversaries, rate changes, listing matches), generates personalized draft messages matched to each client's communication tone, and queues them for your review. You read, optionally edit, then send. You always review before anything goes out. Clients contacted in the last 14 days are suppressed (except birthdays).
 
 **Q: What is the AI Voice Guide?**
 A: A personal style guide you write in Settings → AI Voice Guide. It tells the AI how you communicate — your tone, preferred phrases, things to avoid. The AI uses it when generating all outreach drafts so messages sound like you wrote them. Example: "Keep it short, end with a question, skip the real estate clichés."
@@ -369,5 +441,17 @@ A: Currently optimized for Canadian real estate agents with CRA tax rules, provi
 A: CREA publishes monthly statistics (typically within the first two weeks of the following month). Agent Runway fetches fresh data once per 24 hours per board.
 
 **Q: What should I do if a feature isn't working?**
-A: Try a hard refresh (Ctrl+Shift+R / Cmd+Shift+R). If the issue persists, check your internet connection and try again. For ongoing issues, contact support.
+A: Try a hard refresh (Ctrl+Shift+R / Cmd+Shift+R). If the issue persists, check your internet connection and try again. You can also ask this AI assistant — it can diagnose many issues by checking your data and settings. For ongoing issues, contact support.
+
+**Q: How does the commission cap work?**
+A: Your per-deal brokerage fees accumulate through the year. Once they reach the annual cap amount (set in Settings), the fee rate drops to your post-cap rate (often 0%). This means you keep more per deal after cap. The cap resets each calendar year.
+
+**Q: What is the financial waterfall?**
+A: A step-by-step breakdown on the Forecast page: Gross GCI → minus brokerage share → minus monthly fees → minus per-deal fees → minus expenses → minus estimated tax → equals projected take-home income.
+
+**Q: How does early-year projection dampening work?**
+A: In January and early February (before ~10% of the year has passed), raw extrapolation from limited data would be unreliable. The system blends your projection toward your annual goal, gradually transitioning to pure data-driven projection as more of the year passes. By mid-February, the confidence ramp reaches 100%.
+
+**Q: Should I incorporate (PREC/Corp)?**
+A: This is a decision for your accountant. The platform can model sole prop, PREC, and corporate structures — each has different tax implications. Key consideration: PREC/corp offers tax deferral (combined SBD rate ~12-14% vs personal 30-50%) but dividend-only compensation generates $0 RRSP room. Consult a qualified accountant.
 `;

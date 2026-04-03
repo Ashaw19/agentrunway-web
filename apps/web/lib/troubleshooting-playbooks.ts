@@ -1,0 +1,1150 @@
+/**
+ * Troubleshooting Playbooks
+ *
+ * Topic-specific knowledge injected into the AI system prompt when the
+ * classifier detects a relevant topic. Each playbook contains:
+ *
+ * 1. Exact formulas (extracted from engine source code)
+ * 2. Common user problems and their causes
+ * 3. Step-by-step diagnostic logic the AI should follow
+ * 4. Thresholds, edge cases, and gotchas
+ *
+ * These are NOT shown to the user — they're injected into the system prompt
+ * so the AI can reason about the user's specific situation.
+ */
+
+import type { TroubleshootingTopic } from "./troubleshooting-classifier";
+
+export function getPlaybook(topic: TroubleshootingTopic): string {
+  return PLAYBOOKS[topic] ?? "";
+}
+
+export function getPlaybooks(topics: TroubleshootingTopic[]): string {
+  return topics
+    .map((t) => PLAYBOOKS[t])
+    .filter(Boolean)
+    .join("\n\n---\n\n");
+}
+
+const PLAYBOOKS: Record<TroubleshootingTopic, string> = {
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RUNWAY SCORE
+  // ═══════════════════════════════════════════════════════════════════════════
+  "runway-score": `## TROUBLESHOOTING: RUNWAY SCORE
+
+### How Runway Score is Calculated (exact formula from runway-score-engine.ts)
+
+The Runway Score is a weighted composite of 5 sub-scores, each 0–100:
+
+| Component | Weight | Source |
+|-----------|--------|--------|
+| Goal Pace | 35% | Pace vs annual goal (from projection-engine) |
+| Pipeline Health | 25% | Pipeline weighted GCI vs remaining goal gap |
+| Expense Ratio | 15% | YTD expenses ÷ YTD GCI |
+| Survival Runway | 15% | Cash reserve ÷ net monthly burn |
+| Benchmark Rank | 10% | CREA 2023 percentile position |
+
+**Final Score** = (paceScore × 0.35) + (pipelineScore × 0.25) + (expenseScore × 0.15) + (survivalScore × 0.15) + (benchmarkScore × 0.10)
+
+### Sub-Score Calculations
+
+**Pace Score** (35%):
+- Maps pace% from [-50%, +50%] to [0, 100]
+- +50% ahead → 100, On pace → 50, -50% behind → 0
+- Formula: clamp(((pacePercent + 50) / 100) × 100, 0, 100)
+
+**Pipeline Score** (25%):
+- Ratio = pipeline weighted GCI ÷ remaining goal gap
+- If goal already met (gap ≤ 0): 100
+- If ratio ≥ 1.5: 100, ratio 1.0: 80, ratio 0.5: 50, ratio 0: 20
+- Linear interpolation between breakpoints
+
+**Expense Score** (15%):
+- Ratio = YTD expenses ÷ YTD GCI
+- >50% → 30, >35% → 55, >25% → 75, ≤25% → 90
+- If no GCI yet: 50 (neutral)
+
+**Survival Score** (15%):
+- ≥6 months → 95
+- ≥4 months → 75
+- ≥2 months → 50
+- ≥1 month → 25
+- <1 month → 10
+- Not configured (no cash reserve set) → 50 (neutral)
+
+**Benchmark Score** (10%):
+- Direct percentile from CREA comparison
+- 50th percentile → 50, 90th → 90, etc.
+
+### Grade Mapping
+A+ ≥92, A ≥85, B ≥75, C ≥62, D ≥50, F <50
+
+### Common Problems & Diagnostics
+
+**"My score dropped suddenly"**
+1. Check if a deal fell through (pipeline removal reduces Pipeline Score by up to 25%)
+2. Check if expenses were added (expense ratio spike reduces Expense Score by up to 15%)
+3. Check if it's early January (seasonal fraction reset causes pace to swing wildly)
+4. Check if goal was increased (raises the bar for Pace Score)
+
+**"My score seems too low"**
+Walk through each component:
+- Is their pace negative? (35% of total — biggest contributor)
+- Is pipeline empty or thin? (25% — second biggest)
+- Is expense ratio above 35%? (15%)
+- Is cash reserve not set? (defaults to 50/100 × 0.15 = only 7.5 points)
+- Are they a newer agent with low benchmark percentile? (10%)
+
+**"How do I improve my score?"**
+Identify the weakest component and prioritize:
+1. Pace (35%) — close deals, add pipeline deals that convert
+2. Pipeline (25%) — add more pipeline deals with higher estimated prices
+3. Expenses (15%) — reduce spending or increase GCI
+4. Survival (15%) — increase cash reserve setting
+5. Benchmark (10%) — close more/larger deals to improve percentile
+
+**Edge Cases:**
+- January 1–15: Seasonal fraction is tiny → pace calculation swings wildly → tell user to wait 2–3 weeks
+- No goal set: Pace score defaults to 50 (neutral) — recommend setting a goal
+- Zero GCI: Expense score defaults to 50 (neutral)
+- Cash reserve = $0 or not set: Survival score = 50 (neutral, not 0)
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TAX
+  // ═══════════════════════════════════════════════════════════════════════════
+  tax: `## TROUBLESHOOTING: TAX ESTIMATES
+
+IMPORTANT: Always include this disclaimer once in tax-related responses: "These are estimates for planning purposes — consult a qualified accountant or tax professional for filing."
+
+### How Tax is Calculated (exact formula from canadian-tax-engine.ts)
+
+**Input**: Net self-employment income (after expenses, before tax)
+Net SE Income = Projected Annual GCI × Agent Split% − Annual Expenses
+
+**Step 1: CPP/QPP** (self-employed pay both halves)
+- CPP1: 11.90% on income between $3,500 (basic exemption) and $71,300 (YMPE 2025)
+  - Max CPP1 = ($71,300 − $3,500) × 11.90% = $8,068.20
+- CPP2: 8.00% on income between $71,300 (YMPE) and $81,200 (YAMPE 2025)
+  - Max CPP2 = ($81,200 − $71,300) × 8.00% = $792.00
+- QPP (Quebec): CPP1 equivalent = 12.80%, CPP2 = 8.00%
+- Deductions: 50% of CPP1 is deductible from taxable income. 100% of CPP2 is deductible.
+
+**Step 2: Taxable Income**
+Taxable Income = Net SE Income − (CPP1 × 50%) − (CPP2 × 100%) − RRSP contributions
+
+**Step 3: Federal Tax**
+Brackets: $0–$57,375 @ 14.5%, $57,375–$114,750 @ 20.5%, $114,750–$177,882 @ 26%, $177,882–$253,414 @ 29%, $253,414+ @ 33%
+Basic Personal Amount (BPA): $16,129 credit at 14.5% = $2,338.71 reduction
+Quebec abatement: Federal tax × 83.5% (16.5% reduction)
+
+**Step 4: Provincial Tax**
+Each province has its own brackets + surtaxes (e.g., Ontario surtax: 20% on tax >$5,710, 36% on tax >$7,307)
+
+**Step 5: Total Tax**
+Total = Federal Tax + Provincial Tax + CPP1 + CPP2
+Effective Rate = Total Tax ÷ Net SE Income
+
+**Step 6: Per-Deal Set-Aside**
+Per Deal = Total Annual Tax Estimate ÷ Projected Deal Count
+
+**Step 7: Quarterly Instalments**
+Quarterly = Total Annual Tax ÷ 4
+Required when annual tax owing >$3,000 (>$1,800 in Quebec)
+
+### GST/HST
+- Registration mandatory when taxable revenue >$30,000 in any rolling 12-month period
+- Rates: 5% (AB, BC, MB, SK, territories), 13% (ON), 14% (NS), 15% (NB, NL, PE)
+- Quebec: 5% GST + 9.975% QST = 14.975% combined
+- Input Tax Credits (ITCs) offset GST paid on business expenses
+- Net Payable = GST collected on GCI − ITCs claimed
+
+### Corporate Tax (CCPC — canadian PREC or corp)
+- Federal SBD: 9% on first $500K active business income
+- Federal General: 15% on income above $500K
+- SBD phase-out: $5 reduction for every $1 of adjusted aggregate investment income (AAII) over $50K
+- Provincial SBD rates: 0% (MB, YT) to 4.5% (NS)
+- Non-eligible dividend gross-up: 15%
+- Federal DTC (dividend tax credit): 9.0301% of grossed-up amount
+- Compensation methods: Salary (generates RRSP room, CPP-deductible), Dividends (no RRSP room, no CPP), Mixed
+
+### RRSP
+- Limit: 18% of prior year earned income, max $32,490 (2025)
+- Dividends do NOT generate RRSP room — only salary/self-employment income does
+- PREC/corp owners paying only dividends: $0 RRSP room
+
+### Common Problems & Diagnostics
+
+**"My tax estimate seems too high/low"**
+1. Check province setting — wrong province = wrong provincial brackets
+2. Check if GST/HST is included — some users confuse income tax with GST obligations
+3. Check business structure — sole prop vs PREC vs corp have different rates
+4. Check if expenses are entered — expenses reduce net income → lower tax
+5. Check RRSP contributions entered in settings
+
+**"How much should I set aside per deal?"**
+→ Direct them to Forecast page → Tax Estimates card. Formula: Annual tax estimate ÷ projected deal count.
+
+**"Should I incorporate?"**
+→ This is a professional advice question. Explain the tax deferral advantage (combined SBD rate ~12-14% vs personal 30-50%) but emphasize it depends on their total income, retention needs, and accountant guidance. NEVER recommend incorporating — only explain the math.
+
+**"What's my effective tax rate?"**
+→ (Federal + Provincial + CPP) ÷ Net self-employment income. Typically 25-45% for most agents depending on province and income level.
+
+**Edge Cases:**
+- Quebec agents: 16.5% federal abatement, QPP instead of CPP (12.80%), QST instead of provincial HST
+- Ontario surtax: Adds 20-36% on top of provincial tax for higher earners
+- Cap reached mid-year: Post-cap commission rate changes net income → tax estimate shifts
+- New agents with zero income: Tax estimate = $0 (no income to tax)
+- Province changed mid-year: System uses current province setting for full-year estimate
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PIPELINE
+  // ═══════════════════════════════════════════════════════════════════════════
+  pipeline: `## TROUBLESHOOTING: PIPELINE
+
+### Pipeline Stages & Probabilities (from pipeline-forecast-engine.ts)
+
+| Stage | Probability | Meaning |
+|-------|------------|---------|
+| Lead | 10% | Initial contact, very early |
+| Showing | 20% | Actively showing properties |
+| Offer | 40% | Offer submitted |
+| Conditional | 60% | Accepted offer with conditions |
+| Firm | 90% | Conditions waived, closing expected |
+
+**Weighted GCI** = Estimated Price × Commission% × Stage Probability
+Example: $500K home × 2.5% commission × 60% (Conditional) = $7,500 weighted GCI
+
+**Probability Override**: Users can override the default probability on any deal. If set, the override replaces the stage probability in all calculations.
+
+### Pipeline Impact on Other Metrics
+
+1. **Runway Score**: Pipeline Score = 25% weight. Weighted GCI vs remaining goal gap.
+2. **Projected Year-End GCI**: Closed YTD ÷ seasonal fraction + (pipeline weighted GCI × 50%)
+3. **Goal Gap Analysis**: Remaining deals needed = (Goal − YTD GCI − Pipeline Weighted) ÷ avg deal size
+4. **Forecast Page**: Pipeline feeds probability bands and waterfall chart
+
+### Converting Pipeline Deals
+
+When a deal closes: Pipeline deal → Closed transaction
+- User clicks "Convert to Closed" on a pipeline deal
+- This creates a new closed transaction with the pipeline data pre-filled
+- The pipeline deal is removed
+- ALL downstream metrics recalculate: GCI, pace, tax, score, etc.
+
+### Listing & Buyer Sub-Stages (pipeline-forecast-engine.ts)
+
+Listings: scheduled (15%), active (40%)
+Buyers: taxiing (10%), approach (25%)
+These are unified into the 5 main pipeline stages for the Transactions page.
+
+### Common Problems & Diagnostics
+
+**"My pipeline weighted GCI seems wrong"**
+1. Check if probability overrides are set (they replace stage defaults)
+2. Check estimated prices — if $0, weighted = $0
+3. Check commission % — may be blank or incorrect
+4. Multiple deals at same stage → adds up (sometimes surprises users)
+
+**"I converted a deal but my GCI didn't change"**
+1. Check if the converted deal has the correct sale price and commission
+2. Check if the deal date is in the current year
+3. Check if status is "closed" (not "pending" or "fallen")
+4. GCI updates should be instant — try hard refresh
+
+**"Pipeline is empty but I have deals"**
+→ Check if all deals are in the "Deals" tab (closed) vs "Pipeline" tab (in-progress). Pipeline only shows active deals, not closed ones.
+
+**"How many deals do I need?"**
+→ (Annual Goal − YTD GCI − Pipeline Weighted GCI) ÷ Average Deal GCI. Show them the Goal Gap analysis on the Forecast page.
+
+**Edge Cases:**
+- Pipeline deal with $0 estimated price: Contributes $0 to weighted GCI
+- Fallen deal: Status "fallen" — excluded from all active calculations
+- Both-sides deal in pipeline: Ensure commission% reflects total (e.g., 5% for both sides, not 2.5%)
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EXPENSES
+  // ═══════════════════════════════════════════════════════════════════════════
+  expenses: `## TROUBLESHOOTING: EXPENSES
+
+### Expense Ratio Calculation
+Expense Ratio = Total YTD Expenses ÷ YTD GCI
+
+**Benchmarks** (from advisor-engine.ts):
+- <25%: Excellent
+- 25–30%: Healthy
+- 30–40%: Needs attention (advisor engine flags at >30%)
+- >40%: Concerning
+- >50%: Warning (insights engine flags)
+
+### Expense Categories — CRA T2125 Mapping
+
+| CRA Line | Category | Notes |
+|----------|----------|-------|
+| 8210 | Advertising & Marketing | Photography, print, online ads |
+| 8211 | Vehicle Lease | Lease payments |
+| 8212 | Vehicle Insurance/Repairs | Insurance, maintenance |
+| 8213 | Fuel & Oil | Gas, oil changes |
+| 8215 | Office & Technology | Supplies, software, internet |
+| 8216 | Meals & Entertainment | 50% deductible per CRA |
+| 8220 | Professional Fees | Licensing, phone, education |
+| 8226 | Client Gifts | ~$25/person/year, must document |
+| 8228 | Other | Catch-all for misc expenses |
+
+### Mileage Calculation (CRA 2025 rates)
+- First 5,000 km: $0.72/km
+- After 5,000 km: $0.66/km
+- Deduction = (min(totalKm, 5000) × $0.72) + (max(totalKm − 5000, 0) × $0.66)
+- Must be business-use km only (personal excluded)
+
+### Receipt OCR
+Camera capture → image uploaded to Supabase Storage → /api/receipts/process for OCR extraction → fields pre-filled (vendor, amount, date, category suggestion) → user reviews and saves.
+
+### Expense Impact on Other Metrics
+1. **Tax Estimate**: Expenses reduce net SE income → lower tax
+2. **Expense Ratio**: Feeds into Runway Score (15% weight)
+3. **Survival Runway**: Monthly recurring expenses increase burn rate → shorter runway
+4. **Advisor Cards**: Flags if expense ratio >30% of projected GCI
+5. **T2125 Report**: Expenses map to CRA lines for tax filing
+
+### Common Problems & Diagnostics
+
+**"My expense ratio seems wrong"**
+1. Ratio = expenses ÷ GCI. If GCI is low (early year), ratio will be high even with normal spending
+2. Check for large one-time expenses inflating the number
+3. Monthly recurring expenses are annualized in some views
+
+**"Receipt scan didn't capture correctly"**
+→ OCR works best with clear photos, good lighting, and flat receipts. Crumpled/faded receipts may need manual entry.
+
+**"My mileage deduction seems low"**
+1. Check total km entered — is it business-only or total?
+2. Check vehicle business-use % in Settings
+3. The rate drops from $0.72 to $0.66 after 5,000 km
+
+**"What's the difference between YTD and monthly recurring?"**
+→ YTD = actual amounts entered/imported this year. Monthly recurring = fixed amounts that repeat (auto-annualized in projections).
+
+**"Meals & Entertainment — why only 50%?"**
+→ CRA rule: Only 50% of meals & entertainment costs are deductible. The system tracks the full amount but only claims 50% on T2125 line 8216.
+
+**Edge Cases:**
+- Zero GCI: Expense ratio is undefined (shown as N/A or 0%)
+- Bank import categorization: Plaid imports auto-categorize but user should review
+- Recurring vs one-time: Recurring expenses project forward; one-time don't
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FORECAST
+  // ═══════════════════════════════════════════════════════════════════════════
+  forecast: `## TROUBLESHOOTING: FORECAST & PROJECTIONS
+
+### Year-End GCI Projection (from projection-engine.ts)
+
+**Base Formula**: Projected GCI = (YTD Closed GCI ÷ Seasonal Fraction) + (Pipeline Weighted GCI × 50%)
+
+**Seasonal Fraction**: Accounts for uneven income distribution across the year.
+- Default (national): Q1=15%, Q2=30%, Q3=30%, Q4=25% (cumulative fractions used)
+- Custom: Users set their own quarterly weights in Settings
+- Day-of-year precision: Interpolates within quarters for smooth progression
+
+**Early-Year Dampening** (fraction < 10% of year, roughly Jan 1–Feb 7):
+- Raw extrapolation is unreliable with little data
+- System blends between goal and raw projection
+- Confidence ramp: 10% → 100% as more of year passes
+- Pipeline adjustment still applies (+50% of weighted GCI)
+
+**Three Scenario Modes**:
+- Conservative: Base projection × 0.85 (−15%)
+- Base: Raw projection (default)
+- Optimistic: Base projection × 1.15 (+15%)
+
+### Financial Waterfall (Forecast page)
+Shows the flow: Gross GCI → Split → Brokerage Fees → Expenses → Tax → Net Take-Home
+
+Waterfall = GCI
+  − Brokerage share (GCI × (1 − agent_split%))
+  − Monthly brokerage fees × 12
+  − Per-deal fees × projected deals (capped if annual cap set)
+  − Annual expenses (YTD + projected recurring)
+  − Tax estimate (federal + provincial + CPP)
+  = Projected take-home
+
+### Probability Bands (from probabilistic-forecast-engine.ts)
+Statistical projections using coefficient of variation (CV) of deal-to-deal GCI:
+
+P10 = base × (1 − 2σ)    — 10% chance of earning below this
+P25 = base × (1 − 1σ)    — Conservative estimate
+P50 = base               — Median projection
+P75 = base × (1 + 1σ)    — Optimistic estimate
+P90 = base × (1 + 2σ)    — 90% chance of earning at least this
+
+CV is clamped between 5% and 50%.
+Confidence levels: low (<6 months data), medium (6–12), high (≥12 months).
+
+### 5-Year Growth Plan
+Uses user's 5-year goals (set in Settings). Widens confidence bands by 5% per additional year.
+Year 1 = this year's probability bands
+Year 2-5 = user goals + widening uncertainty
+
+### Goal Gap Analysis
+Remaining = Goal − YTD GCI − Pipeline Weighted GCI
+Deals Needed = Remaining ÷ Average Deal GCI
+Daily Pace = Remaining ÷ Business Days Left in Year
+
+### Commission Cap Impact on Forecast
+- Brokerage fees are capped at annual_cap per year
+- Once YTD fees reach cap, per-deal fee rate drops to post_cap_rate
+- This means MORE net income per deal after cap → projection should account for this
+- Post-cap split is configured in Settings
+
+### Common Problems & Diagnostics
+
+**"My projection seems way too high/low"**
+1. Early year (Jan–Feb): Seasonal dampening is active — projections stabilize by March
+2. Check seasonal weights — national defaults may not match their market
+3. A single large deal can skew projections (one $30K GCI deal in January → $360K projection)
+4. Pipeline deals inflating it: 50% of weighted GCI is added
+5. Check if custom seasonal weights are set and realistic
+
+**"Probability bands are too wide/narrow"**
+1. Wide bands = high deal-to-deal variance in GCI (mix of small and large deals)
+2. Narrow bands = consistent deal sizes
+3. <6 months of data = low confidence (bands may be wider)
+4. CV is clamped at 5-50%, so bands can't collapse to zero or explode
+
+**"Waterfall numbers don't match my expectations"**
+1. Walk through each step: GCI → split → fees → expenses → tax → net
+2. Check commission split setting
+3. Check if monthly brokerage fees are set
+4. Check if per-deal fees and annual cap are configured
+5. Tax estimate depends on province — verify province setting
+
+**"My forecast shows $0"**
+→ Need at least one closed deal or pipeline deal for projections to work. With zero data, the system has nothing to extrapolate from.
+
+**Edge Cases:**
+- Leap year: 366 days used in calculations (not 365)
+- Future-dated transactions: Included in YTD if in current calendar year
+- January with no deals: Projection falls back toward goal (dampening)
+- All deals in Q1 with Q1 weight of 15%: Projection amplifies aggressively
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CRM
+  // ═══════════════════════════════════════════════════════════════════════════
+  crm: `## TROUBLESHOOTING: CRM & CLIENTS
+
+### Client Flight Statuses
+
+| Status | Meaning | Typical Duration | AI Focus |
+|--------|---------|-----------------|----------|
+| Boarding | New lead, just added | Days to weeks | Prompt first contact (speed to lead) |
+| Taxiing | Active engagement | Weeks to months | Consistent nurturing, regular touchpoints |
+| Approach | Viewing, preparing offer | Days to weeks | High-touch, responsive availability |
+| In-Flight | Live transaction | Weeks | Active deal management |
+| Landed | Deal just closed | Exactly 30 days | Post-close outreach, referral ask |
+| Cruising | Past client, settled | Indefinite | Light touch, anniversaries, referrals |
+
+**Landed → Cruising auto-transition**: System automatically moves clients from Landed to Cruising 30 days after their deal close date. This is a background process.
+
+### Client Tiers (from client-valuation-engine.ts)
+
+Clients are ranked by a composite value score:
+- **Platinum** (top 10%): Highest-value clients
+- **Gold** (10–25%): Strong contributors
+- **Silver** (25–50%): Moderate value
+- **Bronze** (bottom 50%): Lower engagement/value
+
+**Composite Score** = LGV (40%) + Health (20%) + Runway Impact (15%) + Velocity (15%) + Tax Efficiency (10%)
+
+**LGV (Lifetime GCI Value)**:
+- Repeat probability: 60% (multi-deal), 30% (recent 1-deal), 10% (old/no deals)
+- Remaining years = max(3, 10 − years_as_client)
+- Forward value = avg_deal_GCI × repeat_probability × remaining_years
+
+**Portfolio Health**:
+- Concentrated: Top 1 client >40% of GCI OR top 3 >70%
+- Balanced: Top 3 clients 50–70%
+- Diversified: Top 3 <50%
+
+### Stale Lead Detection
+
+- **Dashboard alert**: Active client with no contact in 14+ days
+- **CRM Insights**: Active client with no contact in 30+ days
+- Active = Boarding, Taxiing, Approach, or In-Flight status
+- Cruising clients are NOT flagged as stale (they're past clients, light-touch expected)
+
+### Speed to Lead
+Hours between client creation date and first recorded contact activity.
+No benchmark threshold — just tracks the metric for self-improvement.
+
+### Contact Activity Types
+call, email, text, showing, meeting, note, task
+
+### Client Detail Panel Layout
+1. Gradient status banner (color matches flight status)
+2. Circular avatar
+3. Separate First Name and Last Name fields
+4. Save button (commits first name, last name, notes together — NOT auto-save)
+5. Flight Status strip
+6. Colored section cards: Sky blue (Contact), Emerald (Address), Amber (Details), Violet (Relationships), Slate (Notes), Blue (Activity Log), Orange (Tasks), Green (Deal History)
+
+### CRM Dashboard Tab
+- Total clients by status (donut chart)
+- Touchpoint frequency (contacts per month)
+- Overdue clients (need attention)
+- Activity type breakdown (calls vs emails vs texts etc.)
+- Source funnel (where leads come from)
+- Speed to lead distribution
+
+### Common Problems & Diagnostics
+
+**"I can't find my client"**
+1. Check search — searches first name, last name, email, phone
+2. Check if client is archived (archived clients hidden by default)
+3. Check status filter — may be filtering to a specific status
+
+**"Client status didn't change"**
+→ Status is manual (user changes it) except Landed→Cruising (automatic after 30 days). The system does NOT auto-advance other statuses.
+
+**"My stale lead count seems wrong"**
+1. Dashboard uses 14-day threshold; CRM Insights uses 30-day
+2. Only active statuses count (Boarding, Taxiing, Approach, In-Flight)
+3. Cruising clients are NOT stale — they're past clients
+4. A logged activity (call, email, text, etc.) resets the timer
+
+**"Save button isn't working"**
+→ The Save button commits first name, last name, and notes. Other fields (email, phone, etc.) may save differently. Ensure required fields aren't empty.
+
+**"Client tiers don't seem accurate"**
+→ Tiers recalculate based on all clients with transaction history. New clients with no deals start as Bronze. Tiers shift as deal data changes.
+
+**"How do relationships work?"**
+→ Link clients together (spouse, referral source, etc.). Relationships are bidirectional. Useful for tracking referral chains.
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // FLIGHT CONTROL
+  // ═══════════════════════════════════════════════════════════════════════════
+  "flight-control": `## TROUBLESHOOTING: FLIGHT CONTROL
+
+### How Flight Control Works
+
+1. Daily cron job scans all active clients
+2. Detects relationship opportunities based on rules
+3. Generates personalized draft messages via AI (Groq Llama 3.3)
+4. Places drafts in Outreach Queue for agent review
+5. Agent reads, optionally edits, then sends or dismisses
+
+### Outreach Opportunity Types (7 briefing item types)
+
+| Type | Trigger | Priority |
+|------|---------|----------|
+| Birthday | Birthday within 7 days | High |
+| Deal Close Follow-Up | Transaction closed within 14 days | High |
+| Stale Lead Check-In | Active client, no contact 30+ days | Medium |
+| Seasonal Market Update | Quarterly (configurable) | Medium |
+| Purchase Anniversary | Anniversary of their home purchase | Low |
+| Interest Rate Relevance | Rate changes affecting buyers | Low |
+| New Listing Match | New listing matching client criteria | Low |
+
+### Smart Suppression
+- Clients contacted within past 14 days are suppressed (no new outreach generated)
+- **Exception**: Birthday outreach is NEVER suppressed (always appropriate)
+- This prevents over-messaging actively engaged clients
+
+### AI Voice Guide
+User writes a personal style guide in Settings → AI Voice Guide. Examples:
+- "Keep messages under 3 sentences. Always end with a question."
+- "I'm casual with existing clients but formal with new leads."
+- "Never use 'Just checking in' — I hate that phrase."
+
+This guide is injected into every AI draft generation prompt, ensuring messages match the agent's personal communication style.
+
+### Communication Tones (per client)
+- **Formal**: Professional, structured, minimal contractions
+- **Casual**: Relaxed, conversational, contractions OK
+- **Friendly**: Warm and personal (default)
+
+Each client has a tone preference set in their CRM profile. Drafts match the client's tone.
+
+### Newsletter Section
+Flight Control also includes a newsletter builder for mass updates (market reports, seasonal messages).
+
+### Common Problems & Diagnostics
+
+**"Flight Control isn't generating drafts"**
+1. Check if the agent has active clients (Boarding through In-Flight)
+2. Check if clients have been contacted recently (14-day suppression)
+3. Check if client data is complete (name, tone preference)
+4. Check if there are any trigger events (birthdays, stale leads, etc.)
+5. The cron runs daily — drafts appear the next day
+
+**"Draft tone doesn't match my style"**
+→ Check AI Voice Guide in Settings. If empty, the AI uses generic tone. Write a detailed guide for better results.
+
+**"Client keeps getting messages"**
+→ Check suppression: If an outreach is dismissed (not sent), it may regenerate next cycle. Sending or permanently dismissing prevents regeneration.
+
+**"How do I write a good AI Voice Guide?"**
+→ Include: preferred length, opening style, closing style, phrases to use, phrases to avoid, formality level, whether to reference market data. More detail = better drafts.
+
+**"Outreach queue is empty"**
+1. No trigger events detected (no birthdays, no stale leads, no recent closes)
+2. All active clients were contacted recently (suppression active)
+3. Cron may not have run yet today — check timing
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TRANSACTIONS
+  // ═══════════════════════════════════════════════════════════════════════════
+  transactions: `## TROUBLESHOOTING: TRANSACTIONS & DEALS
+
+### GCI Calculation
+**Standard**: GCI = Sale Price × Commission%
+**Override**: If gci_override is set, that value is used directly (ignoring sale price × commission)
+
+### Deal Fields
+- Date, Address, Sale Price, Commission %, GCI (auto or override)
+- Side: buyer, seller, or both (double-end)
+- Status: closed, pending, fallen
+- Client link (optional — links to CRM record)
+- Team/referral split percentage
+- Notes
+
+### Commission Split Flow
+Gross GCI → Agent Split% → Agent Net (before fees and expenses)
+Example: $500K × 2.5% = $12,500 GCI → 80/20 split → $10,000 Agent Net
+
+### Team/Referral Split
+If a deal has a team or referral split, the effective GCI is reduced:
+Agent's GCI = Gross GCI × Team Split%
+Example: $12,500 GCI × 50% team split = $6,250 to this agent
+
+### Per-Deal Brokerage Fees & Cap
+- Per-deal fee = GCI × tx_fee_rate_pct
+- YTD fees accumulate toward annual cap (tx_fee_annual_cap)
+- Once cap is reached, per-deal fee drops to post_cap_rate (or 0%)
+- Post-cap deals have higher net income
+
+### Transaction Impact on Metrics (12+ downstream effects)
+Adding/changing a closed deal triggers recalculation of:
+1. YTD GCI (total and average)
+2. Pace vs goal
+3. Projected year-end GCI
+4. Tax estimate (federal, provincial, CPP)
+5. Expense ratio (denominator changes)
+6. Runway Score (pace + expense components)
+7. Benchmark percentile
+8. Probability bands (CV recalculates)
+9. Survival runway (if income affects burn rate)
+10. Per-deal set-aside
+11. Waterfall projection
+12. Client tier recalculation
+
+### History Tab
+Annual summaries by year. Import via CSV/PDF for prior years. Shows:
+- Year, total GCI, deal count, Q1–Q4 breakdown
+- Year-over-year chart
+- Seasonal profile derived from historical quarters
+
+### Common Problems & Diagnostics
+
+**"My GCI total seems wrong"**
+1. Check for GCI overrides — may differ from sale_price × commission%
+2. Check deal dates — only current-year deals count for YTD
+3. Check deal status — only "closed" deals count (not pending or fallen)
+4. Check team/referral splits — reduces effective GCI
+5. Check for "both sides" deals — commission% should be total (e.g., 5%), not per-side
+
+**"Deal shows wrong commission"**
+→ Check if GCI override is set. Override takes precedence over sale_price × commission%.
+
+**"I added a deal but nothing changed"**
+1. Verify status is "closed" (not pending)
+2. Verify date is in current year
+3. Check if sale price and commission% are filled in
+4. Try hard refresh (Ctrl+Shift+R)
+
+**"What's the difference between Deals and Pipeline?"**
+→ Deals = completed (closed/pending/fallen). Pipeline = in-progress opportunities at various stages. Convert pipeline deals to closed when they close.
+
+**"Fallen deal is still showing in my totals"**
+→ Fallen deals should be excluded from all active calculations. If still showing, check the status field. It should be "fallen" exactly.
+
+**Edge Cases:**
+- Both-sides deal: Commission% should be total percentage (5% for both, not 2.5% per side)
+- GCI override of $0: Legal, but will contribute $0 to all calculations
+- Future-dated deals: Included if date is in current calendar year
+- Deal with no client link: Works fine for calculations, just no CRM association
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SETTINGS
+  // ═══════════════════════════════════════════════════════════════════════════
+  settings: `## TROUBLESHOOTING: SETTINGS & CONFIGURATION
+
+### Critical Settings That Affect Everything
+
+| Setting | Affects | Default |
+|---------|---------|---------|
+| Province | Tax brackets, GST/HST rate, provincial rates | Required (set in onboarding) |
+| Commission Split | Agent net income, tax, waterfall | Required |
+| Annual GCI Goal | Pace, runway score, goal gap | $0 (not set) |
+| Cash Reserve | Survival runway | $0 |
+| Experience Years | Benchmark cohort, deviation tone | 0 |
+| Business Structure | Tax calculation method (sole prop/PREC/corp) | Sole prop |
+| Seasonal Weights | Projection accuracy, pace calculation | National default |
+
+### Commission Split Options
+Presets: 70/30, 75/25, 80/20, 85/15, 90/10, 95/5, 100/0
+Custom: Any percentage via custom input
+Format: p{agent}_{brokerage} (e.g., "p80_20")
+
+### Brokerage Fee Structure
+- **Monthly fee**: Fixed amount per month
+- **Per-deal fee rate**: Percentage of GCI per transaction
+- **Annual cap**: Maximum total per-deal fees per year
+- **Post-cap rate**: Fee rate after cap is reached (often 0%)
+
+Example: $500/month + 3% per deal, capped at $20,000/year. After cap → 0% per deal.
+
+### Seasonal Weights
+- National default: Q1=15%, Q2=30%, Q3=30%, Q4=25%
+- Custom: User sets their own (must total 100%)
+- Affects: Pace calculation, projected GCI, seasonal fraction
+- Winter markets (e.g., ski resorts) might be Q4-heavy
+- Resort/cottage markets might be Q2-heavy
+
+### Home Office Settings
+- Method: Simplified ($5/sqft, max 300 sqft = $1,500) or Detailed (actual costs × %)
+- Square footage of office and total home
+- Business-use percentage
+
+### GST/HST Registration
+- Toggle: registered or not
+- If registered: GST/HST collected on GCI, ITCs claimed on expenses
+- If not: No GST obligations (under $30,000 threshold)
+
+### Vehicle Business Use
+- Percentage of total km that are business-related
+- Applied to mileage deduction calculation
+- Also applied to vehicle expense deductions (insurance, repairs, fuel)
+
+### 5-Year Growth Goals
+- Set target GCI for each of the next 5 years
+- Feeds into 5-year growth plan on Forecast page
+- Used for long-term probability band projections
+
+### CREA Board Selection
+- Board determines local market comparison data
+- Sub-regions available for some boards (e.g., NBREA → Fredericton Area)
+- Market Position and Market Conditions use board data
+
+### AI Voice Guide
+- Free-text field describing personal communication style
+- Injected into all AI-generated outreach drafts
+- More detail = better draft quality
+
+### Common Problems & Diagnostics
+
+**"My numbers changed after updating settings"**
+→ Expected! Settings are inputs to all engines. Changing province, split, goal, or expenses cascades through every calculation.
+
+**"Province is wrong"**
+→ Settings → Province. Changes provincial tax brackets, GST/HST rate, and all tax estimates. Change takes effect immediately.
+
+**"I changed my split but my agent net didn't update"**
+→ The new split applies to all future calculations. Historical closed deals keep their original split unless individually edited.
+
+**"Cap isn't working"**
+1. Check if annual_cap is set (>$0)
+2. Check if YTD per-deal fees have actually reached the cap
+3. Check post-cap rate — if same as regular rate, there's no visible change
+
+**"Seasonal weights seem wrong"**
+→ Custom weights must total 100%. If they don't, the system may normalize or fall back to national defaults.
+
+**"How do I reset to defaults?"**
+→ Most settings can be changed back individually. There's no "reset all" button. Onboarding values can be overwritten in Settings.
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SURVIVAL
+  // ═══════════════════════════════════════════════════════════════════════════
+  survival: `## TROUBLESHOOTING: SURVIVAL RUNWAY
+
+### Survival Calculation (from survival-engine.ts)
+
+**Formula**: Runway Months = Cash Reserve ÷ Net Monthly Burn
+
+**Net Monthly Burn** = Monthly Expenses − Monthly Income
+- Monthly Expenses = (YTD Expenses ÷ months elapsed) + monthly recurring expenses
+- Monthly Income = YTD Agent Net ÷ months elapsed
+
+**Risk Levels**:
+| Months | Level | Color |
+|--------|-------|-------|
+| ≥6 | Strong | Green |
+| 4–6 | Healthy | Blue |
+| 2–4 | Warning | Yellow |
+| <2 | Critical | Red |
+| Not configured | Neutral | Gray |
+
+**Cap**: Runway is capped at 24 months maximum (to avoid infinity when burn ≤ 0).
+
+**Special Cases**:
+- Net burn ≤ 0 (income exceeds expenses): If cash reserve > 0, runway = 24 months (strong). If cash = 0, runway = 0.
+- Cash reserve not set ($0): Returns -1 (sentinel) → displayed as "Not Configured"
+- Division by zero protection: If burn is exactly 0, returns cap (24 months)
+
+### Survival Impact on Other Metrics
+1. **Runway Score**: Survival is 15% of composite score
+2. **Advisor Cards**: Flags when <3 months
+3. **Insights Engine**: "Survival warning" insight
+4. **Dashboard**: Survival status indicator card
+
+### Common Problems & Diagnostics
+
+**"Survival shows 'Not Configured'"**
+→ Cash reserve is $0 or not set. Go to Settings → Cash Reserve and enter current business savings.
+
+**"Survival shows 24 months — is that right?"**
+→ Yes, if monthly income exceeds monthly expenses (net burn ≤ 0), runway caps at 24 months. This means you're cash-flow positive.
+
+**"Survival seems too low"**
+1. Check cash reserve amount — is it current?
+2. Check if large one-time expenses inflated monthly burn
+3. Check if income is seasonal — early year with few deals = low monthly income average
+4. Monthly burn = annualized expenses ÷ 12, not just recurring
+
+**"How do I improve survival?"**
+1. Increase cash reserve (Settings)
+2. Reduce expenses
+3. Close more deals (increases monthly income average)
+4. Both income and expenses are averaged — more months of data = smoother calculation
+
+**Edge Cases:**
+- January 1: Only 1 month of data — burn rate is based on that single month
+- Large expense in January: Inflates monthly burn for the whole year until more months pass
+- No deals closed yet: Monthly income = $0, so burn = full expenses → very low runway
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BENCHMARK
+  // ═══════════════════════════════════════════════════════════════════════════
+  benchmark: `## TROUBLESHOOTING: BENCHMARK & MARKET COMPARISON
+
+### CREA Benchmark Data (from benchmark-engine.ts)
+
+Uses CREA 2023 national statistics. Cohorts based on experience years:
+
+| Cohort | Years | Median GCI | Median Deals | Avg Price |
+|--------|-------|-----------|-------------|-----------|
+| Rookie | 0–2 | $42,000 | 4 | $380,000 |
+| Growth | 3–5 | $78,000 | 7 | $400,000 |
+| Established | 6–10 | $96,000 | 8 | $420,000 |
+| Top Producer | 10+ | $145,000 | 12 | $460,000 |
+
+**National Median** (all agents): $96,000 GCI, 8 deals
+
+### Percentile Calculation
+Linear interpolation between breakpoints: p25, median (p50), p75, p90
+- Below p25: Interpolate between 0 and p25
+- p25 to p50: Linear interpolation
+- p50 to p75: Linear interpolation
+- p75 to p90: Linear interpolation
+- Above p90: Capped at ~99th percentile
+
+### Where You Stand (from where-you-stand-engine.ts)
+
+**Performance Bands**:
+- Launching: 0–10th percentile
+- Climbing: 10–25th percentile
+- Competitive: 25–50th percentile
+- Advancing: 50–75th percentile
+- Leading: 75th+ percentile
+
+**Momentum**: gaining (improving vs last year), holding (flat), losing (declining), no_data
+
+**Position vs Market**:
+- Above: ratio > 1.15 (annualized deals vs board average)
+- At: 0.85–1.15
+- Below: < 0.85
+
+**Guards**:
+- Early career (<3 years): Softens "below market" messaging
+- Too early in year (fraction < 0.16 AND <3 deals): Suppresses projection entirely
+
+### Board Comparison (CREA MLS® Stats)
+- Market Position: Your avg deal size vs local board average price
+  - Above Market: >5% higher
+  - At Market: ±5%
+  - Below Market: >5% lower
+- Market Conditions (SNLR = Sales ÷ New Listings):
+  - Seller's: SNLR >65%
+  - Balanced: 45–65% (national avg: 54.8%)
+  - Buyer's: <45%
+
+### Common Problems & Diagnostics
+
+**"My benchmark seems wrong"**
+1. Check experience years in Settings — determines which cohort you're compared to
+2. Benchmark uses projected annual GCI (not just YTD)
+3. CREA data is 2023 — may not reflect 2024/2025 market shifts
+
+**"Why am I compared to rookies?"**
+→ Experience years is set to 0–2 in Settings. Update to actual years of experience.
+
+**"I'm above median but score is low"**
+→ Benchmark is only 10% of Runway Score. Other components (pace 35%, pipeline 25%) have much more impact.
+
+**"Market Position says 'Below Market' but I sell expensive homes"**
+→ Market Position compares your AVERAGE deal size to the local board average. If you do some small deals mixed with large ones, your average may be lower.
+
+**"Board data isn't showing"**
+1. Check if a board is selected in Settings → Local Market Board
+2. CREA data refreshes monthly (first 2 weeks of each month)
+3. Agent Runway caches board data for 24 hours
+
+**Edge Cases:**
+- No history data: Benchmark uses only current year
+- Experience = 0: Rookie cohort (lowest benchmarks)
+- Early year (<16% elapsed, <3 deals): "Too early" guard suppresses market positioning
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SOCIAL
+  // ═══════════════════════════════════════════════════════════════════════════
+  social: `## TROUBLESHOOTING: SOCIAL STUDIO
+
+### How Social Studio Works
+1. Select deals from the current month/quarter
+2. Choose a template family (carousel style)
+3. Configure branding: logo, headshot, agent cutout, colors
+4. Customize individual slides (text, images, layout)
+5. Add caption with hashtags
+6. Export: Direct to Instagram OR Canva ZIP
+
+### Features
+- Month-in-review carousels for Instagram
+- Multiple template families/styles
+- Branding customization (logo, headshot, business identity from Profile)
+- Caption builder with hashtag suggestions
+- Multi-slide carousel format
+- Export options: Instagram direct, Canva-compatible ZIP
+
+### Common Problems & Diagnostics
+
+**"No deals showing to select"**
+→ Deals must be closed and dated within the selected time period. Check if deals are in the correct month/quarter.
+
+**"My branding looks wrong"**
+→ Check Profile page: logo, headshot, and business identity settings. These feed into Social Studio templates.
+
+**"Export to Instagram failed"**
+→ Instagram integration requires proper authentication. Try Canva ZIP as an alternative export method.
+
+**"How do I customize slides?"**
+→ After selecting deals and template, each slide can be individually customized. Click on a slide to edit text, layout, and images.
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // IMPORT
+  // ═══════════════════════════════════════════════════════════════════════════
+  import: `## TROUBLESHOOTING: IMPORT
+
+### Supported Import Methods
+1. **CSV**: Upload a CSV file with transaction/history data
+2. **Spreadsheet**: Excel/Google Sheets format
+3. **PDF**: Brokerage reports (e.g., Lone Wolf Back Office exports)
+
+### Column Detection (from column-classifier.ts)
+System uses heuristic column classification:
+- Attempts to match column headers to expected fields
+- Supports: date, address, sale price, commission%, GCI, client name, side, status
+- Shows a mapping preview for user confirmation before import
+
+### Import Flow
+1. Upload file (CSV, XLSX, PDF)
+2. System detects columns/fields
+3. User reviews and confirms column mapping
+4. Preview of data to be imported
+5. Import executes (row by row)
+6. Summary: imported count, skipped count, errors
+
+### History Import (Annual Summaries)
+Imports into the History tab with: Year, Annual GCI, Deal Count, Q1–Q4 breakdown
+Used for: Year-over-year comparison, seasonal profile, trend detection
+
+### Common Problems & Diagnostics
+
+**"Import failed"**
+1. Check file format — must be CSV, XLSX, or PDF
+2. Check for special characters in headers
+3. Check for empty rows or malformed data
+4. Check file size — very large files may timeout
+5. Check if date formats are consistent (YYYY-MM-DD preferred)
+
+**"Some rows were skipped"**
+→ Rows skip when required fields are missing (typically date and sale price or GCI). Check the error summary for specific row numbers.
+
+**"Columns weren't detected correctly"**
+→ The mapping preview step lets you manually reassign columns. If headers are non-standard, manual mapping may be needed.
+
+**"PDF import didn't work"**
+→ PDF import works best with structured tabular data. Some PDF formats (image-based, non-standard layouts) may not parse correctly. Try exporting as CSV from the source system instead.
+
+**"Duplicate transactions after import"**
+→ The system attempts to detect duplicates by date + address + amount. If duplicates slip through, manually delete the extras from the Deals tab.
+
+**CRITICAL**: Import reliability is essential. Users who hit problems during onboarding import may not come back. If import fails, help them troubleshoot step by step.
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // VOICE
+  // ═══════════════════════════════════════════════════════════════════════════
+  voice: `## TROUBLESHOOTING: VOICE INPUT
+
+### How Voice Input Works
+1. User taps microphone in Quick Actions FAB (floating action button, bottom-right)
+2. Browser requests microphone permission
+3. Audio recorded → sent to Groq Whisper for transcription
+4. Transcript → Groq Llama 3.3 70B for intent classification
+5. Classified into one of 5 intents:
+   - new_client: Add a new contact
+   - new_expense: Log an expense
+   - new_transaction: Record a deal
+   - note: Log a contact activity
+   - unknown: Could not determine intent
+6. Route to correct page with fields pre-filled (amber-tinted to indicate voice-filled)
+7. User reviews, corrects if needed, and saves
+
+### Intent Classification Details
+- Confidence levels: high, medium, low
+- If low confidence, system asks for clarification
+- Amounts parsed from natural language ("twelve hundred" → $1,200)
+- Addresses parsed from spoken format
+- Client names extracted for matching against CRM
+
+### Common Problems & Diagnostics
+
+**"Microphone not working"**
+1. Browser permission: Check if microphone access is granted (browser settings)
+2. HTTPS required: Voice input only works on HTTPS (not HTTP)
+3. Device selection: Check if correct microphone is selected in browser
+4. Ad blockers: Some extensions block microphone access
+
+**"Transcription was wrong"**
+→ Whisper works best with clear speech, minimal background noise. Try speaking more slowly and clearly. Proper nouns (addresses, names) may need manual correction.
+
+**"Wrong intent detected"**
+→ If "add a client named John" is classified as a note, try rephrasing: "new client John Smith, phone 555-1234". Using explicit keywords helps: "new client", "expense", "sold", "deal closed".
+
+**"Voice-filled fields are incorrect"**
+→ Fields are pre-filled as best-effort extraction. The amber tint indicates AI-filled content that should be reviewed. Users ALWAYS review and correct before saving.
+
+**"FAB button isn't showing"**
+→ Quick Actions FAB appears on every app page. If not visible:
+1. Check if scrolled down (may be behind content on small screens)
+2. Check if a modal is blocking it
+3. Try refreshing the page
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ONBOARDING
+  // ═══════════════════════════════════════════════════════════════════════════
+  onboarding: `## TROUBLESHOOTING: ONBOARDING & GETTING STARTED
+
+### Onboarding Wizard (8 steps, ~2 minutes)
+
+1. **Province**: Select your Canadian province/territory (determines tax rates)
+2. **About You**: Display name, brokerage affiliation
+3. **Business Structure**: Sole proprietor, PREC, or Corporation
+4. **Commission & Fees**: Split percentage, brokerage monthly fee, per-deal fee, annual cap
+5. **Experience Level**: Years in real estate (determines benchmark cohort)
+6. **Color Theme**: Choose from 15 themes + dark mode
+7. **Annual Goal**: Set GCI goal for the current year
+8. **Confirmation**: Review and finish
+
+All settings are editable later in Settings.
+
+### After Onboarding — Priority Actions
+1. **Add first deal**: Transactions → New → Enter a closed deal
+2. **Add pipeline deals**: Transactions → Pipeline → Add active opportunities
+3. **Import history**: Transactions → History → Import prior years (CSV/PDF)
+4. **Add clients**: CRM → Add your key contacts
+5. **Set cash reserve**: Settings → Cash Reserve
+6. **Write AI Voice Guide**: Settings → AI Voice Guide (for Flight Control)
+7. **Select CREA board**: Settings → Local Market Board
+
+### Welcome Tour
+After onboarding, a welcome tour highlights key features:
+- Dashboard overview
+- AI Assistant access
+- Quick Actions FAB
+- Navigation structure
+
+### Common Problems & Diagnostics
+
+**"I skipped onboarding — how do I set up?"**
+→ All onboarding settings are in Settings page. Walk through: province, structure, split, fees, experience, goal.
+
+**"My numbers look weird after onboarding"**
+→ With zero data, projections rely on the goal and seasonal fractions. Add deals and pipeline to see meaningful numbers.
+
+**"What should I do first?"**
+→ Priority: (1) Add 2-3 recent closed deals, (2) Add pipeline deals, (3) Set cash reserve, (4) Import history if available. This gives the AI enough data to generate useful insights.
+
+**"I set the wrong province"**
+→ Settings → Province. Change it — all tax calculations update immediately.
+
+**"I don't know my commission split"**
+→ Check with your brokerage. Common ranges: 70/30 (newer agents) to 95/5 or 100/0 (experienced). If unsure, start with 80/20 and adjust later.
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GENERAL (catch-all)
+  // ═══════════════════════════════════════════════════════════════════════════
+  general: `## GENERAL TROUBLESHOOTING
+
+### When No Specific Topic Matches
+
+If the user's question doesn't clearly match a specific feature area, follow this general diagnostic approach:
+
+1. **Identify what they're looking at**: Ask or infer from currentPage context
+2. **Check if data exists**: Many "broken" reports are actually empty-state issues
+3. **Suggest the relevant page**: Point them to the correct feature
+4. **Common quick fixes**: Hard refresh (Ctrl+Shift+R), check Settings, verify data entry
+
+### Universal Quick Fixes
+- **Page not loading**: Hard refresh, check internet connection
+- **Numbers seem wrong**: Check Settings (province, split, goal, fees)
+- **Feature not available**: May require Professional subscription
+- **Data not updating**: Changes should be instant — try hard refresh
+- **Missing feature**: Check if it's on a different page/tab
+
+### Subscription Tiers
+- **Free**: Limited features, basic dashboard
+- **Professional**: Full access to all features including AI Assistant, Flight Control, Forecast, Reports, Social Studio
+- **Team**: Professional features + team management and org insights
+
+### Keyboard Shortcuts
+N=New transaction, D=Dashboard, T=Transactions, P=Pipeline, F=Forecast, E=Expenses, R=Reports
+
+### Getting Help
+If the AI can't resolve the issue:
+- Describe the problem with steps to reproduce
+- Note the page/tab where the issue occurs
+- Note what you expected vs what happened
+- Contact support with these details
+
+### Sandbox Mode
+Users can explore the platform with sample data using Sandbox Mode. This fills the dashboard and features with realistic demo data to understand the platform before entering real information. Sandbox data is clearly marked and doesn't affect real calculations.
+`,
+};
