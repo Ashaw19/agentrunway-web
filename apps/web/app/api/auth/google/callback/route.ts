@@ -113,6 +113,11 @@ export async function GET(req: NextRequest) {
       name?: string;
     };
 
+    const email = meJson.email ?? "";
+    if (!email) {
+      throw new Error("Google account has no email address — cannot connect");
+    }
+
     // ── Step 3: Parse granted scopes ────────────────────────────────────
     const grantedScopes = tokenJson.scope ? tokenJson.scope.split(" ") : [];
     const gmailEnabled    = grantedScopes.includes("https://www.googleapis.com/auth/gmail.send");
@@ -131,7 +136,7 @@ export async function GET(req: NextRequest) {
       .upsert(
         {
           user_id:               user.id,
-          email_address:         meJson.email ?? "",
+          email_address:         email,
           display_name:          meJson.name ?? null,
           access_token_enc:      accessTokenEnc,
           refresh_token_enc:     refreshTokenEnc,

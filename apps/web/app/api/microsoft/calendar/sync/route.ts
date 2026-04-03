@@ -248,12 +248,14 @@ export async function POST(): Promise<NextResponse> {
     }
 
     // ── PUSH: Sync Agent Runway events TO Outlook ──────────────────────
+    // Push events that don't yet have an Outlook event ID
+    // Use "pending" OR "synced" — if Google push already set status to "synced", we still need Outlook push
     const { data: pendingEvents } = await supabase
       .from("calendar_events")
       .select("*")
       .eq("user_id", user.id)
       .eq("source", "agent_runway")
-      .eq("sync_status", "pending")
+      .in("sync_status", ["pending", "synced"])
       .is("outlook_event_id", null);
 
     let pushed = 0;

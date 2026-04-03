@@ -8,25 +8,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import dns from "dns/promises";
 
-// Block SSRF — reject private/internal/localhost hostnames
-function isPrivateHost(host: string): boolean {
+// ── SSRF protection (with DNS resolution) ───────────────────────────────────
+
+function isPrivateIP(ip: string): boolean {
+  const parts = ip.split(".").map(Number);
+  if (parts.length !== 4) return false;
+  if (parts[0] === 10) return true;                          // 10.0.0.0/8
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;  // 172.16.0.0/12
+  if (parts[0] === 192 && parts[1] === 168) return true;    // 192.168.0.0/16
+  if (parts[0] === 127) return true;                          // 127.0.0.0/8
+  if (parts[0] === 169 && parts[1] === 254) return true;    // link-local
+  if (parts[0] === 0) return true;                            // 0.0.0.0/8
+  return false;
+}
+
+async function isPrivateHost(host: string): Promise<boolean> {
   const lower = host.toLowerCase().trim();
   if (lower === "localhost" || lower === "0.0.0.0" || lower === "[::]") return true;
   if (lower.endsWith(".local") || lower.endsWith(".internal")) return true;
-  // IPv4 private ranges
-  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
-  const m = lower.match(ipv4);
-  if (m) {
-    const [, a, b] = m.map(Number);
-    if (a === 10) return true;                          // 10.0.0.0/8
-    if (a === 172 && b >= 16 && b <= 31) return true;   // 172.16.0.0/12
-    if (a === 192 && b === 168) return true;             // 192.168.0.0/16
-    if (a === 127) return true;                          // 127.0.0.0/8
-    if (a === 169 && b === 254) return true;             // link-local
-    if (a === 0) return true;                            // 0.0.0.0/8
+  // Check if host is already an IP
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(lower)) return isPrivateIP(lower);
+  // Resolve and check all A records
+  try {
+    const addresses = await dns.resolve4(host);
+    return addresses.some(isPrivateIP);
+  } catch {
+    return true; // If we can't resolve, block it
   }
-  return false;
 }
 
 export async function POST(req: NextRequest) {
@@ -63,8 +73,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "smtp_host is required." }, { status: 400 });
   }
 
-  // Block private/internal hosts (SSRF protection)
-  if (isPrivateHost(smtp_host)) {
+  // Block private/internal hosts (SSRF protection with DNS resolution)
+  if (await isPrivateHost(smtp_host)) {
     return NextResponse.json(
       { error: "Invalid SMTP host — private/internal addresses are not allowed." },
       { status: 400 }
@@ -86,7 +96,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const port = smtp_port ?? 587;
     const transporter = nodemailer.default.createTransport({
       host: smtp_host,
       port,
@@ -102,7 +111,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, message: "SMTP connection verified successfully." });
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const rawMessage = err instanceof Error ? err.message : String(err);
+    // Sanitize: strip internal IPs/hostnames from nodemailer error messages
+    const message = rawMessage.replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, "[redacted]")
+      .replace(/connect ECONNREFUSED .+/, "Connection refused by SMTP server");
+    console.error("[smtp/test] SMTP verify failed:", rawMessage);
     return NextResponse.json(
       { ok: false, error: `SMTP test failed: ${message}` },
       { status: 422 }

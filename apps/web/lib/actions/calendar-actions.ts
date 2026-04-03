@@ -301,6 +301,7 @@ export async function updateCalendarEvent(
       .eq("id", id);
   }
 
+  revalidatePath("/dashboard");
   return { ok: true };
 }
 
@@ -355,6 +356,7 @@ export async function deleteCalendarEvent(id: string) {
     .update({ sync_status: "deleted", updated_at: new Date().toISOString() })
     .eq("id", id);
 
+  revalidatePath("/dashboard");
   return { ok: true };
 }
 
@@ -459,7 +461,7 @@ export async function syncUserCalendar(userId: string): Promise<{
                 source:          "google",
                 source_type:     "personal",
                 title:           ev.summary ?? "(No title)",
-                description:     null,
+                description:     ev.description ?? null,
                 start_at:        startAt,
                 end_at:          endAt,
                 all_day:         !!ev.start.date,

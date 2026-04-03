@@ -1022,6 +1022,11 @@ Context:
 - CRITICAL: ${clientName} was the SELLER — they no longer own this property. Do NOT offer a home value update as if they still own it.
 - This is a neighbourhood/market update framed as useful context — great for someone thinking about their next move
 
+RESEARCH CONTEXT:
+- Warmth-competence balance: open with warmth (how have they been), then demonstrate competence (market knowledge for their old neighbourhood).
+- Reciprocity: the market snapshot IS the gift. Offer it freely.
+- Canadian calibration: "the area has shifted a bit" beats "prices have SKYROCKETED since you sold."
+
 ${TONE_INSTRUCTIONS[tone]}
 
 Write a 2–3 paragraph email (under 150 words) that:
@@ -1044,6 +1049,11 @@ Context:
 - It's been ${milestoneYears} year${milestoneYears !== 1 ? "s" : ""} since the client purchased ${location}
 - This is a meaningful milestone — markets shift and the ${ordinal} mark is worth acknowledging
 - The agent is offering a complimentary, no-obligation home value update (CMA / market snapshot)
+
+RESEARCH CONTEXT:
+- Warmth-competence balance: open with warmth (the milestone), then demonstrate competence (the value update offer).
+- Reciprocity: the free home value estimate IS the gift. Frame it as "just so you have the number."
+- Canadian calibration: soft CTA — "if you're curious" beats "you should know what your home is worth."
 
 ${TONE_INSTRUCTIONS[tone]}
 
@@ -1078,6 +1088,12 @@ Context:
 ${nextBestAngle ? `- Recommended approach: ${nextBestAngle}` : ""}
 ${memorySummary ? `- Background: ${memorySummary}` : ""}
 - The client hasn't been in touch recently — this is a warm, value-first touchpoint
+
+RESEARCH CONTEXT:
+- Warmth-first: acknowledge their situation with genuine care, not diagnosis. Show you remember.
+- Reciprocity: offer something useful (a resource, a connection, a perspective) before any ask.
+- Canadian calibration: "I noticed something that might be relevant" beats "I have the answer to your problem."
+- Personalization: use the pain point naturally — don't make it feel like you're reading from a file.
 
 ${TONE_INSTRUCTIONS[tone]}
 
@@ -1191,6 +1207,12 @@ ${budgetContext ? `- Financial context from their profile: ${budgetContext}` : "
 ${painPoint ? `- Known concern: ${painPoint}` : ""}
 - The agent has noticed from their CRM that this client may have financial concerns around their renewal
 - The goal: be the trusted advisor who reaches out BEFORE the bank's generic renewal letter
+
+RESEARCH CONTEXT:
+- Warmth-competence balance: open with warmth (checking in, how are things), THEN demonstrate competence (the renewal insight).
+- Reciprocity: you're GIVING them a valuable heads-up and a broker connection. Frame it as doing them a favour.
+- Canadian calibration: "it might be worth chatting with a broker" beats "you need to compare rates now."
+- If financial concerns are known, acknowledge gently — don't diagnose or lecture.
 
 ${TONE_INSTRUCTIONS[tone]}
 

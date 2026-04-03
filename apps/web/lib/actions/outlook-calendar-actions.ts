@@ -160,6 +160,7 @@ export async function syncUserOutlookCalendar(userId: string): Promise<{
               user_id: userId,
               outlook_event_id: ev.id,
               source: "outlook",
+              source_type: "personal",
               title: ev.subject ?? "(No title)",
               description: ev.bodyPreview ?? null,
               location: ev.location?.displayName ?? null,
