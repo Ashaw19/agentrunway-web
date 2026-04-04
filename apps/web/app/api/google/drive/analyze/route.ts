@@ -1,8 +1,8 @@
 /**
  * POST /api/google/drive/analyze
  *
- * Analyze a Google Drive document using Groq AI.
- * Downloads the file content, sends to Groq for real-estate-aware analysis,
+ * Analyze a Google Drive document using Claude AI.
+ * Downloads the file content, sends to Claude for real-estate-aware analysis,
  * and stores the results in drive_documents.
  *
  * Expects: { file_id: string }
@@ -14,7 +14,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { requirePro } from "@/lib/require-pro";
-import OpenAI from "openai";
+import { generateText } from "ai";
+import { models, heliconeHeaders } from "@/lib/ai/provider";
 import {
   getValidAccessToken,
   type GoogleConnection,
@@ -44,7 +45,7 @@ Required JSON structure:
   "quality_notes": "<optional: any issues, outdated info, or improvement suggestions>"
 }`;
 
-// Max text to send to Groq (chars) — prevent context overflow
+// Max text to send to Claude (chars) — prevent context overflow
 const MAX_TEXT_LENGTH = 30_000;
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  if (!process.env.GROQ_API_KEY) {
+  if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       { error: "AI analysis not configured" },
       { status: 503 }
@@ -138,25 +139,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         "\n\n[Document truncated — showing first 30,000 characters]";
     }
 
-    // ── Analyze with Groq ───────────────────────────────────────────────
-    const groq = new OpenAI({
-      apiKey: process.env.GROQ_API_KEY,
-      baseURL: "https://api.groq.com/openai/v1",
-    });
-
-    const completion = await groq.chat.completions.create({
-      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+    // ── Analyze with Claude ──────────────────────────────────────────────
+    const { text: rawResponse } = await generateText({
+      model: models.default,
+      system: ANALYSIS_PROMPT,
+      prompt: `Document name: "${meta.name}"\nDocument type (MIME): ${meta.mimeType}\n\n--- DOCUMENT CONTENT ---\n${text}`,
       temperature: 0.1,
-      messages: [
-        { role: "system", content: ANALYSIS_PROMPT },
-        {
-          role: "user",
-          content: `Document name: "${meta.name}"\nDocument type (MIME): ${meta.mimeType}\n\n--- DOCUMENT CONTENT ---\n${text}`,
-        },
-      ],
+      headers: heliconeHeaders({ userId: user.id, feature: "drive-analyze" }),
     });
-
-    const rawResponse = completion.choices[0]?.message?.content ?? "{}";
 
     // Parse JSON from response (strip code fences if present)
     let analysis: {

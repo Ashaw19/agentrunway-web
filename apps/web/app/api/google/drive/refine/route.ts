@@ -1,8 +1,8 @@
 /**
  * POST /api/google/drive/refine
  *
- * Use Groq AI to improve/refine a Google Drive document.
- * Downloads the content, sends to Groq with a refinement prompt,
+ * Use Claude AI to improve/refine a Google Drive document.
+ * Downloads the content, sends to Claude with a refinement prompt,
  * and optionally writes the improved version back to Drive.
  *
  * Expects: {
@@ -18,7 +18,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { requirePro } from "@/lib/require-pro";
-import OpenAI from "openai";
+import { generateText } from "ai";
+import { models, heliconeHeaders } from "@/lib/ai/provider";
 import {
   getValidAccessToken,
   type GoogleConnection,
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  if (!process.env.GROQ_API_KEY) {
+  if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
       { error: "AI refinement not configured" },
       { status: 503 }
@@ -142,26 +143,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         "\n\n[Document truncated — showing first 30,000 characters]";
     }
 
-    // ── Refine with Groq ────────────────────────────────────────────────
-    const groq = new OpenAI({
-      apiKey: process.env.GROQ_API_KEY,
-      baseURL: "https://api.groq.com/openai/v1",
-    });
-
-    const completion = await groq.chat.completions.create({
-      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+    // ── Refine with Claude ───────────────────────────────────────────────
+    const { text: refinedRaw } = await generateText({
+      model: models.default,
+      system: REFINE_SYSTEM_PROMPT,
+      prompt: `Instruction: ${body.instruction}\n\nDocument name: "${meta.name}"\n\n--- ORIGINAL DOCUMENT ---\n${text}`,
       temperature: 0.3,
-      messages: [
-        { role: "system", content: REFINE_SYSTEM_PROMPT },
-        {
-          role: "user",
-          content: `Instruction: ${body.instruction}\n\nDocument name: "${meta.name}"\n\n--- ORIGINAL DOCUMENT ---\n${text}`,
-        },
-      ],
+      headers: heliconeHeaders({ userId: user.id, feature: "drive-refine" }),
     });
 
-    const refinedContent =
-      completion.choices[0]?.message?.content ?? text;
+    const refinedContent = refinedRaw || text;
 
     // ── Optionally write back to Drive ───────────────────────────────────
     let writtenBack = false;

@@ -1,8 +1,9 @@
-import OpenAI from "openai";
+import { generateText } from "ai";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { requirePro } from "@/lib/require-pro";
+import { models, heliconeHeaders } from "@/lib/ai/provider";
 import type { VoiceDraft } from "@/lib/voice/types";
 
 // ── Multi-intent extraction prompt ───────────────────────────────────────────
@@ -157,8 +158,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!process.env.GROQ_API_KEY) {
-    return NextResponse.json({ error: "GROQ_API_KEY is not configured" }, { status: 503 });
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({ error: "AI provider is not configured" }, { status: 503 });
   }
 
   let body: { transcript?: string };
@@ -174,25 +175,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Transcript too long (max 10,000 chars)" }, { status: 400 });
   }
 
-  const groq = new OpenAI({
-    apiKey: process.env.GROQ_API_KEY,
-    baseURL: "https://api.groq.com/openai/v1",
-  });
-
   try {
-    const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages: [
-        {
-          role: "user",
-          content: EXTRACT_PROMPT(body.transcript),
-        },
-      ],
+    const { text: raw } = await generateText({
+      model: models.fast,
+      prompt: EXTRACT_PROMPT(body.transcript),
       temperature: 0.1,
-      max_tokens: 1200,
+      maxTokens: 1200,
+      headers: heliconeHeaders({ userId: user.id, feature: "voice-extract" }),
     });
-
-    const raw = response.choices[0]?.message?.content ?? "";
 
     // Strip any accidental markdown fences
     const cleaned = raw

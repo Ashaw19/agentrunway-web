@@ -4,6 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { requirePro } from "@/lib/require-pro";
 
+// NOTE: Groq Whisper audio transcription uses the OpenAI-compatible REST API,
+// NOT the Vercel AI SDK (which has no audio transcription support).
+// The @ai-sdk/groq provider only supports chat/text generation.
+
 export async function POST(req: NextRequest) {
   // ── Auth guard ────────────────────────────────────────────────────────────
   const supabase = await createClient();

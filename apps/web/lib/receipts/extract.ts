@@ -1,15 +1,13 @@
 /**
- * Receipt OCR extraction via Groq vision.
+ * Receipt OCR extraction via Claude vision.
  * Sends the receipt image as a base64 data URL and returns structured JSON.
  *
- * Primary model: llama-4-scout (multimodal)
- * Fallback model: llama-3.2-90b-vision-preview
+ * Model: Claude Haiku 4.5 (fast tier — cheap OCR extraction)
  */
-import OpenAI from "openai";
+import { generateText } from "ai";
+import { models, heliconeHeaders } from "@/lib/ai/provider";
 import type { OcrExtraction } from "@/lib/types/receipt";
 import { withRetry } from "@/lib/retry";
-
-const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 
 const VISION_PROMPT = `You are a receipt data extraction assistant for Canadian real estate agents.
 Extract structured data from this receipt image.
@@ -67,42 +65,33 @@ Rules:
 - ALWAYS read the actual total from the receipt — NEVER use a line item price as the total
 - Confidence: 0.9+ all key fields visible; 0.65–0.9 minor gaps; <0.65 significant issues`;
 
-/** Build and return a Groq client using the OpenAI-compatible endpoint */
-function groqClient(): OpenAI {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) throw new Error("GROQ_API_KEY is not set");
-  return new OpenAI({
-    apiKey:  key,
-    baseURL: "https://api.groq.com/openai/v1",
-  });
-}
-
 /**
- * Send a base64-encoded receipt image to Groq vision and return extracted fields.
+ * Send a base64-encoded receipt image to Claude vision and return extracted fields.
  *
  * @param imageBase64  raw base64 string (no data-URI prefix)
  * @param mimeType     image MIME type, e.g. "image/jpeg"
+ * @param userId       optional user ID for Helicone cost tracking
  */
 export async function extractReceiptData(
   imageBase64: string,
   mimeType: string = "image/jpeg",
+  userId?: string,
 ): Promise<OcrExtraction> {
-  const groq = groqClient();
-  const dataUrl = `data:${mimeType};base64,${imageBase64}`;
   const imageSizeKB = Math.round(imageBase64.length * 0.75 / 1024);
 
-  console.log(`[receipt/extract] Starting OCR. model=${VISION_MODEL}, mimeType=${mimeType}, ~${imageSizeKB}KB`);
+  console.log(`[receipt/extract] Starting OCR. model=claude-haiku-4.5, mimeType=${mimeType}, ~${imageSizeKB}KB`);
 
-  const response = await withRetry(
-    () => groq.chat.completions.create({
-      model: VISION_MODEL,
+  const { text: raw } = await withRetry(
+    () => generateText({
+      model: models.fast,
       messages: [
         {
           role: "user",
           content: [
             {
-              type: "image_url",
-              image_url: { url: dataUrl },
+              type: "image",
+              image: imageBase64,
+              mimeType: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
             },
             {
               type: "text",
@@ -112,16 +101,18 @@ export async function extractReceiptData(
         },
       ],
       temperature: 0.05,
-      max_tokens:  1024,
+      maxTokens: 1024,
+      headers: userId
+        ? heliconeHeaders({ userId, feature: "receipt-ocr" })
+        : {},
     }),
-    { label: "groq/receipt-ocr", attempts: 3 },
+    { label: "claude/receipt-ocr", attempts: 3 },
   );
 
-  const raw = response.choices[0]?.message?.content ?? "";
   console.log(`[receipt/extract] Raw response (first 500):`, raw.slice(0, 500));
 
   if (!raw.trim()) {
-    throw new Error("Empty response from Groq vision model");
+    throw new Error("Empty response from Claude vision model");
   }
 
   // Strip markdown fences if the model wraps output
