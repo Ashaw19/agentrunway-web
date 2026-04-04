@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requirePro } from "@/lib/require-pro";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 export const maxDuration = 30;
 
@@ -38,6 +39,14 @@ export async function POST(req: NextRequest) {
 
   const proCheck = await requirePro(supabase, user.id);
   if (!proCheck.allowed) return proCheck.response!;
+
+  const rl = await checkRateLimit(user.id, "mls_lookup", 20, 60);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Please wait before trying again." },
+      { status: 429, headers: rateLimitHeaders(rl) },
+    );
+  }
 
   const body = await req.json();
   const url = body.url as string | undefined;

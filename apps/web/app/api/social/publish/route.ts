@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { requirePro } from "@/lib/require-pro";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 // Allow up to 45 seconds for Instagram media container creation + polling
 export const maxDuration = 45;
@@ -36,6 +37,14 @@ export async function POST(req: NextRequest) {
 
   const proCheck = await requirePro(supabase, user.id);
   if (!proCheck.allowed) return proCheck.response!;
+
+  const rl = await checkRateLimit(user.id, "social_publish", 10, 60);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Please wait before trying again." },
+      { status: 429, headers: rateLimitHeaders(rl) },
+    );
+  }
 
   // ── Sandbox guard ────────────────────────────────────────────────────────
   const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();

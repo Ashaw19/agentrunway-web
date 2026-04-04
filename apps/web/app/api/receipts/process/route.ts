@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient }              from "@/lib/supabase/server";
 import { createAdminClient }         from "@/lib/supabase/admin";
 import { requirePro }                from "@/lib/require-pro";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { extractReceiptData }        from "@/lib/receipts/extract";
 import type {
   ProcessReceiptResponse,
@@ -57,6 +58,14 @@ export async function POST(
 
   const proCheck = await requirePro(supabase, user.id);
   if (!proCheck.allowed) return proCheck.response!;
+
+  const rl = await checkRateLimit(user.id, "receipt_process", 20, 60);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Too many requests. Please wait before trying again." },
+      { status: 429, headers: rateLimitHeaders(rl) },
+    );
+  }
 
   // ── Block in sandbox mode (avoid wasting OCR credits + storage) ───────────
   const { data: sbCheck } = await supabase
