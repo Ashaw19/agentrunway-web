@@ -1,20 +1,19 @@
 /**
  * POST /api/outreach/send
  *
- * Sends an outreach email via the user's connected email provider.
- * Supports Gmail, Outlook (Microsoft Graph), and SMTP.
- * Expects: { outreach_id: string }
+ * Sends an outreach email from the queue after verifying:
+ * 1. User authentication
+ * 2. CASL consent (valid, not expired, not withdrawn)
+ * 3. Warm-up limits (daily send capacity)
+ * 4. Email provider availability (Gmail/Microsoft/SMTP)
  *
- * Flow:
- *  1. Fetch the outreach queue item (must be owned by user)
- *  2. Append email signature (if set)
- *  3. Route to the correct provider via email-sender.ts
- *  4. Mark the outreach item as "sent"
+ * Body: { queue_item_id: string }
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email-sender";
+import { canSendEmail, recordSend } from "@/lib/email/warm-up";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { markMemoryStale } from "@/lib/ai/client-memory-engine";
 
@@ -39,60 +38,102 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Sandbox guard ────────────────────────────────────────────────────────
-  const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();
+  const { data: sandboxCheck } = await supabase
+    .from("user_settings")
+    .select("sandbox_mode")
+    .eq("user_id", user.id)
+    .single();
   if (sandboxCheck?.sandbox_mode === true) {
-    return NextResponse.json({ error: "Action blocked in Sandbox Mode" }, { status: 403 });
+    return NextResponse.json(
+      { error: "Action blocked in Sandbox Mode" },
+      { status: 403 },
+    );
   }
 
   // ── Parse body ──────────────────────────────────────────────────────────
-  let body: { outreach_id?: string };
+  let body: { queue_item_id?: string; outreach_id?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
-  const outreachId = body.outreach_id;
 
-  if (!outreachId) {
+  // Accept both queue_item_id (new) and outreach_id (legacy) for compat
+  const queueItemId = body.queue_item_id || body.outreach_id;
+
+  if (!queueItemId) {
     return NextResponse.json(
-      { error: "Missing outreach_id" },
-      { status: 400 }
+      { error: "Missing queue_item_id" },
+      { status: 400 },
     );
   }
 
   try {
-    // ── 1. Fetch the outreach item (only if not already sent) ─────────
+    // ── 1. Fetch the outreach queue item ──────────────────────────────────
     const { data: item, error: itemErr } = await supabase
       .from("outreach_queue")
-      .select("*, clients(email, name)")
-      .eq("id", outreachId)
+      .select("*, clients(id, email, name)")
+      .eq("id", queueItemId)
       .eq("user_id", user.id)
-      .neq("status", "sent")
+      .eq("status", "ready")
       .single();
 
     if (itemErr || !item) {
       return NextResponse.json(
-        { error: "Outreach item not found or already sent" },
-        { status: 404 }
+        { error: "Outreach item not found or not in ready status" },
+        { status: 404 },
       );
     }
 
+    // ── 2. Verify client has an email ─────────────────────────────────────
     const toEmail = item.clients?.email?.trim();
     if (!toEmail) {
       return NextResponse.json(
-        { error: "No email address on file for this client" },
-        { status: 422 }
+        { error: "Client has no email address on file" },
+        { status: 400 },
       );
     }
 
-    // Use edited fields if present, fall back to AI-generated
+    // ── 3. CASL consent check ─────────────────────────────────────────────
+    const now = new Date().toISOString();
+    const { data: consent, error: consentErr } = await supabase
+      .from("consent_records")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("client_id", item.client_id)
+      .is("withdrawn_at", null)
+      .or(`expires_at.is.null,expires_at.gt.${now}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (consentErr || !consent) {
+      return NextResponse.json(
+        {
+          error: "Cannot send — no valid CASL consent for this contact",
+          code: "NO_CONSENT",
+        },
+        { status: 403 },
+      );
+    }
+
+    // ── 4. Warm-up limit check ────────────────────────────────────────────
+    const warmupCheck = await canSendEmail(user.id);
+    if (!warmupCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: warmupCheck.reason,
+          code: "WARMUP_LIMIT",
+          remaining_today: 0,
+          daily_limit: warmupCheck.dailyLimit,
+        },
+        { status: 429 },
+      );
+    }
+
+    // ── 5. Send the email ─────────────────────────────────────────────────
     const subject = item.final_subject || item.ai_subject || "Hello";
-    const messageBody  = item.final_body  || item.ai_body  || "";
+    const messageBody = item.final_body || item.ai_body || "";
 
-    // Signature is already appended at draft time (detect-opportunities / draft-outreach).
-    // Do NOT append again here to avoid duplication.
-
-    // ── 2. Send via unified provider routing ─────────────────────────────
     const result = await sendEmail(supabase, user.id, {
       to: toEmail,
       subject,
@@ -100,6 +141,13 @@ export async function POST(req: NextRequest) {
     });
 
     if (!result.ok) {
+      // Mark as failed so the user can see what happened
+      await supabase
+        .from("outreach_queue")
+        .update({ status: "failed" })
+        .eq("id", queueItemId)
+        .eq("user_id", user.id);
+
       const isNoConnection = result.error?.includes("No email provider");
       return NextResponse.json(
         {
@@ -107,29 +155,46 @@ export async function POST(req: NextRequest) {
           code: isNoConnection ? "NO_CONNECTION" : "SEND_FAILED",
           provider: result.provider,
         },
-        { status: isNoConnection ? 422 : 500 }
+        { status: isNoConnection ? 422 : 500 },
       );
     }
 
-    // ── 4. Mark as sent ─────────────────────────────────────────────────
+    // ── 6. Record success ─────────────────────────────────────────────────
     await supabase
       .from("outreach_queue")
       .update({
         status: "sent",
         sent_at: new Date().toISOString(),
       })
-      .eq("id", outreachId)
+      .eq("id", queueItemId)
       .eq("user_id", user.id);
 
-    // ── 5. Mark client memory as stale (fire-and-forget) ────────────────
+    // Track warm-up send (fire-and-forget)
+    await recordSend(user.id);
+
+    // Mark client memory as stale (fire-and-forget)
     if (item.client_id) {
       markMemoryStale(supabase, user.id, item.client_id).catch(() => {});
     }
 
-    return NextResponse.json({ ok: true, provider: result.provider });
+    return NextResponse.json({
+      sent: true,
+      provider: result.provider,
+      remaining_today: warmupCheck.remaining - 1,
+    });
   } catch (err) {
     const rawMessage = err instanceof Error ? err.message : String(err);
     console.error("[outreach/send] Error:", rawMessage);
+
+    // Try to mark as failed if we have the ID
+    if (queueItemId) {
+      await supabase
+        .from("outreach_queue")
+        .update({ status: "failed" })
+        .eq("id", queueItemId)
+        .eq("user_id", user.id)
+        .catch(() => {});
+    }
 
     const isAuthError =
       rawMessage.includes("401") || rawMessage.includes("invalid_grant");
@@ -141,7 +206,7 @@ export async function POST(req: NextRequest) {
           : "Failed to send email",
         code: isAuthError ? "AUTH_EXPIRED" : "SEND_FAILED",
       },
-      { status: isAuthError ? 401 : 500 }
+      { status: isAuthError ? 401 : 500 },
     );
   }
 }
