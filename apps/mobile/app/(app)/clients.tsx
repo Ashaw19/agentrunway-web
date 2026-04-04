@@ -778,6 +778,7 @@ function PostContactSheet({
   const handleLog = async () => {
     setSaving(true);
     await onLog(activityType, notes);
+    try { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
     setSaving(false);
   };
 
