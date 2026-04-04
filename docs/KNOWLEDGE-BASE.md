@@ -270,8 +270,11 @@ Never let the LLM make authorization decisions. Deterministic policy layer valid
 - Always use `CONCURRENTLY` for index creation on tables > 100K rows
 - Test migrations on branch database before production
 - Keep migrations idempotent (IF NOT EXISTS)
+- **Zero-downtime pattern**: Add columns nullable → backfill in batches → add NOT NULL constraint
+- Never rename columns in production — add new, migrate data, update code, drop old
+- CI/CD: Never run `supabase db push` from local in production — use GitHub Actions
 
-### Materialized Views for Dashboard
+### Materialized Views for Dashboard (1000x+ speedup)
 ```sql
 CREATE MATERIALIZED VIEW mv_agent_dashboard AS
 SELECT user_id,
@@ -282,62 +285,188 @@ FROM transactions
 WHERE EXTRACT(YEAR FROM close_date) = EXTRACT(YEAR FROM NOW())
 GROUP BY user_id;
 
+-- UNIQUE index required for CONCURRENTLY refresh
+CREATE UNIQUE INDEX idx_mv_dashboard_user ON mv_agent_dashboard (user_id);
+
 -- Refresh every 15 minutes via pg_cron
 SELECT cron.schedule('refresh-dashboard', '*/15 * * * *',
   'REFRESH MATERIALIZED VIEW CONCURRENTLY mv_agent_dashboard');
+```
+Real-world case studies show 350x to 9,000x faster queries vs live aggregation.
+
+### Partial & Covering Indexes
+```sql
+-- Only index active clients (skip archived)
+CREATE INDEX idx_clients_active ON clients (user_id, last_contact_at)
+  WHERE archived = false;
+
+-- Covering index: returns data from index without table lookup
+CREATE INDEX idx_pipeline_dashboard ON pipeline (user_id, stage)
+  INCLUDE (client_name, deal_value, expected_close);
 ```
 
 ### RLS Performance
 - Always index columns used in RLS policies (`user_id`, `org_id`)
 - Use `security_definer` functions for complex cross-table checks
 - Materialized views bypass RLS — ensure security in the view definition itself
+- **Critical**: With N Realtime subscribers + RLS, every INSERT triggers N RLS checks — use Broadcast pattern instead
 
 ### Supabase Queues (pgmq)
 - Built-in message queue for async processing
 - Use for: email sending, receipt OCR, nightly batch jobs
 - Eliminates need for external queue service (Redis, SQS)
 - Supports delayed messages, dead letter queues
+- **pgmq + pg_cron + Edge Functions** pattern: pg_cron polls queue → dequeues → invokes Edge Function → built-in retry
 
-### Connection Pooling
-- Supavisor (built-in) handles connection pooling
-- Transaction mode for serverless (Next.js API routes)
-- Session mode only needed for `LISTEN/NOTIFY` or prepared statements
-- Max ~200 direct connections; pooler handles thousands
+### Connection Pooling (Supavisor)
+- **Transaction mode (port 6543)**: Use for ALL application queries — connection borrowed per-query, released immediately
+- **Session mode (port 5432)**: Use ONLY for migrations, Prisma introspection, admin ops
+- Connection limits are SHARED between modes — can't exceed pool size across both
+- **Production pattern**:
+  - `DATABASE_URL` → port 6543 with `?pgbouncer=true` (transaction mode)
+  - `DIRECT_URL` → port 5432 (session mode for migrations only)
 
-### Realtime for Team Features
-- Subscribe to `org_agent_performance` changes for live team dashboards
-- Use Broadcast for team notifications (cheaper than database changes)
-- Rate limit Realtime subscriptions per user
+### Realtime at Scale
+- **Broadcast** (multi-threaded, no RLS overhead) — use for dashboard updates
+- **Postgres Changes** (single-threaded, RLS checked per subscriber) — bottleneck at scale
+- **Recommended pattern**: Edge Function listens to DB changes → filters/authorizes → Broadcast to per-user channels
+- Pro plan: 500 concurrent connections, 500 messages/sec; no-spend-cap: 10,000 connections, 2,500 msg/sec
+
+### Edge Functions vs Vercel Serverless
+| Runtime | Cold Start | Best For |
+|---------|-----------|----------|
+| Supabase Edge Functions | ~ms (V8 isolates) | DB-centric webhooks, triggers, queue workers |
+| Vercel Edge Runtime | <50ms | Auth checks, geo-blocking, redirects |
+| Vercel Serverless (Node.js) | 500ms-2s | Complex business logic, full Node.js APIs |
+
+**Cost note**: Vercel Fluid Compute only bills active CPU — pauses during I/O waits (not billed while waiting for Supabase queries).
+
+### Supabase Branching for CI/CD
+- Creates separate DB/Auth/Storage/Edge environments per PR
+- Auto-injects correct env vars into Vercel preview deployments
+- Preview branches auto-pause after inactivity (cheap)
+- Data NOT copied — use seed files for test data
+- No per-branch fee — billed on actual resource consumption
+
+### pg_cron Best Practices
+- Built-in overlap prevention: only one instance of each job runs at a time
+- Make operations idempotent for failover resilience
+- Space out jobs to prevent connection pool exhaustion
+- Monitor: `SELECT * FROM cron.job_run_details WHERE status = 'failed'`
+- **Agent Runway jobs**: Mat view refresh, flight status auto-transitions, stale pipeline cleanup, usage aggregation
+
+### Supabase Storage
+- **Public buckets**: Agent profile photos, marketing images (no auth overhead, better CDN hits)
+- **Private buckets + signed URLs**: Client documents, contracts (short TTLs)
+- Image transforms on-the-fly: resize, crop, WebP conversion (Pro plan)
+- Smart CDN: automatic cache invalidation on file update/delete
 
 ---
 
 ## 8. Next.js & Vercel Optimization
 
-### Server Components (Default in App Router)
+### Server Components + Streaming
 - Fetch data in Server Components, pass to Client Components as props
 - Use `Promise.all` for parallel data fetching (avoid waterfalls)
-- Suspense boundaries for progressive loading
+- **Granular Suspense boundaries** — each dashboard section streams independently:
+```tsx
+<div className="dashboard">
+  <Suspense fallback={<PipelineSkeleton />}>
+    <PipelineMetrics />  {/* Streams when pipeline query resolves */}
+  </Suspense>
+  <Suspense fallback={<RevenueSkeleton />}>
+    <RevenueChart />     {/* Streams independently */}
+  </Suspense>
+</div>
+```
+- Selective hydration: Critical components (nav, buttons) hydrate first; charts load async
+
+### TanStack Query + Server Components (Zero Loading States)
+```tsx
+// Server Component: prefetch + dehydrate
+const queryClient = new QueryClient();
+await queryClient.prefetchQuery({ queryKey: ['pipeline'], queryFn: getPipelineData });
+return (
+  <HydrationBoundary state={dehydrate(queryClient)}>
+    <DashboardClient />  {/* Renders instantly */}
+  </HydrationBoundary>
+);
+```
+- Set `staleTime: 5 * 60 * 1000` (5 min) for dashboard data — mat views refresh every 15 min anyway
+- Default staleTime is 0 → causes double-fetching (server + client). Always set higher for SSR.
+
+### Optimistic Updates
+```tsx
+const [optimisticClients, addOptimistic] = useOptimistic(clients,
+  (state, { id, newStatus }) => state.map(c => c.id === id ? { ...c, status: newStatus } : c)
+);
+// addOptimistic for instant UI → server action → auto-rollback on failure
+```
+- Consider `next-safe-action` for type-safe server actions with built-in optimistic support
 
 ### React Compiler (Next.js 15+)
 - Automatic memoization — remove manual `useMemo`/`useCallback`
 - Enable in `next.config.ts`: `experimental: { reactCompiler: true }`
 - Reduces bundle size and eliminates stale closure bugs
 
-### Edge Runtime
-- Deploy API routes to Edge for global low-latency
-- **Cannot use**: Node.js crypto, fs, native modules
-- **Can use**: Fetch API, Web Crypto, TextEncoder
-- **For Agent Runway**: AI routes stay on Node.js runtime (streaming), static routes on Edge
+### Partial Prerendering (PPR)
+- Experimental in Next.js 15, stable in Next.js 16 as "Cache Components"
+- Static shell renders instantly → dynamic content streams into "holes"
+- Perfect for dashboard: sidebar/nav pre-rendered, metrics stream in
+- Enable per-route: `export const experimental_ppr = true;`
 
-### ISR (Incremental Static Regeneration)
-- Marketing pages: `revalidate: 3600` (1 hour)
-- Dashboard: Real-time via Supabase, no ISR needed
-- Reports: Generate on-demand, cache with `revalidateTag`
+### Bundle Size Optimization
+- Dynamic imports for heavy components: `const Chart = dynamic(() => import('./Chart'), { ssr: false })`
+- `optimizePackageImports` in next.config: `['lucide-react', 'date-fns', 'lodash-es']`
+- Route groups `(dashboard)`, `(marketing)` prevent cross-bundle contamination
+- `@next/bundle-analyzer` to identify oversized imports
+
+### Edge Config for Feature Flags
+- Globally distributed KV store — most lookups <5ms, p99 <15ms
+- **Agent Runway uses**: Quebec geo-blocking, feature rollouts, pricing tier config, Ellis Realty beta access
+- Changes propagate instantly, no redeploy needed
+- Check in middleware — no function invocation cost
+
+### Vercel Regional Pricing
+| Region | Active CPU/hr | Best For |
+|--------|--------------|----------|
+| Washington DC (iad1) | $0.128 | Cheapest, close to Eastern Canada |
+| Montreal (yul1) | $0.147 | Closest to Canadian users |
+| **Recommendation**: Deploy to iad1 or yul1 for cost + latency
+
+### Vercel KV (Upstash Redis)
+- Rate limiting: `@upstash/ratelimit` with sliding window
+- Session caching: Fast auth checks without hitting Supabase on every request
+- Dashboard data caching: Short TTL (60-300s) to reduce Supabase load
+- HTTP-based (no persistent connections), works in Edge Runtime, pay-per-request
+
+### Performance Targets
+| Metric | Target | Impact |
+|--------|--------|--------|
+| LCP | <2.5s | Dashboard main content visibility |
+| FCP | <1.8s | Time until user sees anything |
+| TTFB | <800ms | Server response speed |
+| INP | <200ms | Click/type responsiveness |
+| CLS | <0.1 | Visual stability |
 
 ### Image Optimization
-- `next/image` with Vercel Image Optimization (included in plan)
-- Use `priority` on above-the-fold images
-- WebP/AVIF automatic format negotiation
+- `next/image` with automatic WebP/AVIF (60-80% size reduction)
+- Set `priority` on LCP elements (dashboard header)
+- Static imports auto-generate `blurDataURL` for placeholders
+
+### Background Job Architecture
+| Job Type | Engine | Examples |
+|----------|--------|----------|
+| DB-native scheduled | **pg_cron** | Mat view refresh, flight status transitions |
+| Event-driven workflows | **Inngest** | Email sequences, notification chains |
+| Long-running | **Trigger.dev** | CSV import, document indexing |
+| Simple scheduled | **Vercel Cron** | Health checks, warm-up pings |
+
+### Sentry + Next.js 15
+- `npx @sentry/wizard@latest -i nextjs` — 5-min auto-setup
+- Server Component errors now properly captured (requires @sentry/nextjs >= 8.28.0)
+- Distributed tracing: follows request from middleware → RSC → server actions → Supabase
+- Production sampling: `tracesSampleRate: 0.1`, `replaysOnErrorSampleRate: 1.0`
 
 ---
 
