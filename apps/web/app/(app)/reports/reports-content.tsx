@@ -332,7 +332,7 @@ export function ReportsContent({
   );
   const monthsElapsed = now.getMonth() + (now.getDate() / 30);
   const recurringYTDEstimate = monthlyRecurring * monthsElapsed;
-  const expensesYTD = Math.max(receiptTotal, recurringYTDEstimate);
+  const expensesYTD = receiptTotal + recurringYTDEstimate;
   const netPreTax = agentNet - expensesYTD;
   const expenseRatio = ytdGCI > 0 ? (expensesYTD / ytdGCI) * 100 : 0;
 

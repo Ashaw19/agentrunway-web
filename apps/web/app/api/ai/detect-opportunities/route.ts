@@ -2349,7 +2349,7 @@ export async function getTopOpportunities(
 
   // Pipeline depth
   const activeClients = clients.filter((c) =>
-    c.status === "boarding" || c.status === "taxiing" || c.status === "in_flight",
+    c.status === "boarding" || c.status === "taxiing" || c.status === "approach" || c.status === "in_flight",
   ).length;
   const pipelineLight = activeClients < 3;
 
