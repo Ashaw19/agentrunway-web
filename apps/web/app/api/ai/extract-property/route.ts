@@ -1,16 +1,17 @@
 /**
  * POST /api/ai/extract-property
  *
- * Accepts a screenshot or MLS listing image (base64), sends it to Groq Vision
- * (llama-3.3-70b-versatile), and returns structured property data extracted
- * from the image. Used by the Showings Ledger to auto-fill property details
- * from a realtor.ca screenshot or MLS cut sheet photo.
+ * Accepts a screenshot or MLS listing image (base64), sends it to Claude
+ * (Haiku 4.5 via Vercel AI SDK), and returns structured property data
+ * extracted from the image. Used by the Showings Ledger to auto-fill
+ * property details from a realtor.ca screenshot or MLS cut sheet photo.
  *
  * Body: { image: string (base64), showingId?: string }
  * Returns: { extracted: { ... }, showingId?: string }
  */
 
-import OpenAI from "openai";
+import { generateText } from "ai";
+import { models, heliconeHeaders } from "@/lib/ai/provider";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }       from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -69,8 +70,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) {
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GROQ_API_KEY) {
     return NextResponse.json(
       { error: "AI extraction not configured" },
       { status: 503 },
@@ -95,33 +95,33 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Ensure proper data URL format
-  const imageUrl = image.startsWith("data:")
-    ? image
-    : `data:image/jpeg;base64,${image}`;
+  // Extract raw base64 and mime type for Vercel AI SDK format
+  let mimeType = "image/jpeg";
+  let base64Data = image;
+  if (image.startsWith("data:")) {
+    const match = image.match(/^data:(image\/\w+);base64,(.+)$/);
+    if (match) {
+      mimeType = match[1];
+      base64Data = match[2];
+    }
+  }
 
   try {
-    const groq = new OpenAI({
-      apiKey:  groqKey,
-      baseURL: "https://api.groq.com/openai/v1",
-    });
-
-    const res = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+    const { text: raw } = await generateText({
+      model: models.fast,
       messages: [
         {
           role: "user",
           content: [
             { type: "text", text: VISION_PROMPT },
-            { type: "image_url", image_url: { url: imageUrl } },
+            { type: "image", image: base64Data, mediaType: mimeType },
           ],
         },
       ],
       temperature: 0.1,
-      max_tokens: 1024,
+      maxOutputTokens: 1024,
+      headers: heliconeHeaders({ userId: user.id, feature: "extract-property" }),
     });
-
-    const raw = res.choices[0]?.message?.content ?? "{}";
 
     // Parse JSON from response (may have markdown code fences)
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ extracted, showingId }, { headers: rateLimitHeaders(rl) });
   } catch (err) {
-    console.error("[extract-property] Groq vision error:", err);
+    console.error("[extract-property] AI vision error:", err);
     return NextResponse.json(
       { error: "AI extraction failed" },
       { status: 500, headers: rateLimitHeaders(rl) },

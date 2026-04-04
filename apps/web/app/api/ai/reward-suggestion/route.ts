@@ -1,10 +1,10 @@
 /**
  * POST /api/ai/reward-suggestion
  *
- * Returns a personalised client reward suggestion powered by Groq
- * (llama-3.1-8b-instant via OpenAI-compatible endpoint).
+ * Returns a personalised client reward suggestion powered by Claude
+ * (Haiku 4.5 via Vercel AI SDK).
  *
- * If GROQ_API_KEY is not set the route returns a graceful rule-based
+ * If no AI key is set the route returns a graceful rule-based
  * fallback so the rest of the app never breaks.
  *
  * Optional enrichment: if GOOGLE_PLACES_API_KEY is set, the route
@@ -13,7 +13,8 @@
  * so it can recommend a real, named venue.
  */
 
-import OpenAI from "openai";
+import { generateText } from "ai";
+import { models, heliconeHeaders } from "@/lib/ai/provider";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -41,7 +42,7 @@ export interface RewardSuggestionResponse {
   suggestion:  string;        // 2–3 sentence personalised recommendation
   venueName?:  string;        // Specific venue name if Places enrichment found one
   confidence:  "high" | "medium" | "low"; // "high" if real venue data used
-  source:      "groq" | "fallback";
+  source:      "claude" | "fallback";
 }
 
 // ── Generosity labels ─────────────────────────────────────────────────────────
@@ -91,7 +92,7 @@ async function fetchNearbyVenues(location: string, budget: number): Promise<Plac
   }
 }
 
-// ── Groq prompt ───────────────────────────────────────────────────────────────
+// ── Prompt ────────────────────────────────────────────────────────────────────
 
 function buildPrompt(req: RewardSuggestionRequest, venues: PlacesVenue[]): string {
   const venueCtx = venues.length > 0
@@ -165,7 +166,7 @@ export async function POST(req: NextRequest) {
   const proCheck = await requirePro(supabase, user.id);
   if (!proCheck.allowed) return proCheck.response!;
 
-  // Block in sandbox mode (saves Groq + Google Places credits)
+  // Block in sandbox mode (saves AI + Google Places credits)
   const { data: sbCheck } = await supabase
     .from("user_settings")
     .select("sandbox_mode")
@@ -194,32 +195,24 @@ export async function POST(req: NextRequest) {
   // Optional: Google Places venue enrichment
   const venues = await fetchNearbyVenues(location ?? "", budget);
 
-  // If no Groq key, return rule-based fallback immediately
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) {
+  // If no AI key, return rule-based fallback immediately
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GROQ_API_KEY) {
     return NextResponse.json(
       fallbackSuggestion({ clientName, location, province, dealGCI, avgGCI, generosity, budget }),
       { headers: rateLimitHeaders(rl) },
     );
   }
 
-  // Call Groq via OpenAI-compatible SDK
+  // Call Claude via Vercel AI SDK
   try {
-    const ai = new OpenAI({
-      apiKey:  groqKey,
-      baseURL: "https://api.groq.com/openai/v1",
-    });
-
-    const completion = await ai.chat.completions.create({
-      model:       "llama-3.1-8b-instant",   // fast + cheap; swap for llama-3.3-70b-versatile for richer output
-      max_tokens:  220,
+    const { text: suggestion } = await generateText({
+      model: models.fast,
+      prompt: buildPrompt(body, venues),
+      maxOutputTokens: 220,
       temperature: 0.7,
-      messages: [
-        { role: "user", content: buildPrompt(body, venues) },
-      ],
+      headers: heliconeHeaders({ userId: user.id, feature: "reward-suggestion" }),
     });
 
-    const suggestion = completion.choices[0]?.message?.content?.trim() ?? "";
     if (!suggestion) throw new Error("Empty response");
 
     return NextResponse.json(
@@ -227,12 +220,12 @@ export async function POST(req: NextRequest) {
         suggestion,
         venueName:  venues[0]?.name,
         confidence: venues.length > 0 ? "high" : "medium",
-        source:     "groq",
+        source:     "claude",
       } satisfies RewardSuggestionResponse,
       { headers: rateLimitHeaders(rl) },
     );
   } catch (err) {
-    console.error("[reward-suggestion] Groq error:", err);
+    console.error("[reward-suggestion] AI error:", err);
     // Graceful fallback — never surface a 500 to the user
     return NextResponse.json(
       fallbackSuggestion(body),

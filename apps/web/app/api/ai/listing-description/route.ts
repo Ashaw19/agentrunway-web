@@ -2,13 +2,14 @@
  * POST /api/ai/listing-description
  *
  * Generates a polished property listing description from transaction specs.
- * Uses Groq (Llama) for fast generation.
+ * Uses Claude Sonnet for high-quality creative writing.
  *
  * Input: { client_record_id } or { specs: { address, bedrooms, ... } }
  * Output: { description, social_post }
  */
 
-import OpenAI from "openai";
+import { generateText } from "ai";
+import { models, heliconeHeaders } from "@/lib/ai/provider";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -51,8 +52,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) {
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GROQ_API_KEY) {
     return NextResponse.json(
       { error: "AI service not configured" },
       { status: 503 },
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
     .single();
   const agentName = settings?.display_name || "";
 
-  const prompt = `You are writing property copy for a Canadian real estate agent. Generate TWO things from this property data.
+  const userPrompt = `You are writing property copy for a Canadian real estate agent. Generate TWO things from this property data.
 
 ${AGENT_RUNWAY_VOICE}
 
@@ -156,31 +156,24 @@ Respond in this exact JSON format:
 }`;
 
   try {
-    const groq = new OpenAI({
-      apiKey: groqKey,
-      baseURL: "https://api.groq.com/openai/v1",
-    });
-
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.1-70b-versatile",
-      messages: [
-        { role: "system", content: "You write property copy that sounds like a real person, not a marketing team. You avoid AI-sounding language — no 'stunning', 'nestled', 'dream home', 'don't miss out'. You describe what's actually there and let quality speak for itself. Canadian English. Always respond with valid JSON only." },
-        { role: "user", content: prompt },
-      ],
+    const { text: raw } = await generateText({
+      model: models.default,
+      system: "You write property copy that sounds like a real person, not a marketing team. You avoid AI-sounding language — no 'stunning', 'nestled', 'dream home', 'don't miss out'. You describe what's actually there and let quality speak for itself. Canadian English. Always respond with valid JSON only.",
+      prompt: userPrompt,
       temperature: 0.7,
-      max_tokens: 800,
-      response_format: { type: "json_object" },
+      maxOutputTokens: 800,
+      headers: heliconeHeaders({ userId: user.id, feature: "listing-description" }),
     });
 
-    const raw = completion.choices[0]?.message?.content ?? "{}";
-    const result = JSON.parse(raw);
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const result = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(raw);
 
     return NextResponse.json({
       description: result.description || "",
       social_post: result.social_post || "",
     });
   } catch (err) {
-    console.error("[listing-description] Groq error:", err);
+    console.error("[listing-description] AI error:", err);
     return NextResponse.json(
       { error: "Failed to generate description" },
       { status: 500 },

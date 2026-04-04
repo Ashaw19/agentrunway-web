@@ -13,7 +13,8 @@
  * Returns: BuyerDNA object
  */
 
-import OpenAI from "openai";
+import { generateText } from "ai";
+import { models, heliconeHeaders } from "@/lib/ai/provider";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }       from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
   const proCheck = await requirePro(supabase, user.id);
   if (!proCheck.allowed) return proCheck.response!;
 
-  // Block in sandbox mode (saves Groq credits)
+  // Block in sandbox mode (saves AI credits)
   const { data: sbCheck } = await supabase
     .from("user_settings")
     .select("sandbox_mode")
@@ -144,18 +145,12 @@ export async function POST(req: NextRequest) {
     .map((s) => `${s.property_address}: ${s.notes ?? "no notes"}`)
     .slice(0, 5);
 
-  // ── AI summary via Groq ────────────────────────────────────────────────────
+  // ── AI summary via Claude ─────────────────────────────────────────────────
 
   let aiSummary = "";
-  const groqKey = process.env.GROQ_API_KEY;
 
-  if (groqKey) {
+  if (process.env.ANTHROPIC_API_KEY || process.env.GROQ_API_KEY) {
     try {
-      const groq = new OpenAI({
-        apiKey:  groqKey,
-        baseURL: "https://api.groq.com/openai/v1",
-      });
-
       // Fetch client name for personalisation
       const { data: client } = await supabase
         .from("clients")
@@ -184,16 +179,17 @@ ${showings.slice(-20).map((s) => `- ${s.showing_date}: ${s.property_address} (${
 
 Write the summary in second person ("your client"). Be specific, not generic.`;
 
-      const res = await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
-        messages: [{ role: "user", content: prompt }],
+      const { text } = await generateText({
+        model: models.default,
+        prompt,
         temperature: 0.6,
-        max_tokens: 300,
+        maxOutputTokens: 300,
+        headers: heliconeHeaders({ userId: user.id, feature: "buyer-analysis" }),
       });
 
-      aiSummary = res.choices[0]?.message?.content?.trim() ?? "";
+      aiSummary = text?.trim() ?? "";
     } catch (err) {
-      console.error("[buyer-analysis] Groq error:", err);
+      console.error("[buyer-analysis] AI error:", err);
     }
   }
 
