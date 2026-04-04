@@ -79,7 +79,7 @@ export async function POST(request: Request) {
       // 14-day free trial — no credit card required until trial ends
       subscription_data: {
         trial_period_days: 14,
-        metadata: { userId: user.id },
+        metadata: { userId: user.id, pricing_tier: tier },
       },
       payment_method_collection: "if_required",
       success_url: `${appUrl}/dashboard?upgraded=true`,

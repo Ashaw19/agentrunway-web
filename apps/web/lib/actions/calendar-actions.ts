@@ -529,8 +529,9 @@ export async function syncUserCalendar(userId: string): Promise<{
       }
     }
 
-    // Save the new sync token and update last_calendar_sync
-    if (nextSyncToken) {
+    // Save the new sync token ONLY if no upsert errors occurred.
+    // If events failed, keeping the old token ensures they're retried next sync.
+    if (nextSyncToken && errorCount === 0) {
       await admin
         .from("google_connections")
         .update({
@@ -538,6 +539,13 @@ export async function syncUserCalendar(userId: string): Promise<{
           last_calendar_sync:  new Date().toISOString(),
         })
         .eq("id", conn.id);
+    } else if (nextSyncToken && errorCount > 0) {
+      // Still update last_calendar_sync for monitoring, but keep old sync token
+      await admin
+        .from("google_connections")
+        .update({ last_calendar_sync: new Date().toISOString() })
+        .eq("id", conn.id);
+      console.warn(`[calendar-sync] Skipped sync token advancement: ${errorCount} errors for user ${userId}`);
     }
   } catch (err: unknown) {
     // 410 Gone = sync token expired → clear it so next run does full sync

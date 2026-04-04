@@ -253,15 +253,28 @@ export async function syncUserOutlookCalendar(userId: string): Promise<{
       }
     }
 
-    // Update sync state
-    await admin
-      .from("email_connections")
-      .update({
-        calendar_sync_token: deltaLink,
-        last_calendar_sync: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", conn.id);
+    // Update sync state — only advance delta link if no errors occurred.
+    // If events failed, keeping the old token ensures they're retried next sync.
+    if (errorCount === 0) {
+      await admin
+        .from("email_connections")
+        .update({
+          calendar_sync_token: deltaLink,
+          last_calendar_sync: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conn.id);
+    } else {
+      // Still update timestamps for monitoring, but keep old delta link
+      await admin
+        .from("email_connections")
+        .update({
+          last_calendar_sync: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", conn.id);
+      console.warn(`[outlook-calendar-sync] Skipped delta link advancement: ${errorCount} errors for user ${userId}`);
+    }
   } catch (err) {
     console.error(
       `[outlook-calendar-sync] Failed for user ${userId}:`,
