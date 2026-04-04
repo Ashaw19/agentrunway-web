@@ -856,8 +856,9 @@ Canadian RE peak: March-June. Apply indices to forecasts.
 - **Agent Runway solves this**: Automated post-close nurture via Flight Control
 
 ### Technology Adoption
-- AI adoption: 68% of agents use some AI tool
-- Only 17% see significant positive impact
+- AI adoption: 82% of agents integrate AI tools (RPR, Feb 2025)
+- 59% have tried tools but are "still learning before fully committing" — adoption window closing
+- Only 17% see significant positive impact from AI
 - Financial tracking: Most use QuickBooks, spreadsheets, or nothing
 - Massive gap in purpose-built RE financial analytics
 
@@ -865,6 +866,37 @@ Canadian RE peak: March-June. Apply indices to forecasts.
 - Average days on market varies wildly by region
 - Interest rate sensitivity: Each 25bps change shifts buyer qualification by ~$15K
 - Seasonal pattern: 60% of transactions close March-August
+- Canada PropTech market: $2.9B USD in 2025, projected $13.1B by 2035 (16.2% CAGR)
+- At 158K agents, 1% penetration = 1,580 subs = $1.5M-$2.8M ARR
+
+### Competitive Landscape (2025-2026)
+| Platform | AI Approach | Price | Weakness vs Agent Runway |
+|----------|-----------|-------|--------------------------|
+| Compass | Voice-activated proactive AI | Brokerage-only | No financial analytics |
+| Lofty (AOS) | Agentic AI (autonomous) | $449-1,500/mo | No P&L, no expense tracking |
+| BoldTrail/kvCORE | Smart CRM + Marketing Autopilot | $299-1,800/mo | No business analytics |
+| Follow Up Boss | AI via integrations (Ace/Mod) | $58-833/mo/user | No financial tools |
+| Rechat (Lucy) | Form reading, content gen, CRM | Brokerage licensing | No analytics dashboards |
+
+**Key differentiator gaps NO competitor fills:**
+1. Business analytics for individual agents (GCI tracking, P&L, commission forecasting)
+2. Team-level analytics (industry consensus: "Teams are very much underserved")
+3. Commission-based financial planning (tools built for salaried, not variable income)
+4. Canadian-specific features (MLS, bilingual, provincial tax)
+5. Goal-based coaching backed by real transaction data (not just goal-setting)
+
+### Industry AI Trends
+- **Lofty's Agentic OS** (Feb 2026) sets new bar: 4 autonomous AI agents (Sales, Social, Homeowner, Assistant)
+- **Compass** betting on voice-first proactive AI
+- **Rechat's Lucy** drove 114% usage increase and 75%+ CRM adoption — proves well-designed AI assistant drives engagement
+- **Shift**: From "AI-assisted" (reactive) → "agentic AI" (autonomous multi-step workflows)
+- AI-native companies had only 40% gross retention — focus on workflow integration, not novelty
+
+### Agent Adoption Barriers
+- Fear of complexity — too many features causes retreat to old methods
+- No clear ROI connection — must show direct line to more income
+- Time cost — any tool that feels cumbersome is dead on arrival
+- **Strategies that work**: Lead with income impact not feature tours, start with 3-5 sticky features, contextual in-app support, freemium or brokerage-subsidized entry
 
 ---
 
@@ -1075,6 +1107,21 @@ User Speech → Deepgram Nova-3 (STT) → Claude (reasoning) → OpenAI gpt-4o-m
 3. **Real-time voice conversations**: Sub-200ms round-trip possible now
 4. **Code generation agents**: Claude can write and test code — potential for custom report builders
 5. **Memory across sessions**: Persistent agent memory for long-term client relationship context
+
+### AI Stickiness Patterns (Prevent 40% AI Churn)
+- **Daily workflow integration** is the only path — GitHub Copilot gets 80% utilization because it's in the daily workflow, 67% use 5+ days/week
+- AI Advisor must be the thing agents check every morning: "Here are your 3 priorities today" / "2 follow-ups overdue" / "Monthly target on track"
+- **Proactive alerts** beat reactive queries: "Your marketing spend jumped 40% but closings are flat" / "You haven't contacted [client] in 14 days"
+- **Explain reasoning, not just answers**: "Based on your last 12 transactions..." builds trust more than raw accuracy numbers
+- **Adaptive dashboards**: Learn which metrics each agent checks first, surface those prominently
+- 25-35% adoption boost from AI personalization; up to 30% improvement in retention
+
+### AI Features to Build (Based on Market Gaps)
+1. **AI-generated weekly/monthly business reports** — Automated narrative from real data ("Your Q1 GCI was $X, up 12%...") — no RE tool does this
+2. **Proactive anomaly alerts** — Only QuickBooks-level tools do this, not for RE
+3. **Scenario modeling** — "What if I hire an assistant?" / "What if rates drop 1%?" — 5,000-10,000 Monte Carlo iterations for stable results
+4. **Natural language data querying** — "What was my average commission in Q3?" via AI Advisor (Xero's JAX achieved 61% adoption)
+5. **Goal-based coaching with real data** — Like SkySlope Ayce but backed by actual performance data
 
 ### What NOT to Build Yet
 - Don't build custom ML models — rule-based + LLM is sufficient for current scale
