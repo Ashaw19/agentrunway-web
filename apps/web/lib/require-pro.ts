@@ -34,7 +34,7 @@ export async function requirePro(
 
   const hasIndividualPro =
     (tier === "professional" || tier === "team") &&
-    (status === "active" || status === "trialing" || !status);
+    (status === "active" || status === "trialing" || status === "past_due" || !status);
 
   if (hasIndividualPro) {
     return { allowed: true };

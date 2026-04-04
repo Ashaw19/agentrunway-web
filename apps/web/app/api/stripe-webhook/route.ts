@@ -248,7 +248,8 @@ export async function POST(request: Request) {
         }
 
         // If org subscription is no longer active, downgrade member tiers
-        const orgIsActive = sub.status === "active" || sub.status === "trialing";
+        // Allow grace period for past_due — Stripe dunning handles retries
+        const orgIsActive = sub.status === "active" || sub.status === "trialing" || sub.status === "past_due";
         if (!orgIsActive) {
           const { data: members } = await db
             .from("organization_members")
@@ -273,8 +274,9 @@ export async function POST(request: Request) {
         break;
       }
 
-      // Downgrade to starter on any non-active/trialing status
-      const isActive = sub.status === "active" || sub.status === "trialing";
+      // Downgrade to starter on canceled/unpaid — keep access during past_due
+      // (Stripe dunning handles payment retries; immediate downgrade is hostile)
+      const isActive = sub.status === "active" || sub.status === "trialing" || sub.status === "past_due";
       // current_period_end is present at runtime but was removed from TS types
       // in newer Stripe SDK versions — access via unknown to stay type-safe.
       const rawPeriodEnd = (sub as unknown as Record<string, unknown>).current_period_end;

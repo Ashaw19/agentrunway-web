@@ -97,7 +97,7 @@ export default async function AppLayout({
     const subStatus = settings?.subscription_status ?? "";
     const hasIndividualPro =
       (tier === "professional" || tier === "team") &&
-      (subStatus === "active" || subStatus === "trialing" || !subStatus);
+      (subStatus === "active" || subStatus === "trialing" || subStatus === "past_due" || !subStatus);
 
     // Check if user belongs to an active or beta org (grants pro access)
     const hasOrgAccess = (memberships ?? []).some((m: Record<string, unknown>) => {
