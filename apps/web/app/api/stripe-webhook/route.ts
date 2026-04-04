@@ -6,6 +6,7 @@ import { resend, FROM_ADDRESS } from "@/lib/resend";
 import { trialWelcomeEmail, formatTrialEndDate } from "@/lib/emails/trial-welcome";
 import { trialEndingSoonEmail } from "@/lib/emails/trial-ending-soon";
 import { winBackEmail } from "@/lib/emails/win-back";
+import { paymentFailedEmail } from "@/lib/emails/payment-failed";
 import type Stripe from "stripe";
 
 /**
@@ -18,6 +19,8 @@ import type Stripe from "stripe";
  *     - customer.subscription.updated
  *     - customer.subscription.deleted
  *     - customer.subscription.trial_will_end
+ *     - invoice.payment_failed
+ *     - invoice.payment_succeeded
  *
  * Set STRIPE_WEBHOOK_SECRET in .env.local to the signing secret from Stripe.
  */
@@ -469,6 +472,164 @@ export async function POST(request: Request) {
         } catch (err) {
           // Non-fatal
           console.error("[stripe] failed to retrieve customer for win-back email", cid, err);
+        }
+      }
+      break;
+    }
+
+    // ── Invoice payment failed (dunning / retry cycle) ──────────────────────
+    case "invoice.payment_failed": {
+      const invoice = event.data.object as Stripe.Invoice;
+      const cid = customerId(invoice.customer);
+      const sid = subscriptionId(invoice.subscription);
+
+      if (!cid || !sid) {
+        console.error("[stripe] invoice.payment_failed — missing customer or subscription ID", invoice.id);
+        break;
+      }
+
+      // Retrieve the subscription to check for orgId metadata
+      let sub: Stripe.Subscription;
+      try {
+        sub = await stripe!.subscriptions.retrieve(sid);
+      } catch (err) {
+        console.error("[stripe] failed to retrieve subscription for payment_failed", sid, err);
+        break;
+      }
+
+      const orgId = sub.metadata?.orgId;
+
+      // ── Update subscription status to past_due ───────────────────────────
+      if (orgId) {
+        const { error: orgErr } = await db
+          .from("organizations")
+          .update({ subscription_status: "past_due" })
+          .eq("id", orgId);
+
+        if (orgErr) {
+          console.error("[stripe] failed to set org past_due", orgId, orgErr.message);
+        } else {
+          console.log("[stripe] set org past_due for", orgId);
+        }
+      } else {
+        const { error: userErr } = await db
+          .from("user_settings")
+          .update({ subscription_status: "past_due" })
+          .eq("stripe_customer_id", cid);
+
+        if (userErr) {
+          console.error("[stripe] failed to set user past_due for customer", cid, userErr.message);
+        } else {
+          console.log("[stripe] set user past_due for customer", cid);
+        }
+      }
+
+      // ── Determine retry info ─────────────────────────────────────────────
+      const attemptCount = invoice.attempt_count ?? 1;
+      // Stripe Smart Retries typically retry at day 1, 3, 7
+      const nextRetryDaysMap: Record<number, number | null> = { 1: 3, 2: 4, 3: null };
+      const nextRetryDays = nextRetryDaysMap[attemptCount] ?? null;
+      const nextRetryDate = nextRetryDays
+        ? new Date(Date.now() + nextRetryDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+        : null;
+
+      // ── Send payment-failed email ────────────────────────────────────────
+      if (resend) {
+        try {
+          const stripeCustomer = await stripe!.customers.retrieve(cid);
+          if (!stripeCustomer.deleted && stripeCustomer.email) {
+            const firstName =
+              (stripeCustomer.name?.split(" ")[0] ?? null) || null;
+
+            const { subject, html, text } = paymentFailedEmail({
+              firstName,
+              attemptCount,
+              nextRetryDate,
+              updatePaymentUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://agentrunway.ca"}/settings/billing`,
+            });
+
+            const { error: emailError } = await resend.emails.send({
+              from: FROM_ADDRESS,
+              to: stripeCustomer.email,
+              subject,
+              html,
+              text,
+            });
+
+            if (emailError) {
+              console.error("[resend] failed to send payment-failed email", emailError);
+            } else {
+              console.log("[resend] payment-failed email sent to", stripeCustomer.email, "attempt", attemptCount);
+            }
+          }
+        } catch (err) {
+          // Non-fatal
+          console.error("[stripe] failed to retrieve customer for payment-failed email", cid, err);
+        }
+      }
+      break;
+    }
+
+    // ── Invoice payment succeeded (recovery from past_due) ─────────────────
+    case "invoice.payment_succeeded": {
+      const invoice = event.data.object as Stripe.Invoice;
+      const cid = customerId(invoice.customer);
+      const sid = subscriptionId(invoice.subscription);
+
+      if (!cid || !sid) {
+        console.error("[stripe] invoice.payment_succeeded — missing customer or subscription ID", invoice.id);
+        break;
+      }
+
+      // Retrieve the subscription to check for orgId metadata
+      let sub: Stripe.Subscription;
+      try {
+        sub = await stripe!.subscriptions.retrieve(sid);
+      } catch (err) {
+        console.error("[stripe] failed to retrieve subscription for payment_succeeded", sid, err);
+        break;
+      }
+
+      const orgId = sub.metadata?.orgId;
+
+      // ── Only act if recovering from past_due ─────────────────────────────
+      if (orgId) {
+        const { data: org } = await db
+          .from("organizations")
+          .select("subscription_status")
+          .eq("id", orgId)
+          .single();
+
+        if (org?.subscription_status === "past_due") {
+          const { error: orgErr } = await db
+            .from("organizations")
+            .update({ subscription_status: "active" })
+            .eq("id", orgId);
+
+          if (orgErr) {
+            console.error("[stripe] failed to recover org from past_due", orgId, orgErr.message);
+          } else {
+            console.log("[stripe] recovered org from past_due → active", orgId);
+          }
+        }
+      } else {
+        const { data: userRow } = await db
+          .from("user_settings")
+          .select("subscription_status")
+          .eq("stripe_customer_id", cid)
+          .single();
+
+        if (userRow?.subscription_status === "past_due") {
+          const { error: userErr } = await db
+            .from("user_settings")
+            .update({ subscription_status: "active" })
+            .eq("stripe_customer_id", cid);
+
+          if (userErr) {
+            console.error("[stripe] failed to recover user from past_due for customer", cid, userErr.message);
+          } else {
+            console.log("[stripe] recovered user from past_due → active for customer", cid);
+          }
         }
       }
       break;
