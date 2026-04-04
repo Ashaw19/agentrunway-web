@@ -1032,31 +1032,86 @@ Canadian RE peak: March-June. Apply indices to forecasts.
 - Annual testing recommended
 - Focus areas: API authentication, RLS bypass, AI injection
 
-### Testing Strategy
-```
-Unit tests (Vitest) → Integration tests → E2E (Playwright) → Staging deploy → Production
-```
-- Vitest for engine tests (already have good coverage)
-- Playwright for critical user flows
-- Visual regression with Chromatic/Percy for UI changes
+### Testing Strategy & Tool Stack
+| Category | Tool | Notes |
+|----------|------|-------|
+| Unit tests | Vitest 3.x (projects mode) | Monorepo-native, `projects` replaces deprecated `vitest.workspace` |
+| E2E | Playwright | Auth caching via setup project, visual regression built-in |
+| Mobile E2E | Maestro | YAML syntax, <1% flakiness, native Expo support, no app changes |
+| DB/RLS testing | pgTAP + supabase-test-helpers | Verify RLS policies in CI |
+| AI testing | Promptfoo | Prompt regression testing with `llm-rubric` assertions |
+| Load testing | k6 | Test upstream (Supabase) directly, not Vercel edge |
+| API testing | next-test-api-route-handler | Isolated API route testing |
 
-### CI/CD Pipeline
+**Testing RSC**: Vitest doesn't support async Server Components — test sync RSC/Client Components with Vitest, test async RSC with Playwright E2E. Mock `next/headers` in setup. Use MSW for Supabase mocking (not direct client mocks).
+
+**Stripe webhook testing**: Use Stripe Test Clocks to simulate subscription lifecycle (time advancement without waiting). `@sesamecare/stripe-mock` for unit tests without API calls.
+
+### CI/CD Pipeline (GitHub Actions + Turborepo)
 ```yaml
-# Recommended GitHub Actions workflow
-- lint + typecheck (parallel)
-- unit tests (parallel)
-- build
-- integration tests
-- deploy to preview
-- E2E on preview
-- deploy to production
+jobs:
+  detect-changes:        # dorny/paths-filter for selective execution
+  lint-test:             # pnpm turbo lint test typecheck --filter='...[origin/main]'
+  e2e:                   # Only if web changed; Playwright with cached auth
+  db-tests:              # supabase start → supabase test db
 ```
+**Key optimization**: `--filter='...[origin/main]'` runs only changed packages — bigger win than caching.
+**Remote caching**: First builds ~30s, cached builds ~0.2s. Set `TURBO_TOKEN` + `TURBO_TEAM` in CI.
 
-### Monitoring
-- Sentry for error tracking (already connected)
-- Vercel Analytics for performance
-- Custom Supabase dashboard for business metrics
-- Alert on: error rate spike, API latency > 2s, AI cost anomaly
+### Dependency Management
+- **Renovate** for day-to-day (groups across monorepo workspaces, auto-merge patches)
+- **Dependabot** for security alerts only
+- Renovate saves ~15 hrs/month vs Dependabot for monorepos (grouped updates)
+
+### Code Quality
+- ESLint flat config (required since v9) + Prettier + Husky + lint-staged
+- Pre-commit: `eslint --fix` + `prettier --write` on staged files
+- TypeScript strict additions: `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`
+
+### Feature Flags
+- **Vercel Edge Config + Flags SDK**: Zero cost, <1ms p90 reads
+- Changes propagate globally in <10 seconds, no redeploy needed
+- LaunchDarkly is overkill at current scale
+
+### Deployment Strategy
+- **Vercel**: Inherently blue-green; every deploy is immutable with unique URL
+- **Instant rollback**: `vercel rollback` re-aliases to previous deployment in milliseconds
+- **Rolling releases**: Gradually shift traffic 10% → 50% → 100%
+- **Preview + Supabase branching**: Each PR gets isolated DB, auto-injected env vars
+
+### 4-Tier Environment Structure
+| Environment | Supabase | Vercel | Use |
+|-------------|----------|--------|-----|
+| Local | `supabase start` (Docker) | `next dev` | Daily dev |
+| Preview | Branch DB (auto per PR) | PR preview | Code review |
+| Staging | Dedicated project | staging branch | QA/integration |
+| Production | Production project | Production | Live users |
+
+### Monitoring & Alerting
+- **Sentry**: Auto-configured via `npx @sentry/wizard@latest -i nextjs`; captures RSC errors, distributed tracing, Core Web Vitals
+- **Vercel Analytics**: Speed Insights for LCP/FCP/INP/CLS
+- **Health endpoint**: `/api/health` checking DB connectivity
+- **BetterStack**: Unified log aggregation from Vercel + Supabase + custom
+- **Alert thresholds**: Error rate >1%/5min (critical), P95 >2s (warning), DB connections >80% (warning), auth failures >50/5min (security)
+
+### Backup Strategy
+- **Supabase PITR** (recommended): WAL-based, restore to any second, 2-min backup granularity
+- Weekly `supabase db dump` to off-site storage (S3/GCS)
+- Quarterly DR drill: restore from PITR to test project, verify integrity
+- Migration files in version control = DB can always be rebuilt from scratch
+
+### Cost Monitoring Checklist (Monthly)
+- Review Supabase usage dashboard (MAU is dominant cost driver: $3.25/1K users over 100K)
+- Check Vercel function invocation counts
+- Review AI API spend by user tier (log per-request token usage)
+- Monitor Stripe processing fees vs revenue
+- Supabase Spend Cap (default ON) prevents runaway costs
+
+### Mobile Deployment (Expo EAS)
+- **Build profiles**: development (internal), staging (internal), production (store)
+- **OTA Updates**: JS-only changes push instantly without app store review
+- **Rollback**: `eas update:rollback --channel production`
+- **Flow**: `eas build` → `eas submit` → TestFlight/Play Store → `eas update` for hotfixes
 
 ---
 
