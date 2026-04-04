@@ -645,10 +645,76 @@ Unified `EmailSender` interface routes to correct provider based on connection t
 - Auto-promote flight status based on activity thresholds
 
 ### CASL Compliance for Outreach
-- Express consent required for commercial emails
-- Implied consent: 2-year expiry from last transaction, 6-month from inquiry
+- **Express consent**: Required for commercial emails; indefinite until withdrawn
+- **Implied consent tiers**:
+  - Post-transaction: 2-year window from close date
+  - Post-inquiry: 6-month window from inquiry date
+  - Referral: single message allowed, must identify referrer
+- **Record-keeping**: 3-year retention of all consent records (CRTC audit requirement)
 - Every email must have: sender name, mailing address, unsubscribe mechanism
-- Track consent timestamps and expiry dates in CRM
+- Unsubscribe must be processed within 10 business days
+- Track consent timestamps, type, source, and expiry dates in CRM
+- Auto-expire implied consent and notify agent before window closes
+
+### Email Warm-Up Strategy (New Gmail Connections)
+New Google OAuth connections should ramp volume gradually:
+- **Week 1-2**: 5-10 emails/day, prioritize replies and engaged contacts
+- **Week 3-4**: 15-25 emails/day, mix outreach with replies
+- **Week 5-6**: 40-50 emails/day, full outreach volume
+- **Ongoing**: Stay under 100/day for cold outreach; 250/day quota hard limit
+- Monitor bounce rate (<2%), spam complaints (<0.1%), unsubscribe rate
+- If deliverability drops: pause 48hrs, reduce volume 50%, re-ramp
+
+### Engagement Scoring Model
+Weighted point system with time decay for contact prioritization:
+| Activity | Points | Decay |
+|----------|--------|-------|
+| Reply received | +15 | 30-day half-life |
+| Phone call (logged) | +20 | 30-day half-life |
+| Appointment/showing | +25 | 45-day half-life |
+| Email opened | +3 | 14-day half-life |
+| Link clicked | +8 | 21-day half-life |
+| Text message sent | +5 | 14-day half-life |
+| Note added | +2 | 7-day half-life |
+- Compute score daily via pg_cron job
+- Flight status auto-promotion thresholds: Dormant→Cruising (score >20), Cruising→Ascending (score >50)
+- Surface "at risk" contacts: previously high-scoring, now decaying below threshold
+
+### Reply Detection & Auto-Pause
+- When Gmail webhook detects inbound reply to outreach thread:
+  1. Auto-pause remaining sequence messages for that contact
+  2. Flag contact for agent follow-up in Flight Control
+  3. Log reply as +15 engagement points
+- Prevents embarrassing "automated message after they already replied" scenario
+- Re-enable sequence only if agent explicitly resumes
+
+### SMS Integration (Twilio)
+- Canada pricing: $0.0083 USD per SMS segment (160 chars)
+- Long code (10DLC) for business messaging, not short code
+- A2P 10DLC registration required for business texting in Canada
+- Opt-in/opt-out tracking parallels CASL consent model
+- Use for: appointment reminders, showing confirmations, time-sensitive alerts
+- NOT for: cold outreach (CASL applies to SMS equally)
+
+### Post-Close Nurture Sequence (12-Month Template)
+Automated follow-up that addresses the 91% follow-up gap:
+- **Day 1**: Congratulations + settlement checklist
+- **Day 30**: Home maintenance tips for season
+- **Day 90**: Check-in + local market update
+- **Day 180**: Anniversary approaching + home value estimate
+- **Day 270**: Referral ask (warm, not pushy)
+- **Day 365**: Move-iversary celebration + market review
+- Each touchpoint is AI-personalized with property details and client preferences
+- Agent can preview/edit any message before auto-send
+- Sequence pauses if client initiates contact (reply detection)
+
+### Send Time Optimization
+Three-tier approach for maximizing open/response rates:
+1. **Population-level**: RE industry best times (Tue-Thu 9-11am, 2-4pm local)
+2. **Cohort-level**: Segment by client type (buyers: evenings, sellers: mornings)
+3. **Individual-level**: Track per-contact open times, learn optimal windows
+- Start at tier 1, graduate to tier 3 as data accumulates
+- Implement via pg_cron scheduling outreach_queue items at computed optimal times
 
 ---
 
