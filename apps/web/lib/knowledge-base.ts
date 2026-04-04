@@ -134,7 +134,7 @@ Flight Control also includes a newsletter builder for mass market updates and se
 
 **Projected Year-End GCI:** (Closed YTD GCI ÷ Seasonal Fraction) + (Pipeline Weighted GCI × 50%). Early-year dampening (Jan–Feb): blends toward goal instead of raw extrapolation because too little data exists. Confidence ramp from 10% to 100% as the year progresses.
 
-**Runway Score:** Composite 0–100. Components: Pace vs Goal (35%), Pipeline Health (25%), Expense Ratio (15%), Survival Runway (15%), Benchmark Rank (10%). Grades: A+ (92+), A (85–91), B (75–84), C (62–74), D (50–61), F (0–49).
+**Runway Score:** Composite 0–100. Components: Pace vs Goal (35%), Pipeline Health (30%), Expense Ratio (15%), Survival Runway (15%), Benchmark Rank (5%). Grades: A+ (92+), A (85–91), B (75–84), C (62–74), D (50–61), F (0–49). Incomplete data (no expenses logged, cash reserve not configured) pulls the score down to incentivize data completeness.
 
 Sub-scores:
 - Pace: Maps pace% [-50%, +50%] → [0, 100]. Dead center (on pace) = 50.
@@ -372,7 +372,7 @@ The AI should frame these as helpful observations, not alarms. Example: "Looking
 A: GCI = Sale Price × Commission %. If you manually override GCI in the deal form, that value is used instead of the calculation.
 
 **Q: What does the Runway Score measure?**
-A: A composite 0–100 score across 5 factors: pace vs goal (35%), pipeline health (25%), expense ratio (15%), survival runway (15%), and benchmark rank (10%). Grades: A+ (92+), A (85–91), B (75–84), C (62–74), D (50–61), F (0–49).
+A: A composite 0–100 score across 5 factors: pace vs goal (35%), pipeline health (30%), expense ratio (15%), survival runway (15%), and benchmark rank (5%). Grades: A+ (92+), A (85–91), B (75–84), C (62–74), D (50–61), F (0–49). Missing data (no expenses, no cash reserve) pulls your score down — the more complete your data, the more accurate and higher your score.
 
 **Q: How much should I set aside for taxes per deal?**
 A: Check the Forecast page → Tax Estimates card. It calculates a per-deal set-aside amount based on your projected annual tax ÷ expected deal count. This is a planning estimate — consult an accountant for precise figures.

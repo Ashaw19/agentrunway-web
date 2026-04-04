@@ -3,13 +3,14 @@
  * ==============================
  * Tests for the composite 5-component health score.
  *
- * Weights: Goal Pace (35%), Pipeline (25%), Expenses (15%),
- *          Benchmark (10%), Survival (15%)
+ * v1.2 Weights: Goal Pace (35%), Pipeline (30%), Expenses (15%),
+ *               Benchmark (5%), Survival (15%)
  *
  * Grades: A+ (≥92), A (≥85), B (≥75), C (≥62), D (≥50), F (<50)
  *
- * NOTE: "Setup" (readinessScore) was removed in v1.1 — it measured
- * app configuration completeness, not business health.
+ * v1.2 changes:
+ * - Benchmark reduced 10% → 5%, Pipeline increased 25% → 30%
+ * - Not-configured survival: 50 → 35 (penalize missing data)
  */
 
 import { describe, it, expect } from "vitest";
@@ -35,36 +36,29 @@ function makeReport(overrides: Partial<BusinessHealthReport> = {}): BusinessHeal
 // ── Composite Score Calculation ──────────────────────────────────────────────
 
 describe("Runway Score — Composite Calculation", () => {
-  it("computes weighted average correctly", () => {
-    // All components at 80 → composite ≈ 80×0.85 + 95×0.15 = 82.25 → 82
+  it("computes weighted average correctly with v1.2 weights", () => {
     const report = makeReport({
       paceScore: 80,
       pipelineScore: 80,
       expenseScore: 80,
     });
     const result = compute(report, 80, 6); // benchmark 80, survival 6+ months → score 95
-    // Weighted: 80×0.35 + 80×0.25 + 80×0.15 + 80×0.1 + 95×0.15
-    // = 28 + 20 + 12 + 8 + 14.25 = 82.25 → rounds to 82
+    // Weighted: 80×0.35 + 80×0.30 + 80×0.15 + 80×0.05 + 95×0.15
+    // = 28 + 24 + 12 + 4 + 14.25 = 82.25 → rounds to 82
     expect(result.score).toBe(82);
     expect(result.grade).toBe("B"); // 75–84
   });
 
-  it("computes test agent score", () => {
-    // Realistic scores for test agent Sarah Chen:
-    // Pace: 90 (well ahead of pace at 183%)
-    // Pipeline: 65 (3 deals, decent but not heavy)
-    // Expenses: 80 (reasonable ratio)
-    // Benchmark: 41 (41st percentile in growth cohort)
-    // Survival: 11.54 months → score 95
+  it("computes test agent score with v1.2 weights", () => {
     const report = makeReport({
       paceScore: 90,
       pipelineScore: 65,
       expenseScore: 80,
     });
     const result = compute(report, 41, 11.54);
-    // Weighted: 90×0.35 + 65×0.25 + 80×0.15 + 41×0.1 + 95×0.15
-    // = 31.5 + 16.25 + 12 + 4.1 + 14.25 = 78.1 → rounds to 78
-    expect(result.score).toBe(78);
+    // Weighted: 90×0.35 + 65×0.30 + 80×0.15 + 41×0.05 + 95×0.15
+    // = 31.5 + 19.5 + 12 + 2.05 + 14.25 = 79.3 → rounds to 79
+    expect(result.score).toBe(79);
     expect(result.grade).toBe("B");
   });
 
@@ -90,6 +84,19 @@ describe("Runway Score — Composite Calculation", () => {
     const result1 = compute(report1, 50, 5);
     const result2 = compute(report2, 50, 5);
     expect(result1.score).toBe(result2.score);
+  });
+
+  it("benchmark at 5% weight has less impact than pipeline at 30%", () => {
+    // Same everything, but swap benchmark and pipeline scores
+    const report = makeReport({ paceScore: 70, pipelineScore: 90, expenseScore: 70 });
+    const highPipeline = compute(report, 20, 5); // high pipeline, low benchmark
+
+    const report2 = makeReport({ paceScore: 70, pipelineScore: 20, expenseScore: 70 });
+    const highBenchmark = compute(report2, 90, 5); // low pipeline, high benchmark
+
+    // High pipeline should win significantly
+    expect(highPipeline.score).toBeGreaterThan(highBenchmark.score);
+    expect(highPipeline.score - highBenchmark.score).toBeGreaterThanOrEqual(14);
   });
 });
 
@@ -125,14 +132,28 @@ describe("Survival Score Mapping", () => {
     const survivalComponent = result.components.find((c) => c.label === "Survival");
     expect(survivalComponent!.score).toBe(10);
   });
+
+  it("not configured (-1) → score 35 (penalize missing data)", () => {
+    const result = compute(makeReport({ paceScore: 50, pipelineScore: 50, expenseScore: 50 }), 50, -1);
+    const survivalComponent = result.components.find((c) => c.label === "Survival");
+    expect(survivalComponent!.score).toBe(35);
+  });
+});
+
+// ── Incomplete Data Penalty ─────────────────────────────────────────────────
+
+describe("Incomplete Data Penalty", () => {
+  it("not-configured survival pulls score below neutral", () => {
+    const report = makeReport({ paceScore: 50, pipelineScore: 50, expenseScore: 50 });
+    const configured = compute(report, 50, 5);    // 4-5 months → 75
+    const notConfigured = compute(report, 50, -1); // not configured → 35
+    expect(notConfigured.score).toBeLessThan(configured.score);
+  });
 });
 
 // ── Grade Boundaries ─────────────────────────────────────────────────────────
 
 describe("Grade Boundaries", () => {
-  // All components at X, benchmark at X, survival ≥ 6 → score 95 for survival
-  // Composite ≈ X × 0.85 + 95 × 0.15 = X × 0.85 + 14.25
-
   it("A+ for score ≥ 92", () => {
     const report = makeReport({
       paceScore: 95, pipelineScore: 95, expenseScore: 95,
@@ -147,7 +168,8 @@ describe("Grade Boundaries", () => {
       paceScore: 88, pipelineScore: 88, expenseScore: 88,
     });
     const result = compute(report, 88, 10);
-    // 88 × 0.85 + 95 × 0.15 = 74.8 + 14.25 = 89.05 → 89
+    // 88 × 0.35 + 88 × 0.30 + 88 × 0.15 + 88 × 0.05 + 95 × 0.15
+    // = 30.8 + 26.4 + 13.2 + 4.4 + 14.25 = 89.05 → 89
     expect(result.score).toBe(89);
     expect(result.grade).toBe("A");
   });
@@ -157,7 +179,8 @@ describe("Grade Boundaries", () => {
       paceScore: 20, pipelineScore: 20, expenseScore: 20,
     });
     const result = compute(report, 20, 0.5); // survival score = 10
-    // 20 × 0.85 + 10 × 0.15 = 17 + 1.5 = 18.5 → 19
+    // 20 × 0.35 + 20 × 0.30 + 20 × 0.15 + 20 × 0.05 + 10 × 0.15
+    // = 7 + 6 + 3 + 1 + 1.5 = 18.5 → 19
     expect(result.score).toBe(19);
     expect(result.grade).toBe("F");
   });
@@ -178,7 +201,7 @@ describe("Grade Boundaries", () => {
 describe("Score Metadata", () => {
   it("includes version string", () => {
     const result = compute(makeReport(), 50, 5);
-    expect(result.version).toBe("1.1");
+    expect(result.version).toBe("1.2");
   });
 
   it("includes timestamp", () => {

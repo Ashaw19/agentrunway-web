@@ -45,13 +45,22 @@ export function buildHealthReport(
   }
 
   // ── Expense score: lower ratio = higher score ──────────────────────
-  let expenseScore = 80;
-  if (ytdGCI > 0) {
+  // v1.2: if agent has GCI but zero expenses logged, score at 35 instead
+  // of 80 — no real estate agent has zero expenses, so this means they
+  // haven't entered their data yet. Penalize to incentivize completeness.
+  let expenseScore: number;
+  if (ytdGCI > 0 && expensesYTD > 0) {
     const ratio = expensesYTD / ytdGCI;
     if (ratio > 0.5) expenseScore = 30;
     else if (ratio > 0.35) expenseScore = 55;
     else if (ratio > 0.25) expenseScore = 75;
     else expenseScore = 90;
+  } else if (ytdGCI > 0 && expensesYTD === 0) {
+    // Has income but no expenses — data is incomplete
+    expenseScore = 35;
+  } else {
+    // No GCI yet — neutral, agent hasn't started
+    expenseScore = 50;
   }
 
   const readinessScore = 0; // deprecated, kept for backward compat

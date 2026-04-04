@@ -2,7 +2,7 @@
 // Versioned composite score wrapping BusinessHealthReport + benchmark + survival.
 // 5-component health score (Setup removed in v1.1).
 
-export const SCORE_VERSION = "1.1";
+export const SCORE_VERSION = "1.2";
 
 // ── Component ───────────────────────────────────────────────────────────────
 
@@ -55,14 +55,18 @@ function grade(score: number): string {
  *
  * Component weights (total = 100%):
  * - Goal Pace:  35%
- * - Pipeline:   25%
+ * - Pipeline:   30%  (v1.2: +5% from Benchmark — pipeline is more actionable)
  * - Expenses:   15%
- * - Benchmark:  10%
+ * - Benchmark:   5%  (v1.2: reduced — CREA national cohorts are too coarse)
  * - Survival:   15%
  *
- * NOTE: "Setup" (readinessScore) was removed in v1.1 — it measured app
- * configuration completeness, not business health.  Its 10% was
- * redistributed to Goal Pace (+5%) and Pipeline (+5%).
+ * v1.2 changes:
+ * - Benchmark weight reduced from 10% to 5%, redistributed to Pipeline.
+ *   CREA 2023 national cohorts (4 buckets) are too coarse for meaningful
+ *   individual comparison. Pipeline health is forward-looking and actionable.
+ * - Incomplete data penalty: "not configured" survival and zero-expense
+ *   scores now pull the composite down (35 instead of 50/80) to incentivize
+ *   data completeness and prevent inflated scores from missing data.
  */
 export function compute(
   healthReport: BusinessHealthReport,
@@ -70,9 +74,10 @@ export function compute(
   survivalMonths: number,
 ): RunwayScoreResult {
   // Convert survival months to 0–100 score
-  // -1 means "not configured" — use neutral 50 instead of punitive 10
+  // -1 means "not configured" — score at 35 to penalize missing data
+  // (previously 50, which rewarded not entering a cash reserve)
   let survivalScore: number;
-  if (survivalMonths < 0) survivalScore = 50;
+  if (survivalMonths < 0) survivalScore = 35;
   else if (survivalMonths >= 6) survivalScore = 95;
   else if (survivalMonths >= 4) survivalScore = 75;
   else if (survivalMonths >= 2) survivalScore = 50;
@@ -81,9 +86,9 @@ export function compute(
 
   const components: ScoreComponent[] = [
     { label: "Goal Pace", score: healthReport.paceScore, weight: "35%", weightValue: 0.35 },
-    { label: "Pipeline", score: healthReport.pipelineScore, weight: "25%", weightValue: 0.25 },
+    { label: "Pipeline", score: healthReport.pipelineScore, weight: "30%", weightValue: 0.30 },
     { label: "Expenses", score: healthReport.expenseScore, weight: "15%", weightValue: 0.15 },
-    { label: "Benchmark", score: benchmarkPercentile, weight: "10%", weightValue: 0.1 },
+    { label: "Benchmark", score: benchmarkPercentile, weight: "5%", weightValue: 0.05 },
     { label: "Survival", score: survivalScore, weight: "15%", weightValue: 0.15 },
   ];
 
