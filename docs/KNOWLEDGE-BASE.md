@@ -772,6 +772,84 @@ Canadian RE peak: March-June. Apply indices to forecasts.
 4. **Integration partnerships** — MLS boards, brokerages
 5. **Conference presence** — CREA, provincial association events
 
+### Trial Optimization
+- **7-day trials** convert at ~40.4%; over 61 days drops to ~30.6%
+- **Credit card required**: 48.8% conversion vs 18.2% without (2.7x gap)
+- **Recommendation**: 14-day trial with credit card required; offer 7-day extension if user has imported data but not hit activation milestone
+- B2B SaaS benchmark: 15% conversion = good, 30% = excellent
+
+### Annual vs Monthly
+- Optimal annual discount: 15-20% (~2 months free)
+- Annual billing reduces churn by 12-34%
+- Monthly churns 2-3x more than annual
+- Solopreneurs (agents) choose annual only ~18% of the time — but those who do retain dramatically better
+- Default pricing page toggle to annual
+
+### AI Feature Pricing
+- **Bundle AI, don't add-on**: Only 20% buy AI add-ons, only 38% of buyers use it = 8% engagement
+- Companies that initially sold AI add-ons have bundled and raised base prices $2.50-5/user
+- 79 of PricingSaaS 500 now offer credit models (up from 35 end of 2024)
+- **Recommendation**: Bundle generous AI allowance in all plans; unlimited at higher tiers
+
+### Expansion Revenue
+- Top-quartile SaaS: 35%+ of new ARR from expansion
+- Upselling: 60-70% success rate vs 5-20% for new acquisition
+- Per-seat models see 3-8% monthly seat growth in expanding accounts
+- **Agent Runway paths**: $79→$149 tier upgrade, individual→team, seat additions, AI credit upsells
+
+### Key SaaS Metrics Targets
+| Metric | Seed Target | Series A Target |
+|--------|------------|-----------------|
+| ARR | Path to $1M in 12-18mo | $1-2M+ |
+| MRR Growth | 15-20% MoM | 10-15% MoM |
+| NDR | >100% | >110% |
+| LTV:CAC | >3:1 | >3:1 |
+| CAC Payback | <12 months | <12 months |
+| Logo Churn | <5% monthly | <3% monthly |
+
+### Activation Metrics
+- Users who retain 90+ days → work backward to find shared first-week behaviors
+- **Likely activation events**: Import 10+ CRM contacts, log 1+ transaction, view dashboard, set flight status, use AI Advisor
+- Target: 40-60% of trial users activated within 7 days
+
+### Churn Prevention
+- Dunning management recovers 20-40% of failed-payment cancellations
+- Systematic onboarding increases first-year retention by 25%
+- Win-back campaigns at 30/60/90 days: 5-15% recovery rate
+- Behavioral analytics users report 15% better retention
+
+### SR&ED Tax Credits (Critical Revenue)
+**Federal (2025 Budget enhancements):**
+- 35% refundable credit for CCPCs on first $6M qualifying expenditures
+- Maximum refundable credit: $2.1M/year (doubled from $1.05M)
+- 15% non-refundable above $6M limit
+
+**Provincial stacking (fully stackable with federal):**
+- New Brunswick: 15% refundable → ~50% combined recovery on qualifying wages
+- Ontario: 8% refundable + additional → up to ~55% combined
+- Quebec: 30% on first $1M → up to ~65% combined (best in world)
+
+**Eligible work**: AI/ML development, algorithm design, novel integration architectures, experimental data processing — basically all Agent Runway's AI Advisor, predictive analytics, and Google integration work.
+
+**Action**: Engage SR&ED consultant (fee: 15-25% of recovered credits). Document technical challenges, experiments, outcomes NOW for current fiscal year.
+
+### IRAP Funding
+- Up to 60-80% of eligible project costs, max $500K per project
+- Average grant: $94K; covers up to 80% of salaries, 50% of subcontractors
+- Budget cycle: April 1 - March 31; apply early (April-July) as funds run out
+- **Apply immediately** for AI development work
+
+### Privacy as Competitive Advantage
+- "Your client data stays in Canada" — genuine differentiator vs US competitors
+- Position against Follow Up Boss, kvCORE (US data storage, US government access)
+- New federal privacy legislation expected late 2025/early 2026 with fines up to $25M or 5% of global revenue
+- Being ahead of compliance is a selling point nationwide
+
+### RE SaaS Market Size
+- Real Estate SaaS market: $8.6B in 2025, growing at 42% annually
+- Competitor pricing: Follow Up Boss $69-99/mo, kvCORE $499-1,200/mo for teams
+- Agent Runway at $79-149 individual sits in sweet spot; $55/member undercuts all team competitors
+
 ---
 
 ## 19. Security, Testing & DevOps
