@@ -18,3 +18,4 @@ export * from "./where-you-stand-engine";
 export * from "./deviation-engine";
 export * from "./pipeline-forecast-engine";
 export * from "./engagement-engine";
+export * from "./anomaly-engine";
