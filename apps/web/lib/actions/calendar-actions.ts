@@ -144,10 +144,10 @@ export async function createCalendarEvent(input: CreateCalendarEventInput) {
         location:    input.location,
         start:       input.all_day
           ? { date: input.start_at.split("T")[0] }
-          : { dateTime: input.start_at, timeZone: "America/Toronto" },
+          : { dateTime: input.start_at },
         end:         input.all_day
           ? { date: input.end_at.split("T")[0] }
-          : { dateTime: input.end_at, timeZone: "America/Toronto" },
+          : { dateTime: input.end_at },
         reminders:   { useDefault: true },
       };
 
@@ -256,8 +256,8 @@ export async function updateCalendarEvent(
         if (input.title)       updates.summary     = input.title;
         if (input.description) updates.description = input.description;
         if (input.location)    updates.location    = input.location;
-        if (input.start_at)    updates.start       = { dateTime: input.start_at, timeZone: "America/Toronto" };
-        if (input.end_at)      updates.end         = { dateTime: input.end_at,   timeZone: "America/Toronto" };
+        if (input.start_at)    updates.start       = { dateTime: input.start_at };
+        if (input.end_at)      updates.end         = { dateTime: input.end_at };
 
         await updateEvent(tokenCtx.accessToken, existing.google_event_id, updates);
         googleSynced = true;
@@ -502,10 +502,10 @@ export async function syncUserCalendar(userId: string): Promise<{
             location:    arEvent.location ?? undefined,
             start: arEvent.all_day
               ? { date: arEvent.start_at.slice(0, 10) }
-              : { dateTime: arEvent.start_at, timeZone: "America/Toronto" },
+              : { dateTime: arEvent.start_at },
             end: arEvent.all_day
               ? { date: arEvent.end_at.slice(0, 10) }
-              : { dateTime: arEvent.end_at, timeZone: "America/Toronto" },
+              : { dateTime: arEvent.end_at },
             reminders: { useDefault: true },
           };
 

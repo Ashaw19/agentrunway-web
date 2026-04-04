@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 /**
  * GET /api/testimonials — Fetch approved testimonials (public)
@@ -32,6 +33,16 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
+
+    // Rate-limit by IP (unauthenticated endpoint) — use forwarded IP or fallback
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anonymous";
+    const rl = await checkRateLimit(ip, "testimonials_submit", 5, 3600); // 5 per hour
+    if (!rl.allowed) {
+      return new Response("Too many submissions. Please try again later.", {
+        status: 429,
+        headers: rateLimitHeaders(rl),
+      });
+    }
 
     const body = await req.json();
     const { name, title, quote, rating, source } = body as {
