@@ -203,29 +203,91 @@ FROM ...
 
 ## 5. AI Cost Optimization
 
-### Prompt Caching
-- 90% discount on cached input tokens
-- 5-minute default TTL, 1-hour option for system prompts
-- **Agent Runway**: System prompt (~2K tokens) at 1hr cache = saves ~$0.005/request
-- At 10K daily requests: ~$50/day saved on caching alone
+### Full Provider Pricing Reference (per 1M tokens)
+| Model | Input | Output | Cache Read | Batch Input | Batch Output |
+|-------|-------|--------|-----------|-------------|--------------|
+| Claude Opus 4.6 | $5.00 | $25.00 | $0.50 | $2.50 | $12.50 |
+| Claude Sonnet 4.6 | $3.00 | $15.00 | $0.30 | $1.50 | $7.50 |
+| Claude Haiku 4.5 | $1.00 | $5.00 | $0.10 | $0.50 | $2.50 |
+| Groq Llama 3.3 70B | $0.59 | $0.79 | — | — | — |
+| Groq Llama 3.1 8B | $0.05 | $0.08 | — | — | — |
+| Gemini 2.5 Flash | $0.30 | $2.50 | — | $0.15 | $1.25 |
+
+### Prompt Caching Strategy
+- 90% discount on cached input tokens (cache read = 0.1x input price)
+- Cache write: 1.25x for 5-min TTL, 2x for 1-hour TTL
+- Break-even: After just 1 cache read (5-min) or 2 reads (1-hour)
+- **Design for hits**: Static content (system prompt, tools) at TOP of prompt, dynamic content at BOTTOM
+- Latency reduction: up to 85% for long prompts (11.5s → 2.4s at 100K tokens)
+- **Agent Runway sizing**: 3K cached tokens + 600 dynamic → 75% savings on input costs
 
 ### Batch API
 - 50% discount for async processing (non-real-time)
-- **Use for**: Nightly insight generation, bulk outreach drafting, periodic scoring
+- **Batch + Cache stacks**: Up to 95% savings on input tokens ($3.00 → $0.15/MTok)
+- **Use for**: Nightly insight generation, bulk outreach drafting, periodic scoring, CRM enrichment on import, weekly market summaries, monthly report narratives
 - 24-hour completion window, usually much faster
+
+### Pre-Computation (Materialized AI Responses)
+Generate on schedule instead of on-demand to eliminate 30-50% of real-time LLM calls:
+- Weekly market summary per region (Sunday night batch → instant delivery)
+- Pipeline health insights per user (nightly batch → dashboard loads instantly)
+- Client follow-up suggestions (every 6 hours → no AI wait in CRM)
+- Monthly business narrative (1st of month → pre-built report)
+- Email draft templates (weekly → quick customization, not generation)
+- Implementation: pg_cron → Supabase Edge Function → Batch API (50% off)
 
 ### Combined Savings Projection
 | Optimization | Savings |
 |-------------|---------|
-| 3-tier routing (70% Haiku) | 30-40% |
-| Prompt caching | 15-25% |
-| Batch API (async ops) | 10-15% |
-| **Total** | **40-60%** |
+| 3-tier routing (60% Haiku / 30% Sonnet / 10% Opus) | 50-70% |
+| Prompt caching (75% hit rate) | 60-75% on input |
+| Batch API (async ops) | 50% additional |
+| Pre-computation | Eliminates 30-50% of real-time calls |
+| **Fully optimized cost/user** | **$3-5/month** |
 
-### Cost Per User Estimate
-- Light user (5 AI interactions/day): ~$0.02/day → $0.60/month
-- Heavy user (25 AI interactions/day): ~$0.10/day → $3.00/month
-- At $79-149/month subscription: AI costs are 1-4% of revenue per user
+### Cost Per User — Detailed Model
+| Activity | Frequency | Tokens/Event | Monthly Tokens |
+|----------|-----------|-------------|---------------|
+| AI Advisor chat | 15/day × 20 days | 4,000 avg | 1,200,000 |
+| CRM lookups | 10/day | 2,000 avg | 400,000 |
+| Pipeline analysis | 3/week | 5,000 avg | 60,000 |
+| Email drafts | 5/week | 3,000 avg | 60,000 |
+| Market insights | 2/week | 8,000 avg | 64,000 |
+| Document processing | 1/week | 10,000 avg | 40,000 |
+| **Total** | | | **~1.8M tokens/user/month** |
+
+**Unoptimized** (all Sonnet): ~$16.40/user/month
+**Fully optimized** (routing + cache + pre-compute): ~$3-5/user/month
+**At $79-149/month subscription**: AI costs = 3-5% of revenue (industry avg: 20-60%)
+**AI cost is NOT a concern at any realistic scale for Agent Runway**
+
+### Scaling Cost Projections
+| Users | Monthly AI Cost | Monthly Revenue (avg $114/mo) |
+|-------|----------------|-------------------------------|
+| 100 | ~$410 | $11,400 |
+| 500 | ~$2,050 | $57,000 |
+| 1,000 | ~$4,100 | $114,000 |
+| 5,000 | ~$20,500 | $570,000 |
+
+### Cost Guardrails
+- Per-user daily token limits by subscription tier
+- Graceful degradation: exceed limit → route to cheaper model, not hard block
+- Real-time cost tracking via Helicone (free tier: 100K requests/month)
+- Alert at >$5/user/day AI spend (anomaly detection)
+- Monthly team budget controls for org billing
+
+### Observability Recommendation
+- **Helicone** (recommended, start now): Free 100K requests, one-line integration, per-user cost tracking
+- **Portkey** ($49/mo): When multi-provider routing + PII guardrails needed (at scale)
+- **LangSmith**: Skip — requires LangChain, per-seat pricing, overkill for current stage
+
+### Fallback Chain Architecture
+```
+Claude Sonnet 4.6 → [timeout 5s / error] → Gemini 2.5 Flash → [error] → Groq Llama 3.3 70B → graceful error
+```
+- Circuit breaker: open at >5% error rate in rolling 5-min window
+- Achieves 99.95%+ uptime even during individual provider outages
+- Groq remains the fastest option (394 TPS, <300ms TTFT) for latency-sensitive fallback
 
 ---
 
