@@ -19,3 +19,4 @@ export * from "./deviation-engine";
 export * from "./pipeline-forecast-engine";
 export * from "./engagement-engine";
 export * from "./anomaly-engine";
+export * from "./nurture-engine";
