@@ -2,21 +2,17 @@
 /**
  * Agent Runway — Seed Ellis Realty Beta Team
  * ============================================
- * Creates the Ellis Realty beta team organization with lifetime free access.
- *
- * Team leaders: erin@ellisrealty.ca (owner), andrew@andrewdshaw.ca
- * Admin:        homes@ellisrealty.ca (Jess McCluskey)
- * Agents:       liz@, grace@, aidan@ (all @ellisrealty.ca)
+ * Creates the Ellis Realty beta organization with 6 team members
+ * (1 owner + 5 agents), all with lifetime free professional access.
  *
  * Usage:
- *   npx tsx scripts/seed-beta-team.ts
+ *   npx tsx apps/web/scripts/seed-beta-team.ts
  *
  * Prerequisites:
  *   - .env.local must contain NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY
- *   - Team members must already have Supabase auth accounts (registered users)
  *
- * The script is idempotent — it upserts by slug, so re-running
- * updates existing data instead of duplicating.
+ * The script is idempotent — it checks for existing records before
+ * creating and uses upsert where possible. Safe to re-run.
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -41,62 +37,140 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
 
 interface TeamMember {
   email: string;
-  name: string;
-  role: "team_leader" | "admin" | "agent";
+  displayName: string;
+  orgRole: "owner" | "agent";
+  dataSharingTier: "tier1" | "tier2";
+  goalGci: number;
 }
 
 const ORG_SLUG = "ellis-realty";
 const ORG_NAME = "Ellis Realty";
 
-/** Erin is the org owner — her user ID populates organizations.owner_id */
-const OWNER_EMAIL = "erin@ellisrealty.ca";
-
 const TEAM: TeamMember[] = [
-  { email: "erin@ellisrealty.ca",    name: "Erin Ellis",       role: "team_leader" },
-  { email: "andrew@andrewdshaw.ca",  name: "Andrew Shaw",      role: "team_leader" },
-  { email: "homes@ellisrealty.ca",   name: "Jess McCluskey",   role: "admin" },
-  { email: "liz@ellisrealty.ca",     name: "Liz Spragg",       role: "agent" },
-  { email: "grace@ellisrealty.ca",   name: "Grace Chappell",   role: "agent" },
-  { email: "aidan@ellisrealty.ca",   name: "Aidan Finnegan",   role: "agent" },
+  {
+    email: "erin@ellisrealty.ca",
+    displayName: "Erin Ellis",
+    orgRole: "owner",
+    dataSharingTier: "tier2",
+    goalGci: 500_000,
+  },
+  {
+    email: "agent1@ellisrealty.ca",
+    displayName: "Jordan Ellis",
+    orgRole: "agent",
+    dataSharingTier: "tier1",
+    goalGci: 300_000,
+  },
+  {
+    email: "agent2@ellisrealty.ca",
+    displayName: "Taylor Kim",
+    orgRole: "agent",
+    dataSharingTier: "tier1",
+    goalGci: 250_000,
+  },
+  {
+    email: "agent3@ellisrealty.ca",
+    displayName: "Morgan Patel",
+    orgRole: "agent",
+    dataSharingTier: "tier1",
+    goalGci: 200_000,
+  },
+  {
+    email: "agent4@ellisrealty.ca",
+    displayName: "Riley Chen",
+    orgRole: "agent",
+    dataSharingTier: "tier1",
+    goalGci: 175_000,
+  },
+  {
+    email: "agent5@ellisrealty.ca",
+    displayName: "Casey Santos",
+    orgRole: "agent",
+    dataSharingTier: "tier1",
+    goalGci: 150_000,
+  },
 ];
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Ensure an auth user exists for the given email.
+ * If the user already exists, return their ID. Otherwise create them
+ * with a random password and auto-confirmed email.
+ */
+async function ensureAuthUser(email: string): Promise<string> {
+  // Check if user already exists by listing and filtering
+  const { data: listData, error: listErr } =
+    await supabase.auth.admin.listUsers();
+
+  if (listErr) {
+    throw new Error(`Failed to list auth users: ${listErr.message}`);
+  }
+
+  const existing = listData.users.find(
+    (u) => u.email?.toLowerCase() === email.toLowerCase()
+  );
+
+  if (existing) {
+    console.log(`  [auth] ${email} — already exists (${existing.id})`);
+    return existing.id;
+  }
+
+  // Create new user with auto-confirmed email
+  const tempPassword = `BetaSeed-${crypto.randomUUID().slice(0, 8)}!`;
+  const { data: newUser, error: createErr } =
+    await supabase.auth.admin.createUser({
+      email,
+      password: tempPassword,
+      email_confirm: true,
+      user_metadata: { source: "beta-seed" },
+    });
+
+  if (createErr) {
+    throw new Error(`Failed to create auth user ${email}: ${createErr.message}`);
+  }
+
+  console.log(`  [auth] ${email} — created (${newUser.user.id})`);
+  return newUser.user.id;
+}
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
   console.log("=== Seeding Ellis Realty Beta Team ===\n");
 
-  // 1. Fetch all auth users so we can match by email
-  const { data: userData, error: userErr } = await supabase.auth.admin.listUsers();
+  // ── Step 1: Ensure all auth users exist ────────────────────────────────────
 
-  if (userErr) {
-    console.error("Failed to list users:", userErr.message);
-    process.exit(1);
+  console.log("Step 1: Ensuring auth users exist...\n");
+
+  const userIds: Map<string, string> = new Map();
+
+  for (const member of TEAM) {
+    const uid = await ensureAuthUser(member.email);
+    userIds.set(member.email, uid);
   }
 
-  const findUser = (email: string) =>
-    userData.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
+  const ownerEmail = TEAM[0].email;
+  const ownerId = userIds.get(ownerEmail)!;
 
-  const owner = findUser(OWNER_EMAIL);
+  console.log("");
 
-  if (!owner) {
-    console.error(`Owner ${OWNER_EMAIL} not found in auth.users.`);
-    console.error("Erin must register an account first.\n");
-    console.error("Creating organization with placeholder owner_id — members");
-    console.error("who haven't registered will receive invitations.\n");
-  }
+  // ── Step 2: Create or update the organization ──────────────────────────────
 
-  // 2. Create or update the organization
+  console.log("Step 2: Creating/updating organization...\n");
+
   const { data: org, error: orgErr } = await supabase
     .from("organizations")
     .upsert(
       {
         name: ORG_NAME,
         slug: ORG_SLUG,
-        type: "team",
-        owner_id: owner?.id ?? "00000000-0000-0000-0000-000000000000",
+        type: "brokerage",
+        owner_id: ownerId,
         is_beta: true,
         subscription_status: "active",
         max_seats: 10,
+        billing_email: "erin@ellisrealty.ca",
       },
       { onConflict: "slug" }
     )
@@ -108,76 +182,90 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`Organization "${ORG_NAME}" (${org.id}) — is_beta=true\n`);
+  console.log(
+    `  [org] "${ORG_NAME}" (${org.id}) — type=brokerage, is_beta=true, max_seats=10\n`
+  );
 
-  // 3. Add each team member (if registered) or create invitation
-  for (const m of TEAM) {
-    const authUser = findUser(m.email);
+  // ── Step 3: Create organization_members entries ────────────────────────────
 
-    if (authUser) {
-      // User has an account — add directly as active member
-      const { error: memberErr } = await supabase
-        .from("organization_members")
-        .upsert(
-          {
-            org_id: org.id,
-            user_id: authUser.id,
-            role: m.role,
-            status: "active",
-            data_sharing_tier: "tier1",
-            joined_at: new Date().toISOString(),
-          },
-          { onConflict: "org_id,user_id" }
-        );
+  console.log("Step 3: Creating organization members...\n");
 
-      if (memberErr) {
-        console.error(`  ✗ ${m.name} (${m.email}): ${memberErr.message}`);
-      } else {
-        console.log(`  ✓ ${m.name} — ${m.email} (${m.role}, active)`);
-      }
+  for (const member of TEAM) {
+    const userId = userIds.get(member.email)!;
 
-      // Grant professional tier to all beta team members
-      await supabase
-        .from("user_settings")
-        .update({
-          subscription_tier: "professional",
-          subscription_status: "active",
-        })
-        .eq("user_id", authUser.id);
+    const { error: memberErr } = await supabase
+      .from("organization_members")
+      .upsert(
+        {
+          org_id: org.id,
+          user_id: userId,
+          role: member.orgRole,
+          status: "active",
+          data_sharing_tier: member.dataSharingTier,
+          consent_granted_at: new Date().toISOString(),
+          consent_version: 1,
+          joined_at: new Date().toISOString(),
+        },
+        { onConflict: "org_id,user_id" }
+      );
+
+    if (memberErr) {
+      console.error(
+        `  [member] FAILED ${member.displayName} (${member.email}): ${memberErr.message}`
+      );
     } else {
-      // User hasn't registered — create a 1-year invitation
-      const token = Array.from(crypto.getRandomValues(new Uint8Array(32)))
-        .map((b) => b.toString(16).padStart(2, "0"))
-        .join("");
-
-      const { error: inviteErr } = await supabase
-        .from("organization_invitations")
-        .upsert(
-          {
-            org_id: org.id,
-            email: m.email.toLowerCase(),
-            role: m.role,
-            token,
-            invited_by: owner?.id ?? "00000000-0000-0000-0000-000000000000",
-            expires_at: new Date(
-              Date.now() + 365 * 24 * 60 * 60 * 1000
-            ).toISOString(),
-          },
-          { onConflict: "org_id,email" }
-        );
-
-      if (inviteErr) {
-        console.error(`  ✗ ${m.name} (${m.email}): ${inviteErr.message}`);
-      } else {
-        console.log(`  ~ ${m.name} — ${m.email} (${m.role}, invited — pending registration)`);
-      }
+      console.log(
+        `  [member] ${member.displayName} — ${member.orgRole}, ${member.dataSharingTier}, active`
+      );
     }
   }
 
+  console.log("");
+
+  // ── Step 4: Create/update user_settings entries ────────────────────────────
+
+  console.log("Step 4: Creating/updating user_settings...\n");
+
+  for (const member of TEAM) {
+    const userId = userIds.get(member.email)!;
+
+    const { error: settingsErr } = await supabase
+      .from("user_settings")
+      .upsert(
+        {
+          user_id: userId,
+          display_name: member.displayName,
+          subscription_tier: "professional",
+          subscription_status: "active",
+          goal_gci: member.goalGci,
+        },
+        { onConflict: "user_id" }
+      );
+
+    if (settingsErr) {
+      console.error(
+        `  [settings] FAILED ${member.displayName}: ${settingsErr.message}`
+      );
+    } else {
+      console.log(
+        `  [settings] ${member.displayName} — professional, goal_gci=${member.goalGci.toLocaleString()}`
+      );
+    }
+  }
+
+  // ── Done ───────────────────────────────────────────────────────────────────
+
   console.log("\n=== Done ===");
-  console.log(`\nEllis Realty is set up with is_beta=true (lifetime free).`);
-  console.log("All registered members have professional tier access.");
-  console.log("Members who haven't registered will receive invitations.");
+  console.log(`\nEllis Realty beta team seeded successfully.`);
+  console.log(`  Organization: ${ORG_NAME} (${org.id})`);
+  console.log(`  Type: brokerage | is_beta: true | max_seats: 10`);
+  console.log(`  Owner: Erin Ellis (erin@ellisrealty.ca)`);
+  console.log(`  Agents: 5 (agent1-agent5@ellisrealty.ca)`);
+  console.log(`  All members: professional tier, active subscription`);
+  console.log(`  Lifetime free access via is_beta flag.`);
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error("\nFatal error:", err);
+  process.exit(1);
+});
