@@ -1492,21 +1492,48 @@ export function ClientsContent({
             (s) => s.flight_plan_id === plan.id,
           );
           for (const step of planSteps) {
-            if (step.action_type === "task" && step.template) {
-              const clientName = client?.name ?? "Client";
-              const taskTitle = step.template
-                .replace(/\{name\}/gi, clientName)
-                .replace(/\[name\]/gi, clientName)
-                .replace(/\[Name\]/g, clientName);
-              const dueDate = new Date();
-              dueDate.setDate(dueDate.getDate() + step.delay_days);
-              const dueDateStr = dueDate.toISOString().slice(0, 10);
+            if (!step.template) continue;
+            const clientName = client?.name ?? "Client";
+            const resolvedTemplate = step.template
+              .replace(/\{name\}/gi, clientName)
+              .replace(/\[name\]/gi, clientName)
+              .replace(/\[Name\]/g, clientName);
+            const dueDate = new Date();
+            dueDate.setDate(dueDate.getDate() + step.delay_days);
+            const dueDateStr = dueDate.toISOString().slice(0, 10);
+
+            if (step.action_type === "task") {
               await addTask(
                 clientId,
-                taskTitle,
+                resolvedTemplate,
                 dueDateStr,
                 "normal",
                 `Auto-created by Flight Plan: ${plan.name}`,
+              );
+            } else if (step.action_type === "email") {
+              // Queue email into outreach_queue as a draft for Flight Control review
+              const supabase = createClient();
+              const { data: { user: u } } = await supabase.auth.getUser();
+              if (u) {
+                await supabase.from("outreach_queue").insert({
+                  user_id: u.id,
+                  client_id: clientId,
+                  opportunity_type: "flight_plan",
+                  trigger_date: dueDateStr,
+                  status: "draft",
+                  ai_subject: `Flight Plan: ${plan.name}`,
+                  ai_body: resolvedTemplate,
+                  context: { flight_plan: plan.name, step_order: step.step_order },
+                });
+              }
+            } else if (step.action_type === "text") {
+              // SMS not integrated — create a task reminder to send the text manually
+              await addTask(
+                clientId,
+                `📱 Send text to ${clientName}: "${resolvedTemplate.slice(0, 80)}${resolvedTemplate.length > 80 ? "…" : ""}"`,
+                dueDateStr,
+                "normal",
+                `Auto-created by Flight Plan: ${plan.name} (text step)`,
               );
             }
           }
