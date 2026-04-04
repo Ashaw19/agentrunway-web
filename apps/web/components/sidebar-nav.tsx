@@ -29,66 +29,66 @@ import type { OrgContext } from "@/lib/types/organizations";
 
 type SidebarEntry =
   | { type: "header"; label: string }
-  | { type: "item"; label: string; subLabel?: string; href: string; icon: LucideIcon; iconActive: string; iconInactive: string; borderActive: string; dataTour?: string };
+  | { type: "item"; label: string; subLabel?: string; href: string; icon: LucideIcon; iconActive: string; iconInactive: string; borderActive: string; textActive?: string; dataTour?: string };
 
 const sidebarEntries: SidebarEntry[] = [
   // ── FINANCIALS ─────────────────────────────────────────────────
   { type: "header", label: "FINANCIALS" },
   {
     type: "item", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard,
-    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
+    iconActive: "text-blue-300", iconInactive: "text-blue-400/50", borderActive: "border-l-blue-400", textActive: "text-blue-200",
   },
   {
     type: "item", label: "Transactions", href: "/transactions", icon: ArrowLeftRight,
-    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
+    iconActive: "text-emerald-300", iconInactive: "text-emerald-400/50", borderActive: "border-l-emerald-400", textActive: "text-emerald-200",
   },
   {
     type: "item", label: "Pipeline", href: "/pipeline", icon: Layers,
-    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
+    iconActive: "text-amber-300", iconInactive: "text-amber-400/50", borderActive: "border-l-amber-400", textActive: "text-amber-200",
   },
   {
     type: "item", label: "Expenses", href: "/expenses", icon: Receipt,
-    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
+    iconActive: "text-orange-300", iconInactive: "text-orange-400/50", borderActive: "border-l-orange-400", textActive: "text-orange-200",
   },
   {
     type: "item", label: "Altimeter", subLabel: "Analytics", href: "/altimeter", icon: BarChart2,
-    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
+    iconActive: "text-cyan-300", iconInactive: "text-cyan-400/50", borderActive: "border-l-cyan-400", textActive: "text-cyan-200",
   },
   {
     type: "item", label: "Overhead", subLabel: "Taxes", href: "/overhead", icon: Receipt,
-    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
+    iconActive: "text-red-300", iconInactive: "text-red-400/50", borderActive: "border-l-red-400", textActive: "text-red-200",
   },
   {
     type: "item", label: "Forecast", href: "/forecast", icon: TrendingUp,
-    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
+    iconActive: "text-violet-300", iconInactive: "text-violet-400/50", borderActive: "border-l-violet-400", textActive: "text-violet-200",
   },
   {
     type: "item", label: "Reports", href: "/reports", icon: FileText,
-    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
+    iconActive: "text-sky-300", iconInactive: "text-sky-400/50", borderActive: "border-l-sky-400", textActive: "text-sky-200",
   },
   // ── CRM ────────────────────────────────────────────────────────
   { type: "header", label: "CRM" },
   {
     type: "item", label: "CRM", href: "/crm", icon: Users,
-    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
+    iconActive: "text-teal-300", iconInactive: "text-teal-400/50", borderActive: "border-l-teal-400", textActive: "text-teal-200",
   },
   {
     type: "item", label: "Flight Control", href: "/flight-control", icon: Sparkles,
-    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
+    iconActive: "text-fuchsia-300", iconInactive: "text-fuchsia-400/50", borderActive: "border-l-fuchsia-400", textActive: "text-fuchsia-200",
   },
   {
     type: "item", label: "Referrals", href: "/referrals", icon: Handshake,
-    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
+    iconActive: "text-lime-300", iconInactive: "text-lime-400/50", borderActive: "border-l-lime-400", textActive: "text-lime-200",
   },
   // ── TOOLS ──────────────────────────────────────────────────────
   { type: "header", label: "TOOLS" },
   {
     type: "item", label: "Social", href: "/social", icon: Share2,
-    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
+    iconActive: "text-pink-300", iconInactive: "text-pink-400/50", borderActive: "border-l-pink-400", textActive: "text-pink-200",
   },
   {
     type: "item", label: "Guide", href: "/guide", icon: BookOpen,
-    iconActive: "text-white", iconInactive: "text-sidebar-foreground/50", borderActive: "border-l-primary",
+    iconActive: "text-indigo-300", iconInactive: "text-indigo-400/50", borderActive: "border-l-indigo-400", textActive: "text-indigo-200",
     dataTour: "guide-link",
   },
 ];
@@ -227,7 +227,8 @@ export function SidebarNav({
                   "flex items-center gap-3 rounded-lg px-3 py-2.5 text-[15.5px] transition-all duration-150 border-l-[3px]",
                   isActive
                     ? cn(
-                        "bg-sidebar-accent font-semibold text-sidebar-accent-foreground shadow-sm",
+                        "bg-sidebar-accent font-semibold shadow-sm",
+                        entry.textActive ?? "text-sidebar-accent-foreground",
                         entry.borderActive,
                       )
                     : "border-l-transparent font-medium text-sidebar-foreground/65 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground hover:border-l-sidebar-border",
