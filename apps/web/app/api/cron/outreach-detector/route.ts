@@ -8,6 +8,10 @@
  *   1. Transition Landed → Cruising for clients 30+ days post-close (all users, once daily).
  *   2. For each distinct user, call detectAndDraftForUser() to queue AI outreach.
  *
+ * IMPORTANT — CASL COMPLIANCE:
+ * This cron ONLY creates drafts in the outreach_queue. It NEVER sends
+ * emails. Users must review and explicitly click "Send" for every message.
+ *
  * Schedule: "0 8 * * *" — requires Vercel Pro.
  * If not on Pro, the "Scan Now" button in Flight Control handles detection
  * on demand via POST /api/ai/detect-opportunities.

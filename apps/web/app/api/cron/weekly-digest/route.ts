@@ -107,15 +107,16 @@ export async function GET(req: NextRequest) {
       const email = authUser?.user?.email;
       if (!email) continue;
 
-      // Check if user has opted out of the weekly digest
+      // Check if user has explicitly opted IN to the weekly digest.
+      // CASL compliance: never send unless user has given express consent.
       const { data: prefs } = await admin
         .from("notification_preferences")
         .select("weekly_digest_enabled")
         .eq("user_id", user.user_id)
         .maybeSingle();
 
-      // If a row exists and weekly_digest_enabled is explicitly false, skip
-      if (prefs && prefs.weekly_digest_enabled === false) continue;
+      // Only send if user has explicitly opted in (row exists AND enabled)
+      if (!prefs || prefs.weekly_digest_enabled !== true) continue;
 
       // Fetch closed transactions for this year
       const { data: txRows } = await admin

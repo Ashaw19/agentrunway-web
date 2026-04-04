@@ -1,10 +1,16 @@
 /**
  * Nurture Sequence Engine
  *
- * Defines the step templates for automated post-close nurture sequences.
+ * Defines the step templates for post-close nurture sequences.
  * Each step specifies timing (days after trigger), outreach type, and
  * content generation hints. The actual email generation happens via AI
- * at send time using client + property context.
+ * when the step becomes due.
+ *
+ * IMPORTANT — CASL COMPLIANCE:
+ * This engine ONLY generates drafts and schedules reminders.
+ * Emails are NEVER sent automatically. The user must always
+ * review and explicitly click "Send" for every outreach message.
+ * No cron job or background process may bypass this requirement.
  */
 
 export interface NurtureStep {
