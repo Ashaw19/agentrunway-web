@@ -8,12 +8,16 @@
     "./types/database": "./types/database.ts",
     "./types/organizations": "./types/organizations.ts",
     "./formatters": "./formatters.ts",
-    "./validation/input-guards": "./validation/input-guards.ts"
+    "./validation/input-guards": "./validation/input-guards.ts",
+    "./schemas/ai-outputs": "./schemas/ai-outputs.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "typescript": "^5"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
   }
 }
