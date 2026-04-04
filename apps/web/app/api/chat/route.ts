@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { streamText } from "ai";
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -15,6 +15,9 @@ import { classifyTopic, classifyTopicMulti, PAGE_TO_TOPICS, TOPIC_ACTION_LINKS, 
 import { getPlaybooks } from "@/lib/troubleshooting-playbooks";
 import { buildDiagnostics } from "@/lib/chat-diagnostics";
 import { logChatAnalytics, countTopicFollowUps } from "@/lib/chat-analytics";
+import { models, heliconeHeaders } from "@/lib/ai/provider";
+import { selectModelTier } from "@/lib/ai/router";
+import { buildStructuredPrompt, injectCanary, scanAndRedactPII } from "@/lib/ai/security";
 
 export async function POST(req: NextRequest) {
   const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
@@ -39,18 +42,12 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 3. Config guard ──────────────────────────────────────────────────────
-  if (!process.env.GROQ_API_KEY) {
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GROQ_API_KEY) {
     return new Response(
-      "AI assistant is not configured yet. Please add your GROQ_API_KEY to Vercel environment variables.",
+      "AI assistant is not configured yet. Please add your ANTHROPIC_API_KEY to Vercel environment variables.",
       { status: 503 },
     );
   }
-
-  // Groq uses an OpenAI-compatible API — just swap baseURL and model
-  const groq = new OpenAI({
-    apiKey: process.env.GROQ_API_KEY,
-    baseURL: "https://api.groq.com/openai/v1",
-  });
 
   const { messages, currentPage } = await req.json();
 
@@ -294,9 +291,9 @@ IMPORTANT: When comparing this agent to team averages, always reference ${leader
   await troubleshootingPromise;
 
   // Strip any system-role messages from the client — only user/assistant allowed.
-  // Cap each message to 4000 chars and limit total conversation to ~80K chars
-  // to leave room for the system prompt (~30K) within Groq's 128K context.
-  const MAX_CONVERSATION_CHARS = 80_000;
+  // Cap each message to 4000 chars and limit total conversation to ~200K chars.
+  // Claude's 1M context is much larger than Groq's 128K — we can keep more history.
+  const MAX_CONVERSATION_CHARS = 200_000;
   const filtered = messages
     .filter((m) => m.role === "user" || m.role === "assistant")
     .map((m) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
@@ -350,19 +347,23 @@ ${troubleshootingContext}${escalationBlock}
   // Dynamic max_tokens: troubleshooting responses need more room for step-by-step explanations
   const maxTokens = isTroubleshooting ? 1200 : 600;
 
-  const systemPrompt = `You are an AI business assistant for a Canadian real estate agent using Agent Runway — a financial analytics platform.
+  // ── 6b. Model routing — select tier based on topic + message complexity ──
+  const { tier, model: selectedModel } = selectModelTier(
+    topTopics,
+    String(latestUserMessage),
+    isTroubleshooting,
+  );
 
-Important: All outputs you generate are estimates for informational purposes only. You do not provide financial, tax, or legal advice. Always remind users to consult their accountant or professional advisor for decisions.
+  // Dynamic max_tokens: troubleshooting needs more room, complex tier gets more
+  const maxTokens = isTroubleshooting ? 1200 : tier === "complex" ? 1000 : 600;
 
-You have access to the following live business data for this agent:
-${financialContext}
-${pageContext}
+  // ── 7. Build system prompt (XML-structured, cache-optimized) ─────────────
+  // Static content FIRST (cached at 90% discount), dynamic content LAST
+  const identity = `You are an AI business assistant for a Canadian real estate agent using Agent Runway — a financial analytics platform.
 
-You also have comprehensive knowledge of the Agent Runway platform. Use the following reference to answer ANY question about features, metrics, computations, terms, tax rules, or how things work:
-${KNOWLEDGE_BASE}
-${troubleshootingInjection}
+Important: All outputs you generate are estimates for informational purposes only. You do not provide financial, tax, or legal advice. Always remind users to consult their accountant or professional advisor for decisions.`;
 
-CORE GUIDELINES:
+  const guidelines = `CORE GUIDELINES:
 - Answer questions clearly and concisely (3-5 sentences unless a breakdown is requested)
 - Cite specific numbers from the business data when relevant — always prefer their actual figures over generic statements
 - Give actionable, specific observations tailored to Canadian real estate agents
@@ -382,30 +383,67 @@ When the agent's data shows any of these patterns, surface them naturally in you
 - Cash / survival runway under 3 months → treat as urgent, name it clearly
 - If they're close to hitting their annual goal → acknowledge momentum positively
 
-IMPORTANT: On the very first message from the agent, if their data shows a notable pattern (behind pace, high expenses, stale clients), proactively open with that insight rather than waiting to be asked. Frame it conversationally: "Looking at your numbers, I noticed..." Proactively surface notable patterns and data points.
+IMPORTANT: On the very first message from the agent, if their data shows a notable pattern (behind pace, high expenses, stale clients), proactively open with that insight rather than waiting to be asked. Frame it conversationally: "Looking at your numbers, I noticed..." Proactively surface notable patterns and data points.`;
 
-${AGENT_RUNWAY_VOICE}`;
+  const systemPrompt = injectCanary(buildStructuredPrompt({
+    identity,
+    knowledgeBase: KNOWLEDGE_BASE,
+    guidelines,
+    financialContext,
+    troubleshooting: troubleshootingInjection || undefined,
+    pageContext: pageContext || undefined,
+    voiceGuide: AGENT_RUNWAY_VOICE,
+  }));
 
 
   try {
-    // Abort if Groq doesn't respond within 15 seconds
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
+    // ── 8. Stream response via Vercel AI SDK ────────────────────────────────
+    // Primary: Claude (selected tier) via Anthropic
+    // Fallback: Groq Llama if Anthropic fails
+    const abortController = new AbortController();
+    const abortTimeout = setTimeout(() => abortController.abort(), 30_000);
 
-    const stream = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      stream: true,
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...safeMessages,
-      ],
-      max_tokens: maxTokens,
-      temperature: 0.7,
-    }, { signal: controller.signal });
+    let result;
+    try {
+      result = streamText({
+        model: selectedModel,
+        system: systemPrompt,
+        messages: safeMessages.map((m) => ({
+          role: m.role as "user" | "assistant",
+          content: m.content,
+        })),
+        maxTokens,
+        temperature: 0.7,
+        abortSignal: abortController.signal,
+        headers: heliconeHeaders({
+          userId: user.id,
+          feature: "chat",
+          sessionId: requestId,
+        }),
+      });
+    } catch (primaryError) {
+      // Fallback to Groq if Anthropic fails
+      log.warn({ err: primaryError, tier, requestId }, "[chat] Claude failed, falling back to Groq");
+      if (process.env.GROQ_API_KEY) {
+        result = streamText({
+          model: models.fallback,
+          system: systemPrompt,
+          messages: safeMessages.map((m) => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          })),
+          maxTokens,
+          temperature: 0.7,
+          abortSignal: abortController.signal,
+        });
+      } else {
+        throw primaryError;
+      }
+    }
 
-    clearTimeout(timeout);
+    clearTimeout(abortTimeout);
 
-    // ── 7. Log analytics (fire-and-forget — never blocks response) ─────────
+    // ── 9. Log analytics (fire-and-forget — never blocks response) ─────────
     const userMsgCount = safeMessages.filter((m) => m.role === "user").length;
     logChatAnalytics(supabase, {
       userId: user.id,
@@ -421,31 +459,16 @@ ${AGENT_RUNWAY_VOICE}`;
       wasEscalation: isEscalation,
     }).catch(() => {}); // Swallow errors — analytics must never break chat
 
-    const encoder = new TextEncoder();
-    const readable = new ReadableStream({
-      async start(ctrl) {
-        try {
-          for await (const chunk of stream) {
-            const text = chunk.choices[0]?.delta?.content ?? "";
-            if (text) {
-              ctrl.enqueue(encoder.encode(text));
-            }
-          }
-        } finally {
-          ctrl.close();
-        }
-      },
-    });
-
-    return new Response(readable, {
+    // Return as plain text stream (compatible with existing frontend reader)
+    return result.toTextStreamResponse({
       headers: {
-        "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache",
         "X-Content-Type-Options": "nosniff",
+        "X-AI-Model-Tier": tier,
       },
     });
   } catch (error) {
-    log.error({ err: error, requestId }, "[chat] Groq error");
+    log.error({ err: error, requestId }, "[chat] AI service error");
     return new Response("AI service temporarily unavailable. Please try again.", { status: 500 });
   }
 }
