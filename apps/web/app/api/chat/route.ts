@@ -344,8 +344,6 @@ ${troubleshootingContext}${escalationBlock}
 --- END TROUBLESHOOTING GUIDE ---`
     : "";
 
-  // Dynamic max_tokens: troubleshooting responses need more room for step-by-step explanations
-  const maxTokens = isTroubleshooting ? 1200 : 600;
 
   // ── 6b. Model routing — select tier based on topic + message complexity ──
   const { tier, model: selectedModel } = selectModelTier(
