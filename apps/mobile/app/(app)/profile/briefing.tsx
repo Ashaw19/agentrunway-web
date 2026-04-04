@@ -3,12 +3,22 @@
  * Shows all briefing items organized by severity with actionable context.
  */
 
-import { useMemo, useCallback, useState } from "react";
-import { View, Text, ScrollView, RefreshControl, type DimensionValue } from "react-native";
+import { useMemo, useCallback, useState, useEffect, useRef } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  RefreshControl,
+  Pressable,
+  Animated,
+  ActivityIndicator,
+  type DimensionValue,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { useDataStore } from "@/stores/data-store";
 import type { BriefingItem } from "@/stores/data-store";
 import { BriefingRow } from "@/components/BriefingRow";
+import { supabase } from "@/lib/supabase";
 import { useT } from "@/lib/useT";
 import {
   useColors,
@@ -28,7 +38,27 @@ import {
   TrendingUp,
   Briefcase,
   Users,
+  Sparkles,
+  ChevronDown,
 } from "lucide-react-native";
+
+// ── AI Briefing Types & Config ────────────────────────────────────────────────
+
+const API_URL =
+  process.env.EXPO_PUBLIC_API_URL ?? "https://agentrunway.ca";
+
+interface AIBriefingContent {
+  greeting: string;
+  priorities: string[];
+  alerts: string[];
+  encouragement: string;
+}
+
+interface AIBriefingResponse {
+  briefing: AIBriefingContent;
+  generated_at: string;
+  source: string;
+}
 
 const daysInYear = (y: number) => ((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0) ? 366 : 365;
 
@@ -66,6 +96,219 @@ const SEVERITY_META = {
     bg: "rgba(59,94,246,0.08)",
   },
 } as const;
+
+// ── Session-level cache for AI briefing (survives re-renders, resets on app restart) ──
+let _aiBriefingCache: AIBriefingContent | null = null;
+let _aiBriefingFetched = false;
+
+function useAIBriefing() {
+  const [data, setData] = useState<AIBriefingContent | null>(_aiBriefingCache);
+  const [loading, setLoading] = useState(!_aiBriefingFetched);
+
+  useEffect(() => {
+    if (_aiBriefingFetched) return;
+    _aiBriefingFetched = true;
+
+    (async () => {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        if (!session) { setLoading(false); return; }
+
+        const res = await fetch(`${API_URL}/api/briefing`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+
+        if (!res.ok) { setLoading(false); return; }
+
+        const json: AIBriefingResponse = await res.json();
+        _aiBriefingCache = json.briefing;
+        setData(json.briefing);
+      } catch {
+        // Silently fail — card just won't show
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  return { data, loading };
+}
+
+// ── AI Briefing Card ──────────────────────────────────────────────────────────
+
+function AIBriefingCard({ c }: { c: ReturnType<typeof useColors> }) {
+  const { data, loading } = useAIBriefing();
+  const [collapsed, setCollapsed] = useState(false);
+  const animHeight = useRef(new Animated.Value(1)).current;
+
+  const toggle = useCallback(() => {
+    Animated.timing(animHeight, {
+      toValue: collapsed ? 1 : 0,
+      duration: 250,
+      useNativeDriver: false,
+    }).start();
+    setCollapsed((v) => !v);
+  }, [collapsed, animHeight]);
+
+  // Loading skeleton
+  if (loading) {
+    return (
+      <View
+        style={{
+          marginHorizontal: Space.xl,
+          marginBottom: Space.xl,
+          backgroundColor: "rgba(99,102,241,0.06)",
+          borderRadius: Radius.lg,
+          borderWidth: 1,
+          borderColor: "rgba(99,102,241,0.15)",
+          padding: Space.lg,
+          gap: Space.md,
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm }}>
+          <ActivityIndicator size="small" color={c.primary} />
+          <Text style={{ ...Type.caption, color: c.primaryLight }}>
+            Preparing your AI briefing...
+          </Text>
+        </View>
+        {[80, 60, 70].map((w, i) => (
+          <View
+            key={i}
+            style={{
+              height: 12,
+              width: `${w}%` as DimensionValue,
+              backgroundColor: c.divider,
+              borderRadius: 6,
+            }}
+          />
+        ))}
+      </View>
+    );
+  }
+
+  // No data — hidden gracefully
+  if (!data) return null;
+
+  return (
+    <View
+      style={{
+        marginHorizontal: Space.xl,
+        marginBottom: Space.xl,
+        borderRadius: Radius.lg,
+        borderWidth: 1,
+        borderColor: "rgba(99,102,241,0.20)",
+        overflow: "hidden",
+      }}
+    >
+      {/* Gradient-like tinted background */}
+      <View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(99,102,241,0.06)",
+        }}
+      />
+
+      {/* Header — always visible */}
+      <Pressable
+        onPress={toggle}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingHorizontal: Space.lg,
+          paddingVertical: Space.md,
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm }}>
+          <Sparkles size={16} color={c.primary} />
+          <Text style={{ ...Type.label, color: c.primary, fontWeight: "700" }}>
+            AI Morning Briefing
+          </Text>
+        </View>
+        <Animated.View
+          style={{
+            transform: [
+              {
+                rotate: animHeight.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ["180deg", "0deg"],
+                }),
+              },
+            ],
+          }}
+        >
+          <ChevronDown size={16} color={c.primaryLight} />
+        </Animated.View>
+      </Pressable>
+
+      {/* Collapsible body */}
+      <Animated.View
+        style={{
+          maxHeight: animHeight.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, 800],
+          }),
+          opacity: animHeight,
+          overflow: "hidden",
+        }}
+      >
+        <View style={{ paddingHorizontal: Space.lg, paddingBottom: Space.lg, gap: Space.md }}>
+          {/* Greeting */}
+          <Text style={{ ...Type.body, color: c.text, fontWeight: "600" }}>
+            {data.greeting}
+          </Text>
+
+          {/* Priorities */}
+          {data.priorities.length > 0 && (
+            <View style={{ gap: Space.xs }}>
+              <Text style={{ ...Type.label, color: c.textMuted, marginBottom: 2 }}>
+                PRIORITIES
+              </Text>
+              {data.priorities.map((p, i) => (
+                <Text key={i} style={{ ...Type.body, color: c.text }}>
+                  {i + 1}. {p}
+                </Text>
+              ))}
+            </View>
+          )}
+
+          {/* Alerts */}
+          {data.alerts.length > 0 && (
+            <View
+              style={{
+                backgroundColor: "rgba(245,158,11,0.10)",
+                borderRadius: Radius.md,
+                borderWidth: 1,
+                borderColor: "rgba(245,158,11,0.25)",
+                padding: Space.md,
+                gap: Space.xs,
+              }}
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: Space.xs }}>
+                <AlertTriangle size={13} color="#F59E0B" />
+                <Text style={{ ...Type.label, color: "#F59E0B" }}>ALERTS</Text>
+              </View>
+              {data.alerts.map((a, i) => (
+                <Text key={i} style={{ ...Type.caption, color: c.text }}>
+                  {a}
+                </Text>
+              ))}
+            </View>
+          )}
+
+          {/* Encouragement */}
+          <Text style={{ ...Type.caption, color: c.primaryLight, fontStyle: "italic" }}>
+            {data.encouragement}
+          </Text>
+        </View>
+      </Animated.View>
+    </View>
+  );
+}
 
 export default function BriefingScreen() {
   const router = useRouter();
@@ -166,6 +409,9 @@ export default function BriefingScreen() {
         </View>
         <Text style={{ ...Type.hero, color: c.text }}>{dateStr}</Text>
       </View>
+
+      {/* ── AI Morning Briefing ── */}
+      <AIBriefingCard c={c} />
 
       {/* ── Quick Stats Row ── */}
       <View
