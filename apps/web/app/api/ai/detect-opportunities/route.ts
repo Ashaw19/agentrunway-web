@@ -16,7 +16,8 @@
  * single-item /api/ai/draft-outreach endpoint).
  */
 
-import OpenAI from "openai";
+import { generateText } from "ai";
+import { models, heliconeHeaders } from "@/lib/ai/provider";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }       from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -473,7 +474,7 @@ async function draftItem(
   agentFirst:     string,
   emailSignature: string,
   agentStyleGuide: string | null,
-  groq:           OpenAI,
+  userId:         string,
   supabase:       SupabaseClient,
 ): Promise<boolean> {
   const clientName = item.clients?.name ?? "your client";
@@ -684,19 +685,32 @@ async function draftItem(
     ].filter(Boolean).join("\n\n");
     const fullPrompt = contextSuffix ? `${prompt}\n\n${contextSuffix}` : prompt;
 
-    // Groq call with 15s timeout per call to prevent hanging
-    const GROQ_TIMEOUT = 15_000;
-    const completion = await Promise.race([
-      groq.chat.completions.create({
-        model:       "llama-3.3-70b-versatile",
-        max_tokens:  400,
-        temperature: 0.85,
-        messages:    [{ role: "user", content: fullPrompt }],
-      }),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Groq timeout (15s)")), GROQ_TIMEOUT)),
-    ]);
+    const aiHeaders = heliconeHeaders({ userId, feature: "detect-opportunities" });
 
-    let raw = completion.choices[0]?.message?.content?.trim() ?? "";
+    // Primary: Claude Sonnet via Vercel AI SDK, fallback to Groq Llama
+    let raw: string;
+    try {
+      const { text } = await generateText({
+        model: models.default,
+        prompt: fullPrompt,
+        maxTokens: 400,
+        temperature: 0.85,
+        headers: aiHeaders,
+      });
+      raw = text.trim();
+      if (!raw) throw new Error("Empty Claude response");
+    } catch (primaryErr) {
+      console.warn(`[flight-control] Primary model failed for item ${item.id}, falling back to Groq:`, primaryErr);
+      const { text } = await generateText({
+        model: models.fallback,
+        prompt: fullPrompt,
+        maxTokens: 400,
+        temperature: 0.85,
+        headers: aiHeaders,
+      });
+      raw = text.trim();
+      if (!raw) throw new Error("Empty fallback response");
+    }
     if (!raw) throw new Error("Empty response");
 
     // Self-review: retry once if banned phrases or excessive length
@@ -712,17 +726,14 @@ async function draftItem(
       ].filter(Boolean).join(" ");
 
       try {
-        const retryCompletion = await Promise.race([
-          groq.chat.completions.create({
-            model:       "llama-3.3-70b-versatile",
-            max_tokens:  400,
-            temperature: 0.85,
-            messages:    [{ role: "user", content: `${fullPrompt}\n\n${retryNote}` }],
-          }),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Groq retry timeout (15s)")), GROQ_TIMEOUT)),
-        ]);
-        const retryRaw = retryCompletion.choices[0]?.message?.content?.trim();
-        if (retryRaw) raw = retryRaw;
+        const { text: retryRaw } = await generateText({
+          model: models.default,
+          prompt: `${fullPrompt}\n\n${retryNote}`,
+          maxTokens: 400,
+          temperature: 0.85,
+          headers: aiHeaders,
+        });
+        if (retryRaw?.trim()) raw = retryRaw.trim();
       } catch (retryErr) {
         // Retry failed — use the original (imperfect) draft rather than failing entirely
         console.warn(`[flight-control] Self-review retry failed for item ${item.id}:`, retryErr);
@@ -1297,8 +1308,8 @@ export async function detectAndDraftForUser(
   const detected = undraftedCount ?? 0;
 
   // ── AI drafting ────────────────────────────────────────────────────────────
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) {
+  const aiKey = process.env.ANTHROPIC_API_KEY || process.env.GROQ_API_KEY;
+  if (!aiKey) {
     return { detected, drafted: 0 };
   }
 
@@ -1313,11 +1324,6 @@ export async function detectAndDraftForUser(
 
   if (!undrafted?.length) return { detected, drafted: 0 };
 
-  const groq = new OpenAI({
-    apiKey:  groqKey,
-    baseURL: "https://api.groq.com/openai/v1",
-  });
-
   // Draft all items in parallel — each draftItem has its own timeout + error handling,
   // so one slow/failed item never blocks the others.
   const results = await Promise.allSettled(
@@ -1327,7 +1333,7 @@ export async function detectAndDraftForUser(
         agentFirst,
         emailSignature,
         agentStyleGuide,
-        groq,
+        userId,
         supabase,
       ),
     ),
@@ -2805,8 +2811,8 @@ export async function POST(req: NextRequest) {
 
     if (draftOnly) {
       // Skip detection — only draft pending items for this user
-      const groqKey = process.env.GROQ_API_KEY;
-      if (groqKey) {
+      const aiKey = process.env.ANTHROPIC_API_KEY || process.env.GROQ_API_KEY;
+      if (aiKey) {
         const [settingsRes, undraftedRes] = await Promise.all([
           supabase.from("user_settings").select("display_name, email_signature, ai_voice_guide").eq("user_id", userId).single(),
           supabase.from("outreach_queue").select("*, clients(name, city, province_region, communication_tone, tags, notes)")
@@ -2814,7 +2820,6 @@ export async function POST(req: NextRequest) {
             .order("created_at", { ascending: true }).limit(MAX_DRAFTS_PER_RUN),
         ]);
         if (undraftedRes.data?.length) {
-          const groq = new OpenAI({ apiKey: groqKey, baseURL: "https://api.groq.com/openai/v1" });
           const agentFirst     = extractFirstName(settingsRes.data?.display_name ?? null, "");
           const emailSignature = (settingsRes.data?.email_signature as string) ?? "";
           const agentStyleGuide = (settingsRes.data?.ai_voice_guide as string | null) ?? null;
@@ -2822,7 +2827,7 @@ export async function POST(req: NextRequest) {
             undraftedRes.data.map((item) =>
               draftItem(
                 item as Parameters<typeof draftItem>[0],
-                agentFirst, emailSignature, agentStyleGuide, groq, supabase,
+                agentFirst, emailSignature, agentStyleGuide, userId, supabase,
               ),
             ),
           );

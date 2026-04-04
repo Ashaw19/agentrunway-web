@@ -21,7 +21,8 @@
  *   timeframe_approaching, property_value_milestone
  */
 
-import OpenAI from "openai";
+import { generateText } from "ai";
+import { models, heliconeHeaders } from "@/lib/ai/provider";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient }           from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -572,9 +573,9 @@ export async function POST(req: NextRequest) {
 
   // ── Draft via Groq (synchronous — p99 < 4 s for these short prompts) ──────
 
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) {
-    // Groq not configured — item sits in "draft" status, cron will pick it up
+  const aiKey = process.env.ANTHROPIC_API_KEY || process.env.GROQ_API_KEY;
+  if (!aiKey) {
+    // AI not configured — item sits in "draft" status, cron will pick it up
     return NextResponse.json(
       { queue_item_id: queueItemId, status: "queued" },
       { status: 202, headers: rateLimitHeaders(rl) },
@@ -658,11 +659,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const groq = new OpenAI({
-      apiKey:  groqKey,
-      baseURL: "https://api.groq.com/openai/v1",
-    });
-
     // Classify context level and build appropriate instruction blocks
     const contextLevel = classifyClientContext(clientTags, clientNotes, context as Record<string, unknown>);
     const contextLevelBlock =
@@ -682,20 +678,33 @@ export async function POST(req: NextRequest) {
 
     const fullPrompt = contextSuffix ? `${prompt}\n\n${contextSuffix}` : prompt;
 
-    // Groq call with 15s timeout to prevent hanging
-    const GROQ_TIMEOUT = 15_000;
-    const completion = await Promise.race([
-      groq.chat.completions.create({
-        model:       "llama-3.3-70b-versatile",
-        max_tokens:  400,
-        temperature: 0.85,
-        messages:    [{ role: "user", content: fullPrompt }],
-      }),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Groq timeout (15s)")), GROQ_TIMEOUT)),
-    ]);
+    const aiHeaders = heliconeHeaders({ userId: user.id, feature: "draft-outreach" });
 
-    let raw = completion.choices[0]?.message?.content?.trim() ?? "";
-    if (!raw) throw new Error("Empty Groq response");
+    // Primary: Claude Sonnet via Vercel AI SDK
+    let raw: string;
+    try {
+      const { text } = await generateText({
+        model: models.default,
+        prompt: fullPrompt,
+        maxTokens: 400,
+        temperature: 0.85,
+        headers: aiHeaders,
+      });
+      raw = text.trim();
+      if (!raw) throw new Error("Empty Claude response");
+    } catch (primaryErr) {
+      // Fallback: Groq Llama
+      console.warn("[draft-outreach] Primary model failed, falling back to Groq:", primaryErr);
+      const { text } = await generateText({
+        model: models.fallback,
+        prompt: fullPrompt,
+        maxTokens: 400,
+        temperature: 0.85,
+        headers: aiHeaders,
+      });
+      raw = text.trim();
+      if (!raw) throw new Error("Empty fallback response");
+    }
 
     // ── Self-review: check for banned phrases and retry once if found ─────────
     const BANNED_PHRASES = [
@@ -746,17 +755,14 @@ export async function POST(req: NextRequest) {
       ].filter(Boolean).join(" ");
 
       try {
-        const retryCompletion = await Promise.race([
-          groq.chat.completions.create({
-            model:       "llama-3.3-70b-versatile",
-            max_tokens:  400,
-            temperature: 0.85,
-            messages:    [{ role: "user", content: `${fullPrompt}\n\n${retryNote}` }],
-          }),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Groq retry timeout (15s)")), GROQ_TIMEOUT)),
-        ]);
-        const retryRaw = retryCompletion.choices[0]?.message?.content?.trim();
-        if (retryRaw) raw = retryRaw;
+        const { text: retryRaw } = await generateText({
+          model: models.default,
+          prompt: `${fullPrompt}\n\n${retryNote}`,
+          maxTokens: 400,
+          temperature: 0.85,
+          headers: aiHeaders,
+        });
+        if (retryRaw?.trim()) raw = retryRaw.trim();
       } catch (retryErr) {
         // Retry failed — use original draft rather than failing entirely
         console.warn("[draft-outreach] Self-review retry failed:", retryErr);
@@ -799,7 +805,7 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    console.error(`[draft-outreach] Groq drafting error for item ${queueItemId}:`, errMsg);
+    console.error(`[draft-outreach] AI drafting error for item ${queueItemId}:`, errMsg);
     // Item was upserted but draft failed — cron will retry on next scan
     return NextResponse.json(
       { queue_item_id: queueItemId, status: "queued", error: errMsg },

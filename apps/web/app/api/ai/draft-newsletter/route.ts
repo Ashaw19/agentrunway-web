@@ -20,7 +20,8 @@
  * Rate-limited to 10 newsletters/hour per user (endpoint key: "draft_newsletter").
  */
 
-import OpenAI from "openai";
+import { generateText } from "ai";
+import { models, heliconeHeaders } from "@/lib/ai/provider";
 import { NextRequest, NextResponse }  from "next/server";
 import { createClient }               from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -216,8 +217,8 @@ export async function POST(req: NextRequest) {
 
   // ── Draft via Groq ────────────────────────────────────────────────────────
 
-  const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) {
+  const aiKey = process.env.ANTHROPIC_API_KEY || process.env.GROQ_API_KEY;
+  if (!aiKey) {
     return NextResponse.json(
       { newsletter_id: newsletterId, status: "queued" },
       { status: 202, headers: rateLimitHeaders(rl) },
@@ -225,20 +226,32 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const groq = new OpenAI({
-      apiKey:  groqKey,
-      baseURL: "https://api.groq.com/openai/v1",
-    });
+    const aiHeaders = heliconeHeaders({ userId: user.id, feature: "draft-newsletter" });
 
-    const completion = await groq.chat.completions.create({
-      model:       "llama-3.3-70b-versatile",
-      max_tokens:  700,   // newsletters are longer than individual outreach
-      temperature: 0.80,
-      messages:    [{ role: "user", content: prompt }],
-    });
-
-    const raw = completion.choices[0]?.message?.content?.trim() ?? "";
-    if (!raw) throw new Error("Empty Groq response");
+    // Primary: Claude Sonnet via Vercel AI SDK, fallback to Groq Llama
+    let raw: string;
+    try {
+      const { text } = await generateText({
+        model: models.default,
+        prompt,
+        maxTokens: 700,   // newsletters are longer than individual outreach
+        temperature: 0.80,
+        headers: aiHeaders,
+      });
+      raw = text.trim();
+      if (!raw) throw new Error("Empty Claude response");
+    } catch (primaryErr) {
+      console.warn("[draft-newsletter] Primary model failed, falling back to Groq:", primaryErr);
+      const { text } = await generateText({
+        model: models.fallback,
+        prompt,
+        maxTokens: 700,
+        temperature: 0.80,
+        headers: aiHeaders,
+      });
+      raw = text.trim();
+      if (!raw) throw new Error("Empty fallback response");
+    }
 
     // Parse: last line starting with "SUBJECT:" is the subject
     const lines     = raw.split("\n");
@@ -265,7 +278,7 @@ export async function POST(req: NextRequest) {
       { status: 201, headers: rateLimitHeaders(rl) },
     );
   } catch (err) {
-    console.error("[draft-newsletter] Groq error:", err);
+    console.error("[draft-newsletter] AI error:", err);
     // Row is inserted but not drafted — cron or retry will pick it up
     return NextResponse.json(
       { newsletter_id: newsletterId, status: "queued" },

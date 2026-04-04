@@ -16,7 +16,8 @@
  *   • No side effects on any other table.
  */
 
-import OpenAI from "openai";
+import { generateText } from "ai";
+import { models, heliconeHeaders } from "@/lib/ai/provider";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // ── Structured Facts shape ──────────────────────────────────────────────────
@@ -52,14 +53,10 @@ export interface ClientMemoryProfile {
   updated_at: string;
 }
 
-// ── Groq config ─────────────────────────────────────────────────────────────
+// ── AI config ───────────────────────────────────────────────────────────────
 
-const GROQ_MODELS = ["llama-3.3-70b-versatile", "qwen/qwen3-32b"];
-
-function getGroqClient(): OpenAI | null {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) return null;
-  return new OpenAI({ apiKey: key, baseURL: "https://api.groq.com/openai/v1" });
+function isAIConfigured(): boolean {
+  return !!(process.env.ANTHROPIC_API_KEY || process.env.GROQ_API_KEY);
 }
 
 // ── Data gathering ──────────────────────────────────────────────────────────
@@ -334,37 +331,45 @@ export async function updateClientMemory(
       return { success: false, profile: null, error: "Client not found" };
     }
 
-    // 2. Get Groq client
-    const groq = getGroqClient();
-    if (!groq) {
-      return { success: false, profile: null, error: "GROQ_API_KEY not configured" };
+    // 2. Check AI is configured
+    if (!isAIConfigured()) {
+      return { success: false, profile: null, error: "AI provider not configured" };
     }
 
-    // 3. Build prompt and call Groq with fallback
+    // 3. Build prompt and call Claude (Sonnet) with Groq fallback
     const prompt = buildMemoryPrompt(data);
+    const aiHeaders = heliconeHeaders({ userId, feature: "client-memory" });
     let rawContent: string | null = null;
 
-    for (let mi = 0; mi < GROQ_MODELS.length; mi++) {
-      const model = GROQ_MODELS[mi];
+    try {
+      const { text } = await generateText({
+        model: models.default,
+        prompt,
+        temperature: 0.1,
+        maxTokens: 2000,
+        headers: aiHeaders,
+      });
+      rawContent = text || null;
+    } catch (primaryErr) {
+      console.warn("[client-memory] Primary model (Sonnet) failed, falling back to Groq:", primaryErr);
       try {
-        const response = await groq.chat.completions.create({
-          model,
-          messages: [{ role: "user", content: prompt }],
+        const { text } = await generateText({
+          model: models.fallback,
+          prompt,
           temperature: 0.1,
-          max_tokens: 2000,
+          maxTokens: 2000,
+          headers: aiHeaders,
         });
-        rawContent = response.choices?.[0]?.message?.content ?? null;
-        if (rawContent) break;
-      } catch (groqErr: unknown) {
-        const status = (groqErr as { status?: number })?.status;
-        console.error(`[client-memory] Groq error model=${model} status=${status}`, groqErr);
-        if (status === 429 && mi < GROQ_MODELS.length - 1) continue;
-        return { success: false, profile: null, error: `Groq ${status ?? "error"}: ${(groqErr as Error).message}` };
+        rawContent = text || null;
+      } catch (fallbackErr: unknown) {
+        const status = (fallbackErr as { status?: number })?.status;
+        console.error(`[client-memory] Fallback error status=${status}`, fallbackErr);
+        return { success: false, profile: null, error: `AI ${status ?? "error"}: ${(fallbackErr as Error).message}` };
       }
     }
 
     if (!rawContent) {
-      return { success: false, profile: null, error: "Empty response from Groq" };
+      return { success: false, profile: null, error: "Empty response from AI" };
     }
 
     // 4. Parse JSON — try direct, then extract {...} block

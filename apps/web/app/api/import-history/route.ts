@@ -1,4 +1,5 @@
-import OpenAI from "openai";
+import { generateText } from "ai";
+import { models, heliconeHeaders } from "@/lib/ai/provider";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 // Import rate limit: 30 per 60 min
@@ -515,8 +516,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!process.env.GROQ_API_KEY) {
-    return NextResponse.json({ error: "GROQ_API_KEY is not configured" }, { status: 503 });
+  if (!(process.env.ANTHROPIC_API_KEY || process.env.GROQ_API_KEY)) {
+    return NextResponse.json({ error: "AI provider is not configured" }, { status: 503 });
   }
 
   // Reject oversized payloads before parsing (prevent OOM on base64 images)
@@ -557,10 +558,7 @@ export async function POST(req: NextRequest) {
       ? body.yearHint
       : undefined;
 
-  const groq = new OpenAI({
-    apiKey: process.env.GROQ_API_KEY,
-    baseURL: "https://api.groq.com/openai/v1",
-  });
+  const aiHeaders = heliconeHeaders({ userId: user.id, feature: "import-history" });
 
   try {
     let raw: string;
@@ -577,48 +575,48 @@ export async function POST(req: NextRequest) {
       //    duplicate headers; detects column mapping for prompt injection)
       textNormalized = normalizeTextDocument(dateNormalized, true);
 
-      const textModels = ["llama-3.3-70b-versatile", "qwen/qwen3-32b"];
       const promptContent = TEXT_PROMPT(
         textNormalized.cleaned_content,
         textNormalized.column_hints ?? undefined,
       );
-      let response;
-      for (let mi = 0; mi < textModels.length; mi++) {
-        const model = textModels[mi];
-        console.log("[import] step=groq-call model=" + model + " cleaned-len=" + textNormalized.cleaned_content.length);
-        try {
-          response = await groq.chat.completions.create({
-            model,
-            messages: [{ role: "user", content: promptContent }],
-            temperature: 0.1,
-            max_tokens: 8000,
-          });
-          break; // success
-        } catch (groqErr: unknown) {
-          const gMsg = groqErr instanceof Error ? groqErr.message : String(groqErr);
-          const gStatus = (groqErr as { status?: number })?.status;
-          console.error("[import] GROQ-ERR model=" + model + " status=" + gStatus + " msg=" + gMsg.slice(0, 200));
-          // If rate limited and we have a fallback, try next model
-          if (gStatus === 429 && mi < textModels.length - 1) continue;
-          throw groqErr;
-        }
+
+      // Primary: Claude Haiku (fast, cheap), fallback to Groq Llama
+      console.log("[import] step=ai-call model=haiku cleaned-len=" + textNormalized.cleaned_content.length);
+      try {
+        const { text } = await generateText({
+          model: models.fast,
+          prompt: promptContent,
+          temperature: 0.1,
+          maxTokens: 8000,
+          headers: aiHeaders,
+        });
+        raw = text;
+      } catch (primaryErr) {
+        console.warn("[import] Primary model (Haiku) failed, falling back to Groq:", primaryErr);
+        const { text } = await generateText({
+          model: models.fallback,
+          prompt: promptContent,
+          temperature: 0.1,
+          maxTokens: 8000,
+          headers: aiHeaders,
+        });
+        raw = text;
       }
-      raw = response.choices[0]?.message?.content ?? "";
       console.log("[import] step=llm-done raw-len=" + raw.length);
     } else {
       // ── Vision path: PDF pages or uploaded image(s) ───────────────────────
       // Build message content: all images first, then the prompt text.
-      // Groq vision supports multiple images in a single message.
+      // Claude supports multiple images via messages array.
       const imageContent = imageSources.map((img) => ({
-        type: "image_url" as const,
-        image_url: { url: `data:${img.mimeType};base64,${img.base64}` },
+        type: "image" as const,
+        image: `data:${img.mimeType};base64,${img.base64}`,
       }));
 
-      const response = await groq.chat.completions.create({
-        model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      const { text } = await generateText({
+        model: models.fast,
         messages: [
           {
-            role: "user",
+            role: "user" as const,
             content: [
               ...imageContent,
               { type: "text" as const, text: VISION_PROMPT },
@@ -626,9 +624,10 @@ export async function POST(req: NextRequest) {
           },
         ],
         temperature: 0.1,
-        max_tokens: 8000,
+        maxTokens: 8000,
+        headers: aiHeaders,
       });
-      raw = response.choices[0]?.message?.content ?? "";
+      raw = text;
     }
 
     // Extract JSON from the LLM response — handles markdown fences, preamble text,
