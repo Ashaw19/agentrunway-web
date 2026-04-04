@@ -39,6 +39,7 @@ export default async function OrgReportsPage() {
 
   return (
     <ReportsContent
+      orgId={orgContext.org.id}
       orgName={orgContext.org.name}
       performance={(perfRes.data ?? []) as TeamReportAgent[]}
       activitySummary={activityRes.data ?? []}

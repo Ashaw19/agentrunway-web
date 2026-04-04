@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -20,6 +20,7 @@ import {
   ChevronDown,
   ChevronRight,
   BarChart3,
+  Sparkles,
 } from "lucide-react";
 import {
   generatePipelineHealthReport,
@@ -51,6 +52,7 @@ function getSeasonalFraction(): number {
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface Props {
+  orgId: string;
   orgName: string;
   performance: TeamReportAgent[];
   activitySummary: AgentActivitySummary[];
@@ -99,6 +101,7 @@ const REPORT_CONFIG: Record<
 // ── Main component ───────────────────────────────────────────────────────────
 
 export function ReportsContent({
+  orgId,
   orgName,
   performance,
   activitySummary,
@@ -106,6 +109,9 @@ export function ReportsContent({
   expenseStatus,
 }: Props) {
   const [expanded, setExpanded] = useState<ReportKey | null>(null);
+  const [insights, setInsights] = useState<Partial<Record<ReportKey, string>>>({});
+  const [insightLoading, setInsightLoading] = useState<Partial<Record<ReportKey, boolean>>>({});
+  const fetchedRef = useRef<Set<ReportKey>>(new Set());
 
   const seasonalFraction = useMemo(getSeasonalFraction, []);
 
@@ -116,6 +122,31 @@ export function ReportsContent({
     tax: generateTaxResponsibilityReport(expenseStatus),
     forecast: generateForecastingReport(performance, seasonalFraction),
   }), [performance, pendingDeals, activitySummary, expenseStatus, seasonalFraction]);
+
+  const fetchInsight = useCallback(async (key: ReportKey) => {
+    if (fetchedRef.current.has(key)) return;
+    fetchedRef.current.add(key);
+    setInsightLoading((prev) => ({ ...prev, [key]: true }));
+    try {
+      const res = await fetch("/api/ai/team-insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          org_id: orgId,
+          report_type: key,
+          report_data: reports[key],
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setInsights((prev) => ({ ...prev, [key]: data.insight }));
+      }
+    } catch {
+      // Silently fail — insight is optional
+    } finally {
+      setInsightLoading((prev) => ({ ...prev, [key]: false }));
+    }
+  }, [orgId, reports]);
 
   return (
     <div className="space-y-6">
@@ -139,7 +170,11 @@ export function ReportsContent({
             <Card key={key} className="overflow-hidden">
               <button
                 className="w-full text-left"
-                onClick={() => setExpanded(isOpen ? null : key)}
+                onClick={() => {
+                  const next = isOpen ? null : key;
+                  setExpanded(next);
+                  if (next) fetchInsight(next);
+                }}
               >
                 <CardHeader className="pb-2">
                   <div className="flex items-center justify-between">
@@ -176,6 +211,12 @@ export function ReportsContent({
                     {key === "crm" && <CrmDetail report={reports.crm} />}
                     {key === "tax" && <TaxDetail report={reports.tax} />}
                     {key === "forecast" && <ForecastDetail report={reports.forecast} />}
+
+                    {/* AI Insight */}
+                    <AiInsightBox
+                      loading={!!insightLoading[key]}
+                      insight={insights[key]}
+                    />
                   </div>
                 </CardContent>
               )}
@@ -336,6 +377,29 @@ function ForecastDetail({ report }: { report: ReturnType<typeof generateForecast
         />
       )}
     </>
+  );
+}
+
+// ── AI Insight box ──────────────────────────────────────────────────────────
+
+function AiInsightBox({ loading, insight }: { loading: boolean; insight?: string }) {
+  if (!loading && !insight) return null;
+
+  return (
+    <div className="rounded-lg border border-blue-200/50 bg-blue-50/50 dark:border-blue-900/30 dark:bg-blue-950/20 px-3 py-2.5 mt-2">
+      <div className="flex items-center gap-2 mb-1">
+        <Sparkles className="h-3.5 w-3.5 text-blue-500" />
+        <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">AI Insight</span>
+      </div>
+      {loading ? (
+        <div className="space-y-1.5">
+          <div className="h-3 w-full rounded bg-blue-200/40 dark:bg-blue-800/30 animate-pulse" />
+          <div className="h-3 w-3/4 rounded bg-blue-200/40 dark:bg-blue-800/30 animate-pulse" />
+        </div>
+      ) : (
+        <p className="text-xs text-blue-900/80 dark:text-blue-300/80 leading-relaxed">{insight}</p>
+      )}
+    </div>
   );
 }
 
