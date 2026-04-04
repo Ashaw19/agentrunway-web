@@ -8,6 +8,7 @@ import {
   Receipt,
   FileText,
   ArrowLeftRight,
+  CreditCard,
 
   Sparkles,
   Users,
@@ -134,6 +135,15 @@ export function SidebarNav({
                 label: "Org Settings",
                 href: "/org/settings",
                 icon: Settings,
+                iconActive: "text-orange-300",
+                iconInactive: "text-orange-400/60",
+                borderActive: "border-l-orange-400",
+              },
+              {
+                type: "item" as const,
+                label: "Billing",
+                href: "/org/billing",
+                icon: CreditCard,
                 iconActive: "text-orange-300",
                 iconInactive: "text-orange-400/60",
                 borderActive: "border-l-orange-400",
