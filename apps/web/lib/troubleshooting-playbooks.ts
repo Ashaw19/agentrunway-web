@@ -39,12 +39,14 @@ The Runway Score is a weighted composite of 5 sub-scores, each 0–100:
 | Component | Weight | Source |
 |-----------|--------|--------|
 | Goal Pace | 35% | Pace vs annual goal (from projection-engine) |
-| Pipeline Health | 25% | Pipeline weighted GCI vs remaining goal gap |
+| Pipeline Health | 30% | Pipeline weighted GCI vs remaining goal gap |
 | Expense Ratio | 15% | YTD expenses ÷ YTD GCI |
 | Survival Runway | 15% | Cash reserve ÷ net monthly burn |
-| Benchmark Rank | 10% | CREA 2023 percentile position |
+| Benchmark Rank | 5% | CREA 2023 percentile position |
 
-**Final Score** = (paceScore × 0.35) + (pipelineScore × 0.25) + (expenseScore × 0.15) + (survivalScore × 0.15) + (benchmarkScore × 0.10)
+**Final Score** = (paceScore × 0.35) + (pipelineScore × 0.30) + (expenseScore × 0.15) + (survivalScore × 0.15) + (benchmarkScore × 0.05)
+
+*Note: v1.2 increased Pipeline weight from 25% to 30% and reduced Benchmark from 10% to 5% — pipeline is more actionable than CREA national cohort comparison.*
 
 ### Sub-Score Calculations
 
@@ -70,7 +72,7 @@ The Runway Score is a weighted composite of 5 sub-scores, each 0–100:
 - ≥2 months → 50
 - ≥1 month → 25
 - <1 month → 10
-- Not configured (no cash reserve set) → 50 (neutral)
+- Not configured (no cash reserve set) → 35 (incomplete data penalty — previously 50 in v1.1)
 
 **Benchmark Score** (10%):
 - Direct percentile from CREA comparison
@@ -90,18 +92,18 @@ A+ ≥92, A ≥85, B ≥75, C ≥62, D ≥50, F <50
 **"My score seems too low"**
 Walk through each component:
 - Is their pace negative? (35% of total — biggest contributor)
-- Is pipeline empty or thin? (25% — second biggest)
+- Is pipeline empty or thin? (30% — second biggest)
 - Is expense ratio above 35%? (15%)
-- Is cash reserve not set? (defaults to 50/100 × 0.15 = only 7.5 points)
+- Is cash reserve not set? (defaults to 35/100 × 0.15 = only 5.25 points)
 - Are they a newer agent with low benchmark percentile? (10%)
 
 **"How do I improve my score?"**
 Identify the weakest component and prioritize:
 1. Pace (35%) — close deals, add pipeline deals that convert
-2. Pipeline (25%) — add more pipeline deals with higher estimated prices
+2. Pipeline (30%) — add more pipeline deals with higher estimated prices
 3. Expenses (15%) — reduce spending or increase GCI
-4. Survival (15%) — increase cash reserve setting
-5. Benchmark (10%) — close more/larger deals to improve percentile
+4. Survival (15%) — increase cash reserve setting in Settings
+5. Benchmark (5%) — close more/larger deals to improve percentile
 
 **Edge Cases:**
 - January 1–15: Seasonal fraction is tiny → pace calculation swings wildly → tell user to wait 2–3 weeks
@@ -902,7 +904,7 @@ Linear interpolation between breakpoints: p25, median (p50), p75, p90
 → Experience years is set to 0–2 in Settings. Update to actual years of experience.
 
 **"I'm above median but score is low"**
-→ Benchmark is only 10% of Runway Score. Other components (pace 35%, pipeline 25%) have much more impact.
+→ Benchmark is only 5% of Runway Score. Other components (pace 35%, pipeline 30%) have much more impact.
 
 **"Market Position says 'Below Market' but I sell expensive homes"**
 → Market Position compares your AVERAGE deal size to the local board average. If you do some small deals mixed with large ones, your average may be lower.
