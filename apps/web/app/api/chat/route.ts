@@ -439,6 +439,25 @@ export async function POST(req: NextRequest) {
           `Runway Score: ${runwayScore.score}/100 (Grade: ${runwayScore.grade})`,
           ...runwayScore.components.map((c) => `  - ${c.label}: ${c.score}/100 (weight: ${c.weight})`),
           "",
+          // Expense data completeness context — helps AI judge if expense score is realistic
+          (() => {
+            const expenseItemCount = (expenseCategories ?? []).reduce(
+              (sum: number, cat: { expense_items?: unknown[] }) => sum + (cat.expense_items ?? []).length, 0,
+            );
+            const catWithItems = (expenseCategories ?? []).filter(
+              (cat: { expense_items?: unknown[] }) => (cat.expense_items ?? []).length > 0,
+            ).length;
+            const expenseRatio = ytdGCI > 0 ? (expensesYTD / ytdGCI * 100) : 0;
+            const lines = [
+              `Expense Data: ${fmtCurrency(expensesYTD)} YTD across ${expenseItemCount} items in ${catWithItems} categories (expense-to-GCI ratio: ${expenseRatio.toFixed(1)}%)`,
+              `  Typical Canadian real estate agent expense ratio: 25-35% of GCI`,
+            ];
+            if (ytdGCI > 0 && expenseRatio < 20) {
+              lines.push(`  ⚠ Expense ratio (${expenseRatio.toFixed(1)}%) is unusually low — likely indicates incomplete expense tracking, not actual low costs. Most agents have desk fees, insurance, marketing, vehicle, MLS dues, and other costs. Gently note this to the user.`);
+            }
+            return lines.join("\n");
+          })(),
+          "",
           `Survival: ${survival.label} (Risk: ${survival.riskLevel === "notConfigured" ? "Not Configured" : survival.riskLevel.charAt(0).toUpperCase() + survival.riskLevel.slice(1)}, includes pipeline income estimate)`,
           survival.monthlyBurn > 0 ? `  Monthly Burn: ${fmtCurrency(survival.monthlyBurn)}` : null,
           "",
