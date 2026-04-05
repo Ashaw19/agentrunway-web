@@ -2347,10 +2347,10 @@ export async function getTopOpportunities(
   const totalDeals = records.length;
 
   // Clients with multiple deals (repeat rate proxy)
-  const clientsWithDeals = new Set(records.map((r) => r.client_id).filter(Boolean));
+  // Denominator: only clients with closed transactions (clientDealDates), not all records
   const repeatClients = [...clientDealDates.entries()].filter(([, dates]) => dates.length >= 2).length;
-  const repeatRate = clientsWithDeals.size > 0
-    ? Math.round((repeatClients / clientsWithDeals.size) * 100)
+  const repeatRate = clientDealDates.size > 0
+    ? Math.round((repeatClients / clientDealDates.size) * 100)
     : 0;
 
   // Pipeline depth

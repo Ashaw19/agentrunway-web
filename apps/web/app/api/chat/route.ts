@@ -140,13 +140,14 @@ export async function POST(req: NextRequest) {
   let financialContext = "No user data available.";
   try {
     const currentYear = new Date().getFullYear();
-    const [{ data: settings }, { data: transactions }, { data: pipeline }, { data: expenseCategories }, { count: staleClientCount }] =
+    const [{ data: settings }, { data: transactions }, { data: pipeline }, { data: expenseCategories }, { count: staleClientCount }, { count: staleClientCount14 }] =
       await Promise.all([
         supabase.from("user_settings").select("*").eq("user_id", user.id).single(),
         supabase.from("transactions").select("date, sale_price, commission_pct, team_split_pct, gci_override").eq("user_id", user.id).eq("status", "closed"),
         supabase.from("pipeline_deals").select("estimated_price, estimated_commission_pct, probability_override, stage").eq("user_id", user.id),
         supabase.from("expense_categories").select("expense_items(ytd_amount, monthly_recurring)").eq("user_id", user.id),
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "taxiing", "approach", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+        supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "taxiing", "approach", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()),
       ]);
 
     if (settings && transactions) {
@@ -210,7 +211,8 @@ export async function POST(req: NextRequest) {
         ytdTx.length > 0 ? `Average Deal GCI: ${fmtCurrency(ytdGCI / ytdTx.length)}` : null,
         paceLabel,
         boardPaceLabel,
-        `Pipeline (Probability-Weighted GCI): ${fmtCurrency(pipelineWeighted)} across ${pipeline?.length ?? 0} active deals`,
+        `Pipeline (Probability-Weighted GCI, deal-stage only): ${fmtCurrency(pipelineWeighted)} across ${pipeline?.length ?? 0} active deals`,
+        `Note: Pipeline figure above includes deal-stage pipeline only. Listing appointments and early-stage buyers are tracked separately on the Pipeline page.`,
         `Province: ${settings.province}`,
         `Commission Split: ${splitLabel}`,
         settings.monthly_brokerage_fee > 0 ? `Monthly Brokerage Fee: ${fmtCurrency(settings.monthly_brokerage_fee)}` : null,
@@ -220,7 +222,8 @@ export async function POST(req: NextRequest) {
         settings.experience_years != null ? `Years of Experience: ${settings.experience_years}` : null,
         expensesYTD > 0 ? `YTD Business Expenses: ${fmtCurrency(expensesYTD)}` : null,
         monthlyRecurring > 0 ? `Monthly Recurring Expenses: ${fmtCurrency(monthlyRecurring)}` : null,
-        staleClientCount != null && staleClientCount > 0 ? `Stale Active Clients (no contact 30+ days): ${staleClientCount}` : null,
+        staleClientCount14 != null && staleClientCount14 > 0 ? `Stale Clients (14+ days, dashboard threshold): ${staleClientCount14}` : null,
+        staleClientCount != null && staleClientCount > 0 ? `Stale Clients (30+ days, CRM threshold): ${staleClientCount}` : null,
       ].filter(Boolean).join("\n");
 
       // ── Compute engine outputs (parallel, fault-tolerant) ──────────────
@@ -292,12 +295,13 @@ export async function POST(req: NextRequest) {
         const naiveFraction = Math.max(dayOfYear() / 365, 0.01);
         const naiveProjection = ytdGCI / naiveFraction;
 
-        // 2. Survival Engine
+        // 2. Survival Engine — include pipeline income same as dashboard
+        const pipelineMonthlyEst = engineFraction > 0 ? (pipelineWeighted * 0.5) / 12 : 0;
         const survival: SurvivalResult = survivalResult(
           settings.monthly_brokerage_fee ?? 0,
           monthlyRecurring,
           settings.cash_reserve ?? 0,
-          0, // pipeline monthly estimate — conservative for chat
+          pipelineMonthlyEst,
         );
 
         // 3. Health Report + Runway Score Engine
@@ -436,7 +440,7 @@ export async function POST(req: NextRequest) {
           `Runway Score: ${runwayScore.score}/100 (Grade: ${runwayScore.grade})`,
           ...runwayScore.components.map((c) => `  - ${c.label}: ${c.score}/100 (weight: ${c.weight})`),
           "",
-          `Survival: ${survival.label} (Risk: ${survival.riskLevel === "notConfigured" ? "Not Configured" : survival.riskLevel.charAt(0).toUpperCase() + survival.riskLevel.slice(1)})`,
+          `Survival: ${survival.label} (Risk: ${survival.riskLevel === "notConfigured" ? "Not Configured" : survival.riskLevel.charAt(0).toUpperCase() + survival.riskLevel.slice(1)}, includes pipeline income estimate)`,
           survival.monthlyBurn > 0 ? `  Monthly Burn: ${fmtCurrency(survival.monthlyBurn)}` : null,
           "",
           `Tax Estimates (${settings.business_structure ?? "sole proprietor"}, ${settings.province}):`,
