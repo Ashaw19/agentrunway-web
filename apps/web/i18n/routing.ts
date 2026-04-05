@@ -17,6 +17,13 @@ export type Locale = (typeof locales)[number];
 
 export const defaultLocale: Locale = "en";
 
+/**
+ * Locales with complete translations that should appear in the language picker.
+ * Add a locale here once its translation files are fully reviewed and approved.
+ * All other locales still work (for testing) but are hidden from end users.
+ */
+export const pickerLocales: readonly Locale[] = ["en", "fr-CA"];
+
 /** Locales that use right-to-left script direction. */
 export const rtlLocales: ReadonlySet<Locale> = new Set(["ar", "ur"]);
 

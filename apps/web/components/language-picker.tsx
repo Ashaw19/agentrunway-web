@@ -9,7 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { locales, localeNames, type Locale } from "@/i18n/routing";
+import { locales, pickerLocales, localeNames, type Locale } from "@/i18n/routing";
 import { cn } from "@/lib/utils";
 
 /**
@@ -63,7 +63,7 @@ export function LanguagePicker({ className }: { className?: string }) {
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48 max-h-80 overflow-y-auto">
-        {locales.map((locale) => (
+        {pickerLocales.map((locale) => (
           <DropdownMenuItem
             key={locale}
             onClick={() => switchLocale(locale)}
