@@ -274,7 +274,7 @@ export function AiChat({ financialContext }: Props) {
 
       {/* Chat panel */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-40 flex w-[calc(100vw-3rem)] max-w-md flex-col overflow-hidden rounded-2xl shadow-2xl sm:w-[28rem]"
+        <div className="fixed bottom-24 right-6 z-40 flex w-[calc(100vw-3rem)] max-w-[500px] flex-col overflow-hidden rounded-2xl shadow-2xl sm:w-[500px]"
           style={{
             border: "1px solid rgba(255,255,255,0.08)",
             background: "oklch(0.13 0.05 265)",
