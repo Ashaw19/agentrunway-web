@@ -8,7 +8,31 @@ import { AGENT_RUNWAY_VOICE } from "@/lib/outreach-prompts";
 import { requirePro } from "@/lib/require-pro";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
-import { seasonalFractionElapsed, paceVsGoalPercent } from "@agent-runway/core/engines/projection-engine";
+import {
+  seasonalFractionElapsed,
+  paceVsGoalPercent,
+  projectedYearEndGCI,
+  projectedYearEndTransactions,
+  dailyPaceRequired,
+  daysRemaining,
+  dayOfYear,
+  trendDirection,
+  currentQuarter as getCurrentQuarter,
+} from "@agent-runway/core/engines/projection-engine";
+import { survivalResult, type SurvivalResult } from "@agent-runway/core/engines/survival-engine";
+import { compute as computeRunwayScore, type RunwayScoreResult } from "@agent-runway/core/engines/runway-score-engine";
+import { buildHealthReport } from "@agent-runway/core/engines/health-report";
+import { calculate as calculateTax, type CanadianTaxResult } from "@agent-runway/core/engines/canadian-tax-engine";
+import { compare as benchmarkCompare, COHORT_LABELS, type BenchmarkResult } from "@agent-runway/core/engines/benchmark-engine";
+import { probabilityBands, type ProbabilityBands } from "@agent-runway/core/engines/probabilistic-forecast-engine";
+import { computeWhereYouStand, BAND_LABELS, MOMENTUM_LABELS, type WhereYouStandResult } from "@agent-runway/core/engines/where-you-stand-engine";
+import {
+  computeBaselines,
+  detectAllDeviations,
+  experienceTier,
+  deviationPromptFragment,
+} from "@agent-runway/core/engines/deviation-engine";
+import { generateInsights, type Insight } from "@agent-runway/core/engines/insights-engine";
 import { CREA_BOARDS, fetchBoardData, computeMarketMomentum } from "@/lib/crea-board";
 import { generateTeamComparativeInsights } from "@agent-runway/core/engines";
 import { classifyTopic, classifyTopicMulti, PAGE_TO_TOPICS, TOPIC_ACTION_LINKS, type TroubleshootingTopic } from "@/lib/troubleshooting-classifier";
@@ -18,6 +42,7 @@ import { logChatAnalytics, countTopicFollowUps } from "@/lib/chat-analytics";
 import { models, heliconeHeaders } from "@/lib/ai/provider";
 import { selectModelTier } from "@/lib/ai/router";
 import { buildStructuredPrompt, injectCanary, scanAndRedactPII } from "@/lib/ai/security";
+import type { Province, Transaction as CoreTransaction, ContactActivity } from "@agent-runway/core/types/database";
 
 export async function POST(req: NextRequest) {
   const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
@@ -197,6 +222,238 @@ export async function POST(req: NextRequest) {
         monthlyRecurring > 0 ? `Monthly Recurring Expenses: ${fmtCurrency(monthlyRecurring)}` : null,
         staleClientCount != null && staleClientCount > 0 ? `Stale Active Clients (no contact 30+ days): ${staleClientCount}` : null,
       ].filter(Boolean).join("\n");
+
+      // ── Compute engine outputs (parallel, fault-tolerant) ──────────────
+      // These give the AI the same pre-computed numbers the dashboard shows,
+      // preventing it from doing its own (potentially wrong) math.
+      try {
+        // Fetch additional data needed by some engines (activities + history)
+        const [{ data: activities }, { data: historyItems }] = await Promise.all([
+          supabase
+            .from("contact_activities")
+            .select("id, user_id, client_id, type, description, activity_date, created_at")
+            .eq("user_id", user.id),
+          supabase
+            .from("annual_history")
+            .select("year, annual_tx, annual_gci")
+            .eq("user_id", user.id),
+        ]);
+
+        // Cast transactions to the shape engines expect
+        const txForEngines = (transactions ?? []).map((tx: Record<string, unknown>) => ({
+          ...tx,
+          status: "closed" as const,
+        })) as unknown as CoreTransaction[];
+        const ytdTxForEngines = txForEngines.filter(
+          (tx) => tx.date.startsWith(String(currentYear)),
+        );
+
+        // Shared computations
+        const avgDealGCI = ytdTx.length > 0 ? ytdGCI / ytdTx.length : 0;
+        const pipelineCount = pipeline?.length ?? 0;
+        const remaining = daysRemaining();
+        const elapsedDays = dayOfYear();
+
+        // 1. Projection Engine
+        const projGCI = projectedYearEndGCI(
+          ytdGCI, pipelineWeighted, fraction, settings.goal_gci ?? 0,
+        );
+        const projDeals = projectedYearEndTransactions(
+          ytdTx.length, pipelineCount, fraction,
+        );
+        const trend = trendDirection(txForEngines);
+        const dailyPace = settings.goal_gci > 0
+          ? dailyPaceRequired(settings.goal_gci, ytdGCI, remaining)
+          : 0;
+
+        // 2. Survival Engine
+        const survival: SurvivalResult = survivalResult(
+          settings.monthly_brokerage_fee ?? 0,
+          monthlyRecurring,
+          settings.cash_reserve ?? 0,
+          0, // pipeline monthly estimate — conservative for chat
+        );
+
+        // 3. Health Report + Runway Score Engine
+        const healthReport = buildHealthReport(
+          ytdGCI, settings.goal_gci ?? 0, fraction, pipelineWeighted, expensesYTD,
+        );
+
+        // 4. Benchmark Engine
+        const benchmark: BenchmarkResult = benchmarkCompare(
+          projGCI, settings.experience_years ?? null,
+        );
+
+        // 5. Runway Score (composite)
+        const runwayScore: RunwayScoreResult = computeRunwayScore(
+          healthReport, benchmark.percentile, survival.months,
+        );
+
+        // 6. Canadian Tax Engine — projected net income after expenses
+        const splitMatch2 = settings.split_preset?.match(/p(\d+)_(\d+)/);
+        const agentPct = splitMatch2 ? Number(splitMatch2[1]) / 100 : 1;
+        const annualizedExpenses = fraction > 0 ? expensesYTD / fraction : expensesYTD;
+        const projectedNetIncome = Math.max(0, projGCI * agentPct - annualizedExpenses);
+        const taxResult: CanadianTaxResult = calculateTax(
+          projectedNetIncome,
+          (settings.province ?? "ontario") as Province,
+          projDeals,
+        );
+
+        // 7. Probabilistic Forecast Engine
+        const bands: ProbabilityBands = probabilityBands(
+          txForEngines, projGCI, fraction,
+        );
+
+        // 8. Board / Market Momentum for Where You Stand
+        let marketMomentumForWYS: Parameters<typeof computeWhereYouStand>[0]["marketMomentum"] = null;
+        const boardCode2 = settings.board_code ?? "";
+        if (boardCode2) {
+          try {
+            const board = CREA_BOARDS.find((b) => b.slug === boardCode2);
+            if (board) {
+              const boardData = await fetchBoardData(board);
+              if (boardData) {
+                const mm = computeMarketMomentum(
+                  boardCode2, ytdTx.length, ytdGCI, boardData, historyItems ?? [], currentYear,
+                );
+                marketMomentumForWYS = mm;
+              }
+            }
+          } catch {
+            // Non-critical
+          }
+        }
+
+        // 9. Where You Stand Engine
+        const cohort = benchmark.cohort;
+        const hasPriorYear = (historyItems ?? []).some(
+          (h: { year: number; annual_gci: number }) => h.year < currentYear && h.annual_gci > 0,
+        );
+        const wysResult: WhereYouStandResult = computeWhereYouStand({
+          ytdGCI,
+          ytdDealCount: ytdTx.length,
+          projectedGCI: projGCI,
+          avgDealGCI: avgDealGCI,
+          goalGCI: settings.goal_gci ?? 0,
+          fraction,
+          benchmark,
+          marketMomentum: marketMomentumForWYS,
+          experienceYears: settings.experience_years ?? null,
+          cohort,
+          hasPriorYearData: hasPriorYear,
+          currentQuarter: getCurrentQuarter(),
+        });
+
+        // 10. Deviation Engine
+        const tier = experienceTier(settings.experience_years);
+        const monthsElapsed = Math.max(1, new Date().getMonth() + 1);
+        const currentMonthlyGCI = ytdGCI / monthsElapsed;
+        const currentMonthlyDeals = ytdTx.length / monthsElapsed;
+        const currentExpenseRatio = ytdGCI > 0 ? expensesYTD / ytdGCI : 0;
+
+        // Count activities for current period
+        const currentMonthlyTouchpoints = (activities ?? []).length / Math.max(1, monthsElapsed);
+
+        const baselines = computeBaselines(
+          txForEngines,
+          (activities ?? []) as unknown as ContactActivity[],
+          monthlyRecurring,
+          currentMonthlyGCI,
+        );
+        const deviations = detectAllDeviations(
+          baselines,
+          currentMonthlyGCI,
+          currentMonthlyDeals,
+          currentExpenseRatio,
+          currentMonthlyTouchpoints,
+        );
+        const deviationFragment = deviationPromptFragment(deviations, tier);
+
+        // 11. Insights Engine
+        const insights: Insight[] = generateInsights({
+          transactions: txForEngines,
+          pipelineDeals: (pipeline ?? []).map((d: Record<string, unknown>) => ({
+            ...d,
+            probability_override: d.probability_override as number | null,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          })) as any,
+          goalGCI: settings.goal_gci ?? 0,
+          seasonalWeights: settings.seasonal_weights ?? [0.18, 0.32, 0.30, 0.20],
+          expensesYTD,
+          monthlyRecurringExpenses: monthlyRecurring,
+          capIsConfigured: false,
+          hasHitCap: false,
+          gciRemainingToCap: 0,
+          postCapAgentPct: 0,
+          estimatedCapMonth: null,
+          forecastReadiness: settings.goal_gci > 0 ? 0.8 : 0.2,
+          historyItems: (historyItems ?? []) as { year: number; annual_tx: number; annual_gci: number }[],
+          runwayScore: runwayScore.score,
+          runwayGrade: runwayScore.grade,
+          runwayWeakestLabel: healthReport.weakestLabel,
+        }, 5);
+
+        // ── Build computed outputs context string ──────────────────────────
+        const engineLines: string[] = [
+          "",
+          "── COMPUTED ENGINE OUTPUTS (use these exact figures, do not recalculate) ──",
+          `Projected Year-End GCI: ${fmtCurrency(projGCI)} (seasonal pace extrapolation + pipeline adjustment)`,
+          `Projected Year-End Deals: ${projDeals}`,
+          `Pace Status: ${pacePercent >= 0 ? "+" : ""}${Math.round(pacePercent)}% ${pacePercent >= 0 ? "ahead of" : "behind"} seasonal pace`,
+          `Trend: ${trend === "up" ? "Up" : trend === "down" ? "Down" : "Flat"}`,
+          settings.goal_gci > 0 ? `Daily Pace Needed: ${fmtCurrency(dailyPace)}/day to hit goal (${remaining} days remaining)` : null,
+          "",
+          `Runway Score: ${runwayScore.score}/100 (Grade: ${runwayScore.grade})`,
+          ...runwayScore.components.map((c) => `  - ${c.label}: ${c.score}/100 (weight: ${c.weight})`),
+          "",
+          `Survival: ${survival.label} (Risk: ${survival.riskLevel === "notConfigured" ? "Not Configured" : survival.riskLevel.charAt(0).toUpperCase() + survival.riskLevel.slice(1)})`,
+          survival.monthlyBurn > 0 ? `  Monthly Burn: ${fmtCurrency(survival.monthlyBurn)}` : null,
+          "",
+          `Tax Estimates (${settings.business_structure ?? "sole proprietor"}, ${settings.province}):`,
+          `  - Projected Net Self-Employment Income: ${fmtCurrency(projectedNetIncome)}`,
+          `  - Effective Rate: ${(taxResult.effectiveRate * 100).toFixed(1)}%`,
+          `  - Total Tax + CPP Burden: ${fmtCurrency(taxResult.totalBurden)}`,
+          projDeals > 0 ? `  - Per-Deal Set-Aside: ${fmtCurrency(taxResult.perDealSetAside)}` : null,
+          `  - Quarterly Instalment: ${fmtCurrency(taxResult.quarterlyEstimate)}`,
+          "",
+          `Benchmark: ${benchmark.percentile}th percentile in ${COHORT_LABELS[benchmark.cohort]} cohort${settings.experience_years != null ? ` (${settings.experience_years} years experience)` : ""}`,
+          benchmark.distanceToNextTier != null && benchmark.nextTierLabel
+            ? `  Distance to ${benchmark.nextTierLabel}: ${fmtCurrency(benchmark.distanceToNextTier)} more projected GCI`
+            : null,
+          "",
+          "Probability Bands (year-end GCI):",
+          `  - Pessimistic (P25): ${fmtCurrency(bands.p25)}`,
+          `  - Base (P50): ${fmtCurrency(bands.p50)}`,
+          `  - Optimistic (P75): ${fmtCurrency(bands.p75)}`,
+          `  - Confidence: ${bands.confidence} (${bands.monthsOfData} months of data)`,
+          "",
+          `Where You Stand: ${wysResult.bandLabel} — ${wysResult.identityLine}`,
+          `Momentum: ${wysResult.momentumLabel}${wysResult.momentumDetail ? ` — ${wysResult.momentumDetail}` : ""}`,
+          wysResult.distanceLine ? `Next Tier: ${wysResult.distanceLine}` : null,
+          wysResult.diagnosisLine ? `Diagnosis: ${wysResult.diagnosisLine}` : null,
+        ];
+
+        // Deviation fragment (only included if deviations exist)
+        if (deviationFragment) {
+          engineLines.push("", deviationFragment);
+        }
+
+        // Top insights
+        if (insights.length > 0) {
+          engineLines.push("", "Top Insights:");
+          insights.forEach((ins, i) => {
+            engineLines.push(`${i + 1}. [${ins.type.toUpperCase()}] ${ins.title}: ${ins.message}`);
+          });
+        }
+
+        engineLines.push("── END COMPUTED ENGINE OUTPUTS ──");
+
+        financialContext += "\n\n" + engineLines.filter(Boolean).join("\n");
+      } catch (engineErr) {
+        // Engine computation is non-critical — the AI still has raw financial data
+        log.warn({ err: engineErr }, "[chat] Engine computation failed, continuing with raw data");
+      }
     }
 
     // ── Team context (if user belongs to an org) ────────────────────────
@@ -381,7 +638,9 @@ When the agent's data shows any of these patterns, surface them naturally in you
 - Cash / survival runway under 3 months → treat as urgent, name it clearly
 - If they're close to hitting their annual goal → acknowledge momentum positively
 
-IMPORTANT: On the very first message from the agent, if their data shows a notable pattern (behind pace, high expenses, stale clients), proactively open with that insight rather than waiting to be asked. Frame it conversationally: "Looking at your numbers, I noticed..." Proactively surface notable patterns and data points.`;
+IMPORTANT: On the very first message from the agent, if their data shows a notable pattern (behind pace, high expenses, stale clients), proactively open with that insight rather than waiting to be asked. Frame it conversationally: "Looking at your numbers, I noticed..." Proactively surface notable patterns and data points.
+
+IMPORTANT: Use the Computed Engine Outputs section in the business data as your source of truth for projections, scores, tax estimates, benchmarks, probability bands, and insights. Do not recalculate these figures — they come from the platform's specialized engines (seasonal models, multi-bracket tax calculations, cohort benchmarking). You may explain the methodology or add qualitative context, but always reference the engine-computed numbers. If the Computed Engine Outputs section is not present, fall back to the raw financial data above.`;
 
   const systemPrompt = injectCanary(buildStructuredPrompt({
     identity,
