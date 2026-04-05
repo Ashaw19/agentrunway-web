@@ -2143,7 +2143,7 @@ export function DashboardContent({
   cardRenders["cap_progress"]     = null;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       {/* Annual Review Modal */}
       {showAnnualReview && (
         <AnnualReview
@@ -2211,7 +2211,7 @@ export function DashboardContent({
       <SandboxExpiryModal open={showExpiryModal} onDismiss={() => setShowExpiryModal(false)} />
 
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3 pb-5">
+      <div className="flex flex-wrap items-start justify-between gap-3 pb-2">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight greet-fade text-foreground">
             {emoji} {greeting}{firstName ? `, ${firstName}` : ""}
@@ -2478,7 +2478,7 @@ export function DashboardContent({
                   const sectionDef = SECTIONS.find((s) => s.id === cardDef.section);
                   if (sectionDef) {
                     sectionHeader = (
-                      <div key={`section-${sectionDef.id}`} className="pt-4 pb-1">
+                      <div key={`section-${sectionDef.id}`} className="pt-2 pb-1">
                         <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
                           {sectionDef.label}
                         </p>
