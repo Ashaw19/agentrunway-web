@@ -187,7 +187,7 @@ export function AiChat({ financialContext }: Props) {
         const raw = err instanceof Error ? err.message : "";
         const errMsg =
           raw.includes("Too many") ? "You're sending messages too quickly. Please wait a moment." :
-          raw.includes("not configured") ? "AI assistant is not set up yet. Check your Groq API key in Settings." :
+          raw.includes("not configured") ? "AI assistant is temporarily unavailable. Please try again shortly." :
           "Sorry, I couldn't connect right now. Try again in a moment.";
         setMessages([
           ...newMessages,
