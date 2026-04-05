@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
   let financialContext = "No user data available.";
   try {
     const currentYear = new Date().getFullYear();
-    const [{ data: settings }, { data: transactions }, { data: pipeline }, { data: expenseCategories }, { count: staleClientCount }, { count: staleClientCount14 }] =
+    const [{ data: settings }, { data: transactions }, { data: pipeline }, { data: expenseCategories }, { count: staleClientCount }, { count: staleClientCount14 }, { data: receiptRows }] =
       await Promise.all([
         supabase.from("user_settings").select("*").eq("user_id", user.id).single(),
         supabase.from("transactions").select("date, sale_price, commission_pct, team_split_pct, gci_override").eq("user_id", user.id).eq("status", "closed"),
@@ -148,6 +148,7 @@ export async function POST(req: NextRequest) {
         supabase.from("expense_categories").select("expense_items(ytd_amount, monthly_recurring)").eq("user_id", user.id),
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "taxiing", "approach", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "taxiing", "approach", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()),
+        supabase.from("receipt_expenses").select("total_amount").eq("user_id", user.id).gte("expense_date", `${new Date().getFullYear()}-01-01`),
       ]);
 
     if (settings && transactions) {
@@ -157,16 +158,19 @@ export async function POST(req: NextRequest) {
       const ytdGCI = ytdTx.reduce((sum: number, tx: any) => sum + computeGCI(tx), 0);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pipelineWeighted = (pipeline ?? []).reduce((sum: number, d: any) => sum + computeWeightedGCI(d), 0);
-      const expensesYTD = (expenseCategories ?? []).reduce(
-        (sum: number, cat: { expense_items?: { ytd_amount?: number | string }[] }) =>
-          sum + (cat.expense_items ?? []).reduce((s: number, i: { ytd_amount?: number | string }) => s + Number(i.ytd_amount ?? 0), 0),
-        0,
+      // Match dashboard expense logic: Math.max(receiptTotal, monthlyRecurring * monthsElapsed)
+      const receiptTotal = (receiptRows ?? []).reduce(
+        (sum: number, r: { total_amount?: number | string | null }) => sum + Number(r.total_amount ?? 0), 0,
       );
       const monthlyRecurring = (expenseCategories ?? []).reduce(
         (sum: number, cat: { expense_items?: { monthly_recurring?: number | string }[] }) =>
           sum + (cat.expense_items ?? []).reduce((s: number, i: { monthly_recurring?: number | string }) => s + Number(i.monthly_recurring ?? 0), 0),
         0,
       );
+      const expNow = new Date();
+      const expMonthsElapsed = expNow.getMonth() + (expNow.getDate() / 30);
+      const recurringYTDEstimate = monthlyRecurring * expMonthsElapsed;
+      const expensesYTD = Math.max(receiptTotal, recurringYTDEstimate);
       const splitMatch = settings.split_preset?.match(/p(\d+)_(\d+)/);
       const splitLabel = splitMatch ? `${splitMatch[1]}% agent / ${splitMatch[2]}% brokerage` : settings.split_preset;
       // ── Compute pace vs goal (same engine as dashboard) ──────────────
@@ -186,7 +190,7 @@ export async function POST(req: NextRequest) {
           const board = CREA_BOARDS.find((b) => b.slug === boardCode);
           if (board) {
             const { data: historyRows } = await supabase
-              .from("annual_history")
+              .from("history_items")
               .select("year, annual_tx, annual_gci")
               .eq("user_id", user.id);
             const boardData = await fetchBoardData(board);
@@ -237,7 +241,7 @@ export async function POST(req: NextRequest) {
             .select("id, user_id, client_id, type, description, activity_date, created_at")
             .eq("user_id", user.id),
           supabase
-            .from("annual_history")
+            .from("history_items")
             .select("year, annual_tx, annual_gci, quarter_gci")
             .eq("user_id", user.id),
         ]);
@@ -260,7 +264,7 @@ export async function POST(req: NextRequest) {
         const engineSeasonalWeights = agentSeasonalWeights
           ?? (settings.use_national_seasonality
             ? (settings.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
-            : (settings.seasonal_weights ?? [0.25, 0.25, 0.25, 0.25]));
+            : [0.25, 0.25, 0.25, 0.25]);
         const engineFraction = seasonalFractionElapsed(engineSeasonalWeights);
         const seasonalSource = agentSeasonalWeights ? "agent (5-yr pattern)" : settings.use_national_seasonality ? "national" : "default";
 

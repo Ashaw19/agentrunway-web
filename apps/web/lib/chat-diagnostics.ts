@@ -148,7 +148,7 @@ export async function buildDiagnostics(
       .eq("user_id", userId)
       .is("archived_at", null),
     supabase
-      .from("annual_history")
+      .from("history_items")
       .select("year, annual_tx, annual_gci, quarter_gci")
       .eq("user_id", userId),
   ]);

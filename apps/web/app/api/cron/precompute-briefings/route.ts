@@ -187,7 +187,7 @@ async function gatherUserMetrics(
 
     // Annual history for agent-specific seasonal weights
     supabase
-      .from("annual_history")
+      .from("history_items")
       .select("year, quarter_gci")
       .eq("user_id", uid),
   ]);
