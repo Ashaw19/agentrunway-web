@@ -235,9 +235,31 @@ export async function POST(req: NextRequest) {
             .eq("user_id", user.id),
           supabase
             .from("annual_history")
-            .select("year, annual_tx, annual_gci")
+            .select("year, annual_tx, annual_gci, quarter_gci")
             .eq("user_id", user.id),
         ]);
+
+        // ── Compute agent-specific seasonal weights (same logic as dashboard) ──
+        // This ensures the AI uses the same seasonality as the dashboard projection card.
+        const agentSeasonalWeights = (() => {
+          const withData = (historyItems ?? []).filter((h: Record<string, unknown>) =>
+            (h.quarter_gci as number[] | null)?.some((v: number) => (v ?? 0) > 0),
+          );
+          if (withData.length < 2) return null;
+          const avgQ = [0, 1, 2, 3].map((q) =>
+            withData.reduce((sum: number, h: Record<string, unknown>) =>
+              sum + (((h.quarter_gci as number[])?.[q]) ?? 0), 0) / withData.length,
+          );
+          const total = avgQ.reduce((a, b) => a + b, 0);
+          return total > 0 ? avgQ.map((v) => v / total) : null;
+        })();
+
+        const engineSeasonalWeights = agentSeasonalWeights
+          ?? (settings.use_national_seasonality
+            ? (settings.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
+            : (settings.seasonal_weights ?? [0.25, 0.25, 0.25, 0.25]));
+        const engineFraction = seasonalFractionElapsed(engineSeasonalWeights);
+        const seasonalSource = agentSeasonalWeights ? "agent (5-yr pattern)" : settings.use_national_seasonality ? "national" : "default";
 
         // Cast transactions to the shape engines expect
         const txForEngines = (transactions ?? []).map((tx: Record<string, unknown>) => ({
@@ -254,17 +276,21 @@ export async function POST(req: NextRequest) {
         const remaining = daysRemaining();
         const elapsedDays = dayOfYear();
 
-        // 1. Projection Engine
+        // 1. Projection Engine — uses engineFraction (agent-specific seasonal weights)
         const projGCI = projectedYearEndGCI(
-          ytdGCI, pipelineWeighted, fraction, settings.goal_gci ?? 0,
+          ytdGCI, pipelineWeighted, engineFraction, settings.goal_gci ?? 0,
         );
         const projDeals = projectedYearEndTransactions(
-          ytdTx.length, pipelineCount, fraction,
+          ytdTx.length, pipelineCount, engineFraction,
         );
         const trend = trendDirection(txForEngines);
         const dailyPace = settings.goal_gci > 0
           ? dailyPaceRequired(settings.goal_gci, ytdGCI, remaining)
           : 0;
+
+        // Also compute a naive (non-seasonal) projection so AI can contrast
+        const naiveFraction = Math.max(dayOfYear() / 365, 0.01);
+        const naiveProjection = ytdGCI / naiveFraction;
 
         // 2. Survival Engine
         const survival: SurvivalResult = survivalResult(
@@ -276,7 +302,7 @@ export async function POST(req: NextRequest) {
 
         // 3. Health Report + Runway Score Engine
         const healthReport = buildHealthReport(
-          ytdGCI, settings.goal_gci ?? 0, fraction, pipelineWeighted, expensesYTD,
+          ytdGCI, settings.goal_gci ?? 0, engineFraction, pipelineWeighted, expensesYTD,
         );
 
         // 4. Benchmark Engine
@@ -292,7 +318,7 @@ export async function POST(req: NextRequest) {
         // 6. Canadian Tax Engine — projected net income after expenses
         const splitMatch2 = settings.split_preset?.match(/p(\d+)_(\d+)/);
         const agentPct = splitMatch2 ? Number(splitMatch2[1]) / 100 : 1;
-        const annualizedExpenses = fraction > 0 ? expensesYTD / fraction : expensesYTD;
+        const annualizedExpenses = engineFraction > 0 ? expensesYTD / engineFraction : expensesYTD;
         const projectedNetIncome = Math.max(0, projGCI * agentPct - annualizedExpenses);
         const taxResult: CanadianTaxResult = calculateTax(
           projectedNetIncome,
@@ -302,7 +328,7 @@ export async function POST(req: NextRequest) {
 
         // 7. Probabilistic Forecast Engine
         const bands: ProbabilityBands = probabilityBands(
-          txForEngines, projGCI, fraction,
+          txForEngines, projGCI, engineFraction,
         );
 
         // 8. Board / Market Momentum for Where You Stand
@@ -336,7 +362,7 @@ export async function POST(req: NextRequest) {
           projectedGCI: projGCI,
           avgDealGCI: avgDealGCI,
           goalGCI: settings.goal_gci ?? 0,
-          fraction,
+          fraction: engineFraction,
           benchmark,
           marketMomentum: marketMomentumForWYS,
           experienceYears: settings.experience_years ?? null,
@@ -398,9 +424,12 @@ export async function POST(req: NextRequest) {
         const engineLines: string[] = [
           "",
           "── COMPUTED ENGINE OUTPUTS (use these exact figures, do not recalculate) ──",
-          `Projected Year-End GCI: ${fmtCurrency(projGCI)} (seasonal pace extrapolation + pipeline adjustment)`,
+          `Seasonality Source: ${seasonalSource}`,
+          `Seasonal Fraction Elapsed: ${(engineFraction * 100).toFixed(1)}% of year's expected production`,
+          `Projected Year-End GCI: ${fmtCurrency(projGCI)} (uses ${seasonalSource} seasonal weighting)`,
+          `Without Seasonality (naive linear): ${fmtCurrency(naiveProjection)}`,
           `Projected Year-End Deals: ${projDeals}`,
-          `Pace Status: ${pacePercent >= 0 ? "+" : ""}${Math.round(pacePercent)}% ${pacePercent >= 0 ? "ahead of" : "behind"} seasonal pace`,
+          `Pace Status: ${(() => { const ep = settings.goal_gci > 0 ? paceVsGoalPercent(settings.goal_gci, ytdGCI, engineFraction) : pacePercent; return `${ep >= 0 ? "+" : ""}${Math.round(ep)}% ${ep >= 0 ? "ahead of" : "behind"} seasonal pace`; })()}`,
           `Trend: ${trend === "up" ? "Up" : trend === "down" ? "Down" : "Flat"}`,
           settings.goal_gci > 0 ? `Daily Pace Needed: ${fmtCurrency(dailyPace)}/day to hit goal (${remaining} days remaining)` : null,
           "",
