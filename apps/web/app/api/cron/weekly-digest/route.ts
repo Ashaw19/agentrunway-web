@@ -19,6 +19,11 @@ import {
   type PipelineDeal,
 } from "@/lib/types/database";
 import { buildUnsubscribeUrl } from "@/lib/email-tokens";
+import { seasonalFractionElapsed, paceVsGoalPercent, projectedYearEndGCI } from "@agent-runway/core/engines/projection-engine";
+import { buildHealthReport } from "@agent-runway/core/engines/health-report";
+import { compute as computeRunwayScore } from "@agent-runway/core/engines/runway-score-engine";
+import { compare as benchmarkCompare } from "@agent-runway/core/engines/benchmark-engine";
+import { survivalResult } from "@agent-runway/core/engines/survival-engine";
 
 export const maxDuration = 300; // 5 minutes max
 
@@ -45,22 +50,6 @@ function weekLabel(): string {
   return `${fmt(start)} – ${fmt(end)}, ${end.getFullYear()}`;
 }
 
-function gradeFromScore(score: number): string {
-  if (score >= 93) return "A+";
-  if (score >= 85) return "A";
-  if (score >= 80) return "A-";
-  if (score >= 77) return "B+";
-  if (score >= 73) return "B";
-  if (score >= 70) return "B-";
-  if (score >= 67) return "C+";
-  if (score >= 63) return "C";
-  if (score >= 60) return "C-";
-  if (score >= 55) return "D+";
-  if (score >= 50) return "D";
-  if (score >= 45) return "D-";
-  return "F";
-}
-
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
@@ -84,9 +73,11 @@ export async function GET(req: NextRequest) {
   const monthStart = `${year}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
 
   // Find all professional-tier users (active or trialing)
+  // Include seasonal_weights, use_national_seasonality, national_quarter_pcts,
+  // experience_years, monthly_brokerage_fee, and cash_reserve for canonical score.
   const { data: proUsers, error: usersErr } = await admin
     .from("user_settings")
-    .select("user_id, display_name, goal_gci, province, subscription_tier, subscription_status")
+    .select("user_id, display_name, goal_gci, province, subscription_tier, subscription_status, seasonal_weights, use_national_seasonality, national_quarter_pcts, experience_years, monthly_brokerage_fee, cash_reserve")
     .in("subscription_tier", ["professional", "team"])
     .in("subscription_status", ["active", "trialing"]);
 
@@ -149,7 +140,7 @@ export async function GET(req: NextRequest) {
         .limit(1000);
 
       const pipeline = (pipelineRows ?? []) as PipelineDeal[];
-      const pipelineValue = pipeline.reduce(
+      const pipelineWeightedGCI = pipeline.reduce(
         (sum, d) => sum + computeWeightedGCI(d),
         0
       );
@@ -183,21 +174,95 @@ export async function GET(req: NextRequest) {
         0
       );
 
-      // Simple pace vs goal calculation
-      const goalGCI = user.goal_gci ?? 0;
-      // Use month-based fraction (simple) since we don't have seasonality weights server-side
-      const monthFraction = (now.getMonth() + now.getDate() / 30) / 12;
-      const expectedGCI = goalGCI * monthFraction;
-      const paceVsGoalPct =
-        expectedGCI > 0 ? Math.round((ytdGCI / expectedGCI) * 100) : 0;
+      // ── Seasonal weights (agent-specific > national > flat) ──────────
+      // Fetch annual history for agent-specific quarter_gci weights
+      const { data: historyRows } = await admin
+        .from("history_items")
+        .select("year, quarter_gci")
+        .eq("user_id", user.user_id)
+        .order("year", { ascending: false })
+        .limit(100);
 
-      // Simple runway score estimate (goal pace weighted heavily)
-      const paceScore = Math.min(100, paceVsGoalPct);
-      const pipelineScore =
-        goalGCI > 0
-          ? Math.min(100, Math.round((pipelineValue / (goalGCI * 0.3)) * 100))
-          : 50;
-      const runwayScore = Math.round(paceScore * 0.5 + pipelineScore * 0.3 + 60 * 0.2);
+      const historyItems = historyRows ?? [];
+
+      // Compute agent-specific seasonal weights (same logic as dashboard)
+      const agentSeasonalWeights = (() => {
+        const withData = historyItems.filter((h: { quarter_gci: number[] }) =>
+          (h.quarter_gci as number[]).some((v) => (v ?? 0) > 0),
+        );
+        if (withData.length < 2) return null;
+        const avgQ = [0, 1, 2, 3].map((q) =>
+          withData.reduce((sum: number, h: { quarter_gci: number[] }) =>
+            sum + ((h.quarter_gci as number[])[q] ?? 0), 0,
+          ) / withData.length,
+        );
+        const total = avgQ.reduce((a, b) => a + b, 0);
+        return total > 0 ? avgQ.map((v) => v / total) : null;
+      })();
+
+      const seasonalWeights: number[] =
+        agentSeasonalWeights ??
+        (user.use_national_seasonality
+          ? ((user.national_quarter_pcts as number[] | null) ?? [0.25, 0.25, 0.25, 0.25])
+          : [0.25, 0.25, 0.25, 0.25]);
+
+      // ── Canonical pace, score, and grade ─────────────────────────────
+      const goalGCI = user.goal_gci ?? 0;
+      const fraction = seasonalFractionElapsed(seasonalWeights);
+      const paceVsGoalPct =
+        goalGCI > 0 && fraction > 0
+          ? Math.round(paceVsGoalPercent(goalGCI, ytdGCI, fraction) + 100)
+          : 0;
+
+      // YTD expenses for health report: receipt total + recurring estimate
+      const { data: expenseCatRows } = await admin
+        .from("expense_categories")
+        .select("name, expense_items(ytd_amount, monthly_recurring)")
+        .eq("user_id", user.user_id);
+
+      const monthlyRecurring = (expenseCatRows ?? []).reduce(
+        (sum: number, cat: { expense_items?: { monthly_recurring?: number | string }[] }) =>
+          sum + (cat.expense_items ?? []).reduce(
+            (s: number, i: { monthly_recurring?: number | string }) => s + Number(i.monthly_recurring ?? 0), 0,
+          ),
+        0,
+      );
+      const receiptYTDQuery = await admin
+        .from("receipt_expenses")
+        .select("total_amount")
+        .eq("user_id", user.user_id)
+        .gte("expense_date", `${year}-01-01`);
+      const receiptYTD = (receiptYTDQuery.data ?? []).reduce(
+        (sum: number, r: { total_amount?: number | string }) => sum + Number(r.total_amount ?? 0), 0,
+      );
+      const expMonthsElapsed = now.getMonth() + (now.getDate() / 30);
+      const recurringYTDEstimate = monthlyRecurring * expMonthsElapsed;
+      const expensesYTD = Math.max(receiptYTD, recurringYTDEstimate);
+
+      // Health report (canonical 3 sub-scores: pace, pipeline, expenses)
+      const healthReport = buildHealthReport(
+        ytdGCI, goalGCI, fraction, pipelineWeightedGCI, expensesYTD,
+      );
+
+      // Benchmark percentile
+      const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, goalGCI);
+      const benchmark = benchmarkCompare(projectedGCI, user.experience_years ?? null);
+
+      // Survival months
+      const pipelineMonthlyEst = fraction > 0 ? (pipelineWeightedGCI * 0.5) / 12 : 0;
+      const survival = survivalResult(
+        user.monthly_brokerage_fee ?? 0,
+        monthlyRecurring,
+        user.cash_reserve ?? 0,
+        pipelineMonthlyEst,
+      );
+
+      // Canonical 5-component Runway Score (35% pace + 30% pipeline + 15% expenses + 5% benchmark + 15% survival)
+      const runwayResult = computeRunwayScore(
+        healthReport,
+        benchmark.percentile,
+        survival.months,
+      );
 
       // Build digest data
       const digestData: WeeklyDigestData = {
@@ -208,13 +273,13 @@ export async function GET(req: NextRequest) {
         paceVsGoalPct,
         dealsClosedThisWeek: recentDeals.length,
         ytdDealsClosed: transactions.length,
-        pipelineValue,
+        pipelineValue: pipelineWeightedGCI,
         pipelineCount: pipeline.length,
         outreachReady: outreachReady ?? 0,
         upcomingTaskCount: upcomingTaskCount ?? 0,
         monthlyExpenses,
-        runwayGrade: gradeFromScore(runwayScore),
-        runwayScore,
+        runwayGrade: runwayResult.grade,
+        runwayScore: runwayResult.score,
         dashboardUrl: "https://agentrunway.ca/dashboard",
         unsubscribeUrl: buildUnsubscribeUrl(user.user_id, "weekly-digest"),
       };
