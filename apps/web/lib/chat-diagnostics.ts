@@ -128,6 +128,7 @@ export async function buildDiagnostics(
     { data: expenseCategories },
     { data: clients },
     { data: historyItems },
+    { data: receiptExpenses },
   ] = await Promise.all([
     supabase.from("user_settings").select("*").eq("user_id", userId).single(),
     supabase
@@ -151,6 +152,11 @@ export async function buildDiagnostics(
       .from("history_items")
       .select("year, annual_tx, annual_gci, quarter_gci")
       .eq("user_id", userId),
+    supabase
+      .from("receipt_expenses")
+      .select("total_amount")
+      .eq("user_id", userId)
+      .gte("expense_date", `${currentYear}-01-01`),
   ]);
 
   if (!settings) return "\n[DIAGNOSTIC: No user settings found — user may not have completed onboarding]";
@@ -182,18 +188,23 @@ export async function buildDiagnostics(
   const engineSeasonalWeights = agentSeasonalWeights
     ?? (s.use_national_seasonality
       ? (s.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
-      : (s.seasonal_weights ?? [0.25, 0.25, 0.25, 0.25]));
+      : [0.25, 0.25, 0.25, 0.25]);
   const engineFraction = seasonalFractionElapsed(engineSeasonalWeights);
 
-  // Compute total YTD expenses and monthly recurring (shared across diagnostics)
-  let expensesYTD = 0;
+  // Compute total YTD expenses and monthly recurring (same formula as dashboard)
   let monthlyRecurring = 0;
   for (const cat of expenses) {
     for (const item of cat.expense_items ?? []) {
-      expensesYTD += Number(item.ytd_amount ?? 0);
       monthlyRecurring += Number(item.monthly_recurring ?? 0);
     }
   }
+  const receiptTotal = (receiptExpenses ?? []).reduce(
+    (sum: number, r: { total_amount?: number | string }) => sum + Number(r.total_amount ?? 0), 0,
+  );
+  const expNow = new Date();
+  const expMonthsElapsed = expNow.getMonth() + (expNow.getDate() / 30);
+  const recurringYTDEstimate = monthlyRecurring * expMonthsElapsed;
+  const expensesYTD = Math.max(receiptTotal, recurringYTDEstimate);
 
   const ctx: DiagContext = {
     settings: s,

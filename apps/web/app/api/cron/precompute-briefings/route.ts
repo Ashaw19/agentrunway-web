@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
   const { data: users, error: usersError } = await supabase
     .from("user_settings")
     .select("user_id, display_name, goal_gci, subscription_tier, use_national_seasonality, national_quarter_pcts")
-    .in("subscription_tier", ["professional", "teams"])
+    .in("subscription_tier", ["professional", "team"])
     .limit(500);
 
   if (usersError) {

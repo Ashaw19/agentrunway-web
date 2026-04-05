@@ -173,14 +173,10 @@ export async function POST(req: NextRequest) {
       const expensesYTD = Math.max(receiptTotal, recurringYTDEstimate);
       const splitMatch = settings.split_preset?.match(/p(\d+)_(\d+)/);
       const splitLabel = splitMatch ? `${splitMatch[1]}% agent / ${splitMatch[2]}% brokerage` : settings.split_preset;
-      // ── Compute pace vs goal (same engine as dashboard) ──────────────
-      const fraction = seasonalFractionElapsed(settings.seasonal_weights);
-      const pacePercent = settings.goal_gci > 0
-        ? paceVsGoalPercent(settings.goal_gci, ytdGCI, fraction)
-        : 0;
-      const paceLabel = settings.goal_gci > 0
-        ? `Pace vs Annual Goal: ${pacePercent >= 0 ? "+" : ""}${Math.round(pacePercent)}% (${pacePercent >= 0 ? "ahead of" : "behind"} expected pace for this point in the year)`
-        : null;
+      // Pace vs goal is computed in the engine outputs section below using
+      // agent-specific seasonal weights (matching dashboard). Removed the
+      // duplicate computation here that used settings.seasonal_weights directly
+      // (often null/flat), which could produce a conflicting pace percentage.
 
       // ── Board comparison (same engine as dashboard "Your Pace" card) ──
       let boardPaceLabel: string | null = null;
@@ -213,7 +209,6 @@ export async function POST(req: NextRequest) {
         `YTD GCI: ${fmtCurrency(ytdGCI)}`,
         `Closed Deals YTD: ${ytdTx.length}`,
         ytdTx.length > 0 ? `Average Deal GCI: ${fmtCurrency(ytdGCI / ytdTx.length)}` : null,
-        paceLabel,
         boardPaceLabel,
         `Pipeline (Probability-Weighted GCI, deal-stage only): ${fmtCurrency(pipelineWeighted)} across ${pipeline?.length ?? 0} active deals`,
         `Note: Pipeline figure above includes deal-stage pipeline only. Listing appointments and early-stage buyers are tracked separately on the Pipeline page.`,
@@ -413,7 +408,7 @@ export async function POST(req: NextRequest) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           })) as any,
           goalGCI: settings.goal_gci ?? 0,
-          seasonalWeights: settings.seasonal_weights ?? [0.18, 0.32, 0.30, 0.20],
+          seasonalWeights: engineSeasonalWeights,
           expensesYTD,
           monthlyRecurringExpenses: monthlyRecurring,
           capIsConfigured: false,
