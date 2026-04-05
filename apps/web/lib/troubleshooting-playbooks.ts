@@ -55,7 +55,7 @@ The Runway Score is a weighted composite of 5 sub-scores, each 0–100:
 - +50% ahead → 100, On pace → 50, -50% behind → 0
 - Formula: clamp(((pacePercent + 50) / 100) × 100, 0, 100)
 
-**Pipeline Score** (25%):
+**Pipeline Score** (30%):
 - Ratio = pipeline weighted GCI ÷ remaining goal gap
 - If goal already met (gap ≤ 0): 100
 - If ratio ≥ 1.5: 100, ratio 1.0: 80, ratio 0.5: 50, ratio 0: 20
@@ -74,7 +74,7 @@ The Runway Score is a weighted composite of 5 sub-scores, each 0–100:
 - <1 month → 10
 - Not configured (no cash reserve set) → 35 (incomplete data penalty — previously 50 in v1.1)
 
-**Benchmark Score** (10%):
+**Benchmark Score** (5%):
 - Direct percentile from CREA comparison
 - 50th percentile → 50, 90th → 90, etc.
 
@@ -95,7 +95,7 @@ Walk through each component:
 - Is pipeline empty or thin? (30% — second biggest)
 - Is expense ratio above 35%? (15%)
 - Is cash reserve not set? (defaults to 35/100 × 0.15 = only 5.25 points)
-- Are they a newer agent with low benchmark percentile? (10%)
+- Are they a newer agent with low benchmark percentile? (5%)
 
 **"How do I improve my score?"**
 Identify the weakest component and prioritize:
@@ -109,7 +109,7 @@ Identify the weakest component and prioritize:
 - January 1–15: Seasonal fraction is tiny → pace calculation swings wildly → tell user to wait 2–3 weeks
 - No goal set: Pace score defaults to 50 (neutral) — recommend setting a goal
 - Zero GCI: Expense score defaults to 50 (neutral)
-- Cash reserve = $0 or not set: Survival score = 50 (neutral, not 0)
+- Cash reserve = $0 or not set: Survival score = 35 (incomplete data penalty — not 50)
 `,
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -223,7 +223,7 @@ Example: $500K home × 2.5% commission × 60% (Conditional) = $7,500 weighted GC
 
 ### Pipeline Impact on Other Metrics
 
-1. **Runway Score**: Pipeline Score = 25% weight. Weighted GCI vs remaining goal gap.
+1. **Runway Score**: Pipeline Score = 30% weight. Weighted GCI vs remaining goal gap.
 2. **Projected Year-End GCI**: Closed YTD ÷ seasonal fraction + (pipeline weighted GCI × 50%)
 3. **Goal Gap Analysis**: Remaining deals needed = (Goal − YTD GCI − Pipeline Weighted) ÷ avg deal size
 4. **Forecast Page**: Pipeline feeds probability bands and waterfall chart
