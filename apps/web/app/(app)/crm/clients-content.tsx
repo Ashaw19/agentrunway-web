@@ -647,17 +647,30 @@ function normalizePhoneType(raw: string): PhoneType {
 const CSV_ROW_CAP = 5_000;
 
 /**
- * Sanitize a cell value to prevent CSV formula injection.
+ * Sanitize a cell value to prevent CSV formula injection on EXPORT.
  * Cells starting with =, +, -, @, |, \t could execute as formulas
  * when exported data is opened in Excel/Google Sheets.
+ *
+ * WARNING: Do NOT use this on import — it corrupts legitimate data
+ * (e.g. phone numbers starting with "+", names starting with "-").
  */
-function sanitizeCellValue(val: string): string {
+function sanitizeCellValueForExport(val: string): string {
   if (!val) return val;
   const first = val.charAt(0);
   if (first === "=" || first === "+" || first === "-" || first === "@" || first === "|" || first === "\t") {
     return "'" + val;
   }
   // Also strip null bytes
+  return val.replace(/\0/g, "");
+}
+
+/**
+ * Clean a cell value on IMPORT — only strip null bytes.
+ * Formula injection prevention is not needed here because we're
+ * reading data into the database, not writing to a spreadsheet.
+ */
+function cleanImportValue(val: string): string {
+  if (!val) return val;
   return val.replace(/\0/g, "");
 }
 
@@ -2230,27 +2243,28 @@ export function ClientsContent({
     const toEnrich: EnrichItem[] = [];
     const toInsert: InsertRow[] = [];
 
-    for (const row of csvRows) {
-      const rowNum = csvRows.indexOf(row) + 2; // +2 for 1-indexed header row
-      const rawName = sanitizeCellValue((row[mapName] ?? "").trim());
+    for (let rowIdx = 0; rowIdx < csvRows.length; rowIdx++) {
+      const row = csvRows[rowIdx];
+      const rowNum = rowIdx + 2; // +2 for 1-indexed header row
+      const rawName = cleanImportValue((row[mapName] ?? "").trim());
       if (!rawName) { skipped++; errorMessages.push(`Row ${rowNum}: skipped — no name`); continue; }
       const nameSearch = rawName.toLowerCase();
 
-      let email    = mapEmail    !== "__none__" ? sanitizeCellValue((row[mapEmail]    ?? "").trim()) || null : null;
-      const phone    = mapPhone    !== "__none__" ? sanitizeCellValue((row[mapPhone]    ?? "").trim()) || null : null;
+      let email    = mapEmail    !== "__none__" ? cleanImportValue((row[mapEmail]    ?? "").trim()) || null : null;
+      const phone    = mapPhone    !== "__none__" ? cleanImportValue((row[mapPhone]    ?? "").trim()) || null : null;
 
       // Basic email format check — warn but don't reject
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         errorMessages.push(`Row ${rowNum} (${rawName}): invalid email "${email}" — skipped field`);
         email = null;
       }
-      const city     = mapCity     !== "__none__" ? sanitizeCellValue((row[mapCity]     ?? "").trim()) || null : null;
-      const street   = mapStreet   !== "__none__" ? sanitizeCellValue((row[mapStreet]   ?? "").trim()) || null : null;
-      const postal   = mapPostal   !== "__none__" ? sanitizeCellValue((row[mapPostal]   ?? "").trim()) || null : null;
-      const leadSource = mapSource !== "__none__" ? sanitizeCellValue((row[mapSource]   ?? "").trim()) || null : null;
+      const city     = mapCity     !== "__none__" ? cleanImportValue((row[mapCity]     ?? "").trim()) || null : null;
+      const street   = mapStreet   !== "__none__" ? cleanImportValue((row[mapStreet]   ?? "").trim()) || null : null;
+      const postal   = mapPostal   !== "__none__" ? cleanImportValue((row[mapPostal]   ?? "").trim()) || null : null;
+      const leadSource = mapSource !== "__none__" ? cleanImportValue((row[mapSource]   ?? "").trim()) || null : null;
       // Province: strip trailing commas (FUB exports "ON," sometimes)
       const province = mapProvince !== "__none__"
-        ? sanitizeCellValue((row[mapProvince] ?? "").trim().replace(/,+$/, "")) || null
+        ? cleanImportValue((row[mapProvince] ?? "").trim().replace(/,+$/, "")) || null
         : null;
 
       if (existingSearchNames.has(nameSearch)) {

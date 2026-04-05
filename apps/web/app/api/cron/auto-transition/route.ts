@@ -24,10 +24,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
   }
 
+  // Only accept secret via headers — never query string (leaks into URL logs)
   const provided =
     req.headers.get("authorization")?.replace("Bearer ", "") ??
-    req.headers.get("x-cron-secret") ??
-    req.nextUrl.searchParams.get("secret");
+    req.headers.get("x-cron-secret");
 
   if (provided !== secret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   if (error) {
     console.error("[auto-transition cron] RPC error:", error);
     return NextResponse.json(
-      { error: error.message },
+      { error: "Auto-transition failed" },
       { status: 500 },
     );
   }

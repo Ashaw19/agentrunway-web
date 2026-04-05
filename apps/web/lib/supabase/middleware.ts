@@ -28,6 +28,17 @@ const PROTECTED_PREFIXES = [
   "/onboarding",
   "/org",
   "/consent",
+  "/flight-control",
+  "/altimeter",
+  "/bank-sync",
+  "/drive",
+  "/overhead",
+  "/referrals",
+  "/sandbox",
+  "/scenarios",
+  "/social",
+  "/tax",
+  "/guide",
 ];
 
 export async function updateSession(request: NextRequest) {
