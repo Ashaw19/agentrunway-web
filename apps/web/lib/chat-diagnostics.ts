@@ -1,10 +1,10 @@
 /**
  * Chat Diagnostics Module
  *
- * Computes step-by-step diagnostic data for the AI to reference when
- * troubleshooting user issues. Rather than the AI guessing at formulas,
- * this module runs the actual engine calculations and formats them as
- * readable diagnostic strings injected into the system prompt.
+ * FORMATTING LAYER ONLY — all computation is delegated to canonical engines.
+ *
+ * Fetches data from Supabase, passes it to shared engine functions, and
+ * formats the results into readable diagnostic strings for the AI system prompt.
  *
  * Each diagnostic function returns a plain string (or null if not applicable).
  */
@@ -15,8 +15,26 @@ import { fmtCurrency } from "@/lib/formatters";
 import {
   seasonalFractionElapsed,
   paceVsGoalPercent,
-  projectYearEndGCI,
+  projectedYearEndGCI,
+  projectedYearEndTransactions,
 } from "@agent-runway/core/engines/projection-engine";
+import {
+  compute as computeRunwayScore,
+} from "@agent-runway/core/engines/runway-score-engine";
+import { buildHealthReport } from "@agent-runway/core/engines/health-report";
+import {
+  survivalResult as computeSurvivalResult,
+  type SurvivalResult,
+} from "@agent-runway/core/engines/survival-engine";
+import {
+  compare as benchmarkCompare,
+  COHORT_LABELS,
+  type BenchmarkResult,
+} from "@agent-runway/core/engines/benchmark-engine";
+import {
+  calculate as calculateTax,
+} from "@agent-runway/core/engines/canadian-tax-engine";
+import type { Province } from "@agent-runway/core/types/database";
 import type { TroubleshootingTopic } from "./troubleshooting-classifier";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -33,6 +51,8 @@ interface UserSettings {
   tx_fee_annual_cap: number;
   post_cap_rate_pct: number;
   seasonal_weights: number[] | null;
+  use_national_seasonality: boolean;
+  national_quarter_pcts: number[] | null;
   business_structure: string;
   gst_registered: boolean;
   home_office_method: string;
@@ -65,6 +85,22 @@ interface ExpenseCategory {
   }[];
 }
 
+// ─── Shared computed context passed to each diagnostic function ───────────────
+
+interface DiagContext {
+  settings: UserSettings;
+  closedTx: Transaction[];
+  pipelineDeals: PipelineDeal[];
+  expenses: ExpenseCategory[];
+  clients: { id: string; status: string; last_contact_at: string | null; created_at: string }[];
+  ytdGCI: number;
+  pipelineWeighted: number;
+  currentYear: number;
+  engineFraction: number;
+  monthlyRecurring: number;
+  expensesYTD: number;
+}
+
 // ─── Main Diagnostic Builder ──────────────────────────────────────────────────
 
 /**
@@ -91,6 +127,7 @@ export async function buildDiagnostics(
     { data: pipeline },
     { data: expenseCategories },
     { data: clients },
+    { data: historyItems },
   ] = await Promise.all([
     supabase.from("user_settings").select("*").eq("user_id", userId).single(),
     supabase
@@ -110,6 +147,10 @@ export async function buildDiagnostics(
       .select("id, status, last_contact_at, created_at")
       .eq("user_id", userId)
       .is("archived_at", null),
+    supabase
+      .from("annual_history")
+      .select("year, annual_tx, annual_gci, quarter_gci")
+      .eq("user_id", userId),
   ]);
 
   if (!settings) return "\n[DIAGNOSTIC: No user settings found — user may not have completed onboarding]";
@@ -124,10 +165,54 @@ export async function buildDiagnostics(
   const ytdGCI = closedTx.reduce((sum, tx) => sum + computeGCI(tx), 0);
   const pipelineWeighted = pipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
 
+  // ── Compute agent-specific seasonal weights (same logic as chat route / dashboard) ──
+  const agentSeasonalWeights = (() => {
+    const withData = (historyItems ?? []).filter((h: Record<string, unknown>) =>
+      (h.quarter_gci as number[] | null)?.some((v: number) => (v ?? 0) > 0),
+    );
+    if (withData.length < 2) return null;
+    const avgQ = [0, 1, 2, 3].map((q) =>
+      withData.reduce((sum: number, h: Record<string, unknown>) =>
+        sum + (((h.quarter_gci as number[])?.[q]) ?? 0), 0) / withData.length,
+    );
+    const total = avgQ.reduce((a, b) => a + b, 0);
+    return total > 0 ? avgQ.map((v) => v / total) : null;
+  })();
+
+  const engineSeasonalWeights = agentSeasonalWeights
+    ?? (s.use_national_seasonality
+      ? (s.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
+      : (s.seasonal_weights ?? [0.25, 0.25, 0.25, 0.25]));
+  const engineFraction = seasonalFractionElapsed(engineSeasonalWeights);
+
+  // Compute total YTD expenses and monthly recurring (shared across diagnostics)
+  let expensesYTD = 0;
+  let monthlyRecurring = 0;
+  for (const cat of expenses) {
+    for (const item of cat.expense_items ?? []) {
+      expensesYTD += Number(item.ytd_amount ?? 0);
+      monthlyRecurring += Number(item.monthly_recurring ?? 0);
+    }
+  }
+
+  const ctx: DiagContext = {
+    settings: s,
+    closedTx,
+    pipelineDeals,
+    expenses,
+    clients: clients ?? [],
+    ytdGCI,
+    pipelineWeighted,
+    currentYear,
+    engineFraction,
+    monthlyRecurring,
+    expensesYTD,
+  };
+
   const diagnosticParts: string[] = [];
 
   for (const topic of dataTopics) {
-    const diag = buildTopicDiagnostic(topic, s, closedTx, pipelineDeals, expenses, clients ?? [], ytdGCI, pipelineWeighted, currentYear);
+    const diag = buildTopicDiagnostic(topic, ctx);
     if (diag) diagnosticParts.push(diag);
   }
 
@@ -140,38 +225,31 @@ export async function buildDiagnostics(
 
 function buildTopicDiagnostic(
   topic: TroubleshootingTopic,
-  settings: UserSettings,
-  closedTx: Transaction[],
-  pipeline: PipelineDeal[],
-  expenses: ExpenseCategory[],
-  clients: { id: string; status: string; last_contact_at: string | null; created_at: string }[],
-  ytdGCI: number,
-  pipelineWeighted: number,
-  currentYear: number,
+  ctx: DiagContext,
 ): string | null {
   switch (topic) {
     case "runway-score":
-      return diagRunwayScore(settings, closedTx, pipeline, expenses, ytdGCI, pipelineWeighted);
+      return diagRunwayScore(ctx);
     case "tax":
-      return diagTax(settings, closedTx, expenses, ytdGCI);
+      return diagTax(ctx);
     case "pipeline":
-      return diagPipeline(settings, pipeline, pipelineWeighted, ytdGCI);
+      return diagPipeline(ctx);
     case "expenses":
-      return diagExpenses(expenses, ytdGCI);
+      return diagExpenses(ctx);
     case "forecast":
-      return diagForecast(settings, closedTx, ytdGCI, pipelineWeighted);
+      return diagForecast(ctx);
     case "crm":
-      return diagCRM(clients);
+      return diagCRM(ctx.clients);
     case "flight-control":
-      return diagFlightControl(clients);
+      return diagFlightControl(ctx.clients);
     case "transactions":
-      return diagTransactions(settings, closedTx, ytdGCI);
+      return diagTransactions(ctx);
     case "settings":
-      return diagSettings(settings);
+      return diagSettings(ctx.settings);
     case "survival":
-      return diagSurvival(settings, expenses, ytdGCI);
+      return diagSurvival(ctx);
     case "benchmark":
-      return diagBenchmark(settings, ytdGCI, closedTx.length);
+      return diagBenchmark(ctx);
     default:
       return null;
   }
@@ -179,151 +257,119 @@ function buildTopicDiagnostic(
 
 // ─── Individual Diagnostic Builders ───────────────────────────────────────────
 
-function diagRunwayScore(
-  s: UserSettings,
-  closedTx: Transaction[],
-  pipeline: PipelineDeal[],
-  expenses: ExpenseCategory[],
-  ytdGCI: number,
-  pipelineWeighted: number,
-): string {
-  const fraction = seasonalFractionElapsed(s.seasonal_weights);
-  const pacePercent = s.goal_gci > 0 ? paceVsGoalPercent(s.goal_gci, ytdGCI, fraction) : 0;
+/**
+ * diagRunwayScore: delegates to buildHealthReport → benchmarkCompare →
+ * computeSurvivalResult → computeRunwayScore, then formats results.
+ */
+function diagRunwayScore(ctx: DiagContext): string {
+  const { settings: s, ytdGCI, pipelineWeighted, engineFraction, monthlyRecurring, expensesYTD } = ctx;
 
-  // Pace Score: map [-50, +50] → [0, 100]
-  const paceScore = Math.max(0, Math.min(100, ((pacePercent + 50) / 100) * 100));
+  // 1. Health Report (pace, pipeline, expense sub-scores)
+  const healthReport = buildHealthReport(
+    ytdGCI, s.goal_gci ?? 0, engineFraction, pipelineWeighted, expensesYTD,
+  );
 
-  // Pipeline Score
-  const remainingGoal = Math.max(0, s.goal_gci - ytdGCI);
-  let pipelineScore: number;
-  if (remainingGoal <= 0) {
-    pipelineScore = 100;
-  } else {
-    const ratio = pipelineWeighted / remainingGoal;
-    if (ratio >= 1.5) pipelineScore = 100;
-    else if (ratio >= 1.0) pipelineScore = 80 + (ratio - 1.0) / 0.5 * 20;
-    else if (ratio >= 0.5) pipelineScore = 50 + (ratio - 0.5) / 0.5 * 30;
-    else pipelineScore = 20 + ratio / 0.5 * 30;
-  }
+  // 2. Projection for benchmark
+  const projGCI = projectedYearEndGCI(
+    ytdGCI, pipelineWeighted, engineFraction, s.goal_gci ?? 0,
+  );
 
-  // Expense Score
-  const totalExpenses = expenses.reduce(
-    (sum, cat) => sum + (cat.expense_items ?? []).reduce((s, i) => s + Number(i.ytd_amount ?? 0), 0),
+  // 3. Benchmark (actual CREA percentile, not hardcoded 50)
+  const benchmark = benchmarkCompare(projGCI, s.experience_years ?? null);
+
+  // 4. Survival (uses recurring expenses only, not total YTD / months)
+  const survival = computeSurvivalResult(
+    s.monthly_brokerage_fee ?? 0,
+    monthlyRecurring,
+    s.cash_reserve ?? 0,
     0,
   );
-  const expenseRatio = ytdGCI > 0 ? totalExpenses / ytdGCI : 0;
-  let expenseScore: number;
-  if (ytdGCI === 0) expenseScore = 50;
-  else if (expenseRatio > 0.5) expenseScore = 30;
-  else if (expenseRatio > 0.35) expenseScore = 55;
-  else if (expenseRatio > 0.25) expenseScore = 75;
-  else expenseScore = 90;
 
-  // Survival Score
-  const monthsElapsed = Math.max(1, new Date().getMonth() + 1);
-  const monthlyExpenses = totalExpenses / monthsElapsed;
-  const monthlyIncome = ytdGCI / monthsElapsed;
-  const netBurn = monthlyExpenses - monthlyIncome;
-  const cashReserve = s.cash_reserve ?? 0;
-  let runwayMonths: number;
-  let survivalScore: number;
+  // 5. Composite Runway Score
+  const runwayScore = computeRunwayScore(
+    healthReport, benchmark.percentile, survival.months,
+  );
 
-  if (cashReserve <= 0) {
-    runwayMonths = -1;
-    survivalScore = 50;
-  } else if (netBurn <= 0) {
-    runwayMonths = 24;
-    survivalScore = 95;
-  } else {
-    runwayMonths = Math.min(24, cashReserve / netBurn);
-    if (runwayMonths >= 6) survivalScore = 95;
-    else if (runwayMonths >= 4) survivalScore = 75;
-    else if (runwayMonths >= 2) survivalScore = 50;
-    else if (runwayMonths >= 1) survivalScore = 25;
-    else survivalScore = 10;
-  }
+  // Format the canonical results
+  const pacePercent = s.goal_gci > 0 ? paceVsGoalPercent(s.goal_gci, ytdGCI, engineFraction) : 0;
+  const remainingGoal = Math.max(0, (s.goal_gci ?? 0) - ytdGCI);
+  const expenseRatio = ytdGCI > 0 ? expensesYTD / ytdGCI : 0;
 
-  // Benchmark Score (simplified — just use 50 as placeholder without full CREA data)
-  const benchmarkScore = 50;
-
-  const finalScore =
-    paceScore * 0.35 +
-    pipelineScore * 0.25 +
-    expenseScore * 0.15 +
-    survivalScore * 0.15 +
-    benchmarkScore * 0.10;
-
-  const grade =
-    finalScore >= 92 ? "A+" :
-    finalScore >= 85 ? "A" :
-    finalScore >= 75 ? "B" :
-    finalScore >= 62 ? "C" :
-    finalScore >= 50 ? "D" : "F";
+  // Find weakest component from canonical score
+  const weakest = runwayScore.components.reduce((min, c) =>
+    c.score * c.weightValue < min.score * min.weightValue ? c : min,
+    runwayScore.components[0],
+  );
 
   return `[RUNWAY SCORE BREAKDOWN]
-Score: ${Math.round(finalScore)} (${grade})
-├─ Pace (35%): ${Math.round(paceScore)}/100 — ${pacePercent >= 0 ? "+" : ""}${Math.round(pacePercent)}% vs goal, seasonal fraction: ${(fraction * 100).toFixed(1)}%
-├─ Pipeline (25%): ${Math.round(pipelineScore)}/100 — ${fmtCurrency(pipelineWeighted)} weighted vs ${fmtCurrency(remainingGoal)} remaining goal
-├─ Expenses (15%): ${Math.round(expenseScore)}/100 — ratio: ${(expenseRatio * 100).toFixed(1)}% (${fmtCurrency(totalExpenses)} / ${fmtCurrency(ytdGCI)})
-├─ Survival (15%): ${Math.round(survivalScore)}/100 — ${runwayMonths === -1 ? "not configured" : `${runwayMonths.toFixed(1)} months`} (cash: ${fmtCurrency(cashReserve)})
-└─ Benchmark (10%): ${benchmarkScore}/100 (approximated)
-Weakest: ${getWeakest({ pace: paceScore * 0.35, pipeline: pipelineScore * 0.25, expenses: expenseScore * 0.15, survival: survivalScore * 0.15, benchmark: benchmarkScore * 0.10 })}`;
+Score: ${runwayScore.score} (${runwayScore.grade}) — v${runwayScore.version}
+├─ ${runwayScore.components.map((c) => `${c.label} (${c.weight}): ${c.score}/100`).join("\n├─ ")}
+Pace detail: ${pacePercent >= 0 ? "+" : ""}${Math.round(pacePercent)}% vs goal, seasonal fraction: ${(engineFraction * 100).toFixed(1)}%
+Pipeline detail: ${fmtCurrency(pipelineWeighted)} weighted vs ${fmtCurrency(remainingGoal)} remaining goal
+Expense detail: ratio ${(expenseRatio * 100).toFixed(1)}% (${fmtCurrency(expensesYTD)} / ${fmtCurrency(ytdGCI)})
+Survival detail: ${survival.label} (risk: ${survival.riskLevel})${survival.monthlyBurn > 0 ? `, burn: ${fmtCurrency(survival.monthlyBurn)}/mo` : ""}
+Benchmark detail: ${benchmark.percentile}th percentile in ${COHORT_LABELS[benchmark.cohort]} cohort
+Weakest: ${weakest.label} (${weakest.score}/100, contributing ${(weakest.score * weakest.weightValue).toFixed(1)} points)`;
 }
 
-function diagTax(
-  s: UserSettings,
-  closedTx: Transaction[],
-  expenses: ExpenseCategory[],
-  ytdGCI: number,
-): string {
+/**
+ * diagTax: delegates to calculateTax() from canadian-tax-engine.
+ * Shows step-by-step values but all final numbers come from the engine.
+ */
+function diagTax(ctx: DiagContext): string {
+  const { settings: s, closedTx, ytdGCI, engineFraction, expensesYTD } = ctx;
+
   const splitMatch = s.split_preset?.match(/p(\d+)_(\d+)/);
   const agentPct = splitMatch ? Number(splitMatch[1]) / 100 : 1;
 
-  const totalExpenses = expenses.reduce(
-    (sum, cat) => sum + (cat.expense_items ?? []).reduce((s, i) => s + Number(i.ytd_amount ?? 0), 0),
-    0,
+  const projGCI = projectedYearEndGCI(
+    ytdGCI, ctx.pipelineWeighted, engineFraction, s.goal_gci ?? 0,
   );
-
-  const fraction = seasonalFractionElapsed(s.seasonal_weights);
-  const projectedGCI = fraction > 0 ? ytdGCI / fraction : s.goal_gci || 0;
-  const projectedAgentNet = projectedGCI * agentPct;
-  const annualizedExpenses = fraction > 0 ? totalExpenses / fraction : totalExpenses;
+  const projectedAgentNet = projGCI * agentPct;
+  const annualizedExpenses = engineFraction > 0 ? expensesYTD / engineFraction : expensesYTD;
   const netSEIncome = Math.max(0, projectedAgentNet - annualizedExpenses);
 
-  // CPP calculation
-  const cpp1Base = Math.min(Math.max(0, netSEIncome - 3500), 71300 - 3500);
-  const cpp1 = cpp1Base * 0.119;
-  const cpp2Base = Math.min(Math.max(0, netSEIncome - 71300), 81200 - 71300);
-  const cpp2 = cpp2Base * 0.08;
+  const projDeals = projectedYearEndTransactions(
+    closedTx.length, ctx.pipelineDeals.length, engineFraction,
+  );
 
-  const taxableIncome = Math.max(0, netSEIncome - cpp1 * 0.5 - cpp2);
-  const dealCount = closedTx.length;
-  const projectedDeals = fraction > 0 ? dealCount / fraction : dealCount || 1;
+  // Delegate to canonical tax engine
+  const taxResult = calculateTax(
+    netSEIncome,
+    (s.province ?? "ontario") as Province,
+    projDeals,
+  );
 
   return `[TAX DIAGNOSTIC]
 Province: ${s.province}
 Business Structure: ${s.business_structure ?? "sole_prop"}
 GST/HST Registered: ${s.gst_registered ? "Yes" : "No"}
-Projected Annual GCI: ${fmtCurrency(projectedGCI)}
+Projected Annual GCI: ${fmtCurrency(projGCI)}
 Agent Split: ${(agentPct * 100).toFixed(0)}% → Projected Agent Net: ${fmtCurrency(projectedAgentNet)}
 Annualized Expenses: ${fmtCurrency(annualizedExpenses)}
 Net Self-Employment Income: ${fmtCurrency(netSEIncome)}
-CPP1: ${fmtCurrency(cpp1)} (on ${fmtCurrency(cpp1Base)} @ 11.90%)
-CPP2: ${fmtCurrency(cpp2)} (on ${fmtCurrency(cpp2Base)} @ 8.00%)
-Taxable Income (after CPP deductions): ${fmtCurrency(taxableIncome)}
-Projected Deal Count: ~${Math.round(projectedDeals)}
-Est. Per-Deal Set-Aside: See Forecast page for exact figure`;
+CPP1: ${fmtCurrency(taxResult.cpp1Contribution)}
+CPP2: ${fmtCurrency(taxResult.cpp2Contribution)}
+Total CPP: ${fmtCurrency(taxResult.totalCPP)}
+Federal Tax: ${fmtCurrency(taxResult.federalTax)}
+Provincial Tax: ${fmtCurrency(taxResult.provincialTax)}
+Total Tax: ${fmtCurrency(taxResult.totalTax)}
+Total Burden (tax + CPP): ${fmtCurrency(taxResult.totalBurden)}
+Effective Rate: ${(taxResult.effectiveRate * 100).toFixed(1)}%
+Quarterly Instalment: ${fmtCurrency(taxResult.quarterlyEstimate)}
+Projected Deal Count: ~${Math.round(projDeals)}
+Per-Deal Set-Aside: ${fmtCurrency(taxResult.perDealSetAside)}`;
 }
 
-function diagPipeline(
-  s: UserSettings,
-  pipeline: PipelineDeal[],
-  pipelineWeighted: number,
-  ytdGCI: number,
-): string {
+/**
+ * diagPipeline: uses the same linear pipeline score formula as health-report.ts.
+ */
+function diagPipeline(ctx: DiagContext): string {
+  const { settings: s, pipelineDeals, pipelineWeighted, ytdGCI } = ctx;
+
   const stageCount: Record<string, number> = {};
   const stageValue: Record<string, number> = {};
-  for (const d of pipeline) {
+  for (const d of pipelineDeals) {
     const stage = d.stage || "unknown";
     stageCount[stage] = (stageCount[stage] ?? 0) + 1;
     stageValue[stage] = (stageValue[stage] ?? 0) + computeWeightedGCI(d);
@@ -332,37 +378,63 @@ function diagPipeline(
   const remainingGoal = Math.max(0, (s.goal_gci || 0) - ytdGCI);
   const coverageRatio = remainingGoal > 0 ? pipelineWeighted / remainingGoal : Infinity;
 
+  // Pipeline score — same linear formula as health-report.ts
+  let pipelineScore: number;
+  if (remainingGoal > 0 && pipelineWeighted > 0) {
+    pipelineScore = Math.min(100, Math.round((pipelineWeighted / remainingGoal) * 100));
+  } else if ((s.goal_gci ?? 0) > 0 && ytdGCI >= (s.goal_gci ?? 0)) {
+    pipelineScore = 90;
+  } else {
+    pipelineScore = 65;
+  }
+
   const stageLines = Object.entries(stageCount)
     .map(([stage, count]) => `  ${stage}: ${count} deals, ${fmtCurrency(stageValue[stage] ?? 0)} weighted`)
     .join("\n");
 
   return `[PIPELINE DIAGNOSTIC]
-Total Pipeline Deals: ${pipeline.length}
+Total Pipeline Deals: ${pipelineDeals.length}
 Total Weighted GCI: ${fmtCurrency(pipelineWeighted)}
 Remaining Goal Gap: ${fmtCurrency(remainingGoal)}
 Coverage Ratio: ${coverageRatio === Infinity ? "Goal met" : coverageRatio.toFixed(2) + "x"}
+Pipeline Sub-Score: ${pipelineScore}/100 (linear: weighted ÷ remaining × 100, capped at 100)
 By Stage:
-${stageLines || "  (empty pipeline)"}
-Avg Deal GCI Needed to Fill Gap: ${remainingGoal > 0 && pipeline.length > 0 ? fmtCurrency(remainingGoal / Math.max(1, Math.ceil(remainingGoal / (ytdGCI / Math.max(1, pipeline.length))))) : "N/A"}`;
+${stageLines || "  (empty pipeline)"}`;
 }
 
-function diagExpenses(expenses: ExpenseCategory[], ytdGCI: number): string {
-  const categoryTotals: { name: string; ytd: number; recurring: number }[] = [];
+/**
+ * diagExpenses: matches health-report.ts logic exactly.
+ * v1.2: 35 when GCI > 0 but no expenses (not 50).
+ */
+function diagExpenses(ctx: DiagContext): string {
+  const { expenses, ytdGCI, expensesYTD, monthlyRecurring } = ctx;
 
-  let totalYTD = 0;
-  let totalRecurring = 0;
+  const categoryTotals: { name: string; ytd: number; recurring: number }[] = [];
 
   for (const cat of expenses) {
     const ytd = (cat.expense_items ?? []).reduce((s, i) => s + Number(i.ytd_amount ?? 0), 0);
     const recurring = (cat.expense_items ?? []).reduce((s, i) => s + Number(i.monthly_recurring ?? 0), 0);
     if (ytd > 0 || recurring > 0) {
       categoryTotals.push({ name: cat.name, ytd, recurring });
-      totalYTD += ytd;
-      totalRecurring += recurring;
     }
   }
 
-  const ratio = ytdGCI > 0 ? (totalYTD / ytdGCI) * 100 : 0;
+  const ratio = ytdGCI > 0 ? (expensesYTD / ytdGCI) * 100 : 0;
+
+  // Expense score — same logic as health-report.ts
+  let expenseScore: number;
+  if (ytdGCI > 0 && expensesYTD > 0) {
+    const r = expensesYTD / ytdGCI;
+    if (r > 0.5) expenseScore = 30;
+    else if (r > 0.35) expenseScore = 55;
+    else if (r > 0.25) expenseScore = 75;
+    else expenseScore = 90;
+  } else if (ytdGCI > 0 && expensesYTD === 0) {
+    expenseScore = 35; // v1.2: incomplete data penalty
+  } else {
+    expenseScore = 50; // no GCI yet
+  }
+
   const ratingLabel = ytdGCI === 0 ? "N/A (no GCI)" :
     ratio > 50 ? "WARNING" :
     ratio > 35 ? "Concerning" :
@@ -376,51 +448,54 @@ function diagExpenses(expenses: ExpenseCategory[], ytdGCI: number): string {
     .join("\n");
 
   return `[EXPENSE DIAGNOSTIC]
-YTD Expenses: ${fmtCurrency(totalYTD)}
-Monthly Recurring: ${fmtCurrency(totalRecurring)}
+YTD Expenses: ${fmtCurrency(expensesYTD)}
+Monthly Recurring: ${fmtCurrency(monthlyRecurring)}
 Expense Ratio: ${ratio.toFixed(1)}% (${ratingLabel})
+Expense Sub-Score: ${expenseScore}/100
 YTD GCI (denominator): ${fmtCurrency(ytdGCI)}
 Top Categories:
 ${catLines || "  (no expenses logged)"}`;
 }
 
-function diagForecast(
-  s: UserSettings,
-  closedTx: Transaction[],
-  ytdGCI: number,
-  pipelineWeighted: number,
-): string {
-  const fraction = seasonalFractionElapsed(s.seasonal_weights);
-  const rawProjection = fraction > 0 ? ytdGCI / fraction : 0;
-  const projectedGCI = rawProjection + pipelineWeighted * 0.5;
+/**
+ * diagForecast: delegates to projectedYearEndGCI() from projection-engine
+ * with agent-specific seasonal weights (same as dashboard / chat route).
+ */
+function diagForecast(ctx: DiagContext): string {
+  const { settings: s, closedTx, ytdGCI, pipelineWeighted, engineFraction, pipelineDeals } = ctx;
+
+  // Use canonical projection engine (includes early-year dampening)
+  const projGCI = projectedYearEndGCI(
+    ytdGCI, pipelineWeighted, engineFraction, s.goal_gci ?? 0,
+  );
+  const projDeals = projectedYearEndTransactions(
+    closedTx.length, pipelineDeals.length, engineFraction,
+  );
 
   const splitMatch = s.split_preset?.match(/p(\d+)_(\d+)/);
   const agentPct = splitMatch ? Number(splitMatch[1]) / 100 : 1;
 
-  const projectedAgentNet = projectedGCI * agentPct;
+  const projectedAgentNet = projGCI * agentPct;
   const monthlyFees = (s.monthly_brokerage_fee ?? 0) * 12;
-  const dealCount = closedTx.length;
-  const projectedDeals = fraction > 0 ? Math.round(dealCount / fraction) : dealCount;
-  const perDealFees = projectedDeals * (projectedGCI / Math.max(1, projectedDeals)) * (s.tx_fee_rate_pct ?? 0);
+  const perDealFees = projDeals * (projGCI / Math.max(1, projDeals)) * (s.tx_fee_rate_pct ?? 0);
   const cappedFees = s.tx_fee_annual_cap > 0 ? Math.min(perDealFees, s.tx_fee_annual_cap) : perDealFees;
 
-  const pacePercent = s.goal_gci > 0 ? paceVsGoalPercent(s.goal_gci, ytdGCI, fraction) : 0;
+  const pacePercent = s.goal_gci > 0 ? paceVsGoalPercent(s.goal_gci, ytdGCI, engineFraction) : 0;
   const remainingGoal = Math.max(0, (s.goal_gci || 0) - ytdGCI - pipelineWeighted);
-  const avgDealGCI = dealCount > 0 ? ytdGCI / dealCount : 0;
+  const avgDealGCI = closedTx.length > 0 ? ytdGCI / closedTx.length : 0;
   const dealsNeeded = avgDealGCI > 0 ? Math.ceil(remainingGoal / avgDealGCI) : 0;
 
   return `[FORECAST DIAGNOSTIC]
-Seasonal Fraction Elapsed: ${(fraction * 100).toFixed(1)}%
-YTD Closed GCI: ${fmtCurrency(ytdGCI)} (${dealCount} deals)
+Seasonal Fraction Elapsed: ${(engineFraction * 100).toFixed(1)}%
+YTD Closed GCI: ${fmtCurrency(ytdGCI)} (${closedTx.length} deals)
 Pipeline Weighted: ${fmtCurrency(pipelineWeighted)}
-Raw Projection (YTD ÷ fraction): ${fmtCurrency(rawProjection)}
-+ Pipeline Adjustment (50%): ${fmtCurrency(pipelineWeighted * 0.5)}
-= Projected Year-End GCI: ${fmtCurrency(projectedGCI)}
-Conservative (−15%): ${fmtCurrency(projectedGCI * 0.85)}
-Optimistic (+15%): ${fmtCurrency(projectedGCI * 1.15)}
+Projected Year-End GCI: ${fmtCurrency(projGCI)} (canonical engine — includes early-year dampening + pipeline adj)
+Projected Year-End Deals: ${projDeals}
+Conservative (−15%): ${fmtCurrency(projGCI * 0.85)}
+Optimistic (+15%): ${fmtCurrency(projGCI * 1.15)}
 Waterfall Preview:
-  Projected GCI: ${fmtCurrency(projectedGCI)}
-  − Brokerage Share: ${fmtCurrency(projectedGCI - projectedAgentNet)}
+  Projected GCI: ${fmtCurrency(projGCI)}
+  − Brokerage Share: ${fmtCurrency(projGCI - projectedAgentNet)}
   − Monthly Fees (×12): ${fmtCurrency(monthlyFees)}
   − Per-Deal Fees (capped): ${fmtCurrency(cappedFees)}
   = Pre-expense/tax Net: ${fmtCurrency(projectedAgentNet - monthlyFees - cappedFees)}
@@ -486,11 +561,9 @@ Eligible for Outreach: ${eligible}
 Note: Birthday outreach bypasses the 14-day suppression rule`;
 }
 
-function diagTransactions(
-  s: UserSettings,
-  closedTx: Transaction[],
-  ytdGCI: number,
-): string {
+function diagTransactions(ctx: DiagContext): string {
+  const { settings: s, closedTx, ytdGCI } = ctx;
+
   const splitMatch = s.split_preset?.match(/p(\d+)_(\d+)/);
   const agentPct = splitMatch ? Number(splitMatch[1]) / 100 : 1;
   const avgDeal = closedTx.length > 0 ? ytdGCI / closedTx.length : 0;
@@ -536,89 +609,56 @@ Seasonal Weights: ${s.seasonal_weights ? `Custom [${s.seasonal_weights.join(", "
 CREA Board: ${s.board_code || "NOT SET"}`;
 }
 
-function diagSurvival(
-  s: UserSettings,
-  expenses: ExpenseCategory[],
-  ytdGCI: number,
-): string {
-  const totalExpenses = expenses.reduce(
-    (sum, cat) => sum + (cat.expense_items ?? []).reduce((s, i) => s + Number(i.ytd_amount ?? 0), 0),
-    0,
+/**
+ * diagSurvival: delegates to survivalResult() from survival-engine.
+ * Uses recurring expenses only for burn (not total YTD / months).
+ */
+function diagSurvival(ctx: DiagContext): string {
+  const { settings: s, monthlyRecurring, ytdGCI } = ctx;
+
+  // Canonical survival engine uses brokerage fee + monthly recurring only
+  const survival = computeSurvivalResult(
+    s.monthly_brokerage_fee ?? 0,
+    monthlyRecurring,
+    s.cash_reserve ?? 0,
+    0, // conservative: no pipeline income estimate
   );
+
   const monthsElapsed = Math.max(1, new Date().getMonth() + 1);
-  const monthlyExpenses = totalExpenses / monthsElapsed;
-  const monthlyRecurring = expenses.reduce(
-    (sum, cat) => sum + (cat.expense_items ?? []).reduce((s, i) => s + Number(i.monthly_recurring ?? 0), 0),
-    0,
-  );
-  const monthlyIncome = ytdGCI / monthsElapsed;
-  const netBurn = monthlyExpenses - monthlyIncome;
-  const cashReserve = s.cash_reserve ?? 0;
-
-  let runwayMonths: number;
-  let riskLevel: string;
-
-  if (cashReserve <= 0) {
-    runwayMonths = -1;
-    riskLevel = "Not Configured";
-  } else if (netBurn <= 0) {
-    runwayMonths = 24;
-    riskLevel = "Strong (cash-flow positive)";
-  } else {
-    runwayMonths = Math.min(24, cashReserve / netBurn);
-    riskLevel = runwayMonths >= 6 ? "Strong" :
-      runwayMonths >= 4 ? "Healthy" :
-      runwayMonths >= 2 ? "Warning" : "CRITICAL";
-  }
+  const monthlyAvgIncome = ytdGCI / monthsElapsed;
 
   return `[SURVIVAL DIAGNOSTIC]
-Cash Reserve: ${fmtCurrency(cashReserve)}
-Monthly Avg Expenses: ${fmtCurrency(monthlyExpenses)} (from ${monthsElapsed} months of data)
+Cash Reserve: ${fmtCurrency(s.cash_reserve ?? 0)}
+Monthly Brokerage Fee: ${fmtCurrency(s.monthly_brokerage_fee ?? 0)}
 Monthly Recurring Expenses: ${fmtCurrency(monthlyRecurring)}
-Monthly Avg Income: ${fmtCurrency(monthlyIncome)}
-Net Monthly Burn: ${fmtCurrency(Math.max(0, netBurn))}${netBurn <= 0 ? " (cash-flow positive)" : ""}
-Runway: ${runwayMonths === -1 ? "Not Configured" : `${runwayMonths.toFixed(1)} months`}
-Risk Level: ${riskLevel}`;
+Total Monthly Burn: ${fmtCurrency(survival.monthlyBurn)}
+Monthly Avg Income (for context): ${fmtCurrency(monthlyAvgIncome)}
+Runway: ${survival.label}
+Risk Level: ${survival.riskLevel === "notConfigured" ? "Not Configured" : survival.riskLevel.charAt(0).toUpperCase() + survival.riskLevel.slice(1)}`;
 }
 
-function diagBenchmark(
-  s: UserSettings,
-  ytdGCI: number,
-  dealCount: number,
-): string {
-  const years = s.experience_years ?? 0;
-  const cohort = years <= 2 ? "Rookie" : years <= 5 ? "Growth" : years <= 10 ? "Established" : "Top Producer";
-  const benchmarks: Record<string, { median: number; deals: number; avgPrice: number }> = {
-    Rookie: { median: 42000, deals: 4, avgPrice: 380000 },
-    Growth: { median: 78000, deals: 7, avgPrice: 400000 },
-    Established: { median: 96000, deals: 8, avgPrice: 420000 },
-    "Top Producer": { median: 145000, deals: 12, avgPrice: 460000 },
-  };
-  const bm = benchmarks[cohort];
+/**
+ * diagBenchmark: delegates to compare() from benchmark-engine.
+ * Uses projectedYearEndGCI for proper projection with seasonal weights.
+ */
+function diagBenchmark(ctx: DiagContext): string {
+  const { settings: s, ytdGCI, pipelineWeighted, engineFraction, closedTx } = ctx;
 
-  const fraction = seasonalFractionElapsed(s.seasonal_weights);
-  const projectedGCI = fraction > 0 ? ytdGCI / fraction : 0;
-  const vsMedian = bm.median > 0 ? ((projectedGCI / bm.median) * 100).toFixed(0) : "N/A";
+  const projGCI = projectedYearEndGCI(
+    ytdGCI, pipelineWeighted, engineFraction, s.goal_gci ?? 0,
+  );
+
+  // Canonical benchmark engine
+  const benchmark = benchmarkCompare(projGCI, s.experience_years ?? null);
 
   return `[BENCHMARK DIAGNOSTIC]
-Experience: ${years} years → Cohort: ${cohort}
-Cohort Median GCI: ${fmtCurrency(bm.median)} / ${bm.deals} deals
-Your Projected Annual GCI: ${fmtCurrency(projectedGCI)}
-Your YTD Deals: ${dealCount}
-Projected vs Cohort Median: ${vsMedian}%
-National Median (all agents): $96,000 / 8 deals`;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getWeakest(components: Record<string, number>): string {
-  let weakest = "";
-  let minValue = Infinity;
-  for (const [name, value] of Object.entries(components)) {
-    if (value < minValue) {
-      minValue = value;
-      weakest = name;
-    }
-  }
-  return weakest ? `${weakest} (contributing ${minValue.toFixed(1)} points)` : "none";
+Experience: ${s.experience_years ?? 0} years → Cohort: ${COHORT_LABELS[benchmark.cohort]}
+Cohort Median GCI: ${fmtCurrency(benchmark.cohortMedianGCI)}
+Your Projected Annual GCI: ${fmtCurrency(projGCI)}
+Your YTD Deals: ${closedTx.length}
+Percentile in Cohort: ${benchmark.percentile}th
+National Percentile: ${benchmark.nationalPercentile}th
+${benchmark.distanceToNextTier != null && benchmark.nextTierLabel
+    ? `Distance to ${benchmark.nextTierLabel}: ${fmtCurrency(benchmark.distanceToNextTier)} more projected GCI`
+    : "Currently in highest tier"}`;
 }
