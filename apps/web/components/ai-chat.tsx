@@ -274,7 +274,7 @@ export function AiChat({ financialContext }: Props) {
 
       {/* Chat panel */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-40 flex w-[calc(100vw-3rem)] max-w-sm flex-col overflow-hidden rounded-2xl shadow-2xl sm:w-96"
+        <div className="fixed bottom-24 right-6 z-40 flex w-[calc(100vw-3rem)] max-w-md flex-col overflow-hidden rounded-2xl shadow-2xl sm:w-[28rem]"
           style={{
             border: "1px solid rgba(255,255,255,0.08)",
             background: "oklch(0.13 0.05 265)",
@@ -308,7 +308,7 @@ export function AiChat({ financialContext }: Props) {
           {/* Messages */}
           <div
             className="flex flex-1 flex-col gap-3 overflow-y-auto p-4"
-            style={{ maxHeight: "360px", minHeight: "200px" }}
+            style={{ maxHeight: "min(520px, calc(100vh - 240px))", minHeight: "200px" }}
           >
             {messages.map((msg, i) => (
               <div
