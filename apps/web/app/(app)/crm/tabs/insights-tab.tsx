@@ -91,8 +91,11 @@ export function InsightsTab({
   // Only clients who have closed at least one deal are eligible to be "repeat" clients.
   // Using the full CRM roster as the denominator inflates the rate with contacts who
   // have never transacted (pipeline leads, imports, etc.).
-  const transactionalClients = grouped.filter((g) => g.dealCount >= 1);
-  const repeatCount = transactionalClients.filter((g) => g.dealCount > 1).length;
+  // A "closed" deal requires a non-null close_date and must not be collapsed.
+  const closedCount = (g: (typeof grouped)[number]) =>
+    g.deals.filter((d) => d.close_date !== null && d.condition_status !== "collapsed").length;
+  const transactionalClients = grouped.filter((g) => closedCount(g) >= 1);
+  const repeatCount = transactionalClients.filter((g) => closedCount(g) > 1).length;
   const repeatRate = transactionalClients.length > 0
     ? Math.round((repeatCount / transactionalClients.length) * 100)
     : 0;

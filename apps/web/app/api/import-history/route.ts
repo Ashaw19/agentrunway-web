@@ -661,7 +661,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (typeof parsed.year !== "number" || !Array.isArray(parsed.deals)) {
-      return NextResponse.json({ error: "Malformed response", raw }, { status: 422 });
+      console.error("[import-history] Malformed response schema. Raw (first 500 chars):", raw.slice(0, 500));
+      return NextResponse.json({ error: "Malformed response" }, { status: 422 });
     }
 
     // yearHint from the sheet name overrides LLM's title-row year detection.

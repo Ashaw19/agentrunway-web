@@ -1066,9 +1066,12 @@ export function ClientsContent({
     () => grouped.reduce((s, g) => s + g.totalGCI, 0),
     [grouped],
   );
-  // Only count against clients who have closed at least one transaction
-  const clientsWithDeals = grouped.filter((g) => g.dealCount >= 1);
-  const repeatCount = clientsWithDeals.filter((g) => g.dealCount > 1).length;
+  // Only count against clients who have closed at least one transaction.
+  // A "closed" deal requires a non-null close_date and must not be collapsed.
+  const closedCount = (g: ClientGroup) =>
+    g.deals.filter((d) => d.close_date !== null && d.condition_status !== "collapsed").length;
+  const clientsWithDeals = grouped.filter((g) => closedCount(g) >= 1);
+  const repeatCount = clientsWithDeals.filter((g) => closedCount(g) > 1).length;
   const repeatRate =
     clientsWithDeals.length > 0
       ? Math.round((repeatCount / clientsWithDeals.length) * 100)
