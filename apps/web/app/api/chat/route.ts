@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 3. Config guard ──────────────────────────────────────────────────────
-  if (!process.env.ANTHROPIC_API_KEY && !process.env.GROQ_API_KEY) {
+  if (!process.env.ANTHROPIC_API_KEY) {
     return new Response(
       "AI assistant is not configured yet. Please add your ANTHROPIC_API_KEY to Vercel environment variables.",
       { status: 503 },
