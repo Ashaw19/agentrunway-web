@@ -12,6 +12,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { generateMorningBriefing, type BriefingData } from "@/lib/ai/precompute";
+import {
+  computeGCI,
+  computeWeightedGCI,
+  type PipelineDeal,
+} from "@/lib/types/database";
+import { seasonalFractionElapsed } from "@/lib/engines/projection-engine";
 
 export const maxDuration = 300; // 5 minutes for batch processing
 
@@ -33,7 +39,7 @@ export async function POST(req: NextRequest) {
   // ── Fetch eligible users (active, professional+ tier) ───────────────────
   const { data: users, error: usersError } = await supabase
     .from("user_settings")
-    .select("user_id, display_name, gci_goal, subscription_tier")
+    .select("user_id, display_name, goal_gci, subscription_tier, use_national_seasonality, national_quarter_pcts")
     .in("subscription_tier", ["professional", "teams"])
     .limit(500);
 
@@ -115,7 +121,14 @@ interface DateRanges {
 
 async function gatherUserMetrics(
   supabase: ReturnType<typeof createClient>,
-  user: { user_id: string; display_name: string | null; gci_goal: number | null; subscription_tier: string },
+  user: {
+    user_id: string;
+    display_name: string | null;
+    goal_gci: number | null;
+    subscription_tier: string;
+    use_national_seasonality: boolean | null;
+    national_quarter_pcts: number[] | null;
+  },
   dates: DateRanges,
 ): Promise<BriefingData> {
   const uid = user.user_id;
@@ -127,6 +140,7 @@ async function gatherUserMetrics(
     transactionsResult,
     upcomingClosesResult,
     hotContactsResult,
+    historyResult,
   ] = await Promise.all([
     // Overdue follow-ups: clients with active status not contacted in 14+ days
     supabase
@@ -134,19 +148,19 @@ async function gatherUserMetrics(
       .select("id", { count: "exact", head: true })
       .eq("user_id", uid)
       .in("status", ["boarding", "taxiing", "approach", "in_flight"])
-      .lt("last_contacted_at", dates.fourteenDaysAgo),
+      .lt("last_contact_at", dates.fourteenDaysAgo),
 
-    // Pipeline deals
+    // Pipeline deals (select columns needed for computeWeightedGCI)
     supabase
       .from("pipeline_deals")
-      .select("projected_gci, status")
+      .select("estimated_price, estimated_commission_pct, probability_override, stage")
       .eq("user_id", uid)
-      .in("status", ["prospect", "pre_listing", "listed", "under_contract"]),
+      .in("stage", ["lead", "showing", "offer", "conditional", "firm"]),
 
-    // YTD closed transactions for GCI
+    // YTD closed transactions for GCI (select columns needed for computeGCI)
     supabase
       .from("transactions")
-      .select("gci")
+      .select("sale_price, commission_pct, team_split_pct, gci_override")
       .eq("user_id", uid)
       .eq("status", "closed")
       .gte("date", dates.yearStart),
@@ -154,12 +168,12 @@ async function gatherUserMetrics(
     // Upcoming closes (pipeline deals closing within 14 days)
     supabase
       .from("pipeline_deals")
-      .select("address, projected_close_date")
+      .select("address, expected_close_date")
       .eq("user_id", uid)
-      .eq("status", "under_contract")
-      .gte("projected_close_date", dates.todayStr)
-      .lte("projected_close_date", dates.fourteenDaysAhead)
-      .order("projected_close_date", { ascending: true })
+      .eq("stage", "firm")
+      .gte("expected_close_date", dates.todayStr)
+      .lte("expected_close_date", dates.fourteenDaysAhead)
+      .order("expected_close_date", { ascending: true })
       .limit(5),
 
     // Hot contacts (highest engagement score)
@@ -170,25 +184,53 @@ async function gatherUserMetrics(
       .gt("engagement_score", 0)
       .order("engagement_score", { ascending: false })
       .limit(5),
+
+    // Annual history for agent-specific seasonal weights
+    supabase
+      .from("annual_history")
+      .select("year, quarter_gci")
+      .eq("user_id", uid),
   ]);
 
+  // ── Compute agent-specific seasonal weights (same logic as dashboard) ──
+  const agentSeasonalWeights = (() => {
+    const withData = (historyResult.data ?? []).filter(
+      (h: Record<string, unknown>) =>
+        (h.quarter_gci as number[] | null)?.some((v: number) => (v ?? 0) > 0),
+    );
+    if (withData.length < 2) return null;
+    const avgQ = [0, 1, 2, 3].map((q) =>
+      withData.reduce(
+        (sum: number, h: Record<string, unknown>) =>
+          sum + (((h.quarter_gci as number[])?.[q]) ?? 0),
+        0,
+      ) / withData.length,
+    );
+    const total = avgQ.reduce((a, b) => a + b, 0);
+    return total > 0 ? avgQ.map((v) => v / total) : null;
+  })();
+
+  const seasonalWeights =
+    agentSeasonalWeights ??
+    (user.use_national_seasonality
+      ? (user.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
+      : [0.25, 0.25, 0.25, 0.25]);
+
   // Compute derived values
-  const pipelineDeals = pipelineResult.data ?? [];
+  const pipelineDeals = (pipelineResult.data ?? []) as PipelineDeal[];
   const pipelineValue = pipelineDeals.reduce(
-    (sum, d) => sum + Number(d.projected_gci ?? 0),
+    (sum, d) => sum + computeWeightedGCI(d),
     0,
   );
 
   const ytdGci = (transactionsResult.data ?? []).reduce(
-    (sum, t) => sum + Number(t.gci ?? 0),
+    (sum, t) => sum + computeGCI(t as Parameters<typeof computeGCI>[0]),
     0,
   );
 
-  const goalGci = Number(user.gci_goal ?? 0);
-  const dayOfYear = Math.ceil(
-    (Date.now() - new Date(`${new Date().getFullYear()}-01-01`).getTime()) / 86_400_000,
-  );
-  const expectedPace = goalGci > 0 ? (dayOfYear / 365) * goalGci : 0;
+  const goalGci = Number(user.goal_gci ?? 0);
+  const fraction = seasonalFractionElapsed(seasonalWeights);
+  const expectedPace = goalGci > 0 ? fraction * goalGci : 0;
   const pacePercent = expectedPace > 0 ? Math.round((ytdGci / expectedPace) * 100) : 0;
 
   // Build anomalies from data
@@ -212,7 +254,7 @@ async function gatherUserMetrics(
     pacePercent,
     upcomingCloses: (upcomingClosesResult.data ?? []).map((d) => ({
       address: d.address ?? "TBD",
-      date: d.projected_close_date ?? "",
+      date: d.expected_close_date ?? "",
     })),
     recentAnomalies: anomalies,
     hotContacts: (hotContactsResult.data ?? []).map((c) => ({
