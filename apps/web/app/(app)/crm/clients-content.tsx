@@ -962,6 +962,7 @@ export function ClientsContent({
   const [newClientPostal,   setNewClientPostal]    = useState("");
   const [newClientCountry,  setNewClientCountry]   = useState("Canada");
   const [addClientSaving, setAddClientSaving] = useState(false);
+  const [nameError, setNameError] = useState(false);
 
   // Archive / Delete dialogs
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
@@ -1682,7 +1683,7 @@ export function ClientsContent({
   // Add a new client manually
   const handleAddClient = useCallback(async () => {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
-    if (!newClientName.trim()) return;
+    if (!newClientName.trim()) { setNameError(true); return; }
     setAddClientSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -4421,6 +4422,7 @@ export function ClientsContent({
           setNewClientProvince("");
           setNewClientPostal("");
           setNewClientCountry("Canada");
+          setNameError(false);
         }
       }}>
         <DialogContent className="sm:max-w-md w-[95vw] max-h-[90vh] overflow-y-auto">
@@ -4463,9 +4465,10 @@ export function ClientsContent({
                 autoFocus
                 placeholder="Full name"
                 value={newClientName}
-                onChange={(e) => setNewClientName(e.target.value)}
-                className={cn("h-8 text-sm", voiceTint("name"))}
+                onChange={(e) => { setNewClientName(e.target.value); setNameError(false); }}
+                className={cn("h-8 text-sm", voiceTint("name"), nameError && "border-red-500 focus-visible:ring-red-500")}
               />
+              {nameError && <p className="text-xs text-red-500">Name is required</p>}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -4572,7 +4575,7 @@ export function ClientsContent({
 
             <div className="flex gap-2 pt-2">
               <Button
-                disabled={!newClientName.trim() || addClientSaving}
+                disabled={addClientSaving}
                 onClick={handleAddClient}
                 className="flex-1"
               >
