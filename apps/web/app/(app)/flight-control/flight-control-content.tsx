@@ -225,7 +225,7 @@ function OpportunityCard({
           Dismiss
         </Button>
         <div className="flex items-center gap-2">
-          {hasDraft ? (
+          {hasDraft && !drafting ? (
             <Button
               size="sm"
               className={cn(
@@ -242,11 +242,11 @@ function OpportunityCard({
               size="sm"
               variant="outline"
               className="h-8 text-xs gap-1.5 font-semibold border-violet-500/40 text-violet-400 hover:text-violet-300 hover:bg-violet-500/10"
-              onClick={() => onDraftMessage(opportunity)}
+              onClick={() => !drafting && onDraftMessage(opportunity)}
               disabled={drafting}
             >
               {drafting ? (
-                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Drafting...</>
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating...</>
               ) : (
                 <><Pen className="h-3.5 w-3.5" /> Draft Message</>
               )}
