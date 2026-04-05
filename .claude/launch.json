@@ -3,15 +3,8 @@
   "configurations": [
     {
       "name": "web",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--prefix", "apps/web"],
-      "port": 3000,
-      "autoPort": false
-    },
-    {
-      "name": "expo-mobile",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "/usr/local/bin/npx",
+      "runtimeArgs": ["next", "dev"],
       "port": 3000
     }
   ]

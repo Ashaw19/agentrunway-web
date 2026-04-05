@@ -13,6 +13,7 @@
     "typecheck": "turbo typecheck"
   },
   "devDependencies": {
+    "tsx": "^4.21.0",
     "turbo": "^2.8.20"
   }
 }

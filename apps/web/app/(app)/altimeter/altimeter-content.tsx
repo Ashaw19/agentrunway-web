@@ -50,6 +50,7 @@ import { computeMarketMomentum, type LocalMarketData } from "@/lib/crea-board";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { compute as computeRunwayScore, type BusinessHealthReport } from "@/lib/engines/runway-score-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
+import { buildHealthReport } from "@/lib/engines/health-report";
 import {
   Tooltip,
   TooltipContent,
@@ -265,61 +266,7 @@ function buildMonthlyChartData(
   });
 }
 
-// ── buildHealthReport (needed for RunwayScore → Insights) ─────────────────
-
-function buildHealthReport(
-  ytdGCI: number,
-  goalGCI: number,
-  fraction: number,
-  pipelineWeightedGCI: number,
-  expensesYTD: number,
-  settings: UserSettings | null,
-): BusinessHealthReport {
-  const { paceVsGoalPercent: calcPace } = { paceVsGoalPercent: paceVsGoalPercent };
-  let paceScore = 50;
-  if (goalGCI > 0 && fraction > 0) {
-    const paceVsGoal = calcPace(goalGCI, ytdGCI, fraction);
-    const raw = (paceVsGoal + 50) / 100;
-    paceScore = Math.round(Math.min(1, Math.max(0, raw)) * 100);
-  }
-
-  let pipelineScore = 65;
-  const remaining = Math.max(0, goalGCI - ytdGCI);
-  if (remaining > 0 && pipelineWeightedGCI > 0) {
-    pipelineScore = Math.min(100, Math.round((pipelineWeightedGCI / remaining) * 100));
-  } else if (goalGCI > 0 && ytdGCI >= goalGCI) {
-    pipelineScore = 90;
-  }
-
-  let expenseScore = 80;
-  if (ytdGCI > 0) {
-    const ratio = expensesYTD / ytdGCI;
-    if (ratio > 0.5) expenseScore = 30;
-    else if (ratio > 0.35) expenseScore = 55;
-    else if (ratio > 0.25) expenseScore = 75;
-    else expenseScore = 90;
-  }
-
-  // Readiness score removed from Runway Score — it measured app setup, not business health.
-  const readinessScore = 0;
-
-  const components = [paceScore, pipelineScore, expenseScore];
-  const avg = components.reduce((a, b) => a + b, 0) / 3;
-  const weakest = Math.min(...components);
-  const weakestLabels = ["Pace", "Pipeline", "Expenses"];
-  const weakestIdx = components.indexOf(weakest);
-
-  return {
-    score: Math.round(avg),
-    grade: avg >= 85 ? "A" : avg >= 75 ? "B" : avg >= 62 ? "C" : avg >= 50 ? "D" : "F",
-    paceScore,
-    pipelineScore,
-    expenseScore,
-    readinessScore,
-    weakestLabel: weakestLabels[weakestIdx],
-    hasEnoughData: ytdGCI > 0,
-  };
-}
+// ── buildHealthReport imported from @/lib/engines/health-report ──────────────
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -493,7 +440,7 @@ export function AltimeterContent({
   );
 
   const healthReport = buildHealthReport(
-    ytdGCI, goalGCI, fraction, pipelineWeightedGCI, expensesYTD, settings,
+    ytdGCI, goalGCI, fraction, pipelineWeightedGCI, expensesYTD,
   );
 
   const runwayScore = computeRunwayScore(healthReport, benchmark.percentile, survival.months);

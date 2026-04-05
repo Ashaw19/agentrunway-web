@@ -119,6 +119,7 @@ import type { BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { survivalResult, type SurvivalResult } from "@/lib/engines/survival-engine";
 import { compute as computeRunwayScore, type BusinessHealthReport, type RunwayScoreResult } from "@/lib/engines/runway-score-engine";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
+import { buildHealthReport } from "@/lib/engines/health-report";
 import {
   experienceTier,
   computeBaselines,
@@ -574,7 +575,7 @@ export function DashboardContent({
 
   // ── Runway Score ──────────────────────────────────────────────────────
   const healthReport: BusinessHealthReport = buildHealthReport(
-    ytdGCI, goalGCI, fraction, pipelineWeightedGCI, expensesYTD, projectedGCI, settings,
+    ytdGCI, goalGCI, fraction, pipelineWeightedGCI, expensesYTD,
   );
   const runwayScore = computeRunwayScore(healthReport, benchmark.percentile, survival.months);
 
@@ -3321,69 +3322,8 @@ function buildMonthlyChartData(
 }
 
 // ── Helper: Build BusinessHealthReport ────────────────────────────────────
-
-function buildHealthReport(
-  ytdGCI: number,
-  goalGCI: number,
-  fraction: number,
-  pipelineWeightedGCI: number,
-  expensesYTD: number,
-  projectedGCI: number,
-  settings: UserSettings | null,
-): BusinessHealthReport {
-  // Pace score: 50 = on pace (neutral), 100 = 50%+ ahead, 0 = 50%+ behind.
-  // Matches Swift's offset-based mapping: [-50%, +50%] → [0, 100].
-  let paceScore = 50;
-  if (goalGCI > 0 && fraction > 0) {
-    const paceVsGoal = paceVsGoalPercent(goalGCI, ytdGCI, fraction);
-    // paceVsGoal is a percentage: +20 means 20% ahead, -30 means 30% behind
-    const raw = (paceVsGoal + 50) / 100; // maps [-50, +50] → [0, 1]
-    paceScore = Math.round(Math.min(1, Math.max(0, raw)) * 100);
-  }
-
-  // Pipeline score: based on pipeline-to-remaining-goal ratio.
-  // Default 65 (neutral) for agents not using the pipeline feature — matches Swift.
-  let pipelineScore = 65;
-  const remaining = Math.max(0, goalGCI - ytdGCI);
-  if (remaining > 0 && pipelineWeightedGCI > 0) {
-    pipelineScore = Math.min(100, Math.round((pipelineWeightedGCI / remaining) * 100));
-  } else if (goalGCI > 0 && ytdGCI >= goalGCI) {
-    pipelineScore = 90;
-  }
-
-  // Expense score: lower ratio = higher score
-  // Use ytdGCI (not projectedGCI) so the ratio is apples-to-apples with
-  // the expense ratio shown on the Expenses page and in the Insights engine.
-  let expenseScore = 80;
-  if (ytdGCI > 0) {
-    const ratio = expensesYTD / ytdGCI;
-    if (ratio > 0.5) expenseScore = 30;
-    else if (ratio > 0.35) expenseScore = 55;
-    else if (ratio > 0.25) expenseScore = 75;
-    else expenseScore = 90;
-  }
-
-  // Readiness score: kept for backward compat but NO LONGER part of Runway Score.
-  // It measures app setup completeness, not business health.
-  const readinessScore = 0;
-
-  const components = [paceScore, pipelineScore, expenseScore];
-  const avg = components.reduce((a, b) => a + b, 0) / 3;
-  const weakest = Math.min(...components);
-  const weakestLabels = ["Pace", "Pipeline", "Expenses"];
-  const weakestIdx = components.indexOf(weakest);
-
-  return {
-    score: Math.round(avg),
-    grade: avg >= 85 ? "A" : avg >= 75 ? "B" : avg >= 62 ? "C" : avg >= 50 ? "D" : "F",
-    paceScore,
-    pipelineScore,
-    expenseScore,
-    readinessScore,
-    weakestLabel: weakestLabels[weakestIdx],
-    hasEnoughData: ytdGCI > 0,
-  };
-}
+// Canonical implementation lives in packages/core/engines/health-report.ts
+// and is imported via @/lib/engines/health-report.
 
 // ── Helper: Projected net income ──────────────────────────────────────────
 

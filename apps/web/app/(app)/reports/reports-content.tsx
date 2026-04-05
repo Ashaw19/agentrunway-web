@@ -77,6 +77,7 @@ import {
 } from "@/lib/engines/runway-score-engine";
 import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { generateAdvisory, ADVISOR_CATEGORY_LABELS } from "@/lib/engines/advisor-engine";
+import { buildHealthReport } from "@/lib/engines/health-report";
 import type { CcaAsset } from "@/lib/types/database";
 import { ReportsT2125Tab } from "./reports-t2125-tab";
 
@@ -100,63 +101,7 @@ interface Props {
   referralSummary?: { inboundCount: number; outboundCount: number; feesEarned: number; feesPaid: number };
 }
 
-// ── Local helpers (mirrors dashboard-content.tsx) ─────────────────────────────
-
-function buildHealthReport(
-  ytdGCI: number,
-  goalGCI: number,
-  fraction: number,
-  pipelineWeightedGCI: number,
-  expensesYTD: number,
-  projectedGCI: number,
-  settings: UserSettings | null,
-): BusinessHealthReport {
-  // Pace score: 50 = on pace (neutral), 100 = 50%+ ahead, 0 = 50%+ behind.
-  // Matches Swift's offset-based mapping: [-50%, +50%] → [0, 100].
-  let paceScore = 50;
-  if (goalGCI > 0 && fraction > 0) {
-    const paceVsGoal = paceVsGoalPercent(goalGCI, ytdGCI, fraction);
-    const raw = (paceVsGoal + 50) / 100;
-    paceScore = Math.round(Math.min(1, Math.max(0, raw)) * 100);
-  }
-
-  // Default 65 (neutral) for agents not using the pipeline feature — matches Swift.
-  let pipelineScore = 65;
-  const remaining = Math.max(0, goalGCI - ytdGCI);
-  if (remaining > 0 && pipelineWeightedGCI > 0) {
-    pipelineScore = Math.min(100, Math.round((pipelineWeightedGCI / remaining) * 100));
-  } else if (goalGCI > 0 && ytdGCI >= goalGCI) {
-    pipelineScore = 90;
-  }
-
-  let expenseScore = 80;
-  if (ytdGCI > 0) {
-    const ratio = expensesYTD / ytdGCI;
-    if (ratio > 0.5) expenseScore = 30;
-    else if (ratio > 0.35) expenseScore = 55;
-    else if (ratio > 0.25) expenseScore = 75;
-    else expenseScore = 90;
-  }
-
-  // Readiness score removed from Runway Score — it measured app setup, not business health.
-  const readinessScore = 0;
-
-  const components = [paceScore, pipelineScore, expenseScore];
-  const avg = components.reduce((a, b) => a + b, 0) / 3;
-  const weakestIdx = components.indexOf(Math.min(...components));
-  const weakestLabels = ["Pace", "Pipeline", "Expenses"];
-
-  return {
-    score: Math.round(avg),
-    grade: avg >= 85 ? "A" : avg >= 75 ? "B" : avg >= 62 ? "C" : avg >= 50 ? "D" : "F",
-    paceScore,
-    pipelineScore,
-    expenseScore,
-    readinessScore,
-    weakestLabel: weakestLabels[weakestIdx],
-    hasEnoughData: ytdGCI > 0,
-  };
-}
+// ── buildHealthReport imported from @/lib/engines/health-report ──────────────
 
 function computeProjectedNet(projectedGCI: number, settings: UserSettings | null): number {
   if (!settings) return projectedGCI;
@@ -361,7 +306,7 @@ export function ReportsContent({
 
   // ── Runway Score ──────────────────────────────────────────────────────────────
   const healthReport = buildHealthReport(
-    ytdGCI, goalGCI, fraction, pipelineWeighted, expensesYTD, projectedGCI, settings,
+    ytdGCI, goalGCI, fraction, pipelineWeighted, expensesYTD,
   );
   const runwayScore = computeRunwayScore(healthReport, benchmark.percentile, survival.months);
   const gs = gradeStyle(runwayScore.grade);
