@@ -164,7 +164,7 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
         ) : (
           <SummaryCard
             label="Forecast Accuracy"
-            value="\u2014"
+            value="—"
             subValue="Not enough data"
             icon={<Target className="h-4 w-4 text-slate-500" />}
           />
