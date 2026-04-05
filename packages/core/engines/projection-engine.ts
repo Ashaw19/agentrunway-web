@@ -59,7 +59,7 @@ export function seasonalFractionElapsed(
   weights: number[],
   date: Date = new Date(),
 ): number {
-  if (weights.length !== 4) return yearFractionElapsed(date);
+  if (!weights || weights.length !== 4) return yearFractionElapsed(date);
 
   const qIndex = currentQuarter(date);
   const year = date.getFullYear();
