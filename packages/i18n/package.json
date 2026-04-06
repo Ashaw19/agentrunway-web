@@ -46,6 +46,6 @@
     "i18next": ">=23"
   },
   "devDependencies": {
-    "typescript": "^5"
+    "typescript": "^6"
   }
 }
