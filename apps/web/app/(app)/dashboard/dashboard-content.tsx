@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -401,6 +402,13 @@ export function DashboardContent({
     return new Set(DEFAULT_HIDDEN);
   });
   const [customizeMode, setCustomizeMode] = useState(false);
+
+  // Portal target for top-bar action buttons
+  const [topBarTarget, setTopBarTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = document.getElementById("top-bar-actions");
+    if (el) setTopBarTarget(el);
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -2225,23 +2233,21 @@ export function DashboardContent({
             <p className="mt-1 text-xs font-semibold text-amber-600">{streakLabel}</p>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Year in Review button — always show if there's data */}
+      </div>
+
+      {/* ── Top-bar utility buttons (portaled into the top nav bar) ── */}
+      {topBarTarget && createPortal(
+        <>
           {ytdDealCount > 0 && (
             <button
               onClick={() => setShowAnnualReview(true)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all",
-                isDecember
-                  ? "border-violet-300 bg-white text-violet-700 hover:bg-violet-50"
-                  : "border-slate-300 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-400"
-              )}
+              className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              title={`${currentYear} Year in Review`}
             >
-              <Star className="h-3 w-3" />
-              {currentYear} Review
+              <Star className="h-3.5 w-3.5" />
+              <span className="hidden lg:inline">{currentYear} Review</span>
             </button>
           )}
-          {/* Sandbox — always visible when not in sandbox mode */}
           {!sandbox.sandboxMode && (
             <button
               onClick={() => {
@@ -2252,27 +2258,29 @@ export function DashboardContent({
                 }
               }}
               disabled={sandbox.loading}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-all"
+              className="flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:text-amber-300 dark:hover:bg-amber-950/30 transition-colors"
+              title="Sandbox Mode"
             >
               <Eye className="h-3.5 w-3.5" />
-              Sandbox
+              <span className="hidden lg:inline">Sandbox</span>
             </button>
           )}
-          {/* Customize button */}
           <button
             onClick={() => setCustomizeMode((m) => !m)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all",
+              "flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition-colors",
               customizeMode
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-slate-300 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-400"
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent"
             )}
+            title="Customize Dashboard"
           >
             <Settings2 className="h-3.5 w-3.5" />
-            {customizeMode ? "Done" : "Customize"}
+            <span className="hidden lg:inline">{customizeMode ? "Done" : "Customize"}</span>
           </button>
-        </div>
-      </div>
+        </>,
+        topBarTarget
+      )}
 
       {/* Runway Score Hero — always first */}
       <Card data-tour="dashboard-score" className="rounded-2xl border-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-lg overflow-hidden relative">
