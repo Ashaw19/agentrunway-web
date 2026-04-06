@@ -37,6 +37,7 @@
     "gray-matter": "^4.0.3",
     "jszip": "^3.10.1",
     "lucide-react": "^1.7.0",
+    "mem0ai": "^2.4.6",
     "next": "^15.5.12",
     "next-intl": "^4.8.3",
     "next-mdx-remote": "^6.0.0",

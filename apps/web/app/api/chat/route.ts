@@ -42,6 +42,7 @@ import { logChatAnalytics, countTopicFollowUps } from "@/lib/chat-analytics";
 import { models, heliconeHeaders, anthropic } from "@/lib/ai/provider";
 import { selectModelTier } from "@/lib/ai/router";
 import { buildPromptParts, injectCanary, scanAndRedactPII } from "@/lib/ai/security";
+import { fetchMemories, addMemory } from "@/lib/ai/memory";
 import type { Province, Transaction as CoreTransaction, ContactActivity } from "@agent-runway/core/types/database";
 
 export async function POST(req: NextRequest) {
@@ -123,6 +124,9 @@ export async function POST(req: NextRequest) {
     topTopics[0] ?? "general",
   );
   const isEscalation = preFollowUps >= 4;
+
+  // Start memory fetch in parallel with everything else — non-blocking, graceful no-op if not configured
+  const memoriesPromise = fetchMemories(user.id, String(latestUserMessage));
 
   // Build troubleshooting context (playbooks + live diagnostics) in parallel with financial context
   let troubleshootingContext = "";
@@ -595,8 +599,13 @@ IMPORTANT: When comparing this agent to team averages, always reference ${leader
     financialContext = "Business data temporarily unavailable.";
   }
 
-  // Wait for troubleshooting context to finish building
-  await troubleshootingPromise;
+  // Wait for troubleshooting context and memories to finish building
+  const [memoriesText] = await Promise.all([memoriesPromise, troubleshootingPromise]);
+
+  // Prepend remembered facts about this agent to the financial context
+  if (memoriesText) {
+    financialContext = `REMEMBERED ABOUT THIS AGENT (from past conversations — use to personalize responses):\n${memoriesText}\n\n---\n\n` + financialContext;
+  }
 
   // Strip any system-role messages from the client — only user/assistant allowed.
   // Cap each message to 4000 chars and limit total conversation to ~200K chars.
@@ -767,6 +776,13 @@ IMPORTANT: Use the Computed Engine Outputs section in the business data as your 
           feature: "chat",
           sessionId: requestId,
         }),
+        onFinish: ({ text }) => {
+          // Store this exchange to Mem0 — fire-and-forget, never blocks the response
+          addMemory(user.id, [
+            { role: "user", content: String(latestUserMessage) },
+            { role: "assistant", content: text },
+          ]).catch(() => {});
+        },
       });
     } catch (primaryError) {
       // Fallback to Groq if Anthropic fails
