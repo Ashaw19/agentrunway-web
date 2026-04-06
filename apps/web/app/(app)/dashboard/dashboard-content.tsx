@@ -1210,16 +1210,16 @@ export function DashboardContent({
   })();
 
   cardRenders["kpi_row"] = (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <Card className="rounded-2xl border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardHeader className="flex flex-row items-center justify-between pb-1">
           <CardDescription className="font-semibold text-slate-600">YTD GCI</CardDescription>
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100">
-            <DollarSign className="h-4 w-4 text-slate-500" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
+            <DollarSign className="h-3.5 w-3.5 text-slate-500" />
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-3xl font-bold tracking-tight text-slate-800">
+          <div className="text-2xl font-bold tracking-tight text-slate-800">
             $<CountUp end={ytdGCI} decimals={0} duration={1000} />
           </div>
           {goalGCI > 0 ? (
@@ -1252,14 +1252,14 @@ export function DashboardContent({
       </Card>
 
       <Card className="rounded-2xl border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardHeader className="flex flex-row items-center justify-between pb-1">
           <CardDescription className="font-semibold text-slate-600">Deals Closed</CardDescription>
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100">
-            <Briefcase className="h-4 w-4 text-slate-500" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
+            <Briefcase className="h-3.5 w-3.5 text-slate-500" />
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-3xl font-bold tracking-tight text-slate-800">
+          <div className="text-2xl font-bold tracking-tight text-slate-800">
             <CountUp end={ytdDealCount} duration={800} />
           </div>
           {ytdDealCount === 0 ? (
@@ -1292,19 +1292,19 @@ export function DashboardContent({
       </Card>
 
       <Card className="rounded-2xl border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardHeader className="flex flex-row items-center justify-between pb-1">
           <CardDescription className="font-semibold text-slate-600">
             <span className="flex items-center gap-1">
               Pipeline Weighted
               <MetricInfo tip="Your in-progress deals weighted by their probability of closing. A $50K deal at 60% odds counts as $30K here." />
             </span>
           </CardDescription>
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100">
-            <TrendingUp className="h-4 w-4 text-slate-500" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
+            <TrendingUp className="h-3.5 w-3.5 text-slate-500" />
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-3xl font-bold tracking-tight text-slate-800">
+          <div className="text-2xl font-bold tracking-tight text-slate-800">
             {pipelineCount === 0 ? "—" : <>$<CountUp end={pipelineWeightedGCI} duration={1000} /></>}
           </div>
           <p className="text-xs text-slate-500">
@@ -1316,14 +1316,14 @@ export function DashboardContent({
       </Card>
 
       <Card className="rounded-2xl border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardHeader className="flex flex-row items-center justify-between pb-1">
           <CardDescription className="font-semibold text-slate-600">Projected Year-End</CardDescription>
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100">
-            <Target className="h-4 w-4 text-slate-500" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
+            <Target className="h-3.5 w-3.5 text-slate-500" />
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-3xl font-bold tracking-tight">
+          <div className="text-2xl font-bold tracking-tight">
             $<CountUp end={projectedGCI} duration={1100} />
           </div>
           <div className="mt-1 flex items-center gap-2">
@@ -2276,19 +2276,19 @@ export function DashboardContent({
       <Card data-tour="dashboard-score" className="rounded-2xl border-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-lg overflow-hidden relative">
         {/* Subtle brand gradient accent at top */}
         <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: "linear-gradient(90deg, #F0A800 0%, #1E72F2 45%, #7C3AED 80%, #10B981 100%)" }} />
-        <CardContent className="pt-7 pb-6">
+        <CardContent className="pt-5 pb-4">
           <div className="flex flex-wrap items-center justify-between gap-6">
             {/* Left: grade circle + score */}
             <div className="flex items-center gap-5">
               {/* Commission Gold grade circle — signature brand moment */}
               <div
-                className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full"
+                className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full"
                 style={{
                   background: "linear-gradient(135deg, #F0A800 0%, #D97706 55%, #a85c00 100%)",
                   boxShadow: "0 0 24px rgba(240,168,0,0.45), 0 0 60px rgba(240,168,0,0.14), inset 0 1px 1px rgba(255,255,255,0.22)",
                 }}
               >
-                <span className="text-3xl font-black leading-none" style={{ color: "#15110A" }}>
+                <span className="text-2xl font-black leading-none" style={{ color: "#15110A" }}>
                   {runwayScore.grade}
                 </span>
               </div>
@@ -2400,7 +2400,7 @@ export function DashboardContent({
             </div>
           </div>
           {/* Score components */}
-          <div className="mt-5 grid grid-cols-5 gap-3 border-t border-slate-700 pt-4">
+          <div className="mt-3 grid grid-cols-5 gap-3 border-t border-slate-700 pt-3">
             {runwayScore.components.map((c) => {
               // Bar colour reflects score tier — colour carries meaning, not decoration
               const barColor = c.score >= 80 ? "[&>div]:bg-amber-500"
@@ -2461,7 +2461,7 @@ export function DashboardContent({
         onDragEnd={handleDragEnd}
       >
         <SortableContext items={cardOrder} strategy={verticalListSortingStrategy}>
-          <div className="space-y-4">
+          <div className="space-y-3">
             {(() => {
               let lastSection: string | null = null;
               const visibleCards = cardOrder.filter((id) => customizeMode || !hiddenCards.has(id));
