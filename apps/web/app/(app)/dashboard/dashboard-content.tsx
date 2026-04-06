@@ -1317,7 +1317,16 @@ export function DashboardContent({
 
       <Card className="rounded-2xl border-slate-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.01]">
         <CardHeader className="flex flex-row items-center justify-between pb-1">
-          <CardDescription className="font-semibold text-slate-600">Projected Year-End</CardDescription>
+          <CardDescription className="font-semibold text-slate-600">
+            <span className="flex items-center gap-1">
+              Projected Year-End
+              <MetricInfo tip={seasonalSource === "agent"
+                ? `Based on your ${historyItems.filter((h) => (h.quarter_gci as number[]).some((v) => (v ?? 0) > 0)).length}-year seasonal pattern.`
+                : seasonalSource === "national"
+                  ? "Based on national seasonal averages."
+                  : "Using uniform seasonality — add history to improve."} />
+            </span>
+          </CardDescription>
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
             <Target className="h-3.5 w-3.5 text-slate-500" />
           </div>
@@ -1364,13 +1373,6 @@ export function DashboardContent({
               🎉 Goal reached — you crushed it!
             </p>
           )}
-          <p className="mt-2 text-[10px] text-muted-foreground/70">
-            {seasonalSource === "agent"
-              ? `Seasonality: your ${historyItems.filter((h) => (h.quarter_gci as number[]).some((v) => (v ?? 0) > 0)).length}-yr pattern`
-              : seasonalSource === "national"
-                ? "Seasonality: national averages"
-                : "Seasonality: uniform (add history to improve)"}
-          </p>
         </CardContent>
       </Card>
     </div>
@@ -2302,33 +2304,32 @@ export function DashboardContent({
                   </span>
                   <RunwayScoreInfoDialog />
                 </div>
-                <p className="text-4xl font-extrabold text-white leading-none mt-0.5">
-                  {runwayScore.score}
-                  <span className="text-base font-medium text-slate-500">/100</span>
-                </p>
-                <div className="flex items-center gap-2 mt-1.5">
-                  {/* Named band */}
+                <div className="flex items-center gap-2.5 mt-0.5">
+                  <p className="text-4xl font-extrabold text-white leading-none">
+                    {runwayScore.score}
+                    <span className="text-base font-medium text-slate-500">/100</span>
+                  </p>
                   <span className={cn(
                     "text-[10px] font-semibold border rounded-full px-2 py-0 leading-5",
                     scoreBand(runwayScore.score).colorClass,
                   )}>
                     {scoreBand(runwayScore.score).label}
                   </span>
-                  {/* Month-over-month trend */}
-                  {scoreDelta !== null && (
-                    <span className={cn(
-                      "text-[10px] font-semibold tabular-nums",
-                      scoreDelta > 0 ? "text-emerald-600" : scoreDelta < 0 ? "text-red-500" : "text-slate-400",
-                    )}>
-                      {scoreDelta > 0 ? `+${scoreDelta}` : scoreDelta} vs last month
-                    </span>
-                  )}
                 </div>
+                {/* Month-over-month trend */}
+                {scoreDelta !== null && (
+                  <p className={cn(
+                    "text-[10px] font-semibold tabular-nums mt-1",
+                    scoreDelta > 0 ? "text-emerald-600" : scoreDelta < 0 ? "text-red-500" : "text-slate-400",
+                  )}>
+                    {scoreDelta > 0 ? `+${scoreDelta}` : scoreDelta} vs last month
+                  </p>
+                )}
                 <p className="mt-1 text-xs text-slate-400">{scoreNarrative}</p>
               </div>
             </div>
             {/* Right: survival + pace — aligned two-column mini-grid */}
-            <div className="grid grid-cols-2 gap-px rounded-lg border border-slate-700 bg-slate-700 overflow-hidden">
+            <div className="grid grid-cols-2 gap-px rounded-xl border border-slate-700 bg-slate-700 overflow-hidden">
               {/* Cash Runway */}
               <div className="bg-slate-800/50 px-4 py-3 text-center">
                 <div className="flex items-center justify-center gap-1">
@@ -2474,9 +2475,11 @@ export function DashboardContent({
                 // Section header — show when section changes (skip in customize mode)
                 let sectionHeader: React.ReactNode = null;
                 if (!customizeMode && cardDef?.section && cardDef.section !== lastSection) {
+                  const isFirstSection = lastSection === null;
                   lastSection = cardDef.section;
                   const sectionDef = SECTIONS.find((s) => s.id === cardDef.section);
-                  if (sectionDef) {
+                  // Skip the first section header — the KPI cards are self-explanatory right after Runway Score
+                  if (sectionDef && !isFirstSection) {
                     sectionHeader = (
                       <div key={`section-${sectionDef.id}`} className="pt-2 pb-1">
                         <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">

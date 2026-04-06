@@ -100,7 +100,7 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
     },
   ];
 
-  const rightOffset = hasAiChat ? "right-24" : "right-6";
+  const rightOffset = hasAiChat ? "right-[4.5rem]" : "right-5";
 
   // When voice is actively recording/processing, show a simplified UI
   const voiceBusy = voiceActive && voiceState !== "idle" && voiceState !== "error";
@@ -169,7 +169,7 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
       )}
 
       {/* Action items — fan up from the FAB */}
-      <div className={cn("fixed bottom-6 z-40 flex flex-col items-end gap-3", rightOffset)}>
+      <div className={cn("fixed bottom-5 z-40 flex flex-col items-end gap-3", rightOffset)}>
         {/* Voice recording widget (replaces action list when active) */}
         {voiceActive && (
           <div
@@ -258,7 +258,7 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
             }
           }}
           className={cn(
-            "flex h-14 w-14 items-center justify-center rounded-full shadow-xl transition-all duration-200",
+            "flex h-12 w-12 items-center justify-center rounded-full shadow-xl transition-all duration-200",
             "text-white",
             open || voiceActive
               ? "bg-slate-700 rotate-45"
