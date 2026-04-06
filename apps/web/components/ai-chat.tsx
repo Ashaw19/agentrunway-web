@@ -13,6 +13,32 @@ interface Message {
   content: string;
 }
 
+type ConfidenceLevel = "high" | "medium" | "low";
+
+/**
+ * Parse and strip the [confidence:xxx] tag the AI appends to every response.
+ * Also strips partial tags during streaming so raw bracket text never shows.
+ */
+function parseConfidence(content: string): {
+  text: string;
+  level: ConfidenceLevel | null;
+} {
+  // Full tag match — response is complete
+  const full = content.match(/\[confidence:(high|medium|low)\]\s*$/i);
+  if (full) {
+    return {
+      text: content.slice(0, -full[0].length).trimEnd(),
+      level: full[1].toLowerCase() as ConfidenceLevel,
+    };
+  }
+  // Partial tag match — still streaming, strip incomplete bracket so it never flashes
+  const partial = content.match(/\[confidence:[^\]]*$/i);
+  if (partial) {
+    return { text: content.slice(0, -partial[0].length).trimEnd(), level: null };
+  }
+  return { text: content, level: null };
+}
+
 interface Props {
   financialContext: string;
 }
@@ -345,7 +371,9 @@ export function AiChat({ financialContext }: Props) {
                     }
                   >
                     {msg.content ? (
-                      <span style={{ whiteSpace: "pre-wrap" }}>{msg.content}</span>
+                      <span style={{ whiteSpace: "pre-wrap" }}>
+                        {msg.role === "assistant" ? parseConfidence(msg.content).text : msg.content}
+                      </span>
                     ) : (
                       <span className="inline-flex gap-1 text-slate-500">
                         <span className="animate-bounce">·</span>
@@ -354,9 +382,41 @@ export function AiChat({ financialContext }: Props) {
                       </span>
                     )}
                   </div>
-                  {/* Enhancement #2: Thumbs up/down on assistant responses (skip initial greeting) */}
+                  {/* Confidence badge + thumbs feedback — shown after streaming completes */}
                   {msg.role === "assistant" && msg.content && i > 0 && !loading && (
-                    <div className="mt-1 flex items-center gap-1 pl-1">
+                    <div className="mt-1 flex items-center gap-2 pl-1">
+                      {/* Confidence indicator */}
+                      {(() => {
+                        const { level } = parseConfidence(msg.content);
+                        if (!level) return null;
+                        return (
+                          <span
+                            className={cn(
+                              "text-[9px] font-medium",
+                              level === "high" && "text-emerald-500",
+                              level === "medium" && "text-amber-500",
+                              level === "low" && "text-slate-500",
+                            )}
+                            title={
+                              level === "high"
+                                ? "Based on your data"
+                                : level === "medium"
+                                  ? "Reasonable estimate"
+                                  : "Limited data — verify manually"
+                            }
+                          >
+                            {level === "high" ? "✓" : level === "medium" ? "~" : "?"}{" "}
+                            {level === "high" ? "Data-backed" : level === "medium" ? "Estimate" : "Uncertain"}
+                          </span>
+                        );
+                      })()}
+
+                      {/* Divider when both confidence and feedback are present */}
+                      {parseConfidence(msg.content).level && (
+                        <span className="text-slate-700 text-[9px]">·</span>
+                      )}
+
+                      {/* Thumbs up/down feedback */}
                       {feedbackGiven[i] ? (
                         <span className="text-[10px] text-slate-600">
                           {feedbackGiven[i] === "positive" ? "Thanks!" : "Noted — we'll improve"}

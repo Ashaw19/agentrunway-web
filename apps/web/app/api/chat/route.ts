@@ -39,9 +39,9 @@ import { classifyTopic, classifyTopicMulti, PAGE_TO_TOPICS, TOPIC_ACTION_LINKS, 
 import { getPlaybooks } from "@/lib/troubleshooting-playbooks";
 import { buildDiagnostics } from "@/lib/chat-diagnostics";
 import { logChatAnalytics, countTopicFollowUps } from "@/lib/chat-analytics";
-import { models, heliconeHeaders } from "@/lib/ai/provider";
+import { models, heliconeHeaders, anthropic } from "@/lib/ai/provider";
 import { selectModelTier } from "@/lib/ai/router";
-import { buildStructuredPrompt, injectCanary, scanAndRedactPII } from "@/lib/ai/security";
+import { buildPromptParts, injectCanary, scanAndRedactPII } from "@/lib/ai/security";
 import type { Province, Transaction as CoreTransaction, ContactActivity } from "@agent-runway/core/types/database";
 
 export async function POST(req: NextRequest) {
@@ -693,7 +693,12 @@ IMPORTANT: On the very first message from the agent, if their data shows a notab
 
 IMPORTANT: Use the Computed Engine Outputs section in the business data as your source of truth for projections, scores, tax estimates, benchmarks, probability bands, and insights. Do not recalculate these figures — they come from the platform's specialized engines (seasonal models, multi-bracket tax calculations, cohort benchmarking). You may explain the methodology or add qualitative context, but always reference the engine-computed numbers. If the Computed Engine Outputs section is not present, fall back to the raw financial data above.`;
 
-  const systemPrompt = injectCanary(buildStructuredPrompt({
+  // ── Build prompt parts (static cached prefix + dynamic per-request suffix) ─
+  // Static part: identity + knowledge_base + guidelines + voice_guide
+  //   → marked with cache_control: ephemeral → Anthropic caches at 90% token discount
+  // Dynamic part: agent_data + troubleshooting + page_context + rules_reminder
+  //   → changes per user/request, never cached
+  const { staticPart, dynamicPart } = buildPromptParts({
     identity,
     knowledgeBase: KNOWLEDGE_BASE,
     guidelines,
@@ -701,7 +706,25 @@ IMPORTANT: Use the Computed Engine Outputs section in the business data as your 
     troubleshooting: troubleshootingInjection || undefined,
     pageContext: pageContext || undefined,
     voiceGuide: AGENT_RUNWAY_VOICE,
-  }));
+  });
+
+  // Full concatenated string for Groq fallback (Groq doesn't support cache_control)
+  const systemPrompt = `${staticPart}\n\n${injectCanary(dynamicPart)}`;
+
+  // Array format for Claude — static portion marked for caching
+  const systemForClaude = [
+    {
+      type: "text" as const,
+      text: staticPart,
+      experimental_providerMetadata: {
+        anthropic: { cacheControl: { type: "ephemeral" } },
+      },
+    },
+    {
+      type: "text" as const,
+      text: injectCanary(dynamicPart),
+    },
+  ];
 
 
   try {
@@ -715,11 +738,27 @@ IMPORTANT: Use the Computed Engine Outputs section in the business data as your 
     try {
       result = streamText({
         model: selectedModel,
-        system: systemPrompt,
+        // Cache-optimised system: static prefix marked ephemeral (90% token discount on hits),
+        // dynamic suffix with user data and canary sent uncached per-request.
+        system: systemForClaude,
         messages: safeMessages.map((m) => ({
           role: m.role as "user" | "assistant",
           content: m.content,
         })),
+        // Web search: Anthropic handles the actual search server-side.
+        // The model decides when to use it (e.g. "what's the current BoC rate?").
+        // maxSteps allows tool call + follow-up response in the same stream.
+        tools: {
+          webSearch: anthropic.tools.webSearch_20260209({
+            maxUses: 3,
+            userLocation: {
+              type: "approximate",
+              country: "CA",
+              timezone: "America/Toronto",
+            },
+          }),
+        },
+        maxSteps: 5,
         maxTokens,
         temperature: 0.7,
         abortSignal: abortController.signal,
