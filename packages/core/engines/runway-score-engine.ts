@@ -73,6 +73,12 @@ export function compute(
   benchmarkPercentile: number,
   survivalMonths: number,
 ): RunwayScoreResult {
+  // Guard upstream NaN/Infinity — treat non-finite inputs as 0 rather than
+  // silently propagating NaN into the composite score and grade.
+  const safeBenchmark = isFinite(benchmarkPercentile) ? benchmarkPercentile : 0;
+  const safePace      = isFinite(healthReport.paceScore)     ? healthReport.paceScore     : 0;
+  const safePipeline  = isFinite(healthReport.pipelineScore) ? healthReport.pipelineScore : 0;
+  const safeExpense   = isFinite(healthReport.expenseScore)  ? healthReport.expenseScore  : 0;
   // Convert survival months to 0–100 score
   // -1 means "not configured" — score at 35 to penalize missing data
   // (previously 50, which rewarded not entering a cash reserve)
@@ -85,11 +91,11 @@ export function compute(
   else survivalScore = 10;
 
   const components: ScoreComponent[] = [
-    { label: "Goal Pace", score: healthReport.paceScore, weight: "35%", weightValue: 0.35 },
-    { label: "Pipeline", score: healthReport.pipelineScore, weight: "30%", weightValue: 0.30 },
-    { label: "Expenses", score: healthReport.expenseScore, weight: "15%", weightValue: 0.15 },
-    { label: "Benchmark", score: benchmarkPercentile, weight: "5%", weightValue: 0.05 },
-    { label: "Survival", score: survivalScore, weight: "15%", weightValue: 0.15 },
+    { label: "Goal Pace", score: safePace,      weight: "35%", weightValue: 0.35 },
+    { label: "Pipeline",  score: safePipeline,  weight: "30%", weightValue: 0.30 },
+    { label: "Expenses",  score: safeExpense,   weight: "15%", weightValue: 0.15 },
+    { label: "Benchmark", score: safeBenchmark, weight: "5%",  weightValue: 0.05 },
+    { label: "Survival",  score: survivalScore, weight: "15%", weightValue: 0.15 },
   ];
 
   const composite = components.reduce(

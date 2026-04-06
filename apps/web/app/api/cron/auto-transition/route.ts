@@ -54,6 +54,8 @@ export async function GET(req: NextRequest) {
   // ── Fire flight plans for transitioned clients ─────────────────────────
   let flightPlanTasksCreated = 0;
 
+  const failedClientIds: string[] = [];
+
   if (transitionedCount > 0) {
     // Get unique user IDs to batch-fetch their flight plans
     const userIds = [...new Set(transitioned.map((t) => t.user_id))];
@@ -76,14 +78,20 @@ export async function GET(req: NextRequest) {
         .order("step_order");
 
       if (steps && steps.length > 0) {
+        // Batch-fetch all transitioned clients in one query instead of N individual queries
+        const clientIds = transitioned.map((t) => t.client_id);
+        const { data: clientRows } = await admin
+          .from("clients")
+          .select("id, name, tags")
+          .in("id", clientIds);
+
+        const clientMap = new Map(
+          (clientRows ?? []).map((c) => [c.id, c]),
+        );
+
         for (const item of transitioned) {
           try {
-            // Get client info for template variables and tag matching
-            const { data: client } = await admin
-              .from("clients")
-              .select("name, tags")
-              .eq("id", item.client_id)
-              .single();
+            const client = clientMap.get(item.client_id);
 
             // Client may have been deleted between transition and now — skip gracefully
             if (!client) {
@@ -112,8 +120,12 @@ export async function GET(req: NextRequest) {
                   .replace(/\[name\]/gi, clientName)
                   .replace(/\[Name\]/g, clientName);
 
+                // Guard against null/undefined delay_days producing an invalid date
+                const delayDays = typeof step.delay_days === "number" && isFinite(step.delay_days)
+                  ? Math.max(0, Math.round(step.delay_days))
+                  : 0;
                 const dueDate = new Date();
-                dueDate.setDate(dueDate.getDate() + step.delay_days);
+                dueDate.setDate(dueDate.getDate() + delayDays);
                 const dueDateStr = dueDate.toISOString().slice(0, 10);
 
                 if (step.action_type === "task" || step.action_type === "text") {
@@ -148,6 +160,7 @@ export async function GET(req: NextRequest) {
           } catch (clientErr) {
             // Log and continue — one client failure must not orphan the rest
             console.error(`[auto-transition] Failed to process flight plans for client ${item.client_id}:`, clientErr);
+            failedClientIds.push(item.client_id);
           }
         }
       }
@@ -160,6 +173,7 @@ export async function GET(req: NextRequest) {
     ok: true,
     transitioned: transitionedCount,
     flight_plan_items_created: flightPlanTasksCreated,
+    failed_flight_plan_clients: failedClientIds.length > 0 ? failedClientIds.length : undefined,
     timestamp: new Date().toISOString(),
   });
 }

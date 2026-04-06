@@ -113,7 +113,14 @@ function normalize(cell: string): string {
 
 /**
  * Score a header cell against a keyword list.
- * Returns 2 for an exact match, 1 for a substring match, 0 for no match.
+ * Returns 2 for an exact match, 1 for a forward substring match (header contains
+ * keyword), 0 for no match.
+ *
+ * The reverse direction (keyword contains header) is intentionally excluded:
+ * short header strings like "id", "age", or "or" would match unrelated keyword
+ * lists as substrings (e.g. "age" ⊂ "percentage", "id" ⊂ "paid"). All
+ * meaningful short headers ("net", "gci", "date", "%") are already present as
+ * exact keywords in their respective lists.
  */
 function scoreCell(cell: string, keywords: string[]): number {
   const n = normalize(cell);
@@ -121,7 +128,7 @@ function scoreCell(cell: string, keywords: string[]): number {
     if (n === kw) return 2;
   }
   for (const kw of keywords) {
-    if (n.includes(kw) || kw.includes(n)) return 1;
+    if (n.includes(kw)) return 1;
   }
   return 0;
 }

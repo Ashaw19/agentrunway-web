@@ -105,7 +105,15 @@ function splitRows(text: string): string[] {
   return text.split(/\r?\n|\r/);
 }
 
-/** Split a CSV row respecting quoted fields. */
+/** Split a CSV row respecting quoted fields.
+ *
+ * Handles two quoting styles found in the wild:
+ *   RFC 4180 — doubled-quote escape:  "He said ""hello"""
+ *   MySQL / backslash escape:         "He said \"hello\""
+ *
+ * Both styles are recognized so imports from Excel, MySQL Workbench, and
+ * older real-estate software all parse correctly.
+ */
 export function splitCsvRow(row: string): string[] {
   const result: string[] = [];
   let current = "";
@@ -113,8 +121,19 @@ export function splitCsvRow(row: string): string[] {
 
   for (let i = 0; i < row.length; i++) {
     const ch = row[i];
-    if (ch === '"') {
+
+    if (ch === "\\") {
+      // Backslash escape (MySQL-style): \" inside a quoted field → literal "
+      // Outside a quoted field, treat backslash as a literal character.
       if (inQuote && row[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        current += ch;
+      }
+    } else if (ch === '"') {
+      if (inQuote && row[i + 1] === '"') {
+        // RFC 4180 doubled-quote escape → literal "
         current += '"';
         i++;
       } else {

@@ -567,9 +567,17 @@ export async function POST(req: NextRequest) {
 
     if (body.textContent) {
       // ── Text path: Excel / CSV / TXT ─────────────────────────────────────
-      console.log("[import] step=text-start len=" + body.textContent.length);
+      // Strip UTF-8 BOM (U+FEFF) if present — common in CSV files saved by
+      // Excel on Windows and older Canadian real-estate software. Without this,
+      // the first column header gets a leading \uFEFF that breaks keyword
+      // matching and column classification.
+      const rawText = body.textContent.startsWith("\uFEFF")
+        ? body.textContent.slice(1)
+        : body.textContent;
+
+      console.log("[import] step=text-start len=" + rawText.length);
       // 1. Date normalization (Excel serials, slash-date disambiguation)
-      const dateNormalized = normalizeDateFormats(body.textContent);
+      const dateNormalized = normalizeDateFormats(rawText);
 
       // 2. Row cleaning + column classification (strips subtotals, blank rows,
       //    duplicate headers; detects column mapping for prompt injection)

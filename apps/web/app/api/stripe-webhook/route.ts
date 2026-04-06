@@ -93,9 +93,11 @@ export async function POST(request: Request) {
       console.log("[stripe] duplicate event ignored:", event.id);
       return NextResponse.json({ received: true });
     }
-    // Unexpected DB error — log but continue processing rather than
-    // silently dropping a real event.
-    console.error("[stripe] failed to record event id:", idempotencyError.message);
+    // Transient DB error: return 503 so Stripe retries after recovery.
+    // Continuing here risks double-processing if the webhook is retried
+    // while the DB is back up but the event was never recorded.
+    console.error("[stripe] failed to record event id — returning 503:", idempotencyError.message);
+    return NextResponse.json({ error: "Database unavailable, retry later" }, { status: 503 });
   }
 
   switch (event.type) {
