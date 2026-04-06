@@ -187,6 +187,10 @@ const TOPIC_RULES: TopicRule[] = [
       "weighted gci wrong",
       "pipeline forecast",
       "deal probability",
+      "forecast accuracy",
+      "conversion funnel",
+      "listing appointment",
+      "buyer client pipeline",
     ],
   },
   {

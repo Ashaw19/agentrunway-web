@@ -242,6 +242,22 @@ Listings: scheduled (15%), active (40%)
 Buyers: taxiing (10%), approach (25%)
 These are unified into the 5 main pipeline stages for the Transactions page.
 
+### Forecast Accuracy Tracking (pipeline-forecast-engine.ts)
+The pipeline tracks how accurate past price estimates were once deals close:
+- **Listing accuracy**: Estimated list price vs actual sale price for sold listings
+- **Deal accuracy**: Original estimated price vs actual transaction price for converted deals
+- **Overall score**: 0–100 (100 = perfect). Formula: 100 × (1 − weighted_avg_error_pct). Weighted by sample count.
+- Requires at least 1 completed matched pair (listing sold with both prices, or deal converted) to display
+- If agent always overestimates: overEstimateCount > underEstimateCount → suggests pricing high
+- If agent always underestimates: underEstimateCount > overEstimateCount → suggests pricing conservative
+
+### Conversion Funnel (pipeline-forecast-engine.ts)
+Shows stage-by-stage conversion rates for each pipeline source:
+- **Deal funnel**: lead → showing → offer → conditional → firm → closed
+- **Listing funnel**: scheduled → active → sold
+- **Buyer funnel**: taxiing → approach → in_flight
+Conversion rate = count at stage N ÷ count at stage N−1. Null for the first stage (no prior stage to compare).
+
 ### Common Problems & Diagnostics
 
 **"My pipeline weighted GCI seems wrong"**
@@ -801,8 +817,9 @@ Example: $500/month + 3% per deal, capped at $20,000/year. After cap → 0% per 
 **Cap**: Runway is capped at 24 months maximum (to avoid infinity when burn ≤ 0).
 
 **Special Cases**:
-- Net burn ≤ 0 (income exceeds expenses): If cash reserve > 0, runway = 24 months (strong). If cash = 0, runway = 0.
-- Cash reserve not set ($0): Returns -1 (sentinel) → displayed as "Not Configured"
+- Net burn ≤ 0 (income exceeds expenses): runway = 24 months (strong), regardless of cash reserve amount. The engine short-circuits on netBurn ≤ 0 before touching cash reserve.
+- Cash reserve $0 AND no expenses (burn = 0): Returns -1 (sentinel) → displayed as "Not Configured". This is the only zero-cash case that yields "Not Configured".
+- Cash reserve $0 with positive burn: Runway = 0 (critical — no savings to cover costs).
 - Division by zero protection: If burn is exactly 0, returns cap (24 months)
 
 ### Survival Impact on Other Metrics
