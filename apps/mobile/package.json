@@ -19,7 +19,7 @@
     "@react-navigation/elements": "^2.9.13",
     "@react-navigation/native": "^7.1.8",
     "@supabase/supabase-js": "^2.100.1",
-    "expo": "~54.0.33",
+    "expo": "~55.0.11",
     "expo-blur": "15.0.8",
     "expo-camera": "~17.0.10",
     "expo-constants": "~18.0.13",
