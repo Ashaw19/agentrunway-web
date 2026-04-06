@@ -64,11 +64,13 @@ export const CARD_REGISTRY: CardDef[] = [
 // They are kept in CARD_REGISTRY for saved-layout backwards compatibility but
 // are nulled at render time, so they will not appear even if in a saved order.
 export const DEFAULT_ORDER: CardId[] = [
-  "kpi_row",
+  // ── Visible by default (the daily check-in) ──
+  "kpi_row",           // hero KPIs — GCI, Deals, Pipeline, Projected Year-End
+  "client_briefing",   // what to do today — priority actions, stale leads
+  "tasks",             // follow-up tasks — overdue items need attention
+  // ── Hidden by default (available via Customize) ──
   "where_you_stand",
   "probability",
-  "client_briefing",
-  "tasks",
   "insights",
   "business_brief",
   "corp_tax",
@@ -77,8 +79,20 @@ export const DEFAULT_ORDER: CardId[] = [
   "time_value",
 ];
 
-// Hidden by default (advanced / niche cards)
-export const DEFAULT_HIDDEN: CardId[] = ["probability", "corp_tax", "tax_savings"];
+// Hidden by default — lean dashboard per "3-5-7 Rule" (3 hero zones, 5 sections
+// max above fold, 7 max interactive elements before scroll).  The daily view
+// answers two questions: "Am I on track?" (Runway Score + KPIs) and "What do I
+// do today?" (Briefing + Tasks).  Everything else is one click away via Customize.
+export const DEFAULT_HIDDEN: CardId[] = [
+  "where_you_stand",   // competitive positioning — weekly/monthly thinking, not daily
+  "probability",       // projection range — detail available on Forecast page
+  "insights",          // AI insights — overlaps with AI chat + daily briefing
+  "business_brief",    // weekly narrative — better suited to weekly email digest
+  "corp_tax",          // tax planning — lives on Overhead page
+  "tax_savings",       // tax deductions — lives on Overhead page
+  "recent_activity",   // recent deals — lives on Transactions page
+  "time_value",        // time value — niche metric, not daily-actionable
+];
 
 export interface DashboardLayout {
   order: CardId[];

@@ -2423,17 +2423,23 @@ export function DashboardContent({
               );
             })}
           </div>
-          {/* Deviation insights — personal baseline comparisons */}
+          {/* Deviation insights — progressive disclosure: collapsed by default */}
           {/* Suppress before mid-Feb: annualization math unreliable with < 2 months YTD data */}
           {fraction * 12 >= 2 && deviationMessages.length > 0 && (
-            <div className="mt-3 border-t border-slate-700 pt-3 space-y-1.5">
-              {deviationMessages.map((msg, i) => (
-                <p key={i} className="text-[11px] text-slate-400 leading-snug flex items-start gap-1.5">
-                  <span className="shrink-0 mt-px text-slate-600">{"·"}</span>
-                  {msg}
-                </p>
-              ))}
-            </div>
+            <details className="mt-3 border-t border-slate-700 pt-2 group">
+              <summary className="text-[10px] text-slate-500 cursor-pointer hover:text-slate-400 transition-colors select-none list-none flex items-center gap-1">
+                <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
+                {deviationMessages.length} insight{deviationMessages.length !== 1 ? "s" : ""} from your history
+              </summary>
+              <div className="mt-2 space-y-1.5">
+                {deviationMessages.map((msg, i) => (
+                  <p key={i} className="text-[11px] text-slate-400 leading-snug flex items-start gap-1.5">
+                    <span className="shrink-0 mt-px text-slate-600">{"·"}</span>
+                    {msg}
+                  </p>
+                ))}
+              </div>
+            </details>
           )}
         </CardContent>
       </Card>
@@ -2443,7 +2449,7 @@ export function DashboardContent({
         <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-foreground">Customize your dashboard</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Drag cards to reorder. Use the Hide button to remove cards you don&apos;t need.</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Drag to reorder. Show hidden cards or hide ones you don&apos;t need. Reset restores the default lean view.</p>
           </div>
           <button
             onClick={resetLayout}
