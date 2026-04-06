@@ -77,66 +77,77 @@ export async function GET(req: NextRequest) {
 
       if (steps && steps.length > 0) {
         for (const item of transitioned) {
-          // Get client info for template variables and tag matching
-          const { data: client } = await admin
-            .from("clients")
-            .select("name, tags")
-            .eq("id", item.client_id)
-            .single();
+          try {
+            // Get client info for template variables and tag matching
+            const { data: client } = await admin
+              .from("clients")
+              .select("name, tags")
+              .eq("id", item.client_id)
+              .single();
 
-          const clientName = client?.name ?? "Client";
-          const clientTags: string[] = client?.tags ?? [];
+            // Client may have been deleted between transition and now — skip gracefully
+            if (!client) {
+              console.warn(`[auto-transition] Client ${item.client_id} not found — skipping flight plans`);
+              continue;
+            }
 
-          // Find matching plans for this user
-          const userPlans = plans.filter((p) => {
-            if (p.user_id !== item.user_id) return false;
-            if (p.trigger_tag && !clientTags.includes(p.trigger_tag)) return false;
-            return true;
-          });
+            const clientName = client.name ?? "Client";
+            const clientTags: string[] = client.tags ?? [];
 
-          for (const plan of userPlans) {
-            const planSteps = steps.filter((s) => s.flight_plan_id === plan.id);
+            // Find matching plans for this user
+            const userPlans = plans.filter((p) => {
+              if (p.user_id !== item.user_id) return false;
+              if (p.trigger_tag && !clientTags.includes(p.trigger_tag)) return false;
+              return true;
+            });
 
-            for (const step of planSteps) {
-              if (!step.template) continue;
+            for (const plan of userPlans) {
+              const planSteps = steps.filter((s) => s.flight_plan_id === plan.id);
 
-              const resolvedTemplate = step.template
-                .replace(/\{name\}/gi, clientName)
-                .replace(/\[name\]/gi, clientName)
-                .replace(/\[Name\]/g, clientName);
+              for (const step of planSteps) {
+                if (!step.template) continue;
 
-              const dueDate = new Date();
-              dueDate.setDate(dueDate.getDate() + step.delay_days);
-              const dueDateStr = dueDate.toISOString().slice(0, 10);
+                const resolvedTemplate = step.template
+                  .replace(/\{name\}/gi, clientName)
+                  .replace(/\[name\]/gi, clientName)
+                  .replace(/\[Name\]/g, clientName);
 
-              if (step.action_type === "task" || step.action_type === "text") {
-                const title = step.action_type === "text"
-                  ? `📱 Send text to ${clientName}: "${resolvedTemplate.slice(0, 80)}${resolvedTemplate.length > 80 ? "…" : ""}"`
-                  : resolvedTemplate;
+                const dueDate = new Date();
+                dueDate.setDate(dueDate.getDate() + step.delay_days);
+                const dueDateStr = dueDate.toISOString().slice(0, 10);
 
-                await admin.from("contact_tasks").insert({
-                  user_id: item.user_id,
-                  client_id: item.client_id,
-                  title,
-                  due_date: dueDateStr,
-                  priority: "normal",
-                  notes: `Auto-created by Flight Plan: ${plan.name}${step.action_type === "text" ? " (text step)" : ""}`,
-                });
-                flightPlanTasksCreated++;
-              } else if (step.action_type === "email") {
-                await admin.from("outreach_queue").insert({
-                  user_id: item.user_id,
-                  client_id: item.client_id,
-                  opportunity_type: "flight_plan",
-                  trigger_date: dueDateStr,
-                  status: "draft",
-                  ai_subject: `Flight Plan: ${plan.name}`,
-                  ai_body: resolvedTemplate,
-                  context: { flight_plan: plan.name, step_order: step.step_order, auto_transition: true },
-                });
-                flightPlanTasksCreated++;
+                if (step.action_type === "task" || step.action_type === "text") {
+                  const title = step.action_type === "text"
+                    ? `📱 Send text to ${clientName}: "${resolvedTemplate.slice(0, 80)}${resolvedTemplate.length > 80 ? "…" : ""}"`
+                    : resolvedTemplate;
+
+                  await admin.from("contact_tasks").insert({
+                    user_id: item.user_id,
+                    client_id: item.client_id,
+                    title,
+                    due_date: dueDateStr,
+                    priority: "normal",
+                    notes: `Auto-created by Flight Plan: ${plan.name}${step.action_type === "text" ? " (text step)" : ""}`,
+                  });
+                  flightPlanTasksCreated++;
+                } else if (step.action_type === "email") {
+                  await admin.from("outreach_queue").insert({
+                    user_id: item.user_id,
+                    client_id: item.client_id,
+                    opportunity_type: "flight_plan",
+                    trigger_date: dueDateStr,
+                    status: "draft",
+                    ai_subject: `Flight Plan: ${plan.name}`,
+                    ai_body: resolvedTemplate,
+                    context: { flight_plan: plan.name, step_order: step.step_order, auto_transition: true },
+                  });
+                  flightPlanTasksCreated++;
+                }
               }
             }
+          } catch (clientErr) {
+            // Log and continue — one client failure must not orphan the rest
+            console.error(`[auto-transition] Failed to process flight plans for client ${item.client_id}:`, clientErr);
           }
         }
       }

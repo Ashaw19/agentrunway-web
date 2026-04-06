@@ -12,6 +12,8 @@
  * Design: pure functions, no I/O, no framework imports.
  */
 
+import { splitCsvRow } from "./normalize-text";
+
 // ── Pass 1: Excel serial → ISO ────────────────────────────────────────────────
 
 /**
@@ -60,7 +62,7 @@ export function normalizeDateFormats(content: string): string {
   const lines = content.split("\n");
   let dateColIdx = -1;
   for (let i = 0; i < Math.min(lines.length, 5); i++) {
-    const cells = lines[i].split(",");
+    const cells = splitCsvRow(lines[i]);
     if (cells.length >= 3) {
       const idx = cells.findIndex(c =>
         /\b(?:close[\s_]?)?date\b|\bclosing\b|\bsettlement[\s_]date\b/i.test(c.trim())
@@ -72,7 +74,7 @@ export function normalizeDateFormats(content: string): string {
   let result: string;
   if (dateColIdx >= 0) {
     result = lines.map(line => {
-      const cells = line.split(",");
+      const cells = splitCsvRow(line);
       if (cells.length > dateColIdx) {
         const cell = cells[dateColIdx].trim();
         if (SERIAL_RE.test(cell)) {

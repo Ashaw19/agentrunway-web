@@ -106,7 +106,7 @@ function splitRows(text: string): string[] {
 }
 
 /** Split a CSV row respecting quoted fields. */
-function splitCsvRow(row: string): string[] {
+export function splitCsvRow(row: string): string[] {
   const result: string[] = [];
   let current = "";
   let inQuote = false;
