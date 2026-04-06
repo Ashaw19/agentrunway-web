@@ -56,6 +56,7 @@ import {
 import { calculate as calculateTax, marginalRate } from "@/lib/engines/canadian-tax-engine";
 import { calculateCorporateTax, type CorporateTaxResult } from "@/lib/engines/corporate-tax-engine";
 import { generateTaxOptimizations, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
+import { computeTimeValue } from "@/lib/engines/time-value";
 import {
   Tooltip,
   TooltipContent,
@@ -692,6 +693,25 @@ export function OverheadContent({
   const ytdTaxSetAside = taxResult ? taxResult.totalBurden * Math.min(fraction, 1) : 0;
   const ytdEstimatedTakeHome = Math.max(0, ytdNetBeforeTax - ytdTaxSetAside);
 
+  // ── Time value ─────────────────────────────────────────────────────────
+  const weeklyHours = settings?.estimated_weekly_hours ?? 0;
+  const projectedAnnualNet = taxResult
+    ? Math.max(0, projectedNet - annualExpenses - taxResult.totalBurden)
+    : Math.max(0, projectedNet - annualExpenses);
+  const timeValue = weeklyHours > 0 && projectedGCI > 0
+    ? computeTimeValue({
+        estimatedWeeklyHours: weeklyHours,
+        vacationWeeks: settings?.vacation_weeks_per_year ?? 0,
+        ytdGCI,
+        ytdNetIncome: ytdEstimatedTakeHome,
+        projectedAnnualNet,
+        projectedAnnualGCI: projectedGCI,
+        dealCount: ytdDealCount,
+        annualExpenses,
+        yearFractionElapsed: fraction,
+      })
+    : null;
+
   // ── Cap progress ───────────────────────────────────────────────────────
   const capThreshold = settings?.post_cap_threshold_gci ?? 0;
   const capConfigured = capThreshold > 0;
@@ -948,6 +968,66 @@ export function OverheadContent({
           )}
         </div>
       )}
+
+      {/* Time Value */}
+      {timeValue ? (
+        <Card className="rounded-2xl border-blue-200 bg-white shadow-sm">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-blue-600" />
+              <CardTitle className="text-sm font-semibold">Time Value</CardTitle>
+              <MetricInfo tip="Based on your self-reported weekly hours and projected annual income. Update your hours in Settings → Runway Inputs." />
+            </div>
+            <CardDescription>What your time is worth</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-6 items-start">
+              <div>
+                <p className="text-2xl font-bold text-blue-700">
+                  {fmtCurrency(timeValue.effectiveHourlyRate)}<span className="text-sm font-medium text-slate-400">/hr</span>
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">effective hourly rate (net)</p>
+              </div>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                <span className="text-slate-500">Gross rate</span>
+                <span className="font-semibold text-right">{fmtCurrency(timeValue.grossHourlyRate)}/hr</span>
+                {ytdDealCount > 0 && (
+                  <>
+                    <span className="text-slate-500">Hours/deal</span>
+                    <span className="font-semibold text-right">{timeValue.hoursPerDeal}h</span>
+                    <span className="text-slate-500">Net/deal-hour</span>
+                    <span className="font-semibold text-right">{fmtCurrency(timeValue.netPerDealHour)}</span>
+                  </>
+                )}
+                {timeValue.breakEvenDealCount > 0 && (
+                  <>
+                    <span className="text-slate-500">Break-even deals</span>
+                    <span className="font-semibold text-right">{timeValue.breakEvenDealCount}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : settings && weeklyHours <= 0 ? (
+        <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-slate-400" />
+              <CardTitle className="text-sm font-semibold">Time Value</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-slate-500">
+              Set your average weekly hours in{" "}
+              <Link href="/settings" className="text-blue-600 font-medium hover:underline">
+                Settings → Runway Inputs
+              </Link>{" "}
+              to see your effective hourly rate and time-value metrics.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Cap Progress */}
       {capConfigured && (

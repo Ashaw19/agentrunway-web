@@ -34,6 +34,7 @@ import {
   Layers,
   CheckCircle,
   AlertTriangle,
+  Lightbulb,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -686,6 +687,37 @@ export function ReportsContent({
           </div>
         )}
       </div>
+
+      {/* ── Health Narrative — biggest opportunity + score context ─────────── */}
+      {runwayScore.hasEnoughData && (() => {
+        const weakest = [...runwayScore.components].sort((a, b) => a.score - b.score)[0];
+        const strongest = [...runwayScore.components].sort((a, b) => b.score - a.score)[0];
+        return (
+          <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 space-y-2">
+            <div className="flex items-start gap-2">
+              <Lightbulb className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-slate-800">
+                  Biggest opportunity: {weakest.label} ({Math.round(weakest.score)}/100)
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {weakest.label === "Goal Pace" && "You're behind on your annual GCI target. Closing one more deal could shift this significantly."}
+                  {weakest.label === "Pipeline" && "Your pipeline is thin. Adding prospects or listing appointments would strengthen your forecast."}
+                  {weakest.label === "Expenses" && "Your expense ratio needs attention. Log all expenses to get an accurate picture."}
+                  {weakest.label === "Benchmark" && "You're below your experience cohort median. Focus on deal volume to move up."}
+                  {weakest.label === "Survival" && "Your cash runway is short. Building a reserve or reducing monthly burn would help."}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2">
+              <CheckCircle className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+              <p className="text-sm text-slate-600">
+                Strongest area: <span className="font-semibold">{strongest.label}</span> ({Math.round(strongest.score)}/100)
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── 2. YTD Snapshot ───────────────────────────────────────────────────── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

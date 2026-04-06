@@ -26,6 +26,11 @@ import {
   Trophy,
   X,
   Sparkles,
+  Compass,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
@@ -46,6 +51,7 @@ import {
   daysRemaining,
 } from "@/lib/engines/projection-engine";
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
+import { computeWhereYouStand, BAND_LABELS, type PerformanceBand } from "@/lib/engines/where-you-stand-engine";
 import { computeMarketMomentum, type LocalMarketData } from "@/lib/crea-board";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { compute as computeRunwayScore, type BusinessHealthReport } from "@/lib/engines/runway-score-engine";
@@ -401,6 +407,20 @@ export function AltimeterContent({
       )
     : null;
 
+  // ── Where You Stand ────────────────────────────────────────────────────
+  const avgDealSize = ytdDealCount > 0 ? ytdGCI / ytdDealCount : 0;
+  const whereYouStand = computeWhereYouStand({
+    ytdGCI,
+    ytdDealCount,
+    projectedGCI,
+    avgDealGCI: avgDealSize,
+    goalGCI,
+    benchmark,
+    marketMomentum,
+    lastYearGCI: historyItems.find(h => h.year === currentYear - 1)?.annual_gci ?? null,
+    fraction,
+  });
+
   // ── Monthly chart ──────────────────────────────────────────────────────
   const monthlyChartData: MonthlyDataPoint[] = buildMonthlyChartData(
     transactions,
@@ -754,6 +774,68 @@ export function AltimeterContent({
           </CardContent>
         </Card>
       )}
+
+      {/* Where You Stand */}
+      {(ytdDealCount > 0 || !!boardMarketData) && (() => {
+        const wys = whereYouStand;
+        const bands: PerformanceBand[] = ["launching", "climbing", "competitive", "advancing", "leading"];
+        const momentumIcon =
+          wys.momentum === "gaining" ? <ArrowUpRight className="h-3.5 w-3.5" /> :
+          wys.momentum === "losing" ? <ArrowDownRight className="h-3.5 w-3.5" /> :
+          wys.momentum === "no_data" ? null :
+          <Minus className="h-3.5 w-3.5" />;
+        const momentumColor =
+          wys.momentum === "gaining" ? "text-emerald-600" :
+          wys.momentum === "losing" ? "text-amber-600" :
+          "text-slate-500";
+        const bandColors: Record<PerformanceBand, { bg: string; text: string; active: string }> = {
+          launching:   { bg: "bg-slate-100",  text: "text-slate-500",   active: "bg-slate-700 text-white" },
+          climbing:    { bg: "bg-blue-50",    text: "text-blue-500",    active: "bg-blue-600 text-white" },
+          competitive: { bg: "bg-emerald-50", text: "text-emerald-500", active: "bg-emerald-600 text-white" },
+          advancing:   { bg: "bg-amber-50",   text: "text-amber-600",   active: "bg-amber-500 text-white" },
+          leading:     { bg: "bg-violet-50",  text: "text-violet-500",  active: "bg-violet-600 text-white" },
+        };
+        return (
+          <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-1.5">
+                <Compass className="h-4 w-4 text-slate-500" />
+                <CardTitle className="text-base">Where You Stand</CardTitle>
+              </div>
+              <CardDescription>Competitive position, momentum, and market diagnosis</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-1.5 mb-3">
+                {bands.map((band) => {
+                  const isActive = band === wys.band;
+                  const colors = bandColors[band];
+                  return (
+                    <div key={band} className="flex flex-col items-center gap-1 flex-1">
+                      <div className={cn("h-2 w-full rounded-full", isActive ? colors.active : colors.bg)} />
+                      <span className={cn("text-[8px] font-semibold uppercase tracking-wider", isActive ? colors.text : "text-slate-300")}>
+                        {BAND_LABELS[band]}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-sm font-semibold text-slate-800">{wys.identityLine}</p>
+              <div className={cn("flex items-center gap-1 mt-1", momentumColor)}>
+                {momentumIcon}
+                <span className="text-xs font-medium">{wys.momentumLabel}</span>
+                {wys.momentumDetail && <span className="text-xs text-slate-500"> — {wys.momentumDetail}</span>}
+              </div>
+              {wys.diagnosisLine && (
+                <p className="text-xs text-slate-500 mt-2">{wys.diagnosisLine}</p>
+              )}
+              {wys.distanceLine && (
+                <p className="text-xs text-slate-500 mt-1">{wys.distanceLine}</p>
+              )}
+              <p className="text-xs font-medium text-blue-600 mt-2">{wys.bridgeLine}</p>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* Benchmark */}
       <Card className="rounded-2xl border-violet-200 bg-white shadow-sm">
