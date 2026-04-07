@@ -10,14 +10,10 @@
 export interface FlightStatusTranslations {
   boarding: string;
   boarding_description: string;
-  taxiing: string;
-  taxiing_description: string;
-  approach: string;
-  approach_description: string;
+  scheduled: string;
+  scheduled_description: string;
   in_flight: string;
   in_flight_description: string;
-  landed: string;
-  landed_description: string;
   cruising: string;
   cruising_description: string;
 }

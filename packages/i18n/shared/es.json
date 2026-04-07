@@ -1,17 +1,13 @@
 {
   "flight_status": {
     "boarding": "Embarque",
-    "boarding_description": "Recién agregado al CRM — mover a Rodaje cuanto antes",
-    "taxiing": "Rodaje",
-    "taxiing_description": "Comprometido y avanzando — preparándose para actuar",
-    "approach": "Aproximación",
-    "approach_description": "Visitando propiedades activamente o preparándose para ofertar",
+    "boarding_description": "Prospectos activos en etapa inicial — recién comprometidos, explorando opciones",
+    "scheduled": "Programado",
+    "scheduled_description": "Clientes con intención futura — fecha objetivo o frase como «después de las fiestas»",
     "in_flight": "En vuelo",
-    "in_flight_description": "En transacción — oferta hecha, condicional o firme",
-    "landed": "Aterrizaje",
-    "landed_description": "Recién cerrado — ventana de 30 días post-cierre",
+    "in_flight_description": "Clientes activos cerca del cierre — ofertas, visitas, firme",
     "cruising": "Crucero",
-    "cruising_description": "Post-transacción, establecido — seguimientos estacionales"
+    "cruising_description": "Clientes pasados en seguimiento a largo plazo — incluye cierres recientes"
   },
   "provinces": {
     "alberta": "Alberta",

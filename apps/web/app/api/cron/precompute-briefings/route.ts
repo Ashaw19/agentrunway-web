@@ -147,7 +147,7 @@ async function gatherUserMetrics(
       .from("clients")
       .select("id", { count: "exact", head: true })
       .eq("user_id", uid)
-      .in("status", ["boarding", "taxiing", "approach", "in_flight"])
+      .in("status", ["boarding", "in_flight"])
       .lt("last_contact_at", dates.fourteenDaysAgo),
 
     // Pipeline deals (select columns needed for computeWeightedGCI)

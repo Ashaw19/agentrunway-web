@@ -66,12 +66,12 @@ import { validateClient, FIELD_LIMITS } from "@agent-runway/core/validation/inpu
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-type Filter = "all" | "active" | "landed";
+type Filter = "all" | "active" | "cruising";
 
 type ContactType = "call" | "text" | "email";
 type ActivityType = "call" | "text" | "meeting" | "showing" | "note";
 
-const ACTIVE_STATUSES = new Set(["boarding", "taxiing", "approach", "in_flight"]);
+const ACTIVE_STATUSES = new Set(["boarding", "scheduled", "in_flight"]);
 
 const ACTIVITY_TYPE_ICONS: Record<ActivityType, keyof typeof Ionicons.glyphMap> = {
   call:    "call",
@@ -244,8 +244,8 @@ export default function ClientsScreen() {
   // ── Derived data ──────────────────────────────────────────────────────────
 
   const active = useMemo(() => clients.filter((cl) => ACTIVE_STATUSES.has(cl.status)), [clients]);
-  const landed = useMemo(
-    () => clients.filter((cl) => cl.status === "landed" || cl.status === "cruising"),
+  const cruising = useMemo(
+    () => clients.filter((cl) => cl.status === "cruising"),
     [clients]
   );
 
@@ -281,7 +281,7 @@ export default function ClientsScreen() {
     }
 
     let list =
-      filter === "active" ? active : filter === "landed" ? landed : clients;
+      filter === "active" ? active : filter === "cruising" ? cruising : clients;
 
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -294,14 +294,14 @@ export default function ClientsScreen() {
     }
 
     return list;
-  }, [clients, active, landed, filter, search, smartFilter]);
+  }, [clients, active, cruising, filter, search, smartFilter]);
 
   // ── Filter tab definitions ────────────────────────────────────────────────
 
   const tabs: { key: Filter; label: string; count: number }[] = [
     { key: "all", label: t("filters.all"), count: clients.length },
     { key: "active", label: t("filters.active"), count: active.length },
-    { key: "landed", label: t("filters.landed"), count: landed.length },
+    { key: "cruising", label: t("filters.cruising"), count: cruising.length },
   ];
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -613,22 +613,6 @@ function ClientRow({
   const statusColor = STATUS_COLORS[client.status] ?? c.textDim;
   const statusLabel = t(`status.${client.status}`, { defaultValue: client.status });
 
-  // Auto-transition countdown for Landed clients
-  const getClientDeals = useDataStore((s) => s.getClientDeals);
-  const transitionDaysLeft = useMemo(() => {
-    if (client.status !== "landed") return null;
-    const { transactions } = getClientDeals(client.name);
-    const closedDates = transactions
-      .filter((t) => t.status === "closed" && t.date)
-      .map((t) => t.date)
-      .sort()
-      .reverse();
-    if (!closedDates[0]) return null;
-    const daysSince = Math.floor((Date.now() - new Date(closedDates[0] + "T00:00:00").getTime()) / 86400000);
-    const left = 30 - daysSince;
-    return daysSince > 20 && left > 0 ? left : null;
-  }, [client.status, client.name, getClientDeals]);
-
   const daysSince = client.last_contact_at
     ? Math.floor(
         (Date.now() - new Date(client.last_contact_at).getTime()) / 86400000
@@ -680,11 +664,7 @@ function ClientRow({
             color={statusColor}
             size="sm"
           />
-          {transitionDaysLeft !== null ? (
-            <Text style={[Type.micro, { color: "#D97706" }]}>
-              {t("detail.cruisingIn", { count: transitionDaysLeft })}
-            </Text>
-          ) : daysSince !== null ? (
+          {daysSince !== null ? (
             <Text
               style={[
                 Type.micro,
@@ -1030,10 +1010,8 @@ function ClientDetailSheet({
 
   const FLIGHT_STATUSES: { key: string; label: string }[] = [
     { key: "boarding", label: t("status.boarding") },
-    { key: "taxiing", label: t("status.taxiing") },
-    { key: "approach", label: t("status.approach") },
+    { key: "scheduled", label: t("status.scheduled") },
     { key: "in_flight", label: t("status.in_flight") },
-    { key: "landed", label: t("status.landed") },
     { key: "cruising", label: t("status.cruising") },
   ];
 
@@ -1162,26 +1140,7 @@ function ClientDetailSheet({
             color={statusColor}
             size="sm"
           />
-          {/* Auto-transition countdown for Landed clients */}
-          {client.status === "landed" && (() => {
-            const { transactions } = getClientDeals(client.name);
-            const closedDates = transactions
-              .filter((t) => t.status === "closed" && t.date)
-              .map((t) => t.date)
-              .sort()
-              .reverse();
-            if (!closedDates[0]) return null;
-            const daysSince = Math.floor((Date.now() - new Date(closedDates[0] + "T00:00:00").getTime()) / 86400000);
-            const left = 30 - daysSince;
-            if (daysSince > 20 && left > 0) {
-              return (
-                <Text style={[Type.micro, { color: "#D97706", marginTop: 2 }]}>
-                  {t(left !== 1 ? "detail.transitioningToCruising_plural" : "detail.transitioningToCruising", { count: left })}
-                </Text>
-              );
-            }
-            return null;
-          })()}
+          {/* Auto-transition countdown removed: landed stage was collapsed into cruising. */}
         </View>
       </View>
 

@@ -3,7 +3,7 @@
   "filters": {
     "all": "All",
     "active": "Active",
-    "landed": "Landed"
+    "cruising": "Cruising"
   },
   "smartLists": {
     "overdueFollowups": "Overdue",
@@ -15,10 +15,8 @@
   },
   "status": {
     "boarding": "Boarding",
-    "taxiing": "Taxiing",
-    "approach": "Approach",
+    "scheduled": "अनुसूचित",
     "in_flight": "In Flight",
-    "landed": "Landed",
     "cruising": "Cruising"
   },
   "contact": {
@@ -54,10 +52,7 @@
     "noLinkedDeals": "No linked deals",
     "noAddress": "No address",
     "estimated": "Est. {{amount}}",
-    "gciAmount": "GCI {{amount}}",
-    "cruisingIn": "Cruising in {{count}}d",
-    "transitioningToCruising": "Transitioning to Cruising in {{count}} day",
-    "transitioningToCruising_plural": "Transitioning to Cruising in {{count}} days"
+    "gciAmount": "GCI {{amount}}"
   },
   "quickLog": {
     "title": "QUICK LOG",

@@ -385,12 +385,10 @@ export function FlightPlansTab({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No trigger (manual only)</SelectItem>
-                  <SelectItem value="boarding">Boarding — Just added to CRM</SelectItem>
-                  <SelectItem value="taxiing">Taxiing — Engaged, warming up</SelectItem>
-                  <SelectItem value="approach">Approach — Actively viewing / preparing offer</SelectItem>
-                  <SelectItem value="in_flight">In-Flight — In a transaction</SelectItem>
-                  <SelectItem value="landed">Landed — Just closed (30-day window)</SelectItem>
-                  <SelectItem value="cruising">Cruising — Post-transaction, settled</SelectItem>
+                  <SelectItem value="boarding">Boarding — Active lead, not yet under contract</SelectItem>
+                  <SelectItem value="scheduled">Scheduled — Plans to act later</SelectItem>
+                  <SelectItem value="in_flight">In-Flight — Under contract</SelectItem>
+                  <SelectItem value="cruising">Cruising — Past client / long-term nurture</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -187,12 +187,11 @@ function buildMemoryPrompt(data: GatheredClientData): string {
 
 Today's date: ${today}
 
-CRM pipeline status definitions:
-- boarding = new lead, no engagement yet
-- taxiing = early engagement, initial conversations
-- in_flight = active deal in progress
-- landed = recently closed a deal
-- cruising = long-term past client relationship
+CRM pipeline status definitions (4-stage model):
+- boarding  = active lead, not yet under contract
+- scheduled = future intent — plans to act later (target date or phrase captured)
+- in_flight = under contract / transaction in progress
+- cruising  = past client or long-term nurture relationship
 
 ## Client Record
 - Name: ${c.name}
@@ -299,7 +298,7 @@ Rules:
 - engagement_level rules (use today's date ${today} to judge recency):
   • "boarding" status clients are NEW LEADS — classify as "not yet engaged", never "going cold".
   • "in_flight" status means an active deal — classify as "highly active" or "responsive", never "going cold".
-  • "landed" status with a close_date within the last 60 days = "responsive" (recently closed).
+  • "cruising" status with a close_date within the last 60 days = "responsive" (recently closed).
   • Only use "going cold" when there is a meaningful lapse: last_contact_at or most recent close_date is 90+ days ago AND no recent activities.
   • Use "ghost" only when last_contact_at is 6+ months ago or the client is known to be unreachable.
 - Return ONLY the JSON object, no markdown, no explanation.`;

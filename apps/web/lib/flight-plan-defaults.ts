@@ -95,7 +95,7 @@ export const FLIGHT_PLAN_DEFAULTS: FlightPlanDefault[] = [
     system_key:     "post_closing_new_homeowner",
     name:           "Post-Closing — New Homeowner",
     description:    "Cements the relationship after closing and sets up long-term referral generation. The best agents stay present well after the keys are handed over.",
-    trigger_status: "landed",
+    trigger_status: "cruising",
     trigger_tag:    null,
     steps: [
       { step_order: 1,  delay_days: 1,   action_type: "text",  template: "Congrats again [Name]! 🎉 Keys are officially yours. So excited for you — reach out for ANYTHING this week, I'm here." },
@@ -312,7 +312,7 @@ export const FLIGHT_PLAN_DEFAULTS: FlightPlanDefault[] = [
     system_key:     "listing_appointment_nurture",
     name:           "Listing Appointment — Pre-Listing",
     description:    "Wins the listing from appointment to signed agreement. Sends social proof before the meeting, then closes with timely follow-up after.",
-    trigger_status: "taxiing",
+    trigger_status: "boarding",
     trigger_tag:    "Seller",
     steps: [
       { step_order: 1,  delay_days: 0,   action_type: "email", template: "Appointment confirmation — 'Looking forward to meeting at [Address]. Here's what we'll cover and how to prepare your home for the walkthrough.' Set expectations." },

@@ -23,8 +23,8 @@ import {
 // ── Types ──────────────────────────────────────────────────────────────
 
 export type UnifiedStage =
-  | "pre_qualifying" // listings=scheduled, buyers=taxiing, deals=lead
-  | "active"         // listings=active, buyers=approach, deals=showing
+  | "pre_qualifying" // listings=scheduled, buyers=boarding, deals=lead
+  | "active"         // listings=active, buyers=in_flight, deals=showing
   | "offer"          // deals=offer
   | "conditional"    // deals=conditional
   | "firm"           // deals=firm
@@ -109,7 +109,7 @@ export interface ClosedTransaction {
 export interface PipelineForecastInput {
   pipelineDeals: PipelineDeal[];
   listingAppointments: ListingAppointment[];
-  /** Only clients in taxiing/approach with buyer data (pre-filtered by caller) */
+  /** Only clients in boarding/in_flight with buyer data (pre-filtered by caller) */
   buyerClients: BuyerClient[];
   /** For accuracy: closed transactions with pipeline_deal_id */
   closedTransactions: ClosedTransaction[];
@@ -135,8 +135,8 @@ const LISTING_STATUS_TO_UNIFIED: Record<string, UnifiedStage> = {
 };
 
 const BUYER_STATUS_TO_UNIFIED: Record<string, UnifiedStage> = {
-  taxiing: "pre_qualifying",
-  approach: "active",
+  boarding:  "pre_qualifying",
+  in_flight: "active",
 };
 
 const LISTING_PROBABILITIES: Record<string, number> = {
@@ -145,8 +145,8 @@ const LISTING_PROBABILITIES: Record<string, number> = {
 };
 
 const BUYER_PROBABILITIES: Record<string, number> = {
-  taxiing: 0.10,
-  approach: 0.25,
+  boarding:  0.10,
+  in_flight: 0.25,
 };
 
 function daysBetween(from: string | null, to: Date): number | null {
@@ -442,7 +442,7 @@ function computeListingFunnel(listings: ListingAppointment[]): FunnelStep[] {
 }
 
 function computeBuyerFunnel(buyers: BuyerClient[]): FunnelStep[] {
-  const stages = ["taxiing", "approach", "in_flight"];
+  const stages = ["boarding", "in_flight"];
   const counts = new Map<string, number>();
   for (const s of stages) counts.set(s, 0);
   for (const buyer of buyers) {

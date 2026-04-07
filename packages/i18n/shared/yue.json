@@ -1,17 +1,13 @@
 {
   "flight_status": {
     "boarding": "登機",
-    "boarding_description": "啱啱加入CRM — 盡快搬去滑行",
-    "taxiing": "滑行",
-    "taxiing_description": "有互動同進展 — 準備行動",
-    "approach": "進場",
-    "approach_description": "積極睇樓或者準備出價",
+    "boarding_description": "早期活躍潛在客戶 — 啱啱接觸，正在了解選擇",
+    "scheduled": "已安排",
+    "scheduled_description": "有未來意向嘅客戶 — 有目標日期或者類似「過咗節之後」嘅講法",
     "in_flight": "飛行中",
-    "in_flight_description": "交易進行中 — 已出價、有條件、或已確認",
-    "landed": "降落",
-    "landed_description": "啱啱成交 — 30日收樓後跟進期",
+    "in_flight_description": "接近成交嘅活躍客戶 — 出價、睇樓、已確認",
     "cruising": "巡航",
-    "cruising_description": "交易後已穩定 — 季節性跟進"
+    "cruising_description": "長期跟進嘅舊客戶 — 包括啱啱成交"
   },
   "provinces": {
     "alberta": "亞伯達省",

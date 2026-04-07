@@ -667,20 +667,21 @@ export function generateSandboxData(
     const streetNum = randInt(rng, 10, 999);
     const emailName = `${cn.first.toLowerCase()}.${cn.last.toLowerCase().replace(/[^a-z]/g, "")}`;
 
-    // Determine status based on source
+    // Determine status based on source (4-stage model — migration 00102)
     let status: ClientStatus;
     if (cn.source === "tx") {
-      status = rng() < 0.7 ? "landed" : "cruising";
+      // Past transactions → always cruising (landed removed in 00102)
+      status = "cruising";
     } else if (cn.source === "pipeline") {
       const stageMap: Record<string, ClientStatus> = {
-        lead: "boarding", showing: "taxiing", offer: "approach",
-        conditional: "in_flight", firm: "in_flight", closed: "landed",
+        lead: "boarding", showing: "boarding", offer: "in_flight",
+        conditional: "in_flight", firm: "in_flight", closed: "cruising",
       };
       const dealStage = pipelineDeals.find(d => d.client_name === cn.full)?.stage ?? "lead";
       status = stageMap[dealStage] ?? "boarding";
     } else {
       // Extra clients — mix of statuses
-      const statusPool: ClientStatus[] = ["landed", "landed", "cruising", "cruising", "boarding", "taxiing"];
+      const statusPool: ClientStatus[] = ["cruising", "cruising", "cruising", "boarding", "boarding", "scheduled"];
       status = pick(rng, statusPool);
     }
 
@@ -690,11 +691,9 @@ export function generateSandboxData(
       : randInt(rng, 1, 36);
     const createdDate = new Date(now.getTime() - createdMonthsAgo * 30 * 86400000);
     const lastContactDaysAgo = status === "in_flight" ? randInt(rng, 0, 5)
-      : status === "approach" ? randInt(rng, 1, 10)
-      : status === "taxiing" ? randInt(rng, 3, 20)
-      : status === "boarding" ? randInt(rng, 5, 30)
-      : status === "cruising" ? randInt(rng, 10, 60)
-      : randInt(rng, 30, 180); // landed
+      : status === "boarding" ? randInt(rng, 3, 20)
+      : status === "scheduled" ? randInt(rng, 7, 45)
+      : randInt(rng, 10, 60); // cruising
 
     const lastContactDate = new Date(now.getTime() - lastContactDaysAgo * 86400000);
 
@@ -766,11 +765,9 @@ export function generateSandboxData(
     // Number of activities based on status
     const activityCount =
       client.status === "in_flight" ? randInt(rng, 8, 15) :
-      client.status === "approach" ? randInt(rng, 5, 10) :
-      client.status === "taxiing" ? randInt(rng, 3, 7) :
-      client.status === "boarding" ? randInt(rng, 1, 4) :
-      client.status === "cruising" ? randInt(rng, 3, 8) :
-      randInt(rng, 2, 6); // landed
+      client.status === "boarding" ? randInt(rng, 3, 8) :
+      client.status === "scheduled" ? randInt(rng, 1, 4) :
+      randInt(rng, 3, 8); // cruising
 
     for (let a = 0; a < activityCount; a++) {
       const type = pick(rng, ACTIVITY_TYPES);
@@ -811,7 +808,7 @@ export function generateSandboxData(
   const PRIORITIES: TaskPriority[] = ["low", "normal", "normal", "normal", "high"];
 
   const taskCount = randInt(rng, 6, 14);
-  const activeClients = clients.filter(c => ["boarding", "taxiing", "approach", "in_flight", "cruising"].includes(c.status));
+  const activeClients = clients.filter(c => ["boarding", "scheduled", "in_flight", "cruising"].includes(c.status));
   const contactTasks: ContactTask[] = [];
 
   for (let t = 0; t < taskCount; t++) {
@@ -839,7 +836,8 @@ export function generateSandboxData(
 
   // ── Generate Client Records (Historical Deals) ──────────────────────────
   const clientRecords: ClientRecord[] = [];
-  const landedClients = clients.filter(c => c.status === "landed");
+  // "Landed" removed in migration 00102 — tx-sourced clients are now cruising
+  const landedClients = clients.filter(c => c.status === "cruising");
   for (const hist of historyItems) {
     const recordsForYear = Math.min(hist.annual_tx, landedClients.length);
     for (let r = 0; r < recordsForYear; r++) {
@@ -896,7 +894,7 @@ export function generateSandboxData(
     },
     {
       id: "sandbox-fp-2", user_id: "sandbox", name: "Post-Close Follow-up",
-      description: "Nurture sequence after deal closes", trigger_status: "landed" as ClientStatus,
+      description: "Nurture sequence after deal closes", trigger_status: "cruising" as ClientStatus,
       trigger_tag: null, is_active: true, is_system: true, system_key: "post_close_followup",
       created_at: ts, updated_at: ts,
     },
@@ -924,7 +922,7 @@ export function generateSandboxData(
 
   // ── Generate Property Showings ──────────────────────────────────────────
   const propertyShowings: PropertyShowing[] = [];
-  const buyerClients = clients.filter(c => ["taxiing", "approach", "in_flight"].includes(c.status));
+  const buyerClients = clients.filter(c => ["boarding", "in_flight"].includes(c.status));
   const showingCount = Math.min(randInt(rng, 5, 15), buyerClients.length * 3);
 
   for (let s = 0; s < showingCount; s++) {

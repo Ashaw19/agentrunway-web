@@ -205,7 +205,7 @@ export function computeCrmDashboard(input: CrmDashboardInput): CrmDashboardResul
         )
       : null; // No prior period → null (UI displays "New" instead of misleading 0%)
 
-  // Overdue: clients with no activity in 30+ days (among non-landed/cruising)
+  // Overdue: clients with no activity in 30+ days (active stages only: boarding / in_flight)
   const lastActivityByClient = new Map<string, Date>();
   for (const a of activities) {
     const d = new Date(a.activity_date);
@@ -223,14 +223,24 @@ export function computeCrmDashboard(input: CrmDashboardInput): CrmDashboardResul
     }
   }
 
-  const activeStatuses: ClientStatus[] = ["boarding", "taxiing", "approach", "in_flight"];
+  const activeStatuses: ClientStatus[] = ["boarding", "in_flight"];
   const overdueClients: OverdueClient[] = [];
+
+  // Grace period: suppress imported clients from overdue alerts for 7 days
+  // from import date, and indefinitely if no activity has ever been logged.
+  // Without this, a fresh CSV import of 150+ clients floods the dashboard.
+  const IMPORT_GRACE_DAYS = 7;
 
   for (const client of clients) {
     if (!activeStatuses.includes(client.status)) continue;
 
     const lastDate = lastActivityByClient.get(client.id);
     const daysSince = lastDate ? daysBetween(now, lastDate) : 999;
+
+    const importedInGrace = !!client.imported_at &&
+      (now.getTime() - new Date(client.imported_at).getTime()) < IMPORT_GRACE_DAYS * 86_400_000;
+    const importedNoActivity = !!client.imported_at && daysSince === 999;
+    if (importedInGrace || importedNoActivity) continue;
 
     if (daysSince >= 30) {
       overdueClients.push({
@@ -379,8 +389,8 @@ export function computeSourceFunnel(
   // Build sets for contacted / active / closed per source
   const contactedSet = new Set(activities.map((a) => a.client_id));
 
-  const activeStatuses: ClientStatus[] = ["taxiing", "in_flight"];
-  const closedStatuses: ClientStatus[] = ["landed", "cruising"];
+  const activeStatuses: ClientStatus[] = ["boarding", "in_flight"];
+  const closedStatuses: ClientStatus[] = ["cruising"];
 
   // GCI by client
   const gciByClient = new Map<string, number>();
@@ -606,10 +616,10 @@ export function computeIntelligenceBriefing(
       }
     }
 
-    // ── 6. Past client check-in (landed / cruising, 180+ days no contact) ───────
+    // ── 6. Past client check-in (cruising, 180+ days no contact) ────────────────
     if (
       !importedSuppressed &&
-      (client.status === "landed" || client.status === "cruising") &&
+      client.status === "cruising" &&
       daysSince >= 180
     ) {
       items.push({
@@ -633,7 +643,7 @@ export function computeIntelligenceBriefing(
       client.timeframe &&
       client.timeframe !== "unknown" &&
       client.timeframe !== "12_plus" &&
-      (client.status === "boarding" || client.status === "taxiing")
+      (client.status === "boarding" || client.status === "scheduled")
     ) {
       const timeframeTotalDays: Record<string, number> = {
         asap: 14,
@@ -680,7 +690,7 @@ export function computeIntelligenceBriefing(
     if (
       !client.email &&
       !client.phone &&
-      ["boarding", "taxiing", "approach", "in_flight"].includes(client.status)
+      ["boarding", "scheduled", "in_flight"].includes(client.status)
     ) {
       items.push({
         id: `no_contact_${client.id}`,

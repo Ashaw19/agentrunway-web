@@ -1114,7 +1114,7 @@ export async function detectAndDraftForUser(
     if (
       facts.areas_of_interest &&
       facts.goal?.toLowerCase().includes("buy") &&
-      (client.status === "boarding" || client.status === "taxiing")
+      (client.status === "boarding" || client.status === "scheduled")
     ) {
       inserts.push({
         user_id:          userId,
@@ -2282,7 +2282,7 @@ export async function getTopOpportunities(
         trigger_date: triggerMonthKey, context: enrichContext({ pain_point: facts.pain_point }, "pain_point_inactive", facts, `Known concern + ${idleMonths}mo inactive`),
       });
     }
-    if (facts.areas_of_interest && facts.goal?.toLowerCase().includes("buy") && (client.status === "boarding" || client.status === "taxiing")) {
+    if (facts.areas_of_interest && facts.goal?.toLowerCase().includes("buy") && (client.status === "boarding" || client.status === "scheduled")) {
       inserts.push({
         user_id: userId, client_id: clientId, opportunity_type: "buyer_inventory_match",
         trigger_date: triggerMonthKey, context: enrichContext({ areas_of_interest: facts.areas_of_interest, budget: facts.budget_context }, "buyer_inventory_match", facts, "Active buyer with target areas"),
@@ -2355,7 +2355,7 @@ export async function getTopOpportunities(
 
   // Pipeline depth
   const activeClients = clients.filter((c) =>
-    c.status === "boarding" || c.status === "taxiing" || c.status === "approach" || c.status === "in_flight",
+    c.status === "boarding" || c.status === "in_flight",
   ).length;
   const pipelineLight = activeClients < 3;
 

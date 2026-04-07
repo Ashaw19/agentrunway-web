@@ -1,17 +1,13 @@
 {
   "flight_status": {
     "boarding": "Boarding",
-    "boarding_description": "刚添加到CRM — 尽快转到滑行",
-    "taxiing": "Taxiing",
-    "taxiing_description": "已参与并在推进 — 准备行动",
-    "approach": "Approach",
-    "approach_description": "正在积极看房或准备出价",
+    "boarding_description": "早期活跃潜在客户 — 刚接触，正在了解选择",
+    "scheduled": "已安排",
+    "scheduled_description": "有未来意向的客户 — 有目标日期或类似\"节后\"的说法",
     "in_flight": "In-Flight",
-    "in_flight_description": "交易中 — 已出价、有条件、或已确认",
-    "landed": "Landed",
-    "landed_description": "刚成交 — 30天交割后跟进期",
+    "in_flight_description": "接近成交的活跃客户 — 出价、看房、已确认",
     "cruising": "Cruising",
-    "cruising_description": "交易后已稳定 — 季节性跟进"
+    "cruising_description": "长期跟进的老客户 — 包括最近成交"
   },
   "provinces": {
     "alberta": "Alberta",

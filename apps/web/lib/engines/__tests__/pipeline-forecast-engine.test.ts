@@ -235,8 +235,8 @@ describe("computePipelineForecast — listing appointments only", () => {
 
 describe("computePipelineForecast — buyer clients only", () => {
   const buyers: BuyerClient[] = [
-    makeBuyer({ id: "buy-1", status: "taxiing", budget: 500_000, name: "Alice Buyer" }),
-    makeBuyer({ id: "buy-2", status: "approach", budget: 700_000, name: "Bob Buyer" }),
+    makeBuyer({ id: "buy-1", status: "boarding", budget: 500_000, name: "Alice Buyer" }),
+    makeBuyer({ id: "buy-2", status: "in_flight", budget: 700_000, name: "Bob Buyer" }),
   ];
 
   const result = computePipelineForecast(emptyInput({ buyerClients: buyers }));
@@ -247,26 +247,26 @@ describe("computePipelineForecast — buyer clients only", () => {
     expect(result.items.every((i) => i.side === "buy")).toBe(true);
   });
 
-  it("applies correct probabilities for taxiing and approach", () => {
-    const taxiing = result.items.find((i) => i.id === "buy-1")!;
-    expect(taxiing.probability).toBeCloseTo(0.10, 4);
-    expect(taxiing.unifiedStage).toBe("pre_qualifying");
+  it("applies correct probabilities for boarding and in_flight", () => {
+    const boarding = result.items.find((i) => i.id === "buy-1")!;
+    expect(boarding.probability).toBeCloseTo(0.10, 4);
+    expect(boarding.unifiedStage).toBe("pre_qualifying");
 
-    const approach = result.items.find((i) => i.id === "buy-2")!;
-    expect(approach.probability).toBeCloseTo(0.25, 4);
-    expect(approach.unifiedStage).toBe("active");
+    const inFlight = result.items.find((i) => i.id === "buy-2")!;
+    expect(inFlight.probability).toBeCloseTo(0.25, 4);
+    expect(inFlight.unifiedStage).toBe("active");
   });
 
   it("calculates GCI from budget * defaultCommissionPct", () => {
     // buy-1: 500000 * 0.025 = 12500 * 0.10 = 1250
-    const taxiing = result.items.find((i) => i.id === "buy-1")!;
-    expect(taxiing.estimatedGCI).toBeCloseTo(12_500, 2);
-    expect(taxiing.weightedGCI).toBeCloseTo(1_250, 2);
+    const boarding = result.items.find((i) => i.id === "buy-1")!;
+    expect(boarding.estimatedGCI).toBeCloseTo(12_500, 2);
+    expect(boarding.weightedGCI).toBeCloseTo(1_250, 2);
 
     // buy-2: 700000 * 0.025 = 17500 * 0.25 = 4375
-    const approach = result.items.find((i) => i.id === "buy-2")!;
-    expect(approach.estimatedGCI).toBeCloseTo(17_500, 2);
-    expect(approach.weightedGCI).toBeCloseTo(4_375, 2);
+    const inFlight = result.items.find((i) => i.id === "buy-2")!;
+    expect(inFlight.estimatedGCI).toBeCloseTo(17_500, 2);
+    expect(inFlight.weightedGCI).toBeCloseTo(4_375, 2);
   });
 
   it("sums buyer weighted GCI correctly", () => {
@@ -282,7 +282,7 @@ describe("computePipelineForecast — buyer clients only", () => {
 describe("computePipelineForecast — mixed input", () => {
   const deal = makeDeal({ id: "deal-m", stage: "offer", estimated_price: 500_000, estimated_commission_pct: 0.025 });
   const listing = makeListing({ id: "list-m", status: "active", estimated_list_price: 600_000, estimated_commission_pct: 0.025 });
-  const buyer = makeBuyer({ id: "buy-m", status: "approach", budget: 400_000 });
+  const buyer = makeBuyer({ id: "buy-m", status: "in_flight", budget: 400_000 });
 
   const result = computePipelineForecast(emptyInput({
     pipelineDeals: [deal],
@@ -518,17 +518,17 @@ describe("computePipelineForecast — filters", () => {
     expect(result.items[0].id).toBe("active-listing");
   });
 
-  it("only includes taxiing and approach buyers as items", () => {
+  it("only includes boarding and in_flight buyers as items", () => {
     // The engine expects pre-filtered buyers, but let's verify only
-    // taxiing/approach get proper probabilities
+    // boarding/in_flight get proper probabilities
     const buyers: BuyerClient[] = [
-      makeBuyer({ id: "b-taxiing", status: "taxiing", budget: 500_000 }),
-      makeBuyer({ id: "b-approach", status: "approach", budget: 500_000 }),
+      makeBuyer({ id: "b-boarding",  status: "boarding",  budget: 500_000 }),
+      makeBuyer({ id: "b-in-flight", status: "in_flight", budget: 500_000 }),
     ];
     const result = computePipelineForecast(emptyInput({ buyerClients: buyers }));
     expect(result.items).toHaveLength(2);
     const statuses = result.items.map((i) => i.stage).sort();
-    expect(statuses).toEqual(["approach", "taxiing"]);
+    expect(statuses).toEqual(["boarding", "in_flight"]);
   });
 });
 

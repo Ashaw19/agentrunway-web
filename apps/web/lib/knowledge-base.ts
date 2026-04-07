@@ -187,7 +187,7 @@ Portfolio Health: Concentrated (top 1 >40% or top 3 >70%), Balanced (top 3 50–
 Lead (10%), Showing (20%), Offer (40%), Conditional (60%), Firm (90%).
 Users can override the default probability on any individual deal. Override replaces stage probability in all calculations.
 
-Additional sub-stages tracked: Listings — scheduled (15%), active (40%). Buyers — taxiing (10%), approach (25%).
+Additional sub-stages tracked: Listings — scheduled (15%), active (40%). Buyers — boarding (10%), in_flight (25%).
 
 ---
 

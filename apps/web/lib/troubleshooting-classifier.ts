@@ -234,7 +234,7 @@ const TOPIC_RULES: TopicRule[] = [
   },
   {
     topic: "crm",
-    primary: ["client", "crm", "contact", "boarding", "taxiing", "approach", "in-flight", "landed", "cruising"],
+    primary: ["client", "crm", "contact", "boarding", "scheduled", "in-flight", "cruising"],
     secondary: ["lead", "relationship", "birthday", "tag", "activity", "phone", "email", "note"],
     phrases: [
       "add client",

@@ -586,10 +586,8 @@ const SIDE_STYLES: Record<string, { label: string; cls: string }> = {
 
 const STATUS_HEADER_GRADIENT: Record<ClientStatus, string> = {
   boarding:  "from-sky-500 to-sky-600",
-  taxiing:   "from-amber-500 to-orange-500",
-  approach:  "from-orange-500 to-amber-600",
-  in_flight: "from-emerald-500 to-teal-600",
-  landed:    "from-violet-500 to-purple-600",
+  scheduled: "from-slate-500 to-slate-600",
+  in_flight: "from-violet-500 to-purple-600",
   cruising:  "from-rose-400 to-pink-500",
 };
 
@@ -1310,20 +1308,10 @@ export function ClientsContent({
     return gci > 0 ? calcRewardBudget(gci, rewardGenerosity) : undefined;
   }, [clientDeals, rewardGenerosity]);
 
-  // Auto-transition countdown: days until Landed -> Cruising (30 days after last close)
-  const landedTransitionDays = useMemo(() => {
-    if (!selectedClient || selectedClient.status !== "landed") return null;
-    const closeDates = clientDeals
-      .map((d) => d.close_date)
-      .filter(Boolean)
-      .sort()
-      .reverse();
-    const lastClose = closeDates[0];
-    if (!lastClose) return null;
-    const daysSince = Math.floor((Date.now() - new Date(lastClose + "T00:00:00").getTime()) / 86400000);
-    const daysLeft = 30 - daysSince;
-    return daysSince > 20 && daysLeft > 0 ? daysLeft : null;
-  }, [selectedClient, clientDeals]);
+  // Landed celebration removed in migration 00102 — clients transition straight
+  // to Cruising on close. This value is retained as `null` to avoid touching
+  // every downstream render site; the UI banner simply never shows.
+  const landedTransitionDays = useMemo(() => null as number | null, []);
 
   // Showings for the selected client
   const selectedClientShowings = useMemo(
@@ -2751,19 +2739,7 @@ export function ClientsContent({
                                       <span className={cn("h-1.5 w-1.5 rounded-full", sc.dot)} />
                                       {CLIENT_STATUS_LABELS[client.status]}
                                     </span>
-                                    {/* Auto-transition countdown for Landed clients approaching 30-day mark */}
-                                    {client.status === "landed" && group.lastDeal && (() => {
-                                      const daysSinceClose = Math.floor((Date.now() - new Date(group.lastDeal + "T00:00:00").getTime()) / 86400000);
-                                      const daysLeft = 30 - daysSinceClose;
-                                      if (daysSinceClose > 20 && daysLeft > 0) {
-                                        return (
-                                          <span className="text-[9px] text-amber-600 dark:text-amber-400 whitespace-nowrap pl-0.5">
-                                            Cruising in {daysLeft}d
-                                          </span>
-                                        );
-                                      }
-                                      return null;
-                                    })()}
+                                    {/* Landed→Cruising countdown removed in migration 00102 */}
                                   </div>
                                 )}
                               </TableCell>
@@ -5323,7 +5299,7 @@ function MetricPill({
 
 // ── Flight Status Strip ──────────────────────────────────────────────────────
 
-const FLIGHT_STAGES: ClientStatus[] = ["boarding", "taxiing", "approach", "in_flight", "landed", "cruising"];
+const FLIGHT_STAGES: ClientStatus[] = ["boarding", "scheduled", "in_flight", "cruising"];
 
 function FlightStatusStrip({ current }: { current: ClientStatus }) {
   const currentIdx = FLIGHT_STAGES.indexOf(current);

@@ -28,7 +28,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-const CLIENT_STATUSES = ["boarding", "taxiing", "approach", "in_flight", "landed", "cruising"] as const;
+const CLIENT_STATUSES = ["boarding", "scheduled", "in_flight", "cruising"] as const;
 const ACTIVITY_TYPES = ["call", "email", "text", "showing", "meeting", "offer", "note"] as const;
 const PIPELINE_STAGES = ["lead", "showing", "offer", "conditional", "firm", "closed"] as const;
 const EXPENSE_CATEGORY_KEYS = ["vehicle", "marketing", "office_tech", "professional_fees", "travel_meals", "insurance_licenses", "education_dev", "other"] as const;
@@ -144,7 +144,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string) {
 
     // ── UPDATE CLIENT STATUS (FLIGHT STATUS) ─────────────────────────────────
     updateClientStatus: tool({
-      description: "Update a client's flight status. Valid statuses: boarding (new lead), taxiing (actively working with), approach (offer/close imminent), in_flight (transaction in progress), landed (recently closed), cruising (past client, nurture relationship).",
+      description: "Update a client's flight status. Valid statuses: boarding (active lead, not yet under contract), scheduled (future intent — plans to act later), in_flight (under contract / transaction in progress), cruising (past client or long-term nurture).",
       parameters: z.object({
         clientId: z.string().uuid().describe("The client UUID from searchClients"),
         clientName: z.string().describe("Client name for confirmation message"),
@@ -161,12 +161,10 @@ export function createAgentTools(supabase: SupabaseClient, userId: string) {
           if (error) return `Failed to update status: ${error.message}`;
 
           const statusLabels: Record<string, string> = {
-            boarding: "Boarding (new lead)",
-            taxiing: "Taxiing (actively working)",
-            approach: "Approach (offer/close imminent)",
-            in_flight: "In-Flight (transaction in progress)",
-            landed: "Landed (recently closed)",
-            cruising: "Cruising (past client, nurture)",
+            boarding: "Boarding (active lead)",
+            scheduled: "Scheduled (future intent)",
+            in_flight: "In-Flight (under contract)",
+            cruising: "Cruising (past client / nurture)",
           };
 
           return `✓ ${clientName}'s status updated to ${statusLabels[status] ?? status}.`;

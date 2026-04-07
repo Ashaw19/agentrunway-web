@@ -807,7 +807,7 @@ export const useDataStore = create<DataStore>((set, get) => {
       const items: BriefingItem[] = [];
       const now = Date.now();
       const DAY = 86400000;
-      const activeStatuses = new Set(["boarding", "taxiing", "approach", "in_flight"]);
+      const activeStatuses = new Set(["boarding", "scheduled", "in_flight"]);
 
       // 1. Uncontacted leads — never contacted (urgent)
       const uncontacted = state.clients.filter(
@@ -962,8 +962,7 @@ export const useDataStore = create<DataStore>((set, get) => {
       const DAY = 86400000;
       const activeStatuses = new Set([
         "boarding",
-        "taxiing",
-        "approach",
+        "scheduled",
         "in_flight",
       ]);
 
@@ -992,8 +991,7 @@ export const useDataStore = create<DataStore>((set, get) => {
       const DAY = 86400000;
       const activeStatuses = new Set([
         "boarding",
-        "taxiing",
-        "approach",
+        "scheduled",
         "in_flight",
       ]);
       return state.clients

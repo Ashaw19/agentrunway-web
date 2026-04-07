@@ -566,8 +566,12 @@ export type LeadSource =
   | "Cold Call"
   | "Other";
 
-// ── Client Flight Status (aviation-themed pipeline stages, migration 00027) ──
-export type ClientStatus = "boarding" | "taxiing" | "approach" | "in_flight" | "landed" | "cruising";
+// ── Client Flight Status (aviation-themed pipeline stages, migration 00102) ──
+// Collapsed from 6 stages to 4 in migration 00102.
+// taxiing/approach/landed removed — "landed" is now a celebration moment, not a
+// status (post-close → cruising immediately). "scheduled" added for future-intent
+// clients with a target date or vague phrase like "after the holidays".
+export type ClientStatus = "boarding" | "scheduled" | "in_flight" | "cruising";
 
 // ── Client Archive Reason (migration 00037) ───────────────────────────────────
 export type ArchiveReason = "deceased" | "moved_away" | "do_not_contact" | "other";
@@ -750,37 +754,32 @@ export interface BuyerDNA {
 
 export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
   boarding:  "Boarding",
-  taxiing:   "Taxiing",
-  approach:  "Approach",
+  scheduled: "Scheduled",
   in_flight: "In-Flight",
-  landed:    "Landed",
   cruising:  "Cruising",
 };
 
 export const CLIENT_STATUS_DESCRIPTIONS: Record<ClientStatus, string> = {
-  boarding:  "Just added to CRM — move to Taxiing ASAP",
-  taxiing:   "Engaged and warming up — gearing up to act",
-  approach:  "Actively viewing homes or preparing to offer",
-  in_flight: "In a transaction — offer made, conditional, or firm",
-  landed:    "Just closed — 30-day post-close window",
-  cruising:  "Post-transaction, settled — seasonal check-ins",
+  boarding:  "New or active lead — not yet under contract",
+  scheduled: "Plans to act later — target date or phrase captured",
+  in_flight: "Under contract — offer made, conditional, or firm",
+  cruising:  "Past client / long-term nurture — seasonal check-ins",
 };
 
 // ── Flight status colour arc ───────────────────────────────────────────────
-// Stages progress: boarding → taxiing → approach → in_flight → landed → cruising
-// Colour logic:   sky → slate → indigo → violet → emerald → blue
+// Stages (4-stage model, migration 00102):
+//   boarding → scheduled → in_flight → cruising
+// Colour logic:
+//   sky (active prospect) → slate (parked/future) → violet (under contract) → blue (settled)
 //
 // Constraints (from colour system rules):
 //   • Amber is globally reserved for WARNING signals — never used for lifecycle stages
 //   • Orange is globally reserved for URGENCY/CRITICAL alerts — never used for stages
-//   • Indigo signals high-intent pre-close urgency without the danger connotation of orange
-//   • Emerald signals success (deal closed) — correct semantic for landed
+//   • Violet signals "in the air" — mid-transaction commitment
 export const CLIENT_STATUS_COLORS: Record<ClientStatus, { bg: string; text: string; border: string; dot: string }> = {
   boarding:  { bg: "bg-sky-50",    text: "text-sky-700",    border: "border-sky-200",    dot: "bg-sky-400"    },
-  taxiing:   { bg: "bg-slate-100", text: "text-slate-600",  border: "border-slate-200",  dot: "bg-slate-400"  },
-  approach:  { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-200", dot: "bg-indigo-500" },
+  scheduled: { bg: "bg-slate-100", text: "text-slate-600",  border: "border-slate-200",  dot: "bg-slate-400"  },
   in_flight: { bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-200", dot: "bg-violet-400" },
-  landed:    { bg: "bg-emerald-50",text: "text-emerald-700",border: "border-emerald-200",dot: "bg-emerald-400"},
   cruising:  { bg: "bg-blue-50",   text: "text-blue-700",   border: "border-blue-200",   dot: "bg-blue-400"   },
 };
 
@@ -983,6 +982,10 @@ export interface Client {
 
   // CSV import tracking (migration 00054)
   imported_at: string | null;  // set when created via bulk CSV import; null = manually added
+
+  // Scheduled stage (migration 00102)
+  scheduled_for:    string | null;  // ISO date — future date client plans to act
+  scheduled_phrase: string | null;  // vague phrase ("after the holidays", "next spring")
 
   created_at: string;
   updated_at: string;

@@ -257,9 +257,12 @@ export const STAGE_COLORS: Record<string, string> = {
 
 // ── Client Flight Status Colors ───────────────────────────────────────────────
 
+// boarding=sky, scheduled=slate, in_flight=violet, cruising=blue
 export const STATUS_COLORS: Record<string, string> = {
-  boarding: "#3B82F6", taxiing: "#8B5CF6", approach: "#F59E0B",
-  in_flight: "#10B981", landed: "#6B7280", cruising: "#06B6D4",
+  boarding: "#0EA5E9",
+  scheduled: "#64748B",
+  in_flight: "#8B5CF6",
+  cruising: "#3B82F6",
 };
 
 

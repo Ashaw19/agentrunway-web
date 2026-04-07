@@ -197,11 +197,11 @@ export function PipelineTab({
   const inMotionCount = inFlight.length + activeListings.length;
 
   // ── Section 2: On Deck ────────────────────────────────────────────────────
-  // Approach clients + pre-approved/budget-set taxiing clients contacted within 30d
+  // Pre-approved / budget-set boarding clients contacted within 30 days —
+  // these are the prospects most likely to write an offer next.
   const onDeck = useMemo(() => {
-    const approach = active.filter((c) => c.status === "approach");
-    const warmTaxiing = active.filter((c) => {
-      if (c.status !== "taxiing") return false;
+    return active.filter((c) => {
+      if (c.status !== "boarding") return false;
       const hasBudget =
         c.buyer_pre_approved ||
         c.buyer_pre_approval_amount != null ||
@@ -209,7 +209,6 @@ export function PipelineTab({
       const age = contactAge(c);
       return hasBudget && (age === null || age <= 30);
     });
-    return [...approach, ...warmTaxiing];
   }, [active]);
 
   // ── Section 3: Check In ───────────────────────────────────────────────────
@@ -217,7 +216,7 @@ export function PipelineTab({
   const checkIn = useMemo(
     () =>
       active.filter((c) => {
-        if (!["boarding", "taxiing", "approach", "in_flight"].includes(c.status)) return false;
+        if (!["boarding", "scheduled", "in_flight"].includes(c.status)) return false;
         // Exclude in_flight (already in Section 1) and on-deck clients (Section 2)
         if (c.status === "in_flight") return false;
         if (onDeck.some((d) => d.id === c.id)) return false;
@@ -304,7 +303,7 @@ export function PipelineTab({
             label="On Deck"
             count={onDeck.length}
             color="bg-violet-500"
-            description="Approach stage or pre-approved buyers with recent momentum — who writes an offer next?"
+            description="Pre-approved buyers with recent momentum — who writes an offer next?"
           />
           <div className="space-y-2">
             {onDeck.map((c) => {
@@ -323,7 +322,7 @@ export function PipelineTab({
                   client={c}
                   detail={parts.join(" · ") || undefined}
                   age={contactAge(c)}
-                  action={c.status === "approach" ? "Review latest showings. Offer readiness?" : "Check in — are they ready to start viewing?"}
+                  action="Review readiness — are they close to writing an offer?"
                 />
               );
             })}

@@ -1,17 +1,13 @@
 {
   "flight_status": {
     "boarding": "Boarding",
-    "boarding_description": "تمت الإضافة للتو إلى CRM — انقله إلى التاكسي فوراً",
-    "taxiing": "Taxiing",
-    "taxiing_description": "متفاعل ويتقدم — يستعد للتصرف",
-    "approach": "Approach",
-    "approach_description": "يشاهد المنازل بنشاط أو يستعد لتقديم عرض",
+    "boarding_description": "عملاء محتملون نشطون في مرحلة مبكرة — تفاعلوا للتو ويستكشفون الخيارات",
+    "scheduled": "مجدول",
+    "scheduled_description": "عملاء بنية مستقبلية — تاريخ محدد أو عبارة مثل \"بعد العطلات\"",
     "in_flight": "In-Flight",
-    "in_flight_description": "في صفقة — عرض مقدم، مشروط، أو ثابت",
-    "landed": "Landed",
-    "landed_description": "أُغلقت للتو — فترة 30 يوماً بعد الإغلاق",
+    "in_flight_description": "عملاء نشطون قريبون من الإغلاق — عروض، معاينات، صفقات مؤكدة",
     "cruising": "Cruising",
-    "cruising_description": "بعد الصفقة، مستقر — متابعات موسمية"
+    "cruising_description": "عملاء سابقون في متابعة طويلة الأمد — يشمل الصفقات المغلقة حديثاً"
   },
   "provinces": {
     "alberta": "Alberta",

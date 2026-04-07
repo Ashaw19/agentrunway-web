@@ -239,7 +239,7 @@ When a deal closes: Pipeline deal → Closed transaction
 ### Listing & Buyer Sub-Stages (pipeline-forecast-engine.ts)
 
 Listings: scheduled (15%), active (40%)
-Buyers: taxiing (10%), approach (25%)
+Buyers: boarding (10%), in_flight (25%)
 These are unified into the 5 main pipeline stages for the Transactions page.
 
 ### Forecast Accuracy Tracking (pipeline-forecast-engine.ts)
@@ -255,7 +255,7 @@ The pipeline tracks how accurate past price estimates were once deals close:
 Shows stage-by-stage conversion rates for each pipeline source:
 - **Deal funnel**: lead → showing → offer → conditional → firm → closed
 - **Listing funnel**: scheduled → active → sold
-- **Buyer funnel**: taxiing → approach → in_flight
+- **Buyer funnel**: boarding → in_flight
 Conversion rate = count at stage N ÷ count at stage N−1. Null for the first stage (no prior stage to compare).
 
 ### Common Problems & Diagnostics

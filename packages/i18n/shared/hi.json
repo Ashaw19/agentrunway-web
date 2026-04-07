@@ -1,17 +1,13 @@
 {
   "flight_status": {
     "boarding": "Boarding",
-    "boarding_description": "अभी CRM में जोड़ा गया — जल्द से जल्द टैक्सीइंग में ले जाएं",
-    "taxiing": "Taxiing",
-    "taxiing_description": "जुड़ा हुआ और आगे बढ़ रहा — कार्रवाई की तैयारी",
-    "approach": "Approach",
-    "approach_description": "सक्रिय रूप से घर देख रहा है या ऑफ़र की तैयारी कर रहा है",
+    "boarding_description": "प्रारंभिक चरण के सक्रिय संभावित ग्राहक — अभी जुड़े, विकल्प देख रहे हैं",
+    "scheduled": "अनुसूचित",
+    "scheduled_description": "भविष्य की मंशा वाले ग्राहक — लक्षित तिथि या \"छुट्टियों के बाद\" जैसा वाक्यांश",
     "in_flight": "In-Flight",
-    "in_flight_description": "लेन-देन में — ऑफ़र दिया, शर्तसापेक्ष, या पक्का",
-    "landed": "Landed",
-    "landed_description": "अभी बंद हुआ — 30 दिन का पोस्ट-क्लोज़ विंडो",
+    "in_flight_description": "सक्रिय ग्राहक जो सौदे के करीब हैं — ऑफ़र, शोइंग, पक्का",
     "cruising": "Cruising",
-    "cruising_description": "लेन-देन के बाद, स्थिर — मौसमी फ़ॉलो-अप"
+    "cruising_description": "दीर्घकालिक फ़ॉलो-अप में पुराने ग्राहक — हाल ही में बंद सौदे शामिल"
   },
   "provinces": {
     "alberta": "Alberta",

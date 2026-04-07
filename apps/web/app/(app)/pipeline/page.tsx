@@ -29,7 +29,7 @@ function buildSandboxSeed(sb: ReturnType<typeof getSandboxData>): PipelineSeedDa
   const buyerClients: BuyerClient[] = (sb.clients ?? [])
     .filter(
       (c) =>
-        (c.status === "taxiing" || c.status === "approach") &&
+        (c.status === "boarding" || c.status === "in_flight") &&
         ((c.buyer_pre_approval_amount ?? 0) > 0 || (c.property_interest ?? 0) > 0),
     )
     .map((c) => ({
@@ -134,9 +134,9 @@ function buildFallbackSandboxSeed(): PipelineSeedData {
       },
     ],
     buyerClients: [
-      { id: "sb-buyer-1", name: "James Miller", status: "taxiing", budget: 550000, preApproved: true, targetCloseDate: "2026-07-01", statusChangedAt: now },
-      { id: "sb-buyer-2", name: "Emily Davis", status: "approach", budget: 425000, preApproved: true, targetCloseDate: "2026-05-15", statusChangedAt: now },
-      { id: "sb-buyer-3", name: "Robert Kim", status: "taxiing", budget: 780000, preApproved: false, targetCloseDate: null, statusChangedAt: now },
+      { id: "sb-buyer-1", name: "James Miller", status: "boarding",  budget: 550000, preApproved: true,  targetCloseDate: "2026-07-01", statusChangedAt: now },
+      { id: "sb-buyer-2", name: "Emily Davis",  status: "in_flight", budget: 425000, preApproved: true,  targetCloseDate: "2026-05-15", statusChangedAt: now },
+      { id: "sb-buyer-3", name: "Robert Kim",   status: "boarding",  budget: 780000, preApproved: false, targetCloseDate: null,         statusChangedAt: now },
     ],
     closedTransactions: [
       { id: "sb-ctx-1", salePrice: 640000, pipelineDealId: null },
@@ -203,7 +203,7 @@ export default async function PipelinePage() {
         .from("clients")
         .select("*")
         .eq("user_id", user.id)
-        .in("status", ["taxiing", "approach"])
+        .in("status", ["boarding", "in_flight"])
         .limit(10000),
       supabase
         .from("transactions")

@@ -524,7 +524,7 @@ function diagCRM(
   const now = Date.now();
   const day14 = 14 * 24 * 60 * 60 * 1000;
   const day30 = 30 * 24 * 60 * 60 * 1000;
-  const activeStatuses = ["boarding", "taxiing", "approach", "in_flight"];
+  const activeStatuses = ["boarding", "in_flight"];
 
   for (const c of clients) {
     statusCounts[c.status] = (statusCounts[c.status] ?? 0) + 1;
@@ -554,7 +554,7 @@ Never Contacted: ${clients.filter((c) => !c.last_contact_at && activeStatuses.in
 function diagFlightControl(
   clients: { id: string; status: string; last_contact_at: string | null; created_at: string }[],
 ): string {
-  const activeStatuses = ["boarding", "taxiing", "approach", "in_flight"];
+  const activeStatuses = ["boarding", "in_flight"];
   const activeClients = clients.filter((c) => activeStatuses.includes(c.status));
   const now = Date.now();
   const day14 = 14 * 24 * 60 * 60 * 1000;
