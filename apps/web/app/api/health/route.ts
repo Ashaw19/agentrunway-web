@@ -30,10 +30,11 @@ export async function GET() {
   try {
     const admin = createAdminClient();
 
-    // Single lightweight query with a 5-second abort to stay well within
-    // Vercel Hobby's 10-second function timeout.
+    // Single lightweight query with an 8-second abort to stay well within
+    // Vercel's 10-second function timeout while absorbing transient Supabase
+    // connection spikes that previously caused false-positive 503 alerts.
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
+    const timer = setTimeout(() => controller.abort(), 8000);
 
     const { error: pingError } = await admin
       .from("user_settings")
