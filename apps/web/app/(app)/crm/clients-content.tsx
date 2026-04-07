@@ -1429,11 +1429,19 @@ export function ClientsContent({
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Capture the prior status from local state — the DB trigger added in
-      // migration 00105 may auto-promote cruising/scheduled → boarding when a
-      // real touchpoint (non-note, recent) is logged.
-      const priorClient = localClients.find((c) => c.id === clientId);
-      const priorStatus = priorClient?.status;
+      // Read the client's current status from the DB *before* the insert so
+      // we can detect Phase 3 auto-promotion (migration 00105's trigger may
+      // flip cruising/scheduled → boarding). Reading from the DB (not local
+      // state) keeps this useCallback dep-free and consistent with the AI
+      // tool + mobile API paths.
+      const { data: beforeRow } = await supabase
+        .from("clients")
+        .select("name, status")
+        .eq("id", clientId)
+        .eq("user_id", user.id)
+        .single();
+      const priorStatus = beforeRow?.status as string | undefined;
+      const priorName = (beforeRow?.name as string | undefined) ?? "Client";
 
       const { data, error } = await supabase
         .from("contact_activities")
@@ -1459,13 +1467,15 @@ export function ClientsContent({
         );
         markMemoryStaleClient(clientId);
 
-        // Re-read status to detect Phase 3 auto-promotion. We do this AFTER the
-        // insert returns so the AFTER-INSERT trigger has already run.
+        // Detect auto-promotion. Only re-fetch when prior status was one the
+        // trigger could have flipped — skips the round trip for the common
+        // boarding/in_flight cases.
         if (priorStatus === "cruising" || priorStatus === "scheduled") {
           const { data: updated } = await supabase
             .from("clients")
             .select("status")
             .eq("id", clientId)
+            .eq("user_id", user.id)
             .single();
           const newStatus = updated?.status as string | undefined;
           if (newStatus && newStatus !== priorStatus) {
@@ -1476,8 +1486,7 @@ export function ClientsContent({
                   : c
               )
             );
-            const clientName = priorClient?.name ?? "Client";
-            toast.success(`${clientName} auto-promoted to Boarding`, {
+            toast.success(`${priorName} auto-promoted to Boarding`, {
               description: "A real touchpoint was logged, so this client moved out of Cruising.",
             });
           }
@@ -1486,7 +1495,7 @@ export function ClientsContent({
         toast.error("Failed to log activity");
       }
     },
-    [localClients, sandbox.sandboxMode],
+    [],
   );
 
   const addTask = useCallback(
