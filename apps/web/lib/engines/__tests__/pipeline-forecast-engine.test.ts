@@ -537,7 +537,7 @@ describe("computePipelineForecast — filters", () => {
 describe("computePreTransactionalWeightedGCI", () => {
   it("returns listingWeightedGCI + buyerWeightedGCI", () => {
     const listing = makeListing({ id: "list-pt", status: "active", estimated_list_price: 600_000, estimated_commission_pct: 0.025 });
-    const buyer = makeBuyer({ id: "buy-pt", status: "approach", budget: 400_000 });
+    const buyer = makeBuyer({ id: "buy-pt", status: "in_flight", budget: 400_000 });
     const deal = makeDeal({ id: "deal-pt", stage: "offer", estimated_price: 500_000 });
 
     const result = computePipelineForecast(emptyInput({

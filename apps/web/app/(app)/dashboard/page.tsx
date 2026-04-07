@@ -51,7 +51,7 @@ export default async function DashboardPage({
       : [];
 
     // CRM summary from sandbox data
-    const activeStatuses = new Set(["boarding", "taxiing", "approach", "in_flight"]);
+    const activeStatuses = new Set(["boarding", "in_flight"]);
     const sandboxActiveClients = sb.clients.filter(c => activeStatuses.has(c.status));
     const fourteenDaysAgo = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10);
     const recentlyContactedIds = new Set(
@@ -173,7 +173,7 @@ export default async function DashboardPage({
         .from("clients")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
-        .in("status", ["boarding", "taxiing", "approach", "in_flight"]),
+        .in("status", ["boarding", "in_flight"]),
       supabase
         .from("contact_activities")
         .select("client_id")
