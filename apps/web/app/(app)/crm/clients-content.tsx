@@ -1037,7 +1037,15 @@ export function ClientsContent({
   const [mapPostal, setMapPostal] = useState("__none__");
   const [mapCountry, setMapCountry] = useState("__none__");
   const [mapPhoneType, setMapPhoneType] = useState("__none__");
-  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; enriched: number; errors: string[] } | null>(null);
+  const [importResult, setImportResult] = useState<{
+    imported: number;
+    skipped: number;
+    enriched: number;
+    errors: string[];
+    matchedClosedDeal: number;   // imported and matched to a closed transaction → stayed Cruising
+    matchedActiveDeal: number;   // imported and matched to an active pipeline deal → promoted to Boarding
+    defaultCruising: number;     // imported with no match → Cruising
+  } | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importProgress, setImportProgress] = useState<{ current: number; total: number; phase: string } | null>(null);
   const [importAsNewLeads, setImportAsNewLeads] = useState(false);
@@ -2226,8 +2234,44 @@ export function ClientsContent({
     let imported = 0;
     let skipped = 0;
     let enriched = 0;
+    let matchedClosedDeal = 0;
+    let matchedActiveDeal = 0;
+    let defaultCruising = 0;
     const errorMessages: string[] = [];
     const newClients: Client[] = [];
+
+    // ── Pre-fetch transactions and active pipeline deals for auto-promotion ─
+    // Rule: imported client matched to an OPEN pipeline deal → Boarding.
+    //       Otherwise (including matched-to-closed-transaction) → Cruising.
+    // Closed-deal matches are tracked for the celebration screen but stay
+    // Cruising because the deal is already done.
+    setImportProgress({ current: 0, total: csvRows.length, phase: "Looking up matches..." });
+
+    const closedDealNameSet = new Set<string>();
+    const activeDealNameSet = new Set<string>();
+
+    try {
+      const [txRes, plRes] = await Promise.all([
+        supabase
+          .from("transactions")
+          .select("client_name")
+          .eq("user_id", user.id),
+        supabase
+          .from("pipeline_deals")
+          .select("client_name, stage")
+          .eq("user_id", user.id)
+          .neq("stage", "closed"),
+      ]);
+      for (const t of (txRes.data ?? []) as { client_name: string | null }[]) {
+        if (t.client_name) closedDealNameSet.add(t.client_name.trim().toLowerCase());
+      }
+      for (const p of (plRes.data ?? []) as { client_name: string | null }[]) {
+        if (p.client_name) activeDealNameSet.add(p.client_name.trim().toLowerCase());
+      }
+    } catch (lookupErr) {
+      console.error("[CSV Import] match lookup failed:", lookupErr);
+      // Non-fatal — fall through with empty match sets, everything defaults to Cruising
+    }
 
     // Pass 1: separate rows into enrichments (existing clients) and inserts (new)
     type EnrichItem = { existingId: string; updates: Record<string, unknown> };
@@ -2280,6 +2324,27 @@ export function ClientsContent({
       } else {
         // Track within-CSV duplicates so they don't get inserted twice
         existingSearchNames.add(nameSearch);
+
+        // ── Auto-promotion rules (deterministic, explainable) ──────────────
+        // 1. If matched to an OPEN pipeline deal → Boarding (active work)
+        // 2. If matched to a closed transaction  → Cruising (deal done)
+        // 3. Otherwise                           → Cruising (sphere/contact)
+        // The legacy `importAsNewLeads` toggle is honored as an override:
+        // when explicitly checked, every imported row goes Boarding.
+        let assignedStatus: "boarding" | "cruising";
+        if (importAsNewLeads) {
+          assignedStatus = "boarding";
+        } else if (activeDealNameSet.has(nameSearch)) {
+          assignedStatus = "boarding";
+          matchedActiveDeal++;
+        } else if (closedDealNameSet.has(nameSearch)) {
+          assignedStatus = "cruising";
+          matchedClosedDeal++;
+        } else {
+          assignedStatus = "cruising";
+          defaultCruising++;
+        }
+
         toInsert.push({
           user_id: user.id,
           name: rawName,
@@ -2295,9 +2360,7 @@ export function ClientsContent({
           country:        mapCountry   !== "__none__" ? (row[mapCountry]   ?? "").trim() || "Canada" : "Canada",
           phone_type:     mapPhoneType !== "__none__" ? normalizePhoneType(row[mapPhoneType] ?? "") : "mobile",
           imported_at:    new Date().toISOString(),
-          // Default to "cruising" (past client / sphere) so contact-recency alerts
-          // don't fire. Only set "boarding" if the user explicitly marks these as new leads.
-          status:         importAsNewLeads ? "boarding" : "cruising",
+          status:         assignedStatus,
         });
       }
     }
@@ -2356,7 +2419,15 @@ export function ClientsContent({
     }
 
     setLocalClients((prev) => [...prev, ...newClients]);
-    setImportResult({ imported, skipped, enriched, errors: errorMessages });
+    setImportResult({
+      imported,
+      skipped,
+      enriched,
+      errors: errorMessages,
+      matchedClosedDeal,
+      matchedActiveDeal,
+      defaultCruising,
+    });
     setImportStep("done");
     setImportLoading(false);
     setImportProgress(null);
@@ -4970,57 +5041,135 @@ export function ClientsContent({
             </div>
           )}
 
-          {/* Step 4: Done */}
+          {/* Step 4: Celebration screen */}
           {importStep === "done" && importResult && (
-            <div className="space-y-4">
-              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 space-y-1">
-                <p className="text-sm font-semibold text-emerald-800">
-                  Import complete
-                </p>
-                <p className="text-sm text-emerald-700">
-                  {importResult.imported} contact{importResult.imported !== 1 ? "s" : ""} imported
-                  {importResult.enriched > 0
-                    ? `, ${importResult.enriched} enriched`
-                    : ""}
-                  {importResult.skipped > 0
-                    ? `, ${importResult.skipped} skipped (duplicates or errors)`
-                    : ""}
-                  .
+            <div className="space-y-5">
+              {/* Hero — "you're done, congrats" */}
+              <div className="rounded-2xl border border-blue-200/60 bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 p-6 text-center dark:border-blue-800/40 dark:from-blue-950/40 dark:via-sky-950/30 dark:to-indigo-950/40">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm dark:bg-slate-900">
+                  <Plane className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  Welcome aboard
+                </h3>
+                <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
+                  We imported{" "}
+                  <span className="font-semibold text-slate-900 dark:text-slate-100">
+                    {importResult.imported.toLocaleString()}
+                  </span>{" "}
+                  {importResult.imported === 1 ? "contact" : "contacts"} from your file.
                 </p>
               </div>
-              {importResult.errors.length > 0 && (
-                <details className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-                  <summary className="text-xs font-medium text-amber-800 cursor-pointer">
-                    {importResult.errors.length} warning{importResult.errors.length !== 1 ? "s" : ""} — click to expand
-                  </summary>
-                  <ul className="mt-2 space-y-0.5 max-h-40 overflow-y-auto text-xs text-amber-700">
-                    {importResult.errors.slice(0, 50).map((msg, i) => (
-                      <li key={i}>{msg}</li>
-                    ))}
-                    {importResult.errors.length > 50 && (
-                      <li className="font-medium">…and {importResult.errors.length - 50} more</li>
-                    )}
-                  </ul>
-                </details>
-              )}
-              <div className="flex gap-2">
+
+              {/* Bucket breakdown */}
+              <div className="space-y-2 rounded-xl border border-border/60 bg-muted/20 p-4 text-sm">
+                {importResult.matchedClosedDeal > 0 && (
+                  <div className="flex items-start gap-2.5">
+                    <CheckCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                    <p className="text-foreground">
+                      <span className="font-semibold">{importResult.matchedClosedDeal.toLocaleString()}</span>{" "}
+                      matched to closed deals — they&apos;re in{" "}
+                      <span className="font-semibold text-blue-600 dark:text-blue-400">Cruising</span>
+                    </p>
+                  </div>
+                )}
+                {importResult.matchedActiveDeal > 0 && (
+                  <div className="flex items-start gap-2.5">
+                    <CheckCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                    <p className="text-foreground">
+                      <span className="font-semibold">{importResult.matchedActiveDeal.toLocaleString()}</span>{" "}
+                      matched to active pipeline deals — they&apos;re in{" "}
+                      <span className="font-semibold text-sky-600 dark:text-sky-400">Boarding</span>
+                    </p>
+                  </div>
+                )}
+                {importResult.defaultCruising > 0 && (
+                  <div className="flex items-start gap-2.5">
+                    <CheckCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                    <p className="text-foreground">
+                      <span className="font-semibold">{importResult.defaultCruising.toLocaleString()}</span>{" "}
+                      {importResult.defaultCruising === 1 ? "is" : "are"} in{" "}
+                      <span className="font-semibold text-blue-600 dark:text-blue-400">Cruising</span>, ready when you are
+                    </p>
+                  </div>
+                )}
+                {importResult.enriched > 0 && (
+                  <div className="flex items-start gap-2.5">
+                    <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-indigo-500" />
+                    <p className="text-foreground">
+                      <span className="font-semibold">{importResult.enriched.toLocaleString()}</span>{" "}
+                      existing {importResult.enriched === 1 ? "contact" : "contacts"} enriched with new details
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-center text-sm text-muted-foreground">
+                You&apos;re all set. Nothing here needs your attention right now.
+              </p>
+
+              {/* Primary CTA */}
+              <Button
+                className="w-full"
+                onClick={() => {
+                  setImportOpen(false);
+                  resetImport();
+                  router.push("/dashboard");
+                }}
+              >
+                Take me to my dashboard →
+              </Button>
+
+              {/* Optional power-user nudge */}
+              <div className="rounded-lg border border-dashed border-border/60 bg-background/40 p-3.5">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  <span className="font-medium text-foreground">Optional:</span>{" "}
+                  Are you actively working any of these imported clients right now?
+                  You can flag them as Boarding from the CRM so we&apos;ll keep you on
+                  top of follow-ups.
+                </p>
                 <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 h-7 text-xs"
                   onClick={() => {
                     setImportOpen(false);
                     resetImport();
                   }}
                 >
-                  Done
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    resetImport();
-                  }}
-                >
-                  Import Another File
+                  Stay here and flag a few →
                 </Button>
               </div>
+
+              {/* Warnings (collapsed by default) */}
+              {(importResult.errors.length > 0 || importResult.skipped > 0) && (
+                <details className="rounded-lg border border-amber-200/60 bg-amber-50/50 p-3 dark:border-amber-800/40 dark:bg-amber-950/20">
+                  <summary className="cursor-pointer text-xs font-medium text-amber-800 dark:text-amber-300">
+                    {importResult.skipped > 0 && (
+                      <>
+                        {importResult.skipped.toLocaleString()} skipped
+                        {importResult.errors.length > 0 ? " · " : ""}
+                      </>
+                    )}
+                    {importResult.errors.length > 0 && (
+                      <>
+                        {importResult.errors.length} warning{importResult.errors.length !== 1 ? "s" : ""}
+                      </>
+                    )}{" "}
+                    — click to expand
+                  </summary>
+                  <ul className="mt-2 max-h-40 space-y-0.5 overflow-y-auto text-xs text-amber-700 dark:text-amber-400">
+                    {importResult.errors.slice(0, 50).map((msg, i) => (
+                      <li key={i}>{msg}</li>
+                    ))}
+                    {importResult.errors.length > 50 && (
+                      <li className="font-medium">
+                        …and {importResult.errors.length - 50} more
+                      </li>
+                    )}
+                  </ul>
+                </details>
+              )}
             </div>
           )}
         </DialogContent>
