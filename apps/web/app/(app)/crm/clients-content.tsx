@@ -96,6 +96,7 @@ import {
   X,
   CalendarDays,
   Sparkles,
+  ChevronDown,
 } from "lucide-react";
 import { ShowingsSection } from "./showings-section";
 import { fmtCurrency } from "@/lib/formatters";
@@ -672,6 +673,56 @@ function cleanImportValue(val: string): string {
   return val.replace(/\0/g, "");
 }
 
+/**
+ * Best-effort guess of which flight status an external CSV value should map
+ * to. Used to pre-populate the smart-column value translation UI so the user
+ * usually just has to confirm rather than build the mapping from scratch.
+ *
+ * Conservative on purpose: when in doubt, returns "skip" so the auto-promotion
+ * logic from Phase 1 (closed-deal/active-pipeline matching) takes over.
+ */
+function guessStatusFromValue(
+  raw: string
+): "skip" | "boarding" | "scheduled" | "in_flight" | "cruising" {
+  const v = raw.toLowerCase().trim();
+  if (!v) return "skip";
+
+  // Cruising — past clients, sphere, dormant, archived
+  if (
+    /\b(past|sphere|sphere of influence|soi|client(s)? - closed|closed (client|deal)|archived?|cold|inactive|dormant|nurture|long.?term|long.?time|farm|database|repeat)\b/.test(v) ||
+    v === "cruising" || v === "client" || v === "clients"
+  ) {
+    return "cruising";
+  }
+
+  // In-flight — active deals, under contract, offer, pending close
+  if (
+    /\b(under contract|in.?contract|pending|offer|firm|conditional|escrow|closing|active (deal|listing)|hot)\b/.test(v) ||
+    v === "in flight" || v === "in-flight" || v === "in_flight"
+  ) {
+    return "in_flight";
+  }
+
+  // Scheduled — future-intent, deferred, after holidays, etc.
+  if (
+    /\b(scheduled|future|later|defer|deferred|holding|queued|on hold|next year|after )/.test(v) ||
+    v === "scheduled"
+  ) {
+    return "scheduled";
+  }
+
+  // Boarding — new leads, prospects, qualifying, fresh inquiry
+  if (
+    /\b(new|lead|leads|prospect|prospects|inquir|fresh|qualifying|warm|active)\b/.test(v) ||
+    v === "boarding"
+  ) {
+    return "boarding";
+  }
+
+  // Unknown — let Phase 1 auto-promotion decide
+  return "skip";
+}
+
 function parseCsv(text: string): { headers: string[]; rows: CsvRow[]; truncated: boolean } {
   // Strip UTF-8 BOM if present (common in Excel-exported CSVs)
   const clean = text.startsWith("\uFEFF") ? text.slice(1) : text;
@@ -1049,6 +1100,26 @@ export function ClientsContent({
   const [importLoading, setImportLoading] = useState(false);
   const [importProgress, setImportProgress] = useState<{ current: number; total: number; phase: string } | null>(null);
   const [importAsNewLeads, setImportAsNewLeads] = useState(false);
+
+  // ── Phase 2: Smart status column ──────────────────────────────────────────
+  // If the CSV has a column like "status", "tag", "category", etc., we
+  // surface a value-translation UI so the user can map external values
+  // (e.g. "Closed", "Active", "Past Client") to our four flight statuses.
+  type SmartStatusValue = "skip" | "boarding" | "scheduled" | "in_flight" | "cruising";
+  const [smartStatusColumn, setSmartStatusColumn] = useState<string>("__none__");
+  const [smartStatusValues, setSmartStatusValues] = useState<string[]>([]);
+  const [smartStatusMap, setSmartStatusMap] = useState<Record<string, SmartStatusValue>>({});
+  const [smartColumnExpanded, setSmartColumnExpanded] = useState(false);
+
+  // ── Phase 2: AI notes scan ────────────────────────────────────────────────
+  const [notesColumn, setNotesColumn] = useState<string>("__none__");
+  const [notesScanLoading, setNotesScanLoading] = useState(false);
+  const [notesScanResult, setNotesScanResult] = useState<{
+    activeRowIndices: number[];
+    sampledNames: string[];
+  } | null>(null);
+  const [notesScanApply, setNotesScanApply] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [profileDraft, setProfileDraft] = useState<{ first_name: string; last_name: string; notes: string } | null>(null);
@@ -2207,6 +2278,59 @@ export function ClientsContent({
         }
       });
 
+      // ── Phase 2 (Item 5): Smart status column detection ──────────────────
+      // Look for a column whose header suggests it carries client classification
+      // (status / stage / tag / type / category / segment / group / phase).
+      // Pick the first match and preload the unique values for the mapping UI.
+      const SMART_COL_KEYWORDS = [
+        "status", "stage", "phase", "state",
+        "tag", "tags", "label", "labels",
+        "category", "categories", "type", "classification",
+        "group", "segment", "bucket",
+      ];
+      const detectedSmartCol = headers.find((h) => {
+        const lh = h.toLowerCase().trim();
+        return SMART_COL_KEYWORDS.includes(lh) || SMART_COL_KEYWORDS.some((k) => lh === `client ${k}` || lh === `${k}s`);
+      });
+      setSmartColumnExpanded(false);
+      if (detectedSmartCol) {
+        const seen = new Set<string>();
+        for (const r of rows) {
+          const v = (r[detectedSmartCol] ?? "").trim();
+          if (v) seen.add(v);
+        }
+        // Cap at 30 unique values — anything beyond that isn't a status column
+        const uniqueValues = Array.from(seen).slice(0, 30).sort((a, b) => a.localeCompare(b));
+        if (uniqueValues.length > 0 && uniqueValues.length <= 30) {
+          setSmartStatusColumn(detectedSmartCol);
+          setSmartStatusValues(uniqueValues);
+          // Pre-populate guesses based on value text
+          const initialMap: Record<string, SmartStatusValue> = {};
+          for (const v of uniqueValues) {
+            initialMap[v] = guessStatusFromValue(v);
+          }
+          setSmartStatusMap(initialMap);
+        } else {
+          setSmartStatusColumn("__none__");
+          setSmartStatusValues([]);
+          setSmartStatusMap({});
+        }
+      } else {
+        setSmartStatusColumn("__none__");
+        setSmartStatusValues([]);
+        setSmartStatusMap({});
+      }
+
+      // ── Phase 2 (Item 6): Notes column detection ─────────────────────────
+      // Used by the AI active-deal scan that runs from the mapping step.
+      const detectedNotesCol = headers.find((h) => {
+        const lh = h.toLowerCase().trim();
+        return lh === "notes" || lh === "note" || lh === "comments" || lh === "comment" || lh === "description";
+      });
+      setNotesColumn(detectedNotesCol ?? "__none__");
+      setNotesScanResult(null);
+      setNotesScanApply(false);
+
       setImportStep("map");
     }
     reader.readAsText(file, "UTF-8");
@@ -2325,14 +2449,43 @@ export function ClientsContent({
         // Track within-CSV duplicates so they don't get inserted twice
         existingSearchNames.add(nameSearch);
 
-        // ── Auto-promotion rules (deterministic, explainable) ──────────────
-        // 1. If matched to an OPEN pipeline deal → Boarding (active work)
-        // 2. If matched to a closed transaction  → Cruising (deal done)
-        // 3. Otherwise                           → Cruising (sphere/contact)
-        // The legacy `importAsNewLeads` toggle is honored as an override:
-        // when explicitly checked, every imported row goes Boarding.
-        let assignedStatus: "boarding" | "cruising";
-        if (importAsNewLeads) {
+        // ── Status assignment priority ─────────────────────────────────────
+        // 1. Smart-column user mapping (highest priority — explicit user intent)
+        // 2. AI notes-scan flag → Boarding (Phase 2 item 6)
+        // 3. importAsNewLeads checkbox → Boarding (legacy override)
+        // 4. Auto-promotion: pipeline-deal match → Boarding
+        // 5. Closed-transaction match → Cruising (counted separately)
+        // 6. Default → Cruising
+        let assignedStatus: "boarding" | "scheduled" | "in_flight" | "cruising";
+
+        // 1. Smart status column override
+        let smartOverride: "boarding" | "scheduled" | "in_flight" | "cruising" | null = null;
+        if (smartStatusColumn !== "__none__") {
+          const rawVal = (row[smartStatusColumn] ?? "").trim();
+          if (rawVal) {
+            const mapped = smartStatusMap[rawVal];
+            if (mapped && mapped !== "skip") {
+              smartOverride = mapped;
+            }
+          }
+        }
+
+        // 2. AI notes-scan flag (only if user opted in)
+        const flaggedByNotesScan =
+          notesScanApply &&
+          notesScanResult !== null &&
+          notesScanResult.activeRowIndices.includes(rowIdx);
+
+        if (smartOverride) {
+          assignedStatus = smartOverride;
+          // Still track the matching buckets for transparency on the celebration screen
+          if (activeDealNameSet.has(nameSearch)) matchedActiveDeal++;
+          else if (closedDealNameSet.has(nameSearch)) matchedClosedDeal++;
+          else defaultCruising++;
+        } else if (flaggedByNotesScan) {
+          assignedStatus = "boarding";
+          matchedActiveDeal++;  // count as an active match for the celebration screen
+        } else if (importAsNewLeads) {
           assignedStatus = "boarding";
         } else if (activeDealNameSet.has(nameSearch)) {
           assignedStatus = "boarding";
@@ -2449,6 +2602,14 @@ export function ClientsContent({
     setMapCountry("__none__");
     setMapPhoneType("__none__");
     setImportResult(null);
+    setSmartStatusColumn("__none__");
+    setSmartStatusValues([]);
+    setSmartStatusMap({});
+    setSmartColumnExpanded(false);
+    setNotesColumn("__none__");
+    setNotesScanLoading(false);
+    setNotesScanResult(null);
+    setNotesScanApply(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -4896,6 +5057,155 @@ export function ClientsContent({
                 </div>
               </div>
 
+              {/* ── Phase 2 Item 5: Smart status column ───────────────────── */}
+              {smartStatusColumn !== "__none__" && smartStatusValues.length > 0 && (
+                <div className="rounded-xl border border-indigo-200/60 bg-indigo-50/40 p-3.5 dark:border-indigo-800/40 dark:bg-indigo-950/20">
+                  <button
+                    type="button"
+                    className="flex w-full items-start justify-between gap-3 text-left"
+                    onClick={() => setSmartColumnExpanded((v) => !v)}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-indigo-500" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground leading-tight">
+                          We see you have a &ldquo;{smartStatusColumn}&rdquo; column
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+                          Want to map its values to flight statuses? Optional — if you skip,
+                          we&apos;ll use closed-deal and pipeline matching to assign statuses automatically.
+                        </p>
+                      </div>
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        "mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                        smartColumnExpanded && "rotate-180",
+                      )}
+                    />
+                  </button>
+
+                  {smartColumnExpanded && (
+                    <div className="mt-3 space-y-2 border-t border-indigo-200/40 pt-3 dark:border-indigo-800/40">
+                      <p className="text-xs text-muted-foreground">
+                        {smartStatusValues.length} unique{" "}
+                        {smartStatusValues.length === 1 ? "value" : "values"} detected.
+                        Map each to a flight status — leave as &ldquo;Skip&rdquo; to use auto-promotion.
+                      </p>
+                      <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
+                        {smartStatusValues.map((val) => (
+                          <div
+                            key={val}
+                            className="grid grid-cols-[1fr_auto] items-center gap-2"
+                          >
+                            <div
+                              className="truncate rounded-md border border-border/50 bg-background/60 px-2 py-1 text-xs font-mono"
+                              title={val}
+                            >
+                              {val}
+                            </div>
+                            <Select
+                              value={smartStatusMap[val] ?? "skip"}
+                              onValueChange={(v) =>
+                                setSmartStatusMap((prev) => ({
+                                  ...prev,
+                                  [val]: v as SmartStatusValue,
+                                }))
+                              }
+                            >
+                              <SelectTrigger className="h-7 w-32 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="skip">— Skip —</SelectItem>
+                                <SelectItem value="boarding">Boarding</SelectItem>
+                                <SelectItem value="scheduled">Scheduled</SelectItem>
+                                <SelectItem value="in_flight">In-Flight</SelectItem>
+                                <SelectItem value="cruising">Cruising</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex justify-end pt-1">
+                        <button
+                          type="button"
+                          className="text-xs text-muted-foreground hover:text-foreground underline"
+                          onClick={() => {
+                            const reset: Record<string, SmartStatusValue> = {};
+                            for (const v of smartStatusValues) reset[v] = "skip";
+                            setSmartStatusMap(reset);
+                          }}
+                        >
+                          Clear all
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Phase 2 Item 6: AI notes scan ─────────────────────────── */}
+              {notesColumn !== "__none__" && (
+                <NotesScanCard
+                  notesColumn={notesColumn}
+                  csvRows={csvRows}
+                  mapName={mapName}
+                  loading={notesScanLoading}
+                  result={notesScanResult}
+                  apply={notesScanApply}
+                  onScan={async () => {
+                    if (!mapName) {
+                      toast.error("Pick the Name column first so we know which contacts to scan.");
+                      return;
+                    }
+                    setNotesScanLoading(true);
+                    try {
+                      // Build payload — only rows with non-empty notes
+                      const payload = csvRows
+                        .map((r, idx) => ({
+                          idx,
+                          name: (r[mapName] ?? "").trim(),
+                          notes: (r[notesColumn] ?? "").trim(),
+                        }))
+                        .filter((r) => r.name && r.notes && r.notes.length >= 5)
+                        // Cap at 200 to stay within token budget for Haiku
+                        .slice(0, 200);
+
+                      if (payload.length === 0) {
+                        toast.info("No notes content found to scan.");
+                        setNotesScanResult({ activeRowIndices: [], sampledNames: [] });
+                        return;
+                      }
+
+                      const res = await fetch("/api/ai/scan-import-notes", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ rows: payload }),
+                      });
+                      if (!res.ok) {
+                        const err = await res.text();
+                        throw new Error(err || "Scan failed");
+                      }
+                      const json = (await res.json()) as {
+                        activeRowIndices: number[];
+                        sampledNames: string[];
+                      };
+                      setNotesScanResult(json);
+                      if (json.activeRowIndices.length === 0) {
+                        toast.info("No active-deal language detected — your import is good to go.");
+                      }
+                    } catch (err) {
+                      console.error("[notes-scan]", err);
+                      toast.error("Couldn't scan notes right now. Continue without it.");
+                    } finally {
+                      setNotesScanLoading(false);
+                    }
+                  }}
+                  onToggleApply={(v) => setNotesScanApply(v)}
+                />
+              )}
+
               <div className="flex gap-2 pt-1">
                 <Button
                   disabled={!mapName}
@@ -5240,6 +5550,115 @@ export function ClientsContent({
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
+
+function NotesScanCard({
+  notesColumn,
+  csvRows,
+  mapName,
+  loading,
+  result,
+  apply,
+  onScan,
+  onToggleApply,
+}: {
+  notesColumn: string;
+  csvRows: CsvRow[];
+  mapName: string;
+  loading: boolean;
+  result: { activeRowIndices: number[]; sampledNames: string[] } | null;
+  apply: boolean;
+  onScan: () => void;
+  onToggleApply: (v: boolean) => void;
+}) {
+  const scannableCount = csvRows.filter((r) => {
+    const notes = (r[notesColumn] ?? "").trim();
+    const name = mapName ? (r[mapName] ?? "").trim() : "";
+    return name && notes && notes.length >= 5;
+  }).length;
+
+  return (
+    <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-4 space-y-3">
+      <div className="flex items-start gap-3">
+        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-indigo-500" />
+        <div className="flex-1 space-y-1">
+          <p className="text-sm font-semibold text-foreground">
+            AI notes scan{" "}
+            <span className="font-normal text-muted-foreground">(optional)</span>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            We spotted a{" "}
+            <strong className="text-foreground">&ldquo;{notesColumn}&rdquo;</strong>{" "}
+            column with content on {scannableCount}{" "}
+            {scannableCount === 1 ? "contact" : "contacts"}. Want the AI to
+            look for active-deal language (&ldquo;showing Saturday&rdquo;,
+            &ldquo;offer in&rdquo;, &ldquo;closing March&rdquo;) and flag those
+            clients as Boarding?
+          </p>
+        </div>
+      </div>
+
+      {result === null && (
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={loading || scannableCount === 0 || !mapName}
+            onClick={onScan}
+            className="h-8 text-xs"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                Scanning notes…
+              </>
+            ) : (
+              <>
+                <Sparkles className="mr-1.5 h-3 w-3" />
+                Scan notes with AI
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+
+      {result !== null && result.activeRowIndices.length > 0 && (
+        <div className="space-y-2 rounded-lg border border-indigo-500/40 bg-background/50 p-3">
+          <p className="text-sm font-semibold text-foreground">
+            {result.activeRowIndices.length}{" "}
+            {result.activeRowIndices.length === 1 ? "contact" : "contacts"}{" "}
+            look like active deals
+          </p>
+          {result.sampledNames.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Examples:{" "}
+              <span className="text-foreground">
+                {result.sampledNames.slice(0, 5).join(", ")}
+                {result.sampledNames.length > 5 ? "…" : ""}
+              </span>
+            </p>
+          )}
+          <label className="flex items-center gap-2 pt-1 cursor-pointer">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-border"
+              checked={apply}
+              onChange={(e) => onToggleApply(e.target.checked)}
+            />
+            <span className="text-xs text-foreground">
+              Flag these as <strong>Boarding</strong> when I import
+            </span>
+          </label>
+        </div>
+      )}
+
+      {result !== null && result.activeRowIndices.length === 0 && (
+        <p className="text-xs text-muted-foreground italic">
+          No active-deal language detected — your import is good to go.
+        </p>
+      )}
+    </div>
+  );
+}
 
 function SortableHead({
   col,
