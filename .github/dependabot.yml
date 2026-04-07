@@ -1,11 +1,19 @@
 version: 2
 updates:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # NPM dependencies — minor + patch only, weekly, single grouped PR
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Major version bumps are intentionally ignored. They almost always require
+  # manual testing and code changes (TypeScript 5→6, ESLint 9→10, Expo 54→55,
+  # React 18→19 etc.) and a flood of failing major-bump PRs costs Vercel build
+  # minutes for builds that are immediately cancelled. Bump majors manually
+  # when you're ready to test them.
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 3
     reviewers:
       - "Ashaw19"
     labels:
@@ -15,10 +23,25 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # Block all major-version updates across every package.
+      # Security updates (which Dependabot handles separately) are unaffected
+      # — those still come through immediately regardless of this rule.
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
 
+  # ─────────────────────────────────────────────────────────────────────────────
+  # GitHub Actions — weekly, no major bumps
+  # ─────────────────────────────────────────────────────────────────────────────
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 2
     labels:
       - "ci"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
