@@ -99,7 +99,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, skipped: "no_subscription" });
   }
 
+  // ── Acquire distributed lock to serialize concurrent seat updates ───────
+  // Prevents two simultaneous invite/remove calls for the same org from
+  // racing each other on the Stripe write. TTL = 30s in case the route
+  // crashes before releasing.
+  const { data: lockAcquired, error: lockErr } = await db.rpc(
+    "try_acquire_seat_lock",
+    { p_org_id: org_id, p_ttl_seconds: 30 }
+  );
+
+  if (lockErr) {
+    console.error("[team-billing] failed to acquire seat lock:", lockErr);
+    return NextResponse.json(
+      { error: "Failed to acquire seat update lock." },
+      { status: 500 }
+    );
+  }
+
+  if (!lockAcquired) {
+    return NextResponse.json(
+      { error: "Another seat update is in progress for this organization. Please retry in a moment." },
+      { status: 409 }
+    );
+  }
+
   // ── Count active members (excluding the leader's own seat) ──────────────
+  // Counted INSIDE the lock so we always read the latest membership state.
   const { count: memberCount } = await db
     .from("organization_members")
     .select("id", { count: "exact", head: true })
@@ -197,5 +222,14 @@ export async function POST(request: Request) {
       { error: "Failed to update seat count." },
       { status: 500 }
     );
+  } finally {
+    // Always release the lock — even on Stripe failure — so the next
+    // attempt isn't blocked for the full 30s TTL.
+    const { error: releaseErr } = await db.rpc("release_seat_lock", {
+      p_org_id: org_id,
+    });
+    if (releaseErr) {
+      console.error("[team-billing] failed to release seat lock:", releaseErr);
+    }
   }
 }
