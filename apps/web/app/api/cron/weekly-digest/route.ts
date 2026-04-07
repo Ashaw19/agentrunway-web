@@ -24,6 +24,8 @@ import { buildHealthReport } from "@agent-runway/core/engines/health-report";
 import { compute as computeRunwayScore } from "@agent-runway/core/engines/runway-score-engine";
 import { compare as benchmarkCompare } from "@agent-runway/core/engines/benchmark-engine";
 import { survivalResult } from "@agent-runway/core/engines/survival-engine";
+import { generateText } from "ai";
+import { models } from "@/lib/ai/provider";
 
 export const maxDuration = 300; // 5 minutes max
 
@@ -264,6 +266,29 @@ export async function GET(req: NextRequest) {
         survival.months,
       );
 
+      // ── AI Insight — 2-sentence data-backed observation for this agent ──
+      let aiInsight: string | undefined;
+      try {
+        const firstName = user.display_name?.split(" ")[0] ?? "there";
+        const paceStatus = paceVsGoalPct >= 100 ? "ahead of pace" : paceVsGoalPct >= 85 ? "on pace" : "behind pace";
+        const { text } = await generateText({
+          model: models.fast,
+          system: `You are a concise business coach for a Canadian real estate agent. Write exactly 2 sentences. Be specific with numbers. No fluff. No greetings. No sign-off. Use Canadian spelling.`,
+          prompt: `Generate a 2-sentence personalized business insight for ${firstName} based on their weekly data:
+- Runway Score: ${runwayResult.grade} (${runwayResult.score}/100)
+- YTD GCI: $${Math.round(ytdGCI).toLocaleString()} of $${Math.round(goalGCI).toLocaleString()} goal (${paceStatus})
+- Pipeline: ${pipeline.length} active deals worth $${Math.round(pipelineWeightedGCI).toLocaleString()} weighted
+- Deals closed this week: ${recentDeals.length}
+- Outreach items ready: ${outreachReady ?? 0}
+- Tasks due this week: ${upcomingTaskCount ?? 0}
+
+Focus on the most actionable observation — what should they prioritize or watch closely this week? Be direct.`,
+        });
+        aiInsight = text.trim();
+      } catch {
+        // Non-critical — digest sends without insight if generation fails
+      }
+
       // Build digest data
       const digestData: WeeklyDigestData = {
         firstName: user.display_name?.split(" ")[0] ?? null,
@@ -280,6 +305,7 @@ export async function GET(req: NextRequest) {
         monthlyExpenses,
         runwayGrade: runwayResult.grade,
         runwayScore: runwayResult.score,
+        aiInsight,
         dashboardUrl: "https://agentrunway.ca/dashboard",
         unsubscribeUrl: buildUnsubscribeUrl(user.user_id, "weekly-digest"),
       };

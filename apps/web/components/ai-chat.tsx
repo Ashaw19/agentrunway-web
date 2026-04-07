@@ -129,6 +129,7 @@ export function AiChat({ financialContext }: Props) {
   const [feedbackGiven, setFeedbackGiven] = useState<Record<number, "positive" | "negative">>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const hasNudgedRef = useRef(false);
 
   // Pick page-specific suggestions
   const suggestions = PAGE_SUGGESTIONS[pathname] ?? DEFAULT_SUGGESTIONS;
@@ -147,6 +148,55 @@ export function AiChat({ financialContext }: Props) {
       setTimeout(() => textareaRef.current?.focus(), 100);
       setUnread(0);
     }
+  }, [isOpen]);
+
+  // Proactive nudge — on first open per session, fetch the morning briefing
+  // and surface the top priority as an additional AI message.
+  useEffect(() => {
+    if (!isOpen || hasNudgedRef.current) return;
+    hasNudgedRef.current = true;
+
+    // Use sessionStorage to avoid nudging multiple times per session
+    const sessionKey = "ar_nudged_" + new Date().toDateString();
+    if (sessionStorage.getItem(sessionKey)) return;
+
+    (async () => {
+      try {
+        const res = await fetch("/api/briefing");
+        if (!res.ok) return;
+        const { briefing } = await res.json();
+        if (!briefing?.priorities?.length && !briefing?.alerts?.length) return;
+
+        // Build a concise proactive message from the briefing data
+        const parts: string[] = [];
+        if (briefing.alerts?.length) {
+          parts.push(`**Heads up:** ${briefing.alerts[0]}`);
+        }
+        if (briefing.priorities?.length) {
+          const topPriority = briefing.priorities[0];
+          parts.push(`**Top priority today:** ${topPriority}`);
+          if (briefing.priorities[1]) {
+            parts.push(`Also on your radar: ${briefing.priorities[1]}`);
+          }
+        }
+        if (briefing.encouragement) {
+          parts.push(briefing.encouragement);
+        }
+
+        if (parts.length === 0) return;
+
+        const nudgeMessage: Message = {
+          role: "assistant",
+          content: parts.join("\n\n") + "\n\nWhat do you want to dig into?",
+        };
+
+        setMessages((prev) => [...prev, nudgeMessage]);
+        if (!isOpen) setUnread((n) => n + 1);
+        sessionStorage.setItem(sessionKey, "1");
+      } catch {
+        // Silent — nudge is non-critical
+      }
+    })();
   }, [isOpen]);
 
   const handleSend = useCallback(

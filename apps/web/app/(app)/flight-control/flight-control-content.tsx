@@ -28,6 +28,7 @@ import {
 import type { OutreachQueueItem, OutreachOpportunityType, TopOpportunity, NewsletterQueue } from "@/lib/types/database";
 import { guardSandboxWrite, guardSandboxExternalAction } from "@/lib/sandbox-guard";
 import { useSandboxMode } from "@/lib/sandbox-mode-context";
+import { useAiChat } from "@/lib/ai-chat-context";
 import { NewsletterSection } from "./newsletter-section";
 
 // ── Opportunity type icons ──────────────────────────────────────────────────
@@ -87,6 +88,7 @@ function OpportunityCard({
   draftedMessage,
   onReviewDraft,
   drafting,
+  onAskAI,
 }: {
   opportunity:    TopOpportunity;
   onDraftMessage: (opp: TopOpportunity) => void;
@@ -94,6 +96,7 @@ function OpportunityCard({
   draftedMessage: QueueItemWithClient | null;
   onReviewDraft:  (item: QueueItemWithClient) => void;
   drafting:       boolean;
+  onAskAI:        (opp: TopOpportunity) => void;
 }) {
   const Icon = OPTYPE_ICON[opportunity.opportunity_type] ?? Target;
   const scoreColors = getScoreColor(opportunity.score);
@@ -225,6 +228,15 @@ function OpportunityCard({
           Dismiss
         </Button>
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 text-xs gap-1.5 text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10"
+            onClick={() => onAskAI(opportunity)}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Ask AI
+          </Button>
           {hasDraft && !drafting ? (
             <Button
               size="sm"
@@ -580,6 +592,7 @@ export function FlightControlContent({
   gmailEmail,
 }: FlightControlContentProps) {
   const sandbox = useSandboxMode();
+  const { askQuestion } = useAiChat();
   const [activeTab, setActiveTab] = useState<Tab>("opportunities");
 
   // Top Opportunities state
@@ -663,6 +676,12 @@ export function FlightControlContent({
   const handleDismiss = useCallback((opp: TopOpportunity) => {
     setDismissedIds((prev) => new Set([...prev, `${opp.client_id}:${opp.opportunity_type}`]));
   }, []);
+
+  // ── Ask AI about an opportunity ──────────────────────────────────────────
+  const handleAskAI = useCallback((opp: TopOpportunity) => {
+    const question = `I have a ${opp.label} opportunity with ${opp.client_name}. ${opp.why_now} The suggested angle is: ${opp.suggested_angle}. What's the best approach, and can you help me log a touchpoint once I reach out?`;
+    askQuestion(question);
+  }, [askQuestion]);
 
   // ── Draft message for an opportunity ──────────────────────────────────────
   const handleDraftMessage = useCallback(async (opp: TopOpportunity) => {
@@ -905,6 +924,7 @@ export function FlightControlContent({
                   draftedMessage={getDraftForOpp(opp)}
                   onReviewDraft={setReviewItem}
                   drafting={draftingFor === opp.client_id}
+                  onAskAI={handleAskAI}
                 />
               ))}
             </div>
