@@ -32,9 +32,11 @@ export function runwayMonths(
   monthlyIncome: number = 0,
 ): number {
   const netBurn = monthlyBurn - monthlyIncome;
-  // Income >= expenses: agent is cash-flow positive — runway is strong regardless
-  // of cash reserve. Returning 0 here would incorrectly label them "critical".
-  if (netBurn <= 0) return 24.0;
+  // Income strictly exceeds expenses: cash-flow positive → indefinite runway.
+  if (netBurn < 0) return 24.0;
+  // Break-even (net burn = 0): runway depends on whether there is any cash.
+  // Cash > 0 → effectively infinite; cash = 0 → no buffer at all → 0.
+  if (netBurn === 0) return cashReserve > 0 ? 24.0 : 0;
   return Math.min(24.0, cashReserve / netBurn);
 }
 

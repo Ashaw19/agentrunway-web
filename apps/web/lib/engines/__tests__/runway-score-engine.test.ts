@@ -3,8 +3,9 @@
  * ==============================
  * Tests for the composite 5-component health score.
  *
- * Weights: Goal Pace (35%), Pipeline (25%), Expenses (15%),
- *          Benchmark (10%), Survival (15%)
+ * v1.2 Weights: Goal Pace (35%), Pipeline (30%), Expenses (15%),
+ *               Benchmark (5%), Survival (15%)
+ * (v1.1 had Pipeline 25%, Benchmark 10%)
  *
  * Grades: A+ (≥92), A (≥85), B (≥75), C (≥62), D (≥50), F (<50)
  *
@@ -42,8 +43,8 @@ describe("Runway Score — Composite Calculation", () => {
       expenseScore: 80,
     });
     const result = compute(report, 80, 6); // benchmark 80, survival 6+ months → score 95
-    // Weighted: 80×0.35 + 80×0.25 + 80×0.15 + 80×0.1 + 95×0.15
-    // = 28 + 20 + 12 + 8 + 14.25 = 82.25 → rounds to 82
+    // v1.2 Weighted: 80×0.35 + 80×0.30 + 80×0.15 + 80×0.05 + 95×0.15
+    // = 28 + 24 + 12 + 4 + 14.25 = 82.25 → rounds to 82
     expect(result.score).toBe(82);
     expect(result.grade).toBe("B"); // 75–84
   });
@@ -55,9 +56,9 @@ describe("Runway Score — Composite Calculation", () => {
       expenseScore: 80,
     });
     const result = compute(report, 41, 11.54);
-    // Weighted: 90×0.35 + 65×0.25 + 80×0.15 + 41×0.1 + 95×0.15
-    // = 31.5 + 16.25 + 12 + 4.1 + 14.25 = 78.1 → rounds to 78
-    expect(result.score).toBe(78);
+    // v1.2 Weighted: 90×0.35 + 65×0.30 + 80×0.15 + 41×0.05 + 95×0.15
+    // = 31.5 + 19.5 + 12 + 2.05 + 14.25 = 79.3 → rounds to 79
+    expect(result.score).toBe(79);
     expect(result.grade).toBe("B");
   });
 
@@ -168,7 +169,7 @@ describe("Grade Boundaries", () => {
 describe("Score Metadata", () => {
   it("includes version string", () => {
     const result = compute(makeReport(), 50, 5);
-    expect(result.version).toBe("1.1");
+    expect(result.version).toBe("1.2");
   });
 
   it("includes timestamp", () => {
