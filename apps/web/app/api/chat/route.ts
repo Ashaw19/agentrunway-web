@@ -43,6 +43,7 @@ import { models, heliconeHeaders, anthropic } from "@/lib/ai/provider";
 import { selectModelTier } from "@/lib/ai/router";
 import { buildPromptParts, injectCanary, scanAndRedactPII } from "@/lib/ai/security";
 import { fetchMemories, addMemory } from "@/lib/ai/memory";
+import { createAgentTools } from "@/lib/ai/tools";
 import type { Province, Transaction as CoreTransaction, ContactActivity } from "@agent-runway/core/types/database";
 
 export async function POST(req: NextRequest) {
@@ -700,7 +701,21 @@ When the agent's data shows any of these patterns, surface them naturally in you
 
 IMPORTANT: On the very first message from the agent, if their data shows a notable pattern (behind pace, high expenses, stale clients), proactively open with that insight rather than waiting to be asked. Frame it conversationally: "Looking at your numbers, I noticed..." Proactively surface notable patterns and data points.
 
-IMPORTANT: Use the Computed Engine Outputs section in the business data as your source of truth for projections, scores, tax estimates, benchmarks, probability bands, and insights. Do not recalculate these figures — they come from the platform's specialized engines (seasonal models, multi-bracket tax calculations, cohort benchmarking). You may explain the methodology or add qualitative context, but always reference the engine-computed numbers. If the Computed Engine Outputs section is not present, fall back to the raw financial data above.`;
+IMPORTANT: Use the Computed Engine Outputs section in the business data as your source of truth for projections, scores, tax estimates, benchmarks, probability bands, and insights. Do not recalculate these figures — they come from the platform's specialized engines (seasonal models, multi-bracket tax calculations, cohort benchmarking). You may explain the methodology or add qualitative context, but always reference the engine-computed numbers. If the Computed Engine Outputs section is not present, fall back to the raw financial data above.
+
+WRITE ACTIONS — You have tools to act on the agent's behalf:
+- When an agent tells you they contacted, met, or interacted with a client → call logContactActivity (search for the client first with searchClients)
+- When an agent mentions a client's status should change → call updateClientStatus
+- When an agent shares new client details (budget change, timeframe, financing) → call updateClientDetails
+- When an agent adds information about a client → call updateClientNotes
+- When a deal stage changes → call updatePipelineDealStage (search for deal first with searchPipelineDeals)
+- When a deal's probability, value, or close date changes → call the relevant update tool
+- When an agent mentions logging an expense → call logExpense (returns preview, confirm before executing)
+- When an agent mentions a closed transaction/commission → call recordTransaction (returns preview, confirm before executing)
+- When an agent revises their annual GCI goal → call updateGCIGoal
+- ALWAYS search first (searchClients or searchPipelineDeals) before taking any action — never guess IDs
+- For confirm-required tools: when confirmed is false you receive a preview string — present it naturally ("I'm about to record... does that look right?") then call again with confirmed: true after their "yes"
+- After completing an action, briefly acknowledge what you did and follow up with a relevant insight if one exists`;
 
   // ── Build prompt parts (static cached prefix + dynamic per-request suffix) ─
   // Static part: identity + knowledge_base + guidelines + voice_guide
@@ -754,9 +769,10 @@ IMPORTANT: Use the Computed Engine Outputs section in the business data as your 
           role: m.role as "user" | "assistant",
           content: m.content,
         })),
-        // Web search: Anthropic handles the actual search server-side.
-        // The model decides when to use it (e.g. "what's the current BoC rate?").
-        // maxSteps allows tool call + follow-up response in the same stream.
+        // Tools:
+        // - webSearch: Anthropic-native search (server-side, CA locale)
+        // - agent write tools: CRM, pipeline, expense, transaction actions
+        // maxSteps: allows tool calls + follow-up response in the same stream.
         tools: {
           webSearch: anthropic.tools.webSearch_20260209({
             maxUses: 3,
@@ -766,8 +782,9 @@ IMPORTANT: Use the Computed Engine Outputs section in the business data as your 
               timezone: "America/Toronto",
             },
           }),
+          ...createAgentTools(supabase, user.id),
         },
-        maxSteps: 5,
+        maxSteps: 10,
         maxTokens,
         temperature: 0.7,
         abortSignal: abortController.signal,
