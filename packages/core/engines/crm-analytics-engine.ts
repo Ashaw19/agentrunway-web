@@ -616,22 +616,24 @@ export function computeIntelligenceBriefing(
       }
     }
 
-    // ── 6. Past client check-in (cruising, 180+ days no contact) ────────────────
+    // ── 6. Cruising check-in (long-term contact, 180+ days no contact) ─────────
     if (
       !importedSuppressed &&
       client.status === "cruising" &&
       daysSince >= 180
     ) {
+      const hasClosing = (closeDatesByClient.get(client.id) ?? []).length > 0;
+      const descriptor = hasClosing ? "past client" : "long-term contact";
       items.push({
         id: `checkin_${client.id}`,
         type: "past_client_check_in",
         severity: daysSince >= 365 ? "attention" : "upcoming",
         clientId: client.id,
         clientName: client.name,
-        title: `${client.name} — past client, check in soon`,
+        title: `${client.name} — ${descriptor}, check in soon`,
         detail:
           daysSince === 999
-            ? "Never contacted after closing"
+            ? "No contact logged yet"
             : `${daysSince} days since last contact`,
         daysValue: daysSince,
       });
