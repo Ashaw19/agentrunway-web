@@ -117,25 +117,41 @@ export function createAgentTools(supabase: SupabaseClient, userId: string) {
             ? new Date(activityDate + "T12:00:00").toISOString()
             : now.toISOString();
 
-          // Insert activity + update last_contact_at in parallel
-          const [activityResult, contactResult] = await Promise.all([
-            supabase.from("contact_activities").insert({
-              user_id: userId,
-              client_id: clientId,
-              type,
-              description,
-              activity_date: activityTimestamp,
-            }),
-            supabase.from("clients")
-              .update({ last_contact_at: activityTimestamp, updated_at: now.toISOString() })
-              .eq("id", clientId)
-              .eq("user_id", userId),
-          ]);
+          // Read status BEFORE insert so we can detect Phase 3 auto-promotion.
+          // The DB trigger update_client_last_contact() now both updates
+          // last_contact_at AND auto-promotes cruising/scheduled → boarding
+          // when a real touchpoint is logged (migration 00105).
+          const { data: beforeRow } = await supabase
+            .from("clients")
+            .select("status")
+            .eq("id", clientId)
+            .eq("user_id", userId)
+            .single();
+          const oldStatus = beforeRow?.status as string | undefined;
 
-          if (activityResult.error) return `Failed to log activity: ${activityResult.error.message}`;
-          if (contactResult.error) return `Activity logged but failed to update last contact date: ${contactResult.error.message}`;
+          const { error: insertError } = await supabase.from("contact_activities").insert({
+            user_id: userId,
+            client_id: clientId,
+            type,
+            description,
+            activity_date: activityTimestamp,
+          });
+          if (insertError) return `Failed to log activity: ${insertError.message}`;
 
-          return `✓ Logged ${type} with ${clientName} on ${dateStr}. Last contact date updated.`;
+          // Re-read status to see if the trigger promoted the client.
+          const { data: afterRow } = await supabase
+            .from("clients")
+            .select("status")
+            .eq("id", clientId)
+            .eq("user_id", userId)
+            .single();
+          const newStatus = afterRow?.status as string | undefined;
+
+          const promoted = oldStatus && newStatus && oldStatus !== newStatus;
+          const base = `✓ Logged ${type} with ${clientName} on ${dateStr}. Last contact date updated.`;
+          return promoted
+            ? `${base} Auto-promoted from ${oldStatus} → ${newStatus}.`
+            : base;
         } catch {
           return "Failed to log activity. Please try again.";
         }

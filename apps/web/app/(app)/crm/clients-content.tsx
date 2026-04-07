@@ -1429,6 +1429,12 @@ export function ClientsContent({
       } = await supabase.auth.getUser();
       if (!user) return;
 
+      // Capture the prior status from local state — the DB trigger added in
+      // migration 00105 may auto-promote cruising/scheduled → boarding when a
+      // real touchpoint (non-note, recent) is logged.
+      const priorClient = localClients.find((c) => c.id === clientId);
+      const priorStatus = priorClient?.status;
+
       const { data, error } = await supabase
         .from("contact_activities")
         .insert({
@@ -1452,11 +1458,35 @@ export function ClientsContent({
           )
         );
         markMemoryStaleClient(clientId);
+
+        // Re-read status to detect Phase 3 auto-promotion. We do this AFTER the
+        // insert returns so the AFTER-INSERT trigger has already run.
+        if (priorStatus === "cruising" || priorStatus === "scheduled") {
+          const { data: updated } = await supabase
+            .from("clients")
+            .select("status")
+            .eq("id", clientId)
+            .single();
+          const newStatus = updated?.status as string | undefined;
+          if (newStatus && newStatus !== priorStatus) {
+            setLocalClients((prev) =>
+              prev.map((c) =>
+                c.id === clientId
+                  ? { ...c, status: newStatus as typeof c.status }
+                  : c
+              )
+            );
+            const clientName = priorClient?.name ?? "Client";
+            toast.success(`${clientName} auto-promoted to Boarding`, {
+              description: "A real touchpoint was logged, so this client moved out of Cruising.",
+            });
+          }
+        }
       } else if (error) {
         toast.error("Failed to log activity");
       }
     },
-    [],
+    [localClients, sandbox.sandboxMode],
   );
 
   const addTask = useCallback(

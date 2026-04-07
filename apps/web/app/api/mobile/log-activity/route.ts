@@ -64,10 +64,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // ── 4. Verify client belongs to user ──────────────────────────────────
+    // ── 4. Verify client belongs to user + capture prior status ───────────
+    // We read status here so the response can tell the mobile client whether
+    // the DB trigger (migration 00105) auto-promoted the client — lets the
+    // mobile UI show a "auto-promoted to Boarding" toast and refresh its
+    // local state without a full re-fetch.
     const { data: client, error: clientErr } = await admin
       .from("clients")
-      .select("id")
+      .select("id, status")
       .eq("id", client_id)
       .eq("user_id", user.id)
       .single();
@@ -78,6 +82,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         { status: 404 },
       );
     }
+    const priorStatus = client.status as string;
 
     // ── 5. Insert activity ────────────────────────────────────────────────
     const { error: insertErr } = await admin
@@ -98,7 +103,31 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    return NextResponse.json({ logged: true });
+    // ── 6. Detect auto-promotion (Phase 3 Wave A) ─────────────────────────
+    // Only re-read when prior status was one the trigger could have flipped.
+    // NOTE: admin client bypasses RLS, but the trigger function also checks
+    // sandbox_mode from user_settings explicitly, so sandbox users are still
+    // safe here.
+    let promoted = false;
+    let newStatus: string | null = null;
+    if (priorStatus === "cruising" || priorStatus === "scheduled") {
+      const { data: updated } = await admin
+        .from("clients")
+        .select("status")
+        .eq("id", client_id)
+        .single();
+      if (updated && updated.status !== priorStatus) {
+        newStatus = updated.status as string;
+        promoted = true;
+      }
+    }
+
+    return NextResponse.json({
+      logged: true,
+      promoted,
+      old_status: priorStatus,
+      new_status: newStatus ?? priorStatus,
+    });
   } catch (err) {
     console.error("log-activity unexpected error:", err);
     return NextResponse.json(
