@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "April 3, 2026";
+const LAST_UPDATED = "April 6, 2026";
 const EFFECTIVE_DATE = "April 3, 2026";
 
 export default function PrivacyPage() {
@@ -240,7 +240,7 @@ export default function PrivacyPage() {
                   <strong className="text-slate-300">Express consent</strong>{" "}
                   — for sensitive data processing, including: connecting your bank
                   account via Plaid, transmitting business data to AI providers
-                  (Groq), connecting Google Workspace integrations, and sending
+                  (Anthropic and Groq), connecting Google Workspace integrations, and sending
                   outreach communications on your behalf. Express consent is
                   obtained through affirmative action (e.g., clicking
                   &ldquo;Connect&rdquo; or &ldquo;Send&rdquo;) after you have
@@ -518,8 +518,13 @@ export default function PrivacyPage() {
               </h2>
               <p className="mb-4 leading-relaxed text-purple-100/80">
                 Agent Runway uses AI Features powered by third-party large
-                language model (LLM) providers. The following describes how your
-                data is handled in connection with AI Features:
+                language model (LLM) providers. Our primary AI provider is{" "}
+                <strong className="text-white">Anthropic, PBC</strong> (the
+                Claude family of models), with{" "}
+                <strong className="text-white">Groq, Inc.</strong> used as a
+                fallback provider and for voice transcription. The following
+                describes how your data is handled in connection with AI
+                Features:
               </p>
               <ul className="list-disc space-y-3 pl-6 text-purple-100/80">
                 <li>
@@ -635,12 +640,22 @@ export default function PrivacyPage() {
                   Drive).
                 </li>
                 <li>
+                  <strong className="text-slate-300">Anthropic, PBC</strong>{" "}
+                  — primary AI inference processing for AI Features (United States).
+                  When you use AI features, relevant portions of your business data
+                  are transmitted to Anthropic and processed by the Claude family of
+                  large language models. Anthropic operates under a Data Processing
+                  Agreement, commits to zero data retention for API traffic by
+                  default, and does not use customer data to train its models. See
+                  Section&nbsp;8 and Section&nbsp;11.
+                </li>
+                <li>
                   <strong className="text-slate-300">Groq, Inc.</strong>{" "}
-                  — AI inference processing for AI Features (United States). When
-                  you use AI features, relevant portions of your business data are
-                  transmitted to Groq. Groq operates under a Data Processing
-                  Agreement and commits to not retaining or training on customer
-                  data. See Section&nbsp;8 and Section&nbsp;11.
+                  — fallback AI inference and voice transcription (United States).
+                  Groq is used as a fallback when Anthropic is unavailable, and for
+                  speech-to-text on voice features. Groq operates under a Data
+                  Processing Agreement and commits to not retaining or training on
+                  customer data. See Section&nbsp;8 and Section&nbsp;11.
                 </li>
                 <li>
                   <strong className="text-slate-300">Vercel, Inc.</strong>{" "}
@@ -730,7 +745,7 @@ export default function PrivacyPage() {
                 Important notice regarding US-based processing:
               </p>
               <p className="leading-relaxed">
-                Data processed in the United States (by Groq, Stripe, Vercel,
+                Data processed in the United States (by Anthropic, Groq, Stripe, Vercel,
                 and other US-based sub-processors) is subject to United States
                 law, including the{" "}
                 <strong className="text-slate-300">

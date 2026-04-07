@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "April 3, 2026";
+const LAST_UPDATED = "April 6, 2026";
 
 const SUB_PROCESSORS = [
   {
@@ -27,9 +27,16 @@ const SUB_PROCESSORS = [
     security: "PCI DSS Level 1",
   },
   {
-    provider: "Groq",
-    purpose: "AI Processing",
+    provider: "Anthropic",
+    purpose: "AI Processing (Claude — primary LLM)",
     data: "User queries, business context data, client information for AI features",
+    location: "United States",
+    security: "DPA in place, zero data retention for API traffic, not used for model training",
+  },
+  {
+    provider: "Groq",
+    purpose: "AI Processing (fallback LLM and voice transcription)",
+    data: "User queries, business context data, client information; audio for voice features",
     location: "United States",
     security: "DPA in place, no data retention",
   },

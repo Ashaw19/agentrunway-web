@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "April 3, 2026";
+const LAST_UPDATED = "April 6, 2026";
 const EFFECTIVE_DATE = "April 3, 2026";
 
 /* ──────────────────────────────────────────────────────────────────────────── */
@@ -607,19 +607,25 @@ export default function TermsPage() {
                     AI-generated content.
                   </li>
                   <li>
-                    <strong className="text-white">Third-party AI providers (Groq).</strong>{" "}
-                    Customer Data processed by AI Features is transmitted to{" "}
-                    <strong className="text-white">Groq, Inc.</strong>, a third-party
-                    large language model inference provider based in the United States,
-                    for the purpose of generating AI outputs. Data transmitted to Groq
-                    is processed on Groq&apos;s servers located in the United States
-                    and is subject to US jurisdiction, including potential access by US
-                    law enforcement authorities under applicable US law. We have a Data
-                    Processing Agreement with Groq. Groq commits to not retaining or
-                    training on customer data after processing, but we cannot independently
-                    verify third-party provider compliance. Sensitive or confidential
-                    information should not be included in AI prompts or interactions.
-                    See Section&nbsp;12 for the full professional advice disclaimer.
+                    <strong className="text-white">Third-party AI providers (Anthropic and Groq).</strong>{" "}
+                    Customer Data processed by AI Features is transmitted to third-party
+                    large language model inference providers for the purpose of generating
+                    AI outputs. Our primary AI provider is{" "}
+                    <strong className="text-white">Anthropic, PBC</strong> (the Claude
+                    family of models), and{" "}
+                    <strong className="text-white">Groq, Inc.</strong> is used as a
+                    fallback inference provider and for voice transcription. Data
+                    transmitted to these providers is processed on their servers located
+                    in the United States and is subject to US jurisdiction, including
+                    potential access by US law enforcement authorities under applicable
+                    US law. We maintain Data Processing Agreements with both providers.
+                    Anthropic commits to zero data retention for API traffic by default
+                    and does not use customer data to train its models; Groq commits to
+                    not retaining or training on customer data after processing. We
+                    cannot independently verify third-party provider compliance.
+                    Sensitive or confidential information should not be included in AI
+                    prompts or interactions. See Section&nbsp;12 for the full
+                    professional advice disclaimer.
                   </li>
                   <li>
                     <strong className="text-white">AI model ownership.</strong>{" "}

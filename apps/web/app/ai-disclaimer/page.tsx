@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "March 23, 2026";
+const LAST_UPDATED = "April 6, 2026";
 
 /* -------------------------------------------------------------------------- */
 
@@ -181,10 +181,13 @@ export default function AiDisclaimerPage() {
                 <li className="flex gap-3">
                   <span className="mt-1 shrink-0 text-slate-500">&bull;</span>
                   <span>
-                    AI features are powered by{" "}
-                    <strong className="text-slate-300">Groq, Inc.</strong>, a
-                    US-based AI infrastructure company, using large language
-                    model (LLM) technology.
+                    AI features are primarily powered by{" "}
+                    <strong className="text-slate-300">Anthropic, PBC</strong>{" "}
+                    (the Claude family of large language models), with{" "}
+                    <strong className="text-slate-300">Groq, Inc.</strong> used
+                    as a fallback inference provider and for voice
+                    transcription. Both are US-based AI providers using large
+                    language model (LLM) technology.
                   </span>
                 </li>
                 <li className="flex gap-3">
@@ -193,17 +196,20 @@ export default function AiDisclaimerPage() {
                     When you use an AI feature, the relevant business data from
                     your Agent Runway account is{" "}
                     <strong className="text-slate-300">
-                      transmitted to Groq&apos;s servers in the United States
+                      transmitted to Anthropic&apos;s (or, as fallback, Groq&apos;s) servers in the United States
                     </strong>{" "}
-                    for processing. Groq processes your query and returns a
-                    generated response.
+                    for processing. The provider processes your query and
+                    returns a generated response. Anthropic operates under a
+                    zero-retention policy for API traffic by default and does
+                    not use customer data to train its models; Groq commits to
+                    not retaining or training on customer data.
                   </span>
                 </li>
                 <li className="flex gap-3">
                   <span className="mt-1 shrink-0 text-slate-500">&bull;</span>
                   <span>
-                    No human at Groq or Agent Runway reads your data as part of
-                    normal AI processing. The process is automated.
+                    No human at Anthropic, Groq, or Agent Runway reads your data
+                    as part of normal AI processing. The process is automated.
                   </span>
                 </li>
                 <li className="flex gap-3">
