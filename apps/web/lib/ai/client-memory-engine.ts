@@ -345,7 +345,7 @@ export async function updateClientMemory(
         model: models.default,
         prompt,
         temperature: 0.1,
-        maxTokens: 2000,
+        maxOutputTokens: 2000,
         headers: aiHeaders,
       });
       rawContent = text || null;
@@ -356,7 +356,7 @@ export async function updateClientMemory(
           model: models.fallback,
           prompt,
           temperature: 0.1,
-          maxTokens: 2000,
+          maxOutputTokens: 2000,
           headers: aiHeaders,
         });
         rawContent = text || null;

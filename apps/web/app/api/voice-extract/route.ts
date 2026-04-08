@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
       model: models.fast,
       prompt: EXTRACT_PROMPT(body.transcript),
       temperature: 0.1,
-      maxTokens: 1200,
+      maxOutputTokens: 1200,
       headers: heliconeHeaders({ userId: user.id, feature: "voice-extract" }),
     });
 

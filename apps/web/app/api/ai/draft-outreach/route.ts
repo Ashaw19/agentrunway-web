@@ -686,7 +686,7 @@ export async function POST(req: NextRequest) {
       const { text } = await generateText({
         model: models.default,
         prompt: fullPrompt,
-        maxTokens: 400,
+        maxOutputTokens: 400,
         temperature: 0.85,
         headers: aiHeaders,
       });
@@ -698,7 +698,7 @@ export async function POST(req: NextRequest) {
       const { text } = await generateText({
         model: models.fallback,
         prompt: fullPrompt,
-        maxTokens: 400,
+        maxOutputTokens: 400,
         temperature: 0.85,
         headers: aiHeaders,
       });
@@ -758,7 +758,7 @@ export async function POST(req: NextRequest) {
         const { text: retryRaw } = await generateText({
           model: models.default,
           prompt: `${fullPrompt}\n\n${retryNote}`,
-          maxTokens: 400,
+          maxOutputTokens: 400,
           temperature: 0.85,
           headers: aiHeaders,
         });

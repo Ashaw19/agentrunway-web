@@ -101,7 +101,7 @@ export async function extractReceiptData(
         },
       ],
       temperature: 0.05,
-      maxTokens: 1024,
+      maxOutputTokens: 1024,
       headers: userId
         ? heliconeHeaders({ userId, feature: "receipt-ocr" })
         : {},

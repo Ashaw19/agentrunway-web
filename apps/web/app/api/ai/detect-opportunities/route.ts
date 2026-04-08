@@ -698,7 +698,7 @@ async function draftItem(
       const { text } = await generateText({
         model: models.default,
         prompt: fullPrompt,
-        maxTokens: 400,
+        maxOutputTokens: 400,
         temperature: 0.85,
         headers: aiHeaders,
       });
@@ -709,7 +709,7 @@ async function draftItem(
       const { text } = await generateText({
         model: models.fallback,
         prompt: fullPrompt,
-        maxTokens: 400,
+        maxOutputTokens: 400,
         temperature: 0.85,
         headers: aiHeaders,
       });
@@ -734,7 +734,7 @@ async function draftItem(
         const { text: retryRaw } = await generateText({
           model: models.default,
           prompt: `${fullPrompt}\n\n${retryNote}`,
-          maxTokens: 400,
+          maxOutputTokens: 400,
           temperature: 0.85,
           headers: aiHeaders,
         });
