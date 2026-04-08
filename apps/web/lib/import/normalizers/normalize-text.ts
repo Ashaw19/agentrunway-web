@@ -100,9 +100,56 @@ const SECTION_HEADINGS = new Set([
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
-/** Split raw text into rows (handles \r\n, \r, \n). */
+/**
+ * Split raw text into rows (handles \r\n, \r, \n).
+ *
+ * For non-CSV prose this simple split is fine.  For CSV use splitCsvTextToRows
+ * instead so that quoted fields containing embedded newlines are not broken.
+ */
 function splitRows(text: string): string[] {
   return text.split(/\r?\n|\r/);
+}
+
+/**
+ * Split a raw CSV string into rows in an RFC 4180–aware way.
+ *
+ * Unlike a plain `text.split(/\n/)`, this respects quoted fields: a newline
+ * character that appears inside a `"…"` field is treated as part of the field
+ * value, not as a row boundary.  This is required for CSV exports from tools
+ * like FUB, IXACT, and Excel that include multi-line address fields.
+ *
+ * Returns raw row strings (NOT cell-split) so the result can be passed to
+ * splitCsvRow for further parsing, or joined back for display.
+ */
+function splitCsvTextToRows(text: string): string[] {
+  const rows: string[] = [];
+  let current = "";
+  let inQuote = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+
+    if (ch === '"') {
+      // RFC 4180 doubled-quote escape inside a quoted field → literal "
+      if (inQuote && text[i + 1] === '"') {
+        current += '""';
+        i++;
+      } else {
+        inQuote = !inQuote;
+        current += ch;
+      }
+    } else if ((ch === "\r" || ch === "\n") && !inQuote) {
+      // Row boundary — skip \n after \r (CRLF)
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      rows.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  // Last row (no trailing newline)
+  if (current.length > 0) rows.push(current);
+  return rows;
 }
 
 /** Split a CSV row respecting quoted fields.
@@ -210,7 +257,9 @@ export function normalizeTextDocument(
     cellRows = input as string[][];
     rawRows  = cellRows.map(row => row.join(","));
   } else {
-    rawRows = splitRows(input);
+    // Use the quote-aware splitter for CSV so embedded newlines in quoted
+    // fields are preserved within a single row rather than broken into two.
+    rawRows = isCsv ? splitCsvTextToRows(input) : splitRows(input);
     if (isCsv) {
       cellRows = rawRows.map(splitCsvRow);
     }

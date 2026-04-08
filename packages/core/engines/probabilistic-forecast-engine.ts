@@ -38,8 +38,9 @@ export function probabilityBands(
     totals.length,
   );
 
-  // Floor at 0 — negative projections (clawbacks) produce nonsensical bands
-  const base = Math.max(0, baseProjectedGCI);
+  // Floor at 0 — negative projections (clawbacks) produce nonsensical bands.
+  // Guard against NaN: Math.max(0, NaN) === NaN, so we must check isFinite first.
+  const base = Number.isFinite(baseProjectedGCI) ? Math.max(0, baseProjectedGCI) : 0;
   return {
     p10: Math.max(0, base * (1.0 - highBand)),
     p25: Math.max(0, base * (1.0 - lowBand)),
@@ -61,7 +62,8 @@ function varianceBands(
   }
 
   const mean = monthlyTotals.reduce((a, b) => a + b, 0) / monthCount;
-  if (mean <= 0) {
+  // Guard against NaN (e.g. if upstream data contains NaN) and non-positive means.
+  if (!Number.isFinite(mean) || mean <= 0) {
     return { lowBand: 0.15, highBand: 0.3, confidence: "low" };
   }
 

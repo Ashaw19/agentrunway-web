@@ -633,6 +633,30 @@ function sortTableGroups(
   });
 }
 
+// ── Name Search Normalization ─────────────────────────────────────────────────
+
+/**
+ * Convert a display name to a canonical search key used for deduplication.
+ *
+ * Rules applied:
+ *   1. Trim surrounding whitespace
+ *   2. Lowercase
+ *   3. NFD decompose → strip combining diacritics (é → e, ô → o, etc.)
+ *   4. Normalize apostrophe variants (curly ' and ʼ) to straight '
+ *
+ * This ensures "Hébert", "Hebert", and "HÉBERT" all map to the same key, and
+ * "O'Brien" (curly apostrophe) matches "O'Brien" (straight apostrophe).
+ * Critical for the francophone Canadian market where accented surnames are common.
+ */
+function toNameSearch(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // strip combining diacritical marks
+    .replace(/[''ʼ]/g, "'");          // normalize apostrophe variants
+}
+
 // ── CSV Parsing ───────────────────────────────────────────────────────────────
 
 function normalizePhoneType(raw: string): PhoneType {
@@ -1561,6 +1585,10 @@ export function ClientsContent({
     }
   }, []);
 
+  // Tracks which (clientId, planId) pairs have already fired this session to
+  // prevent duplicate tasks/emails when a status is toggled back and forth.
+  const firedFlightPlans = useRef(new Set<string>());
+
   // Allowlisted fields for dynamic client updates (prevents mass assignment of user_id, created_at, etc.)
   const ALLOWED_CLIENT_FIELDS = new Set([
     "name", "name_search", "first_name", "last_name", "email", "phone", "phone_type",
@@ -1611,6 +1639,12 @@ export function ClientsContent({
           return true;
         });
         for (const plan of matchingPlans) {
+          // Skip if this plan already fired for this client in the current session.
+          // Prevents duplicate tasks/emails when an agent toggles status back and forth.
+          const fireKey = `${clientId}:${plan.id}`;
+          if (firedFlightPlans.current.has(fireKey)) continue;
+          firedFlightPlans.current.add(fireKey);
+
           const planSteps = localFlightPlanSteps.filter(
             (s) => s.flight_plan_id === plan.id,
           );
@@ -1798,8 +1832,8 @@ export function ClientsContent({
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setAddClientSaving(false); return; }
 
-    // Check for existing client with same name (case-insensitive)
-    const nameSearch = newClientName.trim().toLowerCase();
+    // Check for existing client with same name (normalized for dedup)
+    const nameSearch = toNameSearch(newClientName);
     const { data: existing } = await supabase
       .from("clients")
       .select("id, name")
@@ -1984,7 +2018,7 @@ export function ClientsContent({
       updateClientField(selectedClient.id, "first_name", first || null),
       updateClientField(selectedClient.id, "last_name",  last  || null),
       updateClientField(selectedClient.id, "name",       fullName),
-      updateClientField(selectedClient.id, "name_search", fullName.toLowerCase()),
+      updateClientField(selectedClient.id, "name_search", toNameSearch(fullName)),
     ]);
     setProfileSaving(false);
     toast.success("Profile saved");
@@ -2433,7 +2467,9 @@ export function ClientsContent({
       }
     } catch (lookupErr) {
       console.error("[CSV Import] match lookup failed:", lookupErr);
-      // Non-fatal — fall through with empty match sets, everything defaults to Cruising
+      // Non-fatal — fall through with empty match sets, everyone defaults to Cruising.
+      // Surface a warning so the user knows deal-matching was skipped.
+      errorMessages.push("Warning: could not look up existing transactions — clients imported as Cruising (deal matching skipped).");
     }
 
     // Pass 1: separate rows into enrichments (existing clients) and inserts (new)
@@ -2447,7 +2483,7 @@ export function ClientsContent({
       const rowNum = rowIdx + 2; // +2 for 1-indexed header row
       const rawName = cleanImportValue((row[mapName] ?? "").trim());
       if (!rawName) { skipped++; errorMessages.push(`Row ${rowNum}: skipped — no name`); continue; }
-      const nameSearch = rawName.toLowerCase();
+      const nameSearch = toNameSearch(rawName);
 
       let email    = mapEmail    !== "__none__" ? cleanImportValue((row[mapEmail]    ?? "").trim()) || null : null;
       const phone    = mapPhone    !== "__none__" ? cleanImportValue((row[mapPhone]    ?? "").trim()) || null : null;

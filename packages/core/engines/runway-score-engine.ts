@@ -102,7 +102,8 @@ export function compute(
     (sum, c) => sum + c.score * c.weightValue,
     0,
   );
-  const scoreValue = Math.round(composite);
+  // Clamp to 0–100 to guard against negative sub-scores slipping through isFinite
+  const scoreValue = Math.round(Math.min(100, Math.max(0, composite)));
 
   return {
     score: scoreValue,
