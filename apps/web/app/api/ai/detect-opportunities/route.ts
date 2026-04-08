@@ -271,10 +271,15 @@ function selectValueType(
 }
 
 /** Build enriched context by merging existing context with memory-derived fields. */
+// Accepts either bare ClientMemoryFacts or facts augmented with the parent
+// profile's memory_summary. The optional field lets existing call sites that
+// pass only facts compile without changes.
+type EnrichMemory = ClientMemoryFacts & { memory_summary?: string | null };
+
 function enrichContext(
   baseCtx: Record<string, unknown>,
   opportunityType: string,
-  memory: ClientMemoryFacts | null,
+  memory: EnrichMemory | null,
   reasonWhy: string,
 ): Record<string, unknown> {
   const { value_type, value_summary } = selectValueType(opportunityType, memory);
