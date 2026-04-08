@@ -1860,11 +1860,26 @@ export function ClientsContent({
       return;
     }
 
+    // Split the single "Name" field into first_name + last_name so the
+    // detail view (which binds to these columns) shows them populated.
+    // Keep `name` as the canonical display field to stay in sync with
+    // handleSaveProfile, which joins first + last back into `name`.
+    const trimmedName = newClientName.trim().slice(0, FIELD_LIMITS.clientName);
+    const firstSpaceIdx = trimmedName.indexOf(" ");
+    const firstNameInsert = firstSpaceIdx === -1
+      ? trimmedName
+      : trimmedName.slice(0, firstSpaceIdx);
+    const lastNameInsert = firstSpaceIdx === -1
+      ? null
+      : trimmedName.slice(firstSpaceIdx + 1).trim() || null;
+
     const { data, error } = await supabase
       .from("clients")
       .insert({
         user_id: user.id,
-        name: newClientName.trim().slice(0, FIELD_LIMITS.clientName),
+        name: trimmedName,
+        first_name: firstNameInsert || null,
+        last_name: lastNameInsert,
         name_search: nameSearch,
         email: newClientEmail.trim().slice(0, FIELD_LIMITS.email) || null,
         phone: newClientPhone.trim().slice(0, FIELD_LIMITS.phone) || null,
@@ -2160,6 +2175,11 @@ export function ClientsContent({
     setTaskDueDate(todayIso());
     setTaskPriority("normal");
     setTaskNotes("");
+    // Reset the Relationships link panel — its Search input has autoFocus,
+    // so if its state persists across detail opens it auto-scrolls the
+    // newly opened client's detail sheet down to that input.
+    setLinkRelOpen(false);
+    setLinkRelSearch("");
   }
 
   async function handleLogActivity() {
@@ -2573,9 +2593,22 @@ export function ClientsContent({
           defaultCruising++;
         }
 
+        // Split rawName into first_name + last_name so the detail view
+        // (which binds to these columns) shows them populated on freshly
+        // imported clients. Mirrors the split in handleAddClient.
+        const rawNameFirstSpaceIdx = rawName.indexOf(" ");
+        const importFirstName = rawNameFirstSpaceIdx === -1
+          ? rawName
+          : rawName.slice(0, rawNameFirstSpaceIdx);
+        const importLastName = rawNameFirstSpaceIdx === -1
+          ? null
+          : rawName.slice(rawNameFirstSpaceIdx + 1).trim() || null;
+
         toInsert.push({
           user_id: user.id,
           name: rawName,
+          first_name: importFirstName || null,
+          last_name: importLastName,
           name_search: nameSearch,
           email,
           phone,
