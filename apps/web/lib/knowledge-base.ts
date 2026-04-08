@@ -26,6 +26,8 @@ Agent Runway is a business analytics and CRM platform built for Canadian real es
 **DASHBOARD**
 Command center showing: Runway Score (0–100, graded A+ to F), KPI cards (GCI progress, YTD performance, pace status), monthly income chart, probability bands (P10–P90), benchmark vs CREA 2023 peers, tax estimate (federal + provincial + CPP), smart alerts, AI-generated insights (praise/tips/warnings), survival runway status, trend detection, and CRM task widget with overdue/stale lead counts. Three views: Essentials, Standard, Full. Three scenario modes: Conservative (−15%), Base, Optimistic (+15%). Local market intelligence (Market Position, Market Conditions) from CREA MLS® stats when a board is selected.
 
+Smart alerts use statistical anomaly detection (IQR method): expense spikes (category amount > Q3+1.5×IQR of personal history, requires ≥4 months data), pipeline coverage drops (<1.5x remaining goal = warning, <1.0x = alert), activity decay (client silent ≥2× their own contact rhythm), marketing ROI divergence (closings <75% of spend-implied expectation). Alerts are relative to the agent's own baseline, not industry averages.
+
 **TRANSACTIONS**
 Three tabs:
 - Deals: Closed transactions with date, address, client link, sale price, commission %, GCI (auto-calculated or overridden), side (buyer/seller/both), status (closed/pending/fallen), team/referral split.
@@ -110,6 +112,14 @@ Flight Control will not generate outreach for a client who was contacted within 
 
 **AI VOICE GUIDE:**
 In Settings, agents can write a personal AI Voice Guide — a short paragraph describing their communication style, personality, preferred phrases, and things to avoid. This guide is injected into every AI-generated outreach draft, ensuring messages sound like the agent wrote them personally. Example: "I prefer short, direct messages. I always end with an open question. I never use industry jargon. I like to reference local market conditions naturally."
+
+**NURTURE SEQUENCES:**
+Flight Control supports two automated nurture sequence templates — all drafts require manual review and send (CASL compliant, never auto-sent):
+- Post-Close Nurture: 6 steps over 12 months (Day 1 congratulations → Day 30 check-in → Day 90 market update → Day 180 home value → Day 270 referral ask → Day 365 move-iversary)
+- Re-Engagement Sequence: 3 steps over 30 days for cold contacts (Day 0 value content → Day 14 personal touch → Day 30 soft reconnect)
+
+**SEND TIME OPTIMIZATION:**
+Flight Control uses a 3-tier system to suggest optimal send times. Tier 1 (default): Tuesday–Thursday mornings (9–10am) are industry-optimal for real estate outreach. Tier 2: adjusted by client segment (buyer/seller/investor/past_client/lead).
 
 **NEWSLETTER SECTION:**
 Flight Control also includes a newsletter builder for mass market updates and seasonal messages to your client base.

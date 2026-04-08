@@ -210,6 +210,12 @@ const TOPIC_RULES: TopicRule[] = [
       "plaid connect",
       "expense ratio wrong",
       "recurring expense",
+      "expense spike",
+      "expense alert",
+      "smart alert",
+      "anomaly",
+      "unusual expense",
+      "marketing spend",
     ],
   },
   {
@@ -256,8 +262,8 @@ const TOPIC_RULES: TopicRule[] = [
   },
   {
     topic: "flight-control",
-    primary: ["flight control", "outreach", "draft", "outreach queue", "ai voice guide"],
-    secondary: ["send", "message", "tone", "formal", "casual", "friendly", "suppress", "newsletter"],
+    primary: ["flight control", "outreach", "draft", "outreach queue", "ai voice guide", "nurture"],
+    secondary: ["send", "message", "tone", "formal", "casual", "friendly", "suppress", "newsletter", "sequence", "post-close", "re-engagement"],
     phrases: [
       "flight control",
       "outreach queue",
@@ -272,6 +278,13 @@ const TOPIC_RULES: TopicRule[] = [
       "communication tone",
       "suppression",
       "over messaging",
+      "nurture sequence",
+      "post close sequence",
+      "re-engagement sequence",
+      "post close nurture",
+      "send time",
+      "best time to send",
+      "when to send",
     ],
   },
   {

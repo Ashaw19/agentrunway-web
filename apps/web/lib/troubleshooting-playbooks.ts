@@ -251,6 +251,15 @@ The pipeline tracks how accurate past price estimates were once deals close:
 - If agent always overestimates: overEstimateCount > underEstimateCount → suggests pricing high
 - If agent always underestimates: underEstimateCount > overEstimateCount → suggests pricing conservative
 
+### Pipeline Coverage Alert (anomaly-engine.ts)
+The system flags when your pipeline is too thin to cover your remaining annual goal:
+- **Coverage ratio** = Pipeline Weighted GCI ÷ Remaining Goal
+- **Warning**: Coverage < 1.5x remaining goal
+- **Alert**: Coverage < 1.0x remaining goal (pipeline can't cover target even at 100%)
+- No alert if remaining goal ≤ 0 (goal already met, or no goal set)
+
+Note: Activity decay alerts also exist — clients whose days-since-last-contact exceed 2–3× their personal average contact rhythm get flagged as going cold (separate from the fixed 14/30-day stale thresholds).
+
 ### Conversion Funnel (pipeline-forecast-engine.ts)
 Shows stage-by-stage conversion rates for each pipeline source:
 - **Deal funnel**: lead → showing → offer → conditional → firm → closed
@@ -328,6 +337,17 @@ Camera capture → image uploaded to Supabase Storage → /api/receipts/process 
 3. **Survival Runway**: Monthly recurring expenses increase burn rate → shorter runway
 4. **Advisor Cards**: Flags if expense ratio >30% of projected GCI
 5. **T2125 Report**: Expenses map to CRA lines for tax filing
+
+### Smart Alerts — Expense Anomaly Detection (anomaly-engine.ts)
+The Dashboard smart alerts section uses statistical anomaly detection to flag unusual spending:
+- **Method**: IQR (Interquartile Range) — compares each month's category spend against your own history
+- **Requires**: ≥4 months of data per expense category before thresholds are computed
+- **Warning**: Amount > Q3 + 1.5×IQR (above your typical high end)
+- **Alert**: Amount > Q3 + 3×IQR (extreme outlier)
+- Triggered per CRA category (e.g., Marketing spike, Vehicle spike)
+
+This means alerts are relative to the agent's own spending history — not industry averages.
+If a user has <4 months of data in a category, no alert will fire for that category.
 
 ### Common Problems & Diagnostics
 
@@ -590,6 +610,34 @@ This guide is injected into every AI draft generation prompt, ensuring messages 
 - **Friendly**: Warm and personal (default)
 
 Each client has a tone preference set in their CRM profile. Drafts match the client's tone.
+
+### Nurture Sequences (nurture-engine.ts)
+Flight Control supports two automated nurture sequence templates. All steps generate drafts for manual review — **never sent automatically** (CASL compliant). User must click Send for each step.
+
+**Post-Close Nurture** (6 steps over 12 months, triggered by deal close):
+| Step | Day | Type |
+|------|-----|------|
+| 0 | Day 1 | Congratulations — settlement checklist, warm message |
+| 1 | Day 30 | Settling In Check-In — seasonal home tip |
+| 2 | Day 90 | Market Update — comparable sales in their neighbourhood |
+| 3 | Day 180 | Home Value Estimate — half-anniversary check-in |
+| 4 | Day 270 | Referral Ask — soft, non-salesy |
+| 5 | Day 365 | Move-iversary — 1-year celebration + value update |
+
+**Re-Engagement Sequence** (3 steps, 30 days, triggered for cold contacts):
+| Step | Day | Type |
+|------|-----|------|
+| 0 | Day 0 | Value Check-In — pure value, no ask |
+| 1 | Day 14 | Personal Touch — specific to client context |
+| 2 | Day 30 | Soft Reconnect — available if they need anything |
+
+### Send Time Optimization (send-time-engine.ts)
+Flight Control uses a 3-tier system to suggest when to send outreach:
+- **Tier 1 (default)**: RE industry optimal windows — Tuesday/Wednesday/Thursday mornings (9–10am) score highest (90–95/100)
+- **Tier 2 (with segment data)**: Adjusted by client type (buyer, seller, investor, past_client, lead)
+- **Tier 3 (future)**: Per-contact individual history (not yet deployed)
+
+If a user asks "when should I send?" → Tuesday–Thursday mornings are industry-optimal for real estate outreach.
 
 ### Newsletter Section
 Flight Control also includes a newsletter builder for mass updates (market reports, seasonal messages).
