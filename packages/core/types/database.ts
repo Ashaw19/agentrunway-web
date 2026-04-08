@@ -629,7 +629,14 @@ export type OutreachOpportunityType =
   | "mortgage_renewal_window"   // 3–4.5 yrs post-close — plant the seed for upcoming renewal
   | "past_client_check_in"      // landed/cruising client, 180+ days no contact
   | "timeframe_approaching"     // active buyer/seller reaching their stated deadline
-  | "property_value_milestone"; // notable round-year anniversary (1,3,5,10yr) — offer CMA
+  | "property_value_milestone"  // notable round-year anniversary (1,3,5,10yr) — offer CMA
+  // Batch 5: Memory-Powered Triggers (driven by client_memory_profiles)
+  | "pain_point_inactive"       // Known concern + idle — re-open with empathy
+  | "buyer_inventory_match"     // Active buyer matching new listings in target area
+  | "seller_timing_hesitation"  // Seller with timing objection — gentle nudge
+  | "mortgage_renewal_finance"  // Mortgage context surfaced in memory + finance-relevant timing
+  | "educational_value_inactive"// Idle client + known topic of interest — value-add touchpoint
+  | "condition_firming";        // Pipeline deal moving from conditional to firm
 export type OutreachStatus          = "draft" | "ready" | "sent" | "skipped";
 
 export interface OutreachQueueItem {
