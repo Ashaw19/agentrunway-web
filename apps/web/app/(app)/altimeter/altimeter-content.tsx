@@ -409,6 +409,10 @@ export function AltimeterContent({
 
   // ── Where You Stand ────────────────────────────────────────────────────
   const avgDealSize = ytdDealCount > 0 ? ytdGCI / ytdDealCount : 0;
+  const hasPriorYearData = historyItems.some(
+    h => h.year === currentYear - 1 && (h.annual_gci ?? 0) > 0,
+  );
+  const currentQuarter = Math.floor(now.getMonth() / 3); // 0=Q1..3=Q4
   const whereYouStand = computeWhereYouStand({
     ytdGCI,
     ytdDealCount,
@@ -417,8 +421,11 @@ export function AltimeterContent({
     goalGCI,
     benchmark,
     marketMomentum,
-    lastYearGCI: historyItems.find(h => h.year === currentYear - 1)?.annual_gci ?? null,
     fraction,
+    experienceYears: settings?.experience_years ?? null,
+    cohort: benchmark.cohort,
+    hasPriorYearData,
+    currentQuarter,
   });
 
   // ── Monthly chart ──────────────────────────────────────────────────────

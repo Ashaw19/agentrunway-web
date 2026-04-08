@@ -176,9 +176,14 @@ export default async function PipelinePage() {
       seed = buildFallbackSandboxSeed();
     }
 
+    // settings is the typed UserSettings; default_commission_pct is a runtime
+    // column that may not yet be in the generated type. Reach through `unknown`
+    // to avoid the TS2352 "insufficient overlap" error without widening the
+    // whole type declaration.
+    const settingsAny = settings as unknown as Record<string, unknown>;
     seed.defaultCommissionPct =
-      (settings as Record<string, unknown>)["default_commission_pct"] != null
-        ? Number((settings as Record<string, unknown>)["default_commission_pct"])
+      settingsAny["default_commission_pct"] != null
+        ? Number(settingsAny["default_commission_pct"])
         : 0.025;
 
     return <PipelineContent seed={seed} />;

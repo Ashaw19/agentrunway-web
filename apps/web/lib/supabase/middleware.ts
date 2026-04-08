@@ -97,8 +97,11 @@ export async function updateSession(request: NextRequest) {
   // Until French translation and full compliance are built, redirect Quebec
   // visitors to an informational landing page. Bypass cookie allows override.
   if (pathname !== "/quebec" && !pathname.startsWith("/quebec/")) {
-    const region = request.geo?.region;       // Vercel provides ISO 3166-2 subdivision
-    const country = request.geo?.country;
+    // Next.js 15 removed request.geo — Vercel now exposes geo via headers.
+    // x-vercel-ip-country: ISO 3166-1 alpha-2 (e.g. "CA")
+    // x-vercel-ip-country-region: ISO 3166-2 subdivision (e.g. "QC")
+    const country = request.headers.get("x-vercel-ip-country");
+    const region = request.headers.get("x-vercel-ip-country-region");
     const isQuebec = country === "CA" && region === "QC";
     const hasBypass = request.cookies.get("qc-bypass")?.value === "1";
 

@@ -22,7 +22,7 @@
  *   Confirm-required    — logExpense, recordTransaction, updatePipelineDealValue
  */
 
-import { tool } from "ai";
+import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -41,13 +41,13 @@ const ARCHIVE_REASONS = ["deceased", "moved_away", "do_not_contact", "other"] as
  * Create all AI Advisor tools bound to the authenticated Supabase client.
  * Pass the result directly to streamText({ tools: createAgentTools(...) }).
  */
-export function createAgentTools(supabase: SupabaseClient, userId: string) {
+export function createAgentTools(supabase: SupabaseClient, userId: string): ToolSet {
   return {
 
     // ── SEARCH: Find clients by name ─────────────────────────────────────────
     searchClients: tool({
       description: "Search for clients by name to find their ID before taking action. Always search first when the user mentions a client by name. Returns matching clients with their ID, name, and current flight status.",
-      parameters: z.object({
+      inputSchema: z.object({
         query: z.string().describe("The client name or partial name to search for"),
       }),
       execute: async ({ query }) => {
@@ -75,7 +75,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string) {
     // ── SEARCH: Find pipeline deals ───────────────────────────────────────────
     searchPipelineDeals: tool({
       description: "Search for pipeline deals by address or client name to find their ID before taking action. Always search first when the user mentions a specific deal.",
-      parameters: z.object({
+      inputSchema: z.object({
         query: z.string().describe("The property address or client name to search for"),
       }),
       execute: async ({ query }) => {
@@ -102,7 +102,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string) {
     // ── LOG CONTACT ACTIVITY ─────────────────────────────────────────────────
     logContactActivity: tool({
       description: "Log a contact activity (call, email, text, showing, meeting, offer, or note) for a client. Also automatically updates the client's last contact date. Use this whenever the agent mentions they contacted, met, or interacted with a client.",
-      parameters: z.object({
+      inputSchema: z.object({
         clientId: z.string().uuid().describe("The client UUID from searchClients"),
         clientName: z.string().describe("Client name for confirmation message"),
         type: z.enum(ACTIVITY_TYPES).describe("Type of activity"),
@@ -161,7 +161,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string) {
     // ── UPDATE CLIENT STATUS (FLIGHT STATUS) ─────────────────────────────────
     updateClientStatus: tool({
       description: "Update a client's flight status. Valid statuses: boarding (active lead, not yet under contract), scheduled (future intent — plans to act later), in_flight (under contract / transaction in progress), cruising (past client or long-term nurture).",
-      parameters: z.object({
+      inputSchema: z.object({
         clientId: z.string().uuid().describe("The client UUID from searchClients"),
         clientName: z.string().describe("Client name for confirmation message"),
         status: z.enum(CLIENT_STATUSES).describe("New flight status"),
@@ -193,7 +193,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string) {
     // ── UPDATE CLIENT NOTES ───────────────────────────────────────────────────
     updateClientNotes: tool({
       description: "Add or update notes on a client's profile. Use mode 'append' to add to existing notes (default), or 'replace' to overwrite entirely.",
-      parameters: z.object({
+      inputSchema: z.object({
         clientId: z.string().uuid().describe("The client UUID from searchClients"),
         clientName: z.string().describe("Client name for confirmation message"),
         note: z.string().describe("The note text to add or set"),
@@ -236,7 +236,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string) {
     // ── UPDATE CLIENT DETAILS ─────────────────────────────────────────────────
     updateClientDetails: tool({
       description: "Update a client's key details such as budget, property interest, timeframe, preferred contact method, or financing details. Only pass the fields that need updating.",
-      parameters: z.object({
+      inputSchema: z.object({
         clientId: z.string().uuid().describe("The client UUID from searchClients"),
         clientName: z.string().describe("Client name for confirmation message"),
         propertyInterest: z.number().optional().describe("Budget (buyer) or expected listing price (seller) in dollars"),
@@ -290,7 +290,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string) {
     // ── UPDATE PIPELINE DEAL STAGE ────────────────────────────────────────────
     updatePipelineDealStage: tool({
       description: "Update the stage of a pipeline deal. Stages: lead → showing → offer → conditional → firm → closed.",
-      parameters: z.object({
+      inputSchema: z.object({
         dealId: z.string().uuid().describe("The deal UUID from searchPipelineDeals"),
         dealDescription: z.string().describe("Brief deal description for confirmation (e.g. '123 Elm St — Johnson')"),
         stage: z.enum(PIPELINE_STAGES).describe("New pipeline stage"),
@@ -315,7 +315,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string) {
     // ── UPDATE PIPELINE DEAL PROBABILITY ─────────────────────────────────────
     updatePipelineDealProbability: tool({
       description: "Set a custom probability override on a pipeline deal (0–100%). This overrides the default stage-based probability in the weighted pipeline calculation.",
-      parameters: z.object({
+      inputSchema: z.object({
         dealId: z.string().uuid().describe("The deal UUID from searchPipelineDeals"),
         dealDescription: z.string().describe("Brief deal description for confirmation"),
         probabilityPct: z.number().min(0).max(100).describe("Probability as a percentage, e.g. 65 for 65%"),
@@ -341,7 +341,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string) {
     // ── UPDATE PIPELINE DEAL CLOSE DATE ──────────────────────────────────────
     updatePipelineDealCloseDate: tool({
       description: "Update the expected close date on a pipeline deal.",
-      parameters: z.object({
+      inputSchema: z.object({
         dealId: z.string().uuid().describe("The deal UUID from searchPipelineDeals"),
         dealDescription: z.string().describe("Brief deal description for confirmation"),
         closeDate: z.string().describe("New expected close date in YYYY-MM-DD format"),
@@ -366,7 +366,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string) {
     // ── UPDATE GCI GOAL ───────────────────────────────────────────────────────
     updateGCIGoal: tool({
       description: "Update the agent's annual GCI goal. Use this when the agent explicitly tells you they are revising their income goal for the year.",
-      parameters: z.object({
+      inputSchema: z.object({
         goalGCI: z.number().positive().describe("New annual GCI goal in dollars"),
       }),
       execute: async ({ goalGCI }) => {
@@ -388,7 +388,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string) {
     // ── ARCHIVE CLIENT ────────────────────────────────────────────────────────
     archiveClient: tool({
       description: "Archive a client, removing them from active views. This is reversible. Only do this when the agent explicitly asks to archive or remove a client. Always confirm with the agent before calling this tool.",
-      parameters: z.object({
+      inputSchema: z.object({
         clientId: z.string().uuid().describe("The client UUID from searchClients"),
         clientName: z.string().describe("Client name for confirmation message"),
         reason: z.enum(ARCHIVE_REASONS).describe("Reason for archiving"),
@@ -417,7 +417,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string) {
     // ── LOG EXPENSE (confirm required) ────────────────────────────────────────
     logExpense: tool({
       description: "Log a business expense. Requires confirmed: true before writing. When confirmed is false, return a preview for the agent to confirm. Category keys: vehicle, marketing, office_tech, professional_fees, travel_meals, insurance_licenses, education_dev, other.",
-      parameters: z.object({
+      inputSchema: z.object({
         vendor: z.string().describe("Business or vendor name (e.g. 'Shell', 'Facebook Ads', 'Rogers')"),
         amount: z.number().positive().describe("Expense total in dollars"),
         categoryKey: z.enum(EXPENSE_CATEGORY_KEYS).describe("Expense category key"),
@@ -466,7 +466,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string) {
     // ── RECORD CLOSED TRANSACTION (confirm required) ──────────────────────────
     recordTransaction: tool({
       description: "Record a closed real estate transaction. Requires confirmed: true before writing. When confirmed is false, return a preview for the agent to confirm. Use gciOverride to enter the exact commission received; otherwise set salePrice and commissionPct and it will be calculated automatically.",
-      parameters: z.object({
+      inputSchema: z.object({
         address: z.string().describe("Property address"),
         clientName: z.string().describe("Client name"),
         side: z.enum(TRANSACTION_SIDES).describe("Agent side: buyer, seller, or both"),
@@ -525,7 +525,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string) {
     // ── UPDATE PIPELINE DEAL VALUE (confirm required) ─────────────────────────
     updatePipelineDealValue: tool({
       description: "Update the estimated sale price of a pipeline deal. Requires confirmed: true before writing.",
-      parameters: z.object({
+      inputSchema: z.object({
         dealId: z.string().uuid().describe("The deal UUID from searchPipelineDeals"),
         dealDescription: z.string().describe("Brief deal description for confirmation"),
         estimatedPrice: z.number().positive().describe("New estimated sale price in dollars"),

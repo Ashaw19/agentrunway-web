@@ -437,7 +437,7 @@ export async function POST(req: NextRequest) {
           `Projected Year-End GCI: ${fmtCurrency(projGCI)} (uses ${seasonalSource} seasonal weighting)`,
           `Without Seasonality (naive linear): ${fmtCurrency(naiveProjection)}`,
           `Projected Year-End Deals: ${projDeals}`,
-          `Pace Status: ${(() => { const ep = settings.goal_gci > 0 ? paceVsGoalPercent(settings.goal_gci, ytdGCI, engineFraction) : pacePercent; return `${ep >= 0 ? "+" : ""}${Math.round(ep)}% ${ep >= 0 ? "ahead of" : "behind"} seasonal pace`; })()}`,
+          `Pace Status: ${(() => { const ep = settings.goal_gci > 0 ? paceVsGoalPercent(settings.goal_gci, ytdGCI, engineFraction) : 0; return `${ep >= 0 ? "+" : ""}${Math.round(ep)}% ${ep >= 0 ? "ahead of" : "behind"} seasonal pace`; })()}`,
           `Trend: ${trend === "up" ? "Up" : trend === "down" ? "Down" : "Flat"}`,
           settings.goal_gci > 0 ? `Daily Pace Needed: ${fmtCurrency(dailyPace)}/day to hit goal (${remaining} days remaining)` : null,
           "",

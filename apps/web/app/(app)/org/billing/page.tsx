@@ -47,13 +47,18 @@ export default async function OrgBillingPage() {
         { expand: ["default_payment_method"] },
       );
 
-      const interval =
-        subscription.items.data[0]?.price?.recurring?.interval ?? null;
+      // Stripe v18+ moved current_period_end from Subscription to SubscriptionItem,
+      // because each item can technically be on a different billing cycle. For our
+      // single-plan subscriptions, all items share the same period, so we read from
+      // the first item as the representative cycle.
+      const firstItem = subscription.items.data[0];
+      const interval = firstItem?.price?.recurring?.interval ?? null;
+      const periodEnd = firstItem?.current_period_end ?? null;
 
       subscriptionData = {
         status: subscription.status,
-        currentPeriodEnd: subscription.current_period_end
-          ? new Date(subscription.current_period_end * 1000).toISOString()
+        currentPeriodEnd: periodEnd
+          ? new Date(periodEnd * 1000).toISOString()
           : null,
         cancelAtPeriodEnd: subscription.cancel_at_period_end,
         interval,
@@ -69,7 +74,8 @@ export default async function OrgBillingPage() {
     }
 
     try {
-      const invoice = await stripe.invoices.retrieveUpcoming({
+      // Stripe v18+ replaced invoices.retrieveUpcoming with invoices.createPreview.
+      const invoice = await stripe.invoices.createPreview({
         subscription: org.stripe_subscription_id,
       });
       upcomingInvoice = {

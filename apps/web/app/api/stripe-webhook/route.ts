@@ -48,6 +48,18 @@ function subscriptionId(val: string | Stripe.Subscription | null): string | null
   return typeof val === "string" ? val : val.id;
 }
 
+// Stripe v18+ removed `invoice.subscription` — the subscription is now nested
+// under `invoice.parent.subscription_details.subscription`. This helper walks
+// the new shape and returns the subscription id (or null for non-subscription
+// invoices like one-off quotes).
+function invoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
+  const parent = invoice.parent;
+  if (!parent || parent.type !== "subscription_details") return null;
+  const sub = parent.subscription_details?.subscription;
+  if (!sub) return null;
+  return typeof sub === "string" ? sub : sub.id;
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
@@ -282,12 +294,13 @@ export async function POST(request: Request) {
       // Downgrade to starter on canceled/unpaid — keep access during past_due
       // (Stripe dunning handles payment retries; immediate downgrade is hostile)
       const isActive = sub.status === "active" || sub.status === "trialing" || sub.status === "past_due";
-      // current_period_end is present at runtime but was removed from TS types
-      // in newer Stripe SDK versions — access via unknown to stay type-safe.
-      const rawPeriodEnd = (sub as unknown as Record<string, unknown>).current_period_end;
+      // Stripe v18+ moved current_period_end from Subscription to SubscriptionItem.
+      // All items on our single-plan subscriptions share one cycle, so the first
+      // item's period is the canonical subscription period.
+      const firstItemPeriodEnd = sub.items.data[0]?.current_period_end ?? null;
       const periodEnd =
-        typeof rawPeriodEnd === "number"
-          ? new Date(rawPeriodEnd * 1000).toISOString()
+        typeof firstItemPeriodEnd === "number"
+          ? new Date(firstItemPeriodEnd * 1000).toISOString()
           : null;
 
       const { error } = await db
@@ -483,7 +496,7 @@ export async function POST(request: Request) {
     case "invoice.payment_failed": {
       const invoice = event.data.object as Stripe.Invoice;
       const cid = customerId(invoice.customer);
-      const sid = subscriptionId(invoice.subscription);
+      const sid = invoiceSubscriptionId(invoice);
 
       if (!cid || !sid) {
         console.error("[stripe] invoice.payment_failed — missing customer or subscription ID", invoice.id);
@@ -546,7 +559,7 @@ export async function POST(request: Request) {
             const { subject, html, text } = paymentFailedEmail({
               firstName,
               attemptCount,
-              nextRetryDate,
+              nextRetryDate: nextRetryDate ?? undefined,
               updatePaymentUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://agentrunway.ca"}/settings/billing`,
             });
 
@@ -576,7 +589,7 @@ export async function POST(request: Request) {
     case "invoice.payment_succeeded": {
       const invoice = event.data.object as Stripe.Invoice;
       const cid = customerId(invoice.customer);
-      const sid = subscriptionId(invoice.subscription);
+      const sid = invoiceSubscriptionId(invoice);
 
       if (!cid || !sid) {
         console.error("[stripe] invoice.payment_succeeded — missing customer or subscription ID", invoice.id);

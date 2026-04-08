@@ -145,7 +145,12 @@ type PositionVsMarket = "above" | "at" | "below";
 function getPositionVsMarket(
   marketMomentum: WhereYouStandInput["marketMomentum"],
 ): PositionVsMarket {
-  if (!marketMomentum || marketMomentum.avgDealsPerAgentPerYear <= 0 || !marketMomentum.agentAnnualizedDeals) {
+  if (
+    !marketMomentum ||
+    marketMomentum.avgDealsPerAgentPerYear == null ||
+    marketMomentum.avgDealsPerAgentPerYear <= 0 ||
+    !marketMomentum.agentAnnualizedDeals
+  ) {
     return "at"; // default when no market data or market average is zero
   }
   const ratio = marketMomentum.agentAnnualizedDeals / marketMomentum.avgDealsPerAgentPerYear;

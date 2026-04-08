@@ -239,7 +239,7 @@ export default async function DashboardPage({
     .map((r: ClientRecord) => ({
       address: r.address ?? "Unknown address",
       condition_date: r.condition_date!,
-      client_name: clientNameMap.get(r.client_id) ?? "Unknown",
+      client_name: (r.client_id ? clientNameMap.get(r.client_id) : null) ?? "Unknown",
       days_until: Math.round((new Date(r.condition_date + "T12:00:00").getTime() - new Date(todayStr + "T12:00:00").getTime()) / 86_400_000),
     }))
     .sort((a: { days_until: number }, b: { days_until: number }) => a.days_until - b.days_until)
