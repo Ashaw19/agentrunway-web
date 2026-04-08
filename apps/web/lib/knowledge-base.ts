@@ -36,7 +36,7 @@ Three tabs:
 
 **CRM**
 Four tabs:
-- Clients: Full contact records. Each client has: First name and last name (stored separately, displayed together), email, phone, city/province, address, birthday, lead source, tags, budget, timeframe, property interest (buy/sell/both), property type (residential/commercial/investment), communication tone preference, notes, relationship links (e.g., spouse, referral source), contact activity log (call/email/text/showing/meeting/note/task), status (Boarding→Taxiing→Approach→In-Flight→Landed→Cruising), valuation tier (Platinum/Gold/Silver/Bronze).
+- Clients: Full contact records. Each client has: First name and last name (stored separately, displayed together), email, phone, city/province, address, birthday, lead source, tags, budget, timeframe, property interest (buy/sell/both), property type (residential/commercial/investment), communication tone preference, notes, relationship links (e.g., spouse, referral source), contact activity log (call/email/text/showing/meeting/note/task), status (Boarding→Scheduled→In-Flight→Cruising), valuation tier (Platinum/Gold/Silver/Bronze).
 
   CLIENT DETAIL PANEL LAYOUT: The right-side detail panel has: (1) A gradient status banner at the top whose color matches the client's current flight status. (2) A circular avatar. (3) Separate First Name and Last Name input fields (not a single combined name field). (4) A Save button that commits first name, last name, and notes together — fields are not auto-saved on blur, they require the Save button. (5) A Flight Status strip showing the current stage. Below the header, colored section cards organize the detail view: Sky blue = Contact Information, Emerald green = Address, Amber = Details (budget, timeframe, property interest), Violet = Relationships, Slate = Notes, Blue = Activity Log, Orange = Tasks, Green = Deal History.
 
@@ -167,7 +167,7 @@ Portfolio Health: Concentrated (top 1 >40% or top 3 >70%), Balanced (top 3 50–
 
 **Speed to Lead:** Hours between client creation date and first recorded contact activity.
 
-**Stale Lead:** Active client (Boarding/Taxiing/Approach/In-Flight) with no recorded contact in 14+ days on dashboard, 30+ days in CRM view. Cruising clients are NOT flagged as stale.
+**Stale Lead:** Active client (Boarding/In-Flight) with no recorded contact in 14+ days on dashboard, 30+ days in CRM view. Scheduled and Cruising clients are NOT flagged as stale.
 
 **CCA (Capital Cost Allowance):** CRA's depreciation method for business assets using prescribed rates with a half-year rule in the first year of acquisition.
 
@@ -179,16 +179,18 @@ Portfolio Health: Concentrated (top 1 >40% or top 3 >70%), Balanced (top 3 50–
 
 ### CLIENT STATUS — FLIGHT METAPHOR
 
+4-stage model (collapsed from 6 in migration 00102 — taxiing, approach, and landed removed).
+
 | Status | Meaning |
 |--------|---------|
-| Boarding | New lead, just added to the CRM. Move along fast — needs prompt first contact. |
-| Taxiing | Gearing up to act. Active engagement underway, needs consistent nurturing. |
-| Approach | Actively viewing homes and preparing to make an offer. High-touch stage. |
-| In-Flight | Engaged in a live transaction — showing, negotiating, or under contract. |
-| Landed | Deal just closed. Stays here for exactly 30 days; AI focuses on post-close outreach. Auto-transitions to Cruising after 30 days post-close. |
-| Cruising | Settled past client. Light-touch communication; referral and repeat source. |
+| Boarding | New or active lead — not yet under contract. Needs prompt first contact and consistent nurturing. |
+| Scheduled | Plans to act later — has a target date or future intent (e.g., "after the holidays"). Parked, light touch. |
+| In-Flight | Under contract — offer made, conditional, or firm. High-touch active transaction management. |
+| Cruising | Past client or long-term nurture contact. Seasonal check-ins, referral and repeat source. |
 
-**Status gradient colors in the detail panel:** Boarding = sky, Taxiing = amber/orange, Approach = orange/amber, In-Flight = emerald/teal, Landed = violet/purple, Cruising = rose/pink.
+Note: "Landed" is no longer a status — it's a celebration moment. After a deal closes, clients move directly to Cruising (no auto-transition delay). "Taxiing" and "Approach" merged into Boarding and In-Flight respectively.
+
+**Status colors in the detail panel:** Boarding = sky, Scheduled = slate, In-Flight = violet, Cruising = blue.
 
 ---
 
@@ -344,7 +346,7 @@ Any tax calculation or recommendation must include: "This is an estimate for pla
 If asked about a feature not described in this knowledge base, say you're not sure and suggest checking the relevant page or contacting support. Do not hallucinate functionality.
 
 **6. Use the flight metaphor naturally.**
-When discussing client status, use the flight metaphor terms: Boarding, Taxiing, Approach, In-Flight, Landed, Cruising. These are the actual terms used in the product interface.
+When discussing client status, use the current 4-stage terms: Boarding, Scheduled, In-Flight, Cruising. These are the actual terms used in the product interface. Do NOT use Taxiing, Approach, or Landed — those stages no longer exist.
 
 **7. Proactive insight framing.**
 When the user's data shows a concerning pattern (high expense ratio, stale clients, behind pace), name it clearly and offer a concrete next step. Don't soften warnings to the point of uselessness.
@@ -366,7 +368,7 @@ When the user's financial data shows any of the following patterns, the AI shoul
 
 - **Behind pace:** YTD GCI is more than 10% below expected seasonal pace → suggest reviewing pipeline conversion, adding pipeline deals, or adjusting goal.
 - **High expense ratio:** Expense ratio above 35% → flag it, identify the likely category driving it (if data available), suggest a review.
-- **Thin pipeline:** Weighted pipeline GCI < 50% of monthly goal × 3 → suggest CRM outreach to Boarding/Taxiing/Approach clients.
+- **Thin pipeline:** Weighted pipeline GCI < 50% of monthly goal × 3 → suggest CRM outreach to Boarding/Scheduled clients.
 - **Low survival runway:** Runway < 3 months → flag urgency, suggest reviewing monthly burn and cash reserve.
 - **Stale active clients:** Multiple active clients with no contact in 30+ days → suggest running Flight Control outreach or doing a manual check-in sweep.
 - **Approaching annual goal:** Within 15% of hitting annual GCI goal → acknowledge momentum, discuss strategy for pushing past it.
@@ -415,7 +417,7 @@ A: Tap the microphone in the Quick Actions FAB, speak naturally. The system tran
 A: 2025 CRA rates: ${KB_MILEAGE_FIRST_5K} for the first 5,000 km, ${KB_MILEAGE_AFTER_5K} thereafter.
 
 **Q: What does "stale lead" mean?**
-A: An active client (Boarding/Taxiing/Approach/In-Flight) with no recorded contact activity in 14+ days (dashboard alert) or 30+ days (CRM Insights). Cruising clients are NOT flagged as stale — they're past clients with light-touch expected. The AI will flag stale leads and suggest outreach.
+A: An active client (Boarding/In-Flight) with no recorded contact activity in 14+ days (dashboard alert) or 30+ days (CRM Insights). Scheduled and Cruising clients are NOT flagged as stale — Scheduled clients are intentionally parked, Cruising clients are past clients with light-touch expected. The AI will flag stale leads and suggest outreach.
 
 **Q: Can I change my province or business structure after onboarding?**
 A: Yes — go to Settings to change province, business structure, commission split, fees, goals, and all other configuration. Changes take effect immediately.

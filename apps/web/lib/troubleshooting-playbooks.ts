@@ -477,18 +477,17 @@ Daily Pace = Remaining ÷ Business Days Left in Year
   // ═══════════════════════════════════════════════════════════════════════════
   crm: `## TROUBLESHOOTING: CRM & CLIENTS
 
-### Client Flight Statuses
+### Client Flight Statuses (4-stage model, migration 00102)
 
 | Status | Meaning | Typical Duration | AI Focus |
 |--------|---------|-----------------|----------|
-| Boarding | New lead, just added | Days to weeks | Prompt first contact (speed to lead) |
-| Taxiing | Active engagement | Weeks to months | Consistent nurturing, regular touchpoints |
-| Approach | Viewing, preparing offer | Days to weeks | High-touch, responsive availability |
-| In-Flight | Live transaction | Weeks | Active deal management |
-| Landed | Deal just closed | Exactly 30 days | Post-close outreach, referral ask |
-| Cruising | Past client, settled | Indefinite | Light touch, anniversaries, referrals |
+| Boarding | New or active lead, not yet under contract | Days to months | Prompt first contact, consistent nurturing |
+| Scheduled | Future-intent client, target date captured | Variable (parked) | Light touch until their date approaches |
+| In-Flight | Under contract — offer, conditional, or firm | Weeks | Active deal management, high-touch |
+| Cruising | Past client or long-term nurture | Indefinite | Seasonal check-ins, referrals, anniversaries |
 
-**Landed → Cruising auto-transition**: System automatically moves clients from Landed to Cruising 30 days after their deal close date. This is a background process.
+**No auto-transition**: The old Landed→Cruising 30-day auto-transition has been removed. After a deal closes, clients move directly to Cruising. "Landed" is no longer a status — it is a celebration moment in the UI only.
+Previous stages taxiing and approach have been merged into Boarding and In-Flight respectively.
 
 ### Client Tiers (from client-valuation-engine.ts)
 
@@ -514,8 +513,9 @@ Clients are ranked by a composite value score:
 
 - **Dashboard alert**: Active client with no contact in 14+ days
 - **CRM Insights**: Active client with no contact in 30+ days
-- Active = Boarding, Taxiing, Approach, or In-Flight status
-- Cruising clients are NOT flagged as stale (they're past clients, light-touch expected)
+- Active = Boarding or In-Flight status only
+- Scheduled clients are NOT flagged (intentionally parked with a future date)
+- Cruising clients are NOT flagged (past clients, light-touch expected)
 
 ### Speed to Lead
 Hours between client creation date and first recorded contact activity.
@@ -548,13 +548,14 @@ call, email, text, showing, meeting, note, task
 3. Check status filter — may be filtering to a specific status
 
 **"Client status didn't change"**
-→ Status is manual (user changes it) except Landed→Cruising (automatic after 30 days). The system does NOT auto-advance other statuses.
+→ All status changes are manual — the agent moves clients through stages. There is no auto-advancement (the old Landed→Cruising auto-transition has been removed). Exception: a Cruising or Scheduled client who receives a real touchpoint activity (call/text/email/meeting/showing) is automatically promoted to Boarding.
 
 **"My stale lead count seems wrong"**
 1. Dashboard uses 14-day threshold; CRM Insights uses 30-day
-2. Only active statuses count (Boarding, Taxiing, Approach, In-Flight)
-3. Cruising clients are NOT stale — they're past clients
-4. A logged activity (call, email, text, etc.) resets the timer
+2. Only Boarding and In-Flight statuses count as active (not Scheduled or Cruising)
+3. Scheduled clients are intentionally parked and NOT flagged as stale
+4. Cruising clients are NOT stale — they're past clients with light-touch expected
+5. A logged activity (call, email, text, etc.) resets the timer
 
 **"Save button isn't working"**
 → The Save button commits first name, last name, and notes. Other fields (email, phone, etc.) may save differently. Ensure required fields aren't empty.

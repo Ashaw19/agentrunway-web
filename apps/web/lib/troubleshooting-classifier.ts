@@ -240,7 +240,7 @@ const TOPIC_RULES: TopicRule[] = [
   },
   {
     topic: "crm",
-    primary: ["client", "crm", "contact", "boarding", "scheduled", "in-flight", "cruising"],
+    primary: ["client", "crm", "contact", "boarding", "scheduled", "in-flight", "in_flight", "cruising"],
     secondary: ["lead", "relationship", "birthday", "tag", "activity", "phone", "email", "note"],
     phrases: [
       "add client",
@@ -258,6 +258,10 @@ const TOPIC_RULES: TopicRule[] = [
       "flight plan",
       "client list",
       "overdue client",
+      "move to cruising",
+      "landed status",
+      "taxiing",
+      "approach stage",
     ],
   },
   {
