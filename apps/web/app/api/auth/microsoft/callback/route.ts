@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { encrypt } from "@/lib/microsoft/token-manager";
-import { MS_SCOPES } from "../connect/route";
+import { MS_SCOPES } from "@/lib/microsoft/oauth-config";
 
 const MS_TOKEN_URL =
   "https://login.microsoftonline.com/common/oauth2/v2.0/token";

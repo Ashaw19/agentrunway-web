@@ -7,19 +7,8 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { MS_AUTH_URL, MS_SCOPES } from "@/lib/microsoft/oauth-config";
 import crypto from "crypto";
-
-const MS_AUTH_URL =
-  "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
-
-// Shared with callback route — keep in sync
-export const MS_SCOPES = [
-  "openid",
-  "email",
-  "offline_access",
-  "Mail.Send",
-  "Calendars.ReadWrite",
-].join(" ");
 
 export async function GET() {
   const supabase = await createClient();
