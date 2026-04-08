@@ -54,6 +54,13 @@ const OPTYPE_ICON: Record<OutreachOpportunityType, React.ElementType> = {
   past_client_check_in:  Clock,
   timeframe_approaching: Timer,
   property_value_milestone: Home,
+  // Batch 5: Memory-Powered Triggers
+  pain_point_inactive:    Brain,
+  buyer_inventory_match:  Target,
+  seller_timing_hesitation: Lightbulb,
+  mortgage_renewal_finance: RefreshCw,
+  educational_value_inactive: Lightbulb,
+  condition_firming:      CheckCircle2,
 };
 
 function getScoreColor(score: number): { bg: string; text: string; ring: string } {
