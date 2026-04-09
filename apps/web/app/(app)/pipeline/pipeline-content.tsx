@@ -156,7 +156,7 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
     actual_sale_price: "",
     expected_close_date: "",
     listing_agreement_date: "",
-    status: "scheduled" as const,
+    status: "scheduled" as "scheduled" | "active" | "sold" | "expired" | "withdrawn" | "lost",
     notes: "",
   };
   const [listingForm, setListingForm] = useState(emptyListingForm);
