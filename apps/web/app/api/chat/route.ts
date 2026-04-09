@@ -749,10 +749,23 @@ WRITE ACTIONS — You have tools to act on the agent's behalf:
   // Full concatenated string for Groq fallback (Groq doesn't support cache_control)
   const systemPrompt = `${staticPart}\n\n${injectCanary(dynamicPart)}`;
 
-  // ai SDK v6 expects system as a string. Anthropic prompt caching now requires
-  // providerOptions on individual message parts; we lose the cache benefit here
-  // until we migrate to that API. TODO: re-enable cacheControl via providerOptions.
-  const systemForClaude = `${staticPart}\n\n${injectCanary(dynamicPart)}`;
+  // Anthropic prompt caching: pass system as array of SystemModelMessages.
+  // Static prefix (identity + knowledge base + guidelines + voice guide) is marked
+  // with cacheControl: ephemeral → 90% token discount on cache hits after first request.
+  // Dynamic suffix (user data, troubleshooting, page context, canary) changes per request.
+  const systemForClaude = [
+    {
+      role: "system" as const,
+      content: staticPart,
+      providerOptions: {
+        anthropic: { cacheControl: { type: "ephemeral" as const } },
+      },
+    },
+    {
+      role: "system" as const,
+      content: injectCanary(dynamicPart),
+    },
+  ];
 
 
   try {
