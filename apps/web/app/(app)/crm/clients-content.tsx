@@ -3114,31 +3114,7 @@ export function ClientsContent({
     <div className="space-y-3">
       {/* ── Page header ──────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
-          {/* Inline KPI strip */}
-          <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-              <span className="font-semibold text-foreground">{clientsLoading ? "…" : grouped.length}</span> clients
-            </span>
-            <span className="text-border">|</span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-violet-500" />
-              <span className="font-semibold text-foreground">{repeatCount}</span> repeat ({repeatRate}%)
-            </span>
-            <span className="text-border">|</span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              <span className="font-semibold text-foreground">{fmtCurrency(totalGCI)}</span> lifetime
-            </span>
-            <span className="text-border">|</span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              <span className="font-semibold text-foreground">{totalDeals}</span> deals
-            </span>
-          </div>
-        </div>
+        <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
         <div className="flex items-center gap-2 shrink-0">
           <Button
             size="sm"
@@ -3160,6 +3136,26 @@ export function ClientsContent({
             <Upload className="h-3.5 w-3.5" />
             Import CSV
           </Button>
+        </div>
+      </div>
+
+      {/* Compact KPI cards */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50/60 px-3.5 py-2.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-600">Total Clients</span>
+          <span className="text-base font-bold text-slate-800">{clientsLoading ? "…" : grouped.length}</span>
+        </div>
+        <div className="flex items-center justify-between rounded-lg border border-violet-200 bg-violet-50/60 px-3.5 py-2.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-violet-600">Repeat Clients</span>
+          <span className="text-base font-bold text-slate-800">{repeatCount} <span className="text-xs font-normal text-muted-foreground">({repeatRate}%)</span></span>
+        </div>
+        <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/60 px-3.5 py-2.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">Lifetime GCI</span>
+          <span className="text-base font-bold text-slate-800">{fmtCurrency(totalGCI)}</span>
+        </div>
+        <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50/60 px-3.5 py-2.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-amber-600">Total Deals</span>
+          <span className="text-base font-bold text-slate-800">{totalDeals}</span>
         </div>
       </div>
 

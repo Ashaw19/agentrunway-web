@@ -647,28 +647,6 @@ export function ExpensesContent({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4">
           <h1 className="text-2xl font-semibold tracking-tight">Expenses</h1>
-          {/* Inline KPI strip */}
-          <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-              <span className="font-semibold text-foreground">{fmtCurrency(effectiveTotal)}</span> YTD
-            </span>
-            <span className="text-border">|</span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              <span className="font-semibold text-foreground">{fmtCurrency(monthlyTotal)}</span> /mo recurring
-            </span>
-            <span className="text-border">|</span>
-            <span className="flex items-center gap-1.5">
-              <span className={cn("h-1.5 w-1.5 rounded-full", ratioStatus === "healthy" ? "bg-emerald-500" : ratioStatus === "warning" ? "bg-amber-500" : "bg-red-500")} />
-              <span className={cn("font-semibold", ratioStatus === "healthy" ? "text-emerald-700" : ratioStatus === "warning" ? "text-amber-700" : "text-red-700")}>{ytdGCI > 0 ? fmtPct(expenseRatio) : "—"}</span> ratio
-            </span>
-            <span className="text-border">|</span>
-            <span className="flex items-center gap-1.5">
-              <span className={cn("h-1.5 w-1.5 rounded-full", survival.riskLevel === "strong" || survival.riskLevel === "healthy" ? "bg-emerald-500" : survival.riskLevel === "warning" ? "bg-amber-500" : "bg-red-500")} />
-              <span className={cn("font-semibold", survival.riskLevel === "strong" || survival.riskLevel === "healthy" ? "text-emerald-700" : survival.riskLevel === "warning" ? "text-amber-700" : "text-red-700")}>{survival.label}</span> runway
-            </span>
-          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Capture Receipt */}
@@ -711,6 +689,54 @@ export function ExpensesContent({
             Accountant PDF
           </Button>
 
+        </div>
+      </div>
+
+      {/* Compact KPI cards */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="flex items-center justify-between rounded-lg border border-rose-200 bg-rose-50/60 px-3.5 py-2.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-rose-600">YTD Expenses</span>
+          <span className="text-base font-bold text-slate-800">{fmtCurrency(effectiveTotal)}</span>
+        </div>
+        <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50/60 px-3.5 py-2.5">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-amber-600">Monthly Recurring</span>
+          <span className="text-base font-bold text-slate-800">{fmtCurrency(monthlyTotal)}</span>
+        </div>
+        <div className={cn(
+          "flex items-center justify-between rounded-lg px-3.5 py-2.5",
+          ratioStatus === "healthy" ? "border border-emerald-200 bg-emerald-50/60" :
+          ratioStatus === "warning" ? "border border-amber-200 bg-amber-50/60" :
+                                      "border border-red-200 bg-red-50/60"
+        )}>
+          <span className={cn(
+            "text-[11px] font-semibold uppercase tracking-wide",
+            ratioStatus === "healthy" ? "text-emerald-600" :
+            ratioStatus === "warning" ? "text-amber-600" : "text-red-600"
+          )}>Expense Ratio</span>
+          <span className={cn(
+            "text-base font-bold",
+            ratioStatus === "healthy" ? "text-emerald-700" :
+            ratioStatus === "warning" ? "text-amber-700" : "text-red-700"
+          )}>{ytdGCI > 0 ? fmtPct(expenseRatio) : "—"}</span>
+        </div>
+        <div className={cn(
+          "flex items-center justify-between rounded-lg px-3.5 py-2.5",
+          survival.riskLevel === "strong" || survival.riskLevel === "healthy"
+            ? "border border-emerald-200 bg-emerald-50/60"
+            : survival.riskLevel === "warning"
+            ? "border border-amber-200 bg-amber-50/60"
+            : "border border-red-200 bg-red-50/60"
+        )}>
+          <span className={cn(
+            "text-[11px] font-semibold uppercase tracking-wide",
+            survival.riskLevel === "strong" || survival.riskLevel === "healthy" ? "text-emerald-600" :
+            survival.riskLevel === "warning" ? "text-amber-600" : "text-red-600"
+          )}>Cash Runway</span>
+          <span className={cn(
+            "text-base font-bold",
+            survival.riskLevel === "strong" || survival.riskLevel === "healthy" ? "text-emerald-700" :
+            survival.riskLevel === "warning" ? "text-amber-700" : "text-red-700"
+          )}>{survival.label}</span>
         </div>
       </div>
 
