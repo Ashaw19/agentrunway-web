@@ -1059,11 +1059,21 @@ export function ClientsContent({
   // Add Client dialog
   const [addClientOpen, setAddClientOpen] = useState(false);
   const [newClientName, setNewClientName] = useState("");
+  const [newClientFirstName, setNewClientFirstName] = useState("");
+  const [newClientLastName, setNewClientLastName] = useState("");
   const [newClientEmail, setNewClientEmail] = useState("");
   const [newClientPhone, setNewClientPhone] = useState("");
+  const [newClientSecondaryEmail, setNewClientSecondaryEmail] = useState("");
+  const [newClientSecondaryPhone, setNewClientSecondaryPhone] = useState("");
   const [newClientStatus, setNewClientStatus] = useState<ClientStatus>("boarding");
   const [newClientSource, setNewClientSource] = useState("");
   const [newClientTags, setNewClientTags] = useState<string[]>([]);
+  const [newClientSide, setNewClientSide] = useState<"buyer" | "seller" | "both" | "">("");
+  const [newClientBirthdate, setNewClientBirthdate] = useState("");
+  const [newClientNotes, setNewClientNotes] = useState("");
+  const [newClientBudget, setNewClientBudget] = useState("");
+  const [newClientPreferredContact, setNewClientPreferredContact] = useState("");
+  const [newClientTimeframe, setNewClientTimeframe] = useState("");
   // Address fields in Add Client dialog
   const [newClientStreet,   setNewClientStreet]   = useState("");
   const [newClientUnit,     setNewClientUnit]      = useState("");
@@ -1915,14 +1925,18 @@ export function ClientsContent({
   // Add a new client manually
   const handleAddClient = useCallback(async () => {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
-    if (!newClientName.trim()) { setNameError(true); return; }
+    // Build full name from first + last (or use newClientName fallback for voice pre-fill)
+    const fullName = (newClientFirstName.trim() && newClientLastName.trim())
+      ? `${newClientFirstName.trim()} ${newClientLastName.trim()}`
+      : newClientFirstName.trim() || newClientName.trim();
+    if (!fullName) { setNameError(true); return; }
     setAddClientSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setAddClientSaving(false); return; }
 
     // Check for existing client with same name (normalized for dedup)
-    const nameSearch = toNameSearch(newClientName);
+    const nameSearch = toNameSearch(fullName);
     const { data: existing } = await supabase
       .from("clients")
       .select("id, name")
@@ -1939,7 +1953,7 @@ export function ClientsContent({
 
     // ── Validate client fields before writing ────────────────────────────────
     const clientValidation = validateClient({
-      name: newClientName,
+      name: fullName,
       email: newClientEmail.trim() || null,
       phone: newClientPhone.trim() || null,
     });
@@ -1949,32 +1963,30 @@ export function ClientsContent({
       return;
     }
 
-    // Split the single "Name" field into first_name + last_name so the
-    // detail view (which binds to these columns) shows them populated.
-    // Keep `name` as the canonical display field to stay in sync with
-    // handleSaveProfile, which joins first + last back into `name`.
-    const trimmedName = newClientName.trim().slice(0, FIELD_LIMITS.clientName);
-    const firstSpaceIdx = trimmedName.indexOf(" ");
-    const firstNameInsert = firstSpaceIdx === -1
-      ? trimmedName
-      : trimmedName.slice(0, firstSpaceIdx);
-    const lastNameInsert = firstSpaceIdx === -1
-      ? null
-      : trimmedName.slice(firstSpaceIdx + 1).trim() || null;
+    const trimmedName = fullName.slice(0, FIELD_LIMITS.clientName);
+    const firstName = newClientFirstName.trim() || (trimmedName.indexOf(" ") === -1 ? trimmedName : trimmedName.slice(0, trimmedName.indexOf(" ")));
+    const lastName = newClientLastName.trim() || (trimmedName.indexOf(" ") === -1 ? null : trimmedName.slice(trimmedName.indexOf(" ") + 1).trim() || null);
 
     const { data, error } = await supabase
       .from("clients")
       .insert({
         user_id: user.id,
         name: trimmedName,
-        first_name: firstNameInsert || null,
-        last_name: lastNameInsert,
+        first_name: firstName || null,
+        last_name: lastName,
         name_search: nameSearch,
         email: newClientEmail.trim().slice(0, FIELD_LIMITS.email) || null,
         phone: newClientPhone.trim().slice(0, FIELD_LIMITS.phone) || null,
+        secondary_email: newClientSecondaryEmail.trim() || null,
+        secondary_phone: newClientSecondaryPhone.trim() || null,
         status: newClientStatus,
         lead_source: newClientSource || null,
         tags: newClientTags,
+        birthdate: newClientBirthdate || null,
+        notes: newClientNotes.trim() || null,
+        property_interest: newClientBudget ? parseFloat(newClientBudget.replace(/[$,]/g, "")) || null : null,
+        preferred_contact: newClientPreferredContact || "no_preference",
+        timeframe: newClientTimeframe || null,
         street_address:  newClientStreet.trim().slice(0, FIELD_LIMITS.address)   || null,
         unit_number:     newClientUnit.trim()      || null,
         city:            newClientCity.trim()      || null,
@@ -1993,11 +2005,21 @@ export function ClientsContent({
     setLocalClients((prev) => [...prev, data as Client]);
     setAddClientOpen(false);
     setNewClientName("");
+    setNewClientFirstName("");
+    setNewClientLastName("");
     setNewClientEmail("");
     setNewClientPhone("");
+    setNewClientSecondaryEmail("");
+    setNewClientSecondaryPhone("");
     setNewClientStatus("boarding");
     setNewClientSource("");
     setNewClientTags([]);
+    setNewClientSide("");
+    setNewClientBirthdate("");
+    setNewClientNotes("");
+    setNewClientBudget("");
+    setNewClientPreferredContact("");
+    setNewClientTimeframe("");
     setNewClientStreet("");
     setNewClientUnit("");
     setNewClientCity("");
@@ -2007,7 +2029,9 @@ export function ClientsContent({
     setVoiceDraft(null);
     setVoiceBanner(false);
     setAddClientSaving(false);
-  }, [newClientName, newClientEmail, newClientPhone, newClientStatus, newClientSource, newClientTags,
+  }, [newClientFirstName, newClientLastName, newClientName, newClientEmail, newClientPhone,
+      newClientSecondaryEmail, newClientSecondaryPhone, newClientStatus, newClientSource, newClientTags,
+      newClientBirthdate, newClientNotes, newClientBudget, newClientPreferredContact, newClientTimeframe,
       newClientStreet, newClientUnit, newClientCity, newClientProvince, newClientPostal, newClientCountry]);
 
   // Consume voice draft from global context on mount (routed from FAB)
@@ -3403,18 +3427,6 @@ export function ClientsContent({
                                         </span>
                                       )}
                                     </div>
-                                    {/* Contact info subtitle — clickable links */}
-                                    {client && (client.email || client.phone) && (
-                                      <p className="text-[11px] text-muted-foreground/70 truncate max-w-[220px]" onClick={(e) => e.stopPropagation()}>
-                                        {client.phone && (
-                                          <a href={`tel:${client.phone.replace(/\D/g, "")}`} className="hover:text-foreground transition-colors">{client.phone}</a>
-                                        )}
-                                        {client.phone && client.email && " · "}
-                                        {client.email && (
-                                          <a href={`mailto:${client.email}`} className="hover:text-foreground transition-colors">{client.email}</a>
-                                        )}
-                                      </p>
-                                    )}
                                   </div>
                                 </div>
                               </TableCell>
@@ -5161,11 +5173,21 @@ export function ClientsContent({
           setVoiceBanner(false);
           setVoiceDraft(null);
           setNewClientName("");
+          setNewClientFirstName("");
+          setNewClientLastName("");
           setNewClientEmail("");
           setNewClientPhone("");
+          setNewClientSecondaryEmail("");
+          setNewClientSecondaryPhone("");
           setNewClientStatus("boarding");
           setNewClientSource("");
           setNewClientTags([]);
+          setNewClientSide("");
+          setNewClientBirthdate("");
+          setNewClientNotes("");
+          setNewClientBudget("");
+          setNewClientPreferredContact("");
+          setNewClientTimeframe("");
           setNewClientStreet("");
           setNewClientUnit("");
           setNewClientCity("");
@@ -5175,14 +5197,14 @@ export function ClientsContent({
           setNameError(false);
         }
       }}>
-        <DialogContent className="sm:max-w-md w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl w-[95vw] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="h-4 w-4" />
               Add Client
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 pt-2">
+          <div className="space-y-5 pt-2">
             {/* Voice pre-fill banner */}
             {voiceBanner && (
               <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
@@ -5209,121 +5231,219 @@ export function ClientsContent({
                 )}
               </div>
             )}
-            <div className="space-y-1">
-              <Label className="text-xs">Name <span className="text-red-500">*</span></Label>
-              <Input
-                autoFocus
-                placeholder="Full name"
-                value={newClientName}
-                onChange={(e) => { setNewClientName(e.target.value); setNameError(false); }}
-                className={cn("h-8 text-sm", voiceTint("name"), nameError && "border-red-500 focus-visible:ring-red-500")}
-              />
-              {nameError && <p className="text-xs text-red-500">Name is required</p>}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Email</Label>
-                <Input
-                  type="email"
-                  placeholder="email@example.com"
-                  value={newClientEmail}
-                  onChange={(e) => setNewClientEmail(e.target.value)}
-                  className={cn("h-8 text-sm", voiceTint("email"))}
-                />
+
+            {/* ── Section: Identity ─────────────────────────────────────────── */}
+            <div className="space-y-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Personal</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">First Name <span className="text-red-500">*</span></Label>
+                  <Input
+                    autoFocus
+                    placeholder="First name"
+                    value={newClientFirstName}
+                    onChange={(e) => { setNewClientFirstName(e.target.value); setNameError(false); }}
+                    className={cn("h-9 text-sm", voiceTint("name"), nameError && !newClientFirstName.trim() && "border-red-500 focus-visible:ring-red-500")}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Last Name</Label>
+                  <Input
+                    placeholder="Last name"
+                    value={newClientLastName}
+                    onChange={(e) => { setNewClientLastName(e.target.value); setNameError(false); }}
+                    className={cn("h-9 text-sm", voiceTint("name"))}
+                  />
+                </div>
               </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Phone</Label>
-                <Input
-                  type="tel"
-                  placeholder="(613) 555-0123"
-                  value={newClientPhone}
-                  onChange={(e) => setNewClientPhone(e.target.value)}
-                  className={cn("h-8 text-sm", voiceTint("phone"))}
-                />
+              {nameError && <p className="text-xs text-red-500 -mt-1">First name is required</p>}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Birthdate</Label>
+                  <Input
+                    type="date"
+                    value={newClientBirthdate}
+                    onChange={(e) => setNewClientBirthdate(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Lead Source</Label>
+                  <Input
+                    placeholder="e.g. Referral, SOI"
+                    value={newClientSource}
+                    onChange={(e) => setNewClientSource(e.target.value)}
+                    className={cn("h-9 text-sm", voiceTint("source"))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Preferred Contact</Label>
+                  <select
+                    value={newClientPreferredContact}
+                    onChange={(e) => setNewClientPreferredContact(e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="">No preference</option>
+                    <option value="phone">Phone</option>
+                    <option value="email">Email</option>
+                    <option value="text">Text</option>
+                  </select>
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Flight Status</Label>
-                <Select value={newClientStatus} onValueChange={(v) => setNewClientStatus(v as ClientStatus)}>
-                  <SelectTrigger className={cn("h-8 text-sm", voiceTint("status"))}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(CLIENT_STATUS_LABELS) as ClientStatus[]).map((s) => (
-                      <SelectItem key={s} value={s}>
-                        <span className="inline-flex items-center gap-1.5">
-                          <span className={cn("h-2 w-2 rounded-full", CLIENT_STATUS_COLORS[s].dot)} />
-                          {CLIENT_STATUS_LABELS[s]}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Lead Source</Label>
-                <Input
-                  placeholder="e.g. Referral, SOI"
-                  value={newClientSource}
-                  onChange={(e) => setNewClientSource(e.target.value)}
-                  className={cn("h-8 text-sm", voiceTint("source"))}
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Tags</Label>
-              <TagPicker value={newClientTags} onChange={setNewClientTags} />
             </div>
 
-            {/* Address (optional) */}
-            <div className="space-y-2 pt-1">
+            {/* ── Section: Contact Info ─────────────────────────────────────── */}
+            <div className="space-y-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Contact Information</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Email</Label>
+                  <Input
+                    type="email"
+                    placeholder="email@example.com"
+                    value={newClientEmail}
+                    onChange={(e) => setNewClientEmail(e.target.value)}
+                    className={cn("h-9 text-sm", voiceTint("email"))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Phone</Label>
+                  <Input
+                    type="tel"
+                    placeholder="(613) 555-0123"
+                    value={newClientPhone}
+                    onChange={(e) => setNewClientPhone(e.target.value)}
+                    className={cn("h-9 text-sm", voiceTint("phone"))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Secondary Email</Label>
+                  <Input
+                    type="email"
+                    placeholder="alt@example.com"
+                    value={newClientSecondaryEmail}
+                    onChange={(e) => setNewClientSecondaryEmail(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Secondary Phone</Label>
+                  <Input
+                    type="tel"
+                    placeholder="(613) 555-0456"
+                    value={newClientSecondaryPhone}
+                    onChange={(e) => setNewClientSecondaryPhone(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* ── Section: CRM Details ──────────────────────────────────────── */}
+            <div className="space-y-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">CRM Details</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Flight Status</Label>
+                  <Select value={newClientStatus} onValueChange={(v) => setNewClientStatus(v as ClientStatus)}>
+                    <SelectTrigger className={cn("h-9 text-sm", voiceTint("status"))}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(CLIENT_STATUS_LABELS) as ClientStatus[]).map((s) => (
+                        <SelectItem key={s} value={s}>
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className={cn("h-2 w-2 rounded-full", CLIENT_STATUS_COLORS[s].dot)} />
+                            {CLIENT_STATUS_LABELS[s]}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Budget</Label>
+                  <Input
+                    placeholder="$500,000"
+                    value={newClientBudget}
+                    onChange={(e) => setNewClientBudget(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Timeframe</Label>
+                  <Input
+                    placeholder="e.g. 3 months, spring"
+                    value={newClientTimeframe}
+                    onChange={(e) => setNewClientTimeframe(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Tags</Label>
+                <TagPicker value={newClientTags} onChange={setNewClientTags} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Notes</Label>
+                <Textarea
+                  placeholder="Background, preferences, anything useful for context..."
+                  value={newClientNotes}
+                  onChange={(e) => setNewClientNotes(e.target.value)}
+                  rows={2}
+                  className="text-sm resize-none"
+                />
+              </div>
+            </div>
+
+            {/* ── Section: Address ──────────────────────────────────────────── */}
+            <div className="space-y-3">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Address (optional)
               </p>
-              <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
                 <Input
                   placeholder="Street address"
                   value={newClientStreet}
                   onChange={(e) => setNewClientStreet(e.target.value)}
-                  className={cn("h-8 text-sm", voiceTint("street"))}
+                  className={cn("h-9 text-sm", voiceTint("street"))}
                 />
                 <Input
                   placeholder="Unit / Suite / Apt"
                   value={newClientUnit}
                   onChange={(e) => setNewClientUnit(e.target.value)}
-                  className={cn("h-8 text-sm", voiceTint("unit"))}
+                  className={cn("h-9 text-sm", voiceTint("unit"))}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-4 gap-3">
                 <Input
                   placeholder="City"
                   value={newClientCity}
                   onChange={(e) => setNewClientCity(e.target.value)}
-                  className={cn("h-8 text-sm", voiceTint("city"))}
+                  className={cn("h-9 text-sm", voiceTint("city"))}
                 />
                 <Input
                   placeholder={getCountryLabels(newClientCountry).provinceLabel}
                   value={newClientProvince}
                   onChange={(e) => setNewClientProvince(e.target.value)}
-                  className={cn("h-8 text-sm", voiceTint("province"))}
+                  className={cn("h-9 text-sm", voiceTint("province"))}
                 />
                 <Input
                   placeholder={getCountryLabels(newClientCountry).postalPlaceholder || getCountryLabels(newClientCountry).postalLabel}
                   value={newClientPostal}
                   onChange={(e) => setNewClientPostal(e.target.value)}
-                  className={cn("h-8 text-sm", voiceTint("postal"))}
+                  className={cn("h-9 text-sm", voiceTint("postal"))}
                 />
                 <Input
                   placeholder="Country"
                   value={newClientCountry}
                   onChange={(e) => setNewClientCountry(e.target.value)}
-                  className={cn("h-8 text-sm", voiceTint("country"))}
+                  className={cn("h-9 text-sm", voiceTint("country"))}
                 />
               </div>
             </div>
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-1">
               <Button
                 disabled={addClientSaving}
                 onClick={handleAddClient}
