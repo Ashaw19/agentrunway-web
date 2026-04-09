@@ -158,9 +158,9 @@ export function computeClientValuations(
   const top12PctGCI = totalGCI > 0 ? Math.round((top12GCI / totalGCI) * 100) : 0;
 
   // Portfolio health
-  const top1Pct = n > 0 ? (raw[0].lifetimeGCI / totalGCI) * 100 : 0;
+  const top1Pct = n > 0 && totalGCI > 0 ? (raw[0].lifetimeGCI / totalGCI) * 100 : 0;
   const top3Pct =
-    n >= 3
+    n >= 3 && totalGCI > 0
       ? (raw.slice(0, 3).reduce((s, v) => s + v.lifetimeGCI, 0) / totalGCI) * 100
       : top1Pct;
   let portfolioHealth: PortfolioHealth;

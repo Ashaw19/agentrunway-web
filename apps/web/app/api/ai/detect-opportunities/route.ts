@@ -1138,7 +1138,7 @@ export async function detectAndDraftForUser(
     // 9c. Seller timing hesitation: known objection or hesitation for potential sellers
     if (
       facts.objection &&
-      (facts.goal?.toLowerCase().includes("sell") || facts.motivation?.toLowerCase().includes("sell"))
+      (/\bsell(ing|er|s)?\b/i.test(facts.goal ?? "") || /\bsell(ing|er|s)?\b/i.test(facts.motivation ?? ""))
     ) {
       inserts.push({
         user_id:          userId,

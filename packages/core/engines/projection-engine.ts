@@ -103,7 +103,7 @@ export function projectedYearEndGCI(
   seasonalFraction: number,
   goalGCI: number = 0,
 ): number {
-  if (seasonalFraction <= 0) return closedGCI;
+  if (!isFinite(seasonalFraction) || seasonalFraction <= 0) return closedGCI;
   const paceBasedProjection = closedGCI / seasonalFraction;
   const pipelineAdj = pipelineWeightedGCI * 0.5;
   const rawProjection = paceBasedProjection + pipelineAdj;
@@ -126,7 +126,7 @@ export function projectedYearEndTransactions(
   pipelineCount: number = 0,
   seasonalFraction: number,
 ): number {
-  if (seasonalFraction <= 0) return closedCount;
+  if (!isFinite(seasonalFraction) || seasonalFraction <= 0) return closedCount;
   const paceBasedProjection = closedCount / seasonalFraction;
   const raw = Math.round(paceBasedProjection + pipelineCount * 0.3);
   // Early-year dampening for deal count too

@@ -145,8 +145,7 @@ export async function POST(req: NextRequest) {
   let financialContext = "No user data available.";
   try {
     const currentYear = new Date().getFullYear();
-    const [{ data: settings }, { data: transactions }, { data: pipeline }, { data: expenseCategories }, { count: staleClientCount }, { count: staleClientCount14 }, { data: receiptRows }] =
-      await Promise.all([
+    const settled = await Promise.allSettled([
         supabase.from("user_settings").select("*").eq("user_id", user.id).single(),
         supabase.from("transactions").select("date, sale_price, commission_pct, team_split_pct, gci_override").eq("user_id", user.id).eq("status", "closed"),
         supabase.from("pipeline_deals").select("estimated_price, estimated_commission_pct, probability_override, stage").eq("user_id", user.id),
@@ -155,6 +154,18 @@ export async function POST(req: NextRequest) {
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()),
         supabase.from("receipt_expenses").select("total_amount").eq("user_id", user.id).gte("expense_date", `${new Date().getFullYear()}-01-01`),
       ]);
+    // Safely extract results — individual query failures won't kill the entire chat
+    const val = <T,>(r: PromiseSettledResult<T>, fallback: T): T =>
+      r.status === "fulfilled" ? r.value : fallback;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const emptyResult = { data: null, count: null } as any;
+    const { data: settings } = val(settled[0], emptyResult);
+    const { data: transactions } = val(settled[1], emptyResult);
+    const { data: pipeline } = val(settled[2], emptyResult);
+    const { data: expenseCategories } = val(settled[3], emptyResult);
+    const { count: staleClientCount } = val(settled[4], emptyResult);
+    const { count: staleClientCount14 } = val(settled[5], emptyResult);
+    const { data: receiptRows } = val(settled[6], emptyResult);
 
     if (settings && transactions) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
