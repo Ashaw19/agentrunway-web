@@ -148,8 +148,8 @@ Flight Control also includes a newsletter builder for mass market updates and se
 
 Sub-scores:
 - Pace: Maps pace% [-50%, +50%] → [0, 100]. Dead center (on pace) = 50.
-- Pipeline: Weighted GCI vs remaining goal gap. Goal met → 100. Ratio 1.5x+ → 100, 1.0x → 80, 0.5x → 50, 0 → 20.
-- Expenses: Ratio >50% → 30, >35% → 55, >25% → 75, ≤25% → 90. Zero GCI → 50 (neutral).
+- Pipeline: Weighted GCI vs remaining goal gap. Formula: min(100, round(ratio×100)). Goal met → 90. No pipeline data → 65 (neutral). Ratio 1.0x → 100, 0.5x → 50.
+- Expenses: Ratio >50% → 30, >35% → 55, >25% → 75, ≤25% → 90. Zero GCI → 50 (neutral). Has GCI but zero expenses logged → 35 (incomplete data penalty).
 - Survival: ≥6mo → 95, ≥4 → 75, ≥2 → 50, ≥1 → 25, <1 → 10. Not configured → 35 (incomplete data penalty).
 - Benchmark: Direct percentile from CREA comparison.
 
@@ -384,7 +384,7 @@ The AI should frame these as helpful observations, not alarms. Example: "Looking
 A: GCI = Sale Price × Commission %. If you manually override GCI in the deal form, that value is used instead of the calculation.
 
 **Q: What does the Runway Score measure?**
-A: A composite 0–100 score across 5 factors: pace vs goal (35%), pipeline health (30%), expense ratio (15%), survival runway (15%), and benchmark rank (5%). Grades: A+ (92+), A (85–91), B (75–84), C (62–74), D (50–61), F (0–49). Missing data (no expenses, no cash reserve) pulls your score down — not setting a cash reserve scores 35 instead of neutral, so the more complete your data, the higher your score.
+A: A composite 0–100 score across 5 factors: pace vs goal (35%), pipeline health (30%), expense ratio (15%), survival runway (15%), and benchmark rank (5%). Grades: A+ (92+), A (85–91), B (75–84), C (62–74), D (50–61), F (0–49). Missing data pulls your score down: no cash reserve set → survival scores 35 (not 50), has income but no expenses logged → expense scores 35 (not 50). The more complete your data, the higher your score.
 
 **Q: How much should I set aside for taxes per deal?**
 A: Check the Forecast page → Tax Estimates card. It calculates a per-deal set-aside amount based on your projected annual tax ÷ expected deal count. This is a planning estimate — consult an accountant for precise figures.

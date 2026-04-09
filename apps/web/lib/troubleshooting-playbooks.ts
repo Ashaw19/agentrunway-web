@@ -57,14 +57,17 @@ The Runway Score is a weighted composite of 5 sub-scores, each 0–100:
 
 **Pipeline Score** (30%):
 - Ratio = pipeline weighted GCI ÷ remaining goal gap
-- If goal already met (gap ≤ 0): 100
-- If ratio ≥ 1.5: 100, ratio 1.0: 80, ratio 0.5: 50, ratio 0: 20
-- Linear interpolation between breakpoints
+- Formula: min(100, round(ratio × 100)) — linear with a 100 ceiling
+- If goal already met (ytdGCI ≥ goal): 90
+- If ratio ≥ 1.0: 100 (pipeline covers the full remaining gap)
+- If ratio = 0.5: 50 (pipeline covers half the remaining gap)
+- If no pipeline data or no goal set: 65 (neutral default)
 
 **Expense Score** (15%):
 - Ratio = YTD expenses ÷ YTD GCI
 - >50% → 30, >35% → 55, >25% → 75, ≤25% → 90
-- If no GCI yet: 50 (neutral)
+- If no GCI yet: 50 (neutral — agent hasn't started)
+- If has GCI but zero expenses logged: 35 (incomplete data penalty — no real estate agent has zero expenses, so this signals missing data)
 
 **Survival Score** (15%):
 - ≥6 months → 95
@@ -94,7 +97,8 @@ Walk through each component:
 - Is their pace negative? (35% of total — biggest contributor)
 - Is pipeline empty or thin? (30% — second biggest)
 - Is expense ratio above 35%? (15%)
-- Is cash reserve not set? (defaults to 35/100 × 0.15 = only 5.25 points)
+- Is cash reserve not set? (survival score defaults to 35 → only 5.25 of 15 points)
+- Has GCI but no expenses logged? (expense score defaults to 35 → only 5.25 of 15 points)
 - Are they a newer agent with low benchmark percentile? (5%)
 
 **"How do I improve my score?"**
