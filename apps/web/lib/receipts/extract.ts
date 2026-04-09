@@ -91,7 +91,7 @@ export async function extractReceiptData(
             {
               type: "image",
               image: imageBase64,
-              mimeType: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+              mediaType: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
             },
             {
               type: "text",
