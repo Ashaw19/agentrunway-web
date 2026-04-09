@@ -557,7 +557,9 @@ export function OrgLeaderboard({
                             </p>
                           </div>
                         </div>
-                        {agent.monthly_gci && (
+                        {/* Privacy: individual monthly GCI only shown when 3+ agents opted into Tier 2,
+                            preventing identification of a single agent's monthly pattern */}
+                        {agent.monthly_gci && agents.filter(a => a.monthly_gci).length >= 3 && (
                           <div>
                             <p className="text-xs text-muted-foreground mb-2">
                               Monthly GCI Breakdown (Extended Sharing)
@@ -567,10 +569,11 @@ export function OrgLeaderboard({
                             />
                           </div>
                         )}
-                        {!agent.monthly_gci && (
+                        {(!agent.monthly_gci || agents.filter(a => a.monthly_gci).length < 3) && (
                           <p className="text-[10px] text-muted-foreground/60 italic">
-                            This agent uses Basic Sharing \u2014 monthly
-                            breakdown not available.
+                            {!agent.monthly_gci
+                              ? "This agent uses Basic Sharing \u2014 monthly breakdown not available."
+                              : "Monthly breakdown requires 3+ agents with Extended Sharing enabled."}
                           </p>
                         )}
                       </TableCell>
