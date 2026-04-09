@@ -139,22 +139,27 @@ function SectionHeader({
   count,
   color,
   description,
+  totalValue,
 }: {
   icon:        React.ReactNode;
   label:       string;
   count:       number;
   color:       string;
   description: string;
+  totalValue?: number;
 }) {
   return (
     <div className="flex items-start gap-3 mb-3">
       <div className={cn("h-8 w-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5", color)}>
         {icon}
       </div>
-      <div>
+      <div className="flex-1">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-bold text-foreground">{label}</h3>
           <span className="text-xs font-semibold bg-muted text-muted-foreground rounded-full px-2 py-0.5">{count}</span>
+          {totalValue != null && totalValue > 0 && (
+            <span className="text-xs font-semibold text-emerald-600 ml-auto tabular-nums">{fmtCompact(totalValue)}</span>
+          )}
         </div>
         <p className="text-xs text-muted-foreground">{description}</p>
       </div>
@@ -226,6 +231,38 @@ export function PipelineTab({
     [active, onDeck],
   );
 
+  // ── Dollar values per section ──────────────────────────────────────────────
+  const DEFAULT_COMMISSION = 0.025;
+
+  const inMotionValue = useMemo(() => {
+    const clientValue = inFlight.reduce((sum, c) => {
+      const budget = c.buyer_pre_approval_amount ?? c.property_interest ?? 0;
+      return sum + budget * DEFAULT_COMMISSION;
+    }, 0);
+    const listingValue = activeListings.reduce((sum, a) => {
+      const price = a.actual_list_price ?? a.estimated_list_price ?? 0;
+      const pct = a.estimated_commission_pct ?? DEFAULT_COMMISSION;
+      return sum + price * pct;
+    }, 0);
+    return clientValue + listingValue;
+  }, [inFlight, activeListings]);
+
+  const onDeckValue = useMemo(() => {
+    return onDeck.reduce((sum, c) => {
+      const budget = c.buyer_pre_approval_amount ?? c.property_interest ?? 0;
+      return sum + budget * DEFAULT_COMMISSION;
+    }, 0);
+  }, [onDeck]);
+
+  const checkInValue = useMemo(() => {
+    return checkIn.reduce((sum, c) => {
+      const budget = c.buyer_pre_approval_amount ?? c.property_interest ?? 0;
+      return sum + budget * DEFAULT_COMMISSION;
+    }, 0);
+  }, [checkIn]);
+
+  const totalPipelineGCI = inMotionValue + onDeckValue + checkInValue;
+
   // ── Summary bar ───────────────────────────────────────────────────────────
   const today = new Date().toLocaleDateString("en-CA", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
 
@@ -253,6 +290,9 @@ export function PipelineTab({
           <p className="text-xs text-muted-foreground mt-0.5">{today}</p>
         </div>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          {totalPipelineGCI > 0 && (
+            <span className="font-semibold text-emerald-600 tabular-nums">{fmtCompact(totalPipelineGCI)} GCI</span>
+          )}
           <span><span className="font-semibold text-foreground">{inMotionCount}</span> closing</span>
           <span><span className="font-semibold text-foreground">{onDeck.length}</span> on deck</span>
           <span className={cn("font-semibold", checkIn.length > 0 ? "text-amber-600" : "text-foreground")}>{checkIn.length}</span>
@@ -269,6 +309,7 @@ export function PipelineTab({
             count={inMotionCount}
             color="bg-emerald-500"
             description="Under contract or actively listed — these should close soon."
+            totalValue={inMotionValue}
           />
           <div className="space-y-2">
             {inFlight.map((c) => {
@@ -304,6 +345,7 @@ export function PipelineTab({
             count={onDeck.length}
             color="bg-violet-500"
             description="Pre-approved buyers with recent momentum — who writes an offer next?"
+            totalValue={onDeckValue}
           />
           <div className="space-y-2">
             {onDeck.map((c) => {
@@ -339,6 +381,7 @@ export function PipelineTab({
             count={checkIn.length}
             color="bg-amber-500"
             description="Active clients with no contact in 14+ days — who risks going cold?"
+            totalValue={checkInValue}
           />
           <div className="space-y-2">
             {[...checkIn]
@@ -371,7 +414,7 @@ export function PipelineTab({
       {/* Footer note */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border/40">
         <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-        <span>Landed and Cruising clients are excluded — this view focuses on active, pre-close opportunities only.</span>
+        <span>Cruising clients are excluded — this view focuses on active, pre-close opportunities only.</span>
       </div>
     </div>
   );

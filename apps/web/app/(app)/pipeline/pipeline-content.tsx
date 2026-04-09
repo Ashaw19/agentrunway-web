@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import type { PipelineSeedData } from "./page";
 import {
   computePipelineForecast,
@@ -20,6 +21,9 @@ import {
   Target,
   BarChart3,
   ArrowRight,
+  Plus,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import {
   Table,
@@ -29,7 +33,27 @@ import {
   TableRow,
   TableCell,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import type { ListingAppointment } from "@/lib/types/database";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -116,15 +140,139 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
     [result],
   );
 
+  // ── Listing Appointment CRUD ────────────────────────────────────────────
+  const router = useRouter();
+  const [listingDialogOpen, setListingDialogOpen] = useState(false);
+  const [editingListing, setEditingListing] = useState<ListingAppointment | null>(null);
+  const [listingSaving, setListingSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const emptyListingForm = {
+    property_address: "",
+    appointment_date: new Date().toISOString().slice(0, 10),
+    estimated_list_price: "",
+    estimated_commission_pct: "2.5",
+    actual_list_price: "",
+    actual_sale_price: "",
+    expected_close_date: "",
+    listing_agreement_date: "",
+    status: "scheduled" as const,
+    notes: "",
+  };
+  const [listingForm, setListingForm] = useState(emptyListingForm);
+
+  const setLF = useCallback(
+    (field: string, value: string) => setListingForm((prev) => ({ ...prev, [field]: value })),
+    [],
+  );
+
+  const openAddListing = useCallback(() => {
+    setEditingListing(null);
+    setListingForm(emptyListingForm);
+    setListingDialogOpen(true);
+  }, []);
+
+  const openEditListing = useCallback((item: UnifiedPipelineItem) => {
+    const la = seed.listingAppointments.find((a) => a.id === item.id);
+    if (!la) return;
+    setEditingListing(la);
+    setListingForm({
+      property_address: la.property_address ?? "",
+      appointment_date: la.appointment_date ?? "",
+      estimated_list_price: la.estimated_list_price ? String(la.estimated_list_price) : "",
+      estimated_commission_pct: la.estimated_commission_pct ? String(la.estimated_commission_pct * 100) : "2.5",
+      actual_list_price: la.actual_list_price ? String(la.actual_list_price) : "",
+      actual_sale_price: la.actual_sale_price ? String(la.actual_sale_price) : "",
+      expected_close_date: la.expected_close_date ?? "",
+      listing_agreement_date: la.listing_agreement_date ?? "",
+      status: la.status as typeof emptyListingForm.status,
+      notes: la.notes ?? "",
+    });
+    setListingDialogOpen(true);
+  }, [seed.listingAppointments]);
+
+  const handleSaveListing = useCallback(async () => {
+    if (!listingForm.property_address.trim()) {
+      toast.error("Property address is required.");
+      return;
+    }
+    if (!listingForm.estimated_list_price || Number(listingForm.estimated_list_price) <= 0) {
+      toast.error("Estimated list price is required.");
+      return;
+    }
+
+    setListingSaving(true);
+    try {
+      const supabase = createClient();
+      const payload = {
+        property_address: listingForm.property_address.trim(),
+        appointment_date: listingForm.appointment_date || new Date().toISOString().slice(0, 10),
+        estimated_list_price: Number(listingForm.estimated_list_price),
+        estimated_commission_pct: Number(listingForm.estimated_commission_pct) / 100,
+        actual_list_price: listingForm.actual_list_price ? Number(listingForm.actual_list_price) : null,
+        actual_sale_price: listingForm.actual_sale_price ? Number(listingForm.actual_sale_price) : null,
+        expected_close_date: listingForm.expected_close_date || null,
+        listing_agreement_date: listingForm.listing_agreement_date || null,
+        status: listingForm.status,
+        notes: listingForm.notes.trim() || null,
+      };
+
+      if (editingListing) {
+        const { error } = await supabase
+          .from("listing_appointments")
+          .update(payload)
+          .eq("id", editingListing.id);
+        if (error) throw error;
+        toast.success("Listing appointment updated.");
+      } else {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Not authenticated");
+        const { error } = await supabase
+          .from("listing_appointments")
+          .insert({ ...payload, user_id: user.id });
+        if (error) throw error;
+        toast.success("Listing appointment added.");
+      }
+      setListingDialogOpen(false);
+      router.refresh();
+    } catch (err) {
+      toast.error("Failed to save listing appointment.");
+      console.error(err);
+    } finally {
+      setListingSaving(false);
+    }
+  }, [listingForm, editingListing, router]);
+
+  const handleDeleteListing = useCallback(async (id: string) => {
+    setDeletingId(id);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.from("listing_appointments").delete().eq("id", id);
+      if (error) throw error;
+      toast.success("Listing appointment removed.");
+      router.refresh();
+    } catch {
+      toast.error("Failed to delete listing appointment.");
+    } finally {
+      setDeletingId(null);
+    }
+  }, [router]);
+
   return (
     <div className="space-y-6">
       {/* ── Page Header ─────────────────────────────────────────────── */}
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Pipeline</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Unified view of deals, listings, and tracked buyers with
-          probability-weighted GCI forecasting.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Pipeline</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Unified view of deals, listings, and tracked buyers with
+            probability-weighted GCI forecasting.
+          </p>
+        </div>
+        <Button onClick={openAddListing} size="sm" className="gap-1.5">
+          <Plus className="h-4 w-4" />
+          Add Listing
+        </Button>
       </div>
 
       {/* ── Summary Strip ───────────────────────────────────────────── */}
@@ -197,7 +345,13 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
             </TableHeader>
             <TableBody>
               {sortedItems.map((item) => (
-                <PipelineRow key={item.id} item={item} />
+                <PipelineRow
+                  key={item.id}
+                  item={item}
+                  onEditListing={item.source === "listing" ? () => openEditListing(item) : undefined}
+                  onDeleteListing={item.source === "listing" ? () => handleDeleteListing(item.id) : undefined}
+                  deleting={deletingId === item.id}
+                />
               ))}
             </TableBody>
           </Table>
@@ -209,6 +363,155 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
         <AccuracyCard accuracy={result.accuracy} />
         <FunnelCard funnel={result.funnel.dealFunnel} />
       </div>
+
+      {/* ── Listing Appointment Dialog ─────────────────────────────── */}
+      <Dialog open={listingDialogOpen} onOpenChange={setListingDialogOpen}>
+        <DialogContent className="w-[95vw] max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editingListing ? "Edit Listing Appointment" : "Add Listing Appointment"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            {/* Address */}
+            <div className="grid gap-1.5">
+              <Label>Property Address *</Label>
+              <Input
+                placeholder="123 Main St, Toronto"
+                value={listingForm.property_address}
+                onChange={(e) => setLF("property_address", e.target.value)}
+              />
+            </div>
+
+            {/* Row: Est. Price + Commission % */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Estimated List Price ($) *</Label>
+                <Input
+                  type="number"
+                  placeholder="750000"
+                  value={listingForm.estimated_list_price}
+                  onChange={(e) => setLF("estimated_list_price", e.target.value)}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Commission %</Label>
+                <Input
+                  type="number"
+                  step="0.25"
+                  placeholder="2.5"
+                  value={listingForm.estimated_commission_pct}
+                  onChange={(e) => setLF("estimated_commission_pct", e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Row: Appointment Date + Status */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Appointment Date</Label>
+                <Input
+                  type="date"
+                  value={listingForm.appointment_date}
+                  onChange={(e) => setLF("appointment_date", e.target.value)}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Status</Label>
+                <Select value={listingForm.status} onValueChange={(v) => setLF("status", v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="scheduled">Scheduled</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="sold">Sold</SelectItem>
+                    <SelectItem value="expired">Expired</SelectItem>
+                    <SelectItem value="withdrawn">Withdrawn</SelectItem>
+                    <SelectItem value="lost">Lost</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Row: Actual List Price + Actual Sale Price (show when relevant) */}
+            {(listingForm.status === "active" || listingForm.status === "sold" || listingForm.status === "expired" || listingForm.status === "withdrawn") && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="grid gap-1.5">
+                  <Label>Actual List Price ($)</Label>
+                  <Input
+                    type="number"
+                    placeholder="Listed at..."
+                    value={listingForm.actual_list_price}
+                    onChange={(e) => setLF("actual_list_price", e.target.value)}
+                  />
+                </div>
+                {listingForm.status === "sold" && (
+                  <div className="grid gap-1.5">
+                    <Label>Sale Price ($)</Label>
+                    <Input
+                      type="number"
+                      placeholder="Sold for..."
+                      value={listingForm.actual_sale_price}
+                      onChange={(e) => setLF("actual_sale_price", e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Row: Expected Close + Listing Agreement Date */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label>Expected Close Date</Label>
+                <Input
+                  type="date"
+                  value={listingForm.expected_close_date}
+                  onChange={(e) => setLF("expected_close_date", e.target.value)}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label>Listing Agreement Date</Label>
+                <Input
+                  type="date"
+                  value={listingForm.listing_agreement_date}
+                  onChange={(e) => setLF("listing_agreement_date", e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Notes */}
+            <div className="grid gap-1.5">
+              <Label>Notes</Label>
+              <Textarea
+                placeholder="Optional notes about this listing..."
+                rows={2}
+                value={listingForm.notes}
+                onChange={(e) => setLF("notes", e.target.value)}
+              />
+            </div>
+
+            {/* GCI Preview */}
+            {listingForm.estimated_list_price && (
+              <p className="text-sm text-muted-foreground">
+                Est. GCI:{" "}
+                <span className="font-medium text-foreground">
+                  {fmtCurrency(
+                    Number(listingForm.estimated_list_price) *
+                    (Number(listingForm.estimated_commission_pct) / 100),
+                  )}
+                </span>
+              </p>
+            )}
+
+            <Button onClick={handleSaveListing} disabled={listingSaving}>
+              {listingSaving
+                ? "Saving…"
+                : editingListing
+                ? "Save Changes"
+                : "Add Listing Appointment"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -259,14 +562,24 @@ function SummaryCard({
   );
 }
 
-function PipelineRow({ item }: { item: UnifiedPipelineItem }) {
+function PipelineRow({
+  item,
+  onEditListing,
+  onDeleteListing,
+  deleting,
+}: {
+  item: UnifiedPipelineItem;
+  onEditListing?: () => void;
+  onDeleteListing?: () => void;
+  deleting?: boolean;
+}) {
   const stageColor =
     STAGE_BADGE_COLORS[item.unifiedStage] ?? STAGE_BADGE_COLORS.pre_qualifying;
   const stageLabel =
     STAGE_LABELS[item.unifiedStage] ?? item.stage;
 
   return (
-    <TableRow className="border-border">
+    <TableRow className={cn("border-border", onEditListing && "cursor-pointer hover:bg-muted/50")} onClick={onEditListing}>
       <TableCell>
         <div className="flex items-center gap-1.5" title={sourceLabel(item.source)}>
           {sourceIcon(item.source)}
@@ -303,7 +616,19 @@ function PipelineRow({ item }: { item: UnifiedPipelineItem }) {
         {fmtPct(item.probability)}
       </TableCell>
       <TableCell className="text-right text-muted-foreground tabular-nums">
-        {formatDate(item.expectedCloseDate)}
+        <div className="flex items-center justify-end gap-2">
+          <span>{formatDate(item.expectedCloseDate)}</span>
+          {onDeleteListing && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDeleteListing(); }}
+              disabled={deleting}
+              className="text-muted-foreground/50 hover:text-red-500 transition-colors p-0.5"
+              title="Remove listing"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </TableCell>
     </TableRow>
   );
