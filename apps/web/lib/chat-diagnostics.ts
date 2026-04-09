@@ -168,8 +168,14 @@ export async function buildDiagnostics(
   const pipelineDeals = (pipeline ?? []) as PipelineDeal[];
   const expenses = (expenseCategories ?? []) as ExpenseCategory[];
 
-  const ytdGCI = closedTx.reduce((sum, tx) => sum + computeGCI(tx), 0);
-  const pipelineWeighted = pipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
+  const ytdGCI = closedTx.reduce(
+    (sum, tx) => sum + computeGCI(tx as Parameters<typeof computeGCI>[0]),
+    0,
+  );
+  const pipelineWeighted = pipelineDeals.reduce(
+    (sum, d) => sum + computeWeightedGCI(d as Parameters<typeof computeWeightedGCI>[0]),
+    0,
+  );
 
   // ── Compute agent-specific seasonal weights (same logic as chat route / dashboard) ──
   const agentSeasonalWeights = (() => {
