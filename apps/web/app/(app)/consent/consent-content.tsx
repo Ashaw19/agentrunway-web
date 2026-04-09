@@ -44,6 +44,11 @@ export function ConsentContent({ memberships: initialMemberships }: Props) {
   const [saving, setSaving] = useState<string | null>(null);
 
   async function handleTierChange(orgId: string, tier: DataSharingTier) {
+    // Track if this is a first-time activation (pending → active)
+    const wasPending = memberships.find(
+      (m) => m.membership.org_id === orgId,
+    )?.membership.status === "pending";
+
     setSaving(orgId);
     const { data, error } = await updateConsent(orgId, tier);
     if (error) {
@@ -56,6 +61,11 @@ export function ConsentContent({ memberships: initialMemberships }: Props) {
             : m,
         ),
       );
+      if (wasPending) {
+        toast.success("You're all set! Redirecting to your dashboard…");
+        router.push("/dashboard");
+        return;
+      }
       toast.success(
         tier === "tier2"
           ? "Extended sharing enabled"

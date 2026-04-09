@@ -3403,10 +3403,16 @@ export function ClientsContent({
                                         </span>
                                       )}
                                     </div>
-                                    {/* Contact info subtitle */}
+                                    {/* Contact info subtitle — clickable links */}
                                     {client && (client.email || client.phone) && (
-                                      <p className="text-[11px] text-muted-foreground/70 truncate max-w-[220px]">
-                                        {[client.phone, client.email].filter(Boolean).join(" · ")}
+                                      <p className="text-[11px] text-muted-foreground/70 truncate max-w-[220px]" onClick={(e) => e.stopPropagation()}>
+                                        {client.phone && (
+                                          <a href={`tel:${client.phone.replace(/\D/g, "")}`} className="hover:text-foreground transition-colors">{client.phone}</a>
+                                        )}
+                                        {client.phone && client.email && " · "}
+                                        {client.email && (
+                                          <a href={`mailto:${client.email}`} className="hover:text-foreground transition-colors">{client.email}</a>
+                                        )}
                                       </p>
                                     )}
                                   </div>

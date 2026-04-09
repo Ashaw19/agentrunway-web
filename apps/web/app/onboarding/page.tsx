@@ -243,7 +243,15 @@ export default function OnboardingPage() {
         return;
       }
 
-      router.push("/dashboard");
+      // If user has pending org memberships (just accepted an invite),
+      // send them to /consent to activate their membership first.
+      const { count: pendingOrgs } = await supabase
+        .from("organization_members")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("status", "pending");
+
+      router.push(pendingOrgs && pendingOrgs > 0 ? "/consent" : "/dashboard");
     } catch (err) {
       console.error("Onboarding save error:", err);
       toast.error("Something went wrong. Please try again.");

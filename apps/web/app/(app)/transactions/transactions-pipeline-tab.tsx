@@ -659,7 +659,14 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
                     setTimeout(() => setShowClientDropdown(false), 200);
                   }}
                 />
-                {showClientDropdown && clientSearch.length >= 1 && clientOptions.length > 0 && (() => {
+                {showClientDropdown && clientSearch.length >= 1 && (() => {
+                  if (clientOptions.length === 0) {
+                    return (
+                      <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-md border border-slate-200 bg-white shadow-lg px-3 py-2.5 text-xs text-muted-foreground">
+                        No clients found — type a name to add a new one
+                      </div>
+                    );
+                  }
                   return (
                     <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-40 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
                       {clientOptions.map((c) => (
