@@ -3111,14 +3111,33 @@ export function ClientsContent({
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {/* ── Page header ──────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-4">
           <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            The people who made your year — quantified.
-          </p>
+          {/* Inline KPI strip */}
+          <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+              <span className="font-semibold text-foreground">{clientsLoading ? "…" : grouped.length}</span> clients
+            </span>
+            <span className="text-border">|</span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-violet-500" />
+              <span className="font-semibold text-foreground">{repeatCount}</span> repeat ({repeatRate}%)
+            </span>
+            <span className="text-border">|</span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span className="font-semibold text-foreground">{fmtCurrency(totalGCI)}</span> lifetime
+            </span>
+            <span className="text-border">|</span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              <span className="font-semibold text-foreground">{totalDeals}</span> deals
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Button
@@ -3142,38 +3161,6 @@ export function ClientsContent({
             Import CSV
           </Button>
         </div>
-      </div>
-
-      {/* ── Summary KPI strip ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <SummaryCard
-          icon={<Users className="h-4 w-4 text-blue-500" />}
-          label="Total Clients"
-          value={clientsLoading ? "Loading…" : String(grouped.length)}
-          sub="unique relationships"
-          accent="blue"
-        />
-        <SummaryCard
-          icon={<RepeatIcon className="h-4 w-4 text-violet-500" />}
-          label="Repeat Clients"
-          value={`${repeatCount} (${repeatRate}%)`}
-          sub="2 or more deals"
-          accent="violet"
-        />
-        <SummaryCard
-          icon={<TrendingUp className="h-4 w-4 text-emerald-500" />}
-          label="Lifetime GCI"
-          value={fmtCurrency(totalGCI)}
-          sub="across all years"
-          accent="emerald"
-        />
-        <SummaryCard
-          icon={<Home className="h-4 w-4 text-amber-500" />}
-          label="Total Deals"
-          value={String(totalDeals)}
-          sub="imported deal records"
-          accent="amber"
-        />
       </div>
 
       {/* ── Tabs ─────────────────────────────────────────────────────────── */}
