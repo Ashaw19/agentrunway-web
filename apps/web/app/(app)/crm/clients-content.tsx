@@ -97,6 +97,7 @@ import {
   CalendarDays,
   Sparkles,
   ChevronDown,
+  Layers,
 } from "lucide-react";
 import { ShowingsSection } from "./showings-section";
 import { fmtCurrency } from "@/lib/formatters";
@@ -1427,6 +1428,24 @@ export function ClientsContent({
     () => selectedClientId ? localListingAppointments.filter((a) => a.client_id === selectedClientId) : [],
     [localListingAppointments, selectedClientId],
   );
+
+  // Pipeline deals linked to the selected client (fetched on demand)
+  const [linkedPipelineDeals, setLinkedPipelineDeals] = useState<
+    { id: string; address: string; side: string; stage: string; estimated_price: number; estimated_commission_pct: number }[]
+  >([]);
+  useEffect(() => {
+    if (!selectedClientId || !userId) { setLinkedPipelineDeals([]); return; }
+    const supabase = createClient();
+    supabase
+      .from("pipeline_deals")
+      .select("id, address, side, stage, estimated_price, estimated_commission_pct")
+      .eq("user_id", userId)
+      .eq("client_id", selectedClientId)
+      .neq("stage", "closed")
+      .order("created_at", { ascending: false })
+      .limit(20)
+      .then(({ data }) => setLinkedPipelineDeals(data ?? []));
+  }, [selectedClientId, userId]);
 
   // Clients for relationship linking search
   const linkCandidates = useMemo(() => {
@@ -4424,6 +4443,45 @@ export function ClientsContent({
                     </div>
                   )}
                 </div>
+
+                {/* Pipeline Deals (linked via client_id) */}
+                {linkedPipelineDeals.length > 0 && (
+                  <div className="rounded-2xl border border-blue-200/60 bg-blue-50/30 dark:bg-blue-950/10 p-4 space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400 flex items-center gap-2">
+                      <div className="h-5 w-5 rounded-md bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                        <Layers className="h-3 w-3 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      Active Pipeline Deals
+                    </h3>
+                    <div className="space-y-1.5">
+                      {linkedPipelineDeals.map((deal) => {
+                        const gci = deal.estimated_price * deal.estimated_commission_pct;
+                        return (
+                          <div key={deal.id} className="py-1.5 px-2 rounded-lg bg-white/50 dark:bg-blue-900/20 border border-blue-100/60 dark:border-blue-800/30">
+                            <div className="flex items-center justify-between">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xs font-medium text-foreground truncate">
+                                  {deal.address || "No address"}
+                                </p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-[9px] font-semibold border rounded-full px-2 py-0 capitalize text-blue-700 bg-blue-100 border-blue-200">
+                                    {deal.side}
+                                  </span>
+                                  <span className="text-[9px] font-semibold border rounded-full px-2 py-0 capitalize text-purple-700 bg-purple-100 border-purple-200">
+                                    {deal.stage}
+                                  </span>
+                                </div>
+                              </div>
+                              <span className="text-sm font-bold tabular-nums text-foreground shrink-0 ml-3">
+                                {fmtCurrency(gci)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Deal History */}
                 {clientDeals.length > 0 && (

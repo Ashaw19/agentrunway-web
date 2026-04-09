@@ -82,6 +82,7 @@ interface Props {
 type FormState = {
   address: string;
   client_name: string;
+  client_id: string | null;
   estimated_price: string;
   estimated_commission_pct: string;
   side: "buyer" | "seller" | "both";
@@ -94,6 +95,7 @@ type FormState = {
 const emptyForm = (): FormState => ({
   address: "",
   client_name: "",
+  client_id: null,
   estimated_price: "",
   estimated_commission_pct: "2.5",
   side: "buyer",
@@ -102,6 +104,8 @@ const emptyForm = (): FormState => ({
   probability_override: "",
   notes: "",
 });
+
+type ClientOption = { id: string; name: string };
 
 const STAGE_LABELS: Record<string, string> = {
   lead: "Lead",
@@ -145,6 +149,32 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
   const [saving, setSaving] = useState(false);
   const [closing, setClosing] = useState(false);
   const [closeTarget, setCloseTarget] = useState<PipelineDeal | null>(null);
+
+  // Client search for linking deals to CRM contacts
+  const [clientOptions, setClientOptions] = useState<ClientOption[]>([]);
+  const [clientSearch, setClientSearch] = useState("");
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+
+  useEffect(() => {
+    // Fetch clients for the dropdown when the dialog opens
+    if (!dialogOpen) return;
+    const supabase = createClient();
+    supabase
+      .from("clients")
+      .select("id, first_name, last_name")
+      .order("last_name")
+      .limit(500)
+      .then(({ data }) => {
+        if (data) {
+          setClientOptions(
+            data.map((c) => ({
+              id: c.id,
+              name: [c.first_name, c.last_name].filter(Boolean).join(" "),
+            })),
+          );
+        }
+      });
+  }, [dialogOpen]);
   const [closeForm, setCloseForm] = useState<CloseForm>({
     client_name: "",
     sale_price: "",
@@ -172,6 +202,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
   function openAdd() {
     setEditingId(null);
     setForm(emptyForm());
+    setClientSearch("");
     setDialogOpen(true);
   }
 
@@ -180,6 +211,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
     setForm({
       address: deal.address ?? "",
       client_name: deal.client_name ?? "",
+      client_id: deal.client_id ?? null,
       estimated_price: deal.estimated_price ? String(deal.estimated_price) : "",
       estimated_commission_pct: deal.estimated_commission_pct
         ? String(deal.estimated_commission_pct * 100)
@@ -193,6 +225,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
           : "",
       notes: deal.notes ?? "",
     });
+    setClientSearch(deal.client_name ?? "");
     setDialogOpen(true);
   }
 
@@ -225,6 +258,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
     const payload = {
       address: form.address.slice(0, FIELD_LIMITS.address),
       client_name: form.client_name.slice(0, FIELD_LIMITS.clientName),
+      client_id: form.client_id || null,
       estimated_price: parsed.estimated_price,
       estimated_commission_pct: parsed.estimated_commission_pct,
       side: form.side,
@@ -600,13 +634,50 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
 
             {/* Row: Client + Side */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
-                <Label>Client Name</Label>
+              <div className="relative grid gap-1.5">
+                <Label>Client {form.client_id && <span className="text-emerald-600 text-xs font-normal">· linked</span>}</Label>
                 <Input
-                  placeholder="Jane Smith"
-                  value={form.client_name}
-                  onChange={(e) => setField("client_name", e.target.value)}
+                  placeholder="Search or type name…"
+                  value={clientSearch}
+                  onChange={(e) => {
+                    setClientSearch(e.target.value);
+                    setField("client_name", e.target.value);
+                    // Clear link if user edits the name manually
+                    if (form.client_id) setField("client_id", null);
+                    setShowClientDropdown(true);
+                  }}
+                  onFocus={() => setShowClientDropdown(true)}
+                  onBlur={() => {
+                    // Delay to allow click on dropdown item
+                    setTimeout(() => setShowClientDropdown(false), 200);
+                  }}
                 />
+                {showClientDropdown && clientSearch.length >= 1 && (() => {
+                  const filtered = clientOptions.filter((c) =>
+                    c.name.toLowerCase().includes(clientSearch.toLowerCase()),
+                  );
+                  if (filtered.length === 0) return null;
+                  return (
+                    <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-40 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
+                      {filtered.slice(0, 8).map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 transition-colors"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setField("client_name", c.name);
+                            setField("client_id", c.id);
+                            setClientSearch(c.name);
+                            setShowClientDropdown(false);
+                          }}
+                        >
+                          {c.name}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
               <div className="grid gap-1.5">
                 <Label>Side *</Label>
