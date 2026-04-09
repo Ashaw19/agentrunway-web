@@ -120,8 +120,10 @@ interface DateRanges {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnySupabaseClient = SupabaseClient<any, any, any>;
+
 async function gatherUserMetrics(
-  supabase: SupabaseClient<any, any, any>,
+  supabase: AnySupabaseClient,
   user: {
     user_id: string;
     display_name: string | null;
