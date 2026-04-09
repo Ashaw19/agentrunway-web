@@ -1384,6 +1384,18 @@ export function ClientsContent({
     [localTasks],
   );
 
+  // Count overdue tasks per client for list-view indicator
+  const overdueByClient = useMemo(() => {
+    const today = todayIso();
+    const map = new Map<string, number>();
+    for (const t of localTasks) {
+      if (t.client_id && t.due_date < today) {
+        map.set(t.client_id, (map.get(t.client_id) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [localTasks]);
+
   // Selected client detail
   const selectedClient = selectedClientId
     ? clientById.get(selectedClientId) ?? null
@@ -2274,9 +2286,10 @@ export function ClientsContent({
 
   async function handleLogActivity() {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
-    if (!logDescription.trim() || !logActivityClientId) return;
+    if (!logActivityClientId) return;
     setLogSaving(true);
-    await logActivity(logActivityClientId, logType, logDescription.trim(), logDate);
+    const desc = logDescription.trim() || ACTIVITY_TYPE_LABELS[logType];
+    await logActivity(logActivityClientId, logType, desc, logDate);
     setLogSaving(false);
     setShowLogActivity(false);
     setLogDescription("");
@@ -3259,8 +3272,7 @@ export function ClientsContent({
           {!hasAnyData ? (
             <Card className="rounded-2xl border-slate-200 shadow-sm">
               <CardContent className="py-12 text-center text-muted-foreground">
-                No clients yet. Import a brokerage report or career tracker
-                from the History page to populate your client database.
+                No clients yet. Use the <strong>Import CSV</strong> button above to import contacts from your current CRM, or add clients manually from the Transactions page.
               </CardContent>
             </Card>
           ) : (
@@ -3335,34 +3347,49 @@ export function ClientsContent({
                                 <div className={cn("w-1 min-h-[46px]", recencyAccent(group.lastDeal))} />
                               </TableCell>
 
-                              {/* Name + achievement badges */}
+                              {/* Name + contact info + achievement badges */}
                               <TableCell className="pl-3 pr-2 py-2.5">
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   <div className="h-7 w-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
                                     {group.name.charAt(0).toUpperCase()}
                                   </div>
-                                  <span className="font-medium text-foreground text-sm truncate max-w-[160px]">
-                                    {group.name}
-                                  </span>
-                                  {/* Achievement badge icons — circular discs with hover tooltip */}
-                                  {badges.length > 0 && (
-                                    <span className="flex items-center gap-1.5 shrink-0">
-                                      {badges.map((b) => (
-                                        <AchievementBadgeIcon
-                                          key={b.id}
-                                          badge={b}
-                                          size={17}
-                                          rewardBudget={rewardBudget}
-                                          generosity={rewardGenerosity}
-                                        />
-                                      ))}
-                                    </span>
-                                  )}
-                                  {client?.tags?.[0] && (
-                                    <Badge variant="outline" className="text-[9px] bg-violet-50 text-violet-700 border-violet-200 shrink-0 py-0">
-                                      {client.tags[0]}
-                                    </Badge>
-                                  )}
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-medium text-foreground text-sm truncate max-w-[160px]">
+                                        {group.name}
+                                      </span>
+                                      {/* Achievement badge icons — circular discs with hover tooltip */}
+                                      {badges.length > 0 && (
+                                        <span className="flex items-center gap-1.5 shrink-0">
+                                          {badges.map((b) => (
+                                            <AchievementBadgeIcon
+                                              key={b.id}
+                                              badge={b}
+                                              size={17}
+                                              rewardBudget={rewardBudget}
+                                              generosity={rewardGenerosity}
+                                            />
+                                          ))}
+                                        </span>
+                                      )}
+                                      {client?.tags?.[0] && (
+                                        <Badge variant="outline" className="text-[9px] bg-violet-50 text-violet-700 border-violet-200 shrink-0 py-0">
+                                          {client.tags[0]}
+                                        </Badge>
+                                      )}
+                                      {hasClientId && (overdueByClient.get(group.clientId!) ?? 0) > 0 && (
+                                        <span className="text-[9px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-full px-1.5 py-0 shrink-0">
+                                          {overdueByClient.get(group.clientId!)} overdue
+                                        </span>
+                                      )}
+                                    </div>
+                                    {/* Contact info subtitle */}
+                                    {client && (client.email || client.phone) && (
+                                      <p className="text-[11px] text-muted-foreground/70 truncate max-w-[220px]">
+                                        {[client.phone, client.email].filter(Boolean).join(" · ")}
+                                      </p>
+                                    )}
+                                  </div>
                                 </div>
                               </TableCell>
 
@@ -4468,14 +4495,14 @@ export function ClientsContent({
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Description</Label>
-                        <Textarea placeholder="What happened?" value={logDescription} onChange={(e) => setLogDescription(e.target.value)} rows={2} className="text-sm resize-none" />
+                        <Textarea placeholder="Optional — leave blank to use activity type as description" value={logDescription} onChange={(e) => setLogDescription(e.target.value)} rows={2} className="text-sm resize-none" />
                       </div>
                       <div className="space-y-1">
                         <Label className="text-xs">Date & time</Label>
                         <Input type="datetime-local" value={logDate} onChange={(e) => setLogDate(e.target.value)} className="h-8 text-sm" />
                       </div>
                       <div className="flex gap-2">
-                        <Button size="sm" disabled={!logDescription.trim() || logSaving} onClick={handleLogActivity} className="h-7 text-xs">{logSaving ? "Saving…" : "Save"}</Button>
+                        <Button size="sm" disabled={logSaving} onClick={handleLogActivity} className="h-7 text-xs">{logSaving ? "Saving…" : "Save"}</Button>
                         <Button size="sm" variant="ghost" onClick={() => setShowLogActivity(false)} className="h-7 text-xs">Cancel</Button>
                       </div>
                     </div>

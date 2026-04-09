@@ -745,8 +745,10 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
 
     let savedYears = 0;
     let totalClients = 0;
+    const failedYears: number[] = [];
 
     for (const yearData of batchImportData) {
+      try {
       const effectiveSplit = batchSplitPcts[yearData.year] ?? yearData.split_pct ?? settingsSplit ?? null;
       const payload = {
         user_id: user.id,
@@ -850,14 +852,26 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
           await supabase.from("transactions").insert(txInserts);
         }
       }
+      } catch (err) {
+        console.error(`Failed to save year ${yearData.year}:`, err);
+        failedYears.push(yearData.year);
+      }
     }
 
     setImportOpen(false);
     setImportStatus("idle");
     setBatchImportData([]);
-    toast.success(
-      `${savedYears} years imported · ${totalClients} clients saved to your database ✓`,
-    );
+    if (failedYears.length > 0 && savedYears > 0) {
+      toast.warning(
+        `${savedYears} years imported, but ${failedYears.join(", ")} failed. Try importing those years again.`,
+      );
+    } else if (failedYears.length > 0) {
+      toast.error("Import failed. Please try again.");
+    } else {
+      toast.success(
+        `${savedYears} years imported · ${totalClients} clients saved to your database ✓`,
+      );
+    }
   }
 
   // ── Render ───────────────────────────────────────────────────────────────

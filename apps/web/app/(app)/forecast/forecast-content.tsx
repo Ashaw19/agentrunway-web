@@ -933,8 +933,9 @@ export function ForecastContent({
             })();
             return <ProbabilityChart data={chartData} />;
           })() : (
-            <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
-              Add transactions to see projection bands
+            <div className="flex h-[200px] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+              <p>No closed transactions yet — projection bands will appear once you have deal history.</p>
+              <a href="/transactions" className="text-xs text-orange-600 hover:underline font-medium">Go to Transactions →</a>
             </div>
           )}
           {/* Text reference */}

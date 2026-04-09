@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { resend, FROM_ADDRESS } from "@/lib/resend";
 import type {
   OrgType,
   OrgMemberRole,
@@ -240,6 +241,43 @@ export async function inviteMembers(
       email: email.toLowerCase().trim(),
       role,
     });
+  }
+
+  // Send invitation emails (fire-and-forget, non-fatal)
+  if (resend && created) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://agentrunway.ca";
+    const { data: orgData } = await supabase
+      .from("organizations")
+      .select("name")
+      .eq("id", orgId)
+      .single();
+    const orgName = orgData?.name ?? "your organization";
+
+    for (const inv of created as OrganizationInvitation[]) {
+      void resend.emails.send({
+        from: FROM_ADDRESS,
+        to: inv.email,
+        subject: `You're invited to join ${orgName} on Agent Runway`,
+        html: `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 0;">
+            <h2 style="color: #1a1a1a; margin-bottom: 8px;">You've been invited!</h2>
+            <p style="color: #555; line-height: 1.6; margin-bottom: 24px;">
+              <strong>${orgName}</strong> has invited you to join their team on Agent Runway as a <strong>${inv.role.replace("_", " ")}</strong>.
+            </p>
+            <a href="${appUrl}/invite/${inv.token}" style="display: inline-block; background: #f97316; color: #fff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">
+              Accept Invitation
+            </a>
+            <p style="color: #888; font-size: 13px; margin-top: 28px; line-height: 1.5;">
+              This invitation expires on ${new Date(inv.expires_at).toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric" })}. If you didn't expect this, you can safely ignore this email.
+            </p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+            <p style="color: #aaa; font-size: 12px;">Agent Runway — Real estate business analytics</p>
+          </div>
+        `,
+      }).catch(() => {
+        // Email send failure is non-fatal — admin can share link manually
+      });
+    }
   }
 
   // Sync Stripe seat count (fire-and-forget, non-fatal)

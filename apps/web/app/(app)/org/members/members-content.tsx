@@ -11,6 +11,8 @@ import {
   X,
   Clock,
   Loader2,
+  Copy,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -55,6 +57,15 @@ export function MembersContent({
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<OrgMemberRole>("agent");
   const [sending, setSending] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  function handleCopyLink(inv: OrganizationInvitation) {
+    const appUrl = typeof window !== "undefined" ? window.location.origin : "https://agentrunway.ca";
+    void navigator.clipboard.writeText(`${appUrl}/invite/${inv.token}`);
+    setCopiedId(inv.id);
+    toast.success("Invite link copied to clipboard");
+    setTimeout(() => setCopiedId(null), 2000);
+  }
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -195,12 +206,22 @@ export function MembersContent({
                     {new Date(inv.expires_at).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" })}
                   </p>
                 </div>
-                <button
-                  onClick={() => handleRevokeInvite(inv.id)}
-                  className="text-xs text-muted-foreground hover:text-rose-500 transition-colors"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleCopyLink(inv)}
+                    className="text-xs text-muted-foreground hover:text-orange-500 transition-colors p-1"
+                    title="Copy invite link"
+                  >
+                    {copiedId === inv.id ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                  </button>
+                  <button
+                    onClick={() => handleRevokeInvite(inv.id)}
+                    className="text-xs text-muted-foreground hover:text-rose-500 transition-colors"
+                    title="Revoke invitation"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
