@@ -57,7 +57,9 @@ export async function POST(
   }
 
   const proCheck = await requirePro(supabase, user.id);
-  if (!proCheck.allowed) return proCheck.response!;
+  if (!proCheck.allowed) {
+    return proCheck.response! as NextResponse<ProcessReceiptError>;
+  }
 
   const rl = await checkRateLimit(user.id, "receipt_process", 20, 60);
   if (!rl.allowed) {
