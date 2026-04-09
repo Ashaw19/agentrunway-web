@@ -432,7 +432,7 @@ export async function POST(req: NextRequest) {
         }, 5);
 
         // ── Build computed outputs context string ──────────────────────────
-        const engineLines: string[] = [
+        const engineLines: (string | null)[] = [
           "",
           "── COMPUTED ENGINE OUTPUTS (use these exact figures, do not recalculate) ──",
           `Seasonality Source: ${seasonalSource}`,
