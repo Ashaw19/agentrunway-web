@@ -97,7 +97,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ item_id: data.id });
   } catch (err) {
     console.error("[plaid/exchange-token]", err);
-    const message = err instanceof Error ? err.message : "Plaid error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to connect bank account" }, { status: 500 });
   }
 }

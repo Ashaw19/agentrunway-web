@@ -60,7 +60,6 @@ export async function POST() {
     return NextResponse.json({ link_token: response.data.link_token });
   } catch (err) {
     console.error("[plaid/create-link-token]", err);
-    const message = err instanceof Error ? err.message : "Plaid error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Failed to initialize bank connection" }, { status: 500 });
   }
 }

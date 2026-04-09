@@ -65,7 +65,8 @@ export async function POST(req: NextRequest) {
     .order("showing_date", { ascending: true });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[buyer-analysis] DB error:", error);
+    return NextResponse.json({ error: "Failed to fetch showings" }, { status: 500 });
   }
 
   if (!showings || showings.length < MIN_SHOWINGS) {

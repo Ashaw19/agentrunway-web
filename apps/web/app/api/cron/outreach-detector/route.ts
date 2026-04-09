@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
 
   if (error) {
     console.error("[cron/outreach-detector] Failed to fetch user list:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 
   // Deduplicate user IDs

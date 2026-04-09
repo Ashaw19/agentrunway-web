@@ -89,7 +89,7 @@ export async function POST(
     } catch (adminErr) {
       const msg = adminErr instanceof Error ? adminErr.message : String(adminErr);
       console.error("[create-token] createAdminClient failed:", msg);
-      return NextResponse.json({ ok: false, error: `Admin client error: ${msg}` }, { status: 500 });
+      return NextResponse.json({ ok: false, error: "Service unavailable" }, { status: 500 });
     }
 
     const token = generateToken();
@@ -107,7 +107,7 @@ export async function POST(
       const msg = error?.message ?? "no data returned";
       console.error("[create-token] insert failed:", msg, error?.details, error?.hint);
       return NextResponse.json(
-        { ok: false, error: `DB insert failed: ${msg}` },
+        { ok: false, error: "Failed to create upload token" },
         { status: 500 },
       );
     }
@@ -124,7 +124,7 @@ export async function POST(
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[create-token] unhandled exception:", msg);
     return NextResponse.json(
-      { ok: false, error: `Unexpected error: ${msg}` },
+      { ok: false, error: "An unexpected error occurred" },
       { status: 500 },
     );
   }

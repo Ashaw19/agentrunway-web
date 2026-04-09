@@ -567,6 +567,22 @@ export async function POST(req: NextRequest) {
 
     if (body.textContent) {
       // ── Text path: Excel / CSV / TXT ─────────────────────────────────────
+
+      // Reject UTF-16 encoded files before any processing. UTF-16 files contain
+      // a BOM of 0xFF 0xFE (little-endian) or 0xFE 0xFF (big-endian), which
+      // JavaScript represents as the two-char sequences "\uFFFD\uFEFF" or similar
+      // when the bytes are misread as UTF-8. The safest signal is a high density
+      // of null characters (\u0000) — UTF-16 ASCII text has a null byte between
+      // every character. If >10% of the first 200 chars are null, it's UTF-16.
+      const sampleForEncoding = body.textContent.slice(0, 200);
+      const nullCount = (sampleForEncoding.match(/\u0000/g) ?? []).length;
+      if (nullCount / Math.max(sampleForEncoding.length, 1) > 0.1) {
+        return NextResponse.json(
+          { error: "This file appears to be UTF-16 encoded. Please re-save it as UTF-8 CSV and try again." },
+          { status: 422 },
+        );
+      }
+
       // Strip UTF-8 BOM (U+FEFF) if present — common in CSV files saved by
       // Excel on Windows and older Canadian real-estate software. Without this,
       // the first column header gets a leading \uFEFF that breaks keyword
@@ -671,6 +687,13 @@ export async function POST(req: NextRequest) {
     if (typeof parsed.year !== "number" || !Array.isArray(parsed.deals)) {
       console.error("[import-history] Malformed response schema. Raw (first 500 chars):", raw.slice(0, 500));
       return NextResponse.json({ error: "Malformed response" }, { status: 422 });
+    }
+
+    if (parsed.deals.length === 0) {
+      return NextResponse.json(
+        { error: "No transaction data found in this document. Please check the file and try again." },
+        { status: 422 },
+      );
     }
 
     // yearHint from the sheet name overrides LLM's title-row year detection.

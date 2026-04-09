@@ -2026,8 +2026,8 @@ export function ClientsContent({
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (!selectedClient || !profileDraft) return;
     setProfileSaving(true);
-    const first = profileDraft.first_name.trim();
-    const last  = profileDraft.last_name.trim();
+    const first = profileDraft.first_name.trim().slice(0, FIELD_LIMITS.clientName);
+    const last  = profileDraft.last_name.trim().slice(0, FIELD_LIMITS.clientName);
     const fullName = [first, last].filter(Boolean).join(" ") || selectedClient.name;
     await Promise.all([
       updateClientField(selectedClient.id, "first_name", first || null),
@@ -3375,6 +3375,7 @@ export function ClientsContent({
                           value={profileDraft?.first_name ?? ""}
                           onChange={(e) => setProfileDraft((d) => d ? { ...d, first_name: e.target.value } : d)}
                           placeholder="First name"
+                          maxLength={FIELD_LIMITS.clientName}
                           className="h-9 text-base font-semibold"
                         />
                       </div>
@@ -3384,6 +3385,7 @@ export function ClientsContent({
                           value={profileDraft?.last_name ?? ""}
                           onChange={(e) => setProfileDraft((d) => d ? { ...d, last_name: e.target.value } : d)}
                           placeholder="Last name"
+                          maxLength={FIELD_LIMITS.clientName}
                           className="h-9 text-base font-semibold"
                         />
                       </div>
