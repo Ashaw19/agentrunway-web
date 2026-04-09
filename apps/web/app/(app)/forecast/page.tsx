@@ -42,6 +42,7 @@ export default async function ForecastPage() {
         settings={settings}
         transactions={transactions}
         pipelineDeals={sb.pipelineDeals}
+        listingAppointments={sb.listingAppointments}
         expenseCategories={expenseCategories}
         historyItems={sb.historyItems}
         subscriptionTier={settings?.subscription_tier ?? "starter"}
@@ -54,7 +55,7 @@ export default async function ForecastPage() {
 
   // ── Normal path ───────────────────────────────────────────────
   const year = new Date().getFullYear();
-  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, mileageResult, ccaResult, receiptTotalsResult] =
+  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, mileageResult, ccaResult, receiptTotalsResult, listingApptResult] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -104,6 +105,13 @@ export default async function ForecastPage() {
         .eq("user_id", user.id)
         .gte("expense_date", `${year}-01-01`)
         .limit(10000),
+      // Listing appointments for forecast weighted GCI
+      supabase
+        .from("listing_appointments")
+        .select("*")
+        .eq("user_id", user.id)
+        .not("status", "in", "(sold,expired,withdrawn,lost)")
+        .limit(10000),
     ]);
 
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
@@ -129,6 +137,7 @@ export default async function ForecastPage() {
       settings={rawSettings}
       transactions={txResult.data ?? []}
       pipelineDeals={pipelineResult.data ?? []}
+      listingAppointments={listingApptResult.data ?? []}
       expenseCategories={expenseCategories}
       historyItems={historyResult.data ?? []}
       subscriptionTier={rawSettings?.subscription_tier ?? "starter"}

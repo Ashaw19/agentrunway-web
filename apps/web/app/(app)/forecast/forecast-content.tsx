@@ -26,6 +26,7 @@ import {
   type UserSettings,
   type ExpenseCategoryWithItems,
   type HistoryItem,
+  type ListingAppointment,
 } from "@/lib/types/database";
 import {
   seasonalFractionElapsed,
@@ -67,6 +68,7 @@ interface Props {
   pipelineDeals: PipelineDeal[];
   expenseCategories: ExpenseCategoryWithItems[];
   historyItems: HistoryItem[];
+  listingAppointments?: ListingAppointment[];
   subscriptionTier?: string;
   receiptYTD?: number;
   mileageKmTotal?: number;
@@ -77,6 +79,7 @@ export function ForecastContent({
   settings,
   transactions,
   pipelineDeals,
+  listingAppointments,
   expenseCategories,
   historyItems,
   subscriptionTier = "starter",
@@ -112,6 +115,16 @@ export function ForecastContent({
     0,
   );
 
+  // Listing appointments weighted by status probability
+  const LISTING_PROBS: Record<string, number> = { scheduled: 0.15, active: 0.40 };
+  const listingWeightedGCI = (listingAppointments ?? []).reduce((sum, la) => {
+    const price = la.estimated_list_price ?? 0;
+    const commPct = (la.estimated_commission_pct ?? 2.5) / 100;
+    const prob = LISTING_PROBS[la.status] ?? 0;
+    return sum + price * commPct * prob;
+  }, 0);
+  const totalPipelineWeighted = pipelineWeighted + listingWeightedGCI;
+
   // ── Seasonality-aware projection ──────────────────────────────────────
   // Phase 4: prefer agent-specific weights derived from their own history
   const agentSeasonalWeights = (() => {
@@ -133,7 +146,7 @@ export function ForecastContent({
       ? (settings.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
       : [0.25, 0.25, 0.25, 0.25]);
   const fraction = seasonalFractionElapsed(seasonalWeights);
-  const rawProjectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeighted, fraction, settings.goal_gci);
+  const rawProjectedGCI = projectedYearEndGCI(ytdGCI, totalPipelineWeighted, fraction, settings.goal_gci);
   const scenarioMultiplier = scenario === "conservative" ? 0.85 : scenario === "optimistic" ? 1.15 : 1.0;
   const projectedGCI = rawProjectedGCI * scenarioMultiplier;
   const projectedDeals = projectedYearEndTransactions(ytdDealCount, pipelineDeals.length, fraction);
