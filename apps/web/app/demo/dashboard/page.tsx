@@ -222,6 +222,8 @@ const DEMO_SETTINGS: UserSettings = {
   growth_goal_year_pcts: [0.1, 0.1, 0.08, 0.07, 0.06],
   cash_reserve: 22000,
   experience_years: 7,
+  estimated_weekly_hours: 45,
+  vacation_weeks_per_year: 2,
   use_national_seasonality: true,
   national_quarter_pcts: [0.2, 0.32, 0.27, 0.21],
   national_seasonality_updated: "2026-01-01",
