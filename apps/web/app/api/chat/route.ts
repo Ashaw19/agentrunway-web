@@ -422,7 +422,10 @@ export async function POST(req: NextRequest) {
           postCapAgentPct: 0,
           estimatedCapMonth: null,
           forecastReadiness: settings.goal_gci > 0 ? 0.8 : 0.2,
-          historyItems: (historyItems ?? []) as { year: number; annual_tx: number; annual_gci: number }[],
+          // Engine only reads year/annual_gci/annual_tx — wider HistoryItem fields
+          // (id, user_id, quarter_gci, etc.) aren't needed here, so cast through unknown.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          historyItems: (historyItems ?? []) as any,
           runwayScore: runwayScore.score,
           runwayGrade: runwayScore.grade,
           runwayWeakestLabel: healthReport.weakestLabel,
