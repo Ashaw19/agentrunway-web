@@ -1,4 +1,4 @@
-import { streamText } from "ai";
+import { streamText, stepCountIs } from "ai";
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -777,8 +777,8 @@ WRITE ACTIONS — You have tools to act on the agent's behalf:
           }),
           ...createAgentTools(supabase, user.id),
         },
-        maxSteps: 10,
-        maxTokens,
+        stopWhen: stepCountIs(10),
+        maxOutputTokens: maxTokens,
         temperature: 0.7,
         abortSignal: abortController.signal,
         headers: heliconeHeaders({
@@ -805,7 +805,7 @@ WRITE ACTIONS — You have tools to act on the agent's behalf:
             role: m.role as "user" | "assistant",
             content: m.content,
           })),
-          maxTokens,
+          maxOutputTokens: maxTokens,
           temperature: 0.7,
           abortSignal: abortController.signal,
         });
