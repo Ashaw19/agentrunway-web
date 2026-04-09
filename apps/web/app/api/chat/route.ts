@@ -738,20 +738,10 @@ WRITE ACTIONS — You have tools to act on the agent's behalf:
   // Full concatenated string for Groq fallback (Groq doesn't support cache_control)
   const systemPrompt = `${staticPart}\n\n${injectCanary(dynamicPart)}`;
 
-  // Array format for Claude — static portion marked for caching
-  const systemForClaude = [
-    {
-      type: "text" as const,
-      text: staticPart,
-      experimental_providerMetadata: {
-        anthropic: { cacheControl: { type: "ephemeral" } },
-      },
-    },
-    {
-      type: "text" as const,
-      text: injectCanary(dynamicPart),
-    },
-  ];
+  // ai SDK v6 expects system as a string. Anthropic prompt caching now requires
+  // providerOptions on individual message parts; we lose the cache benefit here
+  // until we migrate to that API. TODO: re-enable cacheControl via providerOptions.
+  const systemForClaude = `${staticPart}\n\n${injectCanary(dynamicPart)}`;
 
 
   try {
