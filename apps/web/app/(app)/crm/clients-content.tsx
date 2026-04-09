@@ -1174,6 +1174,11 @@ export function ClientsContent({
     matchedClosedDeal: number;   // imported and matched to a closed transaction → stayed Cruising
     matchedActiveDeal: number;   // imported and matched to an active pipeline deal → promoted to Boarding
     defaultCruising: number;     // imported with no match → Cruising
+    // Data quality stats
+    withEmail: number;
+    withPhone: number;
+    withBoth: number;
+    withNeither: number;
   } | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importProgress, setImportProgress] = useState<{ current: number; total: number; phase: string } | null>(null);
@@ -3006,6 +3011,17 @@ export function ClientsContent({
       }
     }
 
+    // Compute data quality stats from newly imported clients
+    let withEmail = 0, withPhone = 0, withBoth = 0, withNeither = 0;
+    for (const c of newClients) {
+      const hasE = !!c.email;
+      const hasP = !!c.phone;
+      if (hasE) withEmail++;
+      if (hasP) withPhone++;
+      if (hasE && hasP) withBoth++;
+      if (!hasE && !hasP) withNeither++;
+    }
+
     setLocalClients((prev) => [...prev, ...newClients]);
     setImportResult({
       imported,
@@ -3017,6 +3033,10 @@ export function ClientsContent({
       matchedClosedDeal,
       matchedActiveDeal,
       defaultCruising,
+      withEmail,
+      withPhone,
+      withBoth,
+      withNeither,
     });
     setImportStep("done");
     setImportLoading(false);
@@ -3426,15 +3446,24 @@ export function ClientsContent({
                                 )}
                               </TableCell>
 
-                              <TableCell className="py-2.5">
+                              <TableCell className="py-2.5" onClick={(e) => e.stopPropagation()}>
                                 {sc && client && (
-                                  <div className="flex flex-col gap-0.5">
-                                    <span className={cn("text-[10px] font-semibold border rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1", sc.bg, sc.text, sc.border)}>
-                                      <span className={cn("h-1.5 w-1.5 rounded-full", sc.dot)} />
-                                      {CLIENT_STATUS_LABELS[client.status]}
-                                    </span>
-                                    {/* Landed→Cruising countdown removed in migration 00102 */}
-                                  </div>
+                                  <select
+                                    value={client.status}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      updateClientField(client.id, "status", e.target.value);
+                                    }}
+                                    className={cn(
+                                      "text-[10px] font-semibold border rounded-full px-2 py-0.5 whitespace-nowrap appearance-none cursor-pointer bg-transparent focus:outline-none focus:ring-1 focus:ring-ring pr-5",
+                                      sc.bg, sc.text, sc.border,
+                                    )}
+                                    style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 4px center" }}
+                                  >
+                                    {(Object.keys(CLIENT_STATUS_LABELS) as ClientStatus[]).map((s) => (
+                                      <option key={s} value={s}>{CLIENT_STATUS_LABELS[s]}</option>
+                                    ))}
+                                  </select>
                                 )}
                               </TableCell>
 
@@ -6097,6 +6126,46 @@ export function ClientsContent({
                   </div>
                 )}
               </div>
+
+              {/* Data quality summary */}
+              {importResult.imported > 0 && (
+                <div className="rounded-xl border border-border/60 bg-background p-4">
+                  <h4 className="text-xs font-semibold text-foreground mb-2.5 flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                    Contact Completeness
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="flex items-center justify-between rounded-lg bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2">
+                      <span className="text-muted-foreground">Has email</span>
+                      <span className="font-semibold text-emerald-700 dark:text-emerald-400">{importResult.withEmail}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2">
+                      <span className="text-muted-foreground">Has phone</span>
+                      <span className="font-semibold text-emerald-700 dark:text-emerald-400">{importResult.withPhone}</span>
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg bg-blue-50 dark:bg-blue-950/30 px-3 py-2">
+                      <span className="text-muted-foreground">Both</span>
+                      <span className="font-semibold text-blue-700 dark:text-blue-400">{importResult.withBoth}</span>
+                    </div>
+                    {importResult.withNeither > 0 ? (
+                      <div className="flex items-center justify-between rounded-lg bg-amber-50 dark:bg-amber-950/30 px-3 py-2">
+                        <span className="text-muted-foreground">Neither</span>
+                        <span className="font-semibold text-amber-700 dark:text-amber-400">{importResult.withNeither}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between rounded-lg bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2">
+                        <span className="text-muted-foreground">Neither</span>
+                        <span className="font-semibold text-emerald-700 dark:text-emerald-400">0 ✓</span>
+                      </div>
+                    )}
+                  </div>
+                  {importResult.withNeither > 0 && (
+                    <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-2">
+                      {importResult.withNeither} contact{importResult.withNeither === 1 ? " has" : "s have"} no email or phone — you may want to fill those in from the CRM.
+                    </p>
+                  )}
+                </div>
+              )}
 
               <p className="text-center text-sm text-muted-foreground">
                 You&apos;re all set. Nothing here needs your attention right now.

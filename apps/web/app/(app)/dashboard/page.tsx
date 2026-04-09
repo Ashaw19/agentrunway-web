@@ -270,6 +270,23 @@ export default async function DashboardPage({
     }
   }
 
+  // ── Team welcome detection ─────────────────────────────────────────────
+  // Show welcome banner if user joined an org in the last 7 days and has no transactions yet
+  let teamWelcome: { orgName: string } | null = null;
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const { data: recentMemberships } = await supabase
+    .from("organization_members")
+    .select("joined_at, organizations(name)")
+    .eq("user_id", user.id)
+    .eq("status", "active")
+    .gte("joined_at", sevenDaysAgo)
+    .order("joined_at", { ascending: false })
+    .limit(1);
+  if (recentMemberships?.[0] && (txResult.data ?? []).length === 0) {
+    const orgRow = recentMemberships[0].organizations as unknown as { name: string } | null;
+    teamWelcome = { orgName: orgRow?.name ?? "your team" };
+  }
+
   const params = await searchParams;
   const isAdmin = settingsRow?.is_admin ?? false;
   const showUpgradeBanner = params.upgraded === "true" && !isAdmin;
@@ -303,6 +320,7 @@ export default async function DashboardPage({
       businessIdentity={(settingsRow?.business_identity as import("@/lib/types/database").BusinessIdentity | null) ?? null}
       aiProfilePromptDismissedAt={settingsRow?.ai_profile_prompt_dismissed_at ?? null}
       activeListings={(listingResult.data ?? []) as ListingAppointment[]}
+      teamWelcome={teamWelcome}
     />
   );
 }

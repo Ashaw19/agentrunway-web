@@ -192,6 +192,7 @@ interface Props {
   businessIdentity?: BusinessIdentity | null;
   aiProfilePromptDismissedAt?: string | null;
   activeListings?: ListingAppointment[];
+  teamWelcome?: { orgName: string } | null;
 }
 
 function getTimeGreeting(): { greeting: string; emoji: string } {
@@ -294,6 +295,7 @@ export function DashboardContent({
   businessIdentity = null,
   aiProfilePromptDismissedAt = null,
   activeListings,
+  teamWelcome = null,
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
 
@@ -2197,6 +2199,38 @@ export function DashboardContent({
           >
             <X className="h-4 w-4" />
           </button>
+        </div>
+      )}
+
+      {/* Team welcome banner for new members */}
+      {teamWelcome && !bannerDismissed && (
+        <div className="rounded-xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/20 dark:border-orange-800/40 px-5 py-4">
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-full bg-orange-500/10">
+                <Building2 className="h-4 w-4 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">
+                  Welcome to {teamWelcome.orgName}!
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-lg">
+                  Get started by importing your client list — head to the{" "}
+                  <a href="/crm" className="text-orange-600 hover:underline font-medium">CRM</a>{" "}
+                  and use <strong>Import CSV</strong> to bring in your contacts. Then check the{" "}
+                  <a href="/transactions" className="text-orange-600 hover:underline font-medium">Transactions</a>{" "}
+                  page to upload your deal history.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setBannerDismissed(true)}
+              aria-label="Dismiss"
+              className="ml-4 shrink-0 text-orange-400 hover:text-orange-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       )}
 
