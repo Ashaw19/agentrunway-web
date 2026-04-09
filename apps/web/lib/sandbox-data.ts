@@ -1065,6 +1065,7 @@ export function generateSandboxData(
       final_body: status === "ready" ? body : null,
       sent_at: null,
       created_at: triggerDate.toISOString(),
+      updated_at: triggerDate.toISOString(),
     });
   }
 
