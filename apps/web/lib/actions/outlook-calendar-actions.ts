@@ -138,7 +138,7 @@ export async function syncUserOutlookCalendar(userId: string): Promise<{
     for (const ev of events) {
       try {
         if (
-          (ev as Record<string, unknown>)["@removed"] ||
+          (ev as unknown as Record<string, unknown>)["@removed"] ||
           ev.isCancelled
         ) {
           await admin
