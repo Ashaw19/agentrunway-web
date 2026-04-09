@@ -328,11 +328,6 @@ export function ExpensesContent({
   const expenseRatio = ytdGCI > 0 ? effectiveTotal / ytdGCI : 0;
   const ratioStatus =
     expenseRatio > 0.5 ? "critical" : expenseRatio > 0.35 ? "warning" : "healthy";
-  const ratioColors: Record<string, string> = {
-    critical: "text-red-600",
-    warning: "text-amber-600",
-    healthy: "text-emerald-600",
-  };
 
   // ── Tax deductibility breakdown ───────────────────────────────────────
   const deductBreakdown = categories.reduce(
@@ -363,12 +358,6 @@ export function ExpensesContent({
     monthlyTotal,
     settings?.cash_reserve ?? 0,
   );
-  const riskColors: Record<string, string> = {
-    critical: "text-red-600",
-    warning: "text-amber-600",
-    healthy: "text-emerald-600",
-    strong: "text-emerald-600",
-  };
 
   // ── Donut chart data — per-category effective YTD (receipts + recurring estimates) ──
   const donutData: DonutDataPoint[] = categories
@@ -377,26 +366,6 @@ export function ExpensesContent({
       value: cat.items.reduce((s, i) => s + effectiveYTD(i), 0),
     }))
     .filter((d) => d.value > 0);
-
-  // ── Expense insights ──────────────────────────────────────────────────
-  // Cost per closed deal this year
-  const ytdClosedCount = transactions.filter(
-    (t) => t.status === "closed" && t.date.startsWith(String(thisYear)),
-  ).length;
-  const costPerDeal = ytdClosedCount > 0 && effectiveTotal > 0 ? effectiveTotal / ytdClosedCount : null;
-
-  // Marketing ROI: YTD GCI ÷ marketing spend
-  const marketingCat = categories.find((cat) => cat.key === "marketing");
-  const marketingSpend = marketingCat
-    ? marketingCat.items.reduce((sum, i) => sum + effectiveYTD(i), 0)
-    : 0;
-  const ytdGCIThisYear = transactions
-    .filter((t) => t.status === "closed" && t.date.startsWith(String(thisYear)))
-    .reduce((sum, tx) => sum + computeGCI(tx), 0);
-  // Only show ROI if there's meaningful marketing spend (>$100)
-  const marketingROI = marketingSpend > 100 && ytdGCIThisYear > 0
-    ? ytdGCIThisYear / marketingSpend
-    : null;
 
   // ── Helpers ───────────────────────────────────────────────────────────
   function toggleExpand(id: string) {
@@ -673,14 +642,33 @@ export function ExpensesContent({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-3">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-4">
           <h1 className="text-2xl font-semibold tracking-tight">Expenses</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Every dollar out counts. Know your burn, protect your runway.
-          </p>
+          {/* Inline KPI strip */}
+          <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+              <span className="font-semibold text-foreground">{fmtCurrency(effectiveTotal)}</span> YTD
+            </span>
+            <span className="text-border">|</span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              <span className="font-semibold text-foreground">{fmtCurrency(monthlyTotal)}</span> /mo recurring
+            </span>
+            <span className="text-border">|</span>
+            <span className="flex items-center gap-1.5">
+              <span className={cn("h-1.5 w-1.5 rounded-full", ratioStatus === "healthy" ? "bg-emerald-500" : ratioStatus === "warning" ? "bg-amber-500" : "bg-red-500")} />
+              <span className={cn("font-semibold", ratioStatus === "healthy" ? "text-emerald-700" : ratioStatus === "warning" ? "text-amber-700" : "text-red-700")}>{ytdGCI > 0 ? fmtPct(expenseRatio) : "—"}</span> ratio
+            </span>
+            <span className="text-border">|</span>
+            <span className="flex items-center gap-1.5">
+              <span className={cn("h-1.5 w-1.5 rounded-full", survival.riskLevel === "strong" || survival.riskLevel === "healthy" ? "bg-emerald-500" : survival.riskLevel === "warning" ? "bg-amber-500" : "bg-red-500")} />
+              <span className={cn("font-semibold", survival.riskLevel === "strong" || survival.riskLevel === "healthy" ? "text-emerald-700" : survival.riskLevel === "warning" ? "text-amber-700" : "text-red-700")}>{survival.label}</span> runway
+            </span>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Capture Receipt */}
@@ -725,112 +713,6 @@ export function ExpensesContent({
 
         </div>
       </div>
-
-      {/* KPI Summary */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-2xl border border-rose-200 bg-rose-50/70 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-rose-700">YTD Expenses</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-slate-800">{fmtCurrency(effectiveTotal)}</div>
-            <p className="mt-1 text-xs text-rose-600/80">This calendar year</p>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl border border-amber-200 bg-amber-50/70 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-amber-700">Monthly Recurring</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-slate-800">{fmtCurrency(monthlyTotal)}</div>
-            <p className="mt-1 text-xs text-amber-600/80">
-              {fmtCurrency(monthlyTotal * 12)} annualized
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className={cn(
-          "rounded-2xl shadow-sm",
-          ratioStatus === "healthy" ? "border border-emerald-200 bg-emerald-50/70" :
-          ratioStatus === "warning"  ? "border border-amber-200 bg-amber-50/70" :
-                                       "border border-red-200 bg-red-50/70"
-        )}>
-          <CardHeader className="pb-2">
-            <CardDescription className={cn(
-              "text-xs font-semibold uppercase tracking-wide",
-              ratioStatus === "healthy" ? "text-emerald-700" :
-              ratioStatus === "warning"  ? "text-amber-700" : "text-red-700"
-            )}>Expense Ratio</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className={cn("text-3xl font-bold tracking-tight", ratioColors[ratioStatus])}>
-              {ytdGCI > 0 ? fmtPct(expenseRatio) : "—"}
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {ytdGCI > 0 ? "of YTD GCI · target: 25–30%" : "Log deals to see ratio"}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className={cn(
-          "rounded-2xl shadow-sm",
-          survival.riskLevel === "strong" || survival.riskLevel === "healthy"
-            ? "border border-emerald-200 bg-emerald-50/70"
-            : survival.riskLevel === "warning"
-            ? "border border-amber-200 bg-amber-50/70"
-            : "border border-red-200 bg-red-50/70"
-        )}>
-          <CardHeader className="pb-2">
-            <CardDescription className={cn(
-              "text-xs font-semibold uppercase tracking-wide",
-              survival.riskLevel === "strong" || survival.riskLevel === "healthy" ? "text-emerald-700" :
-              survival.riskLevel === "warning" ? "text-amber-700" : "text-red-700"
-            )}>Cash Runway</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className={cn("text-3xl font-bold tracking-tight", riskColors[survival.riskLevel])}>
-              {survival.label}
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {fmtCurrency(survival.monthlyBurn)}/mo burn rate
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Expense insights strip — cost per deal & marketing ROI */}
-      {(costPerDeal !== null || marketingROI !== null) && (
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-slate-200 bg-slate-50 px-5 py-3 text-sm">
-          {costPerDeal !== null && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Cost per deal</span>
-              <span className="font-semibold text-slate-800">{fmtCurrency(costPerDeal)}</span>
-              <span className="text-xs text-slate-400">in expenses per closed deal this year</span>
-            </div>
-          )}
-          {costPerDeal !== null && marketingROI !== null && (
-            <div className="hidden h-4 w-px bg-slate-200 sm:block" />
-          )}
-          {marketingROI !== null && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Marketing ROI</span>
-              <span className={cn(
-                "font-semibold",
-                marketingROI >= 5 ? "text-emerald-700" : marketingROI >= 2 ? "text-amber-700" : "text-rose-600",
-              )}>
-                {marketingROI.toFixed(1)}×
-              </span>
-              <span className="text-xs text-slate-400">GCI earned per $1 of marketing spend</span>
-              {marketingROI < 2 && (
-                <span className="rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                  Consider optimising spend
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ── Tab bar ──────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-1 border-b border-border/60">
