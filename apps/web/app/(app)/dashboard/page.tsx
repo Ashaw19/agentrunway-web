@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardContent } from "./dashboard-content";
-import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord, UserSettings } from "@/lib/types/database";
+import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord, UserSettings, ListingAppointment } from "@/lib/types/database";
 import { CREA_BOARDS, fetchBoardData, type LocalMarketData } from "@/lib/crea-board";
 import { computeIntelligenceBriefing, type BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { isSandboxActive, getSandboxData, mergeSandboxSettings, getSandboxReceiptYTD, getSandboxMileageTotal } from "@/lib/sandbox-resolver";
@@ -34,11 +34,13 @@ export default async function DashboardPage({
     const mergedSettings = mergeSandboxSettings(settingsRow as UserSettings);
 
     // Intelligence Briefing from sandbox clients
+    const sandboxListings = sb.listingAppointments?.filter(la => la.status === 'scheduled' || la.status === 'active') ?? [];
     const briefingResult = sb.clients.length > 0 && sb.contactActivities.length > 0
       ? computeIntelligenceBriefing(
           sb.clients as Client[],
           sb.contactActivities as ContactActivity[],
           sb.clientRecords as ClientRecord[],
+          sandboxListings as ListingAppointment[],
         )
       : null;
     const topBriefingItems: BriefingItem[] = briefingResult
@@ -108,12 +110,13 @@ export default async function DashboardPage({
         communicationProfile={(settingsRow?.communication_profile as import("@/lib/types/database").CommunicationProfile | null) ?? null}
         businessIdentity={(settingsRow?.business_identity as import("@/lib/types/database").BusinessIdentity | null) ?? null}
         aiProfilePromptDismissedAt={settingsRow?.ai_profile_prompt_dismissed_at ?? null}
+        activeListings={sandboxListings as ListingAppointment[]}
       />
     );
   }
 
   // ── Step 3: Live Supabase queries (no sandbox) ──────────────────────────
-  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult] =
+  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult, listingResult] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -191,6 +194,12 @@ export default async function DashboardPage({
         .select("*")
         .eq("user_id", user.id)
         .limit(10000),
+      supabase
+        .from("listing_appointments")
+        .select("*")
+        .eq("user_id", user.id)
+        .in("status", ["scheduled", "active"])
+        .limit(10000),
     ]);
 
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
@@ -214,6 +223,7 @@ export default async function DashboardPage({
         briefingClientsResult.data as Client[],
         briefingActivitiesResult.data as ContactActivity[],
         briefingRecordsResult.data as ClientRecord[],
+        (listingResult.data ?? []) as ListingAppointment[],
       )
     : null;
   const topBriefingItems: BriefingItem[] = briefingResult
@@ -292,6 +302,7 @@ export default async function DashboardPage({
       communicationProfile={(settingsRow?.communication_profile as import("@/lib/types/database").CommunicationProfile | null) ?? null}
       businessIdentity={(settingsRow?.business_identity as import("@/lib/types/database").BusinessIdentity | null) ?? null}
       aiProfilePromptDismissedAt={settingsRow?.ai_profile_prompt_dismissed_at ?? null}
+      activeListings={(listingResult.data ?? []) as ListingAppointment[]}
     />
   );
 }

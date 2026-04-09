@@ -103,6 +103,7 @@ import {
   type ExpenseCategoryWithItems,
   type HistoryItem,
   type ContactTask,
+  type ListingAppointment,
 } from "@/lib/types/database";
 import {
   seasonalFractionElapsed,
@@ -190,6 +191,7 @@ interface Props {
   communicationProfile?: CommunicationProfile | null;
   businessIdentity?: BusinessIdentity | null;
   aiProfilePromptDismissedAt?: string | null;
+  activeListings?: ListingAppointment[];
 }
 
 function getTimeGreeting(): { greeting: string; emoji: string } {
@@ -291,6 +293,7 @@ export function DashboardContent({
   communicationProfile = null,
   businessIdentity = null,
   aiProfilePromptDismissedAt = null,
+  activeListings,
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
 
@@ -478,6 +481,16 @@ export function DashboardContent({
   );
   const pipelineCount = pipelineDeals.length;
 
+  // ── Listing appointment weighted GCI ─────────────────────────────────
+  const LISTING_PROBS: Record<string, number> = { scheduled: 0.15, active: 0.40 };
+  const listingWeightedGCI = (activeListings ?? []).reduce((sum, la) => {
+    const price = Number(la.estimated_list_price ?? 0);
+    const commPct = (la.estimated_commission_pct ?? 2.5) / 100;
+    const prob = LISTING_PROBS[la.status] ?? 0;
+    return sum + price * commPct * prob;
+  }, 0);
+  const listingCount = (activeListings ?? []).length;
+
   // ── Seasonality-aware projections ─────────────────────────────────────
   // Phase 4: prefer agent-specific weights derived from their own history
   const agentSeasonalWeights = (() => {
@@ -507,7 +520,7 @@ export function DashboardContent({
         : "default";
   const fraction = seasonalFractionElapsed(seasonalWeights);
   const goalGCI = settings?.goal_gci ?? 0;
-  const rawProjectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, goalGCI);
+  const rawProjectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI + listingWeightedGCI, fraction, goalGCI);
   const projectedGCI = rawProjectedGCI; // Base scenario — see note above re: scenario selector
   const gciProgress = goalGCI > 0 ? Math.min((ytdGCI / goalGCI) * 100, 100) : 0;
   const pacePercent = goalGCI > 0 ? paceVsGoalPercent(goalGCI, ytdGCI, fraction) : 0;
@@ -1313,12 +1326,12 @@ export function DashboardContent({
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold tracking-tight text-slate-800">
-            {pipelineCount === 0 ? "—" : <>$<CountUp end={pipelineWeightedGCI} duration={1000} /></>}
+            {pipelineCount === 0 && listingCount === 0 ? "—" : <>$<CountUp end={pipelineWeightedGCI + listingWeightedGCI} duration={1000} /></>}
           </div>
           <p className="text-xs text-slate-500">
-            {pipelineCount === 0
+            {pipelineCount === 0 && listingCount === 0
               ? "Add prospects to see weighted forecasts"
-              : `${pipelineCount} deal${pipelineCount !== 1 ? "s" : ""} · probability-weighted`}
+              : `${pipelineCount} deal${pipelineCount !== 1 ? "s" : ""}${listingCount > 0 ? ` + ${listingCount} listing${listingCount !== 1 ? "s" : ""}` : ""} · probability-weighted`}
           </p>
         </CardContent>
       </Card>

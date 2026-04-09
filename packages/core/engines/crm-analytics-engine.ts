@@ -10,6 +10,7 @@ import type {
   ContactActivity,
   ActivityType,
   ClientStatus,
+  ListingAppointment,
 } from "../types/database";
 
 // ── Intelligence Briefing types ──────────────────────────────────────────────
@@ -27,7 +28,9 @@ export type BriefingItemType =
   | "timeframe_approaching"
   | "property_value_milestone"
   | "no_contact_info"
-  | "possible_duplicate";
+  | "possible_duplicate"
+  | "listing_appointment_overdue"
+  | "listing_stale";
 
 export interface BriefingItem {
   id: string;
@@ -467,6 +470,7 @@ export function computeIntelligenceBriefing(
   clients: Client[],
   activities: ContactActivity[],
   records: ClientRecord[],
+  listingAppointments?: ListingAppointment[],
 ): IntelligenceBriefingResult {
   const now = new Date();
   const items: BriefingItem[] = [];
@@ -837,6 +841,46 @@ export function computeIntelligenceBriefing(
         title: `${c.name} — possible duplicate`,
         detail: `Shares contact info with: ${others.join(", ")}`,
       });
+    }
+  }
+
+  // ── Listing Appointment Alerts ────────────────────────────────────────
+  if (listingAppointments) {
+    for (const la of listingAppointments) {
+      // Overdue scheduled appointments (past appointment_date, still "scheduled")
+      if (la.status === "scheduled" && la.appointment_date) {
+        const apptDate = new Date(la.appointment_date + "T12:00:00");
+        const daysOverdue = Math.floor((now.getTime() - apptDate.getTime()) / 86_400_000);
+        if (daysOverdue >= 3) {
+          items.push({
+            id: `listing_overdue_${la.id}`,
+            type: "listing_appointment_overdue",
+            severity: daysOverdue >= 7 ? "urgent" : "attention",
+            clientId: la.client_id ?? "",
+            clientName: la.property_address ?? "Unknown property",
+            title: `Listing appointment overdue — ${la.property_address ?? "unknown"}`,
+            detail: `Scheduled ${daysOverdue} days ago, still not active`,
+            daysValue: daysOverdue,
+          });
+        }
+      }
+      // Stale active listings (active 45+ days without selling)
+      if (la.status === "active" && la.appointment_date) {
+        const listDate = new Date(la.appointment_date + "T12:00:00");
+        const daysActive = Math.floor((now.getTime() - listDate.getTime()) / 86_400_000);
+        if (daysActive >= 45) {
+          items.push({
+            id: `listing_stale_${la.id}`,
+            type: "listing_stale",
+            severity: daysActive >= 90 ? "urgent" : "attention",
+            clientId: la.client_id ?? "",
+            clientName: la.property_address ?? "Unknown property",
+            title: `Active listing stale — ${la.property_address ?? "unknown"}`,
+            detail: `${daysActive} days on market without sale`,
+            daysValue: daysActive,
+          });
+        }
+      }
     }
   }
 
