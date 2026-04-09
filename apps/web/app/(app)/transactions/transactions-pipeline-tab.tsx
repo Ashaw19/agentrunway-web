@@ -155,26 +155,33 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
   const [clientSearch, setClientSearch] = useState("");
   const [showClientDropdown, setShowClientDropdown] = useState(false);
 
+  // Server-side client search — debounced to avoid hammering DB on every keystroke
   useEffect(() => {
-    // Fetch clients for the dropdown when the dialog opens
-    if (!dialogOpen) return;
-    const supabase = createClient();
-    supabase
-      .from("clients")
-      .select("id, first_name, last_name")
-      .order("last_name")
-      .limit(500)
-      .then(({ data }) => {
-        if (data) {
-          setClientOptions(
-            data.map((c) => ({
-              id: c.id,
-              name: [c.first_name, c.last_name].filter(Boolean).join(" "),
-            })),
-          );
-        }
-      });
-  }, [dialogOpen]);
+    if (!dialogOpen || clientSearch.length < 1) {
+      setClientOptions([]);
+      return;
+    }
+    const timer = setTimeout(() => {
+      const supabase = createClient();
+      supabase
+        .from("clients")
+        .select("id, first_name, last_name")
+        .ilike("name_search", `%${clientSearch.toLowerCase()}%`)
+        .order("last_name")
+        .limit(20)
+        .then(({ data }) => {
+          if (data) {
+            setClientOptions(
+              data.map((c) => ({
+                id: c.id,
+                name: [c.first_name, c.last_name].filter(Boolean).join(" "),
+              })),
+            );
+          }
+        });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [dialogOpen, clientSearch]);
   const [closeForm, setCloseForm] = useState<CloseForm>({
     client_name: "",
     sale_price: "",
@@ -652,14 +659,10 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
                     setTimeout(() => setShowClientDropdown(false), 200);
                   }}
                 />
-                {showClientDropdown && clientSearch.length >= 1 && (() => {
-                  const filtered = clientOptions.filter((c) =>
-                    c.name.toLowerCase().includes(clientSearch.toLowerCase()),
-                  );
-                  if (filtered.length === 0) return null;
+                {showClientDropdown && clientSearch.length >= 1 && clientOptions.length > 0 && (() => {
                   return (
                     <div className="absolute top-full left-0 right-0 z-50 mt-1 max-h-40 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
-                      {filtered.slice(0, 8).map((c) => (
+                      {clientOptions.map((c) => (
                         <button
                           key={c.id}
                           type="button"

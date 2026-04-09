@@ -698,6 +698,42 @@ function cleanImportValue(val: string): string {
   return val.replace(/\0/g, "");
 }
 
+/** Split comma-separated tags string into a clean array. */
+function parseTags(raw: string): string[] {
+  if (!raw.trim()) return [];
+  return raw.split(",").map((t) => t.trim()).filter(Boolean);
+}
+
+/** Parse a price/budget string like "$450,000" into a number. */
+function parsePrice(raw: string): number | null {
+  const cleaned = raw.replace(/[$,\s]/g, "");
+  const num = parseFloat(cleaned);
+  return isNaN(num) || num <= 0 ? null : num;
+}
+
+/** Parse a date string from a CRM export into ISO timestamp. */
+function parseImportDate(raw: string): string | null {
+  if (!raw.trim()) return null;
+  const d = new Date(raw.trim());
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
+/**
+ * Normalize a North American phone number to (XXX) XXX-XXXX format.
+ * Leaves non-NA numbers (fewer than 10 digits) untouched.
+ */
+function normalizePhone(raw: string): string {
+  if (!raw) return raw;
+  const digits = raw.replace(/\D/g, "");
+  // 11 digits starting with 1 → strip country code
+  const na = digits.length === 11 && digits[0] === "1" ? digits.slice(1) : digits;
+  if (na.length === 10) {
+    return `(${na.slice(0, 3)}) ${na.slice(3, 6)}-${na.slice(6)}`;
+  }
+  return raw; // leave non-NA numbers as-is
+}
+
 /**
  * Best-effort guess of which flight status an external CSV value should map
  * to. Used to pre-populate the smart-column value translation UI so the user
@@ -1113,10 +1149,27 @@ export function ClientsContent({
   const [mapPostal, setMapPostal] = useState("__none__");
   const [mapCountry, setMapCountry] = useState("__none__");
   const [mapPhoneType, setMapPhoneType] = useState("__none__");
+  const [mapSecondaryEmail, setMapSecondaryEmail] = useState("__none__");
+  const [mapSecondaryPhone, setMapSecondaryPhone] = useState("__none__");
+  const [mapSecondaryPhoneType, setMapSecondaryPhoneType] = useState("__none__");
+  const [mapTags, setMapTags] = useState("__none__");
+  const [mapBackground, setMapBackground] = useState("__none__");
+  const [mapCreatedDate, setMapCreatedDate] = useState("__none__");
+  const [mapLastActivity, setMapLastActivity] = useState("__none__");
+  const [mapPrice, setMapPrice] = useState("__none__");
+  const [importExtraFieldsWarning, setImportExtraFieldsWarning] = useState<string | null>(null);
+  const [detectedCommHistory, setDetectedCommHistory] = useState<{
+    noteHeaders: string[];   // e.g. ["Note 1", "Note 2", ...]
+    callHeaders: string[];   // e.g. ["Call 1", "Call 2", ...]
+    textHeaders: string[];   // e.g. ["Text 1", "Text 2", ...]
+  } | null>(null);
+  const [importCommHistory, setImportCommHistory] = useState(true); // default on
   const [importResult, setImportResult] = useState<{
     imported: number;
     skipped: number;
     enriched: number;
+    notesImported: number;
+    activitiesImported: number;
     errors: string[];
     matchedClosedDeal: number;   // imported and matched to a closed transaction → stayed Cruising
     matchedActiveDeal: number;   // imported and matched to an active pipeline deal → promoted to Boarding
@@ -1250,6 +1303,12 @@ export function ClientsContent({
   );
   const archivedCount = archivedClientIds.size;
 
+  // Client lookup map — O(1) access by ID, used by filters and detail views
+  const clientById = useMemo(
+    () => new Map(localClients.map((c) => [c.id, c])),
+    [localClients],
+  );
+
   const filtered = useMemo(() => {
     const f = grouped.filter((g) => {
       // Archive visibility: hide archived clients unless in Hangar view (and vice versa)
@@ -1274,9 +1333,9 @@ export function ClientsContent({
         !g.deals.some((d) => d.source === filterSource)
       )
         return false;
-      // Flight Status filter — match client status from localClients
+      // Flight Status filter — match client status via O(1) map lookup
       if (filterStatus !== "all" && g.clientId) {
-        const client = localClients.find((c) => c.id === g.clientId);
+        const client = clientById.get(g.clientId);
         if (client && client.status !== filterStatus) return false;
       }
       // Activity window filter
@@ -1293,7 +1352,7 @@ export function ClientsContent({
       return true;
     });
     return sortTableGroups(f, sortCol, sortDir);
-  }, [grouped, search, filterSide, filterSource, filterStatus, activityFilter, sortCol, sortDir, localClients, showArchived, archivedClientIds]);
+  }, [grouped, search, filterSide, filterSource, filterStatus, activityFilter, sortCol, sortDir, clientById, showArchived, archivedClientIds]);
 
   // Reset to first page when filters change
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1323,12 +1382,6 @@ export function ClientsContent({
   const openTasks = useMemo(
     () => [...localTasks].sort((a, b) => a.due_date.localeCompare(b.due_date)),
     [localTasks],
-  );
-
-  // Client lookup map
-  const clientById = useMemo(
-    () => new Map(localClients.map((c) => [c.id, c])),
-    [localClients],
   );
 
   // Selected client detail
@@ -2048,15 +2101,33 @@ export function ClientsContent({
     const first = profileDraft.first_name.trim().slice(0, FIELD_LIMITS.clientName);
     const last  = profileDraft.last_name.trim().slice(0, FIELD_LIMITS.clientName);
     const fullName = [first, last].filter(Boolean).join(" ") || selectedClient.name;
-    await Promise.all([
-      updateClientField(selectedClient.id, "first_name", first || null),
-      updateClientField(selectedClient.id, "last_name",  last  || null),
-      updateClientField(selectedClient.id, "name",       fullName),
-      updateClientField(selectedClient.id, "name_search", toNameSearch(fullName)),
-    ]);
+    // Single atomic update to prevent race condition between name fields
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("clients")
+      .update({
+        first_name:  first || null,
+        last_name:   last || null,
+        name:        fullName,
+        name_search: toNameSearch(fullName),
+      })
+      .eq("id", selectedClient.id)
+      .eq("user_id", userId!);
+    if (error) {
+      toast.error("Failed to save profile");
+    } else {
+      setLocalClients((prev) =>
+        prev.map((c) =>
+          c.id === selectedClient.id
+            ? { ...c, first_name: first || null, last_name: last || null, name: fullName, name_search: toNameSearch(fullName) }
+            : c,
+        ),
+      );
+      markMemoryStaleClient(selectedClient.id);
+      toast.success("Profile saved");
+    }
     setProfileSaving(false);
-    toast.success("Profile saved");
-  }, [selectedClient, profileDraft, updateClientField]);
+  }, [selectedClient, profileDraft, userId]);
 
   const handleSaveFlightPlan = useCallback(
     async (
@@ -2355,6 +2426,40 @@ export function ClientsContent({
         // Phone type
         "phone 1 - type":       setMapPhoneType,
         "phone type":           setMapPhoneType,
+        // Secondary email
+        "email 2":              setMapSecondaryEmail,
+        "secondary email":      setMapSecondaryEmail,
+        "other email":          setMapSecondaryEmail,
+        "alternate email":      setMapSecondaryEmail,
+        // Secondary phone
+        "phone 2":              setMapSecondaryPhone,
+        "secondary phone":      setMapSecondaryPhone,
+        "other phone":          setMapSecondaryPhone,
+        "home phone":           setMapSecondaryPhone,
+        "work phone":           setMapSecondaryPhone,
+        // Secondary phone type
+        "phone 2 - type":       setMapSecondaryPhoneType,
+        // Tags
+        "tags":                 setMapTags,
+        "tag":                  setMapTags,
+        "labels":               setMapTags,
+        // Background / bio (imported as a client note)
+        "background":           setMapBackground,
+        "bio":                  setMapBackground,
+        // Created date
+        "created":              setMapCreatedDate,
+        "date added":           setMapCreatedDate,
+        "created_at":           setMapCreatedDate,
+        "date created":         setMapCreatedDate,
+        // Last activity
+        "last activity":        setMapLastActivity,
+        "last_activity":        setMapLastActivity,
+        "last contact":         setMapLastActivity,
+        "last contacted":       setMapLastActivity,
+        // Price / budget
+        "price":                setMapPrice,
+        "budget":               setMapPrice,
+        "property value":       setMapPrice,
         // Source variants
         "source":               setMapSource,
         "lead source":          setMapSource,
@@ -2389,6 +2494,56 @@ export function ClientsContent({
           appliedSetters.add(fn);
         }
       });
+
+      // ── Data-loss warning for extra email/phone columns ──────────────────
+      // CRM exports like Follow Up Boss include up to 6 emails and 6 phones.
+      // We only support primary + secondary (2 each). Warn if 3+ are present.
+      const extraCols: string[] = [];
+      for (let ei = 3; ei <= 6; ei++) {
+        if (lowerHeaders.some((lh) => lh === `email ${ei}`)) extraCols.push(`Email ${ei}`);
+        if (lowerHeaders.some((lh) => lh === `phone ${ei}`)) extraCols.push(`Phone ${ei}`);
+      }
+      setImportExtraFieldsWarning(
+        extraCols.length > 0
+          ? `Your file has ${extraCols.join(", ")} columns — only primary and secondary contacts will be imported.`
+          : null,
+      );
+
+      // ── Communication history column detection ─────────────────────────────
+      // CRM exports (Follow Up Boss "Export All Columns") include columns like
+      // "Note 1", "Note 2", ..., "Call 1", "Text 1", etc.
+      // Detect these pattern-matched columns for activity import.
+      const commNotes: string[] = [];
+      const commCalls: string[] = [];
+      const commTexts: string[] = [];
+      const commPattern = /^(note|call|text|message)\s*(\d+)\s*$/i;
+      for (const h of headers) {
+        const m = commPattern.exec(h.trim());
+        if (!m) continue;
+        const type = m[1].toLowerCase();
+        if (type === "note") commNotes.push(h);
+        else if (type === "call") commCalls.push(h);
+        else if (type === "text" || type === "message") commTexts.push(h);
+      }
+      // Also detect sub-field patterns: "Note 1 Body", "Note 1 Created", "Call 1 Date"
+      // These are grouped with the base column by number
+      const commSubPattern = /^(note|call|text|message)\s*(\d+)\s+/i;
+      for (const h of headers) {
+        const m = commSubPattern.exec(h.trim());
+        if (!m) continue;
+        const type = m[1].toLowerCase();
+        const baseHeader = `${m[1]} ${m[2]}`;
+        // Only add the base if we haven't seen it yet
+        if (type === "note" && !commNotes.includes(baseHeader) && !commNotes.includes(h)) commNotes.push(baseHeader);
+        else if (type === "call" && !commCalls.includes(baseHeader) && !commCalls.includes(h)) commCalls.push(baseHeader);
+        else if ((type === "text" || type === "message") && !commTexts.includes(baseHeader) && !commTexts.includes(h)) commTexts.push(baseHeader);
+      }
+      if (commNotes.length > 0 || commCalls.length > 0 || commTexts.length > 0) {
+        setDetectedCommHistory({ noteHeaders: commNotes, callHeaders: commCalls, textHeaders: commTexts });
+        setImportCommHistory(true);
+      } else {
+        setDetectedCommHistory(null);
+      }
 
       // ── Phase 2 (Item 5): Smart status column detection ──────────────────
       // Look for a column whose header suggests it carries client classification
@@ -2546,11 +2701,20 @@ export function ClientsContent({
         if (existing) {
           const updates: Record<string, unknown> = {};
           if (!existing.email           && email)    updates.email           = email;
-          if (!existing.phone           && phone)    updates.phone           = phone;
+          if (!existing.phone           && phone)    updates.phone           = normalizePhone(phone);
           if (!existing.city            && city)     updates.city            = city;
           if (!existing.province_region && province) updates.province_region = province;
           if (!existing.street_address  && street)   updates.street_address  = street;
           if (!existing.postal_code     && postal)   updates.postal_code     = postal;
+          // New fields from CRM exports
+          const secEmail = mapSecondaryEmail !== "__none__" ? cleanImportValue((row[mapSecondaryEmail] ?? "").trim()) || null : null;
+          const secPhone = mapSecondaryPhone !== "__none__" ? cleanImportValue((row[mapSecondaryPhone] ?? "").trim()) || null : null;
+          const impTags = mapTags !== "__none__" ? parseTags(row[mapTags] ?? "") : [];
+          const impPrice = mapPrice !== "__none__" ? parsePrice(row[mapPrice] ?? "") : null;
+          if (!existing.secondary_email && secEmail) updates.secondary_email = secEmail;
+          if (!existing.secondary_phone && secPhone) updates.secondary_phone = normalizePhone(secPhone);
+          if (existing.tags.length === 0 && impTags.length > 0) updates.tags = impTags;
+          if (!existing.property_interest && impPrice) updates.property_interest = impPrice;
           if (Object.keys(updates).length > 0) {
             toEnrich.push({ existingId: existing.id, updates });
           } else {
@@ -2623,6 +2787,13 @@ export function ClientsContent({
           ? null
           : rawName.slice(rawNameFirstSpaceIdx + 1).trim() || null;
 
+        const secondaryEmail = mapSecondaryEmail !== "__none__" ? cleanImportValue((row[mapSecondaryEmail] ?? "").trim()) || null : null;
+        const secondaryPhone = mapSecondaryPhone !== "__none__" ? cleanImportValue((row[mapSecondaryPhone] ?? "").trim()) || null : null;
+        const tags = mapTags !== "__none__" ? parseTags(row[mapTags] ?? "") : [];
+        const price = mapPrice !== "__none__" ? parsePrice(row[mapPrice] ?? "") : null;
+        const createdDate = mapCreatedDate !== "__none__" ? parseImportDate(row[mapCreatedDate] ?? "") : null;
+        const lastActivity = mapLastActivity !== "__none__" ? parseImportDate(row[mapLastActivity] ?? "") : null;
+
         toInsert.push({
           user_id: user.id,
           name: rawName,
@@ -2630,17 +2801,23 @@ export function ClientsContent({
           last_name: importLastName,
           name_search: nameSearch,
           email,
-          phone,
+          phone:          phone ? normalizePhone(phone) : null,
           lead_source: leadSource,
-          tags: [],
+          tags,
           city,
           province_region: province,
           street_address: street,
           postal_code:    postal,
           country:        mapCountry   !== "__none__" ? (row[mapCountry]   ?? "").trim() || "Canada" : "Canada",
           phone_type:     mapPhoneType !== "__none__" ? normalizePhoneType(row[mapPhoneType] ?? "") : "mobile",
+          secondary_email: secondaryEmail,
+          secondary_phone: secondaryPhone ? normalizePhone(secondaryPhone) : null,
+          secondary_phone_type: mapSecondaryPhoneType !== "__none__" ? normalizePhoneType(row[mapSecondaryPhoneType] ?? "") : "home",
+          property_interest: price,
           imported_at:    new Date().toISOString(),
           status:         assignedStatus,
+          ...(createdDate  ? { created_at: createdDate } : {}),
+          ...(lastActivity ? { last_contact_at: lastActivity } : {}),
         });
       }
     }
@@ -2698,11 +2875,131 @@ export function ClientsContent({
       setImportProgress({ current: completedOps, total: totalOps, phase: "Enriching existing contacts..." });
     }
 
+    // Pass 4: import Background column as client_notes for newly created clients
+    let notesImported = 0;
+    if (mapBackground !== "__none__" && newClients.length > 0) {
+      setImportProgress({ current: 0, total: newClients.length, phase: "Importing background notes..." });
+      // Build a lookup from name_search → background text
+      const bgByNameSearch = new Map<string, string>();
+      for (const row of csvRows) {
+        const rawName = cleanImportValue((row[mapName] ?? "").trim());
+        if (!rawName) continue;
+        const bg = cleanImportValue((row[mapBackground] ?? "").trim());
+        if (!bg) continue;
+        bgByNameSearch.set(toNameSearch(rawName), bg);
+      }
+      const noteInserts: { user_id: string; client_id: string; content: string }[] = [];
+      for (const client of newClients) {
+        const bg = bgByNameSearch.get(client.name_search);
+        if (bg) {
+          noteInserts.push({ user_id: user.id, client_id: client.id, content: `[Imported from CRM]\n${bg}` });
+        }
+      }
+      // Batch insert notes in groups of 200
+      for (let i = 0; i < noteInserts.length; i += 200) {
+        const batch = noteInserts.slice(i, i + 200);
+        const { error } = await supabase.from("client_notes").insert(batch);
+        if (!error) notesImported += batch.length;
+        else errorMessages.push(`Background notes batch failed: ${error.message}`);
+        setImportProgress({ current: Math.min(i + 200, noteInserts.length), total: noteInserts.length, phase: "Importing background notes..." });
+      }
+    }
+
+    // Pass 5: import communication history columns (Note N, Call N, Text N)
+    let activitiesImported = 0;
+    if (importCommHistory && detectedCommHistory && newClients.length > 0) {
+      setImportProgress({ current: 0, total: newClients.length, phase: "Importing communication history..." });
+
+      // Build name_search → row lookup for CSV data
+      const rowByNameSearch = new Map<string, CsvRow>();
+      for (const row of csvRows) {
+        const rawName = cleanImportValue((row[mapName] ?? "").trim());
+        if (rawName) rowByNameSearch.set(toNameSearch(rawName), row);
+      }
+
+      // Collect all sub-field headers for each base column number
+      // e.g. "Note 1 Body", "Note 1 Created" → grouped under "Note 1"
+      const getSubField = (row: CsvRow, base: string, ...suffixes: string[]) => {
+        for (const s of suffixes) {
+          // Try "Note 1 Body", "Note 1 - Body", "Note 1 body"
+          const variants = [`${base} ${s}`, `${base} - ${s}`];
+          for (const v of variants) {
+            const match = csvHeaders.find((h) => h.toLowerCase().trim() === v.toLowerCase());
+            if (match && row[match]) return row[match].trim();
+          }
+        }
+        return "";
+      };
+
+      const activityInserts: { user_id: string; client_id: string; type: string; description: string; activity_date: string }[] = [];
+      const noteInserts2: { user_id: string; client_id: string; content: string; created_at?: string }[] = [];
+
+      for (const client of newClients) {
+        const row = rowByNameSearch.get(client.name_search);
+        if (!row) continue;
+
+        // Import notes as client_notes
+        for (const noteBase of detectedCommHistory.noteHeaders) {
+          const body = row[noteBase]?.trim() || getSubField(row, noteBase, "Body", "Content", "Text");
+          const subject = getSubField(row, noteBase, "Subject", "Title");
+          const dateStr = getSubField(row, noteBase, "Created", "Date");
+          if (!body && !subject) continue;
+          const content = [subject, body].filter(Boolean).join("\n");
+          const created = parseImportDate(dateStr) || undefined;
+          noteInserts2.push({ user_id: user.id, client_id: client.id, content, ...(created ? { created_at: created } : {}) });
+        }
+
+        // Import calls as contact_activities
+        for (const callBase of detectedCommHistory.callHeaders) {
+          const dateStr = row[callBase]?.trim() || getSubField(row, callBase, "Date", "Created");
+          const outcome = getSubField(row, callBase, "Outcome", "Result", "Status");
+          const duration = getSubField(row, callBase, "Duration");
+          if (!dateStr && !outcome && !duration) continue;
+          const desc = [outcome, duration ? `Duration: ${duration}` : ""].filter(Boolean).join(" — ") || "Imported call";
+          const actDate = parseImportDate(dateStr) || new Date().toISOString();
+          activityInserts.push({ user_id: user.id, client_id: client.id, type: "call", description: desc, activity_date: actDate });
+        }
+
+        // Import texts as contact_activities
+        for (const textBase of detectedCommHistory.textHeaders) {
+          const message = row[textBase]?.trim() || getSubField(row, textBase, "Message", "Body", "Content");
+          const dateStr = getSubField(row, textBase, "Date", "Created");
+          if (!message) continue;
+          const actDate = parseImportDate(dateStr) || new Date().toISOString();
+          activityInserts.push({ user_id: user.id, client_id: client.id, type: "text", description: message.slice(0, 2000), activity_date: actDate });
+        }
+      }
+
+      // Batch insert notes
+      for (let i = 0; i < noteInserts2.length; i += 500) {
+        const batch = noteInserts2.slice(i, i + 500);
+        const { error } = await supabase.from("client_notes").insert(batch);
+        if (!error) notesImported += batch.length;
+        else errorMessages.push(`Communication notes batch failed: ${error.message}`);
+      }
+
+      // Batch insert activities (oldest first so trigger sets correct last_contact_at)
+      activityInserts.sort((a, b) => a.activity_date.localeCompare(b.activity_date));
+      for (let i = 0; i < activityInserts.length; i += 500) {
+        const batch = activityInserts.slice(i, i + 500);
+        const { error } = await supabase.from("contact_activities").insert(batch);
+        if (!error) activitiesImported += batch.length;
+        else errorMessages.push(`Activity history batch failed: ${error.message}`);
+        setImportProgress({
+          current: Math.min(i + 500, activityInserts.length),
+          total: activityInserts.length,
+          phase: "Importing communication history...",
+        });
+      }
+    }
+
     setLocalClients((prev) => [...prev, ...newClients]);
     setImportResult({
       imported,
       skipped,
       enriched,
+      notesImported,
+      activitiesImported,
       errors: errorMessages,
       matchedClosedDeal,
       matchedActiveDeal,
@@ -2728,6 +3025,17 @@ export function ClientsContent({
     setMapPostal("__none__");
     setMapCountry("__none__");
     setMapPhoneType("__none__");
+    setMapSecondaryEmail("__none__");
+    setMapSecondaryPhone("__none__");
+    setMapSecondaryPhoneType("__none__");
+    setMapTags("__none__");
+    setMapBackground("__none__");
+    setMapCreatedDate("__none__");
+    setMapLastActivity("__none__");
+    setMapPrice("__none__");
+    setImportExtraFieldsWarning(null);
+    setDetectedCommHistory(null);
+    setImportCommHistory(true);
     setImportResult(null);
     setSmartStatusColumn("__none__");
     setSmartStatusValues([]);
@@ -5223,8 +5531,114 @@ export function ClientsContent({
                       {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
                     </SelectContent>
                   </Select>
+
+                  <Label className="text-xs">Secondary Email</Label>
+                  <Select value={mapSecondaryEmail} onValueChange={setMapSecondaryEmail}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Skip —</SelectItem>
+                      {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Label className="text-xs">Secondary Phone</Label>
+                  <Select value={mapSecondaryPhone} onValueChange={setMapSecondaryPhone}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Skip —</SelectItem>
+                      {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Label className="text-xs">Tags</Label>
+                  <Select value={mapTags} onValueChange={setMapTags}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Skip —</SelectItem>
+                      {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Label className="text-xs">Background / Notes</Label>
+                  <Select value={mapBackground} onValueChange={setMapBackground}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Skip —</SelectItem>
+                      {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Label className="text-xs">Price / Budget</Label>
+                  <Select value={mapPrice} onValueChange={setMapPrice}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Skip —</SelectItem>
+                      {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Label className="text-xs">Created Date</Label>
+                  <Select value={mapCreatedDate} onValueChange={setMapCreatedDate}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Skip —</SelectItem>
+                      {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+
+                  <Label className="text-xs">Last Activity Date</Label>
+                  <Select value={mapLastActivity} onValueChange={setMapLastActivity}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Skip —</SelectItem>
+                      {csvHeaders.map((h) => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
+
+              {/* ── Data-loss warning for extra email/phone columns ──────── */}
+              {importExtraFieldsWarning && (
+                <div className="rounded-lg border border-amber-200/60 bg-amber-50/50 px-3.5 py-2.5 text-xs text-amber-800 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-300">
+                  {importExtraFieldsWarning}
+                </div>
+              )}
+
+              {/* ── Communication history detection ─────────────────────── */}
+              {detectedCommHistory && (
+                <div
+                  className={cn(
+                    "rounded-xl border p-3.5 cursor-pointer transition-colors select-none",
+                    importCommHistory
+                      ? "border-sky-200/60 bg-sky-50/40 dark:border-sky-800/40 dark:bg-sky-950/20"
+                      : "border-border/50 bg-muted/20 hover:bg-muted/40",
+                  )}
+                  onClick={() => setImportCommHistory((v) => !v)}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={cn(
+                      "mt-0.5 h-4 w-4 shrink-0 rounded border-2 flex items-center justify-center transition-colors",
+                      importCommHistory ? "border-sky-500 bg-sky-500" : "border-muted-foreground/40",
+                    )}>
+                      {importCommHistory && <CheckCheck className="h-2.5 w-2.5 text-white" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground leading-tight">
+                        Import communication history
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                        Detected{" "}
+                        {[
+                          detectedCommHistory.noteHeaders.length > 0 && `${detectedCommHistory.noteHeaders.length} notes`,
+                          detectedCommHistory.callHeaders.length > 0 && `${detectedCommHistory.callHeaders.length} calls`,
+                          detectedCommHistory.textHeaders.length > 0 && `${detectedCommHistory.textHeaders.length} texts`,
+                        ].filter(Boolean).join(", ")}{" "}
+                        per contact. These will be imported as activity history so the AI Advisor has context from day one.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* ── Phase 2 Item 5: Smart status column ───────────────────── */}
               {smartStatusColumn !== "__none__" && smartStatusValues.length > 0 && (
@@ -5459,7 +5873,64 @@ export function ClientsContent({
                     <span>Phone type column: <strong className="text-foreground">{mapPhoneType}</strong></span>
                   </div>
                 )}
+                {mapSecondaryEmail !== "__none__" && (
+                  <div className="flex gap-2">
+                    <CheckCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>Secondary email: <strong className="text-foreground">{mapSecondaryEmail}</strong></span>
+                  </div>
+                )}
+                {mapSecondaryPhone !== "__none__" && (
+                  <div className="flex gap-2">
+                    <CheckCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>Secondary phone: <strong className="text-foreground">{mapSecondaryPhone}</strong></span>
+                  </div>
+                )}
+                {mapTags !== "__none__" && (
+                  <div className="flex gap-2">
+                    <CheckCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>Tags: <strong className="text-foreground">{mapTags}</strong></span>
+                  </div>
+                )}
+                {mapBackground !== "__none__" && (
+                  <div className="flex gap-2">
+                    <CheckCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>Background notes: <strong className="text-foreground">{mapBackground}</strong></span>
+                  </div>
+                )}
+                {mapPrice !== "__none__" && (
+                  <div className="flex gap-2">
+                    <CheckCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>Price / budget: <strong className="text-foreground">{mapPrice}</strong></span>
+                  </div>
+                )}
+                {mapCreatedDate !== "__none__" && (
+                  <div className="flex gap-2">
+                    <CheckCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>Created date: <strong className="text-foreground">{mapCreatedDate}</strong></span>
+                  </div>
+                )}
+                {mapLastActivity !== "__none__" && (
+                  <div className="flex gap-2">
+                    <CheckCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span>Last activity: <strong className="text-foreground">{mapLastActivity}</strong></span>
+                  </div>
+                )}
               </div>
+              {importExtraFieldsWarning && (
+                <div className="rounded-lg border border-amber-200/60 bg-amber-50/50 px-3.5 py-2.5 text-xs text-amber-800 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-300">
+                  {importExtraFieldsWarning}
+                </div>
+              )}
+              {detectedCommHistory && importCommHistory && (
+                <div className="flex gap-2 text-xs text-muted-foreground">
+                  <CheckCheck className="h-3.5 w-3.5 text-sky-500 shrink-0 mt-0.5" />
+                  <span>Communication history will be imported ({[
+                    detectedCommHistory.noteHeaders.length > 0 && `${detectedCommHistory.noteHeaders.length} notes`,
+                    detectedCommHistory.callHeaders.length > 0 && `${detectedCommHistory.callHeaders.length} calls`,
+                    detectedCommHistory.textHeaders.length > 0 && `${detectedCommHistory.textHeaders.length} texts`,
+                  ].filter(Boolean).join(", ")} per contact)</span>
+                </div>
+              )}
               {/* Import intent toggle */}
               <div
                 className={cn(
@@ -5578,6 +6049,23 @@ export function ClientsContent({
                     <p className="text-foreground">
                       <span className="font-semibold">{importResult.enriched.toLocaleString()}</span>{" "}
                       existing {importResult.enriched === 1 ? "contact" : "contacts"} enriched with new details
+                    </p>
+                  </div>
+                )}
+                {(importResult.notesImported > 0 || importResult.activitiesImported > 0) && (
+                  <div className="flex items-start gap-2.5">
+                    <FileText className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
+                    <p className="text-foreground">
+                      {importResult.notesImported > 0 && (
+                        <><span className="font-semibold">{importResult.notesImported.toLocaleString()}</span>{" "}
+                        {importResult.notesImported === 1 ? "note" : "notes"}</>
+                      )}
+                      {importResult.notesImported > 0 && importResult.activitiesImported > 0 && " and "}
+                      {importResult.activitiesImported > 0 && (
+                        <><span className="font-semibold">{importResult.activitiesImported.toLocaleString()}</span>{" "}
+                        {importResult.activitiesImported === 1 ? "activity" : "activities"}</>
+                      )}
+                      {" "}imported for AI context
                     </p>
                   </div>
                 )}
