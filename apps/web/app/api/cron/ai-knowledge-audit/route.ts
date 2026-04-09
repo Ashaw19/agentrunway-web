@@ -125,19 +125,24 @@ export async function GET(req: NextRequest) {
   };
 
   // ── Store audit results ─────────────────────────────────────────────────
-  await supabase.from("ai_knowledge_audit_log").insert({
-    audit_date: new Date().toISOString().slice(0, 10),
-    total_interactions: audit.totalInteractions,
-    resolution_rate: parseFloat(audit.overallResolutionRate) || 0,
-    classifier_coverage: parseFloat(audit.classifierCoverageRate) || 0,
-    diagnostic_coverage: parseFloat(audit.diagnosticCoverageRate) || 0,
-    trending_topics: audit.trendingTopics,
-    unresolved_previews: audit.unresolvedQuestions.map((q) => q.preview).slice(0, 10),
-    classifier_gaps: audit.classifierGaps.map((g) => g.preview).slice(0, 10),
-    topic_quality: audit.topicQuality,
-  }).then(() => {}).catch((err) => {
+  try {
+    const { error } = await supabase.from("ai_knowledge_audit_log").insert({
+      audit_date: new Date().toISOString().slice(0, 10),
+      total_interactions: audit.totalInteractions,
+      resolution_rate: parseFloat(audit.overallResolutionRate) || 0,
+      classifier_coverage: parseFloat(audit.classifierCoverageRate) || 0,
+      diagnostic_coverage: parseFloat(audit.diagnosticCoverageRate) || 0,
+      trending_topics: audit.trendingTopics,
+      unresolved_previews: audit.unresolvedQuestions.map((q) => q.preview).slice(0, 10),
+      classifier_gaps: audit.classifierGaps.map((g) => g.preview).slice(0, 10),
+      topic_quality: audit.topicQuality,
+    });
+    if (error) {
+      console.error("[ai-knowledge-audit] Failed to store audit:", error);
+    }
+  } catch (err) {
     console.error("[ai-knowledge-audit] Failed to store audit:", err);
-  });
+  }
 
   return NextResponse.json({ status: "ok", audit });
 }
