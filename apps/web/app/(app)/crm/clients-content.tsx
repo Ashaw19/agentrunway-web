@@ -4520,6 +4520,7 @@ export function ClientsContent({
                                     if (Object.keys(updates).length > 0) {
                                       // Save listing URL too
                                       updates.listing_url = listingUrl;
+                                      const supabase = createClient();
                                       const { error } = await supabase
                                         .from("client_records")
                                         .update(updates)

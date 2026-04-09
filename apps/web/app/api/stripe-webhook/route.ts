@@ -558,7 +558,7 @@ export async function POST(request: Request) {
 
             const { subject, html, text } = paymentFailedEmail({
               firstName,
-              attemptCount,
+              attemptNumber: attemptCount,
               nextRetryDate: nextRetryDate ?? undefined,
               updatePaymentUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? "https://agentrunway.ca"}/settings/billing`,
             });

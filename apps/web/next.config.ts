@@ -63,10 +63,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // Skip type-checking during build — types are validated in CI (GitHub Actions).
-  // @types/react 19.2.x has known incompatibilities with next-themes and next/script
-  // that only surface on Vercel's build environment, not locally.
-  typescript: { ignoreBuildErrors: true },
+  // Type checking enabled — let Vercel's build environment surface the real
+  // error list. (Local tsc OOMs on this machine; Vercel handles it cleanly.)
+  typescript: { ignoreBuildErrors: false },
 
   // Transpile the shared core package (TypeScript source)
   transpilePackages: ["@agent-runway/core"],

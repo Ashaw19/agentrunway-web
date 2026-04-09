@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { generateMorningBriefing, type BriefingData } from "@/lib/ai/precompute";
 import {
   computeGCI,
@@ -119,8 +119,11 @@ interface DateRanges {
   fourteenDaysAhead: string;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnySupabaseClient = SupabaseClient<any, any, any>;
+
 async function gatherUserMetrics(
-  supabase: ReturnType<typeof createClient>,
+  supabase: AnySupabaseClient,
   user: {
     user_id: string;
     display_name: string | null;

@@ -188,12 +188,15 @@ export async function POST(req: NextRequest) {
 
     // Try to mark as failed if we have the ID
     if (queueItemId) {
-      await supabase
-        .from("outreach_queue")
-        .update({ status: "failed" })
-        .eq("id", queueItemId)
-        .eq("user_id", user.id)
-        .catch(() => {});
+      try {
+        await supabase
+          .from("outreach_queue")
+          .update({ status: "failed" })
+          .eq("id", queueItemId)
+          .eq("user_id", user.id);
+      } catch {
+        /* swallow — best-effort */
+      }
     }
 
     const isAuthError =

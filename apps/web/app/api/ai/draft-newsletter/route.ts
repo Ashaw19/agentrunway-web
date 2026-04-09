@@ -234,7 +234,7 @@ export async function POST(req: NextRequest) {
       const { text } = await generateText({
         model: models.default,
         prompt,
-        maxTokens: 700,   // newsletters are longer than individual outreach
+        maxOutputTokens: 700,   // newsletters are longer than individual outreach
         temperature: 0.80,
         headers: aiHeaders,
       });
@@ -245,7 +245,7 @@ export async function POST(req: NextRequest) {
       const { text } = await generateText({
         model: models.fallback,
         prompt,
-        maxTokens: 700,
+        maxOutputTokens: 700,
         temperature: 0.80,
         headers: aiHeaders,
       });

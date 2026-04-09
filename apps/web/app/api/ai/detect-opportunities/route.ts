@@ -271,10 +271,15 @@ function selectValueType(
 }
 
 /** Build enriched context by merging existing context with memory-derived fields. */
+// Accepts either bare ClientMemoryFacts or facts augmented with the parent
+// profile's memory_summary. The optional field lets existing call sites that
+// pass only facts compile without changes.
+type EnrichMemory = ClientMemoryFacts & { memory_summary?: string | null };
+
 function enrichContext(
   baseCtx: Record<string, unknown>,
   opportunityType: string,
-  memory: ClientMemoryFacts | null,
+  memory: EnrichMemory | null,
   reasonWhy: string,
 ): Record<string, unknown> {
   const { value_type, value_summary } = selectValueType(opportunityType, memory);
@@ -693,7 +698,7 @@ async function draftItem(
       const { text } = await generateText({
         model: models.default,
         prompt: fullPrompt,
-        maxTokens: 400,
+        maxOutputTokens: 400,
         temperature: 0.85,
         headers: aiHeaders,
       });
@@ -704,7 +709,7 @@ async function draftItem(
       const { text } = await generateText({
         model: models.fallback,
         prompt: fullPrompt,
-        maxTokens: 400,
+        maxOutputTokens: 400,
         temperature: 0.85,
         headers: aiHeaders,
       });
@@ -729,7 +734,7 @@ async function draftItem(
         const { text: retryRaw } = await generateText({
           model: models.default,
           prompt: `${fullPrompt}\n\n${retryNote}`,
-          maxTokens: 400,
+          maxOutputTokens: 400,
           temperature: 0.85,
           headers: aiHeaders,
         });
@@ -2193,11 +2198,11 @@ export async function getTopOpportunities(
     const condDate = (rec as Record<string, unknown>).condition_date as string | null;
     const condStatus = (rec as Record<string, unknown>).condition_status as string | null;
     if (!condDate || condStatus === "firmed" || condStatus === "waived" || condStatus === "collapsed") continue;
-    const d = daysUntil(condDate);
+    const d = daysUntil(new Date(condDate + "T12:00:00"));
     if (d >= -3 && d <= WINDOW_DAYS) {
       inserts.push({
         user_id: userId, client_id: rec.client_id, client_record_id: rec.id,
-        opportunity_type: "condition_firming" as string,
+        opportunity_type: "condition_firming",
         trigger_date: condDate,
         context: { address: rec.address, gci: rec.gci, side: rec.side, condition_date: condDate, days_until_condition: d },
       });

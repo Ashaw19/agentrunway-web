@@ -1,4 +1,4 @@
-import { streamText } from "ai";
+import { streamText, stepCountIs } from "ai";
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -422,14 +422,17 @@ export async function POST(req: NextRequest) {
           postCapAgentPct: 0,
           estimatedCapMonth: null,
           forecastReadiness: settings.goal_gci > 0 ? 0.8 : 0.2,
-          historyItems: (historyItems ?? []) as { year: number; annual_tx: number; annual_gci: number }[],
+          // Engine only reads year/annual_gci/annual_tx — wider HistoryItem fields
+          // (id, user_id, quarter_gci, etc.) aren't needed here, so cast through unknown.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          historyItems: (historyItems ?? []) as any,
           runwayScore: runwayScore.score,
           runwayGrade: runwayScore.grade,
           runwayWeakestLabel: healthReport.weakestLabel,
         }, 5);
 
         // ── Build computed outputs context string ──────────────────────────
-        const engineLines: string[] = [
+        const engineLines: (string | null)[] = [
           "",
           "── COMPUTED ENGINE OUTPUTS (use these exact figures, do not recalculate) ──",
           `Seasonality Source: ${seasonalSource}`,
@@ -735,20 +738,10 @@ WRITE ACTIONS — You have tools to act on the agent's behalf:
   // Full concatenated string for Groq fallback (Groq doesn't support cache_control)
   const systemPrompt = `${staticPart}\n\n${injectCanary(dynamicPart)}`;
 
-  // Array format for Claude — static portion marked for caching
-  const systemForClaude = [
-    {
-      type: "text" as const,
-      text: staticPart,
-      experimental_providerMetadata: {
-        anthropic: { cacheControl: { type: "ephemeral" } },
-      },
-    },
-    {
-      type: "text" as const,
-      text: injectCanary(dynamicPart),
-    },
-  ];
+  // ai SDK v6 expects system as a string. Anthropic prompt caching now requires
+  // providerOptions on individual message parts; we lose the cache benefit here
+  // until we migrate to that API. TODO: re-enable cacheControl via providerOptions.
+  const systemForClaude = `${staticPart}\n\n${injectCanary(dynamicPart)}`;
 
 
   try {
@@ -784,8 +777,8 @@ WRITE ACTIONS — You have tools to act on the agent's behalf:
           }),
           ...createAgentTools(supabase, user.id),
         },
-        maxSteps: 10,
-        maxTokens,
+        stopWhen: stepCountIs(10),
+        maxOutputTokens: maxTokens,
         temperature: 0.7,
         abortSignal: abortController.signal,
         headers: heliconeHeaders({
@@ -812,7 +805,7 @@ WRITE ACTIONS — You have tools to act on the agent's behalf:
             role: m.role as "user" | "assistant",
             content: m.content,
           })),
-          maxTokens,
+          maxOutputTokens: maxTokens,
           temperature: 0.7,
           abortSignal: abortController.signal,
         });

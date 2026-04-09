@@ -595,7 +595,7 @@ export async function POST(req: NextRequest) {
           model: models.fast,
           prompt: promptContent,
           temperature: 0.1,
-          maxTokens: 8000,
+          maxOutputTokens: 8000,
           headers: aiHeaders,
         });
         raw = text;
@@ -605,7 +605,7 @@ export async function POST(req: NextRequest) {
           model: models.fallback,
           prompt: promptContent,
           temperature: 0.1,
-          maxTokens: 8000,
+          maxOutputTokens: 8000,
           headers: aiHeaders,
         });
         raw = text;
@@ -632,7 +632,7 @@ export async function POST(req: NextRequest) {
           },
         ],
         temperature: 0.1,
-        maxTokens: 8000,
+        maxOutputTokens: 8000,
         headers: aiHeaders,
       });
       raw = text;

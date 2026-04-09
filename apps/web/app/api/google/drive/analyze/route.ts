@@ -63,7 +63,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const rl = await checkRateLimit(user.id, "drive_analyze", 15, 60);
   if (!rl.allowed) {
-    return new Response("Too many requests. Please wait before sending more messages.", {
+    return new NextResponse("Too many requests. Please wait before sending more messages.", {
       status: 429,
       headers: rateLimitHeaders(rl),
     });
