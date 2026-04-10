@@ -88,6 +88,7 @@ import { computeGST34 } from "@agent-runway/core/engines/gst34-engine";
 import { gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import { reconcileDeals, type ReconciliationResult, type ReconciliationMatch, type ImportedDeal } from "@agent-runway/core/engines/reconciliation-engine";
 import { selectTaxTips, TIP_CATEGORY_LABELS, type TaxTip } from "@agent-runway/core/engines/tax-iq-engine";
+import { gstHstRate } from "@agent-runway/core/engines/canadian-tax-engine";
 import type { FilingFrequency, FilingPeriod } from "@/lib/types/database";
 
 interface ExpenseItemForPlaid {
@@ -414,7 +415,14 @@ export function ExpensesContent({
       category_key: reCategory,
       day_of_month: Math.min(28, Math.max(1, parseInt(reDay) || 1)),
       hst_included: reHstIncluded,
-      hst_amount: reHstIncluded ? (parseFloat(reHstAmount) || 0) : 0,
+      hst_amount: reHstIncluded ? (() => {
+        const manual = parseFloat(reHstAmount) || 0;
+        if (manual > 0) return manual;
+        // Auto-calculate from total using province rate
+        const rate = settings ? gstHstRate(settings.province) : 0;
+        const total = parseFloat(reAmount) || 0;
+        return total > 0 && rate > 0 ? Math.round((total - total / (1 + rate)) * 100) / 100 : 0;
+      })() : 0,
       vehicle_pct_applicable: reVehicle,
       notes: reNotes.trim(),
     };
@@ -2425,7 +2433,17 @@ export function ExpensesContent({
                   step="0.01"
                   placeholder="0.00"
                   value={reAmount}
-                  onChange={(e) => setReAmount(e.target.value)}
+                  onChange={(e) => {
+                    setReAmount(e.target.value);
+                    // Auto-recalculate HST when amount changes and HST is checked
+                    if (reHstIncluded && settings?.province) {
+                      const rate = gstHstRate(settings.province);
+                      const total = parseFloat(e.target.value) || 0;
+                      if (total > 0 && rate > 0) {
+                        setReHstAmount((total - total / (1 + rate)).toFixed(2));
+                      }
+                    }
+                  }}
                   className="text-sm"
                 />
               </div>
@@ -2463,28 +2481,69 @@ export function ExpensesContent({
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   id="re-hst"
                   checked={reHstIncluded}
-                  onChange={(e) => setReHstIncluded(e.target.checked)}
+                  onChange={(e) => {
+                    setReHstIncluded(e.target.checked);
+                    if (e.target.checked && reAmount && settings?.province) {
+                      const rate = gstHstRate(settings.province);
+                      const total = parseFloat(reAmount) || 0;
+                      if (total > 0 && rate > 0) {
+                        const hst = total - total / (1 + rate);
+                        setReHstAmount(hst.toFixed(2));
+                      }
+                    }
+                  }}
                   className="h-4 w-4 rounded border-gray-300"
                 />
-                <Label htmlFor="re-hst" className="text-xs cursor-pointer">HST included</Label>
+                <Label htmlFor="re-hst" className="text-xs cursor-pointer">
+                  This amount includes {settings ? gstHstLabel(settings.province) : "GST/HST"}
+                </Label>
               </div>
               {reHstIncluded && (
-                <div className="space-y-1">
-                  <Label className="text-xs">HST amount ($)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={reHstAmount}
-                    onChange={(e) => setReHstAmount(e.target.value)}
-                    className="text-sm"
-                  />
+                <div className="rounded-md border bg-slate-50 px-3 py-2 text-xs space-y-1">
+                  {(() => {
+                    const rate = settings ? gstHstRate(settings.province) : 0;
+                    const total = parseFloat(reAmount) || 0;
+                    const hst = total > 0 && rate > 0 ? total - total / (1 + rate) : 0;
+                    const preTax = total - hst;
+                    const taxLabel = settings ? gstHstLabel(settings.province) : "GST/HST";
+                    const ratePct = rate === 0.14975 ? "14.975%" : `${(rate * 100).toFixed(0)}%`;
+                    return total > 0 ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Pre-tax amount:</span>
+                          <span className="font-medium">{fmtCurrency(preTax)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">{taxLabel} ({ratePct}):</span>
+                          <span className="font-medium text-emerald-700">{fmtCurrency(hst)}</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground/70 pt-0.5">
+                          Auto-calculated from ${reAmount} at {ratePct}. The {taxLabel} portion is claimable as an ITC on your GST34.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-muted-foreground">Enter the total monthly amount above to see the {taxLabel} breakdown.</p>
+                    );
+                  })()}
+                  <div className="pt-1 border-t">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-[10px] text-muted-foreground whitespace-nowrap">Override {settings ? gstHstLabel(settings.province) : "HST"} amount:</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="Auto"
+                        value={reHstAmount}
+                        onChange={(e) => setReHstAmount(e.target.value)}
+                        className="h-6 text-xs w-24"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
