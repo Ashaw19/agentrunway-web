@@ -228,6 +228,7 @@ export function ExpensesContent({
   const [reHstIncluded, setReHstIncluded] = useState(false);
   const [reHstAmount, setReHstAmount] = useState("");
   const [reVehicle, setReVehicle] = useState(false);
+  const [reStartDate, setReStartDate] = useState(`${thisYear}-01-01`);
   const [reNotes, setReNotes] = useState("");
   const [reSaving, setReSaving] = useState(false);
 
@@ -390,6 +391,7 @@ export function ExpensesContent({
       setReHstIncluded(existing.hst_included);
       setReHstAmount(String(existing.hst_amount ?? 0));
       setReVehicle(existing.vehicle_pct_applicable);
+      setReStartDate(existing.start_date ?? `${thisYear}-01-01`);
       setReNotes(existing.notes ?? "");
     } else {
       setEditingRecurring(null);
@@ -402,6 +404,7 @@ export function ExpensesContent({
       setReHstIncluded(false);
       setReHstAmount("");
       setReVehicle(false);
+      setReStartDate(`${thisYear}-01-01`);
       setReNotes("");
     }
     setRecurringDialogOpen(true);
@@ -432,6 +435,7 @@ export function ExpensesContent({
         return total > 0 && rate > 0 ? Math.round((total - total / (1 + rate)) * 100) / 100 : 0;
       })() : 0,
       vehicle_pct_applicable: reVehicle,
+      start_date: reStartDate,
       notes: reNotes.trim(),
     };
 
@@ -613,11 +617,70 @@ export function ExpensesContent({
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [newItemTitle, setNewItemTitle] = useState("");
 
+  // ── Recurring expenses grouped by category key ───────────────────────
+  const recurringByCatKey = useMemo(() => {
+    const map: Record<string, RecurringExpense[]> = {};
+    for (const re of recurringExpenses) {
+      if (!re.is_active) continue;
+      const key = re.category_key;
+      if (!map[key]) map[key] = [];
+      map[key].push(re);
+    }
+    return map;
+  }, [recurringExpenses]);
+
+  /** Monthly equivalent for a recurring expense */
+  function reMonthlyEquivalent(re: RecurringExpense): number {
+    const freq = re.frequency ?? "monthly";
+    const amt = Number(re.amount);
+    return freq === "monthly" ? amt : freq === "quarterly" ? amt / 3 : amt / 12;
+  }
+
+  /** YTD amount for a recurring expense based on its start_date */
+  function reYTDAmount(re: RecurringExpense): number {
+    const freq = re.frequency ?? "monthly";
+    const amt = Number(re.amount);
+    const startDate = re.start_date ? new Date(re.start_date + "T00:00:00") : new Date(thisYear, 0, 1);
+    const yearStart = new Date(thisYear, 0, 1);
+    const effectiveStart = startDate > yearStart ? startDate : yearStart;
+    const now = new Date();
+    if (effectiveStart > now) return 0;
+    if (freq === "annual") {
+      // Check if the annual charge month has passed
+      const chargeMonth = (re.month_of_year ?? 1) - 1;
+      const chargeDate = new Date(thisYear, chargeMonth, re.day_of_month);
+      return chargeDate >= effectiveStart && chargeDate <= now ? amt : 0;
+    }
+    if (freq === "quarterly") {
+      // Count how many quarterly occurrences happened since start
+      const startMonth = (re.month_of_year ?? 1) - 1;
+      let count = 0;
+      for (let q = 0; q < 4; q++) {
+        const m = (startMonth + q * 3) % 12;
+        const occDate = new Date(thisYear, m, Math.min(re.day_of_month, 28));
+        if (occDate >= effectiveStart && occDate <= now) count++;
+      }
+      return count * amt;
+    }
+    // Monthly: count months from effective start to now
+    const startM = effectiveStart.getMonth();
+    const nowM = now.getMonth();
+    const months = Math.max(0, nowM - startM + (now.getDate() >= effectiveStart.getDate() ? 1 : 0));
+    return months * amt;
+  }
+
+  /** Monthly total from recurring expenses for a category key */
+  function recurringMonthlyForCat(catKey: string): number {
+    const items = recurringByCatKey[catKey];
+    if (!items) return 0;
+    return items.reduce((s, re) => s + reMonthlyEquivalent(re), 0);
+  }
+
   // ── Totals ────────────────────────────────────────────────────────────
   // ytdTotal is now computed from receipt_expenses (not the manual ytd_amount field)
   const ytdTotal = Object.values(receiptTotals).reduce((sum, v) => sum + v, 0);
   const monthlyTotal = categories.reduce(
-    (sum, cat) => sum + cat.items.reduce((s, item) => s + Number(item.monthly_recurring), 0),
+    (sum, cat) => sum + cat.items.reduce((s, item) => s + Number(item.monthly_recurring), 0) + recurringMonthlyForCat(cat.key),
     0,
   );
 
@@ -633,10 +696,11 @@ export function ExpensesContent({
     return Math.max(receipt, recurringEst);
   };
 
+  const recurringYTDTotal = recurringExpenses.reduce((s, re) => re.is_active ? s + reYTDAmount(re) : s, 0);
   const effectiveTotal = categories.reduce(
     (sum, cat) => sum + cat.items.reduce((s, item) => s + effectiveYTD(item), 0),
     0,
-  );
+  ) + recurringYTDTotal;
 
   // ── YTD GCI for expense ratio ─────────────────────────────────────────
   const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
@@ -1859,8 +1923,9 @@ export function ExpensesContent({
         <div className="space-y-2">
           {categories.map((cat) => {
             const isOpen = expanded.has(cat.id);
-            const catYtd = cat.items.reduce((s, i) => s + effectiveYTD(i), 0);
-            const catMonthly = cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0);
+            const catRecurringYTD = (recurringByCatKey[cat.key] || []).reduce((s, re) => s + reYTDAmount(re), 0);
+            const catYtd = cat.items.reduce((s, i) => s + effectiveYTD(i), 0) + catRecurringYTD;
+            const catMonthly = cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0) + recurringMonthlyForCat(cat.key);
             const catDeductible = cat.items.reduce((s, i) => {
               const ytd = effectiveYTD(i);
               const map = EXPENSE_KEY_TO_T2125[i.key];
@@ -1889,7 +1954,7 @@ export function ExpensesContent({
                       )}
                       <CardTitle className="text-[15px] font-semibold">{cat.title}</CardTitle>
                       <Badge className={cn("text-xs font-medium", colors.badge)}>
-                        {cat.items.length} item{cat.items.length !== 1 && "s"}
+                        {cat.items.length + (recurringByCatKey[cat.key]?.length ?? 0)} item{(cat.items.length + (recurringByCatKey[cat.key]?.length ?? 0)) !== 1 && "s"}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-4 text-sm">
@@ -2002,6 +2067,55 @@ export function ExpensesContent({
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
+                          );
+                        })}
+
+                        {/* Recurring expenses in this category */}
+                        {(recurringByCatKey[cat.key] || []).map((re) => {
+                          const monthly = reMonthlyEquivalent(re);
+                          const ytd = reYTDAmount(re);
+                          const freqLabel = (re.frequency ?? "monthly") === "monthly" ? "/mo" : (re.frequency ?? "monthly") === "quarterly" ? "/qtr" : "/yr";
+                          return (
+                            <div
+                              key={`re-${re.id}`}
+                              className="group grid grid-cols-[1fr_100px_108px_130px_32px] items-center gap-2 rounded-md px-1 py-1 bg-indigo-50/30"
+                            >
+                              <span className="truncate text-sm font-medium flex items-center gap-1.5">
+                                <RefreshCw className="h-3 w-3 text-indigo-400 shrink-0" />
+                                {re.name}
+                                <span className="text-[10px] text-muted-foreground">{freqLabel}</span>
+                              </span>
+
+                              {/* YTD — computed from start_date */}
+                              <div className="h-8 flex items-center justify-end px-2 text-sm tabular-nums rounded-md border border-indigo-200/40 bg-indigo-50/50 text-indigo-700">
+                                {ytd > 0 ? fmtCurrency(ytd) : <span className="text-muted-foreground/40">—</span>}
+                              </div>
+
+                              {/* Deductible — same rules as parent category */}
+                              <div className="h-8 flex items-end justify-end px-2 rounded-md">
+                                {ytd > 0 ? (
+                                  <span className="text-xs font-semibold tabular-nums text-emerald-600">
+                                    {fmtCurrency(ytd)}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground/40">—</span>
+                                )}
+                              </div>
+
+                              {/* Monthly — read-only, auto-filled */}
+                              <div className="h-8 flex items-center justify-end px-2 text-sm tabular-nums rounded-md border border-indigo-200/40 bg-indigo-50/50 text-indigo-700 font-medium">
+                                {fmtCurrency(monthly)}
+                              </div>
+
+                              {/* Info icon instead of delete */}
+                              <button
+                                onClick={() => openRecurringDialog(re)}
+                                className="flex h-8 w-8 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100 hover:bg-indigo-50 text-indigo-400 hover:text-indigo-600"
+                                title="Edit in Recurring Expenses"
+                              >
+                                <RefreshCw className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           );
                         })}
 
@@ -2634,9 +2748,22 @@ export function ExpensesContent({
             </div>
 
             <div className="space-y-1">
+              <Label className="text-xs">Started from</Label>
+              <Input
+                type="date"
+                value={reStartDate}
+                onChange={(e) => setReStartDate(e.target.value)}
+                className="text-sm"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                When did this expense start? Months before today will be included in your YTD totals.
+              </p>
+            </div>
+
+            <div className="space-y-1">
               <Label className="text-xs">Notes (optional)</Label>
               <Textarea
-                placeholder="e.g. 48-month lease, started Jan 2025"
+                placeholder="e.g. 48-month lease through Jan 2028"
                 rows={2}
                 value={reNotes}
                 onChange={(e) => setReNotes(e.target.value)}
