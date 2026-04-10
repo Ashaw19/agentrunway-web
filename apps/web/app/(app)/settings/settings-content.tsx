@@ -20,7 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check, Sparkles, ExternalLink, Loader2, Car, Landmark, RefreshCw, Trash2, Clock, Info, AlertCircle, XCircle, Building2, User, TrendingDown, Home, Mail } from "lucide-react";
+import { Check, Sparkles, ExternalLink, Loader2, Car, Landmark, RefreshCw, Trash2, Clock, Info, AlertCircle, XCircle, Building2, User, TrendingDown, Home, Mail, Receipt } from "lucide-react";
+import { TaxDisclaimer } from "@/components/tax-disclaimer";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -516,6 +517,33 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
     if (error) { toast.error("Failed to save claiming percentages — please try again."); return; }
     claimingSaved.flash();
     toast.success("Claiming percentages saved ✓");
+  }
+
+  // ── Section 7b: Tax Filing ────────────────────────────────────────────────
+  const [filingFrequency, setFilingFrequency] = useState<"monthly" | "quarterly" | "annual">(
+    (settings.filing_frequency as "monthly" | "quarterly" | "annual") ?? "quarterly",
+  );
+  const [businessNumber, setBusinessNumber] = useState(settings.business_number ?? "");
+  const [fiscalYearEnd, setFiscalYearEnd] = useState(String(settings.fiscal_year_end_month ?? 12));
+  const [savingFiling, setSavingFiling] = useState(false);
+  const filingSaved = useSaved();
+
+  async function saveFiling() {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
+    setSavingFiling(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("user_settings")
+      .update({
+        filing_frequency: filingFrequency,
+        business_number: businessNumber.trim(),
+        fiscal_year_end_month: parseInt(fiscalYearEnd) || 12,
+      })
+      .eq("user_id", settings.user_id);
+    setSavingFiling(false);
+    if (error) { toast.error("Failed to save tax filing settings — please try again."); return; }
+    filingSaved.flash();
+    toast.success("Tax filing settings saved ✓");
   }
 
   // ── Section 8: Bank Connections ──────────────────────────────────────────
@@ -1830,6 +1858,86 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
           </div>
 
           <SaveRow saving={savingClaiming} saved={claimingSaved.saved} onSave={saveClaiming} />
+        </CardContent>
+      </Card>
+
+      {/* Card 7b — Tax Filing */}
+      <Card className="rounded-2xl border-l-4 border-l-emerald-400 shadow-sm">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Receipt className="h-5 w-5 text-emerald-500" />
+            <CardTitle>Tax Filing</CardTitle>
+          </div>
+          <CardDescription>
+            GST/HST filing frequency, business number, and fiscal year-end.
+            These settings drive your filing period filters and deadline alerts.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-5">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+            {/* Filing Frequency */}
+            <div className="grid gap-1.5">
+              <Label>GST/HST filing frequency</Label>
+              <Select
+                value={filingFrequency}
+                onValueChange={(v) => setFilingFrequency(v as "monthly" | "quarterly" | "annual")}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="quarterly">Quarterly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                  <SelectItem value="annual">Annual</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Determines how expenses are grouped for filing periods.
+                Most agents file quarterly.
+              </p>
+            </div>
+
+            {/* Business Number */}
+            <div className="grid gap-1.5">
+              <Label>CRA business number</Label>
+              <Input
+                placeholder="123456789 RT0001"
+                value={businessNumber}
+                onChange={(e) => setBusinessNumber(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Your 15-character BN (9 digits + RT + 4-digit program account).
+                Found on your GST/HST registration confirmation.
+              </p>
+            </div>
+
+            {/* Fiscal Year-End */}
+            <div className="grid gap-1.5">
+              <Label>Fiscal year-end month</Label>
+              <Select
+                value={fiscalYearEnd}
+                onValueChange={setFiscalYearEnd}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {["January","February","March","April","May","June","July","August","September","October","November","December"].map((m, i) => (
+                    <SelectItem key={i + 1} value={String(i + 1)}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Almost all sole-prop realtors use December 31 (CRA requirement).
+                Only change if your accountant confirms otherwise.
+              </p>
+            </div>
+          </div>
+
+          <TaxDisclaimer />
+          <SaveRow saving={savingFiling} saved={filingSaved.saved} onSave={saveFiling} />
         </CardContent>
       </Card>
 

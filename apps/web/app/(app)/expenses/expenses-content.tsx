@@ -17,7 +17,7 @@ import { ExplainButton } from "@/components/explain-button";
 import { GuideLink } from "@/components/guide-link";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight, Download, FileText } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight, Download, FileText, RefreshCw } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   computeGCI,
@@ -75,9 +75,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { PlaidItem, PlaidTransaction, MileageLog } from "@/lib/types/database";
+import type { PlaidItem, PlaidTransaction, MileageLog, RecurringExpense } from "@/lib/types/database";
 import { ExpensesMileageTab }     from "./expenses-mileage-tab";
 import { ExpensesBankImportsTab } from "./expenses-bank-imports-tab";
+import { TaxDisclaimer } from "@/components/tax-disclaimer";
+import {
+  getFilingPeriods,
+  getCurrentFilingPeriod,
+  deadlineUrgency,
+} from "@agent-runway/core/engines/filing-period-engine";
+import type { FilingFrequency, FilingPeriod } from "@/lib/types/database";
 
 interface ExpenseItemForPlaid {
   id: string; key: string; title: string; category_id: string;
@@ -154,9 +161,136 @@ export function ExpensesContent({
   const [captureOpen, setCaptureOpen] = useState(false);
   const [receipts,    setReceipts]    = useState<ReceiptExpense[]>(initialReceipts);
 
+  // ── Filing period filter ──────────────────────────────────────────────────
+  const filingFreq = (settings?.filing_frequency as FilingFrequency) ?? "quarterly";
+  const allPeriods = useMemo(() => getFilingPeriods(filingFreq, thisYear), [filingFreq, thisYear]);
+  const currentPeriod = useMemo(() => getCurrentFilingPeriod(filingFreq, thisYear), [filingFreq, thisYear]);
+  const [selectedPeriodIdx, setSelectedPeriodIdx] = useState<string>("all");
+
+  const activePeriod: FilingPeriod | null =
+    selectedPeriodIdx !== "all" ? allPeriods[parseInt(selectedPeriodIdx)] ?? null : null;
+
+  const filteredReceipts = useMemo(() => {
+    if (!activePeriod) return receipts;
+    return receipts.filter((r) => {
+      const d = r.expense_date;
+      if (!d) return false;
+      return d >= activePeriod.startDate && d <= activePeriod.endDate;
+    });
+  }, [receipts, activePeriod]);
+
   // ── Receipt view / edit ────────────────────────────────────────────────────
   const [viewReceipt,  setViewReceipt]  = useState<ReceiptExpense | null>(null);
   const [viewOpen,     setViewOpen]     = useState(false);
+
+  // ── Recurring expenses ──────────────────────────────────────────────────
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
+  const [recurringDialogOpen, setRecurringDialogOpen] = useState(false);
+  const [editingRecurring, setEditingRecurring] = useState<RecurringExpense | null>(null);
+  const [reName, setReName] = useState("");
+  const [reAmount, setReAmount] = useState("");
+  const [reCategory, setReCategory] = useState("");
+  const [reDay, setReDay] = useState("1");
+  const [reHstIncluded, setReHstIncluded] = useState(false);
+  const [reHstAmount, setReHstAmount] = useState("");
+  const [reVehicle, setReVehicle] = useState(false);
+  const [reNotes, setReNotes] = useState("");
+  const [reSaving, setReSaving] = useState(false);
+
+  // Fetch recurring expenses on mount
+  useEffect(() => {
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("recurring_expenses")
+        .select("*")
+        .eq("is_active", true)
+        .order("name");
+      if (data) setRecurringExpenses(data as RecurringExpense[]);
+    })();
+  }, []);
+
+  function openRecurringDialog(existing?: RecurringExpense) {
+    if (existing) {
+      setEditingRecurring(existing);
+      setReName(existing.name);
+      setReAmount(String(existing.amount));
+      setReCategory(existing.category_key);
+      setReDay(String(existing.day_of_month));
+      setReHstIncluded(existing.hst_included);
+      setReHstAmount(String(existing.hst_amount ?? 0));
+      setReVehicle(existing.vehicle_pct_applicable);
+      setReNotes(existing.notes ?? "");
+    } else {
+      setEditingRecurring(null);
+      setReName("");
+      setReAmount("");
+      setReCategory("");
+      setReDay("1");
+      setReHstIncluded(false);
+      setReHstAmount("");
+      setReVehicle(false);
+      setReNotes("");
+    }
+    setRecurringDialogOpen(true);
+  }
+
+  async function saveRecurringExpense() {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
+    if (!reName.trim() || !reAmount.trim() || !reCategory) {
+      toast.error("Name, amount, and category are required.");
+      return;
+    }
+    setReSaving(true);
+    const supabase = createClient();
+    const payload = {
+      name: reName.trim(),
+      amount: parseFloat(reAmount) || 0,
+      category_key: reCategory,
+      day_of_month: Math.min(28, Math.max(1, parseInt(reDay) || 1)),
+      hst_included: reHstIncluded,
+      hst_amount: reHstIncluded ? (parseFloat(reHstAmount) || 0) : 0,
+      vehicle_pct_applicable: reVehicle,
+      notes: reNotes.trim(),
+    };
+
+    if (editingRecurring) {
+      const { error } = await supabase
+        .from("recurring_expenses")
+        .update({ ...payload, updated_at: new Date().toISOString() })
+        .eq("id", editingRecurring.id);
+      if (error) { toast.error("Failed to update recurring expense."); setReSaving(false); return; }
+      setRecurringExpenses((prev) =>
+        prev.map((r) => r.id === editingRecurring.id ? { ...r, ...payload } : r),
+      );
+      toast.success("Recurring expense updated.");
+    } else {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setReSaving(false); return; }
+      const { data, error } = await supabase
+        .from("recurring_expenses")
+        .insert({ ...payload, user_id: user.id })
+        .select()
+        .single();
+      if (error) { toast.error("Failed to add recurring expense."); setReSaving(false); return; }
+      setRecurringExpenses((prev) => [...prev, data as RecurringExpense]);
+      toast.success("Recurring expense added.");
+    }
+    setReSaving(false);
+    setRecurringDialogOpen(false);
+  }
+
+  async function deleteRecurringExpense(id: string) {
+    if (guardSandboxWrite(sandbox.sandboxMode)) return;
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("recurring_expenses")
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) { toast.error("Failed to remove recurring expense."); return; }
+    setRecurringExpenses((prev) => prev.filter((r) => r.id !== id));
+    toast.success("Recurring expense removed.");
+  }
 
   // ── Voice-to-expense ─────────────────────────────────────────────────────
   const [quickExpenseOpen,  setQuickExpenseOpen]  = useState(false);
@@ -740,6 +874,57 @@ export function ExpensesContent({
         </div>
       </div>
 
+      {/* ── Filing period filter ──────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-muted-foreground">Filing period:</span>
+        <div className="flex flex-wrap items-center gap-1">
+          <button
+            onClick={() => setSelectedPeriodIdx("all")}
+            className={cn(
+              "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+              selectedPeriodIdx === "all"
+                ? "bg-slate-800 text-white"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+            )}
+          >
+            All YTD
+          </button>
+          {allPeriods.map((p, i) => {
+            const isActive = selectedPeriodIdx === String(i);
+            const isCurrent = p.startDate === currentPeriod.startDate;
+            return (
+              <button
+                key={i}
+                onClick={() => setSelectedPeriodIdx(String(i))}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                  isActive
+                    ? "bg-slate-800 text-white"
+                    : isCurrent
+                    ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                )}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+        {activePeriod && (() => {
+          const dl = deadlineUrgency(activePeriod.deadline);
+          return (
+            <span className={cn(
+              "ml-1 text-xs font-medium",
+              dl.urgency === "overdue" ? "text-red-600" :
+              dl.urgency === "urgent" ? "text-amber-600" :
+              dl.urgency === "soon" ? "text-amber-500" : "text-muted-foreground",
+            )}>
+              {dl.label}
+            </span>
+          );
+        })()}
+      </div>
+
       {/* ── Tab bar ──────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-1 border-b border-border/60">
         {(["receipts", "mileage", "imports"] as const).map((t) => (
@@ -855,13 +1040,11 @@ export function ExpensesContent({
               </span>
             </div>
 
-            <div className="mt-3 flex items-center justify-between">
-              <p className="text-[10px] leading-relaxed text-muted-foreground/60">
-                Estimates only · Not tax advice · Consult a qualified accountant
-              </p>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <TaxDisclaimer className="flex-1" />
               <a
                 href="/reports"
-                className="flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700"
+                className="flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700"
               >
                 Generate T2125
                 <ArrowRight className="h-3 w-3" />
@@ -1293,6 +1476,100 @@ export function ExpensesContent({
         </div>
       </div>
 
+      {/* ── Recurring Expenses ──────────────────────────────────────────────── */}
+      <Card className="rounded-2xl border-slate-200 shadow-sm">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-base font-semibold">Recurring Expenses</CardTitle>
+            </div>
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => openRecurringDialog()}>
+              <Plus className="h-3.5 w-3.5" />
+              Add Recurring
+            </Button>
+          </div>
+          <CardDescription className="mt-1">
+            Monthly expenses that auto-generate on a set day (e.g. vehicle lease, software subscriptions)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {recurringExpenses.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-6">
+              <p className="text-sm text-muted-foreground">No recurring expenses set up yet.</p>
+              <Button size="sm" variant="outline" onClick={() => openRecurringDialog()}>
+                Add your first recurring expense
+              </Button>
+            </div>
+          ) : (
+            <div className="rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Expense</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="hidden sm:table-cell">Category</TableHead>
+                    <TableHead className="hidden sm:table-cell text-center">Day</TableHead>
+                    <TableHead className="hidden sm:table-cell text-center">HST</TableHead>
+                    <TableHead className="w-[80px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recurringExpenses.map((re) => (
+                    <TableRow key={re.id} className="group cursor-pointer" onClick={() => openRecurringDialog(re)}>
+                      <TableCell className="font-medium text-sm">
+                        {re.name}
+                        {re.notes && (
+                          <span className="ml-1.5 text-xs text-muted-foreground">— {re.notes}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right text-sm font-medium">
+                        {fmtCurrency(re.amount)}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell">
+                        <Badge variant="secondary" className="text-[10px]">
+                          {CAT_LABEL[re.category_key] ?? re.category_key}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell text-center text-xs text-muted-foreground">
+                        {re.day_of_month}{re.day_of_month === 1 ? "st" : re.day_of_month === 2 ? "nd" : re.day_of_month === 3 ? "rd" : "th"}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell text-center text-xs">
+                        {re.hst_included ? (
+                          <span className="text-emerald-600">{fmtCurrency(re.hst_amount)}</span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 text-red-500 hover:text-red-700"
+                            onClick={(e) => { e.stopPropagation(); deleteRecurringExpense(re.id); }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              Monthly total: <strong className="text-foreground">{fmtCurrency(recurringExpenses.reduce((s, r) => s + Number(r.amount), 0))}</strong>
+            </span>
+            <span>
+              Annual estimate: <strong className="text-foreground">{fmtCurrency(recurringExpenses.reduce((s, r) => s + Number(r.amount), 0) * 12)}</strong>
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* ── Receipt Log ─────────────────────────────────────────────────────── */}
       <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardHeader className="pb-3">
@@ -1316,15 +1593,19 @@ export function ExpensesContent({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {receipts.length === 0 ? (
+          {filteredReceipts.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-8">
               <div className="rounded-full bg-muted p-4">
                 <Camera className="h-7 w-7 text-muted-foreground" />
               </div>
               <div className="text-center">
-                <p className="text-sm font-medium text-foreground">No receipts yet</p>
+                <p className="text-sm font-medium text-foreground">
+                  {activePeriod ? `No receipts in ${activePeriod.label}` : "No receipts yet"}
+                </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Tap &ldquo;Capture Receipt&rdquo; above to snap a photo and log an expense in seconds.
+                  {activePeriod
+                    ? "Try selecting a different filing period or add a receipt."
+                    : "Tap \"Capture Receipt\" above to snap a photo and log an expense in seconds."}
                 </p>
               </div>
               <Button
@@ -1351,7 +1632,7 @@ export function ExpensesContent({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {receipts.map((r) => (
+                  {filteredReceipts.map((r) => (
                     <TableRow
                       key={r.id}
                       className="cursor-pointer hover:bg-muted/60 group"
@@ -1544,6 +1825,140 @@ export function ExpensesContent({
                 {qeSaving ? "Saving..." : "Add Expense"}
               </Button>
               <Button variant="ghost" onClick={() => setQuickExpenseOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Recurring Expense dialog ──────────────────────────────────────── */}
+      <Dialog open={recurringDialogOpen} onOpenChange={setRecurringDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-4 w-4" />
+              {editingRecurring ? "Edit Recurring Expense" : "Add Recurring Expense"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Expense name <span className="text-red-500">*</span></Label>
+              <Input
+                placeholder="e.g. Mazda CX-90 Lease, Canva Pro"
+                value={reName}
+                onChange={(e) => setReName(e.target.value)}
+                className="text-sm"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Monthly amount ($) <span className="text-red-500">*</span></Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={reAmount}
+                  onChange={(e) => setReAmount(e.target.value)}
+                  className="text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Day of month (1-28)</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="28"
+                  value={reDay}
+                  onChange={(e) => setReDay(e.target.value)}
+                  className="text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Category <span className="text-red-500">*</span></Label>
+              <Select value={reCategory} onValueChange={setReCategory}>
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="Select category..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {RECEIPT_CATEGORY_GROUPS.map((g) => (
+                    <SelectGroup key={g.group}>
+                      <SelectLabel>{g.group}</SelectLabel>
+                      {g.items.map((item) => (
+                        <SelectItem key={item.key} value={item.key}>
+                          {item.label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="re-hst"
+                  checked={reHstIncluded}
+                  onChange={(e) => setReHstIncluded(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <Label htmlFor="re-hst" className="text-xs cursor-pointer">HST included</Label>
+              </div>
+              {reHstIncluded && (
+                <div className="space-y-1">
+                  <Label className="text-xs">HST amount ($)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={reHstAmount}
+                    onChange={(e) => setReHstAmount(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="re-vehicle"
+                checked={reVehicle}
+                onChange={(e) => setReVehicle(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <Label htmlFor="re-vehicle" className="text-xs cursor-pointer">
+                Apply vehicle business-use % to this expense
+              </Label>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Notes (optional)</Label>
+              <Textarea
+                placeholder="e.g. 48-month lease, started Jan 2025"
+                rows={2}
+                value={reNotes}
+                onChange={(e) => setReNotes(e.target.value)}
+                className="text-sm"
+              />
+            </div>
+
+            <TaxDisclaimer />
+
+            <div className="flex gap-2 pt-2">
+              <Button
+                disabled={!reName.trim() || !reAmount.trim() || !reCategory || reSaving}
+                onClick={saveRecurringExpense}
+                className="flex-1"
+              >
+                {reSaving ? "Saving..." : editingRecurring ? "Update" : "Add Recurring Expense"}
+              </Button>
+              <Button variant="ghost" onClick={() => setRecurringDialogOpen(false)}>
                 Cancel
               </Button>
             </div>

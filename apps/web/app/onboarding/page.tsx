@@ -159,7 +159,8 @@ export default function OnboardingPage() {
   const [goalVolume, setGoalVolume] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
 
-  // Business structure
+  // Business structure & tax filing
+  const [filingFrequency, setFilingFrequency] = useState<"monthly" | "quarterly" | "annual">("quarterly");
   const [isIncorporated, setIsIncorporated] = useState(false);
   const [corpType, setCorpType] = useState<"prec" | "general">("prec");
   const [compensationMethod, setCompensationMethod] = useState<"salary" | "dividends" | "mixed">("salary");
@@ -230,6 +231,7 @@ export default function OnboardingPage() {
           compensation_method: isIncorporated ? compensationMethod : "salary",
           has_employees: hasEmployees,
           num_employees: hasEmployees ? parseInt(numEmployees) || 1 : 0,
+          filing_frequency: filingFrequency,
           preferred_language: language,
         })
         .eq("user_id", user.id);
@@ -541,6 +543,36 @@ export default function OnboardingPage() {
                       className="border-white/20 bg-white/5 text-white placeholder:text-white/30 focus-visible:ring-white/30"
                     />
                   )}
+                </div>
+
+                {/* GST/HST Filing Frequency */}
+                <div className="grid gap-2">
+                  <Label className="text-white/80">How often do you file GST/HST?</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { value: "quarterly", label: "Quarterly" },
+                      { value: "monthly",   label: "Monthly" },
+                      { value: "annual",    label: "Annual" },
+                    ].map(({ value, label }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setFilingFrequency(value as "monthly" | "quarterly" | "annual")}
+                        className={cn(
+                          "rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors",
+                          filingFrequency === value
+                            ? "border-white/40 bg-white/15 text-white"
+                            : "border-white/10 bg-white/5 text-white/50 hover:text-white/80",
+                        )}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-white/35">
+                    Most agents file quarterly. This determines how your expenses
+                    are grouped for filing periods and deadline reminders.
+                  </p>
                 </div>
               </div>
             </StepFrame>

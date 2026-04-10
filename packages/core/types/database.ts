@@ -387,9 +387,55 @@ export interface UserSettings {
   sandbox_tier: SandboxTier | null;
   sandbox_data: SandboxDataset | null;
 
+  // Tax filing
+  filing_frequency: 'monthly' | 'quarterly' | 'annual';
+  fiscal_year_end_month: number; // 1-12
+
   // Timestamps
   created_at: string;
   updated_at: string;
+}
+
+// ── Recurring Expense ──────────────────────────────────────────────────────
+
+export interface RecurringExpense {
+  id: string;
+  user_id: string;
+  name: string;
+  amount: number;
+  category_key: string;
+  day_of_month: number;       // 1-28
+  hst_included: boolean;
+  hst_amount: number;
+  vehicle_pct_applicable: boolean;
+  notes: string;
+  start_date: string;
+  end_date: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecurringExpenseEntry {
+  id: string;
+  recurring_expense_id: string;
+  user_id: string;
+  receipt_expense_id: string | null;
+  entry_date: string;
+  amount: number;
+  status: 'generated' | 'confirmed' | 'skipped';
+  created_at: string;
+}
+
+// ── Filing Period Helpers ──────────────────────────────────────────────────
+
+export type FilingFrequency = 'monthly' | 'quarterly' | 'annual';
+
+export interface FilingPeriod {
+  label: string;         // e.g. "Q1 2026", "Jan 2026", "2026"
+  startDate: string;     // ISO date
+  endDate: string;       // ISO date
+  deadline: string;      // ISO date — CRA filing deadline
 }
 
 // ── CCA Asset (T2125 Capital Cost Allowance tracking) ────────────────────────
