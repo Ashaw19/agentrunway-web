@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ReportsContent } from "./reports-content";
-import type { CcaAsset } from "@/lib/types/database";
+import type { CcaAsset, RecurringExpense } from "@/lib/types/database";
+import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import {
   isSandboxActive,
   getSandboxData,
@@ -63,7 +64,7 @@ export default async function ReportsPage() {
   }
 
   // ── Normal branch ───────────────────────────────────────────────────
-  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, ccaAssetsResult, mileageResult, referralsResult] =
+  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, ccaAssetsResult, mileageResult, referralsResult, recurringExpResult] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -120,7 +121,17 @@ export default async function ReportsPage() {
         .from("referrals")
         .select("direction, actual_fee_paid, status")
         .eq("user_id", user.id),
+      supabase
+        .from("recurring_expenses")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .limit(10000),
     ]);
+
+  const recurringExpenses = (recurringExpResult.data ?? []) as RecurringExpense[];
+  const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
+  const recurringExpYTD = totalRecurringYTD(recurringExpenses);
 
   const categories = (expCatResult.data ?? []).map((cat) => ({
     ...cat,
@@ -181,6 +192,8 @@ export default async function ReportsPage() {
       taxYear={year}
       userId={user.id}
       referralSummary={referralSummary}
+      recurringExpMonthly={recurringExpMonthly}
+      recurringExpYTD={recurringExpYTD}
     />
   );
 }

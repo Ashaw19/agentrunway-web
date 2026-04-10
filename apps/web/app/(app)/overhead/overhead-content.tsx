@@ -510,6 +510,8 @@ interface Props {
   pipelineDeals?: PipelineDeal[];
   subscriptionTier?: string;
   scenarioSeed?: ScenarioSeedData | null;
+  recurringExpMonthly?: number;
+  recurringExpYTD?: number;
 }
 
 type OverheadTab = "overview" | "scenarios";
@@ -571,6 +573,8 @@ export function OverheadContent({
   pipelineDeals = [],
   subscriptionTier = "starter",
   scenarioSeed = null,
+  recurringExpMonthly = 0,
+  recurringExpYTD = 0,
 }: Props) {
   const [activeTab, setActiveTab] = useState<OverheadTab>("overview");
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
@@ -615,15 +619,17 @@ export function OverheadContent({
   const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);
 
   // ── Expenses ───────────────────────────────────────────────────────────
+  // Includes both legacy expense_items.monthly_recurring AND new recurring_expenses table
   const receiptTotal = receiptYTD;
-  const monthlyRecurring = expenseCategories.reduce(
+  const legacyMonthlyRecurring = expenseCategories.reduce(
     (sum, cat) =>
       sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
     0,
   );
+  const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
   const expMonthsElapsed = now.getMonth() + (now.getDate() / 30);
-  const recurringYTDEstimate = monthlyRecurring * expMonthsElapsed;
-  const expensesYTD = Math.max(receiptTotal, recurringYTDEstimate);
+  const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
+  const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
 
   const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
   const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;

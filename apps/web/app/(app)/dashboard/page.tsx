@@ -4,6 +4,8 @@ import { DashboardContent } from "./dashboard-content";
 import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord, UserSettings, ListingAppointment } from "@/lib/types/database";
 import { CREA_BOARDS, fetchBoardData, type LocalMarketData } from "@/lib/crea-board";
 import { computeIntelligenceBriefing, type BriefingItem } from "@/lib/engines/crm-analytics-engine";
+import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import type { RecurringExpense } from "@/lib/types/database";
 import { isSandboxActive, getSandboxData, mergeSandboxSettings, getSandboxReceiptYTD, getSandboxMileageTotal } from "@/lib/sandbox-resolver";
 
 export default async function DashboardPage({
@@ -116,7 +118,7 @@ export default async function DashboardPage({
   }
 
   // ── Step 3: Live Supabase queries (no sandbox) ──────────────────────────
-  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult, listingResult] =
+  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult, listingResult, recurringExpResult] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -200,7 +202,17 @@ export default async function DashboardPage({
         .eq("user_id", user.id)
         .in("status", ["scheduled", "active"])
         .limit(10000),
+      supabase
+        .from("recurring_expenses")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .limit(10000),
     ]);
+
+  const recurringExpenses = (recurringExpResult.data ?? []) as RecurringExpense[];
+  const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
+  const recurringExpYTD = totalRecurringYTD(recurringExpenses);
 
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
     ...cat,
@@ -321,6 +333,8 @@ export default async function DashboardPage({
       aiProfilePromptDismissedAt={settingsRow?.ai_profile_prompt_dismissed_at ?? null}
       activeListings={(listingResult.data ?? []) as ListingAppointment[]}
       teamWelcome={teamWelcome}
+      recurringExpMonthly={recurringExpMonthly}
+      recurringExpYTD={recurringExpYTD}
     />
   );
 }

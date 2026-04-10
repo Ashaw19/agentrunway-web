@@ -196,6 +196,10 @@ interface Props {
   aiProfilePromptDismissedAt?: string | null;
   activeListings?: ListingAppointment[];
   teamWelcome?: { orgName: string } | null;
+  /** Pre-computed monthly total from recurring_expenses table */
+  recurringExpMonthly?: number;
+  /** Pre-computed YTD total from recurring_expenses table */
+  recurringExpYTD?: number;
 }
 
 function getTimeGreeting(): { greeting: string; emoji: string } {
@@ -299,6 +303,8 @@ export function DashboardContent({
   aiProfilePromptDismissedAt = null,
   activeListings,
   teamWelcome = null,
+  recurringExpMonthly = 0,
+  recurringExpYTD = 0,
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
 
@@ -594,15 +600,17 @@ export function DashboardContent({
 
   // ── Expenses ──────────────────────────────────────────────────────────
   // Effective YTD: higher of receipt-verified actuals or recurring estimates
+  // Includes both legacy expense_items.monthly_recurring AND new recurring_expenses table
   const receiptTotal = receiptYTD;
-  const monthlyRecurring = expenseCategories.reduce(
+  const legacyMonthlyRecurring = expenseCategories.reduce(
     (sum, cat) =>
       sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
     0,
   );
+  const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
   const expMonthsElapsed = now.getMonth() + (now.getDate() / 30);
-  const recurringYTDEstimate = monthlyRecurring * expMonthsElapsed;
-  const expensesYTD = Math.max(receiptTotal, recurringYTDEstimate);
+  const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
+  const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
 
   // ── Survival ──────────────────────────────────────────────────────────
   // Pipeline monthly estimate: annualize weighted pipeline GCI, then divide by 12

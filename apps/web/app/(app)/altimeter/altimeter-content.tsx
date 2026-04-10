@@ -284,6 +284,8 @@ interface Props {
   boardMarketData?: LocalMarketData | null;
   boardSubregion?: string;
   subscriptionTier?: string;
+  recurringExpMonthly?: number;
+  expensesYTD?: number;
 }
 
 // ── AltimeterBanner ────────────────────────────────────────────────────────
@@ -339,6 +341,8 @@ export function AltimeterContent({
   historyItems = [],
   boardMarketData = null,
   subscriptionTier = "starter",
+  recurringExpMonthly = 0,
+  expensesYTD: expensesYTDProp = 0,
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const now = new Date();
@@ -453,11 +457,9 @@ export function AltimeterContent({
   }, {});
 
   // ── Insights ───────────────────────────────────────────────────────────
-  // Expense data is not fetched on this page, so we pass 0 and omit
-  // the runway score from insights to avoid showing inaccurate values.
-  // The Dashboard already displays the accurate Runway Score.
-  const monthlyRecurring = 0;
-  const expensesYTD = 0;
+  // Expense data is now fetched from page.tsx and passed as props
+  const monthlyRecurring = recurringExpMonthly;
+  const expensesYTD = expensesYTDProp;
 
   const survival = survivalResult(
     settings?.monthly_brokerage_fee ?? 0,
@@ -489,11 +491,9 @@ export function AltimeterContent({
         estimatedCapMonth: null,
         forecastReadiness: goalGCI > 0 ? 0.6 : 0,
         historyItems,
-        // Omit runway score — expense data not available on this page,
-        // so score would be inaccurate. Dashboard shows the real score.
-        runwayScore: undefined,
-        runwayGrade: undefined,
-        runwayWeakestLabel: undefined,
+        runwayScore: runwayScore.score,
+        runwayGrade: runwayScore.grade,
+        runwayWeakestLabel: healthReport.weakestLabel,
       }, 5)
     : [];
 

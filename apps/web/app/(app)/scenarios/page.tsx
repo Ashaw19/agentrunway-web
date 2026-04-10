@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ScenariosContent } from "./scenarios-content";
-import type { UserSettings, Transaction, PipelineDeal, SplitPreset } from "@/lib/types/database";
+import type { UserSettings, Transaction, PipelineDeal, SplitPreset, RecurringExpense } from "@/lib/types/database";
+import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
 import { projectedYearEndGCI, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
 import {
@@ -136,7 +137,7 @@ export default async function ScenariosPage() {
     };
   } else {
     // Live Supabase queries
-    const [txResult, pipelineResult, expItemResult, receiptResult] =
+    const [txResult, pipelineResult, expItemResult, receiptResult, recurringExpResult] =
       await Promise.all([
         supabase
           .from("transactions")
@@ -161,7 +162,17 @@ export default async function ScenariosPage() {
           .eq("user_id", user.id)
           .gte("expense_date", `${currentYear}-01-01`)
           .limit(10000),
+        supabase
+          .from("recurring_expenses")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("is_active", true)
+          .limit(10000),
       ]);
+
+    const recurringExps = (recurringExpResult.data ?? []) as RecurringExpense[];
+    const recurringExpMonthly = totalRecurringMonthly(recurringExps);
+    const recurringExpYTDValue = totalRecurringYTD(recurringExps);
 
     const transactions = (txResult.data ?? []) as Transaction[];
     const pipelineDeals = (pipelineResult.data ?? []) as PipelineDeal[];
@@ -172,21 +183,21 @@ export default async function ScenariosPage() {
       0,
     );
 
-    // Monthly recurring from expense items — matches dashboard (line 554–557)
+    // Monthly recurring from expense items + recurring_expenses table
     const expenseItems = expItemResult.data ?? [];
-    const monthlyRecurring = expenseItems.reduce(
+    const legacyMonthlyRecurring = expenseItems.reduce(
       (sum, i) => sum + Number(i.monthly_recurring ?? 0),
       0,
     );
-    // expensesYTD: max(receiptTotal, recurringYTDEstimate) — matches dashboard (line 559–561)
+    const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
     const receiptYTD = (receiptResult.data ?? []).reduce(
       (sum, r) => sum + Number(r.total_amount ?? 0),
       0,
     );
     const now = new Date();
     const expMonthsElapsed = now.getMonth() + (now.getDate() / 30);
-    const recurringYTDEstimate = monthlyRecurring * expMonthsElapsed;
-    const expensesYTD = Math.max(receiptYTD, recurringYTDEstimate);
+    const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
+    const expensesYTD = Math.max(receiptYTD, legacyRecurringYTDEstimate) + recurringExpYTDValue;
 
     const qPcts = settingsRow?.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25];
     const fraction = seasonalFractionElapsed(qPcts);

@@ -100,6 +100,8 @@ interface Props {
   userId?: string;
   /** Referral summary for PDF Page 7 */
   referralSummary?: { inboundCount: number; outboundCount: number; feesEarned: number; feesPaid: number };
+  recurringExpMonthly?: number;
+  recurringExpYTD?: number;
 }
 
 // ── buildHealthReport imported from @/lib/engines/health-report ──────────────
@@ -196,6 +198,8 @@ export function ReportsContent({
   taxYear,
   userId = "",
   referralSummary,
+  recurringExpMonthly = 0,
+  recurringExpYTD = 0,
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const [downloading, setDownloading] = useState(false);
@@ -271,14 +275,16 @@ export function ReportsContent({
   const agentNet = agentGross - txFees - brokerageFeeYTD;
 
   // ── Expenses ──────────────────────────────────────────────────────────────────
+  // Includes both legacy expense_items.monthly_recurring AND new recurring_expenses table
   const receiptTotal = Object.values(receiptTotalsByKey).reduce((s, v) => s + v, 0);
-  const monthlyRecurring = expenseCategories.reduce(
+  const legacyMonthlyRecurring = expenseCategories.reduce(
     (sum, cat) => sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
     0,
   );
+  const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
   const monthsElapsed = now.getMonth() + (now.getDate() / 30);
-  const recurringYTDEstimate = monthlyRecurring * monthsElapsed;
-  const expensesYTD = receiptTotal + recurringYTDEstimate;
+  const legacyRecurringYTDEstimate = legacyMonthlyRecurring * monthsElapsed;
+  const expensesYTD = receiptTotal + legacyRecurringYTDEstimate + recurringExpYTD;
   const netPreTax = agentNet - expensesYTD;
   const expenseRatio = ytdGCI > 0 ? (expensesYTD / ytdGCI) * 100 : 0;
 

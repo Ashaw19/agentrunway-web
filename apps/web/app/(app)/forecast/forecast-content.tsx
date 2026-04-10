@@ -73,6 +73,8 @@ interface Props {
   receiptYTD?: number;
   mileageKmTotal?: number;
   ccaAssetCount?: number;
+  recurringExpMonthly?: number;
+  recurringExpYTD?: number;
 }
 
 export function ForecastContent({
@@ -86,6 +88,8 @@ export function ForecastContent({
   receiptYTD: receiptYTDProp = 0,
   mileageKmTotal = 0,
   ccaAssetCount = 0,
+  recurringExpMonthly = 0,
+  recurringExpYTD = 0,
 }: Props) {
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
 
@@ -168,16 +172,17 @@ export function ForecastContent({
   const projectedNet = agentGross - txFees - brokerageFeeAnnual;
 
   // ── Expenses ──────────────────────────────────────────────────────────
+  // Includes both legacy expense_items.monthly_recurring AND new recurring_expenses table
   const receiptTotal = receiptYTDProp;
-  const monthlyRecurring = expenseCategories.reduce(
+  const legacyMonthlyRecurring = expenseCategories.reduce(
     (sum, cat) => sum + cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0),
     0,
   );
-  // Effective YTD: higher of receipt-verified actuals or recurring estimates
+  const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
   const _now = new Date();
   const _monthsElapsed = _now.getMonth() + (_now.getDate() / 30);
-  const recurringYTDEstimate = monthlyRecurring * _monthsElapsed;
-  const expensesYTD = Math.max(receiptTotal, recurringYTDEstimate);
+  const legacyRecurringYTDEstimate = legacyMonthlyRecurring * _monthsElapsed;
+  const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
   // Project full-year: actual YTD + remaining months of recurring
   const remainingMonths = Math.max(0, 12 - Math.ceil(_monthsElapsed));
   const annualExpenses = expensesYTD + monthlyRecurring * remainingMonths;

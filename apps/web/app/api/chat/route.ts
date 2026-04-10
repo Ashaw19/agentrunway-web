@@ -33,6 +33,8 @@ import {
   deviationPromptFragment,
 } from "@agent-runway/core/engines/deviation-engine";
 import { generateInsights, type Insight } from "@agent-runway/core/engines/insights-engine";
+import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import type { RecurringExpense } from "@/lib/types/database";
 import { CREA_BOARDS, fetchBoardData, computeMarketMomentum } from "@/lib/crea-board";
 import { generateTeamComparativeInsights } from "@agent-runway/core/engines";
 import { classifyTopic, classifyTopicMulti, PAGE_TO_TOPICS, TOPIC_ACTION_LINKS, type TroubleshootingTopic } from "@/lib/troubleshooting-classifier";
@@ -153,6 +155,7 @@ export async function POST(req: NextRequest) {
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()),
         supabase.from("receipt_expenses").select("total_amount").eq("user_id", user.id).gte("expense_date", `${new Date().getFullYear()}-01-01`),
+        supabase.from("recurring_expenses").select("*").eq("user_id", user.id).eq("is_active", true),
       ]);
     // Safely extract results — individual query failures won't kill the entire chat
     const val = <T,>(r: PromiseSettledResult<T>, fallback: T): T =>
@@ -166,6 +169,10 @@ export async function POST(req: NextRequest) {
     const { count: staleClientCount } = val(settled[4], emptyResult);
     const { count: staleClientCount14 } = val(settled[5], emptyResult);
     const { data: receiptRows } = val(settled[6], emptyResult);
+    const { data: recurringExpRows } = val(settled[7], emptyResult);
+    const recurringExps = (recurringExpRows ?? []) as RecurringExpense[];
+    const recurringExpMonthly = totalRecurringMonthly(recurringExps);
+    const recurringExpYTDTotal = totalRecurringYTD(recurringExps);
 
     if (settings && transactions) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -174,19 +181,20 @@ export async function POST(req: NextRequest) {
       const ytdGCI = ytdTx.reduce((sum: number, tx: any) => sum + computeGCI(tx), 0);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pipelineWeighted = (pipeline ?? []).reduce((sum: number, d: any) => sum + computeWeightedGCI(d), 0);
-      // Match dashboard expense logic: Math.max(receiptTotal, monthlyRecurring * monthsElapsed)
+      // Match dashboard expense logic: Math.max(receiptTotal, legacyRecurring * monthsElapsed) + recurringExpYTD
       const receiptTotal = (receiptRows ?? []).reduce(
         (sum: number, r: { total_amount?: number | string | null }) => sum + Number(r.total_amount ?? 0), 0,
       );
-      const monthlyRecurring = (expenseCategories ?? []).reduce(
+      const legacyMonthlyRecurring = (expenseCategories ?? []).reduce(
         (sum: number, cat: { expense_items?: { monthly_recurring?: number | string }[] }) =>
           sum + (cat.expense_items ?? []).reduce((s: number, i: { monthly_recurring?: number | string }) => s + Number(i.monthly_recurring ?? 0), 0),
         0,
       );
+      const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
       const expNow = new Date();
       const expMonthsElapsed = expNow.getMonth() + (expNow.getDate() / 30);
-      const recurringYTDEstimate = monthlyRecurring * expMonthsElapsed;
-      const expensesYTD = Math.max(receiptTotal, recurringYTDEstimate);
+      const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
+      const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTDTotal;
       const splitMatch = settings.split_preset?.match(/p(\d+)_(\d+)/);
       const splitLabel = splitMatch ? `${splitMatch[1]}% agent / ${splitMatch[2]}% brokerage` : settings.split_preset;
       // Pace vs goal is computed in the engine outputs section below using

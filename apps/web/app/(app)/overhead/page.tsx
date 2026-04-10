@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { OverheadContent } from "./overhead-content";
-import type { HistoryItem, Transaction, PipelineDeal, SplitPreset } from "@/lib/types/database";
+import type { HistoryItem, Transaction, PipelineDeal, SplitPreset, RecurringExpense } from "@/lib/types/database";
+import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
 import { projectedYearEndGCI, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
 import type { ScenarioSeedData } from "@/app/(app)/scenarios/page";
@@ -99,6 +100,7 @@ export default async function OverheadPage() {
     ccaResult,
     historyResult,
     pipelineResult,
+    recurringExpResult,
   ] = await Promise.all([
     supabase
       .from("transactions")
@@ -147,7 +149,17 @@ export default async function OverheadPage() {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(10000),
+    supabase
+      .from("recurring_expenses")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .limit(10000),
   ]);
+
+  const recurringExpenses = (recurringExpResult.data ?? []) as RecurringExpense[];
+  const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
+  const recurringExpYTD = totalRecurringYTD(recurringExpenses);
 
   const transactions = (txResult.data ?? []) as Transaction[];
   const expenseItems = expItemResult.data ?? [];
@@ -173,10 +185,11 @@ export default async function OverheadPage() {
   // ── Build scenario seed from the same data ──
   const ytdGCI = transactions.reduce((sum, tx) => sum + computeGCI(tx), 0);
   const pipelineWeightedGCI = pipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
-  const monthlyRecurring = expenseItems.reduce((sum, i) => sum + Number(i.monthly_recurring ?? 0), 0);
+  const legacyMonthlyRecurring = expenseItems.reduce((sum, i) => sum + Number(i.monthly_recurring ?? 0), 0);
+  const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
   const now = new Date();
   const expMonthsElapsed = now.getMonth() + (now.getDate() / 30);
-  const expensesYTD = Math.max(receiptYTD, monthlyRecurring * expMonthsElapsed);
+  const expensesYTD = Math.max(receiptYTD, legacyMonthlyRecurring * expMonthsElapsed) + recurringExpYTD;
   const qPcts = rawSettings?.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25];
   const fraction = seasonalFractionElapsed(qPcts);
   const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, rawSettings?.goal_gci ?? 0);
@@ -217,6 +230,8 @@ export default async function OverheadPage() {
       pipelineDeals={pipelineDeals}
       subscriptionTier={rawSettings?.subscription_tier ?? "starter"}
       scenarioSeed={scenarioSeed}
+      recurringExpMonthly={recurringExpMonthly}
+      recurringExpYTD={recurringExpYTD}
     />
   );
 }

@@ -8,6 +8,8 @@ import {
   getSandboxReceiptYTD,
   getSandboxMileageTotal,
 } from "@/lib/sandbox-resolver";
+import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import type { RecurringExpense } from "@/lib/types/database";
 
 export default async function ForecastPage() {
   const supabase = await createClient();
@@ -55,7 +57,7 @@ export default async function ForecastPage() {
 
   // ── Normal path ───────────────────────────────────────────────
   const year = new Date().getFullYear();
-  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, mileageResult, ccaResult, receiptTotalsResult, listingApptResult] =
+  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, mileageResult, ccaResult, receiptTotalsResult, listingApptResult, recurringExpResult] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -112,7 +114,17 @@ export default async function ForecastPage() {
         .eq("user_id", user.id)
         .not("status", "in", "(sold,expired,withdrawn,lost)")
         .limit(10000),
+      supabase
+        .from("recurring_expenses")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .limit(10000),
     ]);
+
+  const recurringExpenses = (recurringExpResult.data ?? []) as RecurringExpense[];
+  const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
+  const recurringExpYTD = totalRecurringYTD(recurringExpenses);
 
   const expenseCategories = (expCatResult.data ?? []).map((cat) => ({
     ...cat,
@@ -144,6 +156,8 @@ export default async function ForecastPage() {
       receiptYTD={receiptYTD}
       mileageKmTotal={mileageKmTotal}
       ccaAssetCount={ccaAssetCount}
+      recurringExpMonthly={recurringExpMonthly}
+      recurringExpYTD={recurringExpYTD}
     />
   );
 }
