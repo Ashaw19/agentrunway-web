@@ -17,7 +17,7 @@ import { ExplainButton } from "@/components/explain-button";
 import { GuideLink } from "@/components/guide-link";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight, Download, FileText, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight, Download, FileText, RefreshCw, AlertTriangle, Clock } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   computeGCI,
@@ -84,6 +84,8 @@ import {
   getCurrentFilingPeriod,
   deadlineUrgency,
 } from "@agent-runway/core/engines/filing-period-engine";
+import { computeGST34 } from "@agent-runway/core/engines/gst34-engine";
+import { gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import type { FilingFrequency, FilingPeriod } from "@/lib/types/database";
 
 interface ExpenseItemForPlaid {
@@ -178,6 +180,33 @@ export function ExpensesContent({
       return d >= activePeriod.startDate && d <= activePeriod.endDate;
     });
   }, [receipts, activePeriod]);
+
+  // ── GST34 pre-fill computation ─────────────────────────────────────────
+  const gst34Result = useMemo(() => {
+    if (!activePeriod || !settings) return null;
+    // Filter transactions to the selected period
+    const periodTx = transactions.filter((tx) => {
+      const d = tx.date;
+      return d >= activePeriod.startDate && d <= activePeriod.endDate;
+    });
+    return computeGST34({
+      province: settings.province,
+      period: activePeriod,
+      frequency: filingFreq,
+      periodTransactions: periodTx.map((tx) => ({ gci: computeGCI(tx) })),
+      periodReceipts: filteredReceipts.map((r) => ({
+        total_amount: r.total_amount,
+        tax_amount: r.tax_amount,
+        category_key: r.category_key,
+      })),
+      instalmentsPaid: 0, // User can enter this in Reports tab
+    });
+  }, [activePeriod, settings, transactions, filteredReceipts, filingFreq]);
+
+  // ── Current period deadline alert ──────────────────────────────────────
+  const currentDeadline = useMemo(() => {
+    return deadlineUrgency(currentPeriod.deadline);
+  }, [currentPeriod]);
 
   // ── Receipt view / edit ────────────────────────────────────────────────────
   const [viewReceipt,  setViewReceipt]  = useState<ReceiptExpense | null>(null);
@@ -925,6 +954,36 @@ export function ExpensesContent({
         })()}
       </div>
 
+      {/* ── Deadline alert banner ──────────────────────────────────────── */}
+      {(currentDeadline.urgency === "overdue" || currentDeadline.urgency === "urgent") && (
+        <div className={cn(
+          "flex items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-sm",
+          currentDeadline.urgency === "overdue"
+            ? "border border-red-300 bg-red-50 text-red-800"
+            : "border border-amber-300 bg-amber-50 text-amber-800",
+        )}>
+          <AlertTriangle className={cn(
+            "h-4 w-4 shrink-0",
+            currentDeadline.urgency === "overdue" ? "text-red-600" : "text-amber-600",
+          )} />
+          <div className="flex-1">
+            <span className="font-semibold">
+              {currentDeadline.urgency === "overdue"
+                ? `${settings ? gstHstLabel(settings.province) : "GST/HST"} return overdue`
+                : `${settings ? gstHstLabel(settings.province) : "GST/HST"} return due soon`}
+            </span>
+            <span className="ml-1.5 font-normal">
+              — {currentPeriod.label} filing is {currentDeadline.label}.
+              {" "}Deadline: {new Date(currentPeriod.deadline + "T00:00:00").toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric" })}.
+            </span>
+          </div>
+          <Clock className={cn(
+            "h-4 w-4 shrink-0",
+            currentDeadline.urgency === "overdue" ? "text-red-500" : "text-amber-500",
+          )} />
+        </div>
+      )}
+
       {/* ── Tab bar ──────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-1 border-b border-border/60">
         {(["receipts", "mileage", "imports"] as const).map((t) => (
@@ -975,6 +1034,121 @@ export function ExpensesContent({
 
       {/* ── Tab: Receipts ─────────────────────────────────────────────────── */}
       {tab === "receipts" && (<>
+
+      {/* ── GST34 Pre-Fill Summary ───────────────────────────────────────── */}
+      {gst34Result && activePeriod && (
+        <Card className="border-l-4 border-l-sky-500">
+          <CardHeader className="pb-2">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  GST34 Summary — {gst34Result.periodLabel}
+                </CardTitle>
+                <CardDescription className="mt-0.5 text-xs">
+                  Pre-fill helper for your {gst34Result.taxLabel} return · CRA Form GST34
+                </CardDescription>
+              </div>
+              <div className="text-right">
+                <div className={cn(
+                  "text-2xl font-bold tabular-nums",
+                  gst34Result.line113 > 0 ? "text-red-700" : gst34Result.line113 < 0 ? "text-emerald-700" : "text-slate-700",
+                )}>
+                  {fmtCurrency(Math.abs(gst34Result.line113))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {gst34Result.line113 > 0 ? "Est. balance owing" : gst34Result.line113 < 0 ? "Est. refund" : "Net zero"}
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-3">
+            {/* Line items */}
+            <div className="rounded-lg border text-sm">
+              {gst34Result.lines.map((line, i) => {
+                const isNetTax = line.line === "109";
+                const isResult = line.line === "113";
+                const isDeduction = line.line === "106" || line.line === "107" || line.line === "108" || line.line === "110";
+                return (
+                  <div
+                    key={line.line}
+                    className={cn(
+                      "flex items-center justify-between gap-3 px-4 py-2",
+                      i > 0 && "border-t border-border/50",
+                      isNetTax && "bg-slate-50 font-medium",
+                      isResult && (gst34Result.line113 >= 0
+                        ? "bg-red-50 border-t-2 border-t-red-200 font-bold"
+                        : "bg-emerald-50 border-t-2 border-t-emerald-200 font-bold"),
+                    )}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-500">
+                        {line.line}
+                      </span>
+                      <div className="min-w-0">
+                        <span className={cn(
+                          "text-sm",
+                          isResult ? (gst34Result.line113 >= 0 ? "text-red-800" : "text-emerald-800") : "",
+                        )}>
+                          {line.label}
+                        </span>
+                        <p className="text-[10px] text-muted-foreground/70 truncate">{line.note}</p>
+                      </div>
+                    </div>
+                    <span className={cn(
+                      "shrink-0 tabular-nums text-right",
+                      isResult
+                        ? (gst34Result.line113 >= 0 ? "text-red-700" : "text-emerald-700")
+                        : isDeduction && line.amount > 0
+                        ? "text-emerald-600"
+                        : line.amount < 0
+                        ? "text-red-600"
+                        : "",
+                    )}>
+                      {isDeduction && line.amount > 0 && line.line !== "108" ? "−" : ""}
+                      {fmtCurrency(Math.abs(line.amount))}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Deadline + disclaimer */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {(() => {
+                const dl = deadlineUrgency(activePeriod.deadline);
+                return (
+                  <div className={cn(
+                    "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium",
+                    dl.urgency === "overdue" ? "bg-red-100 text-red-700" :
+                    dl.urgency === "urgent" ? "bg-amber-100 text-amber-700" :
+                    dl.urgency === "soon" ? "bg-amber-50 text-amber-600" :
+                    "bg-slate-100 text-slate-600",
+                  )}>
+                    <Clock className="h-3 w-3" />
+                    Filing deadline: {new Date(activePeriod.deadline + "T00:00:00").toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" })} ({dl.label})
+                  </div>
+                );
+              })()}
+              <span className="text-[10px] text-muted-foreground">
+                {gst34Result.taxLabel} rate: {gst34Result.taxRate === 0.14975 ? "14.975%" : `${(gst34Result.taxRate * 100).toFixed(0)}%`}
+              </span>
+            </div>
+
+            <TaxDisclaimer />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Deadline approaching (for "All YTD" view — show when within 30 days) ── */}
+      {!activePeriod && currentDeadline.urgency !== "ok" && currentDeadline.urgency !== "overdue" && (
+        <div className="flex items-center gap-2.5 rounded-lg border border-amber-200 bg-amber-50/60 px-3.5 py-2.5 text-sm text-amber-800">
+          <Clock className="h-4 w-4 shrink-0 text-amber-600" />
+          <span>
+            <strong>{currentPeriod.label}</strong> {settings ? gstHstLabel(settings.province) : "GST/HST"} filing deadline is approaching — {currentDeadline.label}.
+            Select the period above to see your GST34 pre-fill summary.
+          </span>
+        </div>
+      )}
 
       {/* ── Tax Deductibility Summary ────────────────────────────────────── */}
       {effectiveTotal > 0 && (

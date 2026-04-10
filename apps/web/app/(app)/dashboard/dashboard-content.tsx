@@ -104,7 +104,10 @@ import {
   type HistoryItem,
   type ContactTask,
   type ListingAppointment,
+  type FilingFrequency,
 } from "@/lib/types/database";
+import { getCurrentFilingPeriod, deadlineUrgency } from "@agent-runway/core/engines/filing-period-engine";
+import { gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
@@ -334,6 +337,21 @@ export function DashboardContent({
       : _propSettings,
     [sandbox.sandboxMode, sandbox.sandboxData, _propSettings],
   );
+
+  // ── Filing deadline alert ────────────────────────────────────────────
+  const filingDeadlineAlert = useMemo(() => {
+    if (!settings) return null;
+    const freq = (settings.filing_frequency as FilingFrequency) ?? "quarterly";
+    const period = getCurrentFilingPeriod(freq);
+    const dl = deadlineUrgency(period.deadline);
+    if (dl.urgency === "ok") return null;
+    return {
+      urgency: dl.urgency,
+      deadlineLabel: dl.label,
+      periodLabel: period.label,
+      taxLabel: gstHstLabel(settings.province),
+    };
+  }, [settings]);
 
   // Show activation modal on first visit if sandbox never activated and user has no data
   useEffect(() => {
@@ -2266,6 +2284,45 @@ export function DashboardContent({
 
       {/* Sandbox Expiry Modal */}
       <SandboxExpiryModal open={showExpiryModal} onDismiss={() => setShowExpiryModal(false)} />
+
+      {/* ── GST/HST Filing Deadline Alert ───────────────────────────────── */}
+      {settings && filingDeadlineAlert && (filingDeadlineAlert.urgency === "overdue" || filingDeadlineAlert.urgency === "urgent" || filingDeadlineAlert.urgency === "soon") && (
+        <div className={cn(
+          "flex items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-sm",
+          filingDeadlineAlert.urgency === "overdue"
+            ? "border border-red-300 bg-red-50 text-red-800"
+            : filingDeadlineAlert.urgency === "urgent"
+            ? "border border-amber-300 bg-amber-50 text-amber-800"
+            : "border border-amber-200 bg-amber-50/60 text-amber-700",
+        )}>
+          <AlertTriangle className={cn(
+            "h-4 w-4 shrink-0",
+            filingDeadlineAlert.urgency === "overdue" ? "text-red-600" :
+            "text-amber-500",
+          )} />
+          <div className="flex-1 text-sm">
+            <strong>
+              {filingDeadlineAlert.urgency === "overdue"
+                ? `${filingDeadlineAlert.taxLabel} return overdue`
+                : `${filingDeadlineAlert.taxLabel} filing deadline approaching`}
+            </strong>
+            <span className="ml-1.5 font-normal">
+              — {filingDeadlineAlert.periodLabel} is {filingDeadlineAlert.deadlineLabel}.
+            </span>
+          </div>
+          <a
+            href="/expenses"
+            className={cn(
+              "shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+              filingDeadlineAlert.urgency === "overdue"
+                ? "bg-red-100 text-red-700 hover:bg-red-200"
+                : "bg-amber-100 text-amber-700 hover:bg-amber-200",
+            )}
+          >
+            View Expenses →
+          </a>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3 pb-2">
