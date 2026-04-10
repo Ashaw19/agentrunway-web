@@ -86,6 +86,7 @@ import {
 } from "@agent-runway/core/engines/filing-period-engine";
 import { computeGST34 } from "@agent-runway/core/engines/gst34-engine";
 import { gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
+import { reconcileDeals, type ReconciliationResult, type ReconciliationMatch, type ImportedDeal } from "@agent-runway/core/engines/reconciliation-engine";
 import type { FilingFrequency, FilingPeriod } from "@/lib/types/database";
 
 interface ExpenseItemForPlaid {
@@ -225,6 +226,109 @@ export function ExpensesContent({
   const [reVehicle, setReVehicle] = useState(false);
   const [reNotes, setReNotes] = useState("");
   const [reSaving, setReSaving] = useState(false);
+
+  // ── Brokerage statement reconciliation ─────────────────────────────────
+  const [reconOpen, setReconOpen] = useState(false);
+  const [reconUploading, setReconUploading] = useState(false);
+  const [reconResult, setReconResult] = useState<ReconciliationResult | null>(null);
+  const [reconAdding, setReconAdding] = useState(false);
+  const reconFileRef = useRef<HTMLInputElement>(null);
+
+  async function handleStatementUpload(file: File) {
+    setReconUploading(true);
+    setReconResult(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("mode", "reconcile");
+
+      const res = await fetch("/api/import-history", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Upload failed" }));
+        throw new Error(err.error || "Upload failed");
+      }
+      const data = await res.json();
+      const deals: ImportedDeal[] = (data.deals || []).map((d: Record<string, unknown>, i: number) => ({
+        _importId: `imp-${i}-${Date.now()}`,
+        date: d.date as string,
+        address: d.address as string,
+        gci: d.gci as number,
+        sale_price: (d.sale_price as number) ?? null,
+        side: d.side as "buyer" | "seller" | "both" | undefined,
+        client_name: (d.party_a as string) || (d.party_b as string) || "",
+        commission_pct: (d.commission_percent as number) ?? null,
+        net_income: (d.net_income as number) ?? null,
+        confidence: d.confidence as Record<string, string> | undefined,
+        issues: d.issues as string[] | undefined,
+      }));
+      if (deals.length === 0) {
+        toast.error("No transactions found in the uploaded file.");
+        setReconUploading(false);
+        return;
+      }
+      const result = reconcileDeals(deals, transactions);
+      setReconResult(result);
+      toast.success(`Found ${deals.length} transaction${deals.length !== 1 ? "s" : ""} in statement.`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Upload failed";
+      toast.error(msg);
+    } finally {
+      setReconUploading(false);
+    }
+  }
+
+  function setReconDecision(importId: string, decision: "skip" | "add") {
+    if (!reconResult) return;
+    setReconResult({
+      ...reconResult,
+      matches: reconResult.matches.map((m) =>
+        m.imported._importId === importId ? { ...m, decision } : m,
+      ),
+    });
+  }
+
+  async function commitReconDeals() {
+    if (!reconResult || !settings) return;
+    const toAdd = reconResult.matches.filter((m) => m.decision === "add");
+    if (toAdd.length === 0) {
+      toast.info("No deals selected to add.");
+      return;
+    }
+    setReconAdding(true);
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const inserts = toAdd.map((m) => ({
+        user_id: user.id,
+        date: m.imported.date,
+        address: m.imported.address,
+        sale_price: m.imported.sale_price ?? 0,
+        commission_pct: m.imported.commission_pct ?? 0,
+        gci_override: m.imported.gci,
+        side: m.imported.side ?? "buyer",
+        status: "closed" as const,
+        client_name: m.imported.client_name ?? "",
+        notes: "Imported from brokerage statement",
+        source: "imported" as const,
+      }));
+      const { error } = await supabase.from("transactions").insert(inserts);
+      if (error) throw error;
+      toast.success(`Added ${toAdd.length} deal${toAdd.length !== 1 ? "s" : ""} from brokerage statement.`);
+      setReconResult(null);
+      setReconOpen(false);
+      // Trigger page reload to reflect new transactions
+      window.location.reload();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to add deals";
+      toast.error(msg);
+    } finally {
+      setReconAdding(false);
+    }
+  }
 
   // Fetch recurring expenses on mount
   useEffect(() => {
@@ -1136,6 +1240,193 @@ export function ExpensesContent({
 
             <TaxDisclaimer />
           </CardContent>
+        </Card>
+      )}
+
+      {/* ── Brokerage Statement Reconciliation ─────────────────────────────── */}
+      {gst34Result && activePeriod && (
+        <Card className="border-l-4 border-l-indigo-400">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-indigo-500" />
+                  Verify with Brokerage Statement
+                </CardTitle>
+                <CardDescription className="mt-0.5 text-xs">
+                  Upload your brokerage commission statement to cross-check deals in {gst34Result.periodLabel}
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setReconOpen(!reconOpen)}
+                className="shrink-0"
+              >
+                {reconOpen ? "Close" : "Upload Statement"}
+              </Button>
+            </div>
+          </CardHeader>
+          {reconOpen && (
+            <CardContent className="pt-0 space-y-3">
+              {/* Upload area */}
+              {!reconResult && (
+                <div
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors cursor-pointer",
+                    reconUploading ? "border-indigo-300 bg-indigo-50/50" : "border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30",
+                  )}
+                  onClick={() => reconFileRef.current?.click()}
+                >
+                  <input
+                    ref={reconFileRef}
+                    type="file"
+                    accept=".csv,.pdf,.txt,.xlsx"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleStatementUpload(f);
+                      e.target.value = "";
+                    }}
+                  />
+                  {reconUploading ? (
+                    <>
+                      <RefreshCw className="h-6 w-6 text-indigo-500 animate-spin" />
+                      <p className="text-sm text-indigo-600 font-medium">Analyzing statement…</p>
+                      <p className="text-xs text-muted-foreground">AI is extracting transactions and matching against your records</p>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-6 w-6 text-slate-400" />
+                      <p className="text-sm font-medium text-slate-600">Drop your brokerage statement here</p>
+                      <p className="text-xs text-muted-foreground">CSV, PDF, or text file from your brokerage</p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Reconciliation results */}
+              {reconResult && (
+                <div className="space-y-3">
+                  {/* Summary counts */}
+                  <div className="flex flex-wrap gap-2">
+                    {reconResult.matchCount > 0 && (
+                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                        <Check className="h-3 w-3 mr-1" /> {reconResult.matchCount} matched
+                      </Badge>
+                    )}
+                    {reconResult.possibleCount > 0 && (
+                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                        <AlertTriangle className="h-3 w-3 mr-1" /> {reconResult.possibleCount} needs review
+                      </Badge>
+                    )}
+                    {reconResult.newCount > 0 && (
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                        <Plus className="h-3 w-3 mr-1" /> {reconResult.newCount} new ({fmtCurrency(reconResult.newGCI)} GCI)
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Deal-by-deal list */}
+                  <div className="rounded-lg border text-sm divide-y">
+                    {reconResult.matches.map((m) => (
+                      <div key={m.imported._importId} className={cn(
+                        "px-3 py-2.5",
+                        m.status === "match" ? "bg-emerald-50/40" :
+                        m.status === "possible" ? "bg-amber-50/40" :
+                        "bg-blue-50/40",
+                      )}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={cn(
+                                "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold",
+                                m.status === "match" ? "bg-emerald-100 text-emerald-700" :
+                                m.status === "possible" ? "bg-amber-100 text-amber-700" :
+                                "bg-blue-100 text-blue-700",
+                              )}>
+                                {m.status === "match" ? "MATCHED" : m.status === "possible" ? "REVIEW" : "NEW"}
+                              </span>
+                              <span className="font-medium truncate">{m.imported.address}</span>
+                            </div>
+                            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-xs text-muted-foreground">
+                              <span>{m.imported.date}</span>
+                              <span>GCI {fmtCurrency(m.imported.gci)}</span>
+                              {m.imported.side && <span className="capitalize">{m.imported.side}</span>}
+                              {m.score > 0 && m.status !== "new" && <span>Score: {m.score}/100</span>}
+                            </div>
+                            {/* Discrepancies */}
+                            {m.discrepancies.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                {m.discrepancies.map((d, di) => (
+                                  <span key={di} className={cn(
+                                    "inline-flex items-center rounded px-1.5 py-0.5 text-[10px]",
+                                    d.severity === "warning" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600",
+                                  )}>
+                                    {d.field}: {typeof d.imported === "number" ? fmtCurrency(d.imported) : d.imported} → {typeof d.existing === "number" ? fmtCurrency(d.existing) : d.existing}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          {/* Action buttons */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            {m.status === "match" ? (
+                              <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
+                                <Check className="h-3 w-3" /> Already recorded
+                              </span>
+                            ) : (
+                              <>
+                                <Button
+                                  variant={m.decision === "add" ? "default" : "outline"}
+                                  size="sm"
+                                  className="h-7 text-xs px-2"
+                                  onClick={() => setReconDecision(m.imported._importId, "add")}
+                                >
+                                  <Plus className="h-3 w-3 mr-0.5" /> Add
+                                </Button>
+                                <Button
+                                  variant={m.decision === "skip" ? "default" : "outline"}
+                                  size="sm"
+                                  className="h-7 text-xs px-2"
+                                  onClick={() => setReconDecision(m.imported._importId, "skip")}
+                                >
+                                  Skip
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Commit actions */}
+                  <div className="flex items-center justify-between gap-3">
+                    <Button variant="outline" size="sm" onClick={() => { setReconResult(null); }}>
+                      Upload Different File
+                    </Button>
+                    {reconResult.matches.some((m) => m.decision === "add") && (
+                      <Button
+                        size="sm"
+                        className="bg-indigo-600 hover:bg-indigo-700"
+                        disabled={reconAdding}
+                        onClick={commitReconDeals}
+                      >
+                        {reconAdding ? (
+                          <><RefreshCw className="h-3 w-3 mr-1 animate-spin" /> Adding…</>
+                        ) : (
+                          <>Add {reconResult.matches.filter((m) => m.decision === "add").length} Deal{reconResult.matches.filter((m) => m.decision === "add").length !== 1 ? "s" : ""}</>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+
+                  <TaxDisclaimer />
+                </div>
+              )}
+            </CardContent>
+          )}
         </Card>
       )}
 
