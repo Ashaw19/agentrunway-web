@@ -22,7 +22,7 @@ import {
 import { survivalResult, type SurvivalResult } from "@agent-runway/core/engines/survival-engine";
 import { compute as computeRunwayScore, type RunwayScoreResult } from "@agent-runway/core/engines/runway-score-engine";
 import { buildHealthReport } from "@agent-runway/core/engines/health-report";
-import { calculate as calculateTax, type CanadianTaxResult } from "@agent-runway/core/engines/canadian-tax-engine";
+import { calculate as calculateTax, type CanadianTaxResult, gstHstRate, gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import { compare as benchmarkCompare, COHORT_LABELS, type BenchmarkResult } from "@agent-runway/core/engines/benchmark-engine";
 import { probabilityBands, type ProbabilityBands } from "@agent-runway/core/engines/probabilistic-forecast-engine";
 import { computeWhereYouStand, BAND_LABELS, MOMENTUM_LABELS, type WhereYouStandResult } from "@agent-runway/core/engines/where-you-stand-engine";
@@ -34,7 +34,9 @@ import {
 } from "@agent-runway/core/engines/deviation-engine";
 import { generateInsights, type Insight } from "@agent-runway/core/engines/insights-engine";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import type { RecurringExpense } from "@/lib/types/database";
+import { getCurrentFilingPeriod, deadlineUrgency } from "@agent-runway/core/engines/filing-period-engine";
+
+import type { RecurringExpense, FilingFrequency } from "@/lib/types/database";
 import { CREA_BOARDS, fetchBoardData, computeMarketMomentum } from "@/lib/crea-board";
 import { generateTeamComparativeInsights } from "@agent-runway/core/engines";
 import { classifyTopic, classifyTopicMulti, PAGE_TO_TOPICS, TOPIC_ACTION_LINKS, type TroubleshootingTopic } from "@/lib/troubleshooting-classifier";
@@ -151,11 +153,13 @@ export async function POST(req: NextRequest) {
         supabase.from("user_settings").select("*").eq("user_id", user.id).single(),
         supabase.from("transactions").select("date, sale_price, commission_pct, team_split_pct, gci_override").eq("user_id", user.id).eq("status", "closed"),
         supabase.from("pipeline_deals").select("estimated_price, estimated_commission_pct, probability_override, stage").eq("user_id", user.id),
-        supabase.from("expense_categories").select("expense_items(ytd_amount, monthly_recurring)").eq("user_id", user.id),
+        supabase.from("expense_categories").select("key, expense_items(key, ytd_amount, monthly_recurring)").eq("user_id", user.id),
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
         supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()),
         supabase.from("receipt_expenses").select("total_amount").eq("user_id", user.id).gte("expense_date", `${new Date().getFullYear()}-01-01`),
         supabase.from("recurring_expenses").select("*").eq("user_id", user.id).eq("is_active", true),
+        supabase.from("receipt_expenses").select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("expense_date", `${new Date().getFullYear()}-01-01`),
+        supabase.from("receipt_expenses").select("total_amount, tax_amount, category_key, expense_date").eq("user_id", user.id).gte("expense_date", `${new Date().getFullYear()}-01-01`),
       ]);
     // Safely extract results — individual query failures won't kill the entire chat
     const val = <T,>(r: PromiseSettledResult<T>, fallback: T): T =>
@@ -170,6 +174,8 @@ export async function POST(req: NextRequest) {
     const { count: staleClientCount14 } = val(settled[5], emptyResult);
     const { data: receiptRows } = val(settled[6], emptyResult);
     const { data: recurringExpRows } = val(settled[7], emptyResult);
+    const { count: receiptCount } = val(settled[8], emptyResult);
+    const { data: receiptDetailsRows } = val(settled[9], emptyResult);
     const recurringExps = (recurringExpRows ?? []) as RecurringExpense[];
     const recurringExpMonthly = totalRecurringMonthly(recurringExps);
     const recurringExpYTDTotal = totalRecurringYTD(recurringExps);
@@ -261,7 +267,7 @@ export async function POST(req: NextRequest) {
             .eq("user_id", user.id),
           supabase
             .from("history_items")
-            .select("year, annual_tx, annual_gci, quarter_gci")
+            .select("year, annual_tx, annual_gci, annual_expenses, quarter_gci")
             .eq("user_id", user.id),
         ]);
 
@@ -525,6 +531,214 @@ export async function POST(req: NextRequest) {
           });
         }
 
+        // ── Tax Intelligence Block ──────────────────────────────────────────
+        // Pre-computed tax insights the Co-Pilot can surface proactively.
+        // Rule: NEVER encourage higher claims or suggest specific percentages
+        // for vehicle/home-office business-use. Only promote responsible documentation.
+        const taxIntelLines: (string | null)[] = [
+          "",
+          "── TAX INTELLIGENCE (surface these proactively when relevant) ──",
+        ];
+
+        // 1. Missing Deduction Detection — flag $0 categories likely to have real spend
+        if (ytdTx.length >= 3) {
+          const allItemKeys = new Set<string>();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (expenseCategories ?? []).forEach((cat: any) => {
+            (cat.expense_items ?? []).forEach((item: { key: string; ytd_amount?: number | string; monthly_recurring?: number | string }) => {
+              if (Number(item.ytd_amount ?? 0) > 0 || Number(item.monthly_recurring ?? 0) > 0) {
+                allItemKeys.add(item.key);
+              }
+            });
+          });
+          // Also count recurring expenses by category
+          recurringExps.forEach((re) => { if (re.category_key) allItemKeys.add(re.category_key); });
+
+          const CORE_CATEGORIES: Record<string, string> = {
+            vehicle: "Vehicle expenses (gas, insurance, lease)",
+            marketing: "Marketing & advertising",
+            office: "Office & technology",
+            professional: "Professional fees (MLS, licensing, E&O)",
+          };
+          const missingCats: string[] = [];
+          for (const [prefix, label] of Object.entries(CORE_CATEGORIES)) {
+            const hasAny = [...allItemKeys].some((k) => k.startsWith(prefix));
+            if (!hasAny) missingCats.push(label);
+          }
+          if (missingCats.length > 0) {
+            taxIntelLines.push(
+              `[MISSING DEDUCTIONS] Agent has ${ytdTx.length} closed deals but $0 recorded in: ${missingCats.join(", ")}. ` +
+              `These are categories where most active agents have real expenses. Gently note this — don't suggest amounts, ` +
+              `just encourage capturing receipts and recording what they actually spend.`,
+            );
+          }
+        }
+
+        // 2. Tax Installment Cash Flow Planning
+        {
+          const quarterlyInstalment = taxResult.quarterlyEstimate;
+          const perDealSetAside = taxResult.perDealSetAside;
+          const currentQ = getCurrentQuarter();
+          const nextInstalmentQ = currentQ < 4 ? currentQ + 1 : 1;
+          const nextInstalmentLabel = currentQ === 1 ? "June 15" : currentQ === 2 ? "Sep 15" : currentQ === 3 ? "Dec 15" : "Mar 15";
+          if (quarterlyInstalment > 500) {
+            taxIntelLines.push(
+              `[INSTALMENT PLANNING] Quarterly instalment estimate: ${fmtCurrency(quarterlyInstalment)}. ` +
+              `Next CRA instalment due ~${nextInstalmentLabel}. ` +
+              `At ${fmtCurrency(perDealSetAside)} per deal, suggest setting aside that amount from each closing to stay ahead. ` +
+              `These are estimates only — recommend consulting their accountant for exact instalment amounts.`,
+            );
+          }
+        }
+
+        // 3. GST/HST Refund vs. Owing Forecast
+        {
+          const filingFreq = (settings.filing_frequency ?? "quarterly") as FilingFrequency;
+          const hstRate = gstHstRate((settings.province ?? "ontario") as Parameters<typeof gstHstRate>[0]);
+          const totalHSTCollected = ytdGCI * agentPct * hstRate;
+          const receiptDetails = (receiptDetailsRows ?? []) as { total_amount?: number | null; tax_amount?: number | null; category_key?: string | null }[];
+          const totalITCsClaimed = receiptDetails.reduce((sum, r) => sum + Number(r.tax_amount ?? 0), 0);
+          const netHST = totalHSTCollected - totalITCsClaimed;
+          if (ytdGCI > 0) {
+            taxIntelLines.push(
+              `[GST/HST FORECAST] Estimated ${gstHstLabel((settings.province ?? "ontario") as Parameters<typeof gstHstLabel>[0])} collected YTD: ~${fmtCurrency(totalHSTCollected)}. ` +
+              `ITCs claimed from receipts: ${fmtCurrency(totalITCsClaimed)}. ` +
+              `Estimated net ${netHST >= 0 ? "owing" : "refund"}: ${fmtCurrency(Math.abs(netHST))}. ` +
+              `Filing frequency: ${filingFreq}. ` +
+              (receiptCount != null && receiptCount < ytdTx.length * 3
+                ? `Receipt capture rate looks low (${receiptCount} receipts vs ${ytdTx.length} deals) — each uncaptured business receipt is a lost ITC. `
+                : "") +
+              `These are estimates — actual amounts depend on registered status and exact filing.`,
+            );
+          }
+        }
+
+        // 4. Expense Ratio Trend Warning (YoY comparison)
+        {
+          const currentRatio = ytdGCI > 0 ? expensesYTD / ytdGCI : 0;
+          const priorYears = (historyItems ?? [])
+            .filter((h: { year: number; annual_gci: number; annual_expenses?: number }) =>
+              h.year < currentYear && h.annual_gci > 0)
+            .sort((a: { year: number }, b: { year: number }) => b.year - a.year);
+          if (priorYears.length > 0 && ytdGCI > 0) {
+            const lastYear = priorYears[0] as { year: number; annual_gci: number; annual_expenses?: number };
+            const priorRatio = lastYear.annual_gci > 0 && (lastYear.annual_expenses ?? 0) > 0
+              ? (lastYear.annual_expenses ?? 0) / lastYear.annual_gci
+              : null;
+            if (priorRatio != null && currentRatio > priorRatio + 0.05) {
+              taxIntelLines.push(
+                `[EXPENSE TREND] Current expense ratio (${(currentRatio * 100).toFixed(1)}%) is up from ${lastYear.year}'s ${(priorRatio * 100).toFixed(1)}%. ` +
+                `This isn't necessarily bad but worth reviewing which categories grew. ` +
+                `Remind the agent to evaluate whether the increased spending is generating returns.`,
+              );
+            }
+          }
+        }
+
+        // 5. Incorporation Decision Support
+        if (projectedNetIncome > 50000 && (settings.business_structure ?? "sole_proprietor") !== "corporation") {
+          taxIntelLines.push(
+            `[INCORPORATION SIGNAL] Projected net income ${fmtCurrency(projectedNetIncome)} is above the threshold ` +
+            `where incorporation may offer tax advantages. Do NOT advise them to incorporate — just note that at this ` +
+            `income level, it's worth having a conversation with their accountant about business structure options.`,
+          );
+        }
+
+        // 6. Receipt Capture Compliance Score
+        {
+          const totalClaimableItems = (expenseCategories ?? []).reduce(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (sum: number, cat: any) => sum + (cat.expense_items ?? []).filter(
+              (i: { ytd_amount?: number | string }) => Number(i.ytd_amount ?? 0) > 0,
+            ).length,
+            0,
+          ) + recurringExps.length;
+          const capturedReceipts = receiptCount ?? 0;
+          if (totalClaimableItems > 0) {
+            const docRate = totalClaimableItems > 0
+              ? Math.min(100, Math.round((capturedReceipts / Math.max(totalClaimableItems, 1)) * 100))
+              : 0;
+            taxIntelLines.push(
+              `[DOCUMENTATION] ${capturedReceipts} receipts captured YTD against ${totalClaimableItems} expense items with amounts. ` +
+              (docRate < 60
+                ? `Documentation rate is low. CRA requires supporting documentation for all claimed deductions. ` +
+                  `Encourage capturing receipts — "Record your claims responsibly so you can validate them if challenged by CRA."`
+                : docRate < 90
+                ? `Good start on documentation, but some gaps remain. Encourage complete receipt capture.`
+                : `Strong documentation habits — well-positioned if CRA reviews their return.`),
+            );
+          }
+        }
+
+        // 7. Seasonal Tax Set-Aside Adjustments
+        {
+          const currentQ = getCurrentQuarter();
+          const qFraction = engineSeasonalWeights[currentQ - 1];
+          if (qFraction > 0.30 && ytdTx.length > 0) {
+            // This is a heavy quarter — agent earning disproportionately
+            const qDeals = ytdTx.filter((tx: { date: string }) => {
+              const m = new Date(tx.date).getMonth();
+              return Math.floor(m / 3) + 1 === currentQ;
+            }).length;
+            if (qDeals >= 2) {
+              taxIntelLines.push(
+                `[SEASONAL SET-ASIDE] Q${currentQ} is a peak earning quarter (${(qFraction * 100).toFixed(0)}% of annual weight). ` +
+                `Agent closed ${qDeals} deals this quarter. At marginal rate ${(taxResult.effectiveRate * 100).toFixed(1)}%, ` +
+                `remind them to set aside proportionally more for tax during high-earning months. ` +
+                `Per-deal set-aside: ${fmtCurrency(taxResult.perDealSetAside)}.`,
+              );
+            }
+          }
+        }
+
+        // 8. CCA (Depreciation) Reminders
+        {
+          // Check if any hardware/equipment items have spend but no CCA assets tracked
+          const hasEquipmentSpend = [...(expenseCategories ?? [])].some(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (cat: any) => (cat.expense_items ?? []).some(
+              (i: { key: string; ytd_amount?: number | string }) =>
+                i.key === "office_hardware" && Number(i.ytd_amount ?? 0) > 500,
+            ),
+          );
+          if (hasEquipmentSpend) {
+            taxIntelLines.push(
+              `[CCA OPPORTUNITY] Agent has hardware/equipment expenses over $500. Larger purchases (laptop, camera, signage) ` +
+              `may qualify as depreciable capital assets under CCA rather than current-year expenses. ` +
+              `Suggest asking their accountant whether CCA treatment would be more advantageous.`,
+            );
+          }
+        }
+
+        // 9. Filing Deadline Countdown
+        {
+          const filingFreq = (settings.filing_frequency ?? "quarterly") as FilingFrequency;
+          try {
+            const currentPeriod = getCurrentFilingPeriod(filingFreq);
+            const deadlineInfo = deadlineUrgency(currentPeriod.deadline);
+            if (deadlineInfo.daysUntil <= 30 && deadlineInfo.daysUntil > 0) {
+              taxIntelLines.push(
+                `[FILING DEADLINE] ${filingFreq.charAt(0).toUpperCase() + filingFreq.slice(1)} GST/HST return ` +
+                `for ${currentPeriod.label} is due ${currentPeriod.deadline} (${deadlineInfo.label}). ` +
+                `Urgency: ${deadlineInfo.urgency}. ` +
+                `Action items: capture any outstanding receipts for this period, review ITC totals, ` +
+                `and prepare filing. The Tax page has a GST34 pre-fill tool.`,
+              );
+            } else if (deadlineInfo.daysUntil <= 0) {
+              taxIntelLines.push(
+                `[OVERDUE FILING] ${filingFreq.charAt(0).toUpperCase() + filingFreq.slice(1)} GST/HST return ` +
+                `for ${currentPeriod.label} was due ${currentPeriod.deadline} — now ${deadlineInfo.label}. ` +
+                `CRA charges interest and penalties on late filings. Urge prompt filing.`,
+              );
+            }
+          } catch {
+            // Non-critical — filing period computation may fail if settings are incomplete
+          }
+        }
+
+        taxIntelLines.push("── END TAX INTELLIGENCE ──");
+        engineLines.push(...taxIntelLines);
+
         engineLines.push("── END COMPUTED ENGINE OUTPUTS ──");
 
         financialContext += "\n\n" + engineLines.filter(Boolean).join("\n");
@@ -707,6 +921,7 @@ Important: All outputs you generate are estimates for informational purposes onl
 - Give actionable, specific observations tailored to Canadian real estate agents
 - When users ask about platform features, metrics, or terms, explain them accurately using the knowledge base
 - When discussing taxes, always remind the user that these are estimates only — NOT professional tax advice. Recommend consulting a qualified Canadian accountant or tax professional for tax decisions. Never tell users to claim specific deductions or file specific forms.
+- TAX COMPLIANCE RULE (MANDATORY): NEVER encourage agents to increase claim percentages for vehicle business-use, home office, or any other deduction. NEVER suggest what percentage they should claim. NEVER compare their percentages to benchmarks or other agents. Treat all user-entered claim percentages as facts — do not comment on whether they seem high or low. The ONLY acceptable guidance is: "Record your claims responsibly so you can validate them if challenged by Canada Revenue Agency." When surfacing tax intelligence, focus on documentation, deadlines, and awareness — never on maximizing claims.
 - Speak in a direct, expert tone — like a knowledgeable business tool, not a chatbot
 - If you don't have enough data to answer precisely, say so and suggest what data to add
 - Keep responses short and scannable. Prefer bullet points over long paragraphs.
@@ -720,6 +935,9 @@ When the agent's data shows any of these patterns, surface them naturally in you
 - Pipeline is thin relative to goal → recommend adding pipeline deals or outreach
 - Cash / survival runway under 3 months → treat as urgent, name it clearly
 - If they're close to hitting their annual goal → acknowledge momentum positively
+- Tax Intelligence items tagged [MISSING DEDUCTIONS], [INSTALMENT PLANNING], [GST/HST FORECAST], [DOCUMENTATION], [FILING DEADLINE], [OVERDUE FILING], etc. → surface these naturally when discussing finances, taxes, or expenses. Don't dump all at once — weave them in when contextually relevant.
+- Missing deductions or low documentation → frame as "you may want to capture receipts for..." not "you should claim..."
+- Filing deadlines within 30 days or overdue → always mention, with action items
 
 IMPORTANT: On the very first message from the agent, if their data shows a notable pattern (behind pace, high expenses, stale clients), proactively open with that insight rather than waiting to be asked. Frame it conversationally: "Looking at your numbers, I noticed..." Proactively surface notable patterns and data points.
 
