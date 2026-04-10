@@ -398,13 +398,17 @@ export interface UserSettings {
 
 // ── Recurring Expense ──────────────────────────────────────────────────────
 
+export type RecurringFrequency = 'monthly' | 'quarterly' | 'annual';
+
 export interface RecurringExpense {
   id: string;
   user_id: string;
   name: string;
   amount: number;
   category_key: string;
+  frequency: RecurringFrequency;
   day_of_month: number;       // 1-28
+  month_of_year: number | null; // 1-12 for annual; starting quarter month for quarterly
   hst_included: boolean;
   hst_amount: number;
   vehicle_pct_applicable: boolean;

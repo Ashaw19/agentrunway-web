@@ -222,7 +222,9 @@ export function ExpensesContent({
   const [reName, setReName] = useState("");
   const [reAmount, setReAmount] = useState("");
   const [reCategory, setReCategory] = useState("");
+  const [reFrequency, setReFrequency] = useState<"monthly" | "quarterly" | "annual">("monthly");
   const [reDay, setReDay] = useState("1");
+  const [reMonthOfYear, setReMonthOfYear] = useState("1");
   const [reHstIncluded, setReHstIncluded] = useState(false);
   const [reHstAmount, setReHstAmount] = useState("");
   const [reVehicle, setReVehicle] = useState(false);
@@ -382,7 +384,9 @@ export function ExpensesContent({
       setReName(existing.name);
       setReAmount(String(existing.amount));
       setReCategory(existing.category_key);
+      setReFrequency(existing.frequency ?? "monthly");
       setReDay(String(existing.day_of_month));
+      setReMonthOfYear(String(existing.month_of_year ?? 1));
       setReHstIncluded(existing.hst_included);
       setReHstAmount(String(existing.hst_amount ?? 0));
       setReVehicle(existing.vehicle_pct_applicable);
@@ -392,7 +396,9 @@ export function ExpensesContent({
       setReName("");
       setReAmount("");
       setReCategory("");
+      setReFrequency("monthly");
       setReDay("1");
+      setReMonthOfYear("1");
       setReHstIncluded(false);
       setReHstAmount("");
       setReVehicle(false);
@@ -413,7 +419,9 @@ export function ExpensesContent({
       name: reName.trim(),
       amount: parseFloat(reAmount) || 0,
       category_key: reCategory,
+      frequency: reFrequency,
       day_of_month: Math.min(28, Math.max(1, parseInt(reDay) || 1)),
+      month_of_year: reFrequency !== "monthly" ? Math.min(12, Math.max(1, parseInt(reMonthOfYear) || 1)) : null,
       hst_included: reHstIncluded,
       hst_amount: reHstIncluded ? (() => {
         const manual = parseFloat(reHstAmount) || 0;
@@ -2098,6 +2106,9 @@ export function ExpensesContent({
                       </TableCell>
                       <TableCell className="text-right text-sm font-medium">
                         {fmtCurrency(re.amount)}
+                        <span className="text-[10px] font-normal text-muted-foreground ml-1">
+                          /{(re.frequency ?? "monthly") === "monthly" ? "mo" : (re.frequency ?? "monthly") === "quarterly" ? "qtr" : "yr"}
+                        </span>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">
                         <Badge variant="secondary" className="text-[10px]">
@@ -2105,7 +2116,13 @@ export function ExpensesContent({
                         </Badge>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-center text-xs text-muted-foreground">
-                        {re.day_of_month}{re.day_of_month === 1 ? "st" : re.day_of_month === 2 ? "nd" : re.day_of_month === 3 ? "rd" : "th"}
+                        {(re.frequency ?? "monthly") === "monthly" ? (
+                          <>Day {re.day_of_month}</>
+                        ) : (re.frequency ?? "monthly") === "quarterly" ? (
+                          <>Quarterly</>
+                        ) : (
+                          <>{["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][(re.month_of_year ?? 1) - 1]}</>
+                        )}
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-center text-xs">
                         {re.hst_included ? (
@@ -2134,10 +2151,18 @@ export function ExpensesContent({
           )}
           <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
             <span>
-              Monthly total: <strong className="text-foreground">{fmtCurrency(recurringExpenses.reduce((s, r) => s + Number(r.amount), 0))}</strong>
+              Monthly avg: <strong className="text-foreground">{fmtCurrency(recurringExpenses.reduce((s, r) => {
+                const freq = r.frequency ?? "monthly";
+                const amt = Number(r.amount);
+                return s + (freq === "monthly" ? amt : freq === "quarterly" ? amt / 3 : amt / 12);
+              }, 0))}</strong>
             </span>
             <span>
-              Annual estimate: <strong className="text-foreground">{fmtCurrency(recurringExpenses.reduce((s, r) => s + Number(r.amount), 0) * 12)}</strong>
+              Annual total: <strong className="text-foreground">{fmtCurrency(recurringExpenses.reduce((s, r) => {
+                const freq = r.frequency ?? "monthly";
+                const amt = Number(r.amount);
+                return s + (freq === "monthly" ? amt * 12 : freq === "quarterly" ? amt * 4 : amt);
+              }, 0))}</strong>
             </span>
           </div>
         </CardContent>
@@ -2425,9 +2450,33 @@ export function ExpensesContent({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* Frequency selector */}
+            <div className="space-y-1">
+              <Label className="text-xs">How often?</Label>
+              <div className="flex gap-1.5">
+                {(["monthly", "quarterly", "annual"] as const).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setReFrequency(f)}
+                    className={cn(
+                      "flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors border",
+                      reFrequency === f
+                        ? "bg-slate-900 text-white border-slate-900"
+                        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50",
+                    )}
+                  >
+                    {f === "monthly" ? "Monthly" : f === "quarterly" ? "Quarterly" : "Annual"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className={cn("grid gap-3", reFrequency !== "monthly" ? "grid-cols-3" : "grid-cols-2")}>
               <div className="space-y-1">
-                <Label className="text-xs">Monthly amount ($) <span className="text-red-500">*</span></Label>
+                <Label className="text-xs">
+                  {reFrequency === "monthly" ? "Amount per month" : reFrequency === "quarterly" ? "Amount per quarter" : "Annual amount"} ($) <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -2435,7 +2484,6 @@ export function ExpensesContent({
                   value={reAmount}
                   onChange={(e) => {
                     setReAmount(e.target.value);
-                    // Auto-recalculate HST when amount changes and HST is checked
                     if (reHstIncluded && settings?.province) {
                       const rate = gstHstRate(settings.province);
                       const total = parseFloat(e.target.value) || 0;
@@ -2447,6 +2495,21 @@ export function ExpensesContent({
                   className="text-sm"
                 />
               </div>
+              {reFrequency !== "monthly" && (
+                <div className="space-y-1">
+                  <Label className="text-xs">{reFrequency === "annual" ? "Which month?" : "Starting month"}</Label>
+                  <Select value={reMonthOfYear} onValueChange={setReMonthOfYear}>
+                    <SelectTrigger className="text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].map((m, i) => (
+                        <SelectItem key={i + 1} value={String(i + 1)}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-1">
                 <Label className="text-xs">Day of month (1-28)</Label>
                 <Input
@@ -2459,6 +2522,15 @@ export function ExpensesContent({
                 />
               </div>
             </div>
+
+            {reFrequency !== "monthly" && (
+              <p className="text-[10px] text-muted-foreground -mt-1">
+                {reFrequency === "annual"
+                  ? `This expense will appear once per year in ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(reMonthOfYear) - 1] || "Jan"}.`
+                  : `This expense will appear every 3 months starting in ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][parseInt(reMonthOfYear) - 1] || "Jan"}.`
+                }
+              </p>
+            )}
 
             <div className="space-y-1">
               <Label className="text-xs">Category <span className="text-red-500">*</span></Label>
