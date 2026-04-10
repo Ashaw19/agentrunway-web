@@ -78,14 +78,15 @@ const sidebarEntries: SidebarEntry[] = [
     type: "item", label: "Flight Control", href: "/flight-control", icon: Sparkles,
     iconActive: "text-fuchsia-300", iconInactive: "text-fuchsia-400/50", borderActive: "border-l-fuchsia-400", textActive: "text-fuchsia-200",
   },
-  {
-    type: "item", label: "Inbox", href: "/inbox", icon: Inbox,
-    iconActive: "text-rose-300", iconInactive: "text-rose-400/50", borderActive: "border-l-rose-400", textActive: "text-rose-200",
-  },
-  {
-    type: "item", label: "Referrals", href: "/referrals", icon: Handshake,
-    iconActive: "text-lime-300", iconInactive: "text-lime-400/50", borderActive: "border-l-lime-400", textActive: "text-lime-200",
-  },
+  // Inbox and Referrals hidden until fully built
+  // {
+  //   type: "item", label: "Inbox", href: "/inbox", icon: Inbox,
+  //   iconActive: "text-rose-300", iconInactive: "text-rose-400/50", borderActive: "border-l-rose-400", textActive: "text-rose-200",
+  // },
+  // {
+  //   type: "item", label: "Referrals", href: "/referrals", icon: Handshake,
+  //   iconActive: "text-lime-300", iconInactive: "text-lime-400/50", borderActive: "border-l-lime-400", textActive: "text-lime-200",
+  // },
   // ── TOOLS ──────────────────────────────────────────────────────
   { type: "header", label: "TOOLS" },
   {

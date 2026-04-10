@@ -42,7 +42,7 @@ export async function requirePro(
 
   // Check org membership (active/trialing org or beta org)
   const { data: memberships } = await supabase
-    .from("org_members")
+    .from("organization_members")
     .select("status, organizations(subscription_status, is_beta)")
     .eq("user_id", userId)
     .eq("status", "active");
