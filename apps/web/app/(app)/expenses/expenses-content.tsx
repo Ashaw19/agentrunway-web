@@ -2546,7 +2546,7 @@ export function ExpensesContent({
 
       {/* ── Recurring Expense dialog ──────────────────────────────────────── */}
       <Dialog open={recurringDialogOpen} onOpenChange={setRecurringDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <RefreshCw className="h-4 w-4" />
@@ -2690,48 +2690,36 @@ export function ExpensesContent({
                   This amount includes {settings ? gstHstLabel(settings.province) : "GST/HST"}
                 </Label>
               </div>
-              {reHstIncluded && (
-                <div className="rounded-md border bg-slate-50 px-3 py-2 text-xs space-y-1">
-                  {(() => {
-                    const rate = settings ? gstHstRate(settings.province) : 0;
-                    const total = parseFloat(reAmount) || 0;
-                    const hst = total > 0 && rate > 0 ? total - total / (1 + rate) : 0;
-                    const preTax = total - hst;
-                    const taxLabel = settings ? gstHstLabel(settings.province) : "GST/HST";
-                    const ratePct = rate === 0.14975 ? "14.975%" : `${(rate * 100).toFixed(0)}%`;
-                    return total > 0 ? (
+              {reHstIncluded && (() => {
+                const rate = settings ? gstHstRate(settings.province) : 0;
+                const total = parseFloat(reAmount) || 0;
+                const hst = total > 0 && rate > 0 ? total - total / (1 + rate) : 0;
+                const taxLabel = settings ? gstHstLabel(settings.province) : "GST/HST";
+                const ratePct = rate === 0.14975 ? "14.975%" : `${(rate * 100).toFixed(0)}%`;
+                return (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-slate-50 px-3 py-1.5 text-xs">
+                    {total > 0 ? (
                       <>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Pre-tax amount:</span>
-                          <span className="font-medium">{fmtCurrency(preTax)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">{taxLabel} ({ratePct}):</span>
-                          <span className="font-medium text-emerald-700">{fmtCurrency(hst)}</span>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground/70 pt-0.5">
-                          Auto-calculated from ${reAmount} at {ratePct}. The {taxLabel} portion is claimable as an ITC on your GST34.
-                        </p>
+                        <span className="text-muted-foreground">Pre-tax: <strong className="text-foreground">{fmtCurrency(total - hst)}</strong></span>
+                        <span className="text-muted-foreground">{taxLabel} ({ratePct}): <strong className="text-emerald-700">{fmtCurrency(hst)}</strong></span>
                       </>
                     ) : (
-                      <p className="text-muted-foreground">Enter the total monthly amount above to see the {taxLabel} breakdown.</p>
-                    );
-                  })()}
-                  <div className="pt-1 border-t">
-                    <div className="flex items-center gap-2">
-                      <Label className="text-[10px] text-muted-foreground whitespace-nowrap">Override {settings ? gstHstLabel(settings.province) : "HST"} amount:</Label>
+                      <span className="text-muted-foreground">Enter amount to see {taxLabel} breakdown</span>
+                    )}
+                    <span className="ml-auto flex items-center gap-1">
+                      <Label className="text-[10px] text-muted-foreground">Override:</Label>
                       <Input
                         type="number"
                         step="0.01"
                         placeholder="Auto"
                         value={reHstAmount}
                         onChange={(e) => setReHstAmount(e.target.value)}
-                        className="h-6 text-xs w-24"
+                        className="h-6 text-xs w-20"
                       />
-                    </div>
+                    </span>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             <div className="flex items-center gap-2">
