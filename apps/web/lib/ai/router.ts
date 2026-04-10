@@ -36,6 +36,7 @@ const TOPIC_TO_TIER: Record<TroubleshootingTopic, ModelTier> = {
   "transactions":    "default",
   "survival":        "default",
   "benchmark":       "default",
+  "teams":           "default",
 
   // Complex tier — deep financial reasoning
   "tax":             "complex",

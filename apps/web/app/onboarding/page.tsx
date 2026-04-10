@@ -167,8 +167,52 @@ export default function OnboardingPage() {
   const [hasEmployees, setHasEmployees] = useState(false);
   const [numEmployees, setNumEmployees] = useState("");
 
+  // Team context — detect if this user joined via team invite
+  const [teamInfo, setTeamInfo] = useState<{ orgName: string; leaderName: string } | null>(null);
+
   useEffect(() => {
     setMounted(true);
+
+    // Check if user has a team membership (accepted invite before onboarding)
+    (async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        const { data: membership } = await supabase
+          .from("organization_members")
+          .select("org_id, organizations(name)")
+          .eq("user_id", user.id)
+          .in("status", ["active", "pending"])
+          .maybeSingle();
+        if (membership?.org_id) {
+          const orgData = membership.organizations as unknown as { name: string } | { name: string }[] | null;
+          const orgName = (Array.isArray(orgData) ? orgData[0]?.name : orgData?.name) ?? "your team";
+          // Find the team leader's display name
+          const { data: leader } = await supabase
+            .from("organization_members")
+            .select("user_id")
+            .eq("org_id", membership.org_id)
+            .in("role", ["owner", "team_leader"])
+            .limit(1)
+            .maybeSingle();
+          let leaderName = "your team leader";
+          if (leader?.user_id) {
+            const { data: leaderSettings } = await supabase
+              .from("user_settings")
+              .select("display_name")
+              .eq("user_id", leader.user_id)
+              .maybeSingle();
+            if (leaderSettings?.display_name) {
+              leaderName = leaderSettings.display_name.split(" ")[0]; // first name only
+            }
+          }
+          setTeamInfo({ orgName, leaderName });
+        }
+      } catch {
+        // Non-critical — team info is just a nice-to-have in onboarding
+      }
+    })();
   }, []);
 
   // Pre-fill a suggested GCI goal when the user reaches step 8, based on experience
@@ -317,7 +361,7 @@ export default function OnboardingPage() {
       >
         <div className="p-7 sm:p-8">
           {/* Step 0: Welcome */}
-          {step === 0 && <WelcomeStep onContinue={advance} />}
+          {step === 0 && <WelcomeStep onContinue={advance} teamInfo={teamInfo} />}
 
           {/* Step 1: Language */}
           {step === 1 && (
@@ -1010,20 +1054,46 @@ function LogoMark({ size = 36 }: { size?: number }) {
   );
 }
 
-function WelcomeStep({ onContinue }: { onContinue: () => void }) {
+function WelcomeStep({ onContinue, teamInfo }: { onContinue: () => void; teamInfo: { orgName: string; leaderName: string } | null }) {
   return (
     <div className="flex flex-col items-center gap-6 py-4 text-center">
       <LogoMark size={60} />
       <div>
         <h1 className="text-2xl font-bold text-white">
-          Welcome to Agent Runway.
+          {teamInfo
+            ? <>Welcome to {teamInfo.orgName}.</>
+            : <>Welcome to Agent Runway.</>}
         </h1>
         <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-white/55">
-          Your business analytics platform for Canadian real estate
-          professionals. We&apos;re going to spend about two minutes getting
-          your account properly configured.
+          {teamInfo ? (
+            <>
+              {teamInfo.leaderName} invited you to join {teamInfo.orgName} on Agent Runway.
+              Let&apos;s spend about two minutes setting up your personal account.
+            </>
+          ) : (
+            <>
+              Your business analytics platform for Canadian real estate
+              professionals. We&apos;re going to spend about two minutes getting
+              your account properly configured.
+            </>
+          )}
         </p>
       </div>
+
+      {/* Team context banner */}
+      {teamInfo && (
+        <div className="w-full max-w-xs rounded-lg border border-white/10 bg-white/5 p-3 text-left">
+          <div className="flex items-center gap-2 mb-2">
+            <Building2 className="h-4 w-4 text-orange-400 shrink-0" />
+            <span className="text-[12px] font-semibold text-white/80">Joining as a team member</span>
+          </div>
+          <ul className="space-y-1 text-[11px] text-white/50">
+            <li>• Your leader can see your GCI and pipeline summary</li>
+            <li>• Your expenses, taxes, splits, and client details stay private</li>
+            <li>• You can leave the team at any time from Settings</li>
+          </ul>
+        </div>
+      )}
 
       {/* Feature bullets */}
       <div className="flex w-full max-w-xs flex-col gap-2">

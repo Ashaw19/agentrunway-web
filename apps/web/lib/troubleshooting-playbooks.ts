@@ -1183,6 +1183,111 @@ After onboarding, a welcome tour highlights key features:
   // ═══════════════════════════════════════════════════════════════════════════
   // GENERAL (catch-all)
   // ═══════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TEAMS & ORGANIZATIONS
+  // ═══════════════════════════════════════════════════════════════════════════
+  teams: `## TROUBLESHOOTING: TEAMS & ORGANIZATIONS
+
+### Overview
+Agent Runway Teams allows brokerages and team leaders to manage agents under one organization.
+Pricing: $149/mo team leader + $55/mo per member seat. The Ellis Realty beta has lifetime free access.
+
+### Architecture
+- **Organization** = top-level container (name, logo, type, seat limit)
+- **Members** = agents linked to an org (roles: owner, team_leader, agent)
+- **Invite Flow**: Leader sends invite email → member accepts → consent page → onboarding (if new)
+- **Data Sharing**: Tiered consent model — agents choose what their leader can see
+
+### What Leaders Can See (Tier 1 — always shared)
+- YTD GCI and deal count per agent
+- Pipeline deal count and estimated value
+- Agent activity level (touch counts, not content)
+
+### What Leaders Can NEVER See
+- Tax data, filings, CRA information
+- Expense amounts and categories
+- Commission splits and brokerage fees
+- Cash reserves and runway months
+- Individual transaction details
+- Previous years' earnings
+- Client names, contact details, or notes
+
+### Team Reports (Leader Only)
+5 pre-built reports available from /org/reports:
+1. **Pipeline Health** — Team pipeline value, agents with no pipeline despite deals, coverage ratio
+2. **Transactions in Flight** — Pending deals, total value, nearest close dates
+3. **CRM Consistency** — Average touchpoints per agent, outlier detection (low/high activity)
+4. **Tax Responsibility** — Which agents are missing expense logs, receipts, or categories (aggregate, no amounts)
+5. **Forecasting** — Pace vs goal per agent, who's ahead/behind, team average pace
+
+### Team Insights Engine (Org Dashboard)
+Generates coaching insights from aggregate data:
+- Empty pipeline warnings
+- Goal pace deltas
+- Production concentration (Pareto check)
+- Deal size benchmarks
+- Praise for high performers
+
+### Common Issues
+
+**"Member not showing up"**
+1. Check /org/members for pending invitations — they may not have accepted yet
+2. Invite tokens expire after 30 days — re-invite if expired
+3. The invited person must create an Agent Runway account first (or log in) before accepting
+
+**"Invite link not working"**
+- Token may have expired (30-day limit)
+- Member may need to log in first — the invite page redirects to /login with a return URL
+- Re-send the invite from /org/members
+
+**"Can the leader see my expenses / taxes?"**
+- NO. Tax data, expenses, commission splits, cash reserves, and transaction details are NEVER shared.
+- Only YTD GCI, deal count, and pipeline summary are visible to leaders (Tier 1 consent).
+- Members can optionally enable Extended Sharing (monthly breakdown) from their Consent settings.
+
+**"How do I read team reports?"**
+- Navigate to /org/reports — only visible to owners and team_leaders
+- Each report tab shows a different aspect of team performance
+- Data is aggregated and privacy-safe — no individual financial details exposed
+
+**"Team comparison in my dashboard?"**
+- The comparative insights engine shows agents how they compare to team averages
+- This appears in the Co-Pilot chat and on the dashboard when team data is available
+- Comparisons reference the team leader by first name for coaching context
+
+**"How do I add more seats?"**
+- Go to /org/billing → adjust seat count in subscription
+- Seat limit is enforced — inviting over max_seats is blocked
+- Contact support@agentrunway.com for bulk seat changes
+
+**"How do I leave a team?"**
+- Members can leave from their Consent settings at any time
+- Leaving removes data sharing — all previously shared data is no longer visible to the leader
+- The member keeps their individual account and all personal data
+
+### Batch Invite
+The invite form on /org/members supports comma-separated emails.
+Enter multiple emails in one go: "agent1@email.com, agent2@email.com, agent3@email.com"
+
+### Leader Onboarding Checklist
+When a new team leader asks "What should I do first?", guide them through:
+1. Create organization → /org/create (name, type, logo)
+2. Set seat limit → /org/settings
+3. Invite members → /org/members (enter emails, comma-separated for batch)
+4. Wait for acceptance → monitor pending invites on /org/members
+5. Review team dashboard → /org once members start entering data
+6. Explore reports → /org/reports for pipeline health, CRM consistency, forecasting
+7. Ask the Co-Pilot about team performance any time — it has team context built in
+
+### Member Onboarding Checklist
+When a new member asks "I just joined a team, what do I do?":
+1. Accept invite → click link in email, review consent, accept
+2. Complete personal onboarding → province, split, goal, experience
+3. Start entering data → transactions, pipeline, expenses
+4. Your leader can see your GCI and pipeline (Tier 1) — nothing else
+5. Ask the Co-Pilot — it knows your team context and can compare your pace
+`,
+
   general: `## GENERAL TROUBLESHOOTING
 
 ### When No Specific Topic Matches

@@ -24,6 +24,7 @@ export type TroubleshootingTopic =
   | "import"
   | "voice"
   | "onboarding"
+  | "teams"
   | "general";
 
 interface TopicRule {
@@ -55,6 +56,12 @@ export const PAGE_TO_TOPICS: Record<string, TroubleshootingTopic[]> = {
   "/settings":     ["settings"],
   "/history":      ["import"],
   "/guide":        ["onboarding"],
+  "/org":          ["teams"],
+  "/org/members":  ["teams"],
+  "/org/billing":  ["teams"],
+  "/org/reports":  ["teams"],
+  "/org/settings": ["teams", "settings"],
+  "/org/audit-log": ["teams"],
 };
 
 /**
@@ -124,6 +131,13 @@ export const TOPIC_ACTION_LINKS: Record<TroubleshootingTopic, { label: string; h
   onboarding: [
     { label: "Guide", href: "/guide" },
     { label: "Settings", href: "/settings" },
+  ],
+  teams: [
+    { label: "Team Dashboard", href: "/org" },
+    { label: "Members & Invites", href: "/org/members" },
+    { label: "Team Billing", href: "/org/billing" },
+    { label: "Team Reports", href: "/org/reports" },
+    { label: "Team Settings", href: "/org/settings" },
   ],
   general: [],
 };
@@ -426,6 +440,49 @@ const TOPIC_RULES: TopicRule[] = [
       "welcome tour",
       "first steps",
       "new to agent runway",
+    ],
+  },
+  {
+    topic: "teams",
+    primary: ["team", "organization", "org", "member", "teammate", "leader", "brokerage team"],
+    secondary: ["invite", "seat", "billing", "role", "admin", "agent role", "cohort", "roster"],
+    phrases: [
+      "my team",
+      "team dashboard",
+      "team report",
+      "team performance",
+      "team average",
+      "invite member",
+      "add member",
+      "remove member",
+      "invite link",
+      "team billing",
+      "team leader",
+      "org settings",
+      "team settings",
+      "who can see my data",
+      "what does my leader see",
+      "data sharing",
+      "team comparison",
+      "compared to team",
+      "vs team",
+      "team goal",
+      "team meeting",
+      "onboard my team",
+      "member not showing",
+      "invite expired",
+      "pending invite",
+      "org dashboard",
+      "team insights",
+      "coaching",
+      "team coaching",
+      "pipeline health report",
+      "crm consistency",
+      "tax responsibility report",
+      "forecasting report",
+      "seat limit",
+      "member seat",
+      "how many seats",
     ],
   },
 ];

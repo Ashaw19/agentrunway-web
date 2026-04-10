@@ -374,6 +374,101 @@ export async function acceptInvitation(
   // Sync Stripe seat count (fire-and-forget, non-fatal)
   void syncOrgSeats(invitation.org_id);
 
+  // Send welcome email to the new member (fire-and-forget, non-fatal)
+  if (resend) {
+    const orgData = invitation.organizations as Record<string, unknown> | null;
+    const orgName = (orgData?.name as string) ?? "your team";
+    // Fetch leader name for personalization
+    const { data: leaderRow } = await admin
+      .from("organization_members")
+      .select("user_id")
+      .eq("org_id", invitation.org_id)
+      .in("role", ["owner", "team_leader"])
+      .limit(1)
+      .maybeSingle();
+    let leaderName = "Your team leader";
+    if (leaderRow?.user_id) {
+      const { data: leaderSettings } = await admin
+        .from("user_settings")
+        .select("display_name")
+        .eq("user_id", leaderRow.user_id)
+        .maybeSingle();
+      if (leaderSettings?.display_name) leaderName = leaderSettings.display_name;
+    }
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://agentrunway.ca";
+
+    void resend.emails.send({
+      from: FROM_ADDRESS,
+      to: invitation.email,
+      subject: `Welcome to ${orgName} on Agent Runway`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 0;">
+          <h2 style="color: #1a1a1a; margin-bottom: 8px;">Welcome to ${orgName}! 🎉</h2>
+          <p style="color: #555; line-height: 1.6; margin-bottom: 16px;">
+            You've officially joined <strong>${orgName}</strong> on Agent Runway. ${leaderName} and the rest of the team are glad to have you.
+          </p>
+
+          <div style="background: #f8f9fa; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+            <h3 style="color: #1a1a1a; font-size: 14px; margin: 0 0 12px 0;">Quick Start Checklist</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="padding: 6px 0; color: #555; font-size: 13px;">✅ Complete your personal setup</td></tr>
+              <tr><td style="padding: 6px 0; color: #555; font-size: 13px;">📊 Add your first transaction or pipeline deal</td></tr>
+              <tr><td style="padding: 6px 0; color: #555; font-size: 13px;">🧾 Capture a receipt to start expense tracking</td></tr>
+              <tr><td style="padding: 6px 0; color: #555; font-size: 13px;">💬 Ask the Co-Pilot anything about your business</td></tr>
+            </table>
+          </div>
+
+          <div style="background: #fffbeb; border-radius: 12px; padding: 16px; margin-bottom: 24px; border: 1px solid #fef3c7;">
+            <h4 style="color: #92400e; font-size: 13px; margin: 0 0 8px 0;">🔒 Your privacy is protected</h4>
+            <p style="color: #a16207; font-size: 12px; line-height: 1.5; margin: 0;">
+              Your leader can see your GCI totals and pipeline summary. Your expenses, tax details, commission splits, cash reserves, and client information are <strong>never shared</strong>.
+            </p>
+          </div>
+
+          <a href="${appUrl}/dashboard" style="display: inline-block; background: #f97316; color: #fff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">
+            Go to Dashboard
+          </a>
+
+          <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+          <p style="color: #aaa; font-size: 12px;">Agent Runway — Real estate business analytics</p>
+        </div>
+      `,
+    }).catch(() => {
+      // Welcome email failure is non-fatal
+    });
+
+    // Notify the team leader that a new member joined
+    if (leaderRow?.user_id) {
+      const { data: leaderAuth } = await admin.auth.admin.getUserById(leaderRow.user_id);
+      const leaderEmail = leaderAuth?.user?.email;
+      if (leaderEmail) {
+        void resend.emails.send({
+          from: FROM_ADDRESS,
+          to: leaderEmail,
+          subject: `${invitation.email} joined ${orgName}`,
+          html: `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 0;">
+              <h2 style="color: #1a1a1a; margin-bottom: 8px;">New team member joined</h2>
+              <p style="color: #555; line-height: 1.6; margin-bottom: 24px;">
+                <strong>${invitation.email}</strong> has accepted your invitation and joined <strong>${orgName}</strong> as a <strong>${invitation.role.replace("_", " ")}</strong>.
+              </p>
+              <p style="color: #555; line-height: 1.6; margin-bottom: 24px;">
+                Their data will appear on your team dashboard once they start entering transactions and pipeline deals.
+              </p>
+              <a href="${appUrl}/org/members" style="display: inline-block; background: #f97316; color: #fff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">
+                View Team Members
+              </a>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+              <p style="color: #aaa; font-size: 12px;">Agent Runway — Real estate business analytics</p>
+            </div>
+          `,
+        }).catch(() => {
+          // Leader notification failure is non-fatal
+        });
+      }
+    }
+  }
+
   return { data: member as OrganizationMember, error: null };
 }
 

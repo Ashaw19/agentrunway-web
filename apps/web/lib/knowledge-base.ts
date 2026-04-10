@@ -74,6 +74,23 @@ Accessible from Quick Actions FAB (floating action button) on every page. Record
 **AI ASSISTANT (this assistant)**
 Chat-based assistant with access to live financial data. Answers questions about finances, tax obligations, CRM strategy, outreach, and business performance. Uses Groq Llama 3.3 70B. Rate limit: 30 messages/hour. Available to Professional and Team plan subscribers. Tax disclaimer always applies — estimates only, consult a qualified accountant for filing.
 
+**TEAMS & ORGANIZATIONS**
+Allows brokerages and team leaders to manage agents under one organization. Pricing: $149/mo leader + $55/mo per member. Pages: /org (team dashboard), /org/members (invite & manage), /org/billing (subscription & seats), /org/reports (5 leader-only reports), /org/settings (name, logo, seats), /org/audit-log.
+
+Invite flow: Leader enters email(s) on /org/members (comma-separated for batch) → member receives email with invite link → accepts on /invite/[token] with consent checkbox → redirected to onboarding if new, dashboard if existing. Invite tokens expire after 30 days.
+
+Data sharing (Tier 1 — always shared with leader): YTD GCI, deal count, pipeline deal count, pipeline value. NEVER shared: tax data, expenses, commission splits, cash reserves, runway months, transaction details, client names/details, prior year earnings. Members can optionally enable Extended Sharing from Consent settings.
+
+5 Leader Reports: Pipeline Health (coverage ratio, agents with no pipeline), Transactions in Flight (pending deals, close dates), CRM Consistency (touchpoint benchmarking, outlier detection), Tax Responsibility (missing expenses/receipts per agent — aggregate only, no amounts), Forecasting (pace vs goal per agent, team average).
+
+Org Insights Engine: Generates coaching alerts from aggregate data — empty pipelines, goal pace deltas, production concentration, deal size benchmarks, high performer praise.
+
+Team Comparative Engine (agent-facing): Shows agents how they compare to team averages in pace, pipeline, deal size, activity, expense ratio. References leader by first name for coaching context.
+
+Leader Quick-Start: 1) Create org on /org/create, 2) Set seats on /org/settings, 3) Invite members on /org/members (batch via comma-separated emails), 4) Monitor invites until accepted, 5) Review team dashboard on /org, 6) Explore reports on /org/reports, 7) Ask the Co-Pilot about team performance.
+
+Member Quick-Start: 1) Accept invite from email link, 2) Complete personal onboarding, 3) Start entering transactions/pipeline/expenses, 4) Leader sees only GCI + pipeline (Tier 1), 5) Ask Co-Pilot to compare to team.
+
 **KEYBOARD SHORTCUTS**
 N=New transaction, D=Dashboard, T=Transactions, P=Pipeline, F=Forecast, E=Expenses, R=Reports. Active only outside form fields.
 
