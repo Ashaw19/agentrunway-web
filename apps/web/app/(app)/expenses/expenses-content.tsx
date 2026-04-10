@@ -17,7 +17,7 @@ import { ExplainButton } from "@/components/explain-button";
 import { GuideLink } from "@/components/guide-link";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight, Download, FileText, RefreshCw, AlertTriangle, Clock } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight, Download, FileText, RefreshCw, AlertTriangle, Clock, Lightbulb } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   computeGCI,
@@ -87,6 +87,7 @@ import {
 import { computeGST34 } from "@agent-runway/core/engines/gst34-engine";
 import { gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import { reconcileDeals, type ReconciliationResult, type ReconciliationMatch, type ImportedDeal } from "@agent-runway/core/engines/reconciliation-engine";
+import { selectTaxTips, TIP_CATEGORY_LABELS, type TaxTip } from "@agent-runway/core/engines/tax-iq-engine";
 import type { FilingFrequency, FilingPeriod } from "@/lib/types/database";
 
 interface ExpenseItemForPlaid {
@@ -328,6 +329,37 @@ export function ExpensesContent({
     } finally {
       setReconAdding(false);
     }
+  }
+
+  // ── Tax IQ tips ────────────────────────────────────────────────────────
+  const [dismissedTipIds, setDismissedTipIds] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      return JSON.parse(localStorage.getItem("ar_dismissed_tax_tips") || "[]");
+    } catch { return []; }
+  });
+
+  const taxIQTips = useMemo(() => {
+    if (!settings) return [];
+    const now = new Date();
+    const q = Math.ceil((now.getMonth() + 1) / 3);
+    const activeCategories = receipts
+      .map((r) => r.category_key)
+      .filter((k): k is string => !!k);
+    return selectTaxTips({
+      province: settings.province,
+      filingFrequency: (settings.filing_frequency as "monthly" | "quarterly" | "annual") ?? "quarterly",
+      currentQuarter: q,
+      transactionCount: transactions.length,
+      activeExpenseCategories: [...new Set(activeCategories)],
+      dismissedTipIds,
+    }, 4);
+  }, [settings, receipts, transactions.length, dismissedTipIds]);
+
+  function dismissTip(tipId: string) {
+    const updated = [...dismissedTipIds, tipId];
+    setDismissedTipIds(updated);
+    localStorage.setItem("ar_dismissed_tax_tips", JSON.stringify(updated));
   }
 
   // Fetch recurring expenses on mount
@@ -1515,6 +1547,74 @@ export function ExpensesContent({
                 <ArrowRight className="h-3 w-3" />
               </a>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Tax IQ Tips ──────────────────────────────────────────────────── */}
+      {taxIQTips.length > 0 && (
+        <Card className="border-l-4 border-l-amber-400">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4 text-amber-500" />
+                  Tax IQ
+                </CardTitle>
+                <CardDescription className="mt-0.5 text-xs">
+                  CRA-referenced tips based on your expenses and filing activity
+                </CardDescription>
+              </div>
+              <Badge variant="outline" className="text-[10px] shrink-0">
+                {taxIQTips.length} tip{taxIQTips.length !== 1 ? "s" : ""}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-2">
+            {taxIQTips.map((tip) => (
+              <div
+                key={tip.id}
+                className="group relative rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-slate-50/50"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm">{tip.title}</span>
+                      <span className={cn(
+                        "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                        tip.category === "deductions" ? "bg-emerald-50 text-emerald-600" :
+                        tip.category === "gst_hst" ? "bg-sky-50 text-sky-600" :
+                        tip.category === "records" ? "bg-slate-100 text-slate-600" :
+                        tip.category === "filing" ? "bg-amber-50 text-amber-600" :
+                        "bg-violet-50 text-violet-600",
+                      )}>
+                        {TIP_CATEGORY_LABELS[tip.category] ?? tip.category}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{tip.body}</p>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <a
+                        href={tip.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 hover:text-blue-700"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        {tip.source}
+                      </a>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => dismissTip(tip.id)}
+                    className="shrink-0 rounded p-1 text-muted-foreground/50 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-slate-100 hover:text-muted-foreground"
+                    title="Dismiss tip"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+            <TaxDisclaimer />
           </CardContent>
         </Card>
       )}
