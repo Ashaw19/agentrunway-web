@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { Fragment, useState, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -614,6 +614,8 @@ export function ExpensesContent({
       : new Set(),
   );
 
+  const [taxIQExpanded, setTaxIQExpanded] = useState(false);
+  const [yoyExpanded, setYoyExpanded] = useState(false);
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [newItemTitle, setNewItemTitle] = useState("");
 
@@ -1651,7 +1653,7 @@ export function ExpensesContent({
             </div>
           </CardHeader>
           <CardContent className="pt-0 space-y-2">
-            {taxIQTips.map((tip) => (
+            {(taxIQExpanded ? taxIQTips : taxIQTips.slice(0, 1)).map((tip) => (
               <div
                 key={tip.id}
                 className="group relative rounded-lg border bg-card p-3 text-sm transition-colors hover:bg-slate-50/50"
@@ -1694,6 +1696,24 @@ export function ExpensesContent({
                 </div>
               </div>
             ))}
+            {taxIQTips.length > 1 && (
+              <button
+                onClick={() => setTaxIQExpanded(!taxIQExpanded)}
+                className="flex items-center gap-1 text-xs font-medium text-amber-600 hover:text-amber-700 pt-1"
+              >
+                {taxIQExpanded ? (
+                  <>
+                    <ChevronDown className="h-3 w-3" />
+                    Show less
+                  </>
+                ) : (
+                  <>
+                    <ChevronRight className="h-3 w-3" />
+                    Show {taxIQTips.length - 1} more tip{taxIQTips.length - 1 !== 1 ? "s" : ""}
+                  </>
+                )}
+              </button>
+            )}
             <TaxDisclaimer />
           </CardContent>
         </Card>
@@ -1703,16 +1723,27 @@ export function ExpensesContent({
       {(priorRows.length > 0 || effectiveTotal > 0) && (
         <Card className="rounded-2xl shadow-sm">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
+            <button
+              className="flex w-full items-center justify-between text-left"
+              onClick={() => setYoyExpanded(!yoyExpanded)}
+            >
               <div>
-                <CardTitle className="text-base">Year-over-Year Expenses</CardTitle>
+                <CardTitle className="text-base flex items-center gap-2">
+                  Year-over-Year Expenses
+                  {!yoyExpanded && priorRows.length > 0 && (
+                    <Badge variant="outline" className="text-[10px]">{priorRows.length} yr{priorRows.length !== 1 ? "s" : ""}</Badge>
+                  )}
+                </CardTitle>
                 <CardDescription className="mt-0.5 text-xs">
                   Enter prior year totals to track your expense trend · Edits save automatically
                 </CardDescription>
               </div>
-            </div>
+              {yoyExpanded
+                ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+            </button>
           </CardHeader>
-          <CardContent className="p-0">
+          {yoyExpanded && <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -1818,53 +1849,52 @@ export function ExpensesContent({
                 tab and they&apos;ll appear here for comparison.
               </p>
             )}
-          </CardContent>
+          </CardContent>}
         </Card>
       )}
 
-      {/* Expense ratio bar */}
-      {ytdGCI > 0 && (
-        <Card className="border-l-4 border-l-amber-400">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-1.5">
-                Expense Ratio vs. Benchmark
-                <GuideLink anchor="expense-ratio" label="Expense ratio explained in Guide" />
-                {isPro && <ExplainButton question="What is a healthy expense ratio for a real estate agent and how can I improve mine?" />}
-              </CardTitle>
-              <Badge
-                variant="secondary"
-                className={cn(
-                  "text-xs",
-                  ratioStatus === "healthy" && "bg-emerald-100 text-emerald-700",
-                  ratioStatus === "warning" && "bg-amber-100 text-amber-700",
-                  ratioStatus === "critical" && "bg-red-100 text-red-700",
-                )}
-              >
-                {ratioStatus === "healthy" ? "On track" : ratioStatus === "warning" ? "Elevated" : "High"}
-              </Badge>
+      {/* Expense ratio + Donut — side-by-side */}
+      {(ytdGCI > 0 || donutData.length > 0) && (
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Left: Expense Ratio */}
+              {ytdGCI > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                      Expense Ratio
+                      <GuideLink anchor="expense-ratio" label="Expense ratio explained in Guide" />
+                      {isPro && <ExplainButton question="What is a healthy expense ratio for a real estate agent and how can I improve mine?" />}
+                    </h3>
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "text-xs",
+                        ratioStatus === "healthy" && "bg-emerald-100 text-emerald-700",
+                        ratioStatus === "warning" && "bg-amber-100 text-amber-700",
+                        ratioStatus === "critical" && "bg-red-100 text-red-700",
+                      )}
+                    >
+                      {ratioStatus === "healthy" ? "On track" : ratioStatus === "warning" ? "Elevated" : "High"}
+                    </Badge>
+                  </div>
+                  <Progress value={Math.min(expenseRatio * 100, 100)} className="h-2.5" />
+                  <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                    <span>0%</span>
+                    <span className="font-medium text-foreground">25–30% target</span>
+                    <span>50%+</span>
+                  </div>
+                </div>
+              )}
+              {/* Right: Donut */}
+              {donutData.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold mb-2">Expense Breakdown</h3>
+                  <ExpenseDonut data={donutData} />
+                </div>
+              )}
             </div>
-          </CardHeader>
-          <CardContent>
-            <Progress value={Math.min(expenseRatio * 100, 100)} className="h-2.5" />
-            <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-              <span>0%</span>
-              <span className="font-medium text-foreground">25–30% target</span>
-              <span>50%+</span>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Donut */}
-      {donutData.length > 0 && (
-        <Card className="rounded-2xl border-slate-200 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Expense Breakdown</CardTitle>
-            <CardDescription>YTD spending by category</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ExpenseDonut data={donutData} />
           </CardContent>
         </Card>
       )}
@@ -1893,283 +1923,241 @@ export function ExpensesContent({
         </Card>
       )}
 
-      {/* Categories */}
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-            Categories
-          </h2>
-          {/* Expand All / Collapse All */}
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => setExpanded(new Set(categories.map((c) => c.id)))}
-            >
-              <ChevronsUpDown className="h-3.5 w-3.5" />
-              Expand all
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => setExpanded(new Set())}
-            >
-              Collapse all
-            </Button>
-          </div>
-        </div>
-        <div className="space-y-2">
-          {categories.map((cat) => {
-            const isOpen = expanded.has(cat.id);
-            const catRecurringYTD = (recurringByCatKey[cat.key] || []).reduce((s, re) => s + reYTDAmount(re), 0);
-            const catYtd = cat.items.reduce((s, i) => s + effectiveYTD(i), 0) + catRecurringYTD;
-            const catMonthly = cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0) + recurringMonthlyForCat(cat.key);
-            const catDeductible = cat.items.reduce((s, i) => {
-              const ytd = effectiveYTD(i);
-              const map = EXPENSE_KEY_TO_T2125[i.key];
-              if (!map) return s + ytd;
-              if (map.applyVehicleUse) return s + ytd * vehiclePct;
-              return s + ytd * map.deductiblePct;
-            }, 0);
-            const colors = CAT_COLORS[cat.key] ?? DEFAULT_CAT;
-
-            return (
-              <Card
-                key={cat.id}
-                className={cn("border-l-4 transition-shadow hover:shadow-md", colors.border)}
+      {/* Categories — compact table */}
+      <Card className="rounded-2xl shadow-sm">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold uppercase tracking-widest text-muted-foreground">
+              Categories
+            </CardTitle>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setExpanded(new Set(categories.map((c) => c.id)))}
               >
-                {/* Category header */}
-                <CardHeader
-                  className="cursor-pointer py-3"
-                  onClick={() => toggleExpand(cat.id)}
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2.5">
-                      {isOpen ? (
-                        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      )}
-                      <CardTitle className="text-[15px] font-semibold">{cat.title}</CardTitle>
-                      <Badge className={cn("text-xs font-medium", colors.badge)}>
-                        {cat.items.length + (recurringByCatKey[cat.key]?.length ?? 0)} item{(cat.items.length + (recurringByCatKey[cat.key]?.length ?? 0)) !== 1 && "s"}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm">
-                      <span className="hidden sm:block">
-                        <span className="text-muted-foreground">YTD </span>
-                        <span className="font-semibold">{fmtCurrency(catYtd)}</span>
-                      </span>
-                      {catYtd > 0 && (
-                        <span className="hidden md:block">
-                          <span className="text-muted-foreground">Deduct. </span>
-                          <span className={cn(
-                            "font-semibold",
-                            catDeductible < catYtd ? "text-amber-600" : "text-emerald-600",
-                          )}>
-                            {fmtCurrency(catDeductible)}
-                          </span>
-                        </span>
-                      )}
-                      <span className="hidden sm:block">
-                        <span className="text-muted-foreground">/mo </span>
-                        <span className="font-semibold">{fmtCurrency(catMonthly)}</span>
-                      </span>
-                      {/* Mobile compact */}
-                      <span className="sm:hidden font-semibold">{fmtCurrency(catYtd)}</span>
-                    </div>
-                  </div>
-                </CardHeader>
+                <ChevronsUpDown className="h-3.5 w-3.5" />
+                Expand all
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setExpanded(new Set())}
+              >
+                Collapse all
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="text-xs">
+                  <TableHead className="pl-4">Category</TableHead>
+                  <TableHead className="text-center w-[60px]">Items</TableHead>
+                  <TableHead className="text-right">YTD</TableHead>
+                  <TableHead className="text-right hidden sm:table-cell">Deductible</TableHead>
+                  <TableHead className="text-right">/mo</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {categories.map((cat) => {
+                  const isOpen = expanded.has(cat.id);
+                  const catRecurringYTD = (recurringByCatKey[cat.key] || []).reduce((s, re) => s + reYTDAmount(re), 0);
+                  const catYtd = cat.items.reduce((s, i) => s + effectiveYTD(i), 0) + catRecurringYTD;
+                  const catMonthly = cat.items.reduce((s, i) => s + Number(i.monthly_recurring), 0) + recurringMonthlyForCat(cat.key);
+                  const catDeductible = cat.items.reduce((s, i) => {
+                    const ytd = effectiveYTD(i);
+                    const map = EXPENSE_KEY_TO_T2125[i.key];
+                    if (!map) return s + ytd;
+                    if (map.applyVehicleUse) return s + ytd * vehiclePct;
+                    return s + ytd * map.deductiblePct;
+                  }, 0);
+                  const colors = CAT_COLORS[cat.key] ?? DEFAULT_CAT;
+                  const itemCount = cat.items.length + (recurringByCatKey[cat.key]?.length ?? 0);
 
-                {/* Expanded items */}
-                {isOpen && (
-                  <CardContent className="pb-4 pt-0">
-                    <div className="overflow-x-auto">
-                      <div className="min-w-[560px] space-y-1">
-                        {/* Column headers */}
-                        <div className="grid grid-cols-[1fr_100px_108px_130px_32px] gap-2 pb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          <span className="pl-1">Item</span>
-                          <span className="text-right">YTD</span>
-                          <span className="text-right">Deductible</span>
-                          <span className="text-center">Monthly Recurring</span>
-                          <span />
-                        </div>
-
-                        {/* Items */}
-                        {cat.items.map((item) => {
-                          const ytd = effectiveYTD(item);
-                          const map = EXPENSE_KEY_TO_T2125[item.key];
-                          let deductAmt = ytd;
-                          let deductLabel: string | null = null;
-                          let deductColor = "text-emerald-600";
-                          if (map) {
-                            if (map.applyVehicleUse) {
-                              deductAmt = ytd * vehiclePct;
-                              deductLabel = `${Math.round(vehiclePct * 100)}% biz`;
-                              deductColor = "text-blue-600";
-                            } else if (map.deductiblePct < 1.0) {
-                              deductAmt = ytd * map.deductiblePct;
-                              deductLabel = "50% rule";
-                              deductColor = "text-amber-600";
-                            }
-                          }
-
-                          return (
-                          <div
-                            key={item.id}
-                            className="group grid grid-cols-[1fr_100px_108px_130px_32px] items-center gap-2 rounded-md px-1 py-1 hover:bg-muted/40"
-                          >
-                            <span className="truncate text-sm font-medium">{item.title}</span>
-
-                            {/* YTD — read-only, from receipts */}
-                            <div className="h-8 flex items-center justify-end px-2 text-sm tabular-nums rounded-md border border-border/40 bg-muted/40 text-muted-foreground">
-                              {ytd > 0
-                                ? fmtCurrency(ytd)
-                                : <span className="text-muted-foreground/40">—</span>}
-                            </div>
-
-                            {/* Deductible — computed */}
-                            <div className="h-8 flex flex-col items-end justify-center px-2 rounded-md">
-                              {ytd > 0 ? (
-                                <>
-                                  <span className={cn("text-xs font-semibold tabular-nums leading-tight", deductColor)}>
-                                    {fmtCurrency(deductAmt)}
-                                  </span>
-                                  {deductLabel && (
-                                    <span className={cn(
-                                      "text-[9px] font-bold leading-tight",
-                                      deductColor === "text-blue-600" ? "text-blue-500" : "text-amber-500",
-                                    )}>
-                                      {deductLabel}
-                                    </span>
-                                  )}
-                                </>
-                              ) : (
-                                <span className="text-xs text-muted-foreground/40">—</span>
-                              )}
-                            </div>
-
-                            {/* Monthly Recurring — editable */}
-                            <Input
-                              type="number"
-                              placeholder="0"
-                              defaultValue={Number(item.monthly_recurring) || ""}
-                              onBlur={(e) => updateItem(item.id, "monthly_recurring", e.target.value)}
-                              className="h-8 text-sm text-right"
-                            />
-                            <button
-                              onClick={() => deleteItem(cat.id, item.id)}
-                              className="flex h-8 w-8 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-50 hover:text-red-500"
-                              title="Delete item"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
+                  return (
+                    <Fragment key={cat.id}>
+                      {/* Summary row */}
+                      <TableRow
+                        className={cn("cursor-pointer hover:bg-muted/40 border-l-4", colors.border)}
+                        onClick={() => toggleExpand(cat.id)}
+                      >
+                        <TableCell className="pl-4 py-2.5">
+                          <div className="flex items-center gap-2">
+                            {isOpen
+                              ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                              : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                            <span className="font-semibold text-sm">{cat.title}</span>
                           </div>
-                          );
-                        })}
-
-                        {/* Recurring expenses in this category */}
-                        {(recurringByCatKey[cat.key] || []).map((re) => {
-                          const monthly = reMonthlyEquivalent(re);
-                          const ytd = reYTDAmount(re);
-                          const freqLabel = (re.frequency ?? "monthly") === "monthly" ? "/mo" : (re.frequency ?? "monthly") === "quarterly" ? "/qtr" : "/yr";
-                          return (
-                            <div
-                              key={`re-${re.id}`}
-                              className="group grid grid-cols-[1fr_100px_108px_130px_32px] items-center gap-2 rounded-md px-1 py-1 bg-indigo-50/30"
-                            >
-                              <span className="truncate text-sm font-medium flex items-center gap-1.5">
-                                <RefreshCw className="h-3 w-3 text-indigo-400 shrink-0" />
-                                {re.name}
-                                <span className="text-[10px] text-muted-foreground">{freqLabel}</span>
-                              </span>
-
-                              {/* YTD — computed from start_date */}
-                              <div className="h-8 flex items-center justify-end px-2 text-sm tabular-nums rounded-md border border-indigo-200/40 bg-indigo-50/50 text-indigo-700">
-                                {ytd > 0 ? fmtCurrency(ytd) : <span className="text-muted-foreground/40">—</span>}
-                              </div>
-
-                              {/* Deductible — same rules as parent category */}
-                              <div className="h-8 flex items-end justify-end px-2 rounded-md">
-                                {ytd > 0 ? (
-                                  <span className="text-xs font-semibold tabular-nums text-emerald-600">
-                                    {fmtCurrency(ytd)}
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground/40">—</span>
-                                )}
-                              </div>
-
-                              {/* Monthly — read-only, auto-filled */}
-                              <div className="h-8 flex items-center justify-end px-2 text-sm tabular-nums rounded-md border border-indigo-200/40 bg-indigo-50/50 text-indigo-700 font-medium">
-                                {fmtCurrency(monthly)}
-                              </div>
-
-                              {/* Info icon instead of delete */}
-                              <button
-                                onClick={() => openRecurringDialog(re)}
-                                className="flex h-8 w-8 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100 hover:bg-indigo-50 text-indigo-400 hover:text-indigo-600"
-                                title="Edit in Recurring Expenses"
-                              >
-                                <RefreshCw className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          );
-                        })}
-
-                        {/* Divider + Add item row */}
-                        <div className="pt-1 border-t border-dashed border-border mt-1">
-                          {addingTo === cat.id ? (
-                            <div className="flex items-center gap-2 py-1 px-1">
-                              <Input
-                                autoFocus
-                                placeholder="Item name (e.g. Client gifts)"
-                                value={newItemTitle}
-                                onChange={(e) => setNewItemTitle(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") addItem(cat.id);
-                                  if (e.key === "Escape") { setAddingTo(null); setNewItemTitle(""); }
-                                }}
-                                className="h-8 flex-1 text-sm"
-                              />
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-                                onClick={() => addItem(cat.id)}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0 text-muted-foreground hover:bg-muted"
-                                onClick={() => { setAddingTo(null); setNewItemTitle(""); }}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
+                        </TableCell>
+                        <TableCell className="text-center py-2.5">
+                          <Badge className={cn("text-[10px] font-medium", colors.badge)}>
+                            {itemCount}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right py-2.5 font-semibold text-sm tabular-nums">
+                          {catYtd > 0 ? fmtCurrency(catYtd) : <span className="text-muted-foreground/50">—</span>}
+                        </TableCell>
+                        <TableCell className="text-right py-2.5 hidden sm:table-cell">
+                          {catYtd > 0 ? (
+                            <span className={cn(
+                              "text-sm font-semibold tabular-nums",
+                              catDeductible < catYtd ? "text-amber-600" : "text-emerald-600",
+                            )}>
+                              {fmtCurrency(catDeductible)}
+                            </span>
                           ) : (
-                            <button
-                              onClick={() => { setAddingTo(cat.id); setNewItemTitle(""); }}
-                              className="flex w-full items-center gap-1.5 px-1 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-                            >
-                              <Plus className="h-3.5 w-3.5" />
-                              Add item
-                            </button>
+                            <span className="text-muted-foreground/50 text-sm">—</span>
                           )}
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                )}
-              </Card>
-            );
-          })}
-        </div>
-      </div>
+                        </TableCell>
+                        <TableCell className="text-right py-2.5 font-semibold text-sm tabular-nums">
+                          {catMonthly > 0 ? fmtCurrency(catMonthly) : <span className="text-muted-foreground/50">—</span>}
+                        </TableCell>
+                      </TableRow>
+
+                      {/* Expanded detail rows */}
+                      {isOpen && (
+                        <>
+                          {cat.items.map((item) => {
+                            const ytd = effectiveYTD(item);
+                            const map = EXPENSE_KEY_TO_T2125[item.key];
+                            let deductAmt = ytd;
+                            let deductLabel: string | null = null;
+                            let deductColor = "text-emerald-600";
+                            if (map) {
+                              if (map.applyVehicleUse) {
+                                deductAmt = ytd * vehiclePct;
+                                deductLabel = `${Math.round(vehiclePct * 100)}% biz`;
+                                deductColor = "text-blue-600";
+                              } else if (map.deductiblePct < 1.0) {
+                                deductAmt = ytd * map.deductiblePct;
+                                deductLabel = "50% rule";
+                                deductColor = "text-amber-600";
+                              }
+                            }
+                            return (
+                              <TableRow key={item.id} className="group bg-muted/20 hover:bg-muted/40">
+                                <TableCell className="pl-12 py-1.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm text-muted-foreground">{item.title}</span>
+                                    <button
+                                      onClick={() => deleteItem(cat.id, item.id)}
+                                      className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-red-500"
+                                      title="Delete item"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="py-1.5" />
+                                <TableCell className="text-right py-1.5 text-sm tabular-nums text-muted-foreground">
+                                  {ytd > 0 ? fmtCurrency(ytd) : "—"}
+                                </TableCell>
+                                <TableCell className="text-right py-1.5 hidden sm:table-cell">
+                                  {ytd > 0 ? (
+                                    <span className={cn("text-xs font-medium tabular-nums", deductColor)}>
+                                      {fmtCurrency(deductAmt)}
+                                      {deductLabel && <span className="ml-1 text-[9px] opacity-70">{deductLabel}</span>}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground/40">—</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-right py-1.5">
+                                  <Input
+                                    type="number"
+                                    placeholder="0"
+                                    defaultValue={Number(item.monthly_recurring) || ""}
+                                    onBlur={(e) => updateItem(item.id, "monthly_recurring", e.target.value)}
+                                    className="h-7 w-24 ml-auto text-sm text-right"
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+
+                          {/* Recurring expenses in this category */}
+                          {(recurringByCatKey[cat.key] || []).map((re) => {
+                            const monthly = reMonthlyEquivalent(re);
+                            const ytd = reYTDAmount(re);
+                            const freqLabel = (re.frequency ?? "monthly") === "monthly" ? "/mo" : (re.frequency ?? "monthly") === "quarterly" ? "/qtr" : "/yr";
+                            return (
+                              <TableRow key={`re-${re.id}`} className="group bg-indigo-50/30 hover:bg-indigo-50/50">
+                                <TableCell className="pl-12 py-1.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <RefreshCw className="h-3 w-3 text-indigo-400 shrink-0" />
+                                    <span className="text-sm text-indigo-700">{re.name}</span>
+                                    <span className="text-[10px] text-muted-foreground">{freqLabel}</span>
+                                    <button
+                                      onClick={() => openRecurringDialog(re)}
+                                      className="opacity-0 group-hover:opacity-100 transition-opacity text-indigo-400 hover:text-indigo-600"
+                                      title="Edit in Recurring Expenses"
+                                    >
+                                      <RefreshCw className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="py-1.5" />
+                                <TableCell className="text-right py-1.5 text-sm tabular-nums text-indigo-700">
+                                  {ytd > 0 ? fmtCurrency(ytd) : "—"}
+                                </TableCell>
+                                <TableCell className="text-right py-1.5 hidden sm:table-cell text-xs font-medium tabular-nums text-emerald-600">
+                                  {ytd > 0 ? fmtCurrency(ytd) : "—"}
+                                </TableCell>
+                                <TableCell className="text-right py-1.5 text-sm tabular-nums text-indigo-700 font-medium">
+                                  {fmtCurrency(monthly)}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+
+                          {/* Add item row */}
+                          <TableRow className="bg-muted/10">
+                            <TableCell colSpan={5} className="pl-12 py-1">
+                              {addingTo === cat.id ? (
+                                <div className="flex items-center gap-2 py-0.5">
+                                  <Input
+                                    autoFocus
+                                    placeholder="Item name (e.g. Client gifts)"
+                                    value={newItemTitle}
+                                    onChange={(e) => setNewItemTitle(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") addItem(cat.id);
+                                      if (e.key === "Escape") { setAddingTo(null); setNewItemTitle(""); }
+                                    }}
+                                    className="h-7 max-w-xs text-sm"
+                                  />
+                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-emerald-600" onClick={() => addItem(cat.id)}>
+                                    <Check className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground" onClick={() => { setAddingTo(null); setNewItemTitle(""); }}>
+                                    <X className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => { setAddingTo(cat.id); setNewItemTitle(""); }}
+                                  className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+                                >
+                                  <Plus className="h-3 w-3" /> Add item
+                                </button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        </>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* ── Recurring Expenses ──────────────────────────────────────────────── */}
       <Card className="rounded-2xl border-slate-200 shadow-sm">
