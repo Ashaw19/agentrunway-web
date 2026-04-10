@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Users,
   UserPlus,
@@ -13,6 +13,9 @@ import {
   Loader2,
   Copy,
   Check,
+  PartyPopper,
+  Rocket,
+  CheckCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -52,12 +55,19 @@ export function MembersContent({
   invitations: initialInvitations,
 }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isWelcome = searchParams.get("welcome") === "1";
+  const [showWelcome, setShowWelcome] = useState(isWelcome);
   const [members, setMembers] = useState(initialMembers);
   const [invitations, setInvitations] = useState(initialInvitations);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<OrgMemberRole>("agent");
   const [sending, setSending] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Invite progress: how many total invites vs accepted (now active members minus the owner)
+  const totalInvited = invitations.length + members.filter((m) => m.role !== "owner").length;
+  const totalAccepted = members.filter((m) => m.role !== "owner" && m.status === "active").length;
 
   function handleCopyLink(inv: OrganizationInvitation) {
     const appUrl = typeof window !== "undefined" ? window.location.origin : "https://agentrunway.ca";
@@ -149,6 +159,73 @@ export function MembersContent({
           Manage your organization members and invitations
         </p>
       </div>
+
+      {/* Welcome Banner — shown after org creation */}
+      {showWelcome && (
+        <div className="relative rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 p-5">
+          <button
+            onClick={() => setShowWelcome(false)}
+            className="absolute top-3 right-3 text-muted-foreground/50 hover:text-muted-foreground"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <div className="flex items-start gap-3">
+            <div className="rounded-full bg-emerald-500/10 p-2.5 shrink-0">
+              <PartyPopper className="h-5 w-5 text-emerald-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-emerald-900">
+                {org.name} is live!
+              </h3>
+              <p className="text-xs text-emerald-700 mt-1 leading-relaxed">
+                Your organization is set up and ready to go. Now invite your team members below —
+                enter their emails (comma-separated for batch) and they&apos;ll receive a branded
+                invitation with a one-click accept link.
+              </p>
+              <div className="flex items-center gap-4 mt-3 text-[11px] text-emerald-600">
+                <span className="flex items-center gap-1">
+                  <Rocket className="h-3 w-3" />
+                  Tip: They&apos;ll complete their own setup after accepting
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invite Progress — shown when invites have been sent */}
+      {totalInvited > 0 && (
+        <div className="rounded-xl border bg-card p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+              <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+              Invite Progress
+            </span>
+            <span className="text-xs font-bold">
+              {totalAccepted} of {totalInvited} accepted
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div
+              className={cn(
+                "h-full rounded-full transition-all duration-500",
+                totalAccepted === totalInvited ? "bg-emerald-500" : "bg-orange-500",
+              )}
+              style={{ width: `${totalInvited > 0 ? (totalAccepted / totalInvited) * 100 : 0}%` }}
+            />
+          </div>
+          {totalAccepted === totalInvited && totalInvited > 0 && (
+            <p className="text-[11px] text-emerald-600 mt-1.5 font-medium">
+              Everyone&apos;s on board! Check your team dashboard for live metrics.
+            </p>
+          )}
+          {invitations.length > 0 && (
+            <p className="text-[11px] text-muted-foreground mt-1.5">
+              {invitations.length} invite{invitations.length !== 1 ? "s" : ""} still pending
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Invite Form */}
       <div className="rounded-xl border bg-card p-5">

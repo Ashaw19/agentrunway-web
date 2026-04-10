@@ -14,6 +14,7 @@ import {
   Award,
   XCircle,
   Filter,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
@@ -279,8 +280,53 @@ export function OrgDashboardContent({
         </p>
       </div>
 
+      {/* Empty State — shown when no members have entered data yet */}
+      {performance.length === 0 && (
+        <div className="rounded-2xl border-2 border-dashed border-orange-200 bg-gradient-to-br from-orange-50/50 to-amber-50/50 p-8 text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-500/10">
+            <Users className="h-8 w-8 text-orange-500" />
+          </div>
+          <h2 className="text-lg font-bold text-foreground">Your team dashboard is ready</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground leading-relaxed">
+            Once your team members accept their invites and start entering transactions and pipeline deals,
+            their data will appear here — KPIs, leaderboard, trends, and coaching insights.
+          </p>
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <a
+              href="/org/members"
+              className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 transition-colors"
+            >
+              <UserPlus className="h-4 w-4" />
+              Invite Team Members
+            </a>
+            <a
+              href="/org/reports"
+              className="inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <BarChart3 className="h-4 w-4" />
+              Preview Reports
+            </a>
+          </div>
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg mx-auto">
+            {[
+              { step: "1", label: "Invite your agents", desc: "Send email invites from Members page" },
+              { step: "2", label: "They accept & set up", desc: "Personal config takes ~2 minutes" },
+              { step: "3", label: "Data flows here", desc: "KPIs, insights & coaching appear" },
+            ].map((item) => (
+              <div key={item.step} className="rounded-lg bg-white/60 border border-orange-100 p-3 text-left">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white text-xs font-bold mb-1.5">
+                  {item.step}
+                </span>
+                <p className="text-xs font-semibold text-foreground">{item.label}</p>
+                <p className="text-[11px] text-muted-foreground">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Tabbed Content */}
-      <Tabs
+      {performance.length > 0 && <Tabs
         value={activeTab}
         onValueChange={(v) => setActiveTab(v as OrgDashboardTab)}
       >
@@ -585,7 +631,7 @@ export function OrgDashboardContent({
             </div>
           )}
         </TabsContent>
-      </Tabs>
+      </Tabs>}
 
       {/* Data privacy notice */}
       <p className="text-[10px] text-muted-foreground/60 italic leading-relaxed">

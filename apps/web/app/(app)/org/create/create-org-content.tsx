@@ -120,7 +120,7 @@ export function CreateOrgContent() {
       }
 
       toast.success(`${orgName} created successfully!`);
-      router.push("/org");
+      router.push("/org/members?welcome=1");
     } catch {
       toast.error("Something went wrong — try again");
     } finally {

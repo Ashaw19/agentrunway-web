@@ -830,6 +830,27 @@ IMPORTANT: When comparing this agent to team averages, always reference ${leader
                 .join("\n");
           }
         }
+
+        // ── Leader nudge: flag inactive members in first week ─────────────
+        const isLeaderOrOwner = membership.role === "owner" || membership.role === "admin" || membership.role === "team_leader";
+        if (isLeaderOrOwner && teamPerf.length > 1) {
+          const inactiveMembers = teamPerf.filter(
+            (m) =>
+              m.user_id !== user.id &&
+              (m.deal_count ?? 0) === 0 &&
+              (m.pipeline_count ?? 0) === 0,
+          );
+          if (inactiveMembers.length > 0) {
+            const names = inactiveMembers
+              .map((m) => m.agent_name?.split(" ")[0] ?? "an agent")
+              .join(", ");
+            financialContext += `\n\n[INACTIVE MEMBERS] ${inactiveMembers.length} of ${teamPerf.length - 1} agents ` +
+              `(${names}) have no transactions or pipeline deals yet. ` +
+              `If the topic is relevant, gently suggest the leader check in with them about getting started — ` +
+              `entering even one pipeline deal or past transaction helps unlock their dashboard insights. ` +
+              `Keep the tone encouraging, not critical.`;
+          }
+        }
       }
     }
   } catch {
