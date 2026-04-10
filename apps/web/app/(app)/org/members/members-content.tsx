@@ -231,12 +231,16 @@ export function MembersContent({
       <div className="rounded-xl border bg-card p-5">
         <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
           <UserPlus className="h-4 w-4 text-orange-500" />
-          Invite Members
+          Invite Someone New
         </h3>
+        <p className="text-xs text-muted-foreground mb-3">
+          Add their email, pick their role, and hit send. They&apos;ll get a link to join.
+          You can invite multiple people at once — just separate emails with commas.
+        </p>
         <form onSubmit={handleInvite} className="flex flex-col sm:flex-row gap-3">
           <input
             type="text"
-            placeholder="Enter email addresses (comma-separated)"
+            placeholder="e.g. newagent@email.com"
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
             className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
@@ -246,7 +250,7 @@ export function MembersContent({
             onChange={(e) => setInviteRole(e.target.value as OrgMemberRole)}
             className="rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
           >
-            <option value="agent">Agent</option>
+            <option value="agent">Team Member</option>
             <option value="team_leader">Team Leader</option>
             {isOwner && <option value="admin">Admin</option>}
           </select>
@@ -256,7 +260,7 @@ export function MembersContent({
             ) : (
               <Mail className="h-4 w-4" />
             )}
-            Send Invites
+            Send Invite
           </Button>
         </form>
       </div>
@@ -359,7 +363,7 @@ export function MembersContent({
                       }
                       className="rounded border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
                     >
-                      <option value="agent">Agent</option>
+                      <option value="agent">Team Member</option>
                       <option value="team_leader">Team Leader</option>
                       {isOwner && <option value="admin">Admin</option>}
                     </select>

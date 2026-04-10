@@ -267,17 +267,28 @@ export function OrgDashboardContent({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <div className="flex items-center gap-3 mb-1">
-          <Building2 className="h-6 w-6 text-orange-500" />
-          <h1 className="text-2xl font-bold tracking-tight">{org.name}</h1>
-          <span className="rounded-full bg-orange-500/10 px-2.5 py-0.5 text-xs font-medium text-orange-500">
-            {ORG_TYPE_LABELS[org.type]}
-          </span>
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <Building2 className="h-6 w-6 text-orange-500" />
+            <h1 className="text-2xl font-bold tracking-tight">{org.name}</h1>
+            <span className="rounded-full bg-orange-500/10 px-2.5 py-0.5 text-xs font-medium text-orange-500">
+              {ORG_TYPE_LABELS[org.type]}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Team performance dashboard
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Organization performance dashboard
-        </p>
+        {isAdmin && (
+          <a
+            href="/org/members"
+            className="inline-flex items-center gap-1.5 rounded-lg border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-orange-300 transition-colors"
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            Invite
+          </a>
+        )}
       </div>
 
       {/* Empty State — shown when no members have entered data yet */}

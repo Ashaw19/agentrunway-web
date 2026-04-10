@@ -112,7 +112,7 @@ export function SidebarNav({
   // Build org-specific sidebar entries dynamically
   const orgEntries: SidebarEntry[] = orgContext
     ? [
-        { type: "header", label: "ORGANIZATION" },
+        { type: "header", label: "YOUR TEAM" },
         {
           type: "item",
           label: orgContext.org.name.length > 18
@@ -137,7 +137,7 @@ export function SidebarNav({
               },
               {
                 type: "item" as const,
-                label: "Org Settings",
+                label: "Settings",
                 href: "/org/settings",
                 icon: Settings,
                 iconActive: "text-orange-300",

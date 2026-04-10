@@ -230,22 +230,25 @@ export function CreateOrgContent() {
       {step === "leaders" && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Add Your People</CardTitle>
+            <CardTitle className="text-lg">Invite Your Team</CardTitle>
             <CardDescription>
-              Add leaders/managers (admin access) and agents (member access).
-              They&apos;ll receive invitations by email.
+              Enter each person&apos;s email and hit the + button to add them.
+              They&apos;ll get an invite with a link to join.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Leaders */}
             <div className="space-y-2">
-              <Label>Leaders / Managers (Admin Access)</Label>
+              <Label>Team Leaders</Label>
+              <p className="text-xs text-muted-foreground -mt-1">
+                Managers and admins — they&apos;ll have full access to team reports, billing, and settings.
+              </p>
               <div className="flex gap-2">
                 <Input
                   value={leaderEmail}
                   onChange={(e) => setLeaderEmail(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addLeader()}
-                  placeholder="leader@email.com"
+                  placeholder="e.g. erin@ellisrealty.ca"
                   className="flex-1"
                 />
                 <Button variant="outline" size="icon" onClick={addLeader}>
@@ -268,13 +271,16 @@ export function CreateOrgContent() {
 
             {/* Members */}
             <div className="space-y-2">
-              <Label>Agents (Member Access)</Label>
+              <Label>Team Members</Label>
+              <p className="text-xs text-muted-foreground -mt-1">
+                Your agents — they&apos;ll get their own dashboard and tools.
+              </p>
               <div className="flex gap-2">
                 <Input
                   value={memberEmail}
                   onChange={(e) => setMemberEmail(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addMember()}
-                  placeholder="agent@email.com"
+                  placeholder="e.g. sarah@ellisrealty.ca"
                   className="flex-1"
                 />
                 <Button variant="outline" size="icon" onClick={addMember}>
@@ -328,12 +334,12 @@ export function CreateOrgContent() {
                 <span className="text-xs text-muted-foreground">/org/{slug}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Leaders</span>
-                <span>{leaders.length || "None"}</span>
+                <span className="text-muted-foreground">Team Leaders</span>
+                <span>{leaders.length || "None yet"}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Members</span>
-                <span>{members.length || "None"}</span>
+                <span className="text-muted-foreground">Team Members</span>
+                <span>{members.length || "None yet"}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Total People</span>
@@ -343,8 +349,8 @@ export function CreateOrgContent() {
 
             {leaders.length + members.length > 0 && (
               <div className="rounded-lg border border-border/40 bg-muted/20 p-3 text-xs text-muted-foreground">
-                {leaders.length + members.length} invitation{leaders.length + members.length !== 1 ? "s" : ""} will be sent.
-                People who haven&apos;t signed up yet will receive a link to join.
+                {leaders.length + members.length} invite{leaders.length + members.length !== 1 ? "s" : ""} will be sent.
+                Everyone will get an email with a link to join — if they&apos;re new to Agent Runway, they&apos;ll set up their account first.
               </div>
             )}
 
