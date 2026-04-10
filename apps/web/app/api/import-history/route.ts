@@ -664,13 +664,25 @@ export async function POST(req: NextRequest) {
         .replace(/\s*```\s*$/m, "")
         .trim();
 
-      // Strategy 2: if that didn't yield valid JSON, find the first { … } block
+      // Strategy 2: if that didn't yield valid JSON, find the first COMPLETE { … } block
+      // Uses bracket counting rather than lastIndexOf to avoid grabbing a stray }
+      // in trailing commentary after the real JSON object.
       let jsonCandidate = cleaned;
       if (!cleaned.startsWith("{")) {
         const firstBrace = cleaned.indexOf("{");
-        const lastBrace  = cleaned.lastIndexOf("}");
-        if (firstBrace !== -1 && lastBrace > firstBrace) {
-          jsonCandidate = cleaned.slice(firstBrace, lastBrace + 1);
+        if (firstBrace !== -1) {
+          let depth = 0;
+          let endIdx = -1;
+          for (let i = firstBrace; i < cleaned.length; i++) {
+            if (cleaned[i] === "{") depth++;
+            else if (cleaned[i] === "}") {
+              depth--;
+              if (depth === 0) { endIdx = i; break; }
+            }
+          }
+          if (endIdx !== -1) {
+            jsonCandidate = cleaned.slice(firstBrace, endIdx + 1);
+          }
         }
       }
 

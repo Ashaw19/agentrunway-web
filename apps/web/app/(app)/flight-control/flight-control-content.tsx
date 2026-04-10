@@ -659,7 +659,10 @@ export function FlightControlContent({
         if (user) {
           await supabase.from("user_settings").update({ email_signature: value }).eq("user_id", user.id);
         }
-      } catch { /* silent */ } finally { setSigSaving(false); }
+      } catch (err) {
+        console.error("[flight-control] Failed to save email signature:", err);
+        toast.error("Couldn't save signature — changes may not persist");
+      } finally { setSigSaving(false); }
     }, 800);
   }, [sandbox.sandboxMode]);
 
@@ -675,7 +678,10 @@ export function FlightControlContent({
         if (user) {
           await supabase.from("user_settings").update({ ai_voice_guide: value }).eq("user_id", user.id);
         }
-      } catch { /* silent */ } finally { setGuideSaving(false); }
+      } catch (err) {
+        console.error("[flight-control] Failed to save AI voice guide:", err);
+        toast.error("Couldn't save voice guide — changes may not persist");
+      } finally { setGuideSaving(false); }
     }, 800);
   }, [sandbox.sandboxMode]);
 
