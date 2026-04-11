@@ -1,16 +1,141 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { usePathname } from "next/navigation";
-import { Sparkles, X, Send, Bot, User, ChevronDown, ThumbsUp, ThumbsDown } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Sparkles, X, Send, Bot, User, ChevronDown, ThumbsUp, ThumbsDown, CheckCircle2, AlertTriangle, ArrowRight, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useAiChat } from "@/lib/ai-chat-context";
+import { toast } from "sonner";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+}
+
+// ── Action Card Parsing ──────────────────────────────────────────────────────
+
+interface ParsedSegment {
+  type: "text" | "actions" | "missing" | "preview";
+  content: string;
+  items?: string[];
+  link?: { label: string; href: string };
+}
+
+/**
+ * Parse an AI response into structured segments for rich rendering.
+ * Detects: ✓ action confirmations, MISSING_FIELDS hints, PREVIEW blocks,
+ * and page navigation links like **CRM** (/crm).
+ */
+function parseMessageSegments(text: string): ParsedSegment[] {
+  const segments: ParsedSegment[] = [];
+  const lines = text.split("\n");
+  let currentText: string[] = [];
+  let currentActions: string[] = [];
+  let inPreview = false;
+  let previewLines: string[] = [];
+
+  const flushText = () => {
+    if (currentText.length > 0) {
+      segments.push({ type: "text", content: currentText.join("\n") });
+      currentText = [];
+    }
+  };
+
+  const flushActions = () => {
+    if (currentActions.length > 0) {
+      // Extract a navigation link from the surrounding text if present
+      const allText = lines.join(" ");
+      const linkMatch = allText.match(/\*\*([^*]+)\*\*\s*\(\/([a-z-]+)\)/);
+      const link = linkMatch ? { label: linkMatch[1], href: `/${linkMatch[2]}` } : undefined;
+
+      segments.push({
+        type: "actions",
+        content: currentActions.join("\n"),
+        items: [...currentActions],
+        link,
+      });
+      currentActions = [];
+    }
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Detect PREVIEW blocks
+    if (trimmed.startsWith("PREVIEW")) {
+      flushText();
+      flushActions();
+      inPreview = true;
+      previewLines = [trimmed];
+      continue;
+    }
+    if (inPreview) {
+      if (trimmed === "" && previewLines.length > 1) {
+        segments.push({ type: "preview", content: previewLines.join("\n") });
+        previewLines = [];
+        inPreview = false;
+      } else {
+        previewLines.push(trimmed);
+      }
+      continue;
+    }
+
+    // Detect action confirmation lines (✓ or ✅)
+    if (trimmed.startsWith("✓") || trimmed.startsWith("✅")) {
+      flushText();
+      currentActions.push(trimmed.replace(/^[✓✅]\s*/, ""));
+      continue;
+    }
+
+    // Detect MISSING_FIELDS hint
+    if (trimmed.includes("MISSING_FIELDS:") || trimmed.includes("still missing")) {
+      flushText();
+      flushActions();
+      segments.push({ type: "missing", content: trimmed });
+      continue;
+    }
+
+    // Regular text
+    flushActions();
+    currentText.push(line);
+  }
+
+  // Flush remaining
+  if (inPreview && previewLines.length > 0) {
+    segments.push({ type: "preview", content: previewLines.join("\n") });
+  }
+  flushText();
+  flushActions();
+
+  return segments;
+}
+
+/**
+ * Extract the first page link from text like **CRM** (/crm) or **Pipeline** (/pipeline)
+ */
+function extractPageLink(text: string): { label: string; href: string } | null {
+  const match = text.match(/\*\*([^*]+)\*\*\s*\(\/([a-z-]+)\)/);
+  return match ? { label: match[1], href: `/${match[2]}` } : null;
+}
+
+/**
+ * Check if a message contains completed actions (for toast firing)
+ */
+function countActions(text: string): number {
+  return (text.match(/^[✓✅]/gm) || []).length;
+}
+
+/**
+ * Extract a short summary of actions for the toast message
+ */
+function getActionSummary(text: string): string {
+  const actions = text.match(/^[✓✅]\s*.+/gm);
+  if (!actions || actions.length === 0) return "";
+  const first = actions[0].replace(/^[✓✅]\s*/, "").split("—")[0].split(".")[0].trim();
+  if (actions.length === 1) return first;
+  return `${first} (+${actions.length - 1} more)`;
 }
 
 type ConfidenceLevel = "high" | "medium" | "low";
@@ -37,6 +162,156 @@ function parseConfidence(content: string): {
     return { text: content.slice(0, -partial[0].length).trimEnd(), level: null };
   }
   return { text: content, level: null };
+}
+
+// ── Rich Rendering Components ─────────────────────────────────────────────────
+
+/**
+ * Renders inline text with basic markdown-like formatting:
+ * **bold**, page links like **CRM** (/crm), and bullet points.
+ */
+function FormattedText({ text, onNavigate }: { text: string; onNavigate?: (href: string) => void }) {
+  // Replace **text** (/path) with clickable links
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let key = 0;
+
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const linkMatch = remaining.match(/\*\*([^*]+)\*\*\s*\(\/([a-z-]+)\)/);
+    const boldMatch = remaining.match(/\*\*([^*]+)\*\*/);
+
+    if (linkMatch && (!boldMatch || remaining.indexOf(linkMatch[0]) <= remaining.indexOf(boldMatch[0]))) {
+      const idx = remaining.indexOf(linkMatch[0]);
+      if (idx > 0) parts.push(<span key={key++}>{remaining.slice(0, idx)}</span>);
+      parts.push(
+        <button
+          key={key++}
+          onClick={() => onNavigate?.(`/${linkMatch[2]}`)}
+          className="inline-flex items-center gap-0.5 font-semibold text-blue-400 hover:text-blue-300 transition-colors underline underline-offset-2"
+        >
+          {linkMatch[1]}
+          <ExternalLink className="h-2.5 w-2.5" />
+        </button>
+      );
+      remaining = remaining.slice(idx + linkMatch[0].length);
+    } else if (boldMatch) {
+      const idx = remaining.indexOf(boldMatch[0]);
+      if (idx > 0) parts.push(<span key={key++}>{remaining.slice(0, idx)}</span>);
+      parts.push(<strong key={key++} className="font-semibold text-slate-100">{boldMatch[1]}</strong>);
+      remaining = remaining.slice(idx + boldMatch[0].length);
+    } else {
+      if (remaining) parts.push(<span key={key++}>{remaining}</span>);
+      break;
+    }
+  }
+
+  return <>{parts}</>;
+}
+
+/**
+ * Renders an assistant message with rich action cards, preview blocks,
+ * and missing-field warnings.
+ */
+function AssistantMessage({ content, isStreaming, onNavigate }: { content: string; isStreaming: boolean; onNavigate?: (href: string) => void }) {
+  // During streaming, use simple pre-wrap rendering to avoid layout thrashing
+  if (isStreaming) {
+    return <span style={{ whiteSpace: "pre-wrap" }}>{content}</span>;
+  }
+
+  const segments = parseMessageSegments(content);
+
+  // If no special segments detected, fall back to formatted text
+  if (segments.length === 1 && segments[0].type === "text") {
+    return (
+      <span style={{ whiteSpace: "pre-wrap" }}>
+        <FormattedText text={content} onNavigate={onNavigate} />
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {segments.map((seg, i) => {
+        if (seg.type === "actions" && seg.items) {
+          return (
+            <div
+              key={i}
+              className="rounded-lg px-3 py-2.5"
+              style={{
+                background: "rgba(34, 197, 94, 0.08)",
+                border: "1px solid rgba(34, 197, 94, 0.20)",
+              }}
+            >
+              <div className="flex flex-col gap-1.5">
+                {seg.items.map((item, j) => (
+                  <div key={j} className="flex items-start gap-2 text-sm">
+                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                    <span className="text-slate-200">
+                      <FormattedText text={item} onNavigate={onNavigate} />
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {seg.link && (
+                <button
+                  onClick={() => onNavigate?.(seg.link!.href)}
+                  className="mt-2 flex items-center gap-1 text-[11px] font-medium text-emerald-400 hover:text-emerald-300 transition-colors"
+                >
+                  View in {seg.link.label}
+                  <ArrowRight className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          );
+        }
+
+        if (seg.type === "missing") {
+          return (
+            <div
+              key={i}
+              className="rounded-lg px-3 py-2 text-sm"
+              style={{
+                background: "rgba(245, 158, 11, 0.08)",
+                border: "1px solid rgba(245, 158, 11, 0.20)",
+              }}
+            >
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" />
+                <span className="text-slate-300">
+                  <FormattedText text={seg.content.replace("MISSING_FIELDS:", "").trim()} onNavigate={onNavigate} />
+                </span>
+              </div>
+            </div>
+          );
+        }
+
+        if (seg.type === "preview") {
+          return (
+            <div
+              key={i}
+              className="rounded-lg px-3 py-2 text-sm"
+              style={{
+                background: "rgba(99, 102, 241, 0.08)",
+                border: "1px solid rgba(99, 102, 241, 0.20)",
+              }}
+            >
+              <span className="whitespace-pre-wrap text-slate-300">
+                <FormattedText text={seg.content.replace(/^PREVIEW\s*[—–-]?\s*/i, "")} onNavigate={onNavigate} />
+              </span>
+            </div>
+          );
+        }
+
+        // Regular text
+        return (
+          <span key={i} style={{ whiteSpace: "pre-wrap" }}>
+            <FormattedText text={seg.content} onNavigate={onNavigate} />
+          </span>
+        );
+      })}
+    </div>
+  );
 }
 
 interface Props {
@@ -115,6 +390,7 @@ function buildInitialMessage(context: string): string {
 
 export function AiChat({ financialContext }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
   const { isOpen, setOpen, pendingQuestion, consumeQuestion } = useAiChat();
 
   const [initialMessage] = useState<Message>({
@@ -257,6 +533,24 @@ export function AiChat({ financialContext }: Props) {
             ]);
           }
         }
+
+        // Fire toast for completed actions
+        const actionCount = countActions(assistantText);
+        if (actionCount > 0) {
+          const summary = getActionSummary(assistantText);
+          const link = extractPageLink(assistantText);
+          toast.success(summary, {
+            description: link ? `View in ${link.label}` : undefined,
+            action: link
+              ? {
+                  label: "Go →",
+                  onClick: () => router.push(link.href),
+                }
+              : undefined,
+            duration: 5000,
+          });
+        }
+
         if (!isOpen) setUnread((n) => n + 1);
       } catch (err) {
         console.error("Chat error:", err);
@@ -421,9 +715,11 @@ export function AiChat({ financialContext }: Props) {
                     }
                   >
                     {msg.content ? (
-                      <span style={{ whiteSpace: "pre-wrap" }}>
-                        {msg.role === "assistant" ? parseConfidence(msg.content).text : msg.content}
-                      </span>
+                      msg.role === "assistant" ? (
+                        <AssistantMessage content={parseConfidence(msg.content).text} isStreaming={loading && i === messages.length - 1} onNavigate={(href) => router.push(href)} />
+                      ) : (
+                        <span style={{ whiteSpace: "pre-wrap" }}>{msg.content}</span>
+                      )
                     ) : (
                       <span className="inline-flex gap-1 text-slate-500">
                         <span className="animate-bounce">·</span>
