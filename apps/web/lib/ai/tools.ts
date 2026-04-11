@@ -18,10 +18,11 @@
  *                         searchContactTasks, searchExpenses, searchOutreachQueue,
  *                         searchTransactions, searchActivities, searchMileageLogs,
  *                         getClientSummary, getUpcomingAgenda,
- *                         getExpenseBreakdown, getPerformanceSummary
+ *                         getExpenseBreakdown, getPerformanceSummary,
+ *                         comparePerformance
  *   Create              — createClient, createPipelineDeal, createContactTask,
  *                         createRecurringExpense, addPropertyShowing,
- *                         addListingAppointment
+ *                         addListingAppointment, createFlightPlan
  *   Autonomous          — logContactActivity, updateClientStatus,
  *                         updateClientNotes, updateClientDetails,
  *                         updateClientTags, updateClientTone,
@@ -2218,6 +2219,162 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           return sections.join("\n");
         } catch {
           return "Failed to generate performance summary. Please try again.";
+        }
+      },
+    }),
+
+    // ── QUERY: Compare two periods ───────────────────────────────────────────
+    comparePerformance: tool({
+      description: "Compare performance between two time periods side by side. Use when the user asks 'how does this month compare to last month?', 'compare Q1 to Q2', or 'am I doing better than last year?'.",
+      inputSchema: z.object({
+        period: z.enum(["week", "month", "quarter", "year"]).describe("The time period unit"),
+        periodAOffset: z.number().describe("How many periods back for period A (0 = current)"),
+        periodBOffset: z.number().describe("How many periods back for period B (1 = last)"),
+      }),
+      execute: async ({ period, periodAOffset, periodBOffset }) => {
+        try {
+          const now = new Date();
+
+          function getPeriodRange(off: number): { start: string; end: string; label: string } {
+            let startDate: Date;
+            let endDate: Date;
+            let label: string;
+
+            if (period === "week") {
+              const dayOfWeek = now.getDay();
+              startDate = new Date(now);
+              startDate.setDate(now.getDate() - dayOfWeek - (off * 7));
+              endDate = new Date(startDate);
+              endDate.setDate(startDate.getDate() + 6);
+              label = off === 0 ? "This week" : off === 1 ? "Last week" : `${off} weeks ago`;
+            } else if (period === "month") {
+              startDate = new Date(now.getFullYear(), now.getMonth() - off, 1);
+              endDate = new Date(now.getFullYear(), now.getMonth() - off + 1, 0);
+              label = startDate.toLocaleDateString("en-CA", { month: "long", year: "numeric" });
+            } else if (period === "quarter") {
+              const currentQ = Math.floor(now.getMonth() / 3);
+              const targetQ = currentQ - off;
+              const targetYear = now.getFullYear() + Math.floor(targetQ / 4);
+              const adjustedQ = ((targetQ % 4) + 4) % 4;
+              startDate = new Date(targetYear, adjustedQ * 3, 1);
+              endDate = new Date(targetYear, adjustedQ * 3 + 3, 0);
+              label = `Q${adjustedQ + 1} ${targetYear}`;
+            } else {
+              const targetYear = now.getFullYear() - off;
+              startDate = new Date(targetYear, 0, 1);
+              endDate = new Date(targetYear, 11, 31);
+              label = `${targetYear}`;
+            }
+
+            return {
+              start: startDate.toISOString().split("T")[0],
+              end: endDate.toISOString().split("T")[0],
+              label,
+            };
+          }
+
+          async function getPeriodData(start: string, end: string) {
+            const [txResult, expResult, actResult] = await Promise.allSettled([
+              supabase.from("transactions").select("gci").eq("user_id", userId).gte("close_date", start).lte("close_date", end),
+              supabase.from("receipt_expenses").select("total_amount").eq("user_id", userId).gte("expense_date", start).lte("expense_date", end),
+              supabase.from("contact_activities").select("id").eq("user_id", userId).gte("activity_date", `${start}T00:00:00`).lte("activity_date", `${end}T23:59:59`),
+            ]);
+
+            const txData = txResult.status === "fulfilled" ? txResult.value.data ?? [] : [];
+            const expData = expResult.status === "fulfilled" ? expResult.value.data ?? [] : [];
+            const actData = actResult.status === "fulfilled" ? actResult.value.data ?? [] : [];
+
+            return {
+              deals: txData.length,
+              gci: txData.reduce((s: number, t: { gci: number }) => s + Number(t.gci || 0), 0),
+              expenses: expData.reduce((s: number, e: { total_amount: number }) => s + Number(e.total_amount || 0), 0),
+              activities: actData.length,
+            };
+          }
+
+          const rangeA = getPeriodRange(periodAOffset);
+          const rangeB = getPeriodRange(periodBOffset);
+          const [dataA, dataB] = await Promise.all([
+            getPeriodData(rangeA.start, rangeA.end),
+            getPeriodData(rangeB.start, rangeB.end),
+          ]);
+
+          function delta(a: number, b: number): string {
+            if (b === 0) return a > 0 ? "↑ new" : "—";
+            const pct = ((a - b) / b * 100).toFixed(0);
+            return a > b ? `↑ ${pct}%` : a < b ? `↓ ${pct}%` : "→ same";
+          }
+
+          return [
+            `📊 **${rangeA.label}** vs **${rangeB.label}**`,
+            "",
+            `| Metric | ${rangeA.label} | ${rangeB.label} | Change |`,
+            `|--------|---------|---------|--------|`,
+            `| Deals | ${dataA.deals} | ${dataB.deals} | ${delta(dataA.deals, dataB.deals)} |`,
+            `| GCI | $${dataA.gci.toFixed(2)} | $${dataB.gci.toFixed(2)} | ${delta(dataA.gci, dataB.gci)} |`,
+            `| Expenses | $${dataA.expenses.toFixed(2)} | $${dataB.expenses.toFixed(2)} | ${delta(dataA.expenses, dataB.expenses)} |`,
+            `| Activities | ${dataA.activities} | ${dataB.activities} | ${delta(dataA.activities, dataB.activities)} |`,
+            `| Net (GCI-Exp) | $${(dataA.gci - dataA.expenses).toFixed(2)} | $${(dataB.gci - dataB.expenses).toFixed(2)} | ${delta(dataA.gci - dataA.expenses, dataB.gci - dataB.expenses)} |`,
+          ].join("\n");
+        } catch {
+          return "Failed to compare periods. Please try again.";
+        }
+      },
+    }),
+
+    // ── CREATE: Flight plan (automated follow-up sequence) ───────────────────
+    createFlightPlan: tool({
+      description: "Create a flight plan — an automated follow-up sequence that generates tasks or outreach at set intervals. Use when the user says 'create a follow-up sequence for new buyers', 'set up a nurture plan', or 'automate check-ins after closing'.",
+      inputSchema: z.object({
+        name: z.string().describe("Name for the flight plan (e.g., 'New Buyer Follow-Up', 'Post-Close Nurture')"),
+        description: z.string().optional().describe("Brief description of the plan's purpose"),
+        triggerStatus: z.enum([...CLIENT_STATUSES]).optional().describe("Auto-assign when client enters this status"),
+        steps: z.array(z.object({
+          delayDays: z.number().describe("Days after trigger/previous step to execute"),
+          actionType: z.enum(["task", "outreach"]).describe("Create a task or generate outreach draft"),
+          template: z.string().describe("Task title or outreach prompt (e.g., 'Check-in call', 'Send market update')"),
+        })).min(1).max(10).describe("Sequence of steps, in order"),
+      }),
+      execute: async ({ name, description, triggerStatus, steps }) => {
+        try {
+          // Create the flight plan
+          const { data: plan, error: planErr } = await supabase
+            .from("flight_plans")
+            .insert({
+              user_id: userId,
+              name,
+              description: description ?? null,
+              trigger_status: triggerStatus ?? null,
+              is_active: true,
+              is_system: false,
+            })
+            .select("id")
+            .single();
+
+          if (planErr || !plan) return `Failed to create flight plan: ${planErr?.message ?? "unknown error"}`;
+
+          // Create the steps
+          const stepInserts = steps.map((step, i) => ({
+            flight_plan_id: plan.id,
+            step_order: i + 1,
+            delay_days: step.delayDays,
+            action_type: step.actionType,
+            template: step.template,
+          }));
+
+          const { error: stepsErr } = await supabase
+            .from("flight_plan_steps")
+            .insert(stepInserts);
+
+          if (stepsErr) return `Flight plan created but steps failed: ${stepsErr.message}`;
+
+          const stepSummary = steps.map((s, i) =>
+            `  ${i + 1}. Day ${s.delayDays}: ${s.actionType === "task" ? "📋 Task" : "✉️ Outreach"} — "${s.template}"`
+          ).join("\n");
+
+          return `✓ Flight plan "${name}" created with ${steps.length} steps:\n${stepSummary}${triggerStatus ? `\n\nAuto-triggers when a client moves to **${triggerStatus}** status.` : "\n\nThis plan can be manually assigned to clients from their profile in the **CRM** (/crm)."}`;
+        } catch {
+          return "Failed to create flight plan. Please try again.";
         }
       },
     }),

@@ -138,6 +138,55 @@ function getActionSummary(text: string): string {
   return `${first} (+${actions.length - 1} more)`;
 }
 
+/**
+ * Extract follow-up suggestion chips from AI response text.
+ * Looks for patterns like:
+ * - [SUGGEST: text here] — explicit AI-generated suggestions
+ * - Lines mentioning actions the user could take next
+ */
+function extractFollowUpChips(text: string): string[] {
+  const chips: string[] = [];
+
+  // Explicit [SUGGEST: ...] tags
+  const suggestMatches = text.matchAll(/\[SUGGEST:\s*([^\]]+)\]/gi);
+  for (const m of suggestMatches) {
+    chips.push(m[1].trim());
+  }
+
+  // If explicit suggestions exist, use those
+  if (chips.length > 0) return chips.slice(0, 3);
+
+  // Auto-detect common follow-up patterns from action responses
+  if (countActions(text) > 0) {
+    // After client creation — suggest filling details
+    if (text.includes("still missing") && text.includes("email")) {
+      const nameMatch = text.match(/([A-Z][a-z]+(?:\s[A-Z][a-z]+)*)'s profile/);
+      if (nameMatch) {
+        chips.push(`Add ${nameMatch[1]}'s contact info`);
+      }
+    }
+    // After creating a pipeline deal — suggest close date
+    if (text.includes("pipeline") && text.includes("close date")) {
+      chips.push("Add an expected close date");
+    }
+    // After a transaction — suggest client status change
+    if (text.includes("Cruising") || text.includes("cruising")) {
+      const nameMatch = text.match(/moving?\s+([A-Z][a-z]+)/);
+      if (nameMatch) chips.push(`Move ${nameMatch[1]} to Cruising`);
+    }
+    // After logging activity — suggest a follow-up task
+    if (text.includes("Activity logged") || text.includes("activity logged")) {
+      chips.push("Create a follow-up task");
+    }
+    // After expense — suggest viewing overhead
+    if (text.includes("Overhead") || text.includes("overhead")) {
+      chips.push("Show my expense breakdown");
+    }
+  }
+
+  return chips.slice(0, 3);
+}
+
 type ConfidenceLevel = "high" | "medium" | "low";
 
 /**
@@ -789,6 +838,35 @@ export function AiChat({ financialContext }: Props) {
                       )}
                     </div>
                   )}
+                  {/* Follow-up suggestion chips — shown after action responses */}
+                  {msg.role === "assistant" && msg.content && !loading && i === messages.length - 1 && (() => {
+                    const chips = extractFollowUpChips(parseConfidence(msg.content).text);
+                    if (chips.length === 0) return null;
+                    return (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {chips.map((chip) => (
+                          <button
+                            key={chip}
+                            onClick={() => handleSend(chip)}
+                            className="rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors"
+                            style={{
+                              background: "rgba(99, 102, 241, 0.12)",
+                              border: "1px solid rgba(99, 102, 241, 0.25)",
+                              color: "rgb(165, 180, 252)",
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = "rgba(99, 102, 241, 0.22)";
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = "rgba(99, 102, 241, 0.12)";
+                            }}
+                          >
+                            {chip}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             ))}

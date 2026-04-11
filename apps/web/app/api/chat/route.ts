@@ -247,6 +247,24 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // ── Setup gap detection (post-onboarding) ──
+      const setupGaps: string[] = [];
+      if (!settings.vehicle_use_pct || Number(settings.vehicle_use_pct) === 0)
+        setupGaps.push("Vehicle business-use % is at 0% — mileage deductions won't calculate");
+      if (!settings.home_office_pct || Number(settings.home_office_pct) === 0)
+        setupGaps.push("Home office % is not set — missing potential deduction");
+      if (!settings.board_code)
+        setupGaps.push("No real estate board selected — benchmarking is unavailable");
+      if ((ccaRows ?? []).length === 0)
+        setupGaps.push("No CCA assets tracked — business equipment isn't being depreciated");
+      if ((recurringExpRows ?? []).length === 0)
+        setupGaps.push("No recurring expenses set up — monthly subscriptions like MLS fees aren't being tracked");
+      if (!(transactions ?? []).some((tx: Record<string, unknown>) => !String(tx.date).startsWith(String(currentYear))))
+        setupGaps.push("No historical transactions — year-over-year comparison and personal records need past data (import at /history)");
+      const ytdMileageKm = (mileageRows ?? []).reduce((s: number, t: { km: number }) => s + Number(t.km), 0);
+      if (ytdMileageKm === 0)
+        setupGaps.push("No mileage logged YTD — driving to showings/meetings is a CRA-deductible expense");
+
       financialContext = [
         `Current Year: ${currentYear}`,
         `YTD GCI: ${fmtCurrency(ytdGCI)}`,
@@ -302,6 +320,8 @@ export async function POST(req: NextRequest) {
           const totalUCC = assets.reduce((s, a) => s + Number(a.ucc), 0);
           return `CCA Assets: ${assets.length} asset${assets.length > 1 ? "s" : ""}, ${fmtCurrency(totalUCC)} undepreciated capital cost`;
         })(),
+        // Setup gaps (post-onboarding)
+        setupGaps.length > 0 ? `\n[SETUP GAPS — incomplete profile items]:\n${setupGaps.map(g => `  • ${g}`).join("\n")}` : null,
       ].filter(Boolean).join("\n");
 
       // ── Compute engine outputs (parallel, fault-tolerant) ──────────────
@@ -1068,6 +1088,19 @@ When the agent's data shows any of these patterns, surface them naturally in you
 - No recurring expenses set up but agent mentions monthly subscriptions → suggest using createRecurringExpense
 - CCA assets are empty but agent mentions buying equipment → suggest tracking it for depreciation
 
+POST-ONBOARDING SETUP GAPS:
+When the agent's context data includes [SETUP GAPS], these represent profile items that are still at defaults after onboarding. On the FIRST message of a new session, naturally mention 1-2 of the most impactful gaps. Don't dump the whole list — pick the ones that affect their numbers most (vehicle use %, mileage, recurring expenses, historical data). Frame it helpfully:
+- "I noticed your vehicle business-use is at 0% — if you drive to showings or meetings, setting this in **Settings** (/settings) will unlock your mileage deductions."
+- "You don't have any recurring expenses set up yet. Do you pay monthly for anything like MLS fees, Mailchimp, or a CRM? I can set those up for you."
+After the first mention, don't repeat the same gaps in subsequent messages unless the user asks.
+
+FOLLOW-UP SUGGESTION TAGS:
+After completing actions, you may append up to 3 follow-up suggestion tags that the UI will render as clickable chips. Format: [SUGGEST: short action text]. Keep them under 30 characters. Examples:
+- After creating a client: [SUGGEST: Add Sarah's email] [SUGGEST: Create a task for Sarah]
+- After logging an expense: [SUGGEST: Show expense breakdown] [SUGGEST: Check my tax estimate]
+- After a performance summary: [SUGGEST: Compare to last month] [SUGGEST: Show pipeline health]
+Only include suggestions when they're genuinely useful next steps. Don't force them on every response.
+
 IMPORTANT: On the very first message from the agent, if their data shows a notable pattern (behind pace, high expenses, stale clients), proactively open with that insight rather than waiting to be asked. Frame it conversationally: "Looking at your numbers, I noticed..." Proactively surface notable patterns and data points.
 
 IMPORTANT: Use the Computed Engine Outputs section in the business data as your source of truth for projections, scores, tax estimates, benchmarks, probability bands, and insights. Do not recalculate these figures — they come from the platform's specialized engines (seasonal models, multi-bracket tax calculations, cohort benchmarking). You may explain the methodology or add qualitative context, but always reference the engine-computed numbers. If the Computed Engine Outputs section is not present, fall back to the raw financial data above.
@@ -1129,7 +1162,12 @@ TOOL TRIGGER MAP — When the agent says something that matches a trigger, call 
   - "Set [name]'s tone to professional" / "Make [name] formal" → searchClients → updateClientTone
   Performance:
   - "How was my month?" / "Give me a weekly summary" → getPerformanceSummary
-  - "How's this quarter going?" / "How did last month compare?" → getPerformanceSummary
+  - "How's this quarter going?" → getPerformanceSummary
+  - "How does this month compare to last month?" / "Compare Q1 to Q2" → comparePerformance
+  - "Am I doing better than last year?" → comparePerformance
+  Flight Plans:
+  - "Create a follow-up sequence for..." / "Set up a nurture plan" → createFlightPlan
+  - "Automate check-ins after closing" / "Build a buyer follow-up plan" → createFlightPlan
   Outreach:
   - "What outreach do I have pending?" → searchOutreachQueue
   - "Skip that follow-up to [name]" → searchOutreachQueue → skipOutreachItem
@@ -1176,7 +1214,9 @@ FOLLOW-UP INTELLIGENCE — After every action, be helpful about what's next:
 - After searchActivities: Highlight patterns — lots of calls but few showings? Lots of notes but no meetings? Offer observational insight.
 - After searchMileageLogs: Mention the total km and deduction. If they're logging lots of trips, confirm their vehicle business-use % is set correctly in Settings.
 - After getExpenseBreakdown: Highlight the top category and its percentage of total. If expense ratio is high, flag it. If a category seems low (e.g., $0 marketing), suggest it.
-- After getPerformanceSummary: Highlight the best metric and the area needing attention. Compare to their goal pace if available in context. Offer specific suggestions for improvement.
+- After getPerformanceSummary: Highlight the best metric and the area needing attention. Compare to their goal pace if available in context. Offer specific suggestions for improvement. [SUGGEST: Compare to last month] [SUGGEST: Show expense breakdown]
+- After comparePerformance: Highlight the biggest positive and negative change. If GCI is up, acknowledge momentum. If expenses are up more than GCI, flag it. If activities dropped, suggest outreach. [SUGGEST: Show my pipeline] [SUGGEST: What should I focus on?]
+- After createFlightPlan: Explain that the plan is now active and what will happen when it triggers. If no trigger status was set, mention they can assign it to clients manually. Link to **CRM** (/crm). [SUGGEST: Assign plan to a client] [SUGGEST: Create another plan]
 - LOOK FOR TOOL RESPONSE HINTS: When a tool result contains "MISSING_FIELDS:", use that list to craft a natural follow-up message directing the agent to fill in details.
 
 PAGE NAVIGATION GUIDE — When users ask "is there a way to...", "how do I...", "where can I see...", or "can you show me...", direct them to the right page AND section:
