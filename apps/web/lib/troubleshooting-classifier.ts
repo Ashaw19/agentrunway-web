@@ -73,6 +73,9 @@ export const PAGE_TO_TOPICS: Record<string, TroubleshootingTopic[]> = {
   "/overhead":     ["overhead", "tax"],
   "/altimeter":    ["altimeter", "benchmark"],
   "/scenarios":    ["scenarios", "forecast"],
+  "/social":       ["social"],
+  "/profile":      ["settings"],
+  "/flight-control": ["flight-control"],
 };
 
 /**
@@ -295,8 +298,8 @@ const TOPIC_RULES: TopicRule[] = [
   },
   {
     topic: "crm",
-    primary: ["client", "crm", "contact", "boarding", "scheduled", "in-flight", "in_flight", "cruising"],
-    secondary: ["lead", "relationship", "birthday", "tag", "activity", "phone", "email", "note"],
+    primary: ["client", "crm", "contact", "boarding", "scheduled", "in-flight", "in_flight", "cruising", "archive", "hangar"],
+    secondary: ["lead", "relationship", "birthday", "tag", "activity", "phone", "email", "note", "showing", "listing appointment"],
     phrases: [
       "add client",
       "client status",

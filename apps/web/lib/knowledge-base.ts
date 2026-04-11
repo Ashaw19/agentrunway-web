@@ -116,7 +116,7 @@ Referral tracking page at /referrals:
 Month-in-review carousel builder for Instagram. Select deals, choose template family, configure branding (logo, headshot, agent cutout), customize slides, add caption with hashtags, export to Instagram direct or Canva ZIP.
 
 **SETTINGS**
-Province, business structure (sole prop/PREC/corp), commission split (70/30 to 100/0), brokerage fees (monthly + per-deal + annual cap + post-cap rate), cash reserve, experience years, annual GCI goal, 5-year growth goals, vehicle business use %, home office method (simplified or detailed), home office sqft, GST/HST registration, tax instalments paid, seasonality (national vs custom quarterly weights), bank connections, AI Voice Guide (personal style instructions for AI-generated outreach), CREA board selection (local market comparison).
+Province, business structure (sole prop/PREC/corp), commission split (70/30 to 100/0), brokerage fees (monthly + per-deal + annual cap + post-cap rate), cash reserve, experience years, annual GCI goal, 5-year growth goals, vehicle business use %, home office method (simplified or detailed), home office sqft, GST/HST registration, HST filing frequency (monthly/quarterly/annual), brokerage withholds HST toggle (yes = agent receives net-of-HST cheques, no = agent receives full amount and remits HST themselves), tax instalments paid, seasonality (national vs custom quarterly weights), bank connections, AI Voice Guide (personal style instructions for AI-generated outreach), CREA board selection (local market comparison).
 
 **PROFILE**
 Display name, brokerage, avatar, business identity (name, number, logo), 15 color themes, dark mode toggle, production stats (YTD GCI, YTD deals, lifetime deals, lifetime GCI, best year).

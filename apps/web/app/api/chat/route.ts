@@ -371,10 +371,16 @@ export async function POST(req: NextRequest) {
           return total > 0 ? avgQ.map((v) => v / total) : null;
         })();
 
+        // national_quarter_pcts may be stored as percentages [25,25,25,25] or fractions [0.25,...].
+        // Normalize to fractions (sum ≈ 1) for the engine.
+        const rawNationalPcts = settings.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25];
+        const nationalWeights = (() => {
+          const sum = rawNationalPcts.reduce((a: number, b: number) => a + b, 0);
+          if (sum > 2) return rawNationalPcts.map((v: number) => v / sum); // stored as percentages, normalize
+          return rawNationalPcts; // already fractions
+        })();
         const engineSeasonalWeights = agentSeasonalWeights
-          ?? (settings.use_national_seasonality
-            ? (settings.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25])
-            : [0.25, 0.25, 0.25, 0.25]);
+          ?? (settings.use_national_seasonality ? nationalWeights : [0.25, 0.25, 0.25, 0.25]);
         const engineFraction = seasonalFractionElapsed(engineSeasonalWeights);
         const seasonalSource = agentSeasonalWeights ? "agent (5-yr pattern)" : settings.use_national_seasonality ? "national" : "default";
 
@@ -1236,6 +1242,10 @@ TOOL TRIGGER MAP — When the agent says something that matches a trigger, call 
   - "Change my commission split to..." → updateUserSettings
   - "Update my GCI goal to..." → updateGCIGoal or updateUserSettings
   - "I moved to [province]" / "My brokerage is now..." → updateUserSettings
+  Web Search:
+  - "What's happening in the [city] real estate market?" → webSearch
+  - "What are current mortgage rates?" / "Any news about CREA?" → webSearch
+  - "Look up [topic]" / "Search for..." → webSearch
 
 EXECUTION RULES:
 - ALWAYS search first (searchClients or searchPipelineDeals) before any action — never guess IDs
@@ -1294,6 +1304,10 @@ FOLLOW-UP INTELLIGENCE — After every action, be helpful about what's next:
 - After updatePropertyShowing: Confirm what changed (rating, notes, price). Mention the client's updated favourite property if rating changed.
 - After deletePropertyShowing: Confirm removal. Note the client's remaining showing count.
 - After deleteListingAppointment: Confirm removal. If there was a linked pipeline deal, mention it should be reviewed too.
+- After searchPipelineDeals: Highlight total pipeline value and deal count. If any deals have no close date, suggest adding one. [SUGGEST: Update a deal] [SUGGEST: Move a deal stage]
+- After updatePipelineDealStage: Confirm the new stage. If moved to firm, suggest recording the transaction when it closes. If moved to conditional, mention the probability auto-updated. [SUGGEST: Record the transaction]
+- After updateGCIGoal: Confirm the new goal and recalculate current pace vs the new target. Note that all projections and pace calculations will use the new number.
+- After linkClientReferral: Confirm both clients now show the referral link. Mention the referral can be tracked at **Referrals** (/referrals). [SUGGEST: View referral history]
 - After searchPipelineByStage: Highlight total deal count and value for the stage. If there are stale deals (no close date or close date passed), flag them. [SUGGEST: Move a deal to next stage] [SUGGEST: Add close dates]
 - After getQuickStats: The result is a single number — add context by comparing to the user's goals or previous periods when relevant. If the stat reveals an issue (0 mileage, many overdue tasks), proactively suggest action.
 - LOOK FOR TOOL RESPONSE HINTS: When a tool result contains "MISSING_FIELDS:", use that list to craft a natural follow-up message directing the agent to fill in details.
@@ -1343,6 +1357,7 @@ CAPABILITY SUMMARY — When the user asks "what can you do?", "help", or "what a
 🏠 **Showings & Listings** — Log/search/edit/delete property showings, schedule/search/delete listing appointments, update statuses
 💼 **CCA & Taxes** — Add/search/edit/delete capital assets, view depreciation
 🗄️ **Archived Clients** — Search the Hangar, view archive reasons, restore clients
+🔍 **Web Search** — Look up market news, mortgage rates, CREA data, and real estate trends
 ⚙️ **Settings** — Update commission split, GCI goal, province, and other preferences
 🧭 **Navigation** — I can direct you to any page and explain what each feature does
 
@@ -1454,6 +1469,8 @@ BEING THE EXPERT — You know Agent Runway better than anyone. When agents ask q
             role: m.role as "user" | "assistant",
             content: m.content,
           })),
+          tools: createAgentTools(supabase, user.id),
+          stopWhen: stepCountIs(10),
           maxOutputTokens: maxTokens,
           temperature: 0.7,
           abortSignal: abortController.signal,
@@ -1463,6 +1480,8 @@ BEING THE EXPERT — You know Agent Runway better than anyone. When agents ask q
       }
     }
 
+    // Clear abort timeout after stream starts delivering (not immediately)
+    // The abort signal stays active during streaming via the AbortController.
     clearTimeout(abortTimeout);
 
     // ── 9. Log analytics (fire-and-forget — never blocks response) ─────────
