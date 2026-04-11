@@ -101,6 +101,7 @@ import {
 } from "lucide-react";
 import { ShowingsSection } from "./showings-section";
 import { fmtCurrency } from "@/lib/formatters";
+import { KpiCard } from "@/components/kpi-card";
 import { cn } from "@/lib/utils";
 import type {
   Client,
@@ -3169,22 +3170,10 @@ export function ClientsContent({
 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-3">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">Total Clients</span>
-          <span className="text-lg font-bold text-slate-800">{clientsLoading ? "…" : grouped.length}</span>
-        </div>
-        <div className="flex items-center justify-between rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-3">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-violet-600">Repeat Clients</span>
-          <span className="text-lg font-bold text-slate-800">{repeatCount} <span className="text-xs font-normal text-muted-foreground">({repeatRate}%)</span></span>
-        </div>
-        <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">Lifetime GCI</span>
-          <span className="text-lg font-bold text-slate-800">{fmtCurrency(totalGCI)}</span>
-        </div>
-        <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">Total Deals</span>
-          <span className="text-lg font-bold text-slate-800">{totalDeals}</span>
-        </div>
+        <KpiCard label="Total Clients" value={clientsLoading ? "…" : grouped.length} colorScheme="blue" layout="horizontal" />
+        <KpiCard label="Repeat Clients" value={<>{repeatCount} <span className="text-xs font-normal text-muted-foreground">({repeatRate}%)</span></>} colorScheme="violet" layout="horizontal" />
+        <KpiCard label="Lifetime GCI" value={fmtCurrency(totalGCI)} colorScheme="emerald" layout="horizontal" />
+        <KpiCard label="Total Deals" value={totalDeals} colorScheme="amber" layout="horizontal" />
       </div>
 
       {/* ── Tabs ─────────────────────────────────────────────────────────── */}

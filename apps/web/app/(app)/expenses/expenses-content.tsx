@@ -19,6 +19,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, Plus, Check, X, Trash2, Info, ExternalLink, ChevronsUpDown, Camera, Receipt, ArrowRight, Download, FileText, RefreshCw, AlertTriangle, Clock, Lightbulb } from "lucide-react";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
+import { KpiCard } from "@/components/kpi-card";
 import {
   computeGCI,
   type ExpenseCategoryWithItems,
@@ -1076,50 +1077,22 @@ export function ExpensesContent({
 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50/60 px-4 py-3">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-600">YTD Expenses</span>
-          <span className="text-lg font-bold text-slate-800">{fmtCurrency(effectiveTotal)}</span>
-        </div>
-        <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">Monthly Recurring</span>
-          <span className="text-lg font-bold text-slate-800">{fmtCurrency(monthlyTotal)}</span>
-        </div>
-        <div className={cn(
-          "flex items-center justify-between rounded-xl px-4 py-3",
-          ratioStatus === "healthy" ? "border border-emerald-200 bg-emerald-50/60" :
-          ratioStatus === "warning" ? "border border-amber-200 bg-amber-50/60" :
-                                      "border border-red-200 bg-red-50/60"
-        )}>
-          <span className={cn(
-            "text-[11px] font-semibold uppercase tracking-wider",
-            ratioStatus === "healthy" ? "text-emerald-600" :
-            ratioStatus === "warning" ? "text-amber-600" : "text-red-600"
-          )}>Expense Ratio</span>
-          <span className={cn(
-            "text-lg font-bold",
-            ratioStatus === "healthy" ? "text-emerald-700" :
-            ratioStatus === "warning" ? "text-amber-700" : "text-red-700"
-          )}>{ytdGCI > 0 ? fmtPct(expenseRatio) : "—"}</span>
-        </div>
-        <div className={cn(
-          "flex items-center justify-between rounded-xl px-4 py-3",
-          survival.riskLevel === "strong" || survival.riskLevel === "healthy"
-            ? "border border-emerald-200 bg-emerald-50/60"
-            : survival.riskLevel === "warning"
-            ? "border border-amber-200 bg-amber-50/60"
-            : "border border-red-200 bg-red-50/60"
-        )}>
-          <span className={cn(
-            "text-[11px] font-semibold uppercase tracking-wider",
-            survival.riskLevel === "strong" || survival.riskLevel === "healthy" ? "text-emerald-600" :
-            survival.riskLevel === "warning" ? "text-amber-600" : "text-red-600"
-          )}>Cash Runway</span>
-          <span className={cn(
-            "text-lg font-bold",
-            survival.riskLevel === "strong" || survival.riskLevel === "healthy" ? "text-emerald-700" :
-            survival.riskLevel === "warning" ? "text-amber-700" : "text-red-700"
-          )}>{survival.label}</span>
-        </div>
+        <KpiCard label="YTD Expenses" value={fmtCurrency(effectiveTotal)} colorScheme="rose" layout="horizontal" />
+        <KpiCard label="Monthly Recurring" value={fmtCurrency(monthlyTotal)} colorScheme="amber" layout="horizontal" />
+        <KpiCard
+          label="Expense Ratio"
+          value={ytdGCI > 0 ? fmtPct(expenseRatio) : "—"}
+          colorScheme={ratioStatus === "healthy" ? "emerald" : ratioStatus === "warning" ? "amber" : "red"}
+          valueClassName={ratioStatus === "healthy" ? "text-emerald-700" : ratioStatus === "warning" ? "text-amber-700" : "text-red-700"}
+          layout="horizontal"
+        />
+        <KpiCard
+          label="Cash Runway"
+          value={survival.label}
+          colorScheme={survival.riskLevel === "strong" || survival.riskLevel === "healthy" ? "emerald" : survival.riskLevel === "warning" ? "amber" : "red"}
+          valueClassName={survival.riskLevel === "strong" || survival.riskLevel === "healthy" ? "text-emerald-700" : survival.riskLevel === "warning" ? "text-amber-700" : "text-red-700"}
+          layout="horizontal"
+        />
       </div>
 
       {/* ── Filing period filter ──────────────────────────────────────── */}
