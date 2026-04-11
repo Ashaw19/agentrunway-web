@@ -125,7 +125,7 @@ Display name, brokerage, avatar, business identity (name, number, logo), 15 colo
 Accessible from Quick Actions FAB (floating action button) on every page. Records audio → transcribes via Groq Whisper → classifies intent via Llama 3.3 → routes to correct page with pre-filled fields (shown with amber tint to signal voice-filled content). Supports 5 intents: new_client, new_expense, new_transaction, note, unknown.
 
 **AI ASSISTANT (this assistant)**
-Chat-based assistant with access to live financial data. Answers questions about finances, tax obligations, CRM strategy, outreach, and business performance. Uses Groq Llama 3.3 70B. Rate limit: 30 messages/hour. Available to Professional and Team plan subscribers. Tax disclaimer always applies — estimates only, consult a qualified accountant for filing.
+Chat-based assistant with access to live financial data. Answers questions about finances, tax obligations, CRM strategy, outreach, and business performance. Powered by Claude (Anthropic) with 3-tier model routing — simple queries use Haiku for speed, standard queries use Sonnet, complex queries (tax, forecasting, scenarios) use Opus. Rate limit: 30 messages/hour. Available to Professional and Team plan subscribers. Tax disclaimer always applies — estimates only, consult a qualified accountant for filing.
 
 **TEAMS & ORGANIZATIONS**
 Allows brokerages and team leaders to manage agents under one organization. Pricing: $149/mo leader + $55/mo per member. Pages: /org (team dashboard), /org/members (invite & manage), /org/billing (subscription & seats), /org/reports (5 leader-only reports), /org/settings (name, logo, seats), /org/audit-log.

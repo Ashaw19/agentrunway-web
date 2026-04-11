@@ -425,7 +425,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         clientId: z.string().uuid().describe("The client UUID from searchClients"),
         clientName: z.string().describe("Client name for confirmation message"),
         birthdate: z.string().optional().describe("Client birthday in YYYY-MM-DD format — triggers birthday outreach in Flight Control"),
-        leadSource: z.enum(["SOI", "Referral", "Zillow", "Open House", "Social", "Other"]).optional().describe("How this client was sourced"),
+        leadSource: z.enum(["referral", "sphere", "open_house", "online", "sign_call", "cold_call", "door_knock", "social_media", "repeat", "other"]).optional().describe("How this client was sourced"),
         provinceRegion: z.string().optional().describe("Client's province or region"),
         scheduledFor: z.string().optional().describe("Future date when client plans to act (YYYY-MM-DD)"),
         scheduledPhrase: z.string().optional().describe("Vague timing phrase like 'after the holidays' or 'spring 2026'"),
@@ -1280,19 +1280,18 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── CREATE RECURRING EXPENSE ─────────────────────────────────────────────
     createRecurringExpense: tool({
-      description: "Set up a recurring business expense (monthly, quarterly, or annual). Use when the agent says 'I pay $X/month for...' or 'set up a recurring expense for...'",
+      description: "Set up a recurring monthly business expense. Use when the agent says 'I pay $X/month for...' or 'set up a recurring expense for...'",
       inputSchema: z.object({
-        vendor: z.string().describe("Business or vendor name (e.g. 'Canva', 'Rogers', 'Desjardins Insurance')"),
-        amount: z.number().positive().describe("Expense amount per period in dollars"),
+        name: z.string().describe("Business or vendor name (e.g. 'Canva', 'Rogers', 'Desjardins Insurance')"),
+        amount: z.number().positive().describe("Expense amount per month in dollars"),
         categoryKey: z.enum(EXPENSE_CATEGORY_KEYS).describe("Expense category key"),
-        frequency: z.enum(["monthly", "quarterly", "annual"]).default("monthly").describe("How often this recurs"),
+        dayOfMonth: z.number().int().min(1).max(28).default(1).describe("Day of month the expense recurs (1-28)"),
         notes: z.string().optional().describe("Optional notes"),
         confirmed: z.boolean().default(false).describe("Must be true to execute."),
       }),
-      execute: async ({ vendor, amount, categoryKey, frequency, notes, confirmed }) => {
-        const freqLabel = frequency ?? "monthly";
+      execute: async ({ name, amount, categoryKey, dayOfMonth, notes, confirmed }) => {
         if (!confirmed) {
-          return `Ready to set up: $${amount.toLocaleString()}/${freqLabel} recurring expense at ${vendor} (${categoryKey.replace(/_/g, " ")}). This will auto-generate entries each ${freqLabel} period. Confirm to save.`;
+          return `Ready to set up: $${amount.toLocaleString()}/month recurring expense for ${name} (${categoryKey.replace(/_/g, " ")}), recurring on day ${dayOfMonth} of each month. Confirm to save.`;
         }
 
         try {
@@ -1300,17 +1299,17 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
             .from("recurring_expenses")
             .insert({
               user_id: userId,
-              vendor,
+              name,
               amount,
               category_key: categoryKey,
-              frequency: freqLabel,
+              day_of_month: dayOfMonth,
               is_active: true,
               notes: notes ?? null,
             });
 
           if (error) return `Failed to create recurring expense: ${error.message}`;
 
-          return `✓ Recurring expense created — $${amount.toLocaleString()}/${freqLabel} at ${vendor}. Entries will auto-generate each period for you to confirm. Manage recurring expenses in **Expenses** (/expenses) under the **Recurring** tab.`;
+          return `✓ Recurring expense created — $${amount.toLocaleString()}/month for ${name}, recurring on day ${dayOfMonth}. Entries will auto-generate each month for you to confirm. Manage recurring expenses in **Expenses** (/expenses) under the **Recurring** tab.`;
         } catch {
           return "Failed to create recurring expense. Please try again.";
         }
@@ -2152,10 +2151,10 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const [txResult, expResult, actResult, mileResult, pipeResult] = await Promise.allSettled([
             supabase
               .from("transactions")
-              .select("sale_price, gci, side, close_date")
+              .select("sale_price, commission_pct, gci_override, team_split_pct, side, date")
               .eq("user_id", userId)
-              .gte("close_date", start)
-              .lte("close_date", end),
+              .gte("date", start)
+              .lte("date", end),
             supabase
               .from("receipt_expenses")
               .select("total_amount, category_key")
@@ -2176,7 +2175,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               .lte("trip_date", end),
             supabase
               .from("pipeline_deals")
-              .select("id, stage, deal_value")
+              .select("id, stage, estimated_price")
               .eq("user_id", userId)
               .gte("created_at", `${start}T00:00:00`)
               .lte("created_at", `${end}T23:59:59`),
@@ -2189,11 +2188,15 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const newDeals = pipeResult.status === "fulfilled" ? pipeResult.value.data ?? [] : [];
 
           // Aggregate
-          const totalGCI = transactions.reduce((s: number, t: { gci: number }) => s + Number(t.gci || 0), 0);
+          const totalGCI = transactions.reduce((s: number, t: { sale_price: number; commission_pct: number; gci_override: number | null; team_split_pct: number | null }) => {
+            if (t.gci_override != null) return s + Number(t.gci_override);
+            const raw = Number(t.sale_price) * Number(t.commission_pct);
+            return s + (t.team_split_pct != null && Number(t.team_split_pct) > 0 ? raw * Number(t.team_split_pct) : raw);
+          }, 0);
           const totalExpenses = expenses.reduce((s: number, e: { total_amount: number }) => s + Number(e.total_amount || 0), 0);
           const totalKm = mileage.reduce((s: number, m: { km: number }) => s + Number(m.km || 0), 0);
           const totalMileageDed = mileage.reduce((s: number, m: { deduction: number }) => s + Number(m.deduction || 0), 0);
-          const pipelineValue = newDeals.reduce((s: number, d: { deal_value: number }) => s + Number(d.deal_value || 0), 0);
+          const pipelineValue = newDeals.reduce((s: number, d: { estimated_price: number }) => s + Number(d.estimated_price || 0), 0);
 
           // Activity breakdown
           const actByType: Record<string, number> = {};
@@ -2299,7 +2302,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
           async function getPeriodData(start: string, end: string) {
             const [txResult, expResult, actResult] = await Promise.allSettled([
-              supabase.from("transactions").select("gci").eq("user_id", userId).gte("close_date", start).lte("close_date", end),
+              supabase.from("transactions").select("sale_price, commission_pct, gci_override, team_split_pct").eq("user_id", userId).gte("date", start).lte("date", end),
               supabase.from("receipt_expenses").select("total_amount").eq("user_id", userId).gte("expense_date", start).lte("expense_date", end),
               supabase.from("contact_activities").select("id").eq("user_id", userId).gte("activity_date", `${start}T00:00:00`).lte("activity_date", `${end}T23:59:59`),
             ]);
@@ -2310,7 +2313,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
             return {
               deals: txData.length,
-              gci: txData.reduce((s: number, t: { gci: number }) => s + Number(t.gci || 0), 0),
+              gci: txData.reduce((s: number, t: { sale_price: number; commission_pct: number; gci_override: number | null; team_split_pct: number | null }) => {
+                if (t.gci_override != null) return s + Number(t.gci_override);
+                const raw = Number(t.sale_price) * Number(t.commission_pct);
+                return s + (t.team_split_pct != null && Number(t.team_split_pct) > 0 ? raw * Number(t.team_split_pct) : raw);
+              }, 0),
               expenses: expData.reduce((s: number, e: { total_amount: number }) => s + Number(e.total_amount || 0), 0),
               activities: actData.length,
             };
@@ -2552,7 +2559,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       inputSchema: z.object({
         assetId: z.string().uuid().describe("The CCA asset UUID"),
         description: z.string().optional().describe("Updated description"),
-        businessUsePct: z.number().optional().describe("Updated business use percentage (0-1)"),
+        businessUsePct: z.number().min(0).max(100).optional().describe("Updated business use percentage (0-100)"),
         notes: z.string().optional().describe("Updated notes"),
       }),
       execute: async ({ assetId, description, businessUsePct, notes }) => {
@@ -2561,7 +2568,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const changed: string[] = [];
 
           if (description) { updates.description = description; changed.push(`description → "${description}"`); }
-          if (businessUsePct !== undefined) { updates.business_use_pct = businessUsePct; changed.push(`business use → ${(businessUsePct * 100).toFixed(0)}%`); }
+          if (businessUsePct !== undefined) { updates.business_use_pct = businessUsePct / 100; changed.push(`business use → ${businessUsePct.toFixed(0)}%`); }
           if (notes !== undefined) { updates.notes = notes; changed.push("notes updated"); }
 
           if (changed.length === 0) return "No changes specified.";
@@ -2752,14 +2759,18 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               return `Your pipeline total is **$${total.toLocaleString()}** across ${data?.length ?? 0} deals.`;
             }
             case "closed_deals_ytd": {
-              const { count, error } = await supabase.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "closed").gte("close_date", ytdStart);
+              const { count, error } = await supabase.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "closed").gte("date", ytdStart);
               if (error) return `Query failed: ${error.message}`;
               return `You've closed **${count ?? 0} deals** so far in ${currentYear}.`;
             }
             case "ytd_gci": {
-              const { data, error } = await supabase.from("transactions").select("gci").eq("user_id", userId).eq("status", "closed").gte("close_date", ytdStart);
+              const { data, error } = await supabase.from("transactions").select("sale_price, commission_pct, gci_override, team_split_pct").eq("user_id", userId).eq("status", "closed").gte("date", ytdStart);
               if (error) return `Query failed: ${error.message}`;
-              const total = (data ?? []).reduce((s: number, t: { gci: number }) => s + Number(t.gci || 0), 0);
+              const total = (data ?? []).reduce((s: number, t: { sale_price: number; commission_pct: number; gci_override: number | null; team_split_pct: number | null }) => {
+                if (t.gci_override != null) return s + Number(t.gci_override);
+                const raw = Number(t.sale_price) * Number(t.commission_pct);
+                return s + (t.team_split_pct != null && Number(t.team_split_pct) > 0 ? raw * Number(t.team_split_pct) : raw);
+              }, 0);
               return `Your YTD GCI is **$${total.toLocaleString()}** from ${data?.length ?? 0} closed deals.`;
             }
             case "ytd_expenses": {
@@ -2854,7 +2865,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         try {
           let q = supabase
             .from("t2125_cca_assets")
-            .select("id, description, cca_class, original_cost, business_use_pct, ucc, acquisition_date")
+            .select("id, description, cca_class, original_cost, business_use_pct, opening_ucc, acquisition_date")
             .eq("user_id", userId)
             .order("acquisition_date", { ascending: false });
 
@@ -2865,7 +2876,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (!data || data.length === 0) return query ? `No CCA assets found matching "${query}".` : "No CCA assets found.";
 
           return data.map((a: Record<string, unknown>) =>
-            `• ${a.description} (ID: ${a.id}) — Class ${a.cca_class}, cost $${Number(a.original_cost).toLocaleString()}, ${(Number(a.business_use_pct) * 100).toFixed(0)}% business use, UCC $${Number(a.ucc).toLocaleString()}`
+            `• ${a.description} (ID: ${a.id}) — Class ${a.cca_class}, cost $${Number(a.original_cost).toLocaleString()}, ${(Number(a.business_use_pct) * 100).toFixed(0)}% business use, UCC $${Number(a.opening_ucc).toLocaleString()}`
           ).join("\n");
         } catch { return "CCA asset search temporarily unavailable."; }
       },
@@ -2980,7 +2991,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         try {
           let q = supabase
             .from("recurring_expenses")
-            .select("id, name, amount, category_key, frequency, is_active, start_date, notes")
+            .select("id, name, amount, category_key, day_of_month, is_active, start_date, notes")
             .eq("user_id", userId)
             .order("name");
 
@@ -2992,7 +3003,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (!data || data.length === 0) return query ? `No recurring expenses found matching "${query}".` : "No recurring expenses found.";
 
           return data.map((r: Record<string, unknown>) =>
-            `• ${r.name} (ID: ${r.id}) — $${Number(r.amount).toFixed(2)}/${r.frequency} — ${r.category_key} — ${r.is_active ? "🟢 Active" : "⚪ Paused"}${r.notes ? ` — "${r.notes}"` : ""}`
+            `• ${r.name} (ID: ${r.id}) — $${Number(r.amount).toFixed(2)}/month (day ${r.day_of_month}) — ${r.category_key} — ${r.is_active ? "🟢 Active" : "⚪ Paused"}${r.notes ? ` — "${r.notes}"` : ""}`
           ).join("\n");
         } catch { return "Recurring expense search temporarily unavailable."; }
       },
@@ -3066,12 +3077,14 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DELETE: Mileage entry ─────────────────────────────────────────────────
     deleteMileage: tool({
-      description: "Delete a mileage log entry. Use searchMileageLogs first to find the entry ID.",
+      description: "Delete a mileage log entry. Use searchMileageLogs first to find the entry ID. Requires confirmation.",
       inputSchema: z.object({
         mileageId: z.string().uuid().describe("The mileage log UUID"),
         tripDescription: z.string().describe("Brief description for confirmation"),
+        confirmed: z.boolean().default(false).describe("Must be true to delete"),
       }),
-      execute: async ({ mileageId, tripDescription }) => {
+      execute: async ({ mileageId, tripDescription, confirmed }) => {
+        if (!confirmed) return `PREVIEW — I'll permanently delete the mileage entry: ${tripDescription}. Say "yes" to confirm.`;
         try {
           const { error } = await supabase
             .from("mileage_logs")
@@ -3087,12 +3100,14 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DELETE: Contact task ──────────────────────────────────────────────────
     deleteContactTask: tool({
-      description: "Delete a contact task. Use searchContactTasks first to find the task ID.",
+      description: "Delete a contact task. Use searchContactTasks first to find the task ID. Requires confirmation.",
       inputSchema: z.object({
         taskId: z.string().uuid().describe("The task UUID"),
         taskTitle: z.string().describe("Task title for confirmation"),
+        confirmed: z.boolean().default(false).describe("Must be true to delete"),
       }),
-      execute: async ({ taskId, taskTitle }) => {
+      execute: async ({ taskId, taskTitle, confirmed }) => {
+        if (!confirmed) return `PREVIEW — I'll permanently delete the task: "${taskTitle}". Say "yes" to confirm.`;
         try {
           const { error } = await supabase
             .from("contact_tasks")
@@ -3131,12 +3146,14 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DELETE: Listing appointment ───────────────────────────────────────────
     deleteListingAppointment: tool({
-      description: "Delete a listing appointment. Use searchListingAppointments first to find the ID.",
+      description: "Delete a listing appointment. Use searchListingAppointments first to find the ID. Requires confirmation.",
       inputSchema: z.object({
         appointmentId: z.string().uuid().describe("The listing appointment UUID"),
         appointmentDescription: z.string().describe("Description for confirmation"),
+        confirmed: z.boolean().default(false).describe("Must be true to delete"),
       }),
-      execute: async ({ appointmentId, appointmentDescription }) => {
+      execute: async ({ appointmentId, appointmentDescription, confirmed }) => {
+        if (!confirmed) return `PREVIEW — I'll permanently delete the listing appointment: ${appointmentDescription}. Say "yes" to confirm.`;
         try {
           const { error } = await supabase
             .from("listing_appointments")
@@ -3184,12 +3201,14 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DELETE: Property showing ───────────────────────────────────────────��──
     deletePropertyShowing: tool({
-      description: "Delete a property showing record. Use searchPropertyShowings first to find the showing ID.",
+      description: "Delete a property showing record. Use searchPropertyShowings first to find the showing ID. Requires confirmation.",
       inputSchema: z.object({
         showingId: z.string().uuid().describe("The property showing UUID"),
         showingDescription: z.string().describe("Description for confirmation"),
+        confirmed: z.boolean().default(false).describe("Must be true to delete"),
       }),
-      execute: async ({ showingId, showingDescription }) => {
+      execute: async ({ showingId, showingDescription, confirmed }) => {
+        if (!confirmed) return `PREVIEW — I'll permanently delete the property showing: ${showingDescription}. Say "yes" to confirm.`;
         try {
           const { error } = await supabase
             .from("property_showings")

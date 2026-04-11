@@ -1403,7 +1403,7 @@ The Altimeter is your deep analytics dashboard — performance tracking, insight
    - Cohort comparison (rookie, growth, established, top producer)
 
 5. **Where You Stand**
-   - Positioning on a Launching → Growing → Established → Leading scale
+   - Positioning on a Launching → Climbing → Competitive → Advancing → Leading scale (5 bands)
    - Based on deal volume, GCI, and year-over-year trajectory
 
 6. **Deviation Detection**
@@ -1413,7 +1413,7 @@ The Altimeter is your deep analytics dashboard — performance tracking, insight
 7. **Runway Score Breakdown**
    - Component weights: Pace 35%, Pipeline 30%, Expense Ratio 15%, Survival 15%, Benchmark 5%
    - Each sub-score shown individually so you can see what's pulling your score up or down
-   - Grade: A+ (90-100), A (80-89), B (70-79), C (60-69), D (50-59), F (<50)
+   - Grade: A+ (≥92), A (≥85), B (≥75), C (≥62), D (≥50), F (<50)
 
 ### Common Issues
 - **"Personal records are wrong"**: Records only count closed transactions with confirmed GCI. Pending pipeline deals don't count.

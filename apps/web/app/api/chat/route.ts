@@ -167,9 +167,9 @@ export async function POST(req: NextRequest) {
         supabase.from("outreach_queue").select("id, status", { count: "exact", head: false }).eq("user_id", user.id).in("status", ["draft", "ready"]),  // 11: pending outreach
         supabase.from("mileage_logs").select("km, deduction").eq("user_id", user.id).gte("trip_date", ytdStart),                                       // 12: YTD mileage
         supabase.from("referrals").select("direction, status, actual_fee_paid, estimated_value").eq("user_id", user.id).gte("referral_date", ytdStart), // 13: YTD referrals
-        supabase.from("t2125_cca_assets").select("description, cca_class, cost, ucc").eq("user_id", user.id),                                          // 14: CCA assets
-        supabase.from("listing_appointments").select("id, address, status, appointment_date, client_id").eq("user_id", user.id).in("status", ["scheduled", "pending"]).order("appointment_date", { ascending: true }).limit(10), // 15: upcoming listing appointments
-        supabase.from("property_showings").select("id, address, showing_date, client_id, rating").eq("user_id", user.id).gte("showing_date", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]).order("showing_date", { ascending: false }).limit(10), // 16: recent property showings
+        supabase.from("t2125_cca_assets").select("description, cca_class, original_cost, opening_ucc").eq("user_id", user.id),                            // 14: CCA assets
+        supabase.from("listing_appointments").select("id, property_address, status, appointment_date, client_id").eq("user_id", user.id).in("status", ["scheduled", "active"]).order("appointment_date", { ascending: true }).limit(10), // 15: upcoming listing appointments
+        supabase.from("property_showings").select("id, property_address, showing_date, client_id, client_rating").eq("user_id", user.id).gte("showing_date", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]).order("showing_date", { ascending: false }).limit(10), // 16: recent property showings
       ]);
     // Safely extract results — individual query failures won't kill the entire chat
     const val = <T,>(r: PromiseSettledResult<T>, fallback: T): T =>
@@ -319,22 +319,22 @@ export async function POST(req: NextRequest) {
           return `Referrals YTD: ${inbound} inbound, ${outbound} outbound${feesPaid > 0 ? `, ${fmtCurrency(feesPaid)} in fees` : ""}`;
         })(),
         (() => {
-          const assets = (ccaRows ?? []) as { description: string; cca_class: string; cost: number; ucc: number }[];
+          const assets = (ccaRows ?? []) as { description: string; cca_class: string; original_cost: number; opening_ucc: number }[];
           if (assets.length === 0) return null;
-          const totalUCC = assets.reduce((s, a) => s + Number(a.ucc), 0);
+          const totalUCC = assets.reduce((s, a) => s + Number(a.opening_ucc), 0);
           return `CCA Assets: ${assets.length} asset${assets.length > 1 ? "s" : ""}, ${fmtCurrency(totalUCC)} undepreciated capital cost`;
         })(),
         (() => {
-          const appts = (listingApptRows ?? []) as { id: string; address: string; status: string; appointment_date: string }[];
+          const appts = (listingApptRows ?? []) as { id: string; property_address: string; status: string; appointment_date: string }[];
           if (appts.length === 0) return null;
-          const upcoming = appts.map(a => `"${a.address}" (${a.appointment_date}, ${a.status})`).join(", ");
+          const upcoming = appts.map(a => `"${a.property_address}" (${a.appointment_date}, ${a.status})`).join(", ");
           return `Upcoming Listing Appointments: ${appts.length} — ${upcoming}`;
         })(),
         (() => {
-          const shows = (showingRows ?? []) as { id: string; address: string; showing_date: string; rating: number | null }[];
+          const shows = (showingRows ?? []) as { id: string; property_address: string; showing_date: string; client_rating: number | null }[];
           if (shows.length === 0) return null;
-          const topRated = shows.filter(s => s.rating != null).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))[0];
-          return `Recent Showings (14 days): ${shows.length} showing${shows.length > 1 ? "s" : ""}${topRated ? `. Highest rated: "${topRated.address}" at ${topRated.rating}/5` : ""}`;
+          const topRated = shows.filter(s => s.client_rating != null).sort((a, b) => (b.client_rating ?? 0) - (a.client_rating ?? 0))[0];
+          return `Recent Showings (14 days): ${shows.length} showing${shows.length > 1 ? "s" : ""}${topRated ? `. Highest rated: "${topRated.property_address}" at ${topRated.client_rating}/5` : ""}`;
         })(),
         // Setup gaps (post-onboarding)
         setupGaps.length > 0 ? `\n[SETUP GAPS — incomplete profile items]:\n${setupGaps.map(g => `  • ${g}`).join("\n")}` : null,
@@ -848,9 +848,9 @@ export async function POST(req: NextRequest) {
               `The agent receives commission MINUS ${hstLabel}. From what they receive, recommend: ` +
               `~${(marginalRate * 100).toFixed(0)}% set aside for income tax (federal + provincial), ` +
               `remainder is actual take-home. ` +
-              `Example: On a $10,000 gross commission at ${agentPct}% split, agent nets $${((10000 * agentPct / 100) * (1 - hstRate)).toFixed(0)} after HST withholding. ` +
-              `Set aside ~$${((10000 * agentPct / 100) * (1 - hstRate) * marginalRate).toFixed(0)} for tax. ` +
-              `Actual take-home: ~$${((10000 * agentPct / 100) * (1 - hstRate) * (1 - marginalRate)).toFixed(0)}.`
+              `Example: On a $10,000 gross commission at ${(agentPct * 100).toFixed(0)}% split, agent nets $${((10000 * agentPct) * (1 - hstRate)).toFixed(0)} after HST withholding. ` +
+              `Set aside ~$${((10000 * agentPct) * (1 - hstRate) * marginalRate).toFixed(0)} for tax. ` +
+              `Actual take-home: ~$${((10000 * agentPct) * (1 - hstRate) * (1 - marginalRate)).toFixed(0)}.`
             );
           } else {
             allocLines.push(
@@ -858,10 +858,10 @@ export async function POST(req: NextRequest) {
               `From each cheque, recommend setting aside: ` +
               `~${(hstRate * 100).toFixed(0)}% for ${hstLabel} remittance to CRA, ` +
               `~${(marginalRate * 100).toFixed(0)}% of the pre-HST amount for income tax. ` +
-              `Example: On a $10,000 gross commission at ${agentPct}% split, agent receives $${(10000 * agentPct / 100).toFixed(0)}. ` +
-              `Set aside ~$${((10000 * agentPct / 100) * hstRate).toFixed(0)} for ${hstLabel}. ` +
-              `Set aside ~$${((10000 * agentPct / 100) * marginalRate).toFixed(0)} for income tax. ` +
-              `Actual take-home: ~$${((10000 * agentPct / 100) * (1 - hstRate - marginalRate)).toFixed(0)}. ` +
+              `Example: On a $10,000 gross commission at ${(agentPct * 100).toFixed(0)}% split, agent receives $${(10000 * agentPct).toFixed(0)}. ` +
+              `Set aside ~$${((10000 * agentPct) * hstRate).toFixed(0)} for ${hstLabel}. ` +
+              `Set aside ~$${((10000 * agentPct) * marginalRate).toFixed(0)} for income tax. ` +
+              `Actual take-home: ~$${((10000 * agentPct) * (1 - hstRate - marginalRate)).toFixed(0)}. ` +
               `IMPORTANT: The ${hstLabel} portion is NOT the agent's money — it belongs to CRA. ` +
               `Spending it creates a tax debt that compounds with interest and penalties.`
             );
@@ -1137,6 +1137,9 @@ TOOL TRIGGER MAP — When the agent says something that matches a trigger, call 
   - "I just got a new listing at..." / "Add a deal for..." → searchClients → createPipelineDeal (link clientId)
   - "Move the [address] deal to conditional/firm..." → searchPipelineDeals → updatePipelineDealStage
   - "The [address] deal price changed to..." → searchPipelineDeals → updatePipelineDealValue
+  - "Change the probability on [address] to 80%" → searchPipelineDeals → updatePipelineDealProbability
+  - "Push the close date on [address] to June" → searchPipelineDeals → updatePipelineDealCloseDate
+  - "Update the notes/commission on [address] deal" → searchPipelineDeals → updatePipelineDealDetails
   - "That deal fell through" → searchPipelineDeals → removePipelineDeal (confirm first)
   Activities & Tasks:
   - "I called/emailed/met with [name]..." → searchClients → logContactActivity
@@ -1237,7 +1240,7 @@ TOOL TRIGGER MAP — When the agent says something that matches a trigger, call 
 EXECUTION RULES:
 - ALWAYS search first (searchClients or searchPipelineDeals) before any action — never guess IDs
 - MULTI-STEP CHAINING: Chain multiple tools in sequence without asking between steps. Example: "New client John Smith, seller at 44 Main St for $449K" → searchClients → createClient → createPipelineDeal (pass clientId). Do it all, then report what you did.
-- CONFIRM-REQUIRED TOOLS: logExpense, logMileage, recordTransaction, recordReferral, deleteExpense, updateExpense, createRecurringExpense, deleteRecurringExpense, updatePipelineDealValue, addCCAAsset, deleteCCAAsset, updateTransaction, deleteTransaction, deleteMileage, deleteReferral, deleteListingAppointment, deletePropertyShowing — when confirmed is false, present the preview naturally ("I'm about to record... does that look right?"), then call again with confirmed: true after their "yes".
+- CONFIRM-REQUIRED TOOLS: logExpense, logMileage, recordTransaction, recordReferral, deleteExpense, updateExpense, createRecurringExpense, deleteRecurringExpense, updatePipelineDealValue, addCCAAsset, deleteCCAAsset, updateTransaction, deleteTransaction, deleteMileage, deleteContactTask, deleteReferral, deleteListingAppointment, deletePropertyShowing — when confirmed is false, present the preview naturally ("I'm about to record... does that look right?"), then call again with confirmed: true after their "yes".
 - DESTRUCTIVE ACTIONS: archiveClient, removePipelineDeal, deleteExpense, deleteTransaction, deleteContactActivity, deleteRecurringExpense, deleteCCAAsset, deleteMileage, deleteReferral, deleteListingAppointment, deletePropertyShowing, deleteContactTask, manageFlightPlan (delete) — always confirm with the agent before executing.
 
 FOLLOW-UP INTELLIGENCE — After every action, be helpful about what's next:
