@@ -168,6 +168,8 @@ export async function POST(req: NextRequest) {
         supabase.from("mileage_logs").select("km, deduction").eq("user_id", user.id).gte("trip_date", ytdStart),                                       // 12: YTD mileage
         supabase.from("referrals").select("direction, status, actual_fee_paid, estimated_value").eq("user_id", user.id).gte("referral_date", ytdStart), // 13: YTD referrals
         supabase.from("t2125_cca_assets").select("description, cca_class, cost, ucc").eq("user_id", user.id),                                          // 14: CCA assets
+        supabase.from("listing_appointments").select("id, address, status, appointment_date, client_id").eq("user_id", user.id).in("status", ["scheduled", "pending"]).order("appointment_date", { ascending: true }).limit(10), // 15: upcoming listing appointments
+        supabase.from("property_showings").select("id, address, showing_date, client_id, rating").eq("user_id", user.id).gte("showing_date", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]).order("showing_date", { ascending: false }).limit(10), // 16: recent property showings
       ]);
     // Safely extract results — individual query failures won't kill the entire chat
     const val = <T,>(r: PromiseSettledResult<T>, fallback: T): T =>
@@ -189,6 +191,8 @@ export async function POST(req: NextRequest) {
     const { data: mileageRows } = val(settled[12], emptyResult);
     const { data: referralRows } = val(settled[13], emptyResult);
     const { data: ccaRows } = val(settled[14], emptyResult);
+    const { data: listingApptRows } = val(settled[15], emptyResult);
+    const { data: showingRows } = val(settled[16], emptyResult);
     const recurringExps = (recurringExpRows ?? []) as RecurringExpense[];
     const recurringExpMonthly = totalRecurringMonthly(recurringExps);
     const recurringExpYTDTotal = totalRecurringYTD(recurringExps);
@@ -319,6 +323,18 @@ export async function POST(req: NextRequest) {
           if (assets.length === 0) return null;
           const totalUCC = assets.reduce((s, a) => s + Number(a.ucc), 0);
           return `CCA Assets: ${assets.length} asset${assets.length > 1 ? "s" : ""}, ${fmtCurrency(totalUCC)} undepreciated capital cost`;
+        })(),
+        (() => {
+          const appts = (listingApptRows ?? []) as { id: string; address: string; status: string; appointment_date: string }[];
+          if (appts.length === 0) return null;
+          const upcoming = appts.map(a => `"${a.address}" (${a.appointment_date}, ${a.status})`).join(", ");
+          return `Upcoming Listing Appointments: ${appts.length} — ${upcoming}`;
+        })(),
+        (() => {
+          const shows = (showingRows ?? []) as { id: string; address: string; showing_date: string; rating: number | null }[];
+          if (shows.length === 0) return null;
+          const topRated = shows.filter(s => s.rating != null).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))[0];
+          return `Recent Showings (14 days): ${shows.length} showing${shows.length > 1 ? "s" : ""}${topRated ? `. Highest rated: "${topRated.address}" at ${topRated.rating}/5` : ""}`;
         })(),
         // Setup gaps (post-onboarding)
         setupGaps.length > 0 ? `\n[SETUP GAPS — incomplete profile items]:\n${setupGaps.map(g => `  • ${g}`).join("\n")}` : null,
@@ -1152,19 +1168,38 @@ TOOL TRIGGER MAP — When the agent says something that matches a trigger, call 
   - "Update the [address] transaction..." / "Change the sale price on..." → searchTransactions → updateTransaction (confirm first)
   - "Delete the [address] transaction" / "Remove that transaction" → searchTransactions → deleteTransaction (confirm first)
   - "Find my transaction at [address]" → searchTransactions
-  Referrals (edit):
+  Referrals (search/edit/delete):
   - "That referral deal closed" / "I paid the referral fee" → updateReferral
   - "Update the referral status to active" → updateReferral
-  Recurring Expenses (edit/delete):
+  - "Show me my referrals" / "Find the referral from [name]" → searchReferrals
+  - "Delete that referral" / "Remove the referral" → searchReferrals → deleteReferral (confirm first)
+  Recurring Expenses (search/edit/delete):
   - "Change my Mailchimp to $200/month" → updateRecurringExpense
   - "Pause that recurring expense" / "Reactivate my MLS fees" → updateRecurringExpense
+  - "Show me my recurring expenses" / "What do I pay monthly?" → searchRecurringExpenses
   - "Delete that recurring expense" → deleteRecurringExpense (confirm first)
-  CCA Assets (edit/delete):
+  CCA Assets (search/edit/delete):
   - "Update my laptop's business use to 80%" → updateCCAAsset
+  - "Show me my CCA assets" / "Find my laptop in capital assets" → searchCCAAssets
   - "Delete that CCA asset" → deleteCCAAsset (confirm first)
-  Flight Plans (manage):
+  Flight Plans (search/manage):
   - "Pause that flight plan" / "Activate the buyer nurture sequence" → manageFlightPlan
   - "Delete the post-close plan" → manageFlightPlan
+  - "Show me my flight plans" / "What sequences do I have?" → searchFlightPlans
+  Mileage (search/edit/delete):
+  - "Update that mileage entry" / "Change the km on that trip" → searchMileageLogs → updateMileage
+  - "Delete that mileage log" / "Remove the duplicate trip" → searchMileageLogs → deleteMileage (confirm first)
+  Showings & Appointments (search/edit/delete):
+  - "Show me my listing appointments" / "What listing appointments do I have?" → searchListingAppointments
+  - "Find showings at [address]" / "What properties has [name] seen?" → searchPropertyShowings
+  - "Update the showing rating" / "Add notes to that showing" → searchPropertyShowings → updatePropertyShowing
+  - "Delete that listing appointment" → searchListingAppointments → deleteListingAppointment (confirm first)
+  - "Delete that showing" / "Remove the showing" → searchPropertyShowings → deletePropertyShowing (confirm first)
+  Archived Clients:
+  - "Who's in the Hangar?" / "Show me archived clients" → searchArchivedClients
+  - "Find [name] in archived" → searchArchivedClients
+  Tasks (delete):
+  - "Delete that task" / "Remove the reminder" → searchContactTasks → deleteContactTask
   Pipeline Filters:
   - "Show me all conditional deals" / "What's in the offer stage?" → searchPipelineByStage
   - "How many leads do I have?" → searchPipelineByStage
@@ -1202,8 +1237,8 @@ TOOL TRIGGER MAP — When the agent says something that matches a trigger, call 
 EXECUTION RULES:
 - ALWAYS search first (searchClients or searchPipelineDeals) before any action — never guess IDs
 - MULTI-STEP CHAINING: Chain multiple tools in sequence without asking between steps. Example: "New client John Smith, seller at 44 Main St for $449K" → searchClients → createClient → createPipelineDeal (pass clientId). Do it all, then report what you did.
-- CONFIRM-REQUIRED TOOLS: logExpense, logMileage, recordTransaction, recordReferral, deleteExpense, updateExpense, createRecurringExpense, deleteRecurringExpense, updatePipelineDealValue, addCCAAsset, deleteCCAAsset, updateTransaction, deleteTransaction — when confirmed is false, present the preview naturally ("I'm about to record... does that look right?"), then call again with confirmed: true after their "yes".
-- DESTRUCTIVE ACTIONS: archiveClient, removePipelineDeal, deleteExpense, deleteTransaction, deleteContactActivity, deleteRecurringExpense, deleteCCAAsset, manageFlightPlan (delete) — always confirm with the agent before executing.
+- CONFIRM-REQUIRED TOOLS: logExpense, logMileage, recordTransaction, recordReferral, deleteExpense, updateExpense, createRecurringExpense, deleteRecurringExpense, updatePipelineDealValue, addCCAAsset, deleteCCAAsset, updateTransaction, deleteTransaction, deleteMileage, deleteReferral, deleteListingAppointment, deletePropertyShowing — when confirmed is false, present the preview naturally ("I'm about to record... does that look right?"), then call again with confirmed: true after their "yes".
+- DESTRUCTIVE ACTIONS: archiveClient, removePipelineDeal, deleteExpense, deleteTransaction, deleteContactActivity, deleteRecurringExpense, deleteCCAAsset, deleteMileage, deleteReferral, deleteListingAppointment, deletePropertyShowing, deleteContactTask, manageFlightPlan (delete) — always confirm with the agent before executing.
 
 FOLLOW-UP INTELLIGENCE — After every action, be helpful about what's next:
 - After createClient: If important fields are missing (email, phone, lead source, timeframe), tell the agent. Example: "John's profile is set up but we're still missing his contact info and timeframe. When you have a chance, head to his profile in the **CRM** (/crm) and fill in those details so we can really get to know who John is."
@@ -1242,6 +1277,20 @@ FOLLOW-UP INTELLIGENCE — After every action, be helpful about what's next:
 - After updateRecurringExpense: If paused, mention future entries will stop generating. If amount changed, note impact on monthly expense projections.
 - After deleteRecurringExpense/deleteCCAAsset: Confirm removal and note impact on relevant tax/expense calculations.
 - After manageFlightPlan: If activated, explain what will happen for matching clients. If deactivated, note existing assigned clients won't be affected.
+- After searchReferrals: Highlight total count and any pending referrals awaiting fee payment. If no results, suggest checking the spelling or broadening the search. [SUGGEST: Log a new referral] [SUGGEST: Update referral status]
+- After searchCCAAssets: Show total UCC across found assets. If no results, suggest adding capital assets for equipment used in business. [SUGGEST: Add a CCA asset] [SUGGEST: View depreciation at Overhead]
+- After searchFlightPlans: Note which plans are active vs inactive and how many steps each has. If none found, suggest creating one. [SUGGEST: Create a flight plan] [SUGGEST: Activate a plan]
+- After searchListingAppointments: Highlight upcoming vs past appointments and any won/lost status breakdown. [SUGGEST: Update appointment status] [SUGGEST: Create a pipeline deal]
+- After searchPropertyShowings: Highlight total showings found and any highly rated properties. [SUGGEST: Add another showing] [SUGGEST: Update showing notes]
+- After searchRecurringExpenses: Show monthly total and list of active subscriptions. If none found, suggest setting up recurring expenses for MLS fees, subscriptions, etc. [SUGGEST: Add a recurring expense]
+- After searchArchivedClients: Show why each client was archived (the reason). If the user wants to bring someone back, offer to unarchive. [SUGGEST: Restore a client] [SUGGEST: Search active clients instead]
+- After updateMileage: Confirm what changed. Note the updated deduction amount and link to the mileage tab at **Expenses** (/expenses).
+- After deleteMileage: Confirm removal. Note impact on YTD mileage total and deduction. If it was the only trip that day, mention it.
+- After deleteContactTask: Confirm removal. If the client has other pending tasks, mention them. If it was the only task, suggest creating a new follow-up.
+- After deleteReferral: Confirm removal. Note impact on YTD referral count and any fees that were recorded.
+- After updatePropertyShowing: Confirm what changed (rating, notes, price). Mention the client's updated favourite property if rating changed.
+- After deletePropertyShowing: Confirm removal. Note the client's remaining showing count.
+- After deleteListingAppointment: Confirm removal. If there was a linked pipeline deal, mention it should be reviewed too.
 - After searchPipelineByStage: Highlight total deal count and value for the stage. If there are stale deals (no close date or close date passed), flag them. [SUGGEST: Move a deal to next stage] [SUGGEST: Add close dates]
 - After getQuickStats: The result is a single number — add context by comparing to the user's goals or previous periods when relevant. If the stat reveals an issue (0 mileage, many overdue tasks), proactively suggest action.
 - LOOK FOR TOOL RESPONSE HINTS: When a tool result contains "MISSING_FIELDS:", use that list to craft a natural follow-up message directing the agent to fill in details.
@@ -1282,14 +1331,15 @@ CAPABILITY SUMMARY — When the user asks "what can you do?", "help", or "what a
 📋 **Clients & CRM** — Add/edit clients, update status, tags, notes, contact info, birthday, buyer/seller details, communication tone, archive/restore, view client summaries, filter by status or tag
 📊 **Pipeline** — Add/edit deals, move stages, update probability, filter by stage, remove deals
 💰 **Transactions** — Record/edit/delete closed deals, search by address, compare periods
-💸 **Expenses** — Log/edit/delete expenses, scan receipts, manage recurring expenses, track mileage, view category breakdowns
-🔗 **Referrals** — Log referrals, update status and fees, track inbound/outbound
-📅 **Tasks & Activities** — Create/edit/complete tasks, log activities, search activity history
+💸 **Expenses** — Log/edit/delete expenses, scan receipts, search/manage/delete recurring expenses, log/edit/delete mileage, view category breakdowns
+🔗 **Referrals** — Log/search/update/delete referrals, track inbound/outbound, fee tracking
+📅 **Tasks & Activities** — Create/edit/complete/delete tasks, log activities, search activity history
 ✈️ **Flight Control** — Check outreach queue, skip items, set communication tones
-🛫 **Flight Plans** — Create/activate/deactivate automated follow-up sequences
+🛫 **Flight Plans** — Create/search/activate/deactivate automated follow-up sequences
 📈 **Analytics** — Performance summaries, period comparisons, quick stats, expense breakdowns
-🏠 **Showings & Listings** — Log property showings, schedule listing appointments, update statuses
-💼 **CCA & Taxes** — Add/edit/delete capital assets, view depreciation
+🏠 **Showings & Listings** — Log/search/edit/delete property showings, schedule/search/delete listing appointments, update statuses
+💼 **CCA & Taxes** — Add/search/edit/delete capital assets, view depreciation
+🗄️ **Archived Clients** — Search the Hangar, view archive reasons, restore clients
 ⚙️ **Settings** — Update commission split, GCI goal, province, and other preferences
 🧭 **Navigation** — I can direct you to any page and explain what each feature does
 

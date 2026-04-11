@@ -17,6 +17,9 @@
  *   Search (read-only)  — searchClients, searchClientsByFilter, searchPipelineDeals,
  *                         searchContactTasks, searchExpenses, searchOutreachQueue,
  *                         searchTransactions, searchActivities, searchMileageLogs,
+ *                         searchReferrals, searchCCAAssets, searchFlightPlans,
+ *                         searchListingAppointments, searchPropertyShowings,
+ *                         searchRecurringExpenses, searchArchivedClients,
  *                         getClientSummary, getUpcomingAgenda,
  *                         getExpenseBreakdown, getPerformanceSummary,
  *                         comparePerformance, getQuickStats
@@ -24,7 +27,8 @@
  *                         createRecurringExpense, addPropertyShowing,
  *                         addListingAppointment, createFlightPlan
  *   Update              — updateListingAppointment, updateReferral,
- *                         updateRecurringExpense, updateCCAAsset
+ *                         updateRecurringExpense, updateCCAAsset,
+ *                         updateMileage, updatePropertyShowing
  *   Autonomous          — logContactActivity, updateClientStatus,
  *                         updateClientNotes, updateClientDetails,
  *                         updateClientTags, updateClientTone,
@@ -35,12 +39,15 @@
  *                         linkClientReferral, linkClientRelationship,
  *                         removePipelineDeal, completeContactTask,
  *                         updateContactTask, skipOutreachItem,
- *                         deleteContactActivity, manageFlightPlan
+ *                         deleteContactActivity, deleteContactTask,
+ *                         manageFlightPlan
  *   Confirm-required    — logExpense, logMileage, recordTransaction,
  *                         recordReferral, deleteExpense, updateExpense,
  *                         addCCAAsset, updateTransaction, deleteTransaction,
  *                         updatePipelineDealValue, deleteRecurringExpense,
- *                         deleteCCAAsset
+ *                         deleteCCAAsset, deleteMileage,
+ *                         deleteReferral, deleteListingAppointment,
+ *                         deletePropertyShowing
  */
 
 import { tool, type ToolSet } from "ai";
@@ -2804,6 +2811,395 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         } catch {
           return "Failed to look up stat. Please try again.";
         }
+      },
+    }),
+
+    // ── SEARCH: Referrals ───────────────────────────────────────────────────
+    searchReferrals: tool({
+      description: "Search referrals by partner name, client name, or status. Use to find referral IDs before updating or deleting.",
+      inputSchema: z.object({
+        query: z.string().optional().describe("Partner name or client name to search for"),
+        status: z.enum(["pending", "active", "closed", "expired", "cancelled"]).optional().describe("Filter by status"),
+      }),
+      execute: async ({ query, status }) => {
+        try {
+          let q = supabase
+            .from("referrals")
+            .select("id, direction, partner_name, client_name, status, referral_fee_pct, estimated_value, actual_fee_paid, referral_date")
+            .eq("user_id", userId)
+            .order("referral_date", { ascending: false })
+            .limit(10);
+
+          if (status) q = q.eq("status", status);
+          if (query) q = q.or(`partner_name.ilike.%${query}%,client_name.ilike.%${query}%`);
+
+          const { data, error } = await q;
+          if (error) return `Search failed: ${error.message}`;
+          if (!data || data.length === 0) return "No referrals found matching your criteria.";
+
+          return data.map((r: Record<string, unknown>) =>
+            `• ${r.direction === "inbound" ? "⬅️" : "➡️"} ${r.partner_name} → ${r.client_name} (ID: ${r.id}) — ${r.status}, ${Number(r.referral_fee_pct)}% fee${Number(r.actual_fee_paid) > 0 ? `, $${Number(r.actual_fee_paid).toLocaleString()} paid` : ""}`
+          ).join("\n");
+        } catch { return "Referral search temporarily unavailable."; }
+      },
+    }),
+
+    // ── SEARCH: CCA Assets ───────────────────────────────────────────────────
+    searchCCAAssets: tool({
+      description: "Search CCA assets by description. Use to find asset IDs before updating or deleting.",
+      inputSchema: z.object({
+        query: z.string().optional().describe("Description keyword to search for"),
+      }),
+      execute: async ({ query }) => {
+        try {
+          let q = supabase
+            .from("t2125_cca_assets")
+            .select("id, description, cca_class, original_cost, business_use_pct, ucc, acquisition_date")
+            .eq("user_id", userId)
+            .order("acquisition_date", { ascending: false });
+
+          if (query) q = q.ilike("description", `%${query}%`);
+
+          const { data, error } = await q;
+          if (error) return `Search failed: ${error.message}`;
+          if (!data || data.length === 0) return query ? `No CCA assets found matching "${query}".` : "No CCA assets found.";
+
+          return data.map((a: Record<string, unknown>) =>
+            `• ${a.description} (ID: ${a.id}) — Class ${a.cca_class}, cost $${Number(a.original_cost).toLocaleString()}, ${(Number(a.business_use_pct) * 100).toFixed(0)}% business use, UCC $${Number(a.ucc).toLocaleString()}`
+          ).join("\n");
+        } catch { return "CCA asset search temporarily unavailable."; }
+      },
+    }),
+
+    // ── SEARCH: Flight Plans ──────────────────────────────────────────────────
+    searchFlightPlans: tool({
+      description: "List flight plans, optionally filtered by name or active status. Use to find plan IDs or see what plans exist.",
+      inputSchema: z.object({
+        query: z.string().optional().describe("Name keyword to search for"),
+        activeOnly: z.boolean().optional().describe("Only show active plans"),
+      }),
+      execute: async ({ query, activeOnly }) => {
+        try {
+          let q = supabase
+            .from("flight_plans")
+            .select("id, name, description, trigger_status, is_active, is_system, flight_plan_steps(step_order, delay_days, action_type, template)")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false });
+
+          if (query) q = q.ilike("name", `%${query}%`);
+          if (activeOnly) q = q.eq("is_active", true);
+
+          const { data, error } = await q;
+          if (error) return `Search failed: ${error.message}`;
+          if (!data || data.length === 0) return "No flight plans found.";
+
+          return data.map((p: Record<string, unknown>) => {
+            const steps = (p.flight_plan_steps as { step_order: number; delay_days: number; action_type: string; template: string }[]) ?? [];
+            return `• ${p.name} (ID: ${p.id}) — ${p.is_active ? "🟢 Active" : "⚪ Inactive"}${p.trigger_status ? ` — triggers on ${p.trigger_status}` : ""} — ${steps.length} steps${steps.length > 0 ? `\n  ${steps.map(s => `Day ${s.delay_days}: ${s.action_type} — "${s.template}"`).join("\n  ")}` : ""}`;
+          }).join("\n\n");
+        } catch { return "Flight plan search temporarily unavailable."; }
+      },
+    }),
+
+    // ── SEARCH: Listing Appointments ──────────────────────────────────────────
+    searchListingAppointments: tool({
+      description: "Search listing appointments by address, client, or status. Use to find appointment IDs before updating.",
+      inputSchema: z.object({
+        query: z.string().optional().describe("Property address or client name to search for"),
+        status: z.enum(["scheduled", "active", "sold", "expired", "withdrawn", "lost"]).optional().describe("Filter by status"),
+      }),
+      execute: async ({ query, status }) => {
+        try {
+          let q = supabase
+            .from("listing_appointments")
+            .select("id, property_address, appointment_date, status, estimated_list_price, actual_list_price, actual_sale_price, client_id, clients(name)")
+            .eq("user_id", userId)
+            .order("appointment_date", { ascending: false })
+            .limit(10);
+
+          if (status) q = q.eq("status", status);
+          if (query) q = q.or(`property_address.ilike.%${query}%`);
+
+          const { data, error } = await q;
+          if (error) return `Search failed: ${error.message}`;
+          if (!data || data.length === 0) return "No listing appointments found.";
+
+          return data.map((a: Record<string, unknown>) => {
+            const client = a.clients as { name: string } | { name: string }[] | null;
+            const clientName = client ? (Array.isArray(client) ? client[0]?.name : client.name) : "No client";
+            return `• ${a.property_address || "No address"} (ID: ${a.id}) — ${clientName} — ${a.status} — date: ${a.appointment_date}${a.actual_list_price ? ` — listed at $${Number(a.actual_list_price).toLocaleString()}` : a.estimated_list_price ? ` — est. $${Number(a.estimated_list_price).toLocaleString()}` : ""}`;
+          }).join("\n");
+        } catch { return "Listing appointment search temporarily unavailable."; }
+      },
+    }),
+
+    // ── SEARCH: Property Showings ─────────────────────────────────────────────
+    searchPropertyShowings: tool({
+      description: "Search property showings by address, client, or date range. Use to find showing IDs before updating or deleting.",
+      inputSchema: z.object({
+        query: z.string().optional().describe("Property address to search for"),
+        clientId: z.string().uuid().optional().describe("Filter by client UUID"),
+        startDate: z.string().optional().describe("Start date (YYYY-MM-DD)"),
+        endDate: z.string().optional().describe("End date (YYYY-MM-DD)"),
+      }),
+      execute: async ({ query, clientId, startDate, endDate }) => {
+        try {
+          let q = supabase
+            .from("property_showings")
+            .select("id, property_address, showing_date, client_rating, listing_price, notes, client_id, clients(name)")
+            .eq("user_id", userId)
+            .order("showing_date", { ascending: false })
+            .limit(15);
+
+          if (query) q = q.ilike("property_address", `%${query}%`);
+          if (clientId) q = q.eq("client_id", clientId);
+          if (startDate) q = q.gte("showing_date", startDate);
+          if (endDate) q = q.lte("showing_date", endDate);
+
+          const { data, error } = await q;
+          if (error) return `Search failed: ${error.message}`;
+          if (!data || data.length === 0) return "No property showings found.";
+
+          return data.map((s: Record<string, unknown>) => {
+            const client = s.clients as { name: string } | { name: string }[] | null;
+            const clientName = client ? (Array.isArray(client) ? client[0]?.name : client.name) : "Unknown";
+            return `• ${s.property_address} (ID: ${s.id}) — ${clientName} — ${s.showing_date} — ${s.client_rating ? `${s.client_rating}/5` : "unrated"}${s.listing_price ? ` — $${Number(s.listing_price).toLocaleString()}` : ""}${s.notes ? ` — "${s.notes}"` : ""}`;
+          }).join("\n");
+        } catch { return "Property showing search temporarily unavailable."; }
+      },
+    }),
+
+    // ── SEARCH: Recurring Expenses ────────────────────────────────────────────
+    searchRecurringExpenses: tool({
+      description: "Search recurring expenses by vendor name. Use to find IDs before updating, pausing, or deleting.",
+      inputSchema: z.object({
+        query: z.string().optional().describe("Vendor/name keyword to search for"),
+        activeOnly: z.boolean().optional().describe("Only show active recurring expenses"),
+      }),
+      execute: async ({ query, activeOnly }) => {
+        try {
+          let q = supabase
+            .from("recurring_expenses")
+            .select("id, name, amount, category_key, frequency, is_active, start_date, notes")
+            .eq("user_id", userId)
+            .order("name");
+
+          if (query) q = q.ilike("name", `%${query}%`);
+          if (activeOnly) q = q.eq("is_active", true);
+
+          const { data, error } = await q;
+          if (error) return `Search failed: ${error.message}`;
+          if (!data || data.length === 0) return query ? `No recurring expenses found matching "${query}".` : "No recurring expenses found.";
+
+          return data.map((r: Record<string, unknown>) =>
+            `• ${r.name} (ID: ${r.id}) — $${Number(r.amount).toFixed(2)}/${r.frequency} — ${r.category_key} — ${r.is_active ? "🟢 Active" : "⚪ Paused"}${r.notes ? ` — "${r.notes}"` : ""}`
+          ).join("\n");
+        } catch { return "Recurring expense search temporarily unavailable."; }
+      },
+    }),
+
+    // ── SEARCH: Archived Clients (Hangar) ─────────────────────────────────────
+    searchArchivedClients: tool({
+      description: "Search archived clients in the Hangar by name. Use when the user asks 'find [name] in the Hangar', 'who have I archived?', or before unarchiving a client.",
+      inputSchema: z.object({
+        query: z.string().optional().describe("Client name to search for (leave empty to list recent archives)"),
+      }),
+      execute: async ({ query }) => {
+        try {
+          let q = supabase
+            .from("clients")
+            .select("id, name, archived_at, archive_reason, email, phone")
+            .eq("user_id", userId)
+            .not("archived_at", "is", null)
+            .order("archived_at", { ascending: false })
+            .limit(10);
+
+          if (query) q = q.ilike("name", `%${query}%`);
+
+          const { data, error } = await q;
+          if (error) return `Search failed: ${error.message}`;
+          if (!data || data.length === 0) return query ? `No archived clients found matching "${query}".` : "No archived clients in the Hangar.";
+
+          return `Found ${data.length} archived client${data.length === 1 ? "" : "s"} in the Hangar:\n` +
+            data.map((c: Record<string, unknown>) =>
+              `• ${c.name} (ID: ${c.id}) — archived ${c.archived_at ? new Date(c.archived_at as string).toLocaleDateString("en-CA") : "unknown"}${c.archive_reason ? ` — reason: ${c.archive_reason}` : ""}`
+            ).join("\n");
+        } catch { return "Archived client search temporarily unavailable."; }
+      },
+    }),
+
+    // ── UPDATE: Mileage entry ─────────────────────────────────────────────────
+    updateMileage: tool({
+      description: "Update a mileage log entry — change km, date, locations, or purpose. Use searchMileageLogs first to find the entry ID.",
+      inputSchema: z.object({
+        mileageId: z.string().uuid().describe("The mileage log UUID"),
+        km: z.number().optional().describe("Updated kilometres"),
+        tripDate: z.string().optional().describe("Updated date (YYYY-MM-DD)"),
+        fromLocation: z.string().optional().describe("Updated from location"),
+        toLocation: z.string().optional().describe("Updated to location"),
+        purpose: z.string().optional().describe("Updated purpose"),
+      }),
+      execute: async ({ mileageId, km, tripDate, fromLocation, toLocation, purpose }) => {
+        try {
+          const updates: Record<string, unknown> = {};
+          const changed: string[] = [];
+
+          if (km !== undefined) { updates.km = km; changed.push(`km → ${km}`); }
+          if (tripDate) { updates.trip_date = tripDate; changed.push(`date → ${tripDate}`); }
+          if (fromLocation) { updates.from_location = fromLocation; changed.push(`from → ${fromLocation}`); }
+          if (toLocation) { updates.to_location = toLocation; changed.push(`to → ${toLocation}`); }
+          if (purpose) { updates.purpose = purpose; changed.push(`purpose → ${purpose}`); }
+
+          if (changed.length === 0) return "No changes specified.";
+
+          const { error } = await supabase
+            .from("mileage_logs")
+            .update(updates)
+            .eq("id", mileageId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to update mileage: ${error.message}`;
+          return `✓ Mileage entry updated: ${changed.join(", ")}. Note: the CRA deduction will recalculate based on your YTD total km.`;
+        } catch { return "Failed to update mileage. Please try again."; }
+      },
+    }),
+
+    // ── DELETE: Mileage entry ─────────────────────────────────────────────────
+    deleteMileage: tool({
+      description: "Delete a mileage log entry. Use searchMileageLogs first to find the entry ID.",
+      inputSchema: z.object({
+        mileageId: z.string().uuid().describe("The mileage log UUID"),
+        tripDescription: z.string().describe("Brief description for confirmation"),
+      }),
+      execute: async ({ mileageId, tripDescription }) => {
+        try {
+          const { error } = await supabase
+            .from("mileage_logs")
+            .delete()
+            .eq("id", mileageId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to delete mileage: ${error.message}`;
+          return `✓ Mileage entry deleted — ${tripDescription}. Your YTD mileage totals and deductions will update.`;
+        } catch { return "Failed to delete mileage. Please try again."; }
+      },
+    }),
+
+    // ── DELETE: Contact task ──────────────────────────────────────────────────
+    deleteContactTask: tool({
+      description: "Delete a contact task. Use searchContactTasks first to find the task ID.",
+      inputSchema: z.object({
+        taskId: z.string().uuid().describe("The task UUID"),
+        taskTitle: z.string().describe("Task title for confirmation"),
+      }),
+      execute: async ({ taskId, taskTitle }) => {
+        try {
+          const { error } = await supabase
+            .from("contact_tasks")
+            .delete()
+            .eq("id", taskId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to delete task: ${error.message}`;
+          return `✓ Task "${taskTitle}" deleted.`;
+        } catch { return "Failed to delete task. Please try again."; }
+      },
+    }),
+
+    // ── DELETE: Referral ──────────────────────────────────────────────────────
+    deleteReferral: tool({
+      description: "Delete a referral record. Use searchReferrals first to find the referral ID. Requires confirmation.",
+      inputSchema: z.object({
+        referralId: z.string().uuid().describe("The referral UUID"),
+        referralDescription: z.string().describe("Description for confirmation"),
+        confirmed: z.boolean().describe("Must be true to delete"),
+      }),
+      execute: async ({ referralId, referralDescription, confirmed }) => {
+        if (!confirmed) return `PREVIEW — I'll permanently delete the referral: ${referralDescription}. Say "yes" to confirm.`;
+        try {
+          const { error } = await supabase
+            .from("referrals")
+            .delete()
+            .eq("id", referralId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to delete referral: ${error.message}`;
+          return `✓ Referral deleted — ${referralDescription}. View remaining referrals at **Referrals** (/referrals).`;
+        } catch { return "Failed to delete referral. Please try again."; }
+      },
+    }),
+
+    // ── DELETE: Listing appointment ───────────────────────────────────────────
+    deleteListingAppointment: tool({
+      description: "Delete a listing appointment. Use searchListingAppointments first to find the ID.",
+      inputSchema: z.object({
+        appointmentId: z.string().uuid().describe("The listing appointment UUID"),
+        appointmentDescription: z.string().describe("Description for confirmation"),
+      }),
+      execute: async ({ appointmentId, appointmentDescription }) => {
+        try {
+          const { error } = await supabase
+            .from("listing_appointments")
+            .delete()
+            .eq("id", appointmentId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to delete appointment: ${error.message}`;
+          return `✓ Listing appointment deleted — ${appointmentDescription}.`;
+        } catch { return "Failed to delete listing appointment. Please try again."; }
+      },
+    }),
+
+    // ── UPDATE: Property showing ──────────────────────────────────────────────
+    updatePropertyShowing: tool({
+      description: "Update a property showing — change rating, notes, or listing price. Use searchPropertyShowings first to find the showing ID.",
+      inputSchema: z.object({
+        showingId: z.string().uuid().describe("The property showing UUID"),
+        clientRating: z.number().min(1).max(5).optional().describe("Updated rating (1-5)"),
+        listingPrice: z.number().optional().describe("Updated listing price"),
+        notes: z.string().optional().describe("Updated notes"),
+      }),
+      execute: async ({ showingId, clientRating, listingPrice, notes }) => {
+        try {
+          const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+          const changed: string[] = [];
+
+          if (clientRating !== undefined) { updates.client_rating = clientRating; changed.push(`rating → ${clientRating}/5`); }
+          if (listingPrice !== undefined) { updates.listing_price = listingPrice; changed.push(`price → $${listingPrice.toLocaleString()}`); }
+          if (notes !== undefined) { updates.notes = notes; changed.push("notes updated"); }
+
+          if (changed.length === 0) return "No changes specified.";
+
+          const { error } = await supabase
+            .from("property_showings")
+            .update(updates)
+            .eq("id", showingId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to update showing: ${error.message}`;
+          return `✓ Property showing updated: ${changed.join(", ")}.`;
+        } catch { return "Failed to update property showing. Please try again."; }
+      },
+    }),
+
+    // ── DELETE: Property showing ───────────────────────────────────────────��──
+    deletePropertyShowing: tool({
+      description: "Delete a property showing record. Use searchPropertyShowings first to find the showing ID.",
+      inputSchema: z.object({
+        showingId: z.string().uuid().describe("The property showing UUID"),
+        showingDescription: z.string().describe("Description for confirmation"),
+      }),
+      execute: async ({ showingId, showingDescription }) => {
+        try {
+          const { error } = await supabase
+            .from("property_showings")
+            .delete()
+            .eq("id", showingId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to delete showing: ${error.message}`;
+          return `✓ Property showing deleted — ${showingDescription}.`;
+        } catch { return "Failed to delete property showing. Please try again."; }
       },
     }),
 
