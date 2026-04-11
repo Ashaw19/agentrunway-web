@@ -32,7 +32,7 @@ Smart alerts use statistical anomaly detection (IQR method): expense spikes (cat
 Three tabs:
 - Deals: Closed transactions with date, address, client link, sale price, commission %, GCI (auto-calculated or overridden), side (buyer/seller/both), status (closed/pending/fallen), team/referral split.
 - Pipeline: In-progress deals with stages (Lead 10%, Showing 25%, Offer 50%, Conditional 75%, Firm 90%), weighted GCI, convert-to-closed feature. Probability overrides replace stage default when set.
-- History: Annual summaries (year, GCI, deals, Q1–Q4 breakdown), YoY chart, seasonal profile, import from PDF/spreadsheet.
+- History: Annual summaries (year, GCI, deals, Q1–Q4 breakdown), YoY chart, seasonal profile. Import historical transactions from CSV, PDF, or spreadsheet — the import wizard maps columns, detects duplicates, and validates data before committing. Imported years can be locked to prevent accidental edits.
 
 **CRM**
 Four tabs:
@@ -42,13 +42,27 @@ Four tabs:
 
 - CRM Dashboard: Engagement analytics (touchpoints, frequency, overdue clients, activity type breakdown, speed to lead, source funnel).
 - Insights: Stale lead alerts, high-value client summaries, referral source analysis.
-- Flight Plans: Automated follow-up sequences triggered by client status changes.
+- Flight Plans: Automated follow-up sequences triggered by client status changes. Each flight plan has ordered steps with timing (e.g., "Day 1: Welcome call", "Day 7: Send market update"). Steps auto-generate outreach drafts in Flight Control at the scheduled time.
+
+  PROPERTY SHOWINGS (Buyer Clients): Track property showings for buyers. Each showing records: property address, showing date, client rating (1–10), notes, and outcome. Visible on the buyer's client profile card under the Showings section. Helps identify buyer preferences and track viewing patterns over time.
+
+  LISTING APPOINTMENTS (Seller Clients): Schedule and track listing appointments. Each appointment records: property address, appointment date/time, notes, and outcome. Can be linked to a pipeline deal once the listing is secured. Visible on the seller's client profile card.
+
+  CONTACT TASKS: To-do items linked to specific clients. Each task has: title, due date, priority (low/normal/high), notes, and completion status. Visible on the client's profile card under the Tasks section (orange card). Overdue tasks are flagged. Tasks help agents track follow-ups, document requests, and action items per client.
+
+  CLIENT RELATIONSHIPS: Link clients to each other with relationship types: spouse, referrer, colleague, family, other. Referral relationships are directional (A referred B). Other relationship types are bidirectional. Relationships appear on both client profile cards. The referral direction shows clearly: "Referred [name] to you" or "Referred to you by [name]."
+
+  TAGS: Custom labels applied to clients for organization and filtering. Examples: VIP, Investor, First-Time Buyer, Referral Source, Developer. Tags are stored as an array and can be added/removed freely. Used for filtering the client list and segmenting outreach.
+
+  THE HANGAR (Archived Clients): Clients can be archived with a reason (deceased, moved away, do not contact, other). Archived clients move to the Hangar tab and no longer appear in active views, stale client counts, or outreach. They can be restored at any time, returning to Cruising status.
 
 **EXPENSES**
 Three tabs:
 - Receipts: Manual or receipt-photo entry with OCR extraction, organized by category (Vehicle, Marketing, Office, Professional, Education, Meals, Entertainment, Other), KPIs (YTD expenses, monthly avg, expense ratio, projected annual).
 - Mileage: Trip logging with CRA 2025 rates (${KB_MILEAGE_FIRST_5K} first 5K, ${KB_MILEAGE_AFTER_5K} after), KPIs (YTD km, total deduction, projected annual).
-- Bank Imports: Plaid integration for automatic bank transaction import with auto-categorization.
+- Recurring Expenses: Set up monthly, quarterly, or annual recurring business expenses (e.g., $200/mo Canva subscription, $1,500/quarter insurance). Each period auto-generates an entry that the agent confirms or skips. Active recurring expenses are totaled into YTD expense calculations and tax estimates automatically.
+- Bank Imports: Plaid bank sync integration. Connect a bank account in Settings → Bank Sync. Plaid securely fetches transactions, auto-categorizes them by expense type, and queues them for agent review. The agent confirms, re-categorizes, or dismisses each imported transaction. Synced expenses appear alongside manual receipts in the Expenses page. Disconnect anytime from Settings.
+- CCA Assets: Track capital cost allowance assets under the T2125 tab in Reports. Add business assets (laptops, cameras, vehicles, equipment) with their CCA class (Class 8 = office equipment 20%, Class 10 = vehicles 30%, Class 12 = software/tools 100%, Class 50 = computers 55%). The half-year rule applies automatically in the acquisition year. UCC (undepreciated capital cost) and annual CCA deduction are calculated and flow into tax estimates.
 
 **FORECAST**
 Financial waterfall (GCI → split → fees → expenses → tax → take-home), tax estimates card (quarterly instalment, per-deal set-aside, effective rate), probability bands chart (P10–P90, 12-month projection), 5-year growth plan with widening confidence bands, goal gap analysis (deals needed, daily pace), insight cards (top 3 by dollar impact).
@@ -58,6 +72,45 @@ Three tabs:
 - Overview: Runway Score, benchmark, survival, waterfall, monthly table, transaction log, expense breakdown.
 - Benchmark: CREA 2023 cohort comparison, percentile rank.
 - Tax (T2125): CRA T2125 summary with expense lines by CRA code, CCA assets, home office deduction (simplified $5/sqft max $1,500 or detailed), mileage summary.
+
+**OVERHEAD (Tax Intelligence)**
+Dedicated tax planning page showing:
+- Tax Estimate Breakdown: Federal income tax + provincial income tax + CPP/QPP self-employment contributions. Effective tax rate applied to projected net self-employment income.
+- Per-Deal Tax Set-Aside: Projected annual tax burden ÷ expected deal count — tells the agent how much to set aside from each commission cheque.
+- Quarterly Instalment Tracker: CRA-required quarterly amounts with payment deadlines (March 15, June 15, Sept 15, Dec 15). Tracks which instalments have been paid.
+- GST/HST Intelligence: Total HST collected on commissions, Input Tax Credits (ITCs) from logged expenses, net HST owing or refund amount, receipt capture rate.
+- Deduction Summary: YTD expenses organized by T2125 CRA line code. Shows each category's total and its tax impact.
+- CCA Schedule: Capital Cost Allowance assets tracked by CCA class. Shows original cost, undepreciated capital cost (UCC), current year CCA claim. Half-year rule applied automatically in acquisition year.
+- Home Office Deduction: Simplified method ($5/sqft, max $1,500) vs detailed method (actual costs × office %). Configured in Settings.
+- Paycheque Allocation Guidance: Shows how to split each commission cheque — income tax set-aside, HST set-aside (if agent handles HST, not brokerage), CPP contribution, and take-home.
+
+**ALTIMETER (Analytics)**
+Deep business analytics page showing:
+- Personal Records: Best year (highest annual GCI), best month (highest single-month GCI), best single deal (highest individual commission). These are lifetime records pulled from all transaction history.
+- Year-over-Year Comparison: Current year vs prior year GCI trajectory, with monthly breakdown.
+- All Insights: Complete ranked list of business insights generated by the Insights Engine. Each insight has a type (pace, expense, pipeline, survival, commission, etc.), title, message, and dollar impact. Sorted by impact priority.
+- Board Benchmarking: CREA board comparison showing the agent's annualized pace vs the average agent on their selected local board.
+- Where You Stand: Performance band placement (Launching → Climbing → Competitive → Advancing → Leading) with momentum tracking (gaining/holding/losing).
+- Deviation Detection: Flags metrics that deviate ≥20% from the agent's own 12-month baseline. Categories: GCI trend, deal frequency, expense ratio, client touchpoints.
+- Runway Score Breakdown: The composite 0–100 score with each component visible: Pace vs Goal (35%), Pipeline Health (30%), Expense Ratio (15%), Survival Runway (15%), Benchmark Rank (5%).
+- Top Priority Action: The single most impactful thing the agent should focus on, derived from insights engine ranking.
+
+**SCENARIOS**
+What-if financial modeling page:
+- Adjust variables: additional deal count, average deal price, commission rate, expense changes, and growth assumptions.
+- See projected impact on year-end GCI, take-home income, tax burden, and runway.
+- Conservative (−15%), Base, and Optimistic (+15%) projections for each scenario.
+- Helps agents model decisions: "What if I close 2 more deals?" or "What if I increase my marketing spend?"
+
+**REFERRALS**
+Referral tracking page at /referrals:
+- Log inbound referrals (another agent sends you a client) and outbound referrals (you send a client to another agent).
+- Track referral partner details: name, email, phone, brokerage.
+- Track referral deal details: client name, property address, transaction type (buy/sell/both).
+- Default referral fee is 25% of GCI (customizable per referral).
+- Referral status lifecycle: Pending → Active → Closed (or Expired/Cancelled).
+- Link referrals to closed transactions for automatic fee reconciliation.
+- Estimated value tracked before closing; actual fee paid tracked after.
 
 **SOCIAL STUDIO**
 Month-in-review carousel builder for Instagram. Select deals, choose template family, configure branding (logo, headshot, agent cutout), customize slides, add caption with hashtags, export to Instagram direct or Canva ZIP.
@@ -483,4 +536,37 @@ A: In January and early February (before ~10% of the year has passed), raw extra
 
 **Q: Should I incorporate (PREC/Corp)?**
 A: This is a decision for your accountant. The platform can model sole prop, PREC, and corporate structures — each has different tax implications. Key consideration: PREC/corp offers tax deferral (combined SBD rate ~12-14% vs personal 30-50%) but dividend-only compensation generates $0 RRSP room. Consult a qualified accountant.
+
+**Q: What is the Overhead page?**
+A: Overhead is your tax intelligence hub. It shows your estimated tax breakdown (federal + provincial + CPP), quarterly instalment amounts, HST tracking, per-deal set-aside recommendation, deduction summaries by CRA category, and CCA depreciation schedule. Everything you need to understand your tax position without calling your accountant.
+
+**Q: What is the Altimeter page?**
+A: Altimeter is your deep analytics dashboard. It shows your personal records (best year, best month, best single deal), year-over-year performance, all business insights ranked by dollar impact, board benchmarking, your performance band placement, deviation detection, and your Runway Score breakdown. Think of it as your business health checkup.
+
+**Q: How do I track referrals?**
+A: Go to the Referrals page (/referrals). Log inbound referrals (clients sent to you) and outbound referrals (clients you send). Track the referral partner, deal details, and fee (default 25% of GCI). Link referrals to closed transactions for fee reconciliation. You can also link referral relationships between clients in the CRM — the Co-Pilot can do this for you too.
+
+**Q: How do recurring expenses work?**
+A: In the Expenses page, set up a recurring expense with a vendor, amount, category, and frequency (monthly/quarterly/annual). Each period, the system auto-generates an entry for you to confirm or skip. This ensures your YTD expenses and tax estimates stay accurate without manual re-entry each month.
+
+**Q: How do I add a CCA asset?**
+A: In Reports → T2125 tab, add your business assets (laptop, camera, vehicle) with the CCA class and purchase cost. The system calculates depreciation automatically using CRA rates with the half-year rule. Common classes: Class 8 (office equipment, 20%), Class 10 (vehicles, 30%), Class 12 (software, 100%), Class 50 (computers, 55%).
+
+**Q: How do I import my historical deals?**
+A: In the Transactions page → History tab, use the import feature to upload a CSV, PDF, or spreadsheet of past deals. The import wizard maps your columns to Agent Runway fields, detects duplicates, and lets you review before committing. Once imported, historical data feeds into seasonal patterns, personal records, and year-over-year comparisons.
+
+**Q: How do property showings work?**
+A: For buyer clients, log each property showing with the address, date, rating (1–10), and notes. Over time, this builds a picture of what the buyer likes and doesn't like. Showings appear on the buyer's client profile card. The Co-Pilot can log showings for you too.
+
+**Q: How do contact tasks work?**
+A: Tasks are to-do items linked to specific clients. Create a task with a title, due date, and priority (low/normal/high). Tasks appear on the client's profile card and in your task list. Overdue tasks are flagged. Example: "Follow up with Sarah about pre-approval — due Thursday." The Co-Pilot can create tasks for you.
+
+**Q: What's the Hangar?**
+A: The Hangar is where archived clients go. When you archive a client (deceased, moved away, do not contact, etc.), they're removed from active views, stale counts, and outreach. They're not deleted — you can restore them anytime. Think of it as cold storage for your CRM.
+
+**Q: How do I connect my bank account?**
+A: In Settings → Bank Sync, connect a bank account through Plaid (secure third-party integration). Once connected, transactions are auto-imported and categorized. You review each one — confirm, re-categorize, or dismiss. Synced expenses appear alongside manual receipts. Disconnect anytime from Settings.
+
+**Q: What can the Co-Pilot do for me?**
+A: Almost anything you can do manually in Agent Runway. The Co-Pilot can: create clients and pipeline deals, log activities and expenses, record mileage, create follow-up tasks, update client details and deal stages, link referrals between clients, manage tags, update your settings, record transactions, and more. It can also answer questions about any feature, metric, or concept on the platform — and direct you to the right page when you need the full UI. Just ask naturally and it will act.
 `;

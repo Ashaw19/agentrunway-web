@@ -14,8 +14,11 @@
  *   failure never crashes the stream
  *
  * Tool categories:
- *   Search (read-only)  — searchClients, searchPipelineDeals, searchContactTasks
- *   Create              — createClient, createPipelineDeal, createContactTask
+ *   Search (read-only)  — searchClients, searchPipelineDeals, searchContactTasks,
+ *                         searchExpenses, searchOutreachQueue, getClientSummary,
+ *                         getUpcomingAgenda
+ *   Create              — createClient, createPipelineDeal, createContactTask,
+ *                         createRecurringExpense
  *   Autonomous          — logContactActivity, updateClientStatus,
  *                         updateClientNotes, updateClientDetails,
  *                         updateClientTags, updatePipelineDealStage,
@@ -23,9 +26,9 @@
  *                         updatePipelineDealDetails, updateGCIGoal,
  *                         updateUserSettings, archiveClient, unarchiveClient,
  *                         linkClientReferral, removePipelineDeal,
- *                         completeContactTask
+ *                         completeContactTask, skipOutreachItem
  *   Confirm-required    — logExpense, logMileage, recordTransaction,
- *                         updatePipelineDealValue
+ *                         recordReferral, deleteExpense, updatePipelineDealValue
  */
 
 import { tool, type ToolSet } from "ai";
@@ -1073,6 +1076,379 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           return `✓ Settings updated: ${changed.join(", ")}. Your dashboard and projections will reflect these changes on refresh.`;
         } catch {
           return "Failed to update settings. Please try again.";
+        }
+      },
+    }),
+
+    // ── GET CLIENT SUMMARY (read-only power tool) ─────────────────────────
+    getClientSummary: tool({
+      description: "Get a comprehensive summary of a client — their profile details, recent activities, open tasks, pipeline deals, relationships, and deal history. Use this when the agent says 'tell me about [name]' or 'what do we know about [name]'. Always searchClients first to get the ID.",
+      inputSchema: z.object({
+        clientId: z.string().uuid().describe("The client UUID from searchClients"),
+        clientName: z.string().describe("Client name for the summary header"),
+      }),
+      execute: async ({ clientId, clientName }) => {
+        try {
+          // Parallel queries for all client data
+          const [clientRes, activitiesRes, tasksRes, dealsRes, relationshipsRes, transactionsRes] = await Promise.all([
+            supabase.from("clients").select("name, status, email, phone, city, tags, notes, lead_source, timeframe, property_interest, property_interest_type, preferred_contact, buyer_pre_approved, buyer_pre_approval_amount, last_contact_at, created_at").eq("id", clientId).eq("user_id", userId).single(),
+            supabase.from("contact_activities").select("type, description, activity_date").eq("client_id", clientId).eq("user_id", userId).order("activity_date", { ascending: false }).limit(5),
+            supabase.from("contact_tasks").select("title, due_date, priority, completed_at").eq("client_id", clientId).eq("user_id", userId).is("completed_at", null).order("due_date", { ascending: true }).limit(5),
+            supabase.from("pipeline_deals").select("address, stage, estimated_price, expected_close_date, side").eq("client_id", clientId).eq("user_id", userId).limit(5),
+            supabase.from("client_relationships").select("client_id_a, client_id_b, relationship_type").eq("user_id", userId).or(`client_id_a.eq.${clientId},client_id_b.eq.${clientId}`).limit(5),
+            supabase.from("transactions").select("address, date, sale_price, gci_override, side").eq("user_id", userId).ilike("client_name", `%${clientName}%`).limit(5),
+          ]);
+
+          const c = clientRes.data;
+          if (!c) return `Could not find client data for ${clientName}.`;
+
+          const parts: string[] = [];
+
+          // Profile
+          parts.push(`── ${clientName} ──`);
+          parts.push(`Status: ${c.status} | Since: ${new Date(c.created_at).toLocaleDateString("en-CA")}`);
+          if (c.email) parts.push(`Email: ${c.email}`);
+          if (c.phone) parts.push(`Phone: ${c.phone}`);
+          if (c.city) parts.push(`City: ${c.city}`);
+          if (c.lead_source) parts.push(`Lead Source: ${c.lead_source}`);
+          if (c.tags?.length) parts.push(`Tags: ${c.tags.join(", ")}`);
+          if (c.property_interest) parts.push(`${c.property_interest_type === "listing" ? "Listing Price" : "Budget"}: $${Number(c.property_interest).toLocaleString()}`);
+          if (c.timeframe) parts.push(`Timeframe: ${c.timeframe.replace(/_/g, " ")}`);
+          if (c.preferred_contact) parts.push(`Preferred Contact: ${c.preferred_contact}`);
+          if (c.buyer_pre_approved) parts.push(`Pre-Approved: $${Number(c.buyer_pre_approval_amount ?? 0).toLocaleString()}`);
+          if (c.last_contact_at) parts.push(`Last Contact: ${new Date(c.last_contact_at).toLocaleDateString("en-CA")}`);
+          if (c.notes) parts.push(`Notes: ${c.notes.slice(0, 200)}${c.notes.length > 200 ? "..." : ""}`);
+
+          // Recent activities
+          const activities = activitiesRes.data ?? [];
+          if (activities.length > 0) {
+            parts.push(`\nRecent Activity (${activities.length}):`);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            activities.forEach((a: any) => parts.push(`  ${a.type} on ${new Date(a.activity_date).toLocaleDateString("en-CA")} — ${a.description}`));
+          } else {
+            parts.push("\nNo recent activity logged.");
+          }
+
+          // Open tasks
+          const tasks = tasksRes.data ?? [];
+          if (tasks.length > 0) {
+            parts.push(`\nOpen Tasks (${tasks.length}):`);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            tasks.forEach((t: any) => parts.push(`  "${t.title}" — due ${t.due_date}${t.priority === "high" ? " ⚡" : ""}`));
+          }
+
+          // Pipeline deals
+          const deals = dealsRes.data ?? [];
+          if (deals.length > 0) {
+            parts.push(`\nPipeline Deals (${deals.length}):`);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            deals.forEach((d: any) => parts.push(`  ${d.address} — ${d.side} side, ${d.stage} stage, $${Number(d.estimated_price).toLocaleString()}${d.expected_close_date ? `, close: ${d.expected_close_date}` : ""}`));
+          }
+
+          // Transaction history
+          const txs = transactionsRes.data ?? [];
+          if (txs.length > 0) {
+            parts.push(`\nDeal History (${txs.length}):`);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            txs.forEach((t: any) => parts.push(`  ${t.address} — ${t.side} side, $${Number(t.sale_price).toLocaleString()}, closed ${t.date}`));
+          }
+
+          // Relationships
+          const rels = relationshipsRes.data ?? [];
+          if (rels.length > 0) {
+            parts.push(`\nRelationships (${rels.length}):`);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            rels.forEach((r: any) => {
+              const isA = r.client_id_a === clientId;
+              const otherId = isA ? r.client_id_b : r.client_id_a;
+              if (r.relationship_type === "referrer") {
+                parts.push(`  ${isA ? "Referred" : "Referred by"} client ${otherId}`);
+              } else {
+                parts.push(`  ${r.relationship_type} — client ${otherId}`);
+              }
+            });
+          }
+
+          return parts.join("\n");
+        } catch {
+          return "Failed to load client summary. Please try again.";
+        }
+      },
+    }),
+
+    // ── GET UPCOMING AGENDA (read-only power tool) ──────────────────────────
+    getUpcomingAgenda: tool({
+      description: "Get the agent's upcoming agenda — open tasks, pending outreach, and stale clients needing attention. Use this when the agent says 'what's on my plate?', 'what should I focus on?', 'what do I have coming up?', or 'what's my agenda?'",
+      inputSchema: z.object({}),
+      execute: async () => {
+        try {
+          const todayStr = new Date().toISOString().split("T")[0];
+          const weekAhead = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+          const [tasksRes, outreachRes, staleRes] = await Promise.all([
+            supabase.from("contact_tasks").select("title, due_date, priority, client_id").eq("user_id", userId).is("completed_at", null).order("due_date", { ascending: true }).limit(10),
+            supabase.from("outreach_queue").select("client_id, opportunity_type, status, ai_subject, trigger_date").eq("user_id", userId).in("status", ["draft", "ready"]).order("trigger_date", { ascending: true }).limit(10),
+            supabase.from("clients").select("name, status, last_contact_at").eq("user_id", userId).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()).limit(10),
+          ]);
+
+          const parts: string[] = ["── Your Agenda ──"];
+
+          // Tasks
+          const tasks = (tasksRes.data ?? []) as { title: string; due_date: string; priority: string }[];
+          const overdue = tasks.filter(t => t.due_date < todayStr);
+          const thisWeek = tasks.filter(t => t.due_date >= todayStr && t.due_date <= weekAhead);
+          const later = tasks.filter(t => t.due_date > weekAhead);
+
+          if (overdue.length > 0) {
+            parts.push(`\n⚠ OVERDUE TASKS (${overdue.length}):`);
+            overdue.forEach(t => parts.push(`  "${t.title}" — was due ${t.due_date}${t.priority === "high" ? " ⚡" : ""}`));
+          }
+          if (thisWeek.length > 0) {
+            parts.push(`\nThis Week (${thisWeek.length} tasks):`);
+            thisWeek.forEach(t => parts.push(`  "${t.title}" — due ${t.due_date}${t.priority === "high" ? " ⚡" : ""}`));
+          }
+          if (later.length > 0) {
+            parts.push(`\nUpcoming (${later.length} tasks):`);
+            later.forEach(t => parts.push(`  "${t.title}" — due ${t.due_date}`));
+          }
+          if (tasks.length === 0) parts.push("\n✓ No open tasks.");
+
+          // Outreach
+          const outreach = (outreachRes.data ?? []) as { opportunity_type: string; status: string; ai_subject: string | null; trigger_date: string }[];
+          if (outreach.length > 0) {
+            parts.push(`\nPending Outreach (${outreach.length}):`);
+            outreach.forEach(o => {
+              const type = o.opportunity_type.replace(/_/g, " ");
+              parts.push(`  ${type} — ${o.status}${o.ai_subject ? `: "${o.ai_subject}"` : ""} (${o.trigger_date})`);
+            });
+            parts.push(`Review and send in **Flight Control** (/flight-control).`);
+          }
+
+          // Stale clients
+          const stale = (staleRes.data ?? []) as { name: string; status: string; last_contact_at: string }[];
+          if (stale.length > 0) {
+            parts.push(`\nStale Clients (${stale.length} — no contact in 14+ days):`);
+            stale.forEach(c => {
+              const days = Math.floor((Date.now() - new Date(c.last_contact_at).getTime()) / (24 * 60 * 60 * 1000));
+              parts.push(`  ${c.name} — ${days} days since last contact (${c.status})`);
+            });
+          }
+
+          if (tasks.length === 0 && outreach.length === 0 && stale.length === 0) {
+            return "All clear — no overdue tasks, pending outreach, or stale clients. You're in good shape!";
+          }
+
+          return parts.join("\n");
+        } catch {
+          return "Failed to load agenda. Please try again.";
+        }
+      },
+    }),
+
+    // ── CREATE RECURRING EXPENSE ─────────────────────────────────────────────
+    createRecurringExpense: tool({
+      description: "Set up a recurring business expense (monthly, quarterly, or annual). Use when the agent says 'I pay $X/month for...' or 'set up a recurring expense for...'",
+      inputSchema: z.object({
+        vendor: z.string().describe("Business or vendor name (e.g. 'Canva', 'Rogers', 'Desjardins Insurance')"),
+        amount: z.number().positive().describe("Expense amount per period in dollars"),
+        categoryKey: z.enum(EXPENSE_CATEGORY_KEYS).describe("Expense category key"),
+        frequency: z.enum(["monthly", "quarterly", "annual"]).default("monthly").describe("How often this recurs"),
+        notes: z.string().optional().describe("Optional notes"),
+        confirmed: z.boolean().default(false).describe("Must be true to execute."),
+      }),
+      execute: async ({ vendor, amount, categoryKey, frequency, notes, confirmed }) => {
+        const freqLabel = frequency ?? "monthly";
+        if (!confirmed) {
+          return `Ready to set up: $${amount.toLocaleString()}/${freqLabel} recurring expense at ${vendor} (${categoryKey.replace(/_/g, " ")}). This will auto-generate entries each ${freqLabel} period. Confirm to save.`;
+        }
+
+        try {
+          const { error } = await supabase
+            .from("recurring_expenses")
+            .insert({
+              user_id: userId,
+              vendor,
+              amount,
+              category_key: categoryKey,
+              frequency: freqLabel,
+              is_active: true,
+              notes: notes ?? null,
+            });
+
+          if (error) return `Failed to create recurring expense: ${error.message}`;
+
+          return `✓ Recurring expense created — $${amount.toLocaleString()}/${freqLabel} at ${vendor}. Entries will auto-generate each period for you to confirm. Manage recurring expenses in **Expenses** (/expenses) under the **Recurring** tab.`;
+        } catch {
+          return "Failed to create recurring expense. Please try again.";
+        }
+      },
+    }),
+
+    // ── SEARCH EXPENSES ──────────────────────────────────────────────────────
+    searchExpenses: tool({
+      description: "Search for expenses by vendor name to find their ID before deleting or reviewing. Returns matching expenses with IDs.",
+      inputSchema: z.object({
+        query: z.string().describe("Vendor name or partial name to search for"),
+      }),
+      execute: async ({ query }) => {
+        try {
+          const { data, error } = await supabase
+            .from("receipt_expenses")
+            .select("id, vendor, total_amount, expense_date, category_key")
+            .eq("user_id", userId)
+            .ilike("vendor", `%${query}%`)
+            .order("expense_date", { ascending: false })
+            .limit(10);
+
+          if (error) return `Search failed: ${error.message}`;
+          if (!data || data.length === 0) return `No expenses found matching "${query}".`;
+
+          return data.map((e: { id: string; vendor: string; total_amount: number; expense_date: string; category_key: string }) =>
+            `$${Number(e.total_amount).toLocaleString()} at ${e.vendor} on ${e.expense_date} (${e.category_key.replace(/_/g, " ")}) — ID: ${e.id}`
+          ).join("\n");
+        } catch {
+          return "Expense search temporarily unavailable.";
+        }
+      },
+    }),
+
+    // ── DELETE EXPENSE ────────────────────────────────────────────────────────
+    deleteExpense: tool({
+      description: "Delete a receipt expense (e.g., duplicate entry). Always searchExpenses first to find the ID. Requires confirmation.",
+      inputSchema: z.object({
+        expenseId: z.string().uuid().describe("The expense UUID from searchExpenses"),
+        expenseDescription: z.string().describe("Brief description for confirmation (e.g. '$45 at Shell on 2026-04-10')"),
+        confirmed: z.boolean().default(false).describe("Must be true to execute."),
+      }),
+      execute: async ({ expenseId, expenseDescription, confirmed }) => {
+        if (!confirmed) {
+          return `Ready to delete expense: ${expenseDescription}. This cannot be undone. Confirm to proceed.`;
+        }
+
+        try {
+          const { error } = await supabase
+            .from("receipt_expenses")
+            .delete()
+            .eq("id", expenseId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to delete expense: ${error.message}`;
+
+          return `✓ Expense deleted — ${expenseDescription}. Your YTD expense totals will update on refresh.`;
+        } catch {
+          return "Failed to delete expense. Please try again.";
+        }
+      },
+    }),
+
+    // ── RECORD REFERRAL ──────────────────────────────────────────────────────
+    recordReferral: tool({
+      description: "Log a referral — inbound (another agent sent you a client) or outbound (you sent a client to another agent). Use when the agent mentions paying or receiving a referral fee.",
+      inputSchema: z.object({
+        direction: z.enum(["inbound", "outbound"]).describe("'inbound' = someone referred a client TO you. 'outbound' = you referred a client TO someone else."),
+        partnerName: z.string().describe("Name of the referring/receiving agent or brokerage"),
+        partnerBrokerage: z.string().optional().describe("Partner's brokerage name"),
+        clientName: z.string().describe("Name of the referred client"),
+        propertyAddress: z.string().optional().describe("Property address if known"),
+        transactionType: z.enum(["buy", "sell", "both"]).optional().describe("Type of transaction"),
+        referralFeePct: z.number().min(0).max(100).optional().describe("Referral fee as a percentage of GCI (default 25%)"),
+        estimatedValue: z.number().optional().describe("Estimated referral fee amount in dollars"),
+        notes: z.string().optional().describe("Optional notes"),
+        confirmed: z.boolean().default(false).describe("Must be true to execute."),
+      }),
+      execute: async ({ direction, partnerName, partnerBrokerage, clientName, propertyAddress, transactionType, referralFeePct, estimatedValue, notes, confirmed }) => {
+        const feePct = referralFeePct ?? 25;
+        const dirLabel = direction === "inbound" ? "received from" : "sent to";
+
+        if (!confirmed) {
+          return `Ready to log ${direction} referral: ${clientName} — ${dirLabel} ${partnerName}${partnerBrokerage ? ` (${partnerBrokerage})` : ""}, ${feePct}% fee${estimatedValue ? `, ~$${estimatedValue.toLocaleString()}` : ""}. Confirm to save.`;
+        }
+
+        try {
+          const { error } = await supabase
+            .from("referrals")
+            .insert({
+              user_id: userId,
+              direction,
+              partner_name: partnerName,
+              partner_brokerage: partnerBrokerage ?? null,
+              client_name: clientName,
+              property_address: propertyAddress ?? null,
+              transaction_type: transactionType ?? "buy",
+              referral_fee_pct: feePct / 100,
+              estimated_value: estimatedValue ?? null,
+              status: "active",
+              notes: notes ?? null,
+              referral_date: new Date().toISOString().split("T")[0],
+            });
+
+          if (error) return `Failed to record referral: ${error.message}`;
+
+          return `✓ ${direction.charAt(0).toUpperCase() + direction.slice(1)} referral recorded — ${clientName} ${dirLabel} ${partnerName}, ${feePct}% fee. When the deal closes, update the actual fee paid at **Referrals** (/referrals).`;
+        } catch {
+          return "Failed to record referral. Please try again.";
+        }
+      },
+    }),
+
+    // ── SEARCH OUTREACH QUEUE ────────────────────────────────────────────────
+    searchOutreachQueue: tool({
+      description: "View pending outreach items in the Flight Control queue. Use when the agent asks 'what outreach do I have pending?' or 'what's in my outreach queue?'",
+      inputSchema: z.object({
+        status: z.enum(["draft", "ready", "all"]).default("all").describe("Filter by status: draft, ready, or all pending"),
+      }),
+      execute: async ({ status }) => {
+        try {
+          let query = supabase
+            .from("outreach_queue")
+            .select("id, client_id, opportunity_type, status, ai_subject, trigger_date")
+            .eq("user_id", userId)
+            .order("trigger_date", { ascending: true })
+            .limit(10);
+
+          if (status && status !== "all") {
+            query = query.eq("status", status);
+          } else {
+            query = query.in("status", ["draft", "ready"]);
+          }
+
+          const { data, error } = await query;
+
+          if (error) return `Search failed: ${error.message}`;
+          if (!data || data.length === 0) return "No pending outreach items. Your queue is clear!";
+
+          const items = data.map((o: { id: string; opportunity_type: string; status: string; ai_subject: string | null; trigger_date: string }) => {
+            const type = o.opportunity_type.replace(/_/g, " ");
+            return `${type} (${o.status}) — ${o.ai_subject ?? "no subject"}, due ${o.trigger_date} — ID: ${o.id}`;
+          });
+
+          return `Pending Outreach (${data.length}):\n${items.join("\n")}\n\nReview and send in **Flight Control** (/flight-control).`;
+        } catch {
+          return "Outreach queue search temporarily unavailable.";
+        }
+      },
+    }),
+
+    // ── SKIP OUTREACH ITEM ───────────────────────────────────────────────────
+    skipOutreachItem: tool({
+      description: "Skip/dismiss a pending outreach item (e.g., 'I already talked to Dave, skip that follow-up'). Always searchOutreachQueue first to find the ID.",
+      inputSchema: z.object({
+        outreachId: z.string().uuid().describe("The outreach item UUID from searchOutreachQueue"),
+        outreachDescription: z.string().describe("Brief description for confirmation"),
+      }),
+      execute: async ({ outreachId, outreachDescription }) => {
+        try {
+          const { error } = await supabase
+            .from("outreach_queue")
+            .update({ status: "skipped", updated_at: new Date().toISOString() })
+            .eq("id", outreachId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to skip outreach: ${error.message}`;
+
+          return `✓ Outreach skipped — ${outreachDescription}. It won't appear in your queue anymore.`;
+        } catch {
+          return "Failed to skip outreach item. Please try again.";
         }
       },
     }),

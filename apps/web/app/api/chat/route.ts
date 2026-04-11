@@ -149,17 +149,25 @@ export async function POST(req: NextRequest) {
   let financialContext = "No user data available.";
   try {
     const currentYear = new Date().getFullYear();
+    const todayISO = new Date().toISOString().split("T")[0];
+    const ytdStart = `${new Date().getFullYear()}-01-01`;
     const settled = await Promise.allSettled([
-        supabase.from("user_settings").select("*").eq("user_id", user.id).single(),
-        supabase.from("transactions").select("date, sale_price, commission_pct, team_split_pct, gci_override").eq("user_id", user.id).eq("status", "closed"),
-        supabase.from("pipeline_deals").select("estimated_price, estimated_commission_pct, probability_override, stage").eq("user_id", user.id),
-        supabase.from("expense_categories").select("key, expense_items(key, ytd_amount, monthly_recurring)").eq("user_id", user.id),
-        supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
-        supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()),
-        supabase.from("receipt_expenses").select("total_amount").eq("user_id", user.id).gte("expense_date", `${new Date().getFullYear()}-01-01`),
-        supabase.from("recurring_expenses").select("*").eq("user_id", user.id).eq("is_active", true),
-        supabase.from("receipt_expenses").select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("expense_date", `${new Date().getFullYear()}-01-01`),
-        supabase.from("receipt_expenses").select("total_amount, tax_amount, category_key, expense_date").eq("user_id", user.id).gte("expense_date", `${new Date().getFullYear()}-01-01`),
+        supabase.from("user_settings").select("*").eq("user_id", user.id).single(),                                                                  // 0
+        supabase.from("transactions").select("date, sale_price, commission_pct, team_split_pct, gci_override").eq("user_id", user.id).eq("status", "closed"), // 1
+        supabase.from("pipeline_deals").select("estimated_price, estimated_commission_pct, probability_override, stage").eq("user_id", user.id),       // 2
+        supabase.from("expense_categories").select("key, expense_items(key, ytd_amount, monthly_recurring)").eq("user_id", user.id),                   // 3
+        supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()), // 4
+        supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", user.id).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()), // 5
+        supabase.from("receipt_expenses").select("total_amount").eq("user_id", user.id).gte("expense_date", ytdStart),                                 // 6
+        supabase.from("recurring_expenses").select("*").eq("user_id", user.id).eq("is_active", true),                                                  // 7
+        supabase.from("receipt_expenses").select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("expense_date", ytdStart),            // 8
+        supabase.from("receipt_expenses").select("total_amount, tax_amount, category_key, expense_date").eq("user_id", user.id).gte("expense_date", ytdStart), // 9
+        // ── Phase 2 context injection queries ──
+        supabase.from("contact_tasks").select("id, title, due_date, priority, client_id").eq("user_id", user.id).is("completed_at", null).order("due_date", { ascending: true }).limit(10), // 10: open tasks
+        supabase.from("outreach_queue").select("id, status", { count: "exact", head: false }).eq("user_id", user.id).in("status", ["draft", "ready"]),  // 11: pending outreach
+        supabase.from("mileage_logs").select("km, deduction").eq("user_id", user.id).gte("trip_date", ytdStart),                                       // 12: YTD mileage
+        supabase.from("referrals").select("direction, status, actual_fee_paid, estimated_value").eq("user_id", user.id).gte("referral_date", ytdStart), // 13: YTD referrals
+        supabase.from("t2125_cca_assets").select("description, cca_class, cost, ucc").eq("user_id", user.id),                                          // 14: CCA assets
       ]);
     // Safely extract results — individual query failures won't kill the entire chat
     const val = <T,>(r: PromiseSettledResult<T>, fallback: T): T =>
@@ -176,6 +184,11 @@ export async function POST(req: NextRequest) {
     const { data: recurringExpRows } = val(settled[7], emptyResult);
     const { count: receiptCount } = val(settled[8], emptyResult);
     const { data: receiptDetailsRows } = val(settled[9], emptyResult);
+    const { data: openTasksRows } = val(settled[10], emptyResult);
+    const { data: outreachRows } = val(settled[11], emptyResult);
+    const { data: mileageRows } = val(settled[12], emptyResult);
+    const { data: referralRows } = val(settled[13], emptyResult);
+    const { data: ccaRows } = val(settled[14], emptyResult);
     const recurringExps = (recurringExpRows ?? []) as RecurringExpense[];
     const recurringExpMonthly = totalRecurringMonthly(recurringExps);
     const recurringExpYTDTotal = totalRecurringYTD(recurringExps);
@@ -253,6 +266,42 @@ export async function POST(req: NextRequest) {
         monthlyRecurring > 0 ? `Monthly Recurring Expenses: ${fmtCurrency(monthlyRecurring)}` : null,
         staleClientCount14 != null && staleClientCount14 > 0 ? `Stale Clients (14+ days, dashboard threshold): ${staleClientCount14}` : null,
         staleClientCount != null && staleClientCount > 0 ? `Stale Clients (30+ days, CRM threshold): ${staleClientCount}` : null,
+        // ── Phase 2: Additional context from new queries ──
+        (() => {
+          const tasks = (openTasksRows ?? []) as { id: string; title: string; due_date: string; priority: string }[];
+          if (tasks.length === 0) return null;
+          const overdue = tasks.filter(t => t.due_date < todayISO).length;
+          const upcoming = tasks.slice(0, 3).map(t => `"${t.title}" (due ${t.due_date}${t.priority === "high" ? " ⚡" : ""})`).join(", ");
+          return `Open Tasks: ${tasks.length} open${overdue > 0 ? ` (${overdue} overdue)` : ""}. Next: ${upcoming}`;
+        })(),
+        (() => {
+          const items = (outreachRows ?? []) as { status: string }[];
+          if (items.length === 0) return null;
+          const drafts = items.filter(i => i.status === "draft").length;
+          const ready = items.filter(i => i.status === "ready").length;
+          return `Outreach Queue: ${drafts} drafts, ${ready} ready to send`;
+        })(),
+        (() => {
+          const trips = (mileageRows ?? []) as { km: number; deduction: number }[];
+          if (trips.length === 0) return null;
+          const totalKm = trips.reduce((s, t) => s + Number(t.km), 0);
+          const totalDed = trips.reduce((s, t) => s + Number(t.deduction), 0);
+          return `Mileage YTD: ${totalKm.toFixed(0)} km across ${trips.length} trips — ${fmtCurrency(totalDed)} deduction`;
+        })(),
+        (() => {
+          const refs = (referralRows ?? []) as { direction: string; status: string; actual_fee_paid: number | null; estimated_value: number | null }[];
+          if (refs.length === 0) return null;
+          const inbound = refs.filter(r => r.direction === "inbound").length;
+          const outbound = refs.filter(r => r.direction === "outbound").length;
+          const feesPaid = refs.reduce((s, r) => s + Number(r.actual_fee_paid ?? 0), 0);
+          return `Referrals YTD: ${inbound} inbound, ${outbound} outbound${feesPaid > 0 ? `, ${fmtCurrency(feesPaid)} in fees` : ""}`;
+        })(),
+        (() => {
+          const assets = (ccaRows ?? []) as { description: string; cca_class: string; cost: number; ucc: number }[];
+          if (assets.length === 0) return null;
+          const totalUCC = assets.reduce((s, a) => s + Number(a.ucc), 0);
+          return `CCA Assets: ${assets.length} asset${assets.length > 1 ? "s" : ""}, ${fmtCurrency(totalUCC)} undepreciated capital cost`;
+        })(),
       ].filter(Boolean).join("\n");
 
       // ── Compute engine outputs (parallel, fault-tolerant) ──────────────
@@ -1013,6 +1062,11 @@ When the agent's data shows any of these patterns, surface them naturally in you
 - Tax Intelligence items tagged [MISSING DEDUCTIONS], [INSTALMENT PLANNING], [GST/HST FORECAST], [DOCUMENTATION], [FILING DEADLINE], [OVERDUE FILING], etc. → surface these naturally when discussing finances, taxes, or expenses. Don't dump all at once — weave them in when contextually relevant.
 - Missing deductions or low documentation → frame as "you may want to capture receipts for..." not "you should claim..."
 - Filing deadlines within 30 days or overdue → always mention, with action items
+- Open tasks are overdue (from context data) → mention it naturally: "I see you have X overdue tasks..."
+- Outreach queue has pending items → when relevant, suggest reviewing Flight Control
+- Mileage is at 0 but agent discusses showings/meetings → suggest logging mileage for CRA deductions
+- No recurring expenses set up but agent mentions monthly subscriptions → suggest using createRecurringExpense
+- CCA assets are empty but agent mentions buying equipment → suggest tracking it for depreciation
 
 IMPORTANT: On the very first message from the agent, if their data shows a notable pattern (behind pace, high expenses, stale clients), proactively open with that insight rather than waiting to be asked. Frame it conversationally: "Looking at your numbers, I noticed..." Proactively surface notable patterns and data points.
 
@@ -1039,12 +1093,22 @@ TOOL TRIGGER MAP — When the agent says something that matches a trigger, call 
   - "I called/emailed/met with [name]..." → searchClients → logContactActivity
   - "Remind me to follow up with [name]..." → searchClients → createContactTask
   - "I did that follow-up with [name]" → searchContactTasks → completeContactTask
-  - "What tasks do I have?" → searchContactTasks
+  - "What tasks do I have?" / "What's on my plate?" → getUpcomingAgenda
+  - "What do I have coming up this week?" → getUpcomingAgenda
   Expenses & Mileage:
   - "I spent $X at..." / "Log an expense for..." → logExpense (preview first)
   - "I drove X km to..." / "Log mileage for..." → logMileage (preview first)
-  Transactions:
+  - "I pay $X/month for..." / "Set up recurring..." → createRecurringExpense (preview first)
+  - "Remove that expense" / "Delete the duplicate" → searchExpenses → deleteExpense (confirm first)
+  Transactions & Referrals:
   - "I just closed a deal..." / "Record a transaction..." → recordTransaction (preview first)
+  - "I paid [name] a referral fee..." / "Log a referral..." → recordReferral (preview first)
+  Outreach:
+  - "What outreach do I have pending?" → searchOutreachQueue
+  - "Skip that follow-up to [name]" → searchOutreachQueue → skipOutreachItem
+  Client Intelligence:
+  - "Tell me about [name]" / "What do we know about [name]?" → searchClients → getClientSummary
+  - "Give me a summary of [name]" → searchClients → getClientSummary
   Settings:
   - "Change my commission split to..." → updateUserSettings
   - "Update my GCI goal to..." → updateGCIGoal or updateUserSettings
@@ -1053,8 +1117,8 @@ TOOL TRIGGER MAP — When the agent says something that matches a trigger, call 
 EXECUTION RULES:
 - ALWAYS search first (searchClients or searchPipelineDeals) before any action — never guess IDs
 - MULTI-STEP CHAINING: Chain multiple tools in sequence without asking between steps. Example: "New client John Smith, seller at 44 Main St for $449K" → searchClients → createClient → createPipelineDeal (pass clientId). Do it all, then report what you did.
-- CONFIRM-REQUIRED TOOLS: logExpense, logMileage, recordTransaction, updatePipelineDealValue — when confirmed is false, present the preview naturally ("I'm about to record... does that look right?"), then call again with confirmed: true after their "yes".
-- DESTRUCTIVE ACTIONS: archiveClient, removePipelineDeal — always confirm with the agent before executing.
+- CONFIRM-REQUIRED TOOLS: logExpense, logMileage, recordTransaction, recordReferral, deleteExpense, createRecurringExpense, updatePipelineDealValue — when confirmed is false, present the preview naturally ("I'm about to record... does that look right?"), then call again with confirmed: true after their "yes".
+- DESTRUCTIVE ACTIONS: archiveClient, removePipelineDeal, deleteExpense — always confirm with the agent before executing.
 
 FOLLOW-UP INTELLIGENCE — After every action, be helpful about what's next:
 - After createClient: If important fields are missing (email, phone, lead source, timeframe), tell the agent. Example: "John's profile is set up but we're still missing his contact info and timeframe. When you have a chance, head to his profile in the **CRM** (/crm) and fill in those details so we can really get to know who John is."
@@ -1064,6 +1128,12 @@ FOLLOW-UP INTELLIGENCE — After every action, be helpful about what's next:
 - After logExpense: If the agent is logging their first expense in a category, mention it's now showing up in their tax deductions at **Overhead** (/overhead).
 - After createContactTask: Mention where to find it. "This task will show on [name]'s profile in the **CRM** (/crm)."
 - After updateUserSettings: Note which dashboards/pages will be affected. "Your projections, tax estimates, and pace calculations will all reflect this change."
+- After recordReferral: Remind them to update the actual fee paid when the deal closes. Link to /referrals.
+- After createRecurringExpense: Explain the confirm/skip flow — entries auto-generate, they just need to confirm each one.
+- After deleteExpense: Note the impact on YTD totals and tax estimates.
+- After getClientSummary: If the client has missing fields, suggest filling them in. If they have stale contact, suggest reaching out. If they have open tasks, highlight the most urgent one.
+- After getUpcomingAgenda: If overdue tasks exist, emphasize those first. If outreach is pending, suggest reviewing Flight Control. If stale clients exist, suggest a check-in sweep.
+- After skipOutreachItem: If they mentioned they already contacted the client, suggest logging the activity too.
 - LOOK FOR TOOL RESPONSE HINTS: When a tool result contains "MISSING_FIELDS:", use that list to craft a natural follow-up message directing the agent to fill in details.
 
 PAGE NAVIGATION GUIDE — When users ask "is there a way to...", "how do I...", "where can I see...", or "can you show me...", direct them to the right page AND section:
@@ -1077,6 +1147,7 @@ PAGE NAVIGATION GUIDE — When users ask "is there a way to...", "how do I...", 
 - **Reports** (/reports) — Printable summary reports, T2125 tax report, exportable data.
 - **CRM / Clients** (/crm) — Client database, flight status kanban, client profile cards (contact info, notes, activities, tasks, relationships, referrals, buyer/seller details, tags). **Hangar** tab for archived clients.
 - **Flight Control** (/flight-control) — AI-generated outreach drafts, follow-up queue, email previews, communication tones, newsletter drafts.
+- **Referrals** (/referrals) — Referral tracking (inbound/outbound), referral partner management, fee tracking, referral-to-transaction linking.
 - **Social** (/social) — Social media post drafts, connected accounts, AI-generated content.
 - **Settings** (/settings) — GCI/transaction goals, commission split & brokerage fees, province, tax settings (HST, home office %, vehicle %), cash reserve, board selection, bank sync connections.
 - **Guide** (/guide) — Platform walkthrough, feature explanations, getting started.
