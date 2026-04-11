@@ -255,7 +255,7 @@ export function MarketingNav({
                 <div ref={avatarRef} className="relative hidden md:block">
                   <button
                     onClick={() => setAvatarOpen((v) => !v)}
-                    className="flex items-center gap-1.5 rounded-full transition-opacity hover:opacity-90 focus:outline-none"
+                    className="flex items-center gap-1.5 rounded-full transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     aria-label="Open account menu"
                     aria-expanded={avatarOpen}
                   >

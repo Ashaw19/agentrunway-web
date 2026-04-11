@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Shield,
   Plus,
@@ -37,6 +37,7 @@ interface AccountantShare {
 }
 
 export function AccountantShareManager() {
+  const supabase = useMemo(() => createClient(), []);
   const [shares, setShares] = useState<AccountantShare[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -46,7 +47,6 @@ export function AccountantShareManager() {
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    const supabase = createClient();
     supabase
       .from("accountant_shares")
       .select("*")
@@ -68,7 +68,6 @@ export function AccountantShareManager() {
       return;
     }
     setCreating(true);
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       toast.error("Not authenticated");
@@ -93,7 +92,6 @@ export function AccountantShareManager() {
   }
 
   async function deleteShare(id: string) {
-    const supabase = createClient();
     const { error } = await supabase
       .from("accountant_shares")
       .delete()
@@ -107,7 +105,6 @@ export function AccountantShareManager() {
   }
 
   async function toggleActive(id: string, isActive: boolean) {
-    const supabase = createClient();
     const { error } = await supabase
       .from("accountant_shares")
       .update({ is_active: isActive })

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { pdf } from "@react-pdf/renderer";
 import { generateProductionExcel } from "@/lib/reports/production-report-excel";
 import { ProductionReportPDF } from "@/lib/reports/production-report-pdf-doc";
 import {
@@ -63,8 +62,9 @@ export function ProductionReportDialog({ open, onClose, historyItems, settings }
       };
 
       if (format === "excel") {
-        generateProductionExcel(reportData, yearFilter !== "all" ? parseInt(yearFilter) : undefined);
+        await generateProductionExcel(reportData, yearFilter !== "all" ? parseInt(yearFilter) : undefined);
       } else {
+        const { pdf } = await import("@react-pdf/renderer");
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const blob = await pdf(createElement(ProductionReportPDF, reportData) as any).toBlob();
         const url = URL.createObjectURL(blob);

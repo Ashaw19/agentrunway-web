@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
@@ -109,6 +109,7 @@ export function ProfileContent({
   historyItems = [],
   bestYear = null,
 }: ProfileContentProps) {
+  const supabase = useMemo(() => createClient(), []);
 
   // ── Identity ──────────────────────────────────────────────────────────────
   const [displayName, setDisplayName] = useState(settings?.display_name ?? "");
@@ -166,7 +167,6 @@ export function ProfileContent({
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingIdentity(true);
     try {
-      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       await supabase
@@ -189,7 +189,6 @@ export function ProfileContent({
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingBusiness(true);
     try {
-      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       await supabase
@@ -213,7 +212,6 @@ export function ProfileContent({
     setColorTheme(theme);
     setSavingTheme(true);
     try {
-      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       await supabase
@@ -235,7 +233,6 @@ export function ProfileContent({
     if (!file) return;
     setUploadingAvatar(true);
     try {
-      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
@@ -270,7 +267,6 @@ export function ProfileContent({
     if (!file) return;
     setUploadingLogo(true);
     try {
-      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "png";

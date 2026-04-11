@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -112,6 +112,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const router = useRouter();
   const searchParams = useSearchParams();
   const sandbox = useSandboxMode();
+  const supabase = useMemo(() => createClient(), []);
   const [googleConn, setGoogleConn] = useState<GoogleConnection>(googleConnection);
   const [googleDisconnecting, setGoogleDisconnecting] = useState(false);
   const [emailConns, setEmailConns] = useState<EmailConnection[]>(initialEmailConnections);
@@ -285,7 +286,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
 
   async function saveVoiceProfile(profile: CommunicationProfile) {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
-    const supabase = createClient();
     const { error } = await supabase
       .from("user_settings")
       .update({
@@ -316,7 +316,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       ...agentGoals,
       completed: !!(agentGoals.primary_goal || agentGoals.signature_phrases || agentGoals.hard_nogos),
     };
-    const supabase = createClient();
     const { error } = await supabase
       .from("user_settings")
       .update({
@@ -352,7 +351,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveBoard() {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingBoard(true);
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSavingBoard(false); return; }
     const { error } = await supabase.from("user_settings").update({ board_code: boardCode, board_subregion: boardSubregion }).eq("user_id", user.id);
@@ -374,7 +372,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveProvince() {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingProvince(true);
-    const supabase = createClient();
     const { error } = await supabase
       .from("user_settings")
       .update({ province })
@@ -401,7 +398,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveBiz() {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingBiz(true);
-    const supabase = createClient();
     const { error } = await supabase
       .from("user_settings")
       .update({
@@ -428,7 +424,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveSplit() {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingSplit(true);
-    const supabase = createClient();
     const { error } = await supabase
       .from("user_settings")
       .update({ split_preset: splitPreset })
@@ -458,7 +453,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveFees() {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingFees(true);
-    const supabase = createClient();
     const { error } = await supabase
       .from("user_settings")
       .update({
@@ -509,7 +503,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
     const vPct = Math.min(100, Math.max(0, parseFloat(vehiclePct)    || 0)) / 100;
     const hPct = Math.min(100, Math.max(0, parseFloat(homeOfficePct) || 0)) / 100;
     setSavingClaiming(true);
-    const supabase = createClient();
     const { error } = await supabase
       .from("user_settings")
       .update({
@@ -535,7 +528,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveFiling() {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingFiling(true);
-    const supabase = createClient();
     const { error } = await supabase
       .from("user_settings")
       .update({
@@ -648,7 +640,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveProfile() {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingProfile(true);
-    const supabase = createClient();
     const { error } = await supabase
       .from("user_settings")
       .update({
@@ -687,7 +678,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function savePostCap() {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingPostCap(true);
-    const supabase = createClient();
     const threshold = parseFloat(postCapThreshold) || 0;
     const agentPct  = (parseFloat(postCapAgentPct)    || 0) / 100;
     const brokPct   = (parseFloat(postCapBrokeragePct) || 0) / 100;
@@ -725,7 +715,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveGrowthGoals() {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingGoals(true);
-    const supabase = createClient();
     const { error } = await supabase
       .from("user_settings")
       .update({ growth_goal_year_pcts: growthGoals })
@@ -742,7 +731,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveGoal() {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingGoal(true);
-    const supabase = createClient();
     const { error } = await supabase
       .from("user_settings")
       .update({ goal_gci: parseFloat(goalGCI) || 0 })
@@ -756,7 +744,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   async function saveRunway() {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingRunway(true);
-    const supabase = createClient();
     const { error } = await supabase
       .from("user_settings")
       .update({

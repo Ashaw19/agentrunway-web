@@ -40,7 +40,6 @@ import { ExpenseDonut, type DonutDataPoint } from "@/components/expense-donut";
 import { cn } from "@/lib/utils";
 import { ReceiptCaptureDialog }     from "@/components/receipt-capture-dialog";
 import { ReceiptViewEditDialog }    from "@/components/receipt-view-edit-dialog";
-import { pdf }                      from "@react-pdf/renderer";
 import { ExpenseExportPdf }         from "@/components/pdf/expense-export-pdf";
 import {
   RECEIPT_CATEGORIES,
@@ -145,6 +144,7 @@ export function ExpensesContent({
   plaidExpenseItems = [], plaidExpenseCategories = [], plaidConfigured = false,
 }: Props) {
   const sandbox = useSandboxMode();
+  const supabase = useMemo(() => createClient(), []);
   const thisYear = currentYear ?? new Date().getFullYear();
   const isPro = settings?.subscription_tier === "professional" || settings?.subscription_tier === "team";
   const [categories, setCategories] = useState(initialCategories);
@@ -305,7 +305,7 @@ export function ExpensesContent({
     }
     setReconAdding(true);
     try {
-      const supabase = createClient();
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       const inserts = toAdd.map((m) => ({
@@ -370,7 +370,7 @@ export function ExpensesContent({
   // Fetch recurring expenses on mount
   useEffect(() => {
     (async () => {
-      const supabase = createClient();
+
       const { data } = await supabase
         .from("recurring_expenses")
         .select("*")
@@ -419,7 +419,6 @@ export function ExpensesContent({
       return;
     }
     setReSaving(true);
-    const supabase = createClient();
     const payload = {
       name: reName.trim(),
       amount: parseFloat(reAmount) || 0,
@@ -469,7 +468,6 @@ export function ExpensesContent({
 
   async function deleteRecurringExpense(id: string) {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
-    const supabase = createClient();
     const { error } = await supabase
       .from("recurring_expenses")
       .update({ is_active: false, updated_at: new Date().toISOString() })
@@ -524,7 +522,6 @@ export function ExpensesContent({
   async function handleQuickExpenseSave() {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setQeSaving(true);
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setQeSaving(false); return; }
 
@@ -576,7 +573,6 @@ export function ExpensesContent({
       receiptRefreshTimer.current = setTimeout(resolve, 300);
     });
 
-    const supabase = createClient();
     const year = new Date().getFullYear();
 
     // Refresh receipt display log
@@ -771,7 +767,6 @@ export function ExpensesContent({
       recurringCheck.errors.forEach((msg) => toast.error(msg));
       return;
     }
-    const supabase = createClient();
     const { error } = await supabase.from("expense_items").update({ [field]: numValue }).eq("id", itemId);
     if (error) {
       toast.error("Couldn't save — please try again.");
@@ -792,7 +787,6 @@ export function ExpensesContent({
     const title = newItemTitle.trim();
     if (!title) return;
 
-    const supabase = createClient();
     const { data: authData } = await supabase.auth.getUser();
     if (!authData.user) return;
 
@@ -830,7 +824,6 @@ export function ExpensesContent({
 
   async function deleteItem(categoryId: string, itemId: string) {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { error } = await supabase.from("expense_items").delete().eq("id", itemId).eq("user_id", user.id);
@@ -857,7 +850,6 @@ export function ExpensesContent({
       pctCheck.errors.forEach((msg) => toast.error(msg));
       return;
     }
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { error } = await supabase
@@ -880,7 +872,6 @@ export function ExpensesContent({
   function handleReceiptUpdated(updated: ReceiptExpense) {
     setReceipts((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
     // Refresh YTD totals by re-querying
-    const supabase = createClient();
     const year = new Date().getFullYear();
     supabase
       .from("receipt_expenses")
@@ -900,7 +891,6 @@ export function ExpensesContent({
   function handleReceiptDeleted(id: string) {
     setReceipts((prev) => prev.filter((r) => r.id !== id));
     // Refresh YTD totals
-    const supabase = createClient();
     const year = new Date().getFullYear();
     supabase
       .from("receipt_expenses")
@@ -931,7 +921,6 @@ export function ExpensesContent({
     }
     setPriorRows((prev) => prev.map((r) => r.year === yr ? { ...r, [field]: val } : r));
     setSavingYoy(yr);
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSavingYoy(null); return; }
     // Upsert: create history_item for this year if it doesn't exist
@@ -1008,6 +997,7 @@ export function ExpensesContent({
           deductVehicle={deductBreakdown.vehicle}
         />
       );
+      const { pdf } = await import("@react-pdf/renderer");
       const blob = await pdf(doc).toBlob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement("a");

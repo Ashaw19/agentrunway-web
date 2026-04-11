@@ -11,7 +11,7 @@
  *   Right — Editable form: vendor, date, total, tax, category, notes
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import {
@@ -57,6 +57,7 @@ export function ReceiptViewEditDialog({
   receipt, open, onClose, onSaved, onDeleted,
 }: Props) {
   const sandbox = useSandboxMode();
+  const supabase = useMemo(() => createClient(), []);
 
   // ── Image panel state ──────────────────────────────────────────────────────
   const [imageUrl,     setImageUrl]     = useState<string | null>(null);
@@ -97,7 +98,6 @@ export function ReceiptViewEditDialog({
       return;
     }
     setImageLoading(true);
-    const supabase = createClient();
     supabase.storage
       .from("receipt-media")
       .createSignedUrl(receipt.receipt_path, 3600)
@@ -112,7 +112,6 @@ export function ReceiptViewEditDialog({
     if (!receipt) return;
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSaving(true);
-    const supabase = createClient();
     const { data, error } = await supabase
       .from("receipt_expenses")
       .update({
@@ -142,7 +141,6 @@ export function ReceiptViewEditDialog({
     if (!receipt) return;
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setDeleting(true);
-    const supabase = createClient();
     await supabase.from("receipt_expenses").delete().eq("id", receipt.id);
     if (receipt.receipt_path) {
       await supabase.storage.from("receipt-media").remove([receipt.receipt_path]);

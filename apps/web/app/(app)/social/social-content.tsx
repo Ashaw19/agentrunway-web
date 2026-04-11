@@ -9,7 +9,7 @@
  *   2. Canva Export — download ZIP package for finishing in Canva
  */
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -92,6 +92,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
   const now = new Date();
   const { user } = useUser();
   const sandbox = useSandboxMode();
+  const supabase = useMemo(() => createClient(), []);
 
   // ── Post setup state ───────────────────────────────────────────────────────
   const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1); // 1-12
@@ -259,7 +260,6 @@ export function SocialContent({ settings, transactions, connections }: Props) {
     setUploadingPhoto(txId);
 
     try {
-      const supabase = createClient();
       const ext = blob.type === "image/png" ? "png" : "jpg";
       const path = `${user.id}/social/${txId}.${ext}`;
       const { error } = await supabase.storage
@@ -299,7 +299,6 @@ export function SocialContent({ settings, transactions, connections }: Props) {
     }
     setUploadingCutout(true);
     try {
-      const supabase = createClient();
       const path = `${user.id}/cutout.png`;
       const { error } = await supabase.storage
         .from("profile-media")
@@ -357,7 +356,6 @@ export function SocialContent({ settings, transactions, connections }: Props) {
       bmp.close();
       const resizedBlob = await canvas.convertToBlob({ type: "image/png" });
 
-      const supabase = createClient();
       const path = `${user.id}/cutout.png`;
       const { error } = await supabase.storage
         .from("profile-media")

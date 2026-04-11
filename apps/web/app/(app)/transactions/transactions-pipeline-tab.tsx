@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useSandboxMode } from "@/lib/sandbox-mode-context";
@@ -141,6 +141,7 @@ type CloseForm = {
 
 export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransactions = [] }: Props) {
   const sandbox = useSandboxMode();
+  const supabase = useMemo(() => createClient(), []);
   const [deals, setDeals] = useState(pipelineDeals);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -162,7 +163,6 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
       return;
     }
     const timer = setTimeout(() => {
-      const supabase = createClient();
       supabase
         .from("clients")
         .select("id, first_name, last_name")
@@ -243,7 +243,6 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
   async function handleSave() {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSaving(true);
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSaving(false); return; }
 
@@ -318,7 +317,6 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
 
   async function handleDelete(id: string) {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { error } = await supabase.from("pipeline_deals").delete().eq("id", id).eq("user_id", user.id);
@@ -335,7 +333,6 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (!closeTarget || closing) return;
     setClosing(true);
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setClosing(false); return; }
 

@@ -1,4 +1,3 @@
-import * as XLSX from "xlsx";
 import { type HistoryItem, type ClientRecord } from "@/lib/types/database";
 
 /** Sanitize cell values to prevent Excel formula injection */
@@ -20,7 +19,8 @@ interface ReportData {
   generatedAt: string;
 }
 
-export function generateProductionExcel(data: ReportData, yearFilter?: number): void {
+export async function generateProductionExcel(data: ReportData, yearFilter?: number): Promise<void> {
+  const XLSX = await import("xlsx");
   const { historyItems, clientRecords, agentName, brokerage, generatedAt } = data;
 
   const items = yearFilter

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useMemo } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -111,6 +111,7 @@ const SPLIT_OPTIONS: { label: string; value: number }[] = [
 ];
 
 export function TransactionsHistoryTab({ historyItems: initial, transactions, settingsSplit, settings }: Props) {
+  const supabase = useMemo(() => createClient(), []);
   const [items, setItems] = useState(initial);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
@@ -199,7 +200,6 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
   }
 
   async function toggleLock(item: HistoryItem) {
-    const supabase = createClient();
     const { error } = await supabase
       .from("history_items")
       .update({ is_locked: !item.is_locked })
@@ -220,7 +220,6 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
     const num = parseFloat(value) || 0;
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, annual_gci: num } : i));
     setSaving(`${item.id}-annual_gci`);
-    const supabase = createClient();
     await supabase.from("history_items").update({ annual_gci: num }).eq("id", item.id);
     setSaving(null);
   }
@@ -229,7 +228,6 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
     const num = parseInt(value) || 0;
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, annual_tx: num } : i));
     setSaving(`${item.id}-annual_tx`);
-    const supabase = createClient();
     await supabase.from("history_items").update({ annual_tx: num }).eq("id", item.id);
     setSaving(null);
   }
@@ -240,7 +238,6 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
     newArr[qi] = num;
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, quarter_gci: newArr } : i));
     setSaving(`${item.id}-qgci-${qi}`);
-    const supabase = createClient();
     await supabase.from("history_items").update({ quarter_gci: newArr }).eq("id", item.id);
     setSaving(null);
   }
@@ -251,13 +248,11 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
     newArr[qi] = num;
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, quarter_tx: newArr } : i));
     setSaving(`${item.id}-qtx-${qi}`);
-    const supabase = createClient();
     await supabase.from("history_items").update({ quarter_tx: newArr }).eq("id", item.id);
     setSaving(null);
   }
 
   async function handleAddYear() {
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -288,7 +283,6 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
   }
 
   async function handleDeleteYear(item: HistoryItem) {
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -613,7 +607,6 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
     if (!importData) return;
     setImportStatus("saving");
 
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -739,7 +732,6 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
     if (batchImportData.length === 0) return;
     setImportStatus("saving");
 
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 

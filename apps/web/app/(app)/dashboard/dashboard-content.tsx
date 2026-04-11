@@ -311,6 +311,7 @@ export function DashboardContent({
 
   // ── Sandbox Mode ──────────────────────────────────────────────────────
   const sandbox = useSandboxMode();
+  const supabase = useMemo(() => createClient(), []);
   const [showSandboxModal, setShowSandboxModal] = useState(false);
   const [showExpiryModal, setShowExpiryModal] = useState(sandbox.isExpired);
 
@@ -389,7 +390,6 @@ export function DashboardContent({
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const prevTasks = localTasks;
     setLocalTasks((prev) => prev.filter((t) => t.id !== taskId));
-    const supabase = createClient();
     const { error } = await supabase
       .from("contact_tasks")
       .update({ completed_at: new Date().toISOString() })
@@ -448,7 +448,6 @@ export function DashboardContent({
   async function persistLayout(order: CardId[], hidden: Set<CardId>) {
     if (sandbox.sandboxMode) return; // Don't persist layout changes in sandbox
     try {
-      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       await supabase
@@ -683,7 +682,6 @@ export function DashboardContent({
   // Saves every time the score changes (not just once/month) for real-time parity.
   useEffect(() => {
     if (sandbox.sandboxMode) return;
-    const supabase = createClient();
     const snapshot = {
       score: runwayScore.score,
       grade: runwayScore.grade,
@@ -2740,7 +2738,6 @@ export function DashboardContent({
           onComplete={async () => {
             setTourComplete(true);
             try {
-              const supabase = createClient();
               const { data: { user } } = await supabase.auth.getUser();
               if (user) {
                 await supabase

@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { pdf } from "@react-pdf/renderer";
 import {
   FileText, Download, Plus, Trash2, ChevronDown, ChevronUp,
   Info, CheckCircle2, AlertTriangle, Edit3, Building2,
@@ -321,6 +320,7 @@ export function ReportsT2125Tab({
         dismissed: [],
       });
 
+      const { pdf } = await import("@react-pdf/renderer");
       const blob = await pdf(
         <T2125Pdf
           result={result}

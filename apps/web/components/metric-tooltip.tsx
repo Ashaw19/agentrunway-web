@@ -46,7 +46,7 @@ export function MetricTooltip({ metricKey, value, context }: MetricTooltipProps)
         <TooltipTrigger asChild>
           <button
             type="button"
-            className="inline-flex items-center justify-center rounded-full p-0.5 text-muted-foreground/40 hover:text-muted-foreground transition-colors focus:outline-none"
+            className="inline-flex items-center justify-center rounded-full p-0.5 text-muted-foreground/40 hover:text-muted-foreground transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             aria-label={`Info about ${metricKey.replace(/_/g, " ")}`}
           >
             <Info className="h-3.5 w-3.5" />

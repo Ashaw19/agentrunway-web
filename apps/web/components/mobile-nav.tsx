@@ -158,7 +158,7 @@ export function MobileNav({ isPro = false }: { isPro?: boolean }) {
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8"
+          className="h-9 w-9"
           onClick={() => setOpen(true)}
           aria-label="Open navigation"
         >
@@ -172,7 +172,7 @@ export function MobileNav({ isPro = false }: { isPro?: boolean }) {
         {/* Avatar dropdown on far right */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex h-8 w-8 items-center justify-center rounded-full ring-2 ring-border hover:ring-primary/50 transition-all overflow-hidden focus:outline-none">
+            <button className="flex h-9 w-9 items-center justify-center rounded-full ring-2 ring-border hover:ring-primary/50 transition-all overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
               {avatarUrl ? (
                 <Image
                   src={avatarUrl}
