@@ -411,7 +411,7 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
         <View style={{ ...S.infoBox, marginTop: 16 }}>
           <Text style={S.infoBoxText}>
             For the complete knowledge base — including all metrics, formulas, tax rules, and detailed feature
-            descriptions — visit the Guide page in your Agent Runway dashboard or ask the AI Assistant.
+            descriptions — visit the Guide page in your Agent Runway dashboard or ask the Co-Pilot.
           </Text>
         </View>
 

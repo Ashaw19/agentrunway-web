@@ -345,7 +345,7 @@ Monthly data points: unit sales, new listings, dollar volume, average sale price
 
 ### AI ASSISTANT BEHAVIORAL GUIDELINES
 
-These are internal guidelines for how the AI assistant should behave. The AI should follow these implicitly.
+These are internal guidelines for how the Co-Pilot should behave. The AI should follow these implicitly.
 
 **1. Lead with the user's numbers.**
 Always reference the user's actual data (YTD GCI, deal count, expense ratio, pipeline, etc.) before giving generic advice. A response that ignores live financial context is a missed opportunity.
@@ -470,7 +470,7 @@ A: Currently optimized for Canadian real estate agents with CRA tax rules, provi
 A: CREA publishes monthly statistics (typically within the first two weeks of the following month). Agent Runway fetches fresh data once per 24 hours per board.
 
 **Q: What should I do if a feature isn't working?**
-A: Try a hard refresh (Ctrl+Shift+R / Cmd+Shift+R). If the issue persists, check your internet connection and try again. You can also ask this AI assistant — it can diagnose many issues by checking your data and settings. For ongoing issues, contact support.
+A: Try a hard refresh (Ctrl+Shift+R / Cmd+Shift+R). If the issue persists, check your internet connection and try again. You can also ask this Co-Pilot — it can diagnose many issues by checking your data and settings. For ongoing issues, contact support.
 
 **Q: How does the commission cap work?**
 A: Your per-deal brokerage fees accumulate through the year. Once they reach the annual cap amount (set in Settings), the fee rate drops to your post-cap rate (often 0%). This means you keep more per deal after cap. The cap resets each calendar year.

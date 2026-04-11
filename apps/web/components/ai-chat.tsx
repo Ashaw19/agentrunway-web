@@ -110,7 +110,7 @@ function buildInitialMessage(context: string): string {
     return `Hey! I've got your numbers in front of me.\n\nYou're at ${pct}% of your annual goal with ${deals} deal${deals !== 1 ? "s" : ""} closed. ${pct >= 75 ? "You're killing it — let's make sure you finish strong." : pct >= 50 ? "You're past the halfway mark — solid position." : "There's ground to make up, but the year isn't over."}\n\nWhat do you want to dig into?`;
   }
 
-  return "Hey! I'm your Agent Runway AI assistant. I can help you explore your business data — GCI, pipeline, expenses, and more. All outputs are estimates for informational purposes only.\n\nWhat do you want to know?";
+  return "Hey! I'm your Co-Pilot. I can help you explore your business data — GCI, pipeline, expenses, and more. All outputs are estimates for informational purposes only.\n\nWhat do you want to know?";
 }
 
 export function AiChat({ financialContext }: Props) {
@@ -263,7 +263,7 @@ export function AiChat({ financialContext }: Props) {
         const raw = err instanceof Error ? err.message : "";
         const errMsg =
           raw.includes("Too many") ? "You're sending messages too quickly. Please wait a moment." :
-          raw.includes("not configured") ? "AI assistant is temporarily unavailable. Please try again shortly." :
+          raw.includes("not configured") ? "Co-Pilot is temporarily unavailable. Please try again shortly." :
           "Sorry, I couldn't connect right now. Try again in a moment.";
         setMessages([
           ...newMessages,
@@ -332,7 +332,7 @@ export function AiChat({ financialContext }: Props) {
                 boxShadow: "0 4px 24px rgba(99,102,241,0.5)",
               }
         }
-        aria-label="Open AI assistant"
+        aria-label="Open Co-Pilot"
       >
         {isOpen ? (
           <ChevronDown className="h-5 w-5" />
@@ -369,7 +369,7 @@ export function AiChat({ financialContext }: Props) {
                 <Sparkles className="h-4 w-4 text-blue-300" />
               </div>
               <div>
-                <p className="text-sm font-bold text-white">AI Assistant</p>
+                <p className="text-sm font-bold text-white">Co-Pilot</p>
                 <p className="text-[10px] text-blue-300/70">Sees your live business data</p>
               </div>
             </div>

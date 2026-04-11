@@ -374,7 +374,8 @@ export function ExpensesContent({
         .from("recurring_expenses")
         .select("*")
         .eq("is_active", true)
-        .order("name");
+        .order("name")
+        .limit(500);
       if (data) setRecurringExpenses(data as RecurringExpense[]);
     })();
   }, []);

@@ -613,8 +613,11 @@ export function DashboardContent({
   const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
 
   // ── Survival ──────────────────────────────────────────────────────────
-  // Pipeline monthly estimate: annualize weighted pipeline GCI, then divide by 12
-  const pipelineMonthlyEst = fraction > 0 ? (pipelineWeightedGCI * 0.5) / 12 : 0;
+  // Pipeline monthly estimate: use weighted pipeline GCI (already probability-adjusted
+  // by stage weights in computeWeightedGCI) divided by remaining months in year.
+  // No additional haircut needed — the stage weights ARE the confidence factor.
+  const remainingMonths = Math.max(1, 12 - Math.floor(fraction * 12));
+  const pipelineMonthlyEst = fraction > 0 ? pipelineWeightedGCI / remainingMonths : 0;
   const survival = survivalResult(
     settings?.monthly_brokerage_fee ?? 0,
     monthlyRecurring,

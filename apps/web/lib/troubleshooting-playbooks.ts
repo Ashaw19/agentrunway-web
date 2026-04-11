@@ -1158,7 +1158,7 @@ All settings are editable later in Settings.
 ### Welcome Tour
 After onboarding, a welcome tour highlights key features:
 - Dashboard overview
-- AI Assistant access
+- Co-Pilot access
 - Quick Actions FAB
 - Navigation structure
 
@@ -1308,7 +1308,7 @@ If the user's question doesn't clearly match a specific feature area, follow thi
 
 ### Subscription Tiers
 - **Free**: Limited features, basic dashboard
-- **Professional**: Full access to all features including AI Assistant, Flight Control, Forecast, Reports, Social Studio
+- **Professional**: Full access to all features including Co-Pilot, Flight Control, Forecast, Reports, Social Studio
 - **Team**: Professional features + team management and org insights
 
 ### Keyboard Shortcuts

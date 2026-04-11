@@ -380,6 +380,13 @@ export function MembersContent({
               </div>
             );
           })}
+          {members.length <= 1 && (
+            <div className="px-5 py-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                It&apos;s just you so far. Invite your team using the form above — they&apos;ll get an email with a link to join.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

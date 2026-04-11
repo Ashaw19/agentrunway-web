@@ -370,7 +370,7 @@ export default function OnboardingPage() {
             <StepFrame
               icon={<Globe className="h-5 w-5" />}
               title="Choose Your Language / Choisissez votre langue"
-              subtitle="Agent Runway is available in 10 languages"
+              subtitle="First question. Easy one. We support 10 languages — pick yours and we'll remember it."
             >
               <div className="grid grid-cols-2 gap-3">
                 {LANGUAGE_OPTIONS.map((lang) => (
@@ -414,7 +414,7 @@ export default function OnboardingPage() {
             <StepFrame
               icon={<MapPin className="h-5 w-5" />}
               title="Where are you closing deals?"
-              subtitle="Tax rates, GST/HST, and provincial rules — we need to know which corner of Canada we're working with."
+              subtitle="We promise this is relevant — your tax rates, GST/HST, and provincial rules all depend on this."
             >
               <div className="grid gap-3">
                 <Label className="text-white/80">Province / Territory</Label>
@@ -479,7 +479,7 @@ export default function OnboardingPage() {
             <StepFrame
               icon={<Building2 className="h-5 w-5" />}
               title="How's your business set up?"
-              subtitle="This shapes your tax picture and which expense categories you see. You can change this any time in Settings."
+              subtitle="Still with us? Good — this one matters. Your business structure shapes your tax picture, expense categories, and how we model your take-home pay."
             >
               <div className="grid gap-5">
                 {/* Business structure */}
@@ -629,7 +629,7 @@ export default function OnboardingPage() {
             <StepFrame
               icon={<DollarSign className="h-5 w-5" />}
               title="Let's talk about how you get paid."
-              subtitle="(And what gets taken away.) This powers all of your projections and tax estimates — it's worth getting right."
+              subtitle="This is the big one — yes, we're asking a lot. (And what gets taken away.) Your splits, fees, and cash position power every projection we build for you."
             >
               <div className="grid gap-5">
                 {/* Split selector */}
@@ -784,7 +784,7 @@ export default function OnboardingPage() {
             <StepFrame
               icon={<Clock className="h-5 w-5" />}
               title="How long have you been in the game?"
-              subtitle="This calibrates your benchmarks against your cohort. No judgement — everyone starts somewhere."
+              subtitle="Almost done — we promise. This calibrates your benchmarks so we compare you to agents at your level, not the entire industry."
             >
               <div className="grid grid-cols-2 gap-3">
                 {EXPERIENCE_OPTIONS.map((opt) => (
@@ -831,7 +831,7 @@ export default function OnboardingPage() {
             <StepFrame
               icon={<Palette className="h-5 w-5" />}
               title="Choose your battle colour."
-              subtitle="This sets the accent colour across your dashboard. A small but deeply important decision."
+              subtitle="OK — you've earned a fun one. This sets the accent colour across your dashboard. Zero financial implications. Just vibes."
             >
               <div className="grid gap-2.5">
                 {COLOR_THEMES.map((theme) => (
@@ -879,8 +879,8 @@ export default function OnboardingPage() {
           {step === 8 && (
             <StepFrame
               icon={<Target className="h-5 w-5" />}
-              title="Set your targets for this year."
-              subtitle="We've suggested a starting goal based on your experience level — feel free to adjust it. You can update this anytime in Settings."
+              title="Last one — set your targets for this year."
+              subtitle="You made it. We've suggested a starting goal based on your experience level — adjust it if you're feeling ambitious (or realistic). You can always change this later."
             >
               <div className="grid gap-4">
                 <div className="grid gap-2">
@@ -1103,13 +1103,12 @@ function WelcomeStep({ onContinue, teamInfo }: { onContinue: () => void; teamInf
           {teamInfo ? (
             <>
               {teamInfo.leaderName} invited you to join {teamInfo.orgName} on Agent Runway.
-              Let&apos;s spend about two minutes setting up your personal account.
+              We&apos;re about to ask you a bunch of questions. We know — but the more you tell us now, the less we have to guess later.
             </>
           ) : (
             <>
-              Your business analytics platform for Canadian real estate
-              professionals. We&apos;re going to spend about two minutes getting
-              your account properly configured.
+              Your business analytics platform built for Canadian real estate agents.
+              We&apos;re about to ask you a bunch of questions. We know — but the more you tell us now, the less we have to guess later.
             </>
           )}
         </p>
@@ -1157,7 +1156,7 @@ function WelcomeStep({ onContinue, teamInfo }: { onContinue: () => void; teamInf
       </Button>
 
       <p className="text-[11px] text-white/25">
-        Takes about 2 minutes. No credit card required.
+        8 quick steps. About 2 minutes. No credit card.
       </p>
     </div>
   );

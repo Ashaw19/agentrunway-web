@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
         .eq("user_id", user.id)
         .single();
 
-      const prompt = `You are a Canadian real estate agent's AI assistant. Based on the following buyer showings data, write a 3-4 sentence "Buyer DNA" summary that helps the agent understand their client's home search patterns and preferences. Include one actionable insight or conversation starter.
+      const prompt = `You are a Canadian real estate agent's Co-Pilot. Based on the following buyer showings data, write a 3-4 sentence "Buyer DNA" summary that helps the agent understand their client's home search patterns and preferences. Include one actionable insight or conversation starter.
 
 Client: ${client?.name ?? "Unknown"}
 Total showings: ${showings.length} (over ${Math.ceil(span)} weeks)
