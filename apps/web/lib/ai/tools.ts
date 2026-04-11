@@ -18,7 +18,8 @@
  *   Autonomous          — logContactActivity, updateClientStatus,
  *                         updateClientNotes, updateClientDetails,
  *                         updatePipelineDealStage, updatePipelineDealProbability,
- *                         updatePipelineDealCloseDate, updateGCIGoal, archiveClient
+ *                         updatePipelineDealCloseDate, updateGCIGoal,
+ *                         archiveClient, linkClientReferral
  *   Confirm-required    — logExpense, recordTransaction, updatePipelineDealValue
  */
 
@@ -518,6 +519,50 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           return `✓ Transaction recorded — ${address} (${clientName}, ${side}) closed ${closeDate}.${gciStr} Your YTD metrics will update on next page refresh.`;
         } catch {
           return "Failed to record transaction. Please try again.";
+        }
+      },
+    }),
+
+    // ── LINK CLIENT REFERRAL ───────────────────────────────────────────────────
+    linkClientReferral: tool({
+      description: "Create a referral relationship between two clients. Use this when the agent says 'X was referred by Y' or 'Y referred X to me'. Always search for both clients first to get their IDs. The referrer is the person who made the referral; the referred is the person who became a client because of it.",
+      inputSchema: z.object({
+        referrerId: z.string().uuid().describe("The UUID of the client who MADE the referral (the referrer)"),
+        referrerName: z.string().describe("Name of the referring client"),
+        referredId: z.string().uuid().describe("The UUID of the client who WAS REFERRED (the new client)"),
+        referredName: z.string().describe("Name of the referred client"),
+      }),
+      execute: async ({ referrerId, referrerName, referredId, referredName }) => {
+        try {
+          // Check for existing relationship to avoid duplicates
+          const { data: existing } = await supabase
+            .from("client_relationships")
+            .select("id")
+            .eq("user_id", userId)
+            .or(
+              `and(client_id_a.eq.${referrerId},client_id_b.eq.${referredId}),and(client_id_a.eq.${referredId},client_id_b.eq.${referrerId})`,
+            )
+            .limit(1);
+
+          if (existing && existing.length > 0) {
+            return `${referrerName} and ${referredName} already have a relationship linked. No changes made.`;
+          }
+
+          // Store directionally: A = referrer, B = referred
+          const { error } = await supabase
+            .from("client_relationships")
+            .insert({
+              user_id: userId,
+              client_id_a: referrerId,
+              client_id_b: referredId,
+              relationship_type: "referrer",
+            });
+
+          if (error) return `Failed to link referral: ${error.message}`;
+
+          return `✓ Referral linked — ${referrerName} referred ${referredName} to you. This will show on both client profiles.`;
+        } catch {
+          return "Failed to link referral. Please try again.";
         }
       },
     }),
