@@ -37,10 +37,17 @@ const TOPIC_TO_TIER: Record<TroubleshootingTopic, ModelTier> = {
   "survival":        "default",
   "benchmark":       "default",
   "teams":           "default",
+  "referrals":       "default",
+  "mileage":         "default",
+  "recurring-expenses": "default",
+  "bank-sync":       "default",
+  "altimeter":       "default",
 
   // Complex tier — deep financial reasoning
   "tax":             "complex",
   "forecast":        "complex",
+  "overhead":        "complex",
+  "scenarios":       "complex",
 };
 
 /**

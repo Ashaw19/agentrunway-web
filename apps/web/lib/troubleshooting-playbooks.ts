@@ -1288,6 +1288,302 @@ When a new member asks "I just joined a team, what do I do?":
 5. Ask the Co-Pilot — it knows your team context and can compare your pace
 `,
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REFERRALS
+  // ═══════════════════════════════════════════════════════════════════════════
+  referrals: `## TROUBLESHOOTING: REFERRALS
+
+### How Referrals Work
+Agent Runway tracks referral partnerships — both inbound (another agent sends you a client) and outbound (you send a client to another agent).
+
+**Key Fields:**
+- **Direction**: inbound (you receive) or outbound (you send)
+- **Partner Name / Brokerage**: who you're working with
+- **Client Name**: the referred client
+- **Referral Fee %**: default 25%, customizable per referral
+- **Estimated Value**: projected deal value for fee calculation
+- **Actual Fee Paid**: recorded when the deal closes
+- **Status**: pending → active → closed (or cancelled)
+
+### Referral Fee Calculation
+- Referral fee = Sale Price × Commission % × Referral Fee %
+- Example: $400K sale × 2.5% commission × 25% referral = $2,500
+- For inbound: this is money you pay to the referring agent
+- For outbound: this is money you receive from the receiving agent
+
+### Common Issues
+- **"My referral fee seems wrong"**: Check the referral fee %, sale price, and commission rate. The fee is calculated on your gross commission, not the sale price.
+- **"How do I link a referral to a closed deal?"**: Record the referral first, then when you record the transaction, the referral fee can be tracked alongside it.
+- **"Inbound vs outbound — which do I pick?"**: Inbound = someone referred a client TO you. Outbound = you referred a client to SOMEONE ELSE.
+- **"Default 25% — can I change it?"**: Yes, each referral can have a custom percentage. Edit it when creating or updating the referral.
+
+### Where to Find It
+- **Referrals page** (/referrals) — full list, partner management, fee tracking
+- **Co-Pilot**: "Log a referral" or "Cara Coes referred Travis Radtke to me"
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // OVERHEAD
+  // ═══════════════════════════════════════════════════════════════════════════
+  overhead: `## TROUBLESHOOTING: OVERHEAD (TAX & DEDUCTIONS)
+
+### What the Overhead Page Shows
+The Overhead page is your complete tax visibility dashboard:
+
+1. **Tax Estimate Breakdown**
+   - Federal tax (multi-bracket: 15% / 20.5% / 26% / 29% / 33%)
+   - Provincial tax (varies by province — uses rates from Settings)
+   - CPP self-employed contributions (both employer + employee portions)
+   - Total estimated tax liability for the year
+
+2. **Effective Tax Rate**
+   - Your actual overall tax rate = Total Tax ÷ Net Self-Employment Income
+   - This is different from your marginal rate (the rate on your next dollar)
+
+3. **Quarterly Instalment Amounts**
+   - CRA requires quarterly payments if you owe > $3,000 in tax
+   - Deadlines: March 15, June 15, September 15, December 15
+   - Calculated as: Estimated Annual Tax ÷ 4
+
+4. **HST/GST Tracking**
+   - HST collected on commissions (13% in ON, 15% in NB/NS/NL/PE, etc.)
+   - Input Tax Credits (ITCs) from business expenses
+   - Net HST owing = Collected − ITCs
+   - Small supplier threshold: < $30,000 annual revenue = optional registration
+
+5. **Deduction Summaries by T2125 Category**
+   - Advertising, meals, vehicle, office, professional fees, etc.
+   - Each category shows YTD total from recorded expenses
+
+6. **CCA Depreciation Schedule**
+   - Capital Cost Allowance for business assets
+   - Organized by CCA class (Class 8, 10, 10.1, 12, 50, etc.)
+   - Shows: original cost, UCC (undepreciated capital cost), CCA claimed
+   - Half-year rule: first-year CCA is 50% of the normal rate
+
+7. **Per-Deal Tax Set-Aside**
+   - Recommended amount to set aside from each commission cheque
+   - Based on your effective tax rate applied to average deal GCI
+
+### Common Issues
+- **"Tax estimate seems too high/low"**: Check Settings → province, business structure (sole prop vs incorporated), and whether expenses are fully entered.
+- **"CCA not showing"**: You need to add CCA assets first — use the Co-Pilot ("I bought a $2,400 laptop for work") or add manually on the Overhead page.
+- **"HST numbers wrong"**: Verify your GST/HST registration status in Settings. If you're below $30K revenue, you may not need to collect HST.
+- **"Instalment amounts changed"**: They update as your estimated tax changes throughout the year based on new transactions and expenses.
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ALTIMETER
+  // ═══════════════════════════════════════════════════════════════════════════
+  altimeter: `## TROUBLESHOOTING: ALTIMETER (ANALYTICS & INSIGHTS)
+
+### What the Altimeter Page Shows
+The Altimeter is your deep analytics dashboard — performance tracking, insights, and benchmarking.
+
+**Sections:**
+
+1. **Personal Records**
+   - Best Year (highest GCI in a single year)
+   - Best Month (highest GCI in a single month)
+   - Best Single Deal (highest GCI from one transaction)
+   - These update automatically as you close transactions
+
+2. **Year-over-Year Performance**
+   - Compares current year to previous years
+   - Shows growth trends in GCI, deal count, average deal size
+
+3. **All Insights Engine**
+   - AI-generated insights ranked by dollar impact
+   - Examples: "Your average deal size increased 12% vs last year" or "Your expense ratio dropped below 30%"
+   - Insights pull from transactions, pipeline, expenses, and CRM data
+
+4. **Board Benchmarking**
+   - Compares your performance to CREA national and board-level data
+   - Shows your percentile rank among agents
+   - Cohort comparison (rookie, growth, established, top producer)
+
+5. **Where You Stand**
+   - Positioning on a Launching → Growing → Established → Leading scale
+   - Based on deal volume, GCI, and year-over-year trajectory
+
+6. **Deviation Detection**
+   - Flags anomalies compared to your 12-month baseline
+   - Examples: unusually high expense month, sudden GCI spike, pipeline drop-off
+
+7. **Runway Score Breakdown**
+   - Component weights: Pace 35%, Pipeline 30%, Expense Ratio 15%, Survival 15%, Benchmark 5%
+   - Each sub-score shown individually so you can see what's pulling your score up or down
+   - Grade: A+ (90-100), A (80-89), B (70-79), C (60-69), D (50-59), F (<50)
+
+### Common Issues
+- **"Personal records are wrong"**: Records only count closed transactions with confirmed GCI. Pending pipeline deals don't count.
+- **"Year-over-year is empty"**: You need at least 2 years of transaction data. Import historical transactions at /history.
+- **"Board benchmark says I'm low but I'm doing well"**: Benchmarks use CREA 2023 national data. Local markets vary significantly.
+- **"Runway Score dropped suddenly"**: Check which component changed — usually it's pipeline health (deals fell through) or pace (slow month).
+- **"No insights showing"**: The insights engine needs at least a few months of data to generate meaningful observations.
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SCENARIOS
+  // ═══════════════════════════════════════════════════════════════════════════
+  scenarios: `## TROUBLESHOOTING: SCENARIOS (WHAT-IF MODELING)
+
+### What the Scenarios Page Does
+Financial what-if modeling that lets you test different business assumptions without affecting real data.
+
+**Adjustable Variables:**
+- Deal count (how many deals you'll close)
+- Average sale price
+- Commission rate
+- Expense levels (increase/decrease by percentage)
+- Brokerage fees / caps
+
+**How It Works:**
+1. Start from your current year actuals as the baseline
+2. Adjust one or more variables
+3. See projected year-end GCI, take-home, tax impact
+4. Compare multiple scenarios side by side
+
+**Use Cases:**
+- "What if I close 2 more deals this year?"
+- "What if my average sale price goes up by $50K?"
+- "What happens to my take-home if I cut marketing expenses by 30%?"
+- "Should I aim for more deals or higher-value deals?"
+
+### Common Issues
+- **"Scenario shows wrong baseline"**: The baseline uses your current year's actual data. If transactions or expenses are missing, the baseline will be off.
+- **"Results seem unrealistic"**: Scenarios use your current commission structure and tax brackets. If Settings are wrong, scenarios will be wrong.
+- **"Can I save scenarios?"**: Scenarios are for real-time exploration. Adjust variables and compare — they reset when you leave the page.
+
+### How Scenarios Feed Into Decisions
+- Compare against your current pace from the Forecast page
+- Use to set realistic annual goals in Settings
+- Test the impact before making business decisions (hiring assistant, increasing marketing spend, etc.)
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MILEAGE
+  // ═══════════════════════════════════════════════════════════════════════════
+  mileage: `## TROUBLESHOOTING: MILEAGE TRACKING
+
+### How Mileage Tracking Works
+Agent Runway logs business driving for CRA mileage deductions under the T2125.
+
+**Key Fields per Trip:**
+- Trip date
+- Kilometres driven
+- From / To locations
+- Purpose (showing, listing, client meeting, open house, etc.)
+- Deduction (auto-calculated using CRA rates)
+
+### CRA Mileage Rates (2025)
+- First 5,000 km: $0.72/km
+- After 5,000 km: $0.66/km
+- These rates are applied automatically based on YTD cumulative km
+
+### Deduction Calculation
+The deduction uses the tiered CRA rate:
+- If YTD km ≤ 5,000: deduction = km × $0.72
+- If YTD km > 5,000: first 5,000 km at $0.72, remainder at $0.66
+- Business use percentage from Settings is applied on top
+
+### Common Issues
+- **"My deduction seems low"**: Check your vehicle business-use percentage in Settings. If it's set to 50%, only half your km count.
+- **"Mileage not showing in deductions"**: Mileage deductions appear on the Overhead page under vehicle expenses. Make sure trips are logged.
+- **"I forgot to log trips"**: You can backdate mileage entries. Use the Co-Pilot: "I drove 45km to a showing last Tuesday."
+- **"Rate changed mid-year"**: CRA rates are set annually. The platform uses the current year's rates for all entries in that year.
+
+### Best Practices
+- Log trips the same day — easier to remember details
+- Include the property address and purpose for CRA compliance
+- Keep a separate log book as backup (CRA may request it)
+- The Co-Pilot can log mileage: "I drove 32km to a showing at 88 King Street"
+
+### Where to Find It
+- **Expenses page** (/expenses) → Mileage tab
+- **Overhead page** (/overhead) → Vehicle deductions section
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // RECURRING EXPENSES
+  // ═══════════════════════════════════════════════════════════════════════════
+  "recurring-expenses": `## TROUBLESHOOTING: RECURRING EXPENSES
+
+### How Recurring Expenses Work
+Set up templates for expenses that repeat on a schedule (monthly, quarterly, or annually). Agent Runway auto-generates entries each period.
+
+**Setup:**
+- Vendor name (e.g., "Mailchimp", "CREA Dues")
+- Amount
+- Expense category (T2125 category)
+- Frequency: monthly, quarterly, or annual
+- Start date
+- Optional notes
+
+**Auto-Generation Flow:**
+1. Each period (month/quarter/year), the system creates a pending expense entry
+2. You review and confirm or skip each entry
+3. Confirmed entries become regular expenses and count toward YTD totals
+4. Skipped entries are marked but don't affect calculations
+
+### Common Issues
+- **"Recurring expense not generating"**: Check the start date — entries only generate for periods after the start date. Also verify the recurring expense is still active (not paused or cancelled).
+- **"Amount changed but old entries show old amount"**: Previously confirmed entries keep their original amount. Edit the recurring template to change future entries.
+- **"How do I cancel a recurring expense?"**: Deactivate it on the Expenses page → Recurring tab. Past confirmed entries remain; future entries stop generating.
+- **"Recurring expense not in my tax deductions"**: Only confirmed entries count. Check the Recurring tab for pending confirmations.
+
+### Impact on Financial Tracking
+- Confirmed recurring expenses count toward YTD expense totals
+- They feed into the expense ratio calculation
+- They appear in T2125 category breakdowns on the Overhead page
+- Tax estimates update when recurring entries are confirmed
+
+### Co-Pilot Integration
+- "I pay $150/month for Mailchimp" → creates a recurring expense template
+- "What are my recurring expenses?" → lists active recurring items from context
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // BANK SYNC
+  // ═══════════════════════════════════════════════════════════════════════════
+  "bank-sync": `## TROUBLESHOOTING: BANK SYNC (PLAID)
+
+### How Bank Sync Works
+Connect your business bank account via Plaid to automatically import transactions for expense tracking.
+
+**Setup Flow:**
+1. Go to Settings → Bank Sync
+2. Click "Connect Bank Account"
+3. Select your bank from the Plaid interface
+4. Log in with your banking credentials (handled securely by Plaid — Agent Runway never sees your password)
+5. Select the account to sync
+
+**After Connection:**
+- Transactions are imported automatically (typically daily)
+- Each transaction gets auto-categorized using AI
+- You review and confirm categorized expenses
+- Confirmed transactions become regular expense entries
+
+### Auto-Categorization
+- AI analyzes vendor name, amount, and transaction description
+- Assigns a T2125 expense category (advertising, meals, vehicle, etc.)
+- You can override the category during review
+- The system learns from your corrections over time
+
+### Common Issues
+- **"Bank not connecting"**: Some banks have intermittent issues with Plaid. Try again in a few hours. If persistent, check if your bank requires MFA — complete it in the Plaid window.
+- **"Transactions not syncing"**: Sync happens daily. If transactions from today aren't showing, wait until tomorrow. You can also manually trigger a sync from Settings.
+- **"Wrong category assigned"**: Override the category during review. The AI will learn from your corrections for future transactions.
+- **"Personal transactions showing"**: If you're using a personal account, you'll see personal transactions too. Skip or delete personal items during review. Consider a dedicated business account.
+- **"How do I disconnect?"**: Settings → Bank Sync → Disconnect. Past imported expenses remain; future imports stop.
+
+### Privacy & Security
+- Plaid handles all banking authentication — Agent Runway never stores banking credentials
+- Only transaction data (date, amount, vendor, description) is imported
+- No access to account balances, transfers, or other banking features
+- You can disconnect at any time
+`,
+
   general: `## GENERAL TROUBLESHOOTING
 
 ### When No Specific Topic Matches
