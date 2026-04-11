@@ -12,7 +12,7 @@ import { NextRequest, NextResponse }                  from "next/server";
 import { Configuration, PlaidApi, PlaidEnvironments } from "plaid";
 import { createAdminClient }                          from "@/lib/supabase/admin";
 import { requirePro }                                 from "@/lib/require-pro";
-import { authenticateRequest, apiError }              from "@/lib/api-helpers";
+import { authenticateRequest }              from "@/lib/api-helpers";
 
 function buildPlaidClient() {
   const env    = (process.env.PLAID_ENV ?? "sandbox") as keyof typeof PlaidEnvironments;

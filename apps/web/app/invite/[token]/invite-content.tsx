@@ -29,7 +29,7 @@ export function InviteContent({ invitation, token }: Props) {
     }
 
     setAccepting(true);
-    const { data, error } = await acceptInvitation(token);
+    const { data: _data, error } = await acceptInvitation(token);
     if (error) {
       if (error === "Not authenticated") {
         // Redirect to login with return URL

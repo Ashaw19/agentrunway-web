@@ -12,7 +12,6 @@ import {
 
   Sparkles,
   Users,
-  Inbox,
   Share2,
   Globe,
   BookOpen,
@@ -21,7 +20,6 @@ import {
   Settings,
   Lock,
   BarChart2,
-  Handshake,
   Layers,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";

@@ -36,7 +36,6 @@ import {
   Sheet,
   SheetContent,
   SheetHeader,
-  SheetTitle,
 } from "@/components/ui/sheet";
 import {
   Select,
@@ -56,9 +55,6 @@ import {
 import {
   Users,
   Search,
-  TrendingUp,
-  RepeatIcon,
-  Home,
   PieChart,
   ArrowUp,
   ArrowDown,
@@ -166,7 +162,7 @@ import { toast } from "sonner";
 import { guardSandboxWrite } from "@/lib/sandbox-guard";
 import { useSandboxMode } from "@/lib/sandbox-mode-context";
 import { markMemoryStaleClient } from "@/lib/ai/mark-memory-stale";
-import { validateClient, validateEmail, validatePhone, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
+import { validateClient, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -246,7 +242,7 @@ function monthsAgo(iso: string): number {
   return (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
 }
 
-function relativeTimeLabel(iso: string): string {
+function _relativeTimeLabel(iso: string): string {
   const m = monthsAgo(iso);
   if (m <= 0) return "This month";
   if (m === 1) return "1 month ago";
@@ -678,7 +674,7 @@ const CSV_ROW_CAP = 5_000;
  * WARNING: Do NOT use this on import — it corrupts legitimate data
  * (e.g. phone numbers starting with "+", names starting with "-").
  */
-function sanitizeCellValueForExport(val: string): string {
+function _sanitizeCellValueForExport(val: string): string {
   if (!val) return val;
   const first = val.charAt(0);
   if (first === "=" || first === "+" || first === "-" || first === "@" || first === "|" || first === "\t") {
@@ -1069,7 +1065,7 @@ export function ClientsContent({
   const [newClientStatus, setNewClientStatus] = useState<ClientStatus>("boarding");
   const [newClientSource, setNewClientSource] = useState("");
   const [newClientTags, setNewClientTags] = useState<string[]>([]);
-  const [newClientSide, setNewClientSide] = useState<"buyer" | "seller" | "both" | "">("");
+  const [_newClientSide, setNewClientSide] = useState<"buyer" | "seller" | "both" | "">("");
   const [newClientBirthdate, setNewClientBirthdate] = useState("");
   const [newClientNotes, setNewClientNotes] = useState("");
   const [newClientBudget, setNewClientBudget] = useState("");
@@ -1120,8 +1116,8 @@ export function ClientsContent({
     voiceFilledFields.has(field) ? "bg-amber-50/60 border-amber-200/80" : "";
 
   // Inline editing
-  const [editingField, setEditingField] = useState<string | null>(null);
-  const [editingValue, setEditingValue] = useState("");
+  const [_editingField, setEditingField] = useState<string | null>(null);
+  const [_editingValue, _setEditingValue] = useState("");
 
   // Relationship linking
   const [linkRelOpen, setLinkRelOpen] = useState(false);
@@ -1292,7 +1288,7 @@ export function ClientsContent({
   }, [grouped, totalGCI, settings, expenseItems, localClients]);
 
   // Quick lookup: clientId/name → valuation
-  const valuationMap = useMemo(() => {
+  const _valuationMap = useMemo(() => {
     const map = new Map<string, ClientValuation>();
     if (valuationResult) {
       for (const v of valuationResult.valuations) {
@@ -1371,7 +1367,6 @@ export function ClientsContent({
   }, [grouped, search, filterSide, filterSource, filterStatus, activityFilter, sortCol, sortDir, clientById, showArchived, archivedClientIds]);
 
   // Reset to first page when filters change
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setClientsPage(0); }, [search, filterSide, filterSource, filterStatus, activityFilter, sortCol, sortDir, showArchived]);
 
   // Paginate the filtered list
@@ -6584,7 +6579,7 @@ function SortableHead({
   );
 }
 
-function SummaryCard({
+function _SummaryCard({
   icon,
   label,
   value,

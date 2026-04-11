@@ -63,7 +63,7 @@ const QUOTES = [
   "The best agents don't wait for the right market. They make the market right.",
 ];
 
-const MILESTONES = [25_000, 50_000, 100_000, 150_000, 200_000, 250_000, 300_000];
+const _MILESTONES = [25_000, 50_000, 100_000, 150_000, 200_000, 250_000, 300_000];
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -346,7 +346,7 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
 
 // ── CelebrationContent ────────────────────────────────────────────────────────
 
-function CelebrationContent({ address, clientName, celebData, quote, copied, onCopy, onClose }: {
+function CelebrationContent({ address, clientName: _clientName, celebData, quote, copied, onCopy, onClose }: {
   address: string; clientName: string;
   celebData: { gci: number; ytdGCIBefore: number; goalGCI: number; province: string; estimatedMarginalRate: number; dealsThisMonth: number; totalDealsThisYear: number };
   quote: string; copied: boolean; onCopy: () => void; onClose: () => void;

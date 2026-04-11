@@ -9,7 +9,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import {
   DollarSign,
   TrendingUp,
@@ -24,13 +23,11 @@ import {
   Star,
   Gauge,
   Trophy,
-  X,
   Sparkles,
   Compass,
   ArrowUpRight,
   ArrowDownRight,
   Minus,
-  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
@@ -57,7 +54,7 @@ import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import { computeWhereYouStand, BAND_LABELS, type PerformanceBand } from "@/lib/engines/where-you-stand-engine";
 import { computeMarketMomentum, type LocalMarketData } from "@/lib/crea-board";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
-import { compute as computeRunwayScore, type BusinessHealthReport } from "@/lib/engines/runway-score-engine";
+import { compute as computeRunwayScore } from "@/lib/engines/runway-score-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
 import { buildHealthReport } from "@/lib/engines/health-report";
 import {
@@ -68,7 +65,6 @@ import {
 } from "@/components/ui/tooltip";
 import { ExplainButton } from "@/components/explain-button";
 import { GuideLink } from "@/components/guide-link";
-import { CountUp } from "@/components/count-up";
 
 // ── MetricInfo ────────────────────────────────────────────────────────────
 

@@ -75,7 +75,7 @@ export function SandboxModeProvider({
   expiresAt,
 }: SandboxModeProviderProps) {
   const [sandboxMode, setSandboxMode] = useState(initialMode);
-  const [sandboxData, setSandboxData] = useState<SandboxDataset | null>(initialData);
+  const [sandboxData, _setSandboxData] = useState<SandboxDataset | null>(initialData);
   const [loading, setLoading] = useState(false);
 
   const isActivated = activatedAt !== null;

@@ -24,12 +24,10 @@ import {
 import { buildHealthReport } from "@agent-runway/core/engines/health-report";
 import {
   survivalResult as computeSurvivalResult,
-  type SurvivalResult,
 } from "@agent-runway/core/engines/survival-engine";
 import {
   compare as benchmarkCompare,
   COHORT_LABELS,
-  type BenchmarkResult,
 } from "@agent-runway/core/engines/benchmark-engine";
 import {
   calculate as calculateTax,

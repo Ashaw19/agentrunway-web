@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -296,7 +296,7 @@ export function DashboardContent({
   staleLeadCount = 0,
   hasSeenTour = true,
   boardMarketData = null,
-  boardSubregion = "",
+  boardSubregion: _boardSubregion = "",
   briefingItems = [],
   upcomingConditions = [],
   runwayScoreSnapshot = null,
@@ -405,7 +405,7 @@ export function DashboardContent({
   const confettiFiredRef = useRef(false);
   const now = new Date();
   const currentYear = now.getFullYear();
-  const isDecember = now.getMonth() === 11; // 0-indexed
+  const _isDecember = now.getMonth() === 11; // 0-indexed
 
   // ── Scenario toggle ────────────────────────────────────────────────────
   // NOTE [RELOCATED]: Scenario selector (Conservative/Base/Optimistic ±15%)
@@ -1061,8 +1061,8 @@ export function DashboardContent({
     return `${condLabel} market${yoyStr}`;
   })();
 
-  const urgentBriefingItems = briefingItems.filter(i => i.severity === "urgent");
-  const attentionBriefingItems = briefingItems.filter(i => i.severity === "attention" || i.severity === "upcoming");
+  const _urgentBriefingItems = briefingItems.filter(i => i.severity === "urgent");
+  const _attentionBriefingItems = briefingItems.filter(i => i.severity === "attention" || i.severity === "upcoming");
   const startHereItem = briefingItems[0] ?? null;
 
   const dateLabel = new Date().toLocaleDateString("en-CA", { weekday: "long", month: "long", day: "numeric" });
@@ -2503,7 +2503,7 @@ export function DashboardContent({
                   const avg = marketMomentum.avgDealsPerAgentPerYear!;
                   const agent = marketMomentum.agentAnnualizedDeals!;
                   const ratio = avg > 0 ? agent / avg : 0;
-                  const pctVsAvg = avg > 0 ? Math.round(((agent - avg) / avg) * 100) : 0;
+                  const _pctVsAvg = avg > 0 ? Math.round(((agent - avg) / avg) * 100) : 0;
                   const tierColor = ratio >= 1.15 ? "#059669" : ratio <= 0.85 ? "#DC2626" : "#D97706";
                   const tierLabel = ratio >= 1.15 ? "Above Board Avg" : ratio <= 0.85 ? "Below Board Avg" : "At Board Avg";
                   return (
@@ -2905,7 +2905,7 @@ function PersonalRecordsCard({
 
 // ── Section header ────────────────────────────────────────────────────────
 
-function SectionHeader({ label }: { label: string }) {
+function _SectionHeader({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3 pt-2">
       <p className="text-[11px] font-bold uppercase tracking-widest text-slate-500 whitespace-nowrap">
@@ -3515,7 +3515,7 @@ function WhereYouStandCard({
   wys,
   bands,
   momentumIcon,
-  momentumColor,
+  momentumColor: _momentumColor,
 }: {
   wys: import("@/lib/engines/where-you-stand-engine").WhereYouStandResult;
   bands: import("@/lib/engines/where-you-stand-engine").PerformanceBand[];
@@ -3533,7 +3533,7 @@ function WhereYouStandCard({
     leading:     { bg: "bg-violet-50",  border: "border-violet-300",  text: "text-violet-700",  fill: "bg-violet-500" },
   };
 
-  const activeBandColor = bandColors[wys.band] ?? bandColors.competitive;
+  const _activeBandColor = bandColors[wys.band] ?? bandColors.competitive;
 
   return (
     <div

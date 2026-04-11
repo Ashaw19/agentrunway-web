@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   Lock,
   Shield,
-  Check,
   Eye,
   EyeOff,
   LogOut,
@@ -13,7 +12,6 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import {
   updateConsent,
   leaveOrganization,
@@ -25,7 +23,6 @@ import type {
 } from "@/lib/types/organizations";
 import {
   ORG_TYPE_LABELS,
-  DATA_SHARING_TIER_LABELS,
   CURRENT_CONSENT_VERSION,
 } from "@/lib/types/organizations";
 

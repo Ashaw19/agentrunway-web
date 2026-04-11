@@ -54,7 +54,7 @@ export function MembersContent({
   members: initialMembers,
   invitations: initialInvitations,
 }: Props) {
-  const router = useRouter();
+  const _router = useRouter();
   const searchParams = useSearchParams();
   const isWelcome = searchParams.get("welcome") === "1";
   const [showWelcome, setShowWelcome] = useState(isWelcome);

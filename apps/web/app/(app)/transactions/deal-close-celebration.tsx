@@ -6,14 +6,12 @@ import {
   DialogContent,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { CountUp } from "@/components/count-up";
 import { fmtCurrency } from "@/lib/formatters";
 import { gstHstRate, gstHstLabel } from "@/lib/engines/canadian-tax-engine";
 import { cn } from "@/lib/utils";
 import {
   PartyPopper,
-  TrendingUp,
   Landmark,
   Percent,
   Sparkles,

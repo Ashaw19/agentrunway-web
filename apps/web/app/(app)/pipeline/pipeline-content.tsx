@@ -22,7 +22,6 @@ import {
   BarChart3,
   ArrowRight,
   Plus,
-  Pencil,
   Trash2,
 } from "lucide-react";
 import {
@@ -130,7 +129,7 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
     [seed],
   );
 
-  const preTransactionalGCI = useMemo(
+  const _preTransactionalGCI = useMemo(
     () => computePreTransactionalWeightedGCI(result),
     [result],
   );

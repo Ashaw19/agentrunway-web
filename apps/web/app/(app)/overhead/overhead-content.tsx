@@ -579,7 +579,7 @@ export function OverheadContent({
   const [activeTab, setActiveTab] = useState<OverheadTab>("overview");
   const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const now = new Date();
-  const currentYear = now.getFullYear();
+  const _currentYear = now.getFullYear();
   const monthsElapsed = now.getMonth() + 1;
 
   // ── YTD calculations ───────────────────────────────────────────────────

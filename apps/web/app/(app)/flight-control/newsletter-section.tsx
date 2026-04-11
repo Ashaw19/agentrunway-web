@@ -15,10 +15,6 @@ import { Input }     from "@/components/ui/input";
 import { Textarea }  from "@/components/ui/textarea";
 import { Badge }     from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import {
-  Select, SelectContent, SelectItem,
-  SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { Label }     from "@/components/ui/label";
 import { toast }     from "sonner";
 import { cn }        from "@/lib/utils";
@@ -178,7 +174,7 @@ function DraftNewsletterDrawer({
     }
   }, [templateType, oldRate, newRate, effectiveDate, topic, notes, isValid, drafting, onDrafted, onClose]);
 
-  const cfg = TEMPLATE_CONFIG[templateType];
+  const _cfg = TEMPLATE_CONFIG[templateType];
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>

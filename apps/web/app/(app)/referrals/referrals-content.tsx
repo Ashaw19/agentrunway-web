@@ -13,9 +13,8 @@ import {
   XCircle,
   Trash2,
   Lock,
-  Handshake,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -469,7 +468,7 @@ export function ReferralsContent({
         <div className="space-y-3">
           {filtered.map((r) => {
             const cfg = STATUS_CONFIG[r.status];
-            const StatusIcon = cfg.icon;
+            const _StatusIcon = cfg.icon;
             const estimatedFee =
               Number(r.estimated_value) * (Number(r.referral_fee_pct) / 100);
 

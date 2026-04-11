@@ -89,8 +89,8 @@ import {
 } from "@agent-runway/core/engines/filing-period-engine";
 import { computeGST34 } from "@agent-runway/core/engines/gst34-engine";
 import { gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
-import { reconcileDeals, type ReconciliationResult, type ReconciliationMatch, type ImportedDeal } from "@agent-runway/core/engines/reconciliation-engine";
-import { selectTaxTips, TIP_CATEGORY_LABELS, type TaxTip } from "@agent-runway/core/engines/tax-iq-engine";
+import { reconcileDeals, type ReconciliationResult, type ImportedDeal } from "@agent-runway/core/engines/reconciliation-engine";
+import { selectTaxTips, TIP_CATEGORY_LABELS } from "@agent-runway/core/engines/tax-iq-engine";
 import { gstHstRate } from "@agent-runway/core/engines/canadian-tax-engine";
 import type { FilingFrequency, FilingPeriod } from "@/lib/types/database";
 

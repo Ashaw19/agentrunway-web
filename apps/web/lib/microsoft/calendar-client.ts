@@ -6,7 +6,7 @@
  */
 
 const GRAPH_EVENTS_BASE = "https://graph.microsoft.com/v1.0/me/events";
-const GRAPH_CALENDAR_VIEW = "https://graph.microsoft.com/v1.0/me/calendarView";
+const _GRAPH_CALENDAR_VIEW = "https://graph.microsoft.com/v1.0/me/calendarView";
 const GRAPH_CALENDAR_VIEW_DELTA = "https://graph.microsoft.com/v1.0/me/calendarView/delta";
 
 // ── Types ──────────────────────────────────────────────────────────────────────

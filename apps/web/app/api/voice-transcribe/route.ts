@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { requirePro } from "@/lib/require-pro";
-import { authenticateRequest, apiError } from "@/lib/api-helpers";
+import { authenticateRequest } from "@/lib/api-helpers";
 
 // NOTE: Groq Whisper audio transcription uses the OpenAI-compatible REST API,
 // NOT the Vercel AI SDK (which has no audio transcription support).

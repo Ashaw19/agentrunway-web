@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { FLIGHT_PLAN_DEFAULTS } from "@/lib/flight-plan-defaults";
-import { authenticateRequest, apiError } from "@/lib/api-helpers";
+import { authenticateRequest } from "@/lib/api-helpers";
 
 export async function POST() {
   try {

@@ -8,7 +8,6 @@ import {
   CircleDot,
   Bell,
   CalendarDays,
-  Clock,
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
@@ -171,8 +170,8 @@ function SectionHeader({
 
 export function PipelineTab({
   clients,
-  records,
-  activities,
+  records: _records,
+  activities: _activities,
   listingAppointments,
 }: PipelineTabProps) {
   // Active (non-archived) clients only

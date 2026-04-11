@@ -40,7 +40,6 @@ import {
   ToggleRight,
   ImagePlus,
   X as XIcon,
-  Globe,
 } from "lucide-react";
 import { Instagram, Facebook } from "@/components/icons/brand-icons";
 import { toast } from "sonner";

@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
   let storage: HealthResult["storage"] = { bucketAccessible: false };
 
   try {
-    const { data, error } = await admin.storage.from("receipts").list("", { limit: 1 });
+    const { data: _data, error } = await admin.storage.from("receipts").list("", { limit: 1 });
 
     if (error) {
       const msg = `Storage bucket "receipts" inaccessible: ${error.message}`;

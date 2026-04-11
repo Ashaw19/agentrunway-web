@@ -596,7 +596,7 @@ export function FlightControlContent({
   initialVoiceGuide,
   initialNewsletters,
   gmailConnected,
-  gmailEmail,
+  gmailEmail: _gmailEmail,
 }: FlightControlContentProps) {
   const sandbox = useSandboxMode();
   const { askQuestion } = useAiChat();

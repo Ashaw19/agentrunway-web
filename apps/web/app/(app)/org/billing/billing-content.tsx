@@ -107,8 +107,8 @@ function formatDate(isoString: string) {
 
 export function BillingContent({
   org,
-  isOwner,
-  role,
+  isOwner: _isOwner,
+  role: _role,
   activeMemberCount,
   subscriptionData,
   upcomingInvoice,

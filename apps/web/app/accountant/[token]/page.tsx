@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import {
-  FileText,
   Receipt,
   ArrowLeftRight,
   Car,
@@ -14,8 +13,6 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
 import { fmtCurrency } from "@/lib/formatters";
 import { PROVINCE_LABELS } from "@/lib/types/database";
 

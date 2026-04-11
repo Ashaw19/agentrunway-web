@@ -72,7 +72,7 @@ interface Props {
 
 export function OrgDashboardContent({
   org,
-  membership,
+  membership: _membership,
   isAdmin,
   performance,
   activeMemberCount,
@@ -115,7 +115,7 @@ export function OrgDashboardContent({
   );
   const avgGCIPerAgent = activeMemberCount > 0 ? totalGCI / activeMemberCount : 0;
 
-  const medianGCI = useMemo(() => {
+  const _medianGCI = useMemo(() => {
     const sorted = [...performance]
       .map((a) => Number(a.ytd_gci))
       .sort((a, b) => a - b);

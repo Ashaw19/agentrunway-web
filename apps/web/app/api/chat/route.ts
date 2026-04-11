@@ -25,7 +25,7 @@ import { buildHealthReport } from "@agent-runway/core/engines/health-report";
 import { calculate as calculateTax, type CanadianTaxResult, gstHstRate, gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import { compare as benchmarkCompare, COHORT_LABELS, type BenchmarkResult } from "@agent-runway/core/engines/benchmark-engine";
 import { probabilityBands, type ProbabilityBands } from "@agent-runway/core/engines/probabilistic-forecast-engine";
-import { computeWhereYouStand, BAND_LABELS, MOMENTUM_LABELS, type WhereYouStandResult } from "@agent-runway/core/engines/where-you-stand-engine";
+import { computeWhereYouStand, type WhereYouStandResult } from "@agent-runway/core/engines/where-you-stand-engine";
 import {
   computeBaselines,
   detectAllDeviations,
@@ -45,7 +45,7 @@ import { buildDiagnostics } from "@/lib/chat-diagnostics";
 import { logChatAnalytics, countTopicFollowUps } from "@/lib/chat-analytics";
 import { models, heliconeHeaders, anthropic } from "@/lib/ai/provider";
 import { selectModelTier } from "@/lib/ai/router";
-import { buildPromptParts, injectCanary, scanAndRedactPII } from "@/lib/ai/security";
+import { buildPromptParts, injectCanary } from "@/lib/ai/security";
 import { fetchMemories, addMemory } from "@/lib/ai/memory";
 import { createAgentTools } from "@/lib/ai/tools";
 import type { Province, Transaction as CoreTransaction, ContactActivity } from "@agent-runway/core/types/database";
@@ -389,7 +389,7 @@ export async function POST(req: NextRequest) {
           ...tx,
           status: "closed" as const,
         })) as unknown as CoreTransaction[];
-        const ytdTxForEngines = txForEngines.filter(
+        const _ytdTxForEngines = txForEngines.filter(
           (tx) => tx.date.startsWith(String(currentYear)),
         );
 
@@ -397,7 +397,7 @@ export async function POST(req: NextRequest) {
         const avgDealGCI = ytdTx.length > 0 ? ytdGCI / ytdTx.length : 0;
         const pipelineCount = pipeline?.length ?? 0;
         const remaining = daysRemaining();
-        const elapsedDays = dayOfYear();
+        const _elapsedDays = dayOfYear();
 
         // 1. Projection Engine — uses engineFraction (agent-specific seasonal weights)
         const projGCI = projectedYearEndGCI(
@@ -670,7 +670,7 @@ export async function POST(req: NextRequest) {
           const quarterlyInstalment = taxResult.quarterlyEstimate;
           const perDealSetAside = taxResult.perDealSetAside;
           const currentQ = getCurrentQuarter();
-          const nextInstalmentQ = currentQ < 4 ? currentQ + 1 : 1;
+          const _nextInstalmentQ = currentQ < 4 ? currentQ + 1 : 1;
           const nextInstalmentLabel = currentQ === 1 ? "June 15" : currentQ === 2 ? "Sep 15" : currentQ === 3 ? "Dec 15" : "Mar 15";
           if (quarterlyInstalment > 500) {
             taxIntelLines.push(

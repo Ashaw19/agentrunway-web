@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
   for (let i = 0; i < users.length; i += BATCH_SIZE) {
     const batch = users.slice(i, i + BATCH_SIZE);
 
-    const results = await Promise.allSettled(
+    const _results = await Promise.allSettled(
       batch.map(async (user) => {
         try {
           const data = await gatherUserMetrics(supabase, user, {

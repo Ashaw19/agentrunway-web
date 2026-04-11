@@ -23,16 +23,10 @@ import {
   Plane,
   TrendingUp,
   Target,
-  PieChart,
   FileText,
   Lightbulb,
-  ArrowRight,
   X,
-  Palette,
   MessageSquare,
-  Mic,
-  Keyboard,
-  Shield,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";

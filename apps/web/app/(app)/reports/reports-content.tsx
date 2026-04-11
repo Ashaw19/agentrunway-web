@@ -80,7 +80,6 @@ import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
 import {
   compute as computeRunwayScore,
-  type BusinessHealthReport,
 } from "@/lib/engines/runway-score-engine";
 import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { generateAdvisory, ADVISOR_CATEGORY_LABELS } from "@/lib/engines/advisor-engine";

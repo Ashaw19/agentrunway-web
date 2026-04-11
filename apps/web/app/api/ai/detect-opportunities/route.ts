@@ -24,7 +24,7 @@ import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { requirePro } from "@/lib/require-pro";
 import type { OutreachQueueItem, AgentState } from "@agent-runway/core/types/database";
 import type { SupabaseClient }    from "@supabase/supabase-js";
-import type { ClientMemoryFacts, ClientMemoryProfile } from "@/lib/ai/client-memory-engine";
+import type { ClientMemoryFacts } from "@/lib/ai/client-memory-engine";
 import {
   type Tone,
   AGENT_RUNWAY_VOICE,
@@ -1708,12 +1708,12 @@ function buildFinancialImpact(
 ): string {
   const gci = ctx.gci ? Number(ctx.gci) : 0;
   const isHighValue = gci > 15000;
-  const isMidValue = gci > 5000 && gci <= 15000;
+  const _isMidValue = gci > 5000 && gci <= 15000;
   const isRepeat = clientDealCount >= 2;
   const pipelineLight = portfolioStats.activeClients < 3;
   const pipelineDry = portfolioStats.activeClients === 0;
   const hasStrongRepeatHistory = portfolioStats.repeatRate > 25;
-  const hasModerateRepeatHistory = portfolioStats.repeatRate > 10;
+  const _hasModerateRepeatHistory = portfolioStats.repeatRate > 10;
   const monthsIdle = ctx.months_idle ? parseInt(String(ctx.months_idle), 10) : 0;
   const daysRemaining = ctx.days_remaining ? Number(ctx.days_remaining) : 0;
   const gciLabel = gci > 0 ? `$${(gci / 1000).toFixed(0)}k` : null;

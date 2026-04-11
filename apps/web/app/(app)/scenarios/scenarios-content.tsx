@@ -10,11 +10,9 @@ import { survivalResult } from "@/lib/engines/survival-engine";
 import { buildHealthReport } from "@/lib/engines/health-report";
 import { compute as computeRunwayScore } from "@/lib/engines/runway-score-engine";
 import { seasonalFractionElapsed } from "@/lib/engines/projection-engine";
-import { computeTimeValue } from "@/lib/engines/time-value";
 import { fmtCurrency, fmtPct } from "@/lib/formatters";
 import {
   SlidersHorizontal,
-  Clock,
   TrendingUp,
   TrendingDown,
   Minus,

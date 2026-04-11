@@ -9,9 +9,7 @@ import {
   experienceTier,
   computeBaselines,
   detectDeviation,
-  detectAllDeviations,
   deviationInsight,
-  generateDeviationInsights,
   deviationPromptFragment,
   type Deviation,
 } from "@/lib/engines/deviation-engine";
@@ -41,7 +39,7 @@ function makeTx(monthsAgo: number, salePrice: number, overrides: Partial<Transac
   } as Transaction;
 }
 
-function makeActivity(monthsAgo: number): ContactActivity {
+function _makeActivity(monthsAgo: number): ContactActivity {
   const d = new Date();
   d.setDate(1);
   d.setMonth(d.getMonth() - monthsAgo);
