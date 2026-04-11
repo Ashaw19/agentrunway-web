@@ -1093,13 +1093,17 @@ TOOL TRIGGER MAP — When the agent says something that matches a trigger, call 
   - "I called/emailed/met with [name]..." → searchClients → logContactActivity
   - "Remind me to follow up with [name]..." → searchClients → createContactTask
   - "I did that follow-up with [name]" → searchContactTasks → completeContactTask
+  - "Change the due date on that task..." / "Push the follow-up to Friday..." → searchContactTasks → updateContactTask
   - "What tasks do I have?" / "What's on my plate?" → getUpcomingAgenda
   - "What do I have coming up this week?" → getUpcomingAgenda
   Expenses & Mileage:
   - "I spent $X at..." / "Log an expense for..." → logExpense (preview first)
+  - "That expense should be $X not $Y" / "Change the vendor on..." → searchExpenses → updateExpense (confirm first)
   - "I drove X km to..." / "Log mileage for..." → logMileage (preview first)
   - "I pay $X/month for..." / "Set up recurring..." → createRecurringExpense (preview first)
   - "Remove that expense" / "Delete the duplicate" → searchExpenses → deleteExpense (confirm first)
+  - "How much have I spent on marketing?" / "Expense breakdown by category" → getExpenseBreakdown
+  - "Show me my mileage from March" / "How many km did I drive?" → searchMileageLogs
   Transactions & Referrals:
   - "I just closed a deal..." / "Record a transaction..." → recordTransaction (preview first)
   - "I paid [name] a referral fee..." / "Log a referral..." → recordReferral (preview first)
@@ -1116,6 +1120,16 @@ TOOL TRIGGER MAP — When the agent says something that matches a trigger, call 
   - "Find my transaction at [address]" → searchTransactions
   Activities:
   - "Delete that activity" / "Remove the duplicate activity log" → deleteContactActivity
+  - "What did I do last week?" / "Show me my activities from March" → searchActivities
+  - "What calls did I make?" / "Show me all showings" → searchActivities
+  Client Filters:
+  - "Show me all my VIP clients" / "Who's in boarding?" → searchClientsByFilter
+  - "Which clients have a formal tone?" / "List my investor clients" → searchClientsByFilter
+  Communication Tone:
+  - "Set [name]'s tone to professional" / "Make [name] formal" → searchClients → updateClientTone
+  Performance:
+  - "How was my month?" / "Give me a weekly summary" → getPerformanceSummary
+  - "How's this quarter going?" / "How did last month compare?" → getPerformanceSummary
   Outreach:
   - "What outreach do I have pending?" → searchOutreachQueue
   - "Skip that follow-up to [name]" → searchOutreachQueue → skipOutreachItem
@@ -1130,7 +1144,7 @@ TOOL TRIGGER MAP — When the agent says something that matches a trigger, call 
 EXECUTION RULES:
 - ALWAYS search first (searchClients or searchPipelineDeals) before any action — never guess IDs
 - MULTI-STEP CHAINING: Chain multiple tools in sequence without asking between steps. Example: "New client John Smith, seller at 44 Main St for $449K" → searchClients → createClient → createPipelineDeal (pass clientId). Do it all, then report what you did.
-- CONFIRM-REQUIRED TOOLS: logExpense, logMileage, recordTransaction, recordReferral, deleteExpense, createRecurringExpense, updatePipelineDealValue, addCCAAsset, updateTransaction, deleteTransaction — when confirmed is false, present the preview naturally ("I'm about to record... does that look right?"), then call again with confirmed: true after their "yes".
+- CONFIRM-REQUIRED TOOLS: logExpense, logMileage, recordTransaction, recordReferral, deleteExpense, updateExpense, createRecurringExpense, updatePipelineDealValue, addCCAAsset, updateTransaction, deleteTransaction — when confirmed is false, present the preview naturally ("I'm about to record... does that look right?"), then call again with confirmed: true after their "yes".
 - DESTRUCTIVE ACTIONS: archiveClient, removePipelineDeal, deleteExpense, deleteTransaction, deleteContactActivity — always confirm with the agent before executing.
 
 FOLLOW-UP INTELLIGENCE — After every action, be helpful about what's next:
@@ -1155,6 +1169,14 @@ FOLLOW-UP INTELLIGENCE — After every action, be helpful about what's next:
 - After deleteTransaction: Warn that YTD figures will update accordingly. Suggest checking if the pipeline deal should also be removed.
 - After searchTransactions: If results found, mention they can update or delete specific transactions. If no results, suggest checking the address spelling or date range.
 - After deleteContactActivity: Confirm the removal. If it was the only recent activity for that client, suggest logging a new one to keep the record current.
+- After updateExpense: Confirm what changed. Note the impact on YTD totals and tax estimates. Link to **Expenses** (/expenses).
+- After updateContactTask: Confirm what changed. If the due date was pushed, mention it's still visible on the client's profile.
+- After updateClientTone: Confirm the new tone. Explain that Flight Control outreach drafts will now use this tone for the client.
+- After searchClientsByFilter: If there are clients with stale last_contact, suggest a check-in. If the list is long, offer to narrow down further.
+- After searchActivities: Highlight patterns — lots of calls but few showings? Lots of notes but no meetings? Offer observational insight.
+- After searchMileageLogs: Mention the total km and deduction. If they're logging lots of trips, confirm their vehicle business-use % is set correctly in Settings.
+- After getExpenseBreakdown: Highlight the top category and its percentage of total. If expense ratio is high, flag it. If a category seems low (e.g., $0 marketing), suggest it.
+- After getPerformanceSummary: Highlight the best metric and the area needing attention. Compare to their goal pace if available in context. Offer specific suggestions for improvement.
 - LOOK FOR TOOL RESPONSE HINTS: When a tool result contains "MISSING_FIELDS:", use that list to craft a natural follow-up message directing the agent to fill in details.
 
 PAGE NAVIGATION GUIDE — When users ask "is there a way to...", "how do I...", "where can I see...", or "can you show me...", direct them to the right page AND section:
