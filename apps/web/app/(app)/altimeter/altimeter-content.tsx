@@ -503,7 +503,7 @@ export function AltimeterContent({
   const vsLastYearGCI = lastYearAtThisPoint !== null ? ytdGCI - lastYearAtThisPoint : null;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Page header */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Altimeter</h1>

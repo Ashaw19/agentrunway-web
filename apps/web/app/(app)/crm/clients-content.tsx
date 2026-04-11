@@ -3139,7 +3139,7 @@ export function ClientsContent({
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-6">
       {/* ── Page header ──────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Clients</h1>
@@ -3167,23 +3167,23 @@ export function ClientsContent({
         </div>
       </div>
 
-      {/* Compact KPI cards */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50/60 px-3.5 py-2.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-blue-600">Total Clients</span>
-          <span className="text-base font-bold text-slate-800">{clientsLoading ? "…" : grouped.length}</span>
+      {/* KPI cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-3">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">Total Clients</span>
+          <span className="text-lg font-bold text-slate-800">{clientsLoading ? "…" : grouped.length}</span>
         </div>
-        <div className="flex items-center justify-between rounded-lg border border-violet-200 bg-violet-50/60 px-3.5 py-2.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-violet-600">Repeat Clients</span>
-          <span className="text-base font-bold text-slate-800">{repeatCount} <span className="text-xs font-normal text-muted-foreground">({repeatRate}%)</span></span>
+        <div className="flex items-center justify-between rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-3">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-violet-600">Repeat Clients</span>
+          <span className="text-lg font-bold text-slate-800">{repeatCount} <span className="text-xs font-normal text-muted-foreground">({repeatRate}%)</span></span>
         </div>
-        <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/60 px-3.5 py-2.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">Lifetime GCI</span>
-          <span className="text-base font-bold text-slate-800">{fmtCurrency(totalGCI)}</span>
+        <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">Lifetime GCI</span>
+          <span className="text-lg font-bold text-slate-800">{fmtCurrency(totalGCI)}</span>
         </div>
-        <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50/60 px-3.5 py-2.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-amber-600">Total Deals</span>
-          <span className="text-base font-bold text-slate-800">{totalDeals}</span>
+        <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">Total Deals</span>
+          <span className="text-lg font-bold text-slate-800">{totalDeals}</span>
         </div>
       </div>
 

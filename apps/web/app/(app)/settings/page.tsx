@@ -55,7 +55,7 @@ export default async function SettingsPage() {
     : settingsRaw;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <SettingsContent
         settings={settings as UserSettings}
         plaidItems={(plaidItems ?? []) as PlaidItem[]}

@@ -779,7 +779,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div className="border-b border-border/60 pb-5">
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>

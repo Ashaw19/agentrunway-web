@@ -374,71 +374,43 @@ export function ReferralsContent({
       </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-blue-100 p-2">
-                <ArrowDownLeft className="h-4 w-4 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">
-                  Inbound
-                </p>
-                <p className="text-2xl font-bold">{kpis.inbound}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-violet-100 p-2">
-                <ArrowUpRight className="h-4 w-4 text-violet-600" />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">
-                  Outbound
-                </p>
-                <p className="text-2xl font-bold">{kpis.outbound}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-emerald-100 p-2">
-                <DollarSign className="h-4 w-4 text-emerald-600" />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">
-                  Fees Earned
-                </p>
-                <p className="text-2xl font-bold">
-                  {fmtCurrency(kpis.totalFeesEarned)}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="rounded-lg bg-amber-100 p-2">
-                <Clock className="h-4 w-4 text-amber-600" />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">
-                  Pending / Active
-                </p>
-                <p className="text-2xl font-bold">
-                  {kpis.pending + kpis.active}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-3">
+          <div className="rounded-lg bg-blue-100 p-1.5">
+            <ArrowDownLeft className="h-3.5 w-3.5 text-blue-600" />
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">Inbound</p>
+            <p className="text-lg font-bold text-slate-800">{kpis.inbound}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-3">
+          <div className="rounded-lg bg-violet-100 p-1.5">
+            <ArrowUpRight className="h-3.5 w-3.5 text-violet-600" />
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-violet-600">Outbound</p>
+            <p className="text-lg font-bold text-slate-800">{kpis.outbound}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
+          <div className="rounded-lg bg-emerald-100 p-1.5">
+            <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">Fees Earned</p>
+            <p className="text-lg font-bold text-slate-800">{fmtCurrency(kpis.totalFeesEarned)}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
+          <div className="rounded-lg bg-amber-100 p-1.5">
+            <Clock className="h-3.5 w-3.5 text-amber-600" />
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">Pending / Active</p>
+            <p className="text-lg font-bold text-slate-800">{kpis.pending + kpis.active}</p>
+          </div>
+        </div>
       </div>
 
       {/* Filters */}

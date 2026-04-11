@@ -342,7 +342,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
   const showListingInsight = ytdCount >= 3 && buyerCount / ytdCount >= 0.65;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -431,31 +431,31 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
 
       {/* KPI strip */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-5 py-4 shadow-sm">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-200">
-            <DollarSign className="h-5 w-5 text-emerald-700" />
+        <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 shadow-sm">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-200">
+            <DollarSign className="h-4 w-4 text-emerald-700" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">YTD GCI</p>
-            <p className="text-2xl font-bold text-slate-800">{fmtCurrency(ytdGCI)}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">YTD GCI</p>
+            <p className="text-lg font-bold text-slate-800">{fmtCurrency(ytdGCI)}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50/70 px-5 py-4 shadow-sm">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-200">
-            <Briefcase className="h-5 w-5 text-blue-700" />
+        <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50/70 px-4 py-3 shadow-sm">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-200">
+            <Briefcase className="h-4 w-4 text-blue-700" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Closed Deals</p>
-            <p className="text-2xl font-bold text-slate-800">{ytdCount}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-700">Closed Deals</p>
+            <p className="text-lg font-bold text-slate-800">{ytdCount}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 rounded-2xl border border-purple-200 bg-purple-50/70 px-5 py-4 shadow-sm">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-200">
-            <TrendingUp className="h-5 w-5 text-purple-700" />
+        <div className="flex items-center gap-3 rounded-xl border border-purple-200 bg-purple-50/70 px-4 py-3 shadow-sm">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-200">
+            <TrendingUp className="h-4 w-4 text-purple-700" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-purple-700">Avg Deal Size</p>
-            <p className="text-2xl font-bold text-slate-800">{ytdCount > 0 ? fmtCurrency(avgDealSize) : "—"}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-purple-700">Avg Deal Size</p>
+            <p className="text-lg font-bold text-slate-800">{ytdCount > 0 ? fmtCurrency(avgDealSize) : "—"}</p>
           </div>
         </div>
       </div>

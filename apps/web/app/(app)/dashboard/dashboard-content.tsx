@@ -1289,7 +1289,7 @@ export function DashboardContent({
   })();
 
   cardRenders["kpi_row"] = (
-    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <Card className="rounded-xl border-slate-200 bg-white shadow-sm py-3 gap-1 transition-all duration-200 hover:shadow-md">
         <CardHeader className="flex flex-row items-center justify-between pb-0 px-4">
           <CardDescription className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">YTD GCI</CardDescription>
@@ -2217,7 +2217,7 @@ export function DashboardContent({
   cardRenders["cap_progress"]     = null;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Annual Review Modal */}
       {showAnnualReview && (
         <AnnualReview

@@ -355,7 +355,7 @@ export function ForecastContent({
     : 0;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Forecast</h1>
@@ -384,41 +384,41 @@ export function ForecastContent({
 
       {/* Projection summary */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="rounded-2xl border border-blue-200 bg-blue-50/70 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-blue-700">Projected GCI</CardDescription>
+        <Card className="rounded-xl border border-blue-200 bg-blue-50/70 shadow-sm py-3 gap-1">
+          <CardHeader className="pb-0 px-4">
+            <CardDescription className="text-[11px] font-semibold uppercase tracking-wider text-blue-700">Projected GCI</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-800">{fmtCurrency(projectedGCI)}</div>
-            <p className="text-xs text-blue-600/80">
+          <CardContent className="px-4 pt-0">
+            <div className="text-lg font-bold text-slate-800">{fmtCurrency(projectedGCI)}</div>
+            <p className="text-[11px] text-blue-600/80">
               P25–P75: {fmtCompact(bands.p25)}–{fmtCompact(bands.p75)}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border border-indigo-200 bg-indigo-50/70 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Projected Deals</CardDescription>
+        <Card className="rounded-xl border border-indigo-200 bg-indigo-50/70 shadow-sm py-3 gap-1">
+          <CardHeader className="pb-0 px-4">
+            <CardDescription className="text-[11px] font-semibold uppercase tracking-wider text-indigo-700">Projected Deals</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-800">{projectedDeals}</div>
-            <p className="text-xs text-indigo-600/80">
+          <CardContent className="px-4 pt-0">
+            <div className="text-lg font-bold text-slate-800">{projectedDeals}</div>
+            <p className="text-[11px] text-indigo-600/80">
               {ytdDealCount} closed + {pipelineDeals.length} pipeline
             </p>
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border border-emerald-200 bg-emerald-50/70 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-emerald-700">After-Tax Net</CardDescription>
+        <Card className="rounded-xl border border-emerald-200 bg-emerald-50/70 shadow-sm py-3 gap-1">
+          <CardHeader className="pb-0 px-4">
+            <CardDescription className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">After-Tax Net</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-800">
+          <CardContent className="px-4 pt-0">
+            <div className="text-lg font-bold text-slate-800">
               {corpTaxResult
                 ? fmtCurrency(Math.max(0, corpTaxResult.netPersonalIncome))
                 : fmtCurrency(Math.max(0, netForTax - taxResult.totalBurden))}
             </div>
-            <p className="text-xs text-emerald-600/80">
+            <p className="text-[11px] text-emerald-600/80">
               {corpTaxResult
                 ? `${fmtPct(corpTaxResult.combinedEffectiveRate)} combined rate`
                 : `${fmtPct(taxResult.effectiveRate)} effective rate`}
@@ -426,15 +426,15 @@ export function ForecastContent({
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border border-amber-200 bg-amber-50/70 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-xs font-semibold uppercase tracking-wide text-amber-700">Cash Runway</CardDescription>
+        <Card className="rounded-xl border border-amber-200 bg-amber-50/70 shadow-sm py-3 gap-1">
+          <CardHeader className="pb-0 px-4">
+            <CardDescription className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Cash Runway</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${riskColors[survival.riskLevel]}`}>
+          <CardContent className="px-4 pt-0">
+            <div className={`text-lg font-bold ${riskColors[survival.riskLevel]}`}>
               {survival.label}
             </div>
-            <p className="text-xs text-amber-600/80">
+            <p className="text-[11px] text-amber-600/80">
               {fmtCurrency(survival.monthlyBurn)}/mo burn
             </p>
           </CardContent>

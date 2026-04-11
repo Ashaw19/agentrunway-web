@@ -1024,7 +1024,7 @@ export function ExpensesContent({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-4">
@@ -1074,35 +1074,35 @@ export function ExpensesContent({
         </div>
       </div>
 
-      {/* Compact KPI cards */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="flex items-center justify-between rounded-lg border border-rose-200 bg-rose-50/60 px-3.5 py-2.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-rose-600">YTD Expenses</span>
-          <span className="text-base font-bold text-slate-800">{fmtCurrency(effectiveTotal)}</span>
+      {/* KPI cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50/60 px-4 py-3">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-600">YTD Expenses</span>
+          <span className="text-lg font-bold text-slate-800">{fmtCurrency(effectiveTotal)}</span>
         </div>
-        <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50/60 px-3.5 py-2.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-amber-600">Monthly Recurring</span>
-          <span className="text-base font-bold text-slate-800">{fmtCurrency(monthlyTotal)}</span>
+        <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-600">Monthly Recurring</span>
+          <span className="text-lg font-bold text-slate-800">{fmtCurrency(monthlyTotal)}</span>
         </div>
         <div className={cn(
-          "flex items-center justify-between rounded-lg px-3.5 py-2.5",
+          "flex items-center justify-between rounded-xl px-4 py-3",
           ratioStatus === "healthy" ? "border border-emerald-200 bg-emerald-50/60" :
           ratioStatus === "warning" ? "border border-amber-200 bg-amber-50/60" :
                                       "border border-red-200 bg-red-50/60"
         )}>
           <span className={cn(
-            "text-[11px] font-semibold uppercase tracking-wide",
+            "text-[11px] font-semibold uppercase tracking-wider",
             ratioStatus === "healthy" ? "text-emerald-600" :
             ratioStatus === "warning" ? "text-amber-600" : "text-red-600"
           )}>Expense Ratio</span>
           <span className={cn(
-            "text-base font-bold",
+            "text-lg font-bold",
             ratioStatus === "healthy" ? "text-emerald-700" :
             ratioStatus === "warning" ? "text-amber-700" : "text-red-700"
           )}>{ytdGCI > 0 ? fmtPct(expenseRatio) : "—"}</span>
         </div>
         <div className={cn(
-          "flex items-center justify-between rounded-lg px-3.5 py-2.5",
+          "flex items-center justify-between rounded-xl px-4 py-3",
           survival.riskLevel === "strong" || survival.riskLevel === "healthy"
             ? "border border-emerald-200 bg-emerald-50/60"
             : survival.riskLevel === "warning"
@@ -1110,12 +1110,12 @@ export function ExpensesContent({
             : "border border-red-200 bg-red-50/60"
         )}>
           <span className={cn(
-            "text-[11px] font-semibold uppercase tracking-wide",
+            "text-[11px] font-semibold uppercase tracking-wider",
             survival.riskLevel === "strong" || survival.riskLevel === "healthy" ? "text-emerald-600" :
             survival.riskLevel === "warning" ? "text-amber-600" : "text-red-600"
           )}>Cash Runway</span>
           <span className={cn(
-            "text-base font-bold",
+            "text-lg font-bold",
             survival.riskLevel === "strong" || survival.riskLevel === "healthy" ? "text-emerald-700" :
             survival.riskLevel === "warning" ? "text-amber-700" : "text-red-700"
           )}>{survival.label}</span>
