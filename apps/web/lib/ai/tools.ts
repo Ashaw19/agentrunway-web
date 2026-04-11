@@ -15,20 +15,24 @@
  *
  * Tool categories:
  *   Search (read-only)  — searchClients, searchPipelineDeals, searchContactTasks,
- *                         searchExpenses, searchOutreachQueue, getClientSummary,
- *                         getUpcomingAgenda
+ *                         searchExpenses, searchOutreachQueue, searchTransactions,
+ *                         getClientSummary, getUpcomingAgenda
  *   Create              — createClient, createPipelineDeal, createContactTask,
- *                         createRecurringExpense
+ *                         createRecurringExpense, addPropertyShowing,
+ *                         addListingAppointment
  *   Autonomous          — logContactActivity, updateClientStatus,
  *                         updateClientNotes, updateClientDetails,
  *                         updateClientTags, updatePipelineDealStage,
  *                         updatePipelineDealProbability, updatePipelineDealCloseDate,
  *                         updatePipelineDealDetails, updateGCIGoal,
  *                         updateUserSettings, archiveClient, unarchiveClient,
- *                         linkClientReferral, removePipelineDeal,
- *                         completeContactTask, skipOutreachItem
+ *                         linkClientReferral, linkClientRelationship,
+ *                         removePipelineDeal, completeContactTask,
+ *                         skipOutreachItem, deleteContactActivity
  *   Confirm-required    — logExpense, logMileage, recordTransaction,
- *                         recordReferral, deleteExpense, updatePipelineDealValue
+ *                         recordReferral, deleteExpense, addCCAAsset,
+ *                         updateTransaction, deleteTransaction,
+ *                         updatePipelineDealValue
  */
 
 import { tool, type ToolSet } from "ai";
@@ -1449,6 +1453,309 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           return `✓ Outreach skipped — ${outreachDescription}. It won't appear in your queue anymore.`;
         } catch {
           return "Failed to skip outreach item. Please try again.";
+        }
+      },
+    }),
+
+    // ── ADD PROPERTY SHOWING ───────────────────────────────────────────────
+    addPropertyShowing: tool({
+      description: "Log a property showing for a buyer client. Use when the agent says 'I showed [address] to [name]' or 'we viewed [address] today'. Always searchClients first to get the client ID.",
+      inputSchema: z.object({
+        clientId: z.string().uuid().describe("The buyer client UUID from searchClients"),
+        clientName: z.string().describe("Client name for confirmation"),
+        propertyAddress: z.string().describe("Full property address shown"),
+        showingDate: z.string().optional().describe("Showing date YYYY-MM-DD — defaults to today"),
+        clientRating: z.number().min(1).max(5).optional().describe("Client's rating of the property (1–5)"),
+        listingPrice: z.number().optional().describe("Listing price in dollars"),
+        notes: z.string().optional().describe("Notes about the showing (client reaction, condition, etc.)"),
+      }),
+      execute: async ({ clientId, clientName, propertyAddress, showingDate, clientRating, listingPrice, notes }) => {
+        try {
+          const dateStr = showingDate ?? new Date().toISOString().split("T")[0];
+
+          const { error } = await supabase
+            .from("property_showings")
+            .insert({
+              user_id: userId,
+              client_id: clientId,
+              property_address: propertyAddress,
+              showing_date: dateStr,
+              client_rating: clientRating ?? null,
+              listing_price: listingPrice ?? null,
+              notes: notes ?? null,
+            });
+
+          if (error) return `Failed to log showing: ${error.message}`;
+
+          // Count total showings for this client
+          const { count } = await supabase
+            .from("property_showings")
+            .select("id", { count: "exact", head: true })
+            .eq("client_id", clientId)
+            .eq("user_id", userId);
+
+          const ratingStr = clientRating ? ` — rated ${clientRating}/5` : "";
+          return `✓ Showing logged for ${clientName} at ${propertyAddress} on ${dateStr}${ratingStr}. ${clientName} has now viewed ${count ?? "?"} properties total. View their showing history in the **CRM** (/crm).`;
+        } catch {
+          return "Failed to log property showing. Please try again.";
+        }
+      },
+    }),
+
+    // ── ADD LISTING APPOINTMENT ──────────────────────────────────────────────
+    addListingAppointment: tool({
+      description: "Schedule a listing appointment for a seller client. Use when the agent says 'I have a listing appointment with [name]' or 'listing presentation at [address] on [date]'. Always searchClients first.",
+      inputSchema: z.object({
+        clientId: z.string().uuid().describe("The seller client UUID from searchClients"),
+        clientName: z.string().describe("Client name for confirmation"),
+        propertyAddress: z.string().describe("Property address"),
+        appointmentDate: z.string().describe("Appointment date YYYY-MM-DD"),
+        estimatedListPrice: z.number().optional().describe("Agent's estimated list price in dollars"),
+        notes: z.string().optional().describe("Notes about the appointment"),
+      }),
+      execute: async ({ clientId, clientName, propertyAddress, appointmentDate, estimatedListPrice, notes }) => {
+        try {
+          const { error } = await supabase
+            .from("listing_appointments")
+            .insert({
+              user_id: userId,
+              client_id: clientId,
+              appointment_date: appointmentDate,
+              property_address: propertyAddress,
+              estimated_list_price: estimatedListPrice ?? null,
+              status: "scheduled",
+              notes: notes ?? null,
+            });
+
+          if (error) return `Failed to create listing appointment: ${error.message}`;
+
+          const priceStr = estimatedListPrice ? ` (estimated $${estimatedListPrice.toLocaleString()})` : "";
+          return `✓ Listing appointment scheduled — ${propertyAddress}${priceStr} with ${clientName} on ${appointmentDate}. Once the listing is secured, create a pipeline deal from **Pipeline** (/pipeline) to track it through to close.`;
+        } catch {
+          return "Failed to create listing appointment. Please try again.";
+        }
+      },
+    }),
+
+    // ── ADD CCA ASSET ────────────────────────────────────────────────────────
+    addCCAAsset: tool({
+      description: "Add a capital cost allowance (CCA) asset for tax depreciation. Use when the agent mentions buying business equipment (laptop, camera, vehicle, etc.). Common CCA classes: Class 8 (office equipment/furniture, 20%), Class 10 (vehicles, 30%), Class 10.1 (passenger vehicles >$37,000, 30%), Class 12 (software/tools <$500, 100%), Class 50 (computers, 55%). The half-year rule applies automatically in the acquisition year.",
+      inputSchema: z.object({
+        description: z.string().describe("Asset description (e.g. 'MacBook Pro 16-inch', '2024 Honda CR-V')"),
+        ccaClass: z.number().describe("CRA CCA class number (8, 10, 12, 50, etc.)"),
+        classRate: z.number().min(0).max(100).describe("CCA rate as percentage (e.g. 20 for 20%, 55 for 55%)"),
+        cost: z.number().positive().describe("Purchase cost in dollars"),
+        acquisitionDate: z.string().describe("Purchase date YYYY-MM-DD"),
+        businessUsePct: z.number().min(0).max(100).optional().describe("Business use percentage (default 100%)"),
+        notes: z.string().optional().describe("Optional notes"),
+        confirmed: z.boolean().default(false).describe("Must be true to execute."),
+      }),
+      execute: async ({ description, ccaClass, classRate, cost, acquisitionDate, businessUsePct, notes, confirmed }) => {
+        const bizPct = (businessUsePct ?? 100) / 100;
+        const rateDecimal = classRate / 100;
+        const firstYearCCA = cost * bizPct * rateDecimal * 0.5; // half-year rule
+
+        if (!confirmed) {
+          return `Ready to add CCA asset: "${description}" — Class ${ccaClass} (${classRate}%), cost $${cost.toLocaleString()}, ${(bizPct * 100).toFixed(0)}% business use. First-year CCA deduction: ~$${firstYearCCA.toFixed(0)}. Confirm to save.`;
+        }
+
+        try {
+          const { error } = await supabase
+            .from("t2125_cca_assets")
+            .insert({
+              user_id: userId,
+              cca_class: ccaClass,
+              class_rate: rateDecimal,
+              description,
+              acquisition_date: acquisitionDate,
+              original_cost: cost,
+              business_use_pct: bizPct,
+              opening_ucc: 0,
+              additions_this_year: cost,
+              notes: notes ?? null,
+            });
+
+          if (error) return `Failed to add CCA asset: ${error.message}`;
+
+          return `✓ CCA asset added — "${description}", Class ${ccaClass} (${classRate}%), $${cost.toLocaleString()}. First-year CCA deduction: ~$${firstYearCCA.toFixed(0)} (half-year rule applied). View your full depreciation schedule at **Overhead** (/overhead) or **Reports** (/reports) → T2125 tab.`;
+        } catch {
+          return "Failed to add CCA asset. Please try again.";
+        }
+      },
+    }),
+
+    // ── LINK CLIENT RELATIONSHIP (non-referral) ─────────────────────────────
+    linkClientRelationship: tool({
+      description: "Link two clients as a non-referral relationship (spouse, family, colleague, other). For referral relationships, use linkClientReferral instead. Always searchClients first for both clients.",
+      inputSchema: z.object({
+        clientIdA: z.string().uuid().describe("First client UUID"),
+        clientIdB: z.string().uuid().describe("Second client UUID"),
+        nameA: z.string().describe("First client name"),
+        nameB: z.string().describe("Second client name"),
+        relationshipType: z.enum(["spouse", "family", "colleague", "other"]).describe("Relationship type"),
+      }),
+      execute: async ({ clientIdA, clientIdB, nameA, nameB, relationshipType }) => {
+        try {
+          // Sort alphabetically for non-referral (bidirectional) relationships
+          const [sortedA, sortedB] = clientIdA < clientIdB ? [clientIdA, clientIdB] : [clientIdB, clientIdA];
+
+          // Check for existing
+          const { data: existing } = await supabase
+            .from("client_relationships")
+            .select("id")
+            .eq("user_id", userId)
+            .eq("client_id_a", sortedA)
+            .eq("client_id_b", sortedB)
+            .limit(1);
+
+          if (existing && existing.length > 0) {
+            return `${nameA} and ${nameB} already have a relationship linked. No changes made.`;
+          }
+
+          const { error } = await supabase
+            .from("client_relationships")
+            .insert({
+              user_id: userId,
+              client_id_a: sortedA,
+              client_id_b: sortedB,
+              relationship_type: relationshipType,
+            });
+
+          if (error) return `Failed to link relationship: ${error.message}`;
+
+          return `✓ Relationship linked — ${nameA} and ${nameB} (${relationshipType}). This will show on both client profiles in the **CRM** (/crm).`;
+        } catch {
+          return "Failed to link relationship. Please try again.";
+        }
+      },
+    }),
+
+    // ── UPDATE TRANSACTION ───────────────────────────────────────────────────
+    updateTransaction: tool({
+      description: "Update details on a closed transaction. Use when the agent says 'change the sale price on that deal' or 'update the commission on [address]'. Requires confirmation for dollar changes.",
+      inputSchema: z.object({
+        transactionId: z.string().uuid().describe("The transaction UUID"),
+        transactionDescription: z.string().describe("Brief description for confirmation"),
+        address: z.string().optional().describe("Updated property address"),
+        salePrice: z.number().optional().describe("Updated sale price in dollars"),
+        commissionPct: z.number().min(0).max(10).optional().describe("Updated commission rate as percentage"),
+        gciOverride: z.number().optional().describe("Updated exact GCI in dollars"),
+        closeDate: z.string().optional().describe("Updated close date YYYY-MM-DD"),
+        notes: z.string().optional().describe("Updated notes"),
+        confirmed: z.boolean().default(false).describe("Must be true to execute."),
+      }),
+      execute: async ({ transactionId, transactionDescription, address, salePrice, commissionPct, gciOverride, closeDate, notes, confirmed }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+        const changed: string[] = [];
+
+        if (address !== undefined) { updates.address = address; changed.push(`address → ${address}`); }
+        if (salePrice !== undefined) { updates.sale_price = salePrice; changed.push(`sale price → $${salePrice.toLocaleString()}`); }
+        if (commissionPct !== undefined) { updates.commission_pct = commissionPct / 100; changed.push(`commission → ${commissionPct}%`); }
+        if (gciOverride !== undefined) { updates.gci_override = gciOverride; changed.push(`GCI → $${gciOverride.toLocaleString()}`); }
+        if (closeDate !== undefined) { updates.date = closeDate; changed.push(`close date → ${closeDate}`); }
+        if (notes !== undefined) { updates.notes = notes; changed.push("notes updated"); }
+
+        if (changed.length === 0) return "No fields to update were provided.";
+
+        if (!confirmed) {
+          return `Ready to update ${transactionDescription}: ${changed.join(", ")}. Confirm to save.`;
+        }
+
+        try {
+          const { error } = await supabase
+            .from("transactions")
+            .update(updates)
+            .eq("id", transactionId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to update transaction: ${error.message}`;
+
+          return `✓ Transaction updated — ${transactionDescription}: ${changed.join(", ")}. YTD metrics will reflect this on refresh.`;
+        } catch {
+          return "Failed to update transaction. Please try again.";
+        }
+      },
+    }),
+
+    // ── DELETE TRANSACTION ────────────────────────────────────────────────────
+    deleteTransaction: tool({
+      description: "Delete a closed transaction (e.g., duplicate or entered by mistake). This permanently removes it. Always confirm before executing.",
+      inputSchema: z.object({
+        transactionId: z.string().uuid().describe("The transaction UUID"),
+        transactionDescription: z.string().describe("Brief description for confirmation"),
+        confirmed: z.boolean().default(false).describe("Must be true to execute."),
+      }),
+      execute: async ({ transactionId, transactionDescription, confirmed }) => {
+        if (!confirmed) {
+          return `Ready to delete transaction: ${transactionDescription}. This cannot be undone and will affect your YTD GCI. Confirm to proceed.`;
+        }
+
+        try {
+          const { error } = await supabase
+            .from("transactions")
+            .delete()
+            .eq("id", transactionId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to delete transaction: ${error.message}`;
+
+          return `✓ Transaction deleted — ${transactionDescription}. Your YTD GCI, pace, and projections will update on refresh.`;
+        } catch {
+          return "Failed to delete transaction. Please try again.";
+        }
+      },
+    }),
+
+    // ── SEARCH TRANSACTIONS ──────────────────────────────────────────────────
+    searchTransactions: tool({
+      description: "Search for closed transactions by address or client name. Use this to find transaction IDs before updating or deleting.",
+      inputSchema: z.object({
+        query: z.string().describe("Property address or client name to search for"),
+      }),
+      execute: async ({ query }) => {
+        try {
+          const { data, error } = await supabase
+            .from("transactions")
+            .select("id, address, client_name, date, sale_price, gci_override, side, status")
+            .eq("user_id", userId)
+            .or(`address.ilike.%${query}%,client_name.ilike.%${query}%`)
+            .order("date", { ascending: false })
+            .limit(10);
+
+          if (error) return `Search failed: ${error.message}`;
+          if (!data || data.length === 0) return `No transactions found matching "${query}".`;
+
+          return data.map((t: { id: string; address: string; client_name: string; date: string; sale_price: number; gci_override: number | null; side: string; status: string }) => {
+            const gci = t.gci_override ? `GCI $${Number(t.gci_override).toLocaleString()}` : `$${Number(t.sale_price).toLocaleString()}`;
+            return `${t.address} — ${t.client_name} (${t.side}, ${t.status}, ${gci}, ${t.date}) — ID: ${t.id}`;
+          }).join("\n");
+        } catch {
+          return "Transaction search temporarily unavailable.";
+        }
+      },
+    }),
+
+    // ── DELETE CONTACT ACTIVITY ───────────────────────────────────────────────
+    deleteContactActivity: tool({
+      description: "Delete a contact activity entry (e.g., duplicate or incorrect log). Use when the agent says 'remove that activity' or 'I logged that by mistake'.",
+      inputSchema: z.object({
+        activityId: z.string().uuid().describe("The activity UUID"),
+        activityDescription: z.string().describe("Brief description for confirmation"),
+      }),
+      execute: async ({ activityId, activityDescription }) => {
+        try {
+          const { error } = await supabase
+            .from("contact_activities")
+            .delete()
+            .eq("id", activityId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to delete activity: ${error.message}`;
+
+          return `✓ Activity deleted — ${activityDescription}. Note: the client's last contact date is not automatically adjusted — it reflects the most recent remaining activity.`;
+        } catch {
+          return "Failed to delete activity. Please try again.";
         }
       },
     }),
