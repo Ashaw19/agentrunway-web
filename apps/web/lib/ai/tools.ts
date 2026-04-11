@@ -19,10 +19,12 @@
  *                         searchTransactions, searchActivities, searchMileageLogs,
  *                         getClientSummary, getUpcomingAgenda,
  *                         getExpenseBreakdown, getPerformanceSummary,
- *                         comparePerformance
+ *                         comparePerformance, getQuickStats
  *   Create              — createClient, createPipelineDeal, createContactTask,
  *                         createRecurringExpense, addPropertyShowing,
  *                         addListingAppointment, createFlightPlan
+ *   Update              — updateListingAppointment, updateReferral,
+ *                         updateRecurringExpense, updateCCAAsset
  *   Autonomous          — logContactActivity, updateClientStatus,
  *                         updateClientNotes, updateClientDetails,
  *                         updateClientTags, updateClientTone,
@@ -33,11 +35,12 @@
  *                         linkClientReferral, linkClientRelationship,
  *                         removePipelineDeal, completeContactTask,
  *                         updateContactTask, skipOutreachItem,
- *                         deleteContactActivity
+ *                         deleteContactActivity, manageFlightPlan
  *   Confirm-required    — logExpense, logMileage, recordTransaction,
  *                         recordReferral, deleteExpense, updateExpense,
  *                         addCCAAsset, updateTransaction, deleteTransaction,
- *                         updatePipelineDealValue
+ *                         updatePipelineDealValue, deleteRecurringExpense,
+ *                         deleteCCAAsset
  */
 
 import { tool, type ToolSet } from "ai";
@@ -414,6 +417,13 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       inputSchema: z.object({
         clientId: z.string().uuid().describe("The client UUID from searchClients"),
         clientName: z.string().describe("Client name for confirmation message"),
+        birthdate: z.string().optional().describe("Client birthday in YYYY-MM-DD format — triggers birthday outreach in Flight Control"),
+        leadSource: z.enum(["SOI", "Referral", "Zillow", "Open House", "Social", "Other"]).optional().describe("How this client was sourced"),
+        provinceRegion: z.string().optional().describe("Client's province or region"),
+        scheduledFor: z.string().optional().describe("Future date when client plans to act (YYYY-MM-DD)"),
+        scheduledPhrase: z.string().optional().describe("Vague timing phrase like 'after the holidays' or 'spring 2026'"),
+        secondaryEmail: z.string().optional().describe("Secondary email address"),
+        secondaryPhone: z.string().optional().describe("Secondary phone number"),
         propertyInterest: z.number().optional().describe("Budget (buyer) or expected listing price (seller) in dollars"),
         propertyInterestType: z.enum(["budget", "listing"]).optional().describe("Whether the amount is a buyer budget or seller listing price"),
         timeframe: z.enum(["asap", "1_3_months", "3_6_months", "6_12_months", "12_plus", "unknown"]).optional().describe("Buying/selling timeframe"),
@@ -433,6 +443,13 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const updates: Record<string, any> = { updated_at: new Date().toISOString() };
           const changed: string[] = [];
 
+          if (fields.birthdate !== undefined) { updates.birthdate = fields.birthdate; changed.push(`birthday → ${fields.birthdate}`); }
+          if (fields.leadSource !== undefined) { updates.lead_source = fields.leadSource; changed.push(`lead source → ${fields.leadSource}`); }
+          if (fields.provinceRegion !== undefined) { updates.province_region = fields.provinceRegion; changed.push(`province/region → ${fields.provinceRegion}`); }
+          if (fields.scheduledFor !== undefined) { updates.scheduled_for = fields.scheduledFor; changed.push(`scheduled for → ${fields.scheduledFor}`); }
+          if (fields.scheduledPhrase !== undefined) { updates.scheduled_phrase = fields.scheduledPhrase; changed.push(`timing → "${fields.scheduledPhrase}"`); }
+          if (fields.secondaryEmail !== undefined) { updates.secondary_email = fields.secondaryEmail; changed.push(`secondary email → ${fields.secondaryEmail}`); }
+          if (fields.secondaryPhone !== undefined) { updates.secondary_phone = fields.secondaryPhone; changed.push(`secondary phone → ${fields.secondaryPhone}`); }
           if (fields.propertyInterest !== undefined) { updates.property_interest = fields.propertyInterest; changed.push(`budget/price → $${fields.propertyInterest.toLocaleString()}`); }
           if (fields.propertyInterestType !== undefined) { updates.property_interest_type = fields.propertyInterestType; changed.push(`interest type → ${fields.propertyInterestType}`); }
           if (fields.timeframe !== undefined) { updates.timeframe = fields.timeframe; changed.push(`timeframe → ${fields.timeframe.replace(/_/g, " ")}`); }
@@ -2375,6 +2392,417 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           return `✓ Flight plan "${name}" created with ${steps.length} steps:\n${stepSummary}${triggerStatus ? `\n\nAuto-triggers when a client moves to **${triggerStatus}** status.` : "\n\nThis plan can be manually assigned to clients from their profile in the **CRM** (/crm)."}`;
         } catch {
           return "Failed to create flight plan. Please try again.";
+        }
+      },
+    }),
+
+    // ── UPDATE: Listing appointment status/details ────────────────────────────
+    updateListingAppointment: tool({
+      description: "Update a listing appointment — change status (scheduled/active/sold/expired/withdrawn/lost), actual list price, actual sale price, or dates. Use when the user says 'the listing at 44 Main just went live' or 'that listing sold'.",
+      inputSchema: z.object({
+        appointmentId: z.string().uuid().describe("The listing appointment UUID"),
+        status: z.enum(["scheduled", "active", "sold", "expired", "withdrawn", "lost"]).optional().describe("Updated status"),
+        actualListPrice: z.number().optional().describe("Actual list price once listed"),
+        actualSalePrice: z.number().optional().describe("Actual sale price once sold"),
+        expectedCloseDate: z.string().optional().describe("Expected close date (YYYY-MM-DD)"),
+        notes: z.string().optional().describe("Updated notes"),
+      }),
+      execute: async ({ appointmentId, status, actualListPrice, actualSalePrice, expectedCloseDate, notes }) => {
+        try {
+          const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+          const changed: string[] = [];
+
+          if (status) { updates.status = status; changed.push(`status → ${status}`); }
+          if (actualListPrice !== undefined) { updates.actual_list_price = actualListPrice; changed.push(`list price → $${actualListPrice.toLocaleString()}`); }
+          if (actualSalePrice !== undefined) { updates.actual_sale_price = actualSalePrice; changed.push(`sale price → $${actualSalePrice.toLocaleString()}`); }
+          if (expectedCloseDate) { updates.expected_close_date = expectedCloseDate; changed.push(`close date → ${expectedCloseDate}`); }
+          if (notes !== undefined) { updates.notes = notes; changed.push("notes updated"); }
+
+          if (changed.length === 0) return "No changes specified.";
+
+          const { error } = await supabase
+            .from("listing_appointments")
+            .update(updates)
+            .eq("id", appointmentId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to update listing appointment: ${error.message}`;
+
+          return `✓ Listing appointment updated: ${changed.join(", ")}${status === "sold" ? "\n\nNice work! Consider recording this as a transaction and moving the client to Cruising status." : ""}`;
+        } catch {
+          return "Failed to update listing appointment. Please try again.";
+        }
+      },
+    }),
+
+    // ── UPDATE: Referral status and fee ───────────────────────────────────────
+    updateReferral: tool({
+      description: "Update a referral — change status (pending/active/closed/expired/cancelled), actual fee paid, or fee paid date. Use when the user says 'that referral deal closed' or 'I paid the referral fee'.",
+      inputSchema: z.object({
+        referralId: z.string().uuid().describe("The referral UUID"),
+        partnerName: z.string().describe("Referral partner name for confirmation"),
+        status: z.enum(["pending", "active", "closed", "expired", "cancelled"]).optional().describe("Updated status"),
+        actualFeePaid: z.number().optional().describe("Actual referral fee paid in dollars"),
+        feePaidDate: z.string().optional().describe("Date fee was paid (YYYY-MM-DD)"),
+        notes: z.string().optional().describe("Updated notes"),
+      }),
+      execute: async ({ referralId, partnerName, status, actualFeePaid, feePaidDate, notes }) => {
+        try {
+          const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+          const changed: string[] = [];
+
+          if (status) { updates.status = status; changed.push(`status → ${status}`); }
+          if (actualFeePaid !== undefined) { updates.actual_fee_paid = actualFeePaid; changed.push(`fee paid → $${actualFeePaid.toLocaleString()}`); }
+          if (feePaidDate) { updates.fee_paid_date = feePaidDate; changed.push(`fee date → ${feePaidDate}`); }
+          if (notes !== undefined) { updates.notes = notes; changed.push("notes updated"); }
+
+          if (changed.length === 0) return "No changes specified.";
+
+          const { error } = await supabase
+            .from("referrals")
+            .update(updates)
+            .eq("id", referralId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to update referral: ${error.message}`;
+
+          return `✓ Referral with ${partnerName} updated: ${changed.join(", ")}. View all referrals at **Referrals** (/referrals).`;
+        } catch {
+          return "Failed to update referral. Please try again.";
+        }
+      },
+    }),
+
+    // ── UPDATE: Recurring expense ────────────────────────────────────────────
+    updateRecurringExpense: tool({
+      description: "Update or pause/resume a recurring expense. Use when the user says 'change my Mailchimp to $200/month', 'pause that recurring expense', or 'reactivate my MLS fees'.",
+      inputSchema: z.object({
+        recurringExpenseId: z.string().uuid().describe("The recurring expense UUID"),
+        name: z.string().optional().describe("Updated vendor/name"),
+        amount: z.number().optional().describe("Updated amount"),
+        categoryKey: z.enum(EXPENSE_CATEGORY_KEYS).optional().describe("Updated T2125 category"),
+        isActive: z.boolean().optional().describe("Set to false to pause, true to resume"),
+        notes: z.string().optional().describe("Updated notes"),
+      }),
+      execute: async ({ recurringExpenseId, name, amount, categoryKey, isActive, notes }) => {
+        try {
+          const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+          const changed: string[] = [];
+
+          if (name) { updates.name = name; changed.push(`name → "${name}"`); }
+          if (amount !== undefined) { updates.amount = amount; changed.push(`amount → $${amount}`); }
+          if (categoryKey) { updates.category_key = categoryKey; changed.push(`category → ${categoryKey}`); }
+          if (isActive !== undefined) { updates.is_active = isActive; changed.push(isActive ? "reactivated" : "paused"); }
+          if (notes !== undefined) { updates.notes = notes; changed.push("notes updated"); }
+
+          if (changed.length === 0) return "No changes specified.";
+
+          const { error } = await supabase
+            .from("recurring_expenses")
+            .update(updates)
+            .eq("id", recurringExpenseId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to update recurring expense: ${error.message}`;
+
+          return `✓ Recurring expense updated: ${changed.join(", ")}. Future entries will reflect these changes.`;
+        } catch {
+          return "Failed to update recurring expense. Please try again.";
+        }
+      },
+    }),
+
+    // ── DELETE: Recurring expense ─────────────────────────────────────────────
+    deleteRecurringExpense: tool({
+      description: "Delete a recurring expense template. Past confirmed entries remain; only future auto-generated entries stop.",
+      inputSchema: z.object({
+        recurringExpenseId: z.string().uuid().describe("The recurring expense UUID"),
+        expenseName: z.string().describe("Name for confirmation"),
+        confirmed: z.boolean().describe("Must be true to delete"),
+      }),
+      execute: async ({ recurringExpenseId, expenseName, confirmed }) => {
+        if (!confirmed) return `PREVIEW — I'll permanently delete the recurring expense "${expenseName}". Past confirmed entries will remain. Say "yes" to confirm.`;
+
+        try {
+          const { error } = await supabase
+            .from("recurring_expenses")
+            .delete()
+            .eq("id", recurringExpenseId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to delete recurring expense: ${error.message}`;
+
+          return `✓ Recurring expense "${expenseName}" deleted. Past confirmed entries remain in your expense history.`;
+        } catch {
+          return "Failed to delete recurring expense. Please try again.";
+        }
+      },
+    }),
+
+    // ── UPDATE: CCA asset ────────────────────────────────────────────────────
+    updateCCAAsset: tool({
+      description: "Update a CCA asset — change description, business use percentage, or UCC balance.",
+      inputSchema: z.object({
+        assetId: z.string().uuid().describe("The CCA asset UUID"),
+        description: z.string().optional().describe("Updated description"),
+        businessUsePct: z.number().optional().describe("Updated business use percentage (0-1)"),
+        notes: z.string().optional().describe("Updated notes"),
+      }),
+      execute: async ({ assetId, description, businessUsePct, notes }) => {
+        try {
+          const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+          const changed: string[] = [];
+
+          if (description) { updates.description = description; changed.push(`description → "${description}"`); }
+          if (businessUsePct !== undefined) { updates.business_use_pct = businessUsePct; changed.push(`business use → ${(businessUsePct * 100).toFixed(0)}%`); }
+          if (notes !== undefined) { updates.notes = notes; changed.push("notes updated"); }
+
+          if (changed.length === 0) return "No changes specified.";
+
+          const { error } = await supabase
+            .from("t2125_cca_assets")
+            .update(updates)
+            .eq("id", assetId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to update CCA asset: ${error.message}`;
+
+          return `✓ CCA asset updated: ${changed.join(", ")}. View your depreciation schedule at **Overhead** (/overhead).`;
+        } catch {
+          return "Failed to update CCA asset. Please try again.";
+        }
+      },
+    }),
+
+    // ── DELETE: CCA asset ────────────────────────────────────────────────────
+    deleteCCAAsset: tool({
+      description: "Delete a CCA asset from your depreciation schedule. Requires confirmation.",
+      inputSchema: z.object({
+        assetId: z.string().uuid().describe("The CCA asset UUID"),
+        assetDescription: z.string().describe("Description for confirmation"),
+        confirmed: z.boolean().describe("Must be true to delete"),
+      }),
+      execute: async ({ assetId, assetDescription, confirmed }) => {
+        if (!confirmed) return `PREVIEW — I'll permanently remove "${assetDescription}" from your CCA schedule. Say "yes" to confirm.`;
+
+        try {
+          const { error } = await supabase
+            .from("t2125_cca_assets")
+            .delete()
+            .eq("id", assetId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to delete CCA asset: ${error.message}`;
+
+          return `✓ CCA asset "${assetDescription}" removed. Your depreciation schedule at **Overhead** (/overhead) will update accordingly.`;
+        } catch {
+          return "Failed to delete CCA asset. Please try again.";
+        }
+      },
+    }),
+
+    // ── MANAGE: Flight plan lifecycle ─────────────────────────────────────────
+    manageFlightPlan: tool({
+      description: "Activate, deactivate, or delete a flight plan. Use when the user says 'pause that flight plan', 'turn on the buyer nurture sequence', or 'delete the post-close plan'.",
+      inputSchema: z.object({
+        action: z.enum(["activate", "deactivate", "delete"]).describe("What to do with the flight plan"),
+        planName: z.string().describe("Flight plan name to search for"),
+      }),
+      execute: async ({ action, planName }) => {
+        try {
+          // Find the flight plan
+          const { data: plans, error: searchErr } = await supabase
+            .from("flight_plans")
+            .select("id, name, is_active")
+            .eq("user_id", userId)
+            .ilike("name", `%${planName}%`)
+            .limit(3);
+
+          if (searchErr) return `Search failed: ${searchErr.message}`;
+          if (!plans || plans.length === 0) return `No flight plan found matching "${planName}".`;
+
+          const plan = plans[0];
+
+          if (action === "delete") {
+            const { error } = await supabase
+              .from("flight_plans")
+              .delete()
+              .eq("id", plan.id)
+              .eq("user_id", userId);
+
+            if (error) return `Failed to delete: ${error.message}`;
+            return `✓ Flight plan "${plan.name}" deleted. Clients previously assigned to this plan will no longer receive its steps.`;
+          }
+
+          const isActive = action === "activate";
+          const { error } = await supabase
+            .from("flight_plans")
+            .update({ is_active: isActive, updated_at: new Date().toISOString() })
+            .eq("id", plan.id)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to ${action}: ${error.message}`;
+          return `✓ Flight plan "${plan.name}" ${isActive ? "activated — it will now trigger for matching clients" : "deactivated — no new clients will receive its steps"}.`;
+        } catch {
+          return "Failed to manage flight plan. Please try again.";
+        }
+      },
+    }),
+
+    // ── SEARCH: Pipeline deals by stage ───────────────────────────────────────
+    searchPipelineByStage: tool({
+      description: "Search pipeline deals filtered by stage. Use when the user asks 'show me all conditional deals', 'what's in the offer stage?', or 'how many leads do I have?'.",
+      inputSchema: z.object({
+        stage: z.enum([...PIPELINE_STAGES]).optional().describe("Filter by stage (lead/showing/offer/conditional/firm/closed)"),
+        side: z.enum([...TRANSACTION_SIDES]).optional().describe("Filter by buyer/seller/both"),
+      }),
+      execute: async ({ stage, side }) => {
+        try {
+          let query = supabase
+            .from("pipeline_deals")
+            .select("id, address, client_name, estimated_price, estimated_commission_pct, stage, side, expected_close_date, probability_override, notes")
+            .eq("user_id", userId)
+            .order("estimated_price", { ascending: false });
+
+          if (stage) query = query.eq("stage", stage);
+          if (side) query = query.eq("side", side);
+
+          const { data, error } = await query;
+
+          if (error) return `Search failed: ${error.message}`;
+          if (!data || data.length === 0) {
+            const filters = [stage && `stage=${stage}`, side && `side=${side}`].filter(Boolean).join(", ");
+            return `No pipeline deals found${filters ? ` matching ${filters}` : ""}.`;
+          }
+
+          const totalValue = data.reduce((s: number, d: { estimated_price: number }) => s + Number(d.estimated_price || 0), 0);
+          const header = `Found ${data.length} deal${data.length === 1 ? "" : "s"}${stage ? ` in ${stage} stage` : ""} — $${totalValue.toLocaleString()} total value:`;
+
+          const list = data.map((d: { address: string; client_name: string; estimated_price: number; stage: string; side: string; expected_close_date: string | null }) =>
+            `• ${d.address || "No address"} — ${d.client_name || "No client"} (${d.side}) — $${Number(d.estimated_price).toLocaleString()} — ${d.stage}${d.expected_close_date ? ` — close: ${d.expected_close_date}` : ""}`
+          ).join("\n");
+
+          return `${header}\n${list}`;
+        } catch {
+          return "Pipeline search temporarily unavailable.";
+        }
+      },
+    }),
+
+    // ── QUERY: Quick data counts ─────────────────────────────────────────────
+    getQuickStats: tool({
+      description: "Get quick data counts and totals. Use when the user asks 'how many clients do I have?', 'what's my pipeline total?', 'how many deals have I closed?', or similar quick lookup questions.",
+      inputSchema: z.object({
+        stat: z.enum([
+          "active_clients",
+          "total_clients",
+          "archived_clients",
+          "pipeline_count",
+          "pipeline_value",
+          "closed_deals_ytd",
+          "ytd_gci",
+          "ytd_expenses",
+          "open_tasks",
+          "overdue_tasks",
+          "pending_outreach",
+          "ytd_mileage",
+          "active_referrals",
+          "recurring_expense_count",
+          "cca_asset_count",
+        ]).describe("Which stat to look up"),
+      }),
+      execute: async ({ stat }) => {
+        try {
+          const currentYear = new Date().getFullYear();
+          const ytdStart = `${currentYear}-01-01`;
+          const todayISO = new Date().toISOString().split("T")[0];
+
+          switch (stat) {
+            case "active_clients": {
+              const { count, error } = await supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", userId).is("archived_at", null);
+              if (error) return `Query failed: ${error.message}`;
+              return `You have **${count ?? 0} active clients** in your CRM.`;
+            }
+            case "total_clients": {
+              const { count, error } = await supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", userId);
+              if (error) return `Query failed: ${error.message}`;
+              return `You have **${count ?? 0} total clients** (including archived).`;
+            }
+            case "archived_clients": {
+              const { count, error } = await supabase.from("clients").select("id", { count: "exact", head: true }).eq("user_id", userId).not("archived_at", "is", null);
+              if (error) return `Query failed: ${error.message}`;
+              return `You have **${count ?? 0} archived clients** in the Hangar.`;
+            }
+            case "pipeline_count": {
+              const { count, error } = await supabase.from("pipeline_deals").select("id", { count: "exact", head: true }).eq("user_id", userId);
+              if (error) return `Query failed: ${error.message}`;
+              return `You have **${count ?? 0} active pipeline deals**.`;
+            }
+            case "pipeline_value": {
+              const { data, error } = await supabase.from("pipeline_deals").select("estimated_price").eq("user_id", userId);
+              if (error) return `Query failed: ${error.message}`;
+              const total = (data ?? []).reduce((s: number, d: { estimated_price: number }) => s + Number(d.estimated_price || 0), 0);
+              return `Your pipeline total is **$${total.toLocaleString()}** across ${data?.length ?? 0} deals.`;
+            }
+            case "closed_deals_ytd": {
+              const { count, error } = await supabase.from("transactions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "closed").gte("close_date", ytdStart);
+              if (error) return `Query failed: ${error.message}`;
+              return `You've closed **${count ?? 0} deals** so far in ${currentYear}.`;
+            }
+            case "ytd_gci": {
+              const { data, error } = await supabase.from("transactions").select("gci").eq("user_id", userId).eq("status", "closed").gte("close_date", ytdStart);
+              if (error) return `Query failed: ${error.message}`;
+              const total = (data ?? []).reduce((s: number, t: { gci: number }) => s + Number(t.gci || 0), 0);
+              return `Your YTD GCI is **$${total.toLocaleString()}** from ${data?.length ?? 0} closed deals.`;
+            }
+            case "ytd_expenses": {
+              const { data, error } = await supabase.from("receipt_expenses").select("total_amount").eq("user_id", userId).gte("expense_date", ytdStart);
+              if (error) return `Query failed: ${error.message}`;
+              const total = (data ?? []).reduce((s: number, e: { total_amount: number }) => s + Number(e.total_amount || 0), 0);
+              return `Your YTD expenses total **$${total.toLocaleString()}** across ${data?.length ?? 0} entries.`;
+            }
+            case "open_tasks": {
+              const { count, error } = await supabase.from("contact_tasks").select("id", { count: "exact", head: true }).eq("user_id", userId).is("completed_at", null);
+              if (error) return `Query failed: ${error.message}`;
+              return `You have **${count ?? 0} open tasks**.`;
+            }
+            case "overdue_tasks": {
+              const { count, error } = await supabase.from("contact_tasks").select("id", { count: "exact", head: true }).eq("user_id", userId).is("completed_at", null).lt("due_date", todayISO);
+              if (error) return `Query failed: ${error.message}`;
+              return `You have **${count ?? 0} overdue tasks**.${(count ?? 0) > 0 ? " Use getUpcomingAgenda for details." : ""}`;
+            }
+            case "pending_outreach": {
+              const { count, error } = await supabase.from("outreach_queue").select("id", { count: "exact", head: true }).eq("user_id", userId).in("status", ["draft", "ready"]);
+              if (error) return `Query failed: ${error.message}`;
+              return `You have **${count ?? 0} pending outreach items** in Flight Control.`;
+            }
+            case "ytd_mileage": {
+              const { data, error } = await supabase.from("mileage_logs").select("km, deduction").eq("user_id", userId).gte("trip_date", ytdStart);
+              if (error) return `Query failed: ${error.message}`;
+              const km = (data ?? []).reduce((s: number, m: { km: number }) => s + Number(m.km || 0), 0);
+              const ded = (data ?? []).reduce((s: number, m: { deduction: number }) => s + Number(m.deduction || 0), 0);
+              return `YTD mileage: **${km.toFixed(0)} km** across ${data?.length ?? 0} trips — **$${ded.toFixed(2)} deduction**.`;
+            }
+            case "active_referrals": {
+              const { count, error } = await supabase.from("referrals").select("id", { count: "exact", head: true }).eq("user_id", userId).in("status", ["pending", "active"]);
+              if (error) return `Query failed: ${error.message}`;
+              return `You have **${count ?? 0} active referrals** (pending or in progress).`;
+            }
+            case "recurring_expense_count": {
+              const { count, error } = await supabase.from("recurring_expenses").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("is_active", true);
+              if (error) return `Query failed: ${error.message}`;
+              return `You have **${count ?? 0} active recurring expenses**.`;
+            }
+            case "cca_asset_count": {
+              const { count, error } = await supabase.from("t2125_cca_assets").select("id", { count: "exact", head: true }).eq("user_id", userId);
+              if (error) return `Query failed: ${error.message}`;
+              return `You have **${count ?? 0} CCA assets** in your depreciation schedule.`;
+            }
+            default:
+              return "Unknown stat requested.";
+          }
+        } catch {
+          return "Failed to look up stat. Please try again.";
         }
       },
     }),
