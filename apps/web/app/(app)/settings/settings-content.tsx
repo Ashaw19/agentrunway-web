@@ -449,6 +449,9 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const [txFeeCap, setTxFeeCap] = useState(
     String(settings.tx_fee_annual_cap ?? 0),
   );
+  const [brokerageWithholdsHst, setBrokerageWithholdsHst] = useState(
+    settings.brokerage_withholds_hst ?? false,
+  );
   const [savingFees, setSavingFees] = useState(false);
   const feesSaved = useSaved();
 
@@ -462,6 +465,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
         monthly_brokerage_fee: parseFloat(monthlyFee) || 0,
         tx_fee_rate_pct: (parseFloat(txFeeRate) || 0) / 100,
         tx_fee_annual_cap: parseFloat(txFeeCap) || 0,
+        brokerage_withholds_hst: brokerageWithholdsHst,
       })
       .eq("user_id", settings.user_id);
     setSavingFees(false);
@@ -1586,6 +1590,41 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
               </p>
             </div>
           </div>
+
+          {/* HST Withholding toggle */}
+          <div className="grid gap-1.5">
+            <Label>Does your brokerage withhold HST from your commission cheques?</Label>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setBrokerageWithholdsHst(false)}
+                className={cn(
+                  "rounded-lg border px-4 py-2 text-sm font-medium transition-all",
+                  !brokerageWithholdsHst
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground hover:border-primary/40",
+                )}
+              >
+                No — I receive the full amount
+              </button>
+              <button
+                onClick={() => setBrokerageWithholdsHst(true)}
+                className={cn(
+                  "rounded-lg border px-4 py-2 text-sm font-medium transition-all",
+                  brokerageWithholdsHst
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground hover:border-primary/40",
+                )}
+              >
+                Yes — they hold and remit it
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {brokerageWithholdsHst
+                ? "Your brokerage handles HST remittance. We won't include HST in your set-aside recommendations."
+                : "You receive the HST portion with your commission. We'll remind you to set it aside for CRA."}
+            </p>
+          </div>
+
           <SaveRow
             saving={savingFees}
             saved={feesSaved.saved}

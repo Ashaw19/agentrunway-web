@@ -739,6 +739,60 @@ export async function POST(req: NextRequest) {
         taxIntelLines.push("── END TAX INTELLIGENCE ──");
         engineLines.push(...taxIntelLines);
 
+        // ── Per-Paycheque Allocation Guidance ──────────────────────────────
+        // Tells the AI how to advise the agent on splitting each commission cheque
+        {
+          const hstRate = gstHstRate((settings.province ?? "ontario") as Parameters<typeof gstHstRate>[0]);
+          const hstLabel = gstHstLabel((settings.province ?? "ontario") as Parameters<typeof gstHstLabel>[0]);
+          const brokerageWithholdsHst = settings.brokerage_withholds_hst === true;
+          const marginalRate = projectedNetIncome > 0
+            ? Math.min(0.53, (taxResult?.totalTax ?? 0) / projectedNetIncome)
+            : 0.30; // default 30% if no data yet
+
+          const allocLines: string[] = [];
+          allocLines.push("── PAYCHEQUE ALLOCATION GUIDANCE ──");
+          allocLines.push(
+            `[SETUP] Province: ${settings.province}. ${hstLabel} rate: ${(hstRate * 100).toFixed(1)}%. ` +
+            `Brokerage withholds HST: ${brokerageWithholdsHst ? "YES — agent receives net-of-HST cheques" : "NO — agent receives full amount including HST"}. ` +
+            `Estimated marginal tax rate: ${(marginalRate * 100).toFixed(0)}%.`
+          );
+
+          if (brokerageWithholdsHst) {
+            allocLines.push(
+              `[ALLOCATION MODEL — HST WITHHELD BY BROKERAGE] When the agent closes a deal, their brokerage holds the ${hstLabel} portion. ` +
+              `The agent receives commission MINUS ${hstLabel}. From what they receive, recommend: ` +
+              `~${(marginalRate * 100).toFixed(0)}% set aside for income tax (federal + provincial), ` +
+              `remainder is actual take-home. ` +
+              `Example: On a $10,000 gross commission at ${agentPct}% split, agent nets $${((10000 * agentPct / 100) * (1 - hstRate)).toFixed(0)} after HST withholding. ` +
+              `Set aside ~$${((10000 * agentPct / 100) * (1 - hstRate) * marginalRate).toFixed(0)} for tax. ` +
+              `Actual take-home: ~$${((10000 * agentPct / 100) * (1 - hstRate) * (1 - marginalRate)).toFixed(0)}.`
+            );
+          } else {
+            allocLines.push(
+              `[ALLOCATION MODEL — AGENT HANDLES HST] When the agent closes a deal, they receive the full commission INCLUDING ${hstLabel}. ` +
+              `From each cheque, recommend setting aside: ` +
+              `~${(hstRate * 100).toFixed(0)}% for ${hstLabel} remittance to CRA, ` +
+              `~${(marginalRate * 100).toFixed(0)}% of the pre-HST amount for income tax. ` +
+              `Example: On a $10,000 gross commission at ${agentPct}% split, agent receives $${(10000 * agentPct / 100).toFixed(0)}. ` +
+              `Set aside ~$${((10000 * agentPct / 100) * hstRate).toFixed(0)} for ${hstLabel}. ` +
+              `Set aside ~$${((10000 * agentPct / 100) * marginalRate).toFixed(0)} for income tax. ` +
+              `Actual take-home: ~$${((10000 * agentPct / 100) * (1 - hstRate - marginalRate)).toFixed(0)}. ` +
+              `IMPORTANT: The ${hstLabel} portion is NOT the agent's money — it belongs to CRA. ` +
+              `Spending it creates a tax debt that compounds with interest and penalties.`
+            );
+          }
+
+          allocLines.push(
+            `[GUIDANCE TONE] When discussing paycheque allocation, be direct and specific with dollar amounts. ` +
+            `Don't lecture — just show the math. If the agent asks about a specific deal they just closed, ` +
+            `calculate the exact allocation using their actual commission amount, split, and province. ` +
+            `Always distinguish between "what you get to keep" and "what you owe." ` +
+            `Never say "consult your accountant" for basic allocation math — that's what this tool is for.`
+          );
+          allocLines.push("── END PAYCHEQUE ALLOCATION GUIDANCE ──");
+          engineLines.push(...allocLines);
+        }
+
         engineLines.push("── END COMPUTED ENGINE OUTPUTS ──");
 
         financialContext += "\n\n" + engineLines.filter(Boolean).join("\n");

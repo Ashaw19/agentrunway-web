@@ -390,6 +390,7 @@ export interface UserSettings {
   // Tax filing
   filing_frequency: 'monthly' | 'quarterly' | 'annual';
   fiscal_year_end_month: number; // 1-12
+  brokerage_withholds_hst: boolean; // brokerage holds HST and remits to CRA
 
   // Timestamps
   created_at: string;

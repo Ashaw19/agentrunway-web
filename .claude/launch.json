@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "web",
-      "runtimeExecutable": "/usr/local/bin/npx",
-      "runtimeArgs": ["next", "dev"],
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["pnpm", "dev", "--filter", "agentrunway-web"],
       "port": 3000
     }
   ]

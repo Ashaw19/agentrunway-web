@@ -166,6 +166,7 @@ export default function OnboardingPage() {
   const [compensationMethod, setCompensationMethod] = useState<"salary" | "dividends" | "mixed">("salary");
   const [hasEmployees, setHasEmployees] = useState(false);
   const [numEmployees, setNumEmployees] = useState("");
+  const [brokerageWithholdsHst, setBrokerageWithholdsHst] = useState(false);
 
   // Team context — detect if this user joined via team invite
   const [teamInfo, setTeamInfo] = useState<{ orgName: string; leaderName: string } | null>(null);
@@ -276,6 +277,7 @@ export default function OnboardingPage() {
           has_employees: hasEmployees,
           num_employees: hasEmployees ? parseInt(numEmployees) || 1 : 0,
           filing_frequency: filingFrequency,
+          brokerage_withholds_hst: brokerageWithholdsHst,
           preferred_language: language,
         })
         .eq("user_id", user.id);
@@ -738,6 +740,39 @@ export default function OnboardingPage() {
                   </div>
                   <p className="text-xs text-white/35">
                     How much business cash do you have on hand right now? Powers your Survival Runway calculation.
+                  </p>
+                </div>
+
+                {/* HST Withholding */}
+                <div className="grid gap-2">
+                  <Label className="text-white/80">Does your brokerage withhold HST from your commission cheques?</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setBrokerageWithholdsHst(false)}
+                      className={cn(
+                        "rounded-lg border py-2.5 text-sm font-medium transition-all",
+                        !brokerageWithholdsHst
+                          ? "border-primary bg-primary text-white shadow-md"
+                          : "border-white/20 bg-white/5 text-white/60 hover:border-white/40 hover:text-white",
+                      )}
+                    >
+                      No — I get the full amount
+                    </button>
+                    <button
+                      onClick={() => setBrokerageWithholdsHst(true)}
+                      className={cn(
+                        "rounded-lg border py-2.5 text-sm font-medium transition-all",
+                        brokerageWithholdsHst
+                          ? "border-primary bg-primary text-white shadow-md"
+                          : "border-white/20 bg-white/5 text-white/60 hover:border-white/40 hover:text-white",
+                      )}
+                    >
+                      Yes — they hold it for me
+                    </button>
+                  </div>
+                  <p className="text-xs text-white/35">
+                    Some brokerages withhold the HST portion and remit it to CRA on your behalf. This changes how we calculate your take-home pay and what you need to set aside.
+                    {brokerageWithholdsHst && " Nice — one less thing to worry about."}
                   </p>
                 </div>
               </div>
