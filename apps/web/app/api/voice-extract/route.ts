@@ -195,27 +195,27 @@ export async function POST(req: NextRequest) {
     // Basic shape validation
     const validIntents = ["new_client", "new_expense", "new_transaction", "note", "unknown"];
     if (!validIntents.includes(draft.intent)) {
-      return NextResponse.json({ error: "Malformed extraction response", raw }, { status: 422 });
+      return NextResponse.json({ error: "Malformed extraction response" }, { status: 422 });
     }
 
     // Intent-specific shape checks + defaults
     if (draft.intent === "new_client") {
       if (!draft.client) {
-        return NextResponse.json({ error: "Missing client object", raw }, { status: 422 });
+        return NextResponse.json({ error: "Missing client object" }, { status: 422 });
       }
       if (!Array.isArray(draft.client.tags)) draft.client.tags = [];
     }
 
     if (draft.intent === "new_expense" && !draft.expense) {
-      return NextResponse.json({ error: "Missing expense object", raw }, { status: 422 });
+      return NextResponse.json({ error: "Missing expense object" }, { status: 422 });
     }
 
     if (draft.intent === "new_transaction" && !draft.transaction) {
-      return NextResponse.json({ error: "Missing transaction object", raw }, { status: 422 });
+      return NextResponse.json({ error: "Missing transaction object" }, { status: 422 });
     }
 
     if (draft.intent === "note" && !draft.note) {
-      return NextResponse.json({ error: "Missing note object", raw }, { status: 422 });
+      return NextResponse.json({ error: "Missing note object" }, { status: 422 });
     }
 
     // Ensure missingFields is always an array

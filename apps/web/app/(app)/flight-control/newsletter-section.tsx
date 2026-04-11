@@ -546,10 +546,11 @@ function NewsletterReviewDrawer({
             <Button
               className="flex-1 gap-2 h-10 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white border-0 shadow-md shadow-violet-500/20"
               onClick={() => {
-                const to      = "";
                 const subject = encodeURIComponent(editSubject);
                 const body    = encodeURIComponent(editBody.slice(0, 1800));
-                window.open(`mailto:${to}?subject=${subject}&body=${body}`, "_blank");
+                // Newsletter is sent to your full client list — open Gmail compose with subject/body pre-filled.
+                // The recipient (BCC list) must be added manually in your email client.
+                window.open(`mailto:?subject=${subject}&body=${body}`, "_blank");
                 markAsSent();
               }}
               disabled={saving || isDraft}

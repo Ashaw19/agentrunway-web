@@ -857,6 +857,7 @@ function computeMonthlyPayment(
   annualPct: number,
   amortYears: number,
 ): number {
+  if (amortYears <= 0) return 0;
   const semiAnnualRate = annualPct / 100 / 2;
   const effectiveMonthly = Math.pow(1 + semiAnnualRate, 1 / 6) - 1;
   const n = amortYears * 12;
@@ -1849,6 +1850,8 @@ export function ClientsContent({
     "address", "sale_price", "commission_pct", "gci", "side", "status",
     "date", "source", "year", "notes", "property_type", "property_use",
     "team_split_pct", "gci_override",
+    "condition_status", "condition_date", "listing_url",
+    "bedrooms", "bathrooms", "square_feet", "lot_acres", "garage", "waterfront",
   ]);
 
   // Update a single field on a client_record (deal row) — no local state, DB write only
