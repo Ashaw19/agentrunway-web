@@ -253,9 +253,9 @@ export async function POST(req: NextRequest) {
 
       // ── Setup gap detection (post-onboarding) ──
       const setupGaps: string[] = [];
-      if (!settings.vehicle_use_pct || Number(settings.vehicle_use_pct) === 0)
+      if (!settings.vehicle_business_use_pct || Number(settings.vehicle_business_use_pct) === 0)
         setupGaps.push("Vehicle business-use % is at 0% — mileage deductions won't calculate");
-      if (!settings.home_office_pct || Number(settings.home_office_pct) === 0)
+      if (!settings.home_office_business_use_pct || Number(settings.home_office_business_use_pct) === 0)
         setupGaps.push("Home office % is not set — missing potential deduction");
       if (!settings.board_code)
         setupGaps.push("No real estate board selected — benchmarking is unavailable");
@@ -1240,7 +1240,7 @@ TOOL TRIGGER MAP — When the agent says something that matches a trigger, call 
 EXECUTION RULES:
 - ALWAYS search first (searchClients or searchPipelineDeals) before any action — never guess IDs
 - MULTI-STEP CHAINING: Chain multiple tools in sequence without asking between steps. Example: "New client John Smith, seller at 44 Main St for $449K" → searchClients → createClient → createPipelineDeal (pass clientId). Do it all, then report what you did.
-- CONFIRM-REQUIRED TOOLS: logExpense, logMileage, recordTransaction, recordReferral, deleteExpense, updateExpense, createRecurringExpense, deleteRecurringExpense, updatePipelineDealValue, addCCAAsset, deleteCCAAsset, updateTransaction, deleteTransaction, deleteMileage, deleteContactTask, deleteReferral, deleteListingAppointment, deletePropertyShowing — when confirmed is false, present the preview naturally ("I'm about to record... does that look right?"), then call again with confirmed: true after their "yes".
+- CONFIRM-REQUIRED TOOLS: logExpense, logMileage, recordTransaction, recordReferral, deleteExpense, updateExpense, createRecurringExpense, deleteRecurringExpense, updatePipelineDealValue, addCCAAsset, deleteCCAAsset, updateTransaction, deleteTransaction, deleteMileage, deleteContactTask, deleteContactActivity, deleteReferral, deleteListingAppointment, deletePropertyShowing — when confirmed is false, present the preview naturally ("I'm about to record... does that look right?"), then call again with confirmed: true after their "yes".
 - DESTRUCTIVE ACTIONS: archiveClient, removePipelineDeal, deleteExpense, deleteTransaction, deleteContactActivity, deleteRecurringExpense, deleteCCAAsset, deleteMileage, deleteReferral, deleteListingAppointment, deletePropertyShowing, deleteContactTask, manageFlightPlan (delete) — always confirm with the agent before executing.
 
 FOLLOW-UP INTELLIGENCE — After every action, be helpful about what's next:

@@ -1407,7 +1407,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
               client_name: clientName,
               property_address: propertyAddress ?? null,
               transaction_type: transactionType ?? "buy",
-              referral_fee_pct: feePct / 100,
+              referral_fee_pct: feePct,
               estimated_value: estimatedValue ?? null,
               status: "active",
               notes: notes ?? null,
@@ -1766,12 +1766,14 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DELETE CONTACT ACTIVITY ───────────────────────────────────────────────
     deleteContactActivity: tool({
-      description: "Delete a contact activity entry (e.g., duplicate or incorrect log). Use when the agent says 'remove that activity' or 'I logged that by mistake'.",
+      description: "Delete a contact activity entry (e.g., duplicate or incorrect log). Use when the agent says 'remove that activity' or 'I logged that by mistake'. Requires confirmation.",
       inputSchema: z.object({
         activityId: z.string().uuid().describe("The activity UUID"),
         activityDescription: z.string().describe("Brief description for confirmation"),
+        confirmed: z.boolean().default(false).describe("Must be true to delete"),
       }),
-      execute: async ({ activityId, activityDescription }) => {
+      execute: async ({ activityId, activityDescription, confirmed }) => {
+        if (!confirmed) return `PREVIEW — I'll permanently delete the activity: ${activityDescription}. Say "yes" to confirm.`;
         try {
           const { error } = await supabase
             .from("contact_activities")

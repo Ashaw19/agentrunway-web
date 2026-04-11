@@ -12,6 +12,12 @@ import { toast } from "sonner";
 interface Message {
   role: "user" | "assistant";
   content: string;
+  id: string;
+}
+
+let msgIdCounter = 0;
+function nextMsgId(): string {
+  return `msg-${++msgIdCounter}-${Date.now()}`;
 }
 
 // ── Action Card Parsing ──────────────────────────────────────────────────────
@@ -45,9 +51,9 @@ function parseMessageSegments(text: string): ParsedSegment[] {
 
   const flushActions = () => {
     if (currentActions.length > 0) {
-      // Extract a navigation link from the surrounding text if present
-      const allText = lines.join(" ");
-      const linkMatch = allText.match(/\*\*([^*]+)\*\*\s*\(\/([a-z-]+)\)/);
+      // Extract a navigation link from the actions + nearby text (not entire message)
+      const nearbyText = [...currentActions, ...currentText.slice(-3)].join(" ");
+      const linkMatch = nearbyText.match(/\*\*([^*]+)\*\*\s*\(\/([\w/.-]+)\)/);
       const link = linkMatch ? { label: linkMatch[1], href: `/${linkMatch[2]}` } : undefined;
 
       segments.push({
@@ -116,7 +122,7 @@ function parseMessageSegments(text: string): ParsedSegment[] {
  * Extract the first page link from text like **CRM** (/crm) or **Pipeline** (/pipeline)
  */
 function extractPageLink(text: string): { label: string; href: string } | null {
-  const match = text.match(/\*\*([^*]+)\*\*\s*\(\/([a-z-]+)\)/);
+  const match = text.match(/\*\*([^*]+)\*\*\s*\(\/([\w/.-]+)\)/);
   return match ? { label: match[1], href: `/${match[2]}` } : null;
 }
 
@@ -184,7 +190,7 @@ function extractFollowUpChips(text: string): string[] {
     }
   }
 
-  return chips.slice(0, 3);
+  return [...new Set(chips)].slice(0, 3);
 }
 
 type ConfidenceLevel = "high" | "medium" | "low";
@@ -227,7 +233,7 @@ function FormattedText({ text, onNavigate }: { text: string; onNavigate?: (href:
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const linkMatch = remaining.match(/\*\*([^*]+)\*\*\s*\(\/([a-z-]+)\)/);
+    const linkMatch = remaining.match(/\*\*([^*]+)\*\*\s*\(\/([\w/.-]+)\)/);
     const boldMatch = remaining.match(/\*\*([^*]+)\*\*/);
 
     if (linkMatch && (!boldMatch || remaining.indexOf(linkMatch[0]) <= remaining.indexOf(boldMatch[0]))) {
@@ -445,13 +451,14 @@ export function AiChat({ financialContext }: Props) {
   const [initialMessage] = useState<Message>({
     role: "assistant",
     content: buildInitialMessage(financialContext),
+    id: nextMsgId(),
   });
   const [messages, setMessages] = useState<Message[]>([initialMessage]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [unread, setUnread] = useState(0);
-  // Enhancement #2: Tracks which message index has been given feedback
-  const [feedbackGiven, setFeedbackGiven] = useState<Record<number, "positive" | "negative">>({});
+  // Enhancement #2: Tracks which message ID has been given feedback
+  const [feedbackGiven, setFeedbackGiven] = useState<Record<string, "positive" | "negative">>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasNudgedRef = useRef(false);
@@ -513,6 +520,7 @@ export function AiChat({ financialContext }: Props) {
         const nudgeMessage: Message = {
           role: "assistant",
           content: parts.join("\n\n") + "\n\nWhat do you want to dig into?",
+          id: nextMsgId(),
         };
 
         setMessages((prev) => [...prev, nudgeMessage]);
@@ -529,15 +537,17 @@ export function AiChat({ financialContext }: Props) {
       const trimmed = (overrideText ?? input).trim();
       if (!trimmed || loading) return;
 
-      const userMessage: Message = { role: "user", content: trimmed };
-      const newMessages = [...messages, userMessage];
-      setMessages(newMessages);
+      const userMessage: Message = { role: "user", content: trimmed, id: nextMsgId() };
+      const assistantId = nextMsgId();
       setInput("");
       setLoading(true);
 
-      // Add placeholder for streaming
-      const assistantPlaceholder: Message = { role: "assistant", content: "" };
-      setMessages([...newMessages, assistantPlaceholder]);
+      // Build newMessages from current state to avoid stale closure
+      let newMessages: Message[] = [];
+      setMessages((prev) => {
+        newMessages = [...prev, userMessage];
+        return [...newMessages, { role: "assistant", content: "", id: assistantId }];
+      });
 
       try {
         const res = await fetch("/api/chat", {
@@ -562,24 +572,26 @@ export function AiChat({ financialContext }: Props) {
         let assistantText = "";
 
         if (reader) {
-          let streamCompleted = false;
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) { streamCompleted = true; break; }
-            assistantText += decoder.decode(value, { stream: true });
-            const captured = assistantText;
-            setMessages([
-              ...newMessages,
-              { role: "assistant", content: captured },
-            ]);
-          }
-          // Warn if stream ended without completing (timeout, network drop)
-          if (!streamCompleted && assistantText.length > 0) {
-            assistantText += "\n\n_(Response may be incomplete — please try again.)_";
-            setMessages([
-              ...newMessages,
-              { role: "assistant", content: assistantText },
-            ]);
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              assistantText += decoder.decode(value, { stream: true });
+              const captured = assistantText;
+              setMessages((prev) => [
+                ...prev.slice(0, -1),
+                { role: "assistant", content: captured, id: assistantId },
+              ]);
+            }
+          } catch {
+            // Stream interrupted (network drop, timeout, abort)
+            if (assistantText.length > 0) {
+              assistantText += "\n\n_(Response may be incomplete — please try again.)_";
+              setMessages((prev) => [
+                ...prev.slice(0, -1),
+                { role: "assistant", content: assistantText, id: assistantId },
+              ]);
+            }
           }
         }
 
@@ -608,15 +620,15 @@ export function AiChat({ financialContext }: Props) {
           raw.includes("Too many") ? "You're sending messages too quickly. Please wait a moment." :
           raw.includes("not configured") ? "Co-Pilot is temporarily unavailable. Please try again shortly." :
           "Sorry, I couldn't connect right now. Try again in a moment.";
-        setMessages([
-          ...newMessages,
-          { role: "assistant", content: errMsg },
+        setMessages((prev) => [
+          ...prev.slice(0, -1),
+          { role: "assistant", content: errMsg, id: assistantId },
         ]);
       } finally {
         setLoading(false);
       }
     },
-    [input, loading, messages, financialContext, pathname, isOpen],
+    [input, loading, pathname, isOpen, router],
   );
 
   // Handle pending questions from ExplainButton / Guide
@@ -639,9 +651,9 @@ export function AiChat({ financialContext }: Props) {
 
   // Enhancement #2: Submit thumbs up/down feedback
   const handleFeedback = useCallback(
-    async (messageIndex: number, feedback: "positive" | "negative") => {
-      if (feedbackGiven[messageIndex]) return; // Already submitted
-      setFeedbackGiven((prev) => ({ ...prev, [messageIndex]: feedback }));
+    async (messageId: string, feedback: "positive" | "negative") => {
+      if (feedbackGiven[messageId]) return; // Already submitted
+      setFeedbackGiven((prev) => ({ ...prev, [messageId]: feedback }));
       try {
         await fetch("/api/chat/feedback", {
           method: "POST",
@@ -731,7 +743,7 @@ export function AiChat({ financialContext }: Props) {
           >
             {messages.map((msg, i) => (
               <div
-                key={i}
+                key={msg.id}
                 className={cn(
                   "flex items-start gap-2",
                   msg.role === "user" ? "flex-row-reverse" : "flex-row",
@@ -812,14 +824,14 @@ export function AiChat({ financialContext }: Props) {
                       )}
 
                       {/* Thumbs up/down feedback */}
-                      {feedbackGiven[i] ? (
+                      {feedbackGiven[msg.id] ? (
                         <span className="text-[10px] text-slate-600">
-                          {feedbackGiven[i] === "positive" ? "Thanks!" : "Noted — we'll improve"}
+                          {feedbackGiven[msg.id] === "positive" ? "Thanks!" : "Noted — we'll improve"}
                         </span>
                       ) : (
                         <>
                           <button
-                            onClick={() => handleFeedback(i, "positive")}
+                            onClick={() => handleFeedback(msg.id, "positive")}
                             className="rounded p-0.5 text-slate-600 transition-colors hover:text-emerald-400"
                             aria-label="Helpful"
                             title="Helpful"
@@ -827,7 +839,7 @@ export function AiChat({ financialContext }: Props) {
                             <ThumbsUp className="h-3 w-3" />
                           </button>
                           <button
-                            onClick={() => handleFeedback(i, "negative")}
+                            onClick={() => handleFeedback(msg.id, "negative")}
                             className="rounded p-0.5 text-slate-600 transition-colors hover:text-rose-400"
                             aria-label="Not helpful"
                             title="Not helpful"
