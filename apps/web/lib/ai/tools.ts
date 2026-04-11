@@ -14,15 +14,18 @@
  *   failure never crashes the stream
  *
  * Tool categories:
- *   Search (read-only)  — searchClients, searchPipelineDeals
- *   Create              — createClient, createPipelineDeal
+ *   Search (read-only)  — searchClients, searchPipelineDeals, searchContactTasks
+ *   Create              — createClient, createPipelineDeal, createContactTask
  *   Autonomous          — logContactActivity, updateClientStatus,
  *                         updateClientNotes, updateClientDetails,
- *                         updatePipelineDealStage, updatePipelineDealProbability,
- *                         updatePipelineDealCloseDate, updatePipelineDealDetails,
- *                         updateGCIGoal, archiveClient, unarchiveClient,
- *                         linkClientReferral, removePipelineDeal
- *   Confirm-required    — logExpense, recordTransaction, updatePipelineDealValue
+ *                         updateClientTags, updatePipelineDealStage,
+ *                         updatePipelineDealProbability, updatePipelineDealCloseDate,
+ *                         updatePipelineDealDetails, updateGCIGoal,
+ *                         updateUserSettings, archiveClient, unarchiveClient,
+ *                         linkClientReferral, removePipelineDeal,
+ *                         completeContactTask
+ *   Confirm-required    — logExpense, logMileage, recordTransaction,
+ *                         updatePipelineDealValue
  */
 
 import { tool, type ToolSet } from "ai";
@@ -174,7 +177,22 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (side) details.push(side);
           if (propertyInterest) details.push(`$${propertyInterest.toLocaleString()}`);
 
-          return `✓ New client created — ${name.trim()}${details.length ? ` (${details.join(", ")})` : ""}, status: ${status ?? "boarding"}. Client ID: ${data.id}`;
+          // Build follow-up: identify what important fields are still missing
+          const missing: string[] = [];
+          if (!email) missing.push("email");
+          if (!phone) missing.push("phone");
+          if (!city) missing.push("city");
+          if (!leadSource) missing.push("lead source");
+          if (!timeframe) missing.push("timeframe");
+          if (propertyInterest === undefined) missing.push(side === "seller" ? "listing price" : "budget");
+
+          let result = `✓ New client created — ${name.trim()}${details.length ? ` (${details.join(", ")})` : ""}, status: ${status ?? "boarding"}. Client ID: ${data.id}`;
+
+          if (missing.length > 0) {
+            result += `\n\nMISSING_FIELDS: ${missing.join(", ")}. Direct the agent to /crm to find ${name.trim()}'s profile and fill in the details.`;
+          }
+
+          return result;
         } catch {
           return "Failed to create client. Please try again.";
         }
@@ -224,7 +242,20 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (error) return `Failed to create pipeline deal: ${error.message}`;
 
           const gci = estimatedPrice * commissionDecimal;
-          return `✓ Pipeline deal created — ${address} (${clientName}, ${side} side), $${estimatedPrice.toLocaleString()} list price, ~$${gci.toLocaleString()} GCI, stage: ${stage ?? "lead"}. Deal ID: ${data.id}`;
+
+          // Build follow-up: identify what's missing
+          const missing: string[] = [];
+          if (!expectedCloseDate) missing.push("expected close date");
+          if (!clientId) missing.push("linked CRM client");
+          if (!notes) missing.push("deal notes");
+
+          let result = `✓ Pipeline deal created — ${address} (${clientName}, ${side} side), $${estimatedPrice.toLocaleString()} list price, ~$${gci.toLocaleString()} GCI, stage: ${stage ?? "lead"}. Deal ID: ${data.id}`;
+
+          if (missing.length > 0) {
+            result += `\n\nMISSING_FIELDS: ${missing.join(", ")}. Direct the agent to /pipeline to fill in remaining details.`;
+          }
+
+          return result;
         } catch {
           return "Failed to create pipeline deal. Please try again.";
         }
@@ -820,6 +851,228 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           return `✓ ${dealDescription} estimated price updated to $${estimatedPrice.toLocaleString()}.`;
         } catch {
           return "Failed to update pipeline deal value. Please try again.";
+        }
+      },
+    }),
+
+    // ── CREATE CONTACT TASK ─────────────────────────────────────────────────
+    createContactTask: tool({
+      description: "Create a follow-up task or reminder for a client. Use this when the agent says 'remind me to call X next week' or 'I need to follow up with X about Y'. Tasks appear in the CRM and can have a due date and priority.",
+      inputSchema: z.object({
+        clientId: z.string().uuid().describe("The client UUID from searchClients"),
+        clientName: z.string().describe("Client name for confirmation message"),
+        title: z.string().describe("Task title (e.g. 'Follow up on pre-approval', 'Send listing docs')"),
+        dueDate: z.string().describe("Due date in YYYY-MM-DD format"),
+        priority: z.enum(["low", "normal", "high"]).default("normal").describe("Task priority"),
+        notes: z.string().optional().describe("Additional task notes"),
+      }),
+      execute: async ({ clientId, clientName, title, dueDate, priority, notes }) => {
+        try {
+          const { error } = await supabase
+            .from("contact_tasks")
+            .insert({
+              user_id: userId,
+              client_id: clientId,
+              title,
+              due_date: dueDate,
+              priority: priority ?? "normal",
+              notes: notes ?? null,
+            });
+
+          if (error) return `Failed to create task: ${error.message}`;
+
+          const priorityLabel = priority === "high" ? " (⚡ high priority)" : priority === "low" ? " (low priority)" : "";
+          return `✓ Task created for ${clientName}: "${title}" — due ${dueDate}${priorityLabel}. You'll see this in their CRM profile at /crm.`;
+        } catch {
+          return "Failed to create task. Please try again.";
+        }
+      },
+    }),
+
+    // ── COMPLETE CONTACT TASK ────────────────────────────────────────────────
+    completeContactTask: tool({
+      description: "Mark a contact task as completed. Use when the agent says they've done something that matches an existing task, or explicitly asks to check off a task.",
+      inputSchema: z.object({
+        taskId: z.string().uuid().describe("The task UUID"),
+        taskTitle: z.string().describe("Task title for confirmation message"),
+      }),
+      execute: async ({ taskId, taskTitle }) => {
+        try {
+          const { error } = await supabase
+            .from("contact_tasks")
+            .update({ completed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+            .eq("id", taskId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to complete task: ${error.message}`;
+
+          return `✓ Task completed: "${taskTitle}".`;
+        } catch {
+          return "Failed to complete task. Please try again.";
+        }
+      },
+    }),
+
+    // ── SEARCH CONTACT TASKS ─────────────────────────────────────────────────
+    searchContactTasks: tool({
+      description: "Search for open tasks — optionally filtered by client. Use this to find task IDs before completing them, or to show the agent their upcoming to-dos.",
+      inputSchema: z.object({
+        clientId: z.string().uuid().optional().describe("Filter tasks for a specific client"),
+        includeCompleted: z.boolean().default(false).describe("Include completed tasks (default: only open)"),
+      }),
+      execute: async ({ clientId, includeCompleted }) => {
+        try {
+          let query = supabase
+            .from("contact_tasks")
+            .select("id, title, due_date, priority, notes, completed_at, client_id")
+            .eq("user_id", userId)
+            .order("due_date", { ascending: true })
+            .limit(10);
+
+          if (clientId) query = query.eq("client_id", clientId);
+          if (!includeCompleted) query = query.is("completed_at", null);
+
+          const { data, error } = await query;
+
+          if (error) return `Task search failed: ${error.message}`;
+          if (!data || data.length === 0) return clientId ? "No open tasks for this client." : "No open tasks found. Nice work!";
+
+          return data.map((t: { id: string; title: string; due_date: string; priority: string; notes: string | null; completed_at: string | null }) => {
+            const status = t.completed_at ? "✓ done" : `due ${t.due_date}`;
+            const pri = t.priority === "high" ? " ⚡" : "";
+            return `${t.title}${pri} — ${status} (ID: ${t.id})`;
+          }).join("\n");
+        } catch {
+          return "Task search temporarily unavailable.";
+        }
+      },
+    }),
+
+    // ── LOG MILEAGE ──────────────────────────────────────────────────────────
+    logMileage: tool({
+      description: "Log a business mileage trip for CRA vehicle expense deduction. The deduction is automatically calculated using the current CRA rate ($0.72/km for first 5,000km, $0.66/km after). Use this when the agent mentions driving to a showing, listing, or client meeting.",
+      inputSchema: z.object({
+        tripDate: z.string().describe("Trip date in YYYY-MM-DD format — defaults to today"),
+        km: z.number().positive().describe("Kilometres driven (one way or round trip — agent should specify)"),
+        description: z.string().describe("Trip purpose (e.g. 'Showing at 44 Main St', 'Client meeting with John Smith')"),
+        fromLocation: z.string().optional().describe("Starting point (e.g. 'Home office', '100 King St')"),
+        toLocation: z.string().optional().describe("Destination (e.g. '44 Main Street, Saint John')"),
+        confirmed: z.boolean().default(false).describe("Must be true to execute. When false, returns a preview."),
+      }),
+      execute: async ({ tripDate, km, description, fromLocation, toLocation, confirmed }) => {
+        const deduction = km * 0.72; // Simplified — engine handles 5K threshold
+
+        if (!confirmed) {
+          const route = fromLocation && toLocation ? ` (${fromLocation} → ${toLocation})` : "";
+          return `Ready to log: ${km} km${route} on ${tripDate} — "${description}". Estimated deduction: $${deduction.toFixed(2)}. Confirm to save.`;
+        }
+
+        try {
+          const { error } = await supabase
+            .from("mileage_logs")
+            .insert({
+              user_id: userId,
+              trip_date: tripDate,
+              km,
+              description,
+              from_location: fromLocation ?? null,
+              to_location: toLocation ?? null,
+              purpose: description,
+            });
+
+          if (error) return `Failed to log mileage: ${error.message}`;
+
+          return `✓ Mileage logged — ${km} km on ${tripDate} for "${description}". Estimated deduction: ~$${deduction.toFixed(2)}. View all trips at /expenses (Mileage tab).`;
+        } catch {
+          return "Failed to log mileage. Please try again.";
+        }
+      },
+    }),
+
+    // ── UPDATE CLIENT TAGS ───────────────────────────────────────────────────
+    updateClientTags: tool({
+      description: "Add or remove tags on a client's profile. Tags help organize clients (e.g. 'VIP', 'Investor', 'First-Time Buyer', 'Referral Source'). Use mode 'add' to add tags or 'remove' to remove them.",
+      inputSchema: z.object({
+        clientId: z.string().uuid().describe("The client UUID from searchClients"),
+        clientName: z.string().describe("Client name for confirmation message"),
+        tags: z.array(z.string()).describe("Array of tag strings to add or remove"),
+        mode: z.enum(["add", "remove"]).describe("'add' adds new tags, 'remove' removes specified tags"),
+      }),
+      execute: async ({ clientId, clientName, tags, mode }) => {
+        try {
+          // Fetch existing tags
+          const { data: existing } = await supabase
+            .from("clients")
+            .select("tags")
+            .eq("id", clientId)
+            .eq("user_id", userId)
+            .single();
+
+          const currentTags: string[] = existing?.tags ?? [];
+
+          let newTags: string[];
+          if (mode === "add") {
+            const tagSet = new Set([...currentTags, ...tags]);
+            newTags = Array.from(tagSet);
+          } else {
+            const removeSet = new Set(tags.map(t => t.toLowerCase()));
+            newTags = currentTags.filter(t => !removeSet.has(t.toLowerCase()));
+          }
+
+          const { error } = await supabase
+            .from("clients")
+            .update({ tags: newTags, updated_at: new Date().toISOString() })
+            .eq("id", clientId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to update tags: ${error.message}`;
+
+          const action = mode === "add" ? "added to" : "removed from";
+          return `✓ Tags ${action} ${clientName}: ${tags.join(", ")}. Current tags: ${newTags.length > 0 ? newTags.join(", ") : "none"}.`;
+        } catch {
+          return "Failed to update client tags. Please try again.";
+        }
+      },
+    }),
+
+    // ── UPDATE USER SETTINGS ─────────────────────────────────────────────────
+    updateUserSettings: tool({
+      description: "Update the agent's business settings. Use this when the agent mentions changing their commission split, province, brokerage, or other settings. Only pass the fields that need updating.",
+      inputSchema: z.object({
+        commissionSplit: z.enum(["p70_30", "p75_25", "p80_20", "p85_15", "p90_10", "p95_5", "p100_0"]).optional().describe("Commission split preset (e.g. p80_20 = 80% agent / 20% brokerage)"),
+        brokerageName: z.string().optional().describe("Brokerage/office name"),
+        province: z.enum(["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"]).optional().describe("Agent's province code"),
+        goalGCI: z.number().positive().optional().describe("Annual GCI goal in dollars"),
+        goalTransactions: z.number().positive().optional().describe("Annual transaction count goal"),
+        cashReserve: z.number().min(0).optional().describe("Manual cash reserve amount in dollars"),
+        monthlyBrokerageFee: z.number().min(0).optional().describe("Monthly desk/brokerage fee in dollars"),
+      }),
+      execute: async ({ commissionSplit, brokerageName, province, goalGCI, goalTransactions, cashReserve, monthlyBrokerageFee }) => {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+          const changed: string[] = [];
+
+          if (commissionSplit) { updates.split_preset = commissionSplit; changed.push(`commission split → ${commissionSplit.replace("p", "").replace("_", "/")}`); }
+          if (brokerageName) { updates.brokerage_name = brokerageName; changed.push(`brokerage → ${brokerageName}`); }
+          if (province) { updates.province = province; changed.push(`province → ${province}`); }
+          if (goalGCI !== undefined) { updates.goal_gci = goalGCI; changed.push(`GCI goal → $${goalGCI.toLocaleString()}`); }
+          if (goalTransactions !== undefined) { updates.goal_transactions = goalTransactions; changed.push(`transaction goal → ${goalTransactions}`); }
+          if (cashReserve !== undefined) { updates.cash_reserve = cashReserve; changed.push(`cash reserve → $${cashReserve.toLocaleString()}`); }
+          if (monthlyBrokerageFee !== undefined) { updates.monthly_brokerage_fee = monthlyBrokerageFee; changed.push(`brokerage fee → $${monthlyBrokerageFee.toLocaleString()}/mo`); }
+
+          if (changed.length === 0) return "No settings to update were provided.";
+
+          const { error } = await supabase
+            .from("user_settings")
+            .update(updates)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to update settings: ${error.message}`;
+
+          return `✓ Settings updated: ${changed.join(", ")}. Your dashboard and projections will reflect these changes on refresh.`;
+        } catch {
+          return "Failed to update settings. Please try again.";
         }
       },
     }),
