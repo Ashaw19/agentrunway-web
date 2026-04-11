@@ -2090,6 +2090,8 @@ export function ClientsContent({
   }, []);
 
   // Add a relationship between two clients
+  // For referrals: clientIdA = the referrer, clientIdB = the referred person (directional)
+  // For other types: IDs are alphabetically sorted (non-directional)
   const addRelationship = useCallback(
     async (clientIdA: string, clientIdB: string, type: RelationshipType) => {
       if (guardSandboxWrite(sandbox.sandboxMode)) return;
@@ -2097,8 +2099,12 @@ export function ClientsContent({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Enforce ordered constraint
-      const [a, b] = clientIdA < clientIdB ? [clientIdA, clientIdB] : [clientIdB, clientIdA];
+      // Referrals are directional: A referred B. Don't sort.
+      // Other relationships are non-directional: sort for dedup.
+      const isDirectional = type === "referrer";
+      const [a, b] = isDirectional
+        ? [clientIdA, clientIdB]
+        : clientIdA < clientIdB ? [clientIdA, clientIdB] : [clientIdB, clientIdA];
 
       const { data, error } = await supabase
         .from("client_relationships")
@@ -2115,6 +2121,25 @@ export function ClientsContent({
         setLocalRelationships((prev) => [...prev, data as ClientRelationship]);
       } else if (error) {
         toast.error("Failed to add relationship");
+      }
+    },
+    [],
+  );
+
+  // Remove a relationship
+  const removeRelationship = useCallback(
+    async (relId: string) => {
+      if (guardSandboxWrite(sandbox.sandboxMode)) return;
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("client_relationships")
+        .delete()
+        .eq("id", relId);
+
+      if (!error) {
+        setLocalRelationships((prev) => prev.filter((r) => r.id !== relId));
+      } else {
+        toast.error("Failed to remove relationship");
       }
     },
     [],
@@ -4125,13 +4150,13 @@ export function ClientsContent({
                       Relationships
                     </h3>
                     <div className="flex gap-1">
-                      {/* Quick referral button — pre-selects "referred" type */}
+                      {/* Quick referral button — "this client referred someone" */}
                       <Button
                         variant="outline"
                         size="sm"
                         className="gap-1 h-6 text-[10px] text-violet-400 border-violet-400/40 hover:border-violet-400/70 hover:text-violet-300"
                         onClick={() => {
-                          setLinkRelType("referred");
+                          setLinkRelType("referrer");
                           setLinkRelOpen(true);
                           setLinkRelSearch("");
                         }}
@@ -4157,9 +4182,14 @@ export function ClientsContent({
 
                   {linkRelOpen && (
                     <div className="rounded-xl border border-border/60 bg-muted/30 p-3 space-y-2">
+                      {linkRelType === "referrer" && (
+                        <p className="text-[10px] text-violet-500 font-medium leading-tight">
+                          Who did {selectedClient.name.split(" ")[0]} refer to you? Select them below.
+                        </p>
+                      )}
                       <Input
                         autoFocus
-                        placeholder="Search clients…"
+                        placeholder={linkRelType === "referrer" ? `Search for client ${selectedClient.name.split(" ")[0]} referred…` : "Search clients…"}
                         value={linkRelSearch}
                         onChange={(e) => setLinkRelSearch(e.target.value)}
                         className="h-7 text-xs"
@@ -4198,7 +4228,7 @@ export function ClientsContent({
                     <div className="py-2 text-center space-y-1">
                       <p className="text-xs text-muted-foreground">No linked clients.</p>
                       <p className="text-[10px] text-muted-foreground/60">
-                        Use <span className="font-medium text-violet-400">Referral</span> to track who referred this client,
+                        Use <span className="font-medium text-violet-400">Referral</span> to track who this client referred to you,
                         or <span className="font-medium">Link</span> for family connections.
                       </p>
                     </div>
@@ -4209,11 +4239,30 @@ export function ClientsContent({
                         const other = clientById.get(otherId);
                         if (!other) return null;
                         const isReferral = rel.relationship_type === "referred" || rel.relationship_type === "referrer";
+
+                        // Determine referral direction relative to the current client
+                        // "referrer" type: client_id_a referred client_id_b
+                        let referralLabel = "";
+                        if (isReferral) {
+                          const currentIsA = rel.client_id_a === selectedClient.id;
+                          if (rel.relationship_type === "referrer") {
+                            // A referred B
+                            referralLabel = currentIsA
+                              ? `Referred ${other.name.split(" ")[0]} to you`
+                              : `Referred to you by ${other.name.split(" ")[0]}`;
+                          } else {
+                            // Legacy "referred" type — A was referred by B (old logic)
+                            referralLabel = currentIsA
+                              ? `Referred by ${other.name.split(" ")[0]}`
+                              : `Referred ${other.name.split(" ")[0]}`;
+                          }
+                        }
+
                         return (
                           <div
                             key={rel.id}
                             className={cn(
-                              "flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer",
+                              "group flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-muted/30 transition-colors cursor-pointer",
                               isReferral && "bg-violet-500/5 hover:bg-violet-500/10",
                             )}
                             onClick={() => openDetailPanel(otherId)}
@@ -4230,19 +4279,25 @@ export function ClientsContent({
                               <span className="text-sm font-medium text-foreground truncate block">{other.name}</span>
                               {isReferral && (
                                 <span className="text-[10px] text-violet-400/80 leading-none">
-                                  {rel.relationship_type === "referred" ? "Referred this client" : "This client referred them"}
+                                  {referralLabel}
+                                </span>
+                              )}
+                              {!isReferral && (
+                                <span className="text-[10px] text-muted-foreground/60 leading-none">
+                                  {RELATIONSHIP_TYPE_LABELS[rel.relationship_type as RelationshipType] ?? rel.relationship_type}
                                 </span>
                               )}
                             </div>
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "text-[9px] py-0 shrink-0",
-                                isReferral && "border-violet-400/40 text-violet-400 bg-violet-500/10",
-                              )}
+                            <button
+                              className="opacity-0 group-hover:opacity-100 transition-opacity h-5 w-5 rounded-full flex items-center justify-center hover:bg-destructive/10 text-muted-foreground/40 hover:text-destructive shrink-0"
+                              title="Remove relationship"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeRelationship(rel.id);
+                              }}
                             >
-                              {RELATIONSHIP_TYPE_LABELS[rel.relationship_type as RelationshipType] ?? rel.relationship_type}
-                            </Badge>
+                              <X className="h-3 w-3" />
+                            </button>
                           </div>
                         );
                       })}
