@@ -536,7 +536,7 @@ function SummaryCard({
   return (
     <div
       className={cn(
-        "rounded-xl border border-border bg-card px-4 py-3",
+        "rounded-xl border border-border bg-card px-4 py-3 shadow-sm",
         primary && "lg:col-span-1",
       )}
     >

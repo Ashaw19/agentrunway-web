@@ -9,6 +9,7 @@
  */
 
 import type { Transaction } from "@/lib/types/database";
+import { fmtCurrency } from "@/lib/formatters";
 
 // ── Template families ─────────────────────────────────────────────────────────
 
@@ -274,12 +275,3 @@ export function buildCanvaInstructions(config: PostConfig): string {
   ].join("\n");
 }
 
-// ── Internal formatter (keeps engine self-contained) ─────────────────────────
-
-function fmtCurrency(n: number): string {
-  return new Intl.NumberFormat("en-CA", {
-    style:                 "currency",
-    currency:              "CAD",
-    maximumFractionDigits: 0,
-  }).format(n);
-}

@@ -152,7 +152,7 @@ export function ReportsContent({
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{orgName} — Team Reports</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{orgName} — Team Reports</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Summary reports for coaching and team health. No individual financial details are exposed.
         </p>
