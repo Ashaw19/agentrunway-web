@@ -207,7 +207,7 @@ function PersonalRecordsCard({
   if (records.length === 0) return null;
 
   return (
-    <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+    <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <Trophy className="h-4 w-4 text-brand-gold" />
@@ -312,7 +312,7 @@ function AltimeterBanner() {
   if (!visible) return null;
 
   return (
-    <div className="flex items-start justify-between gap-4 rounded-2xl border border-blue-300 bg-blue-600 px-5 py-4 text-white shadow-sm">
+    <div className="flex items-start justify-between gap-4 rounded-xl border border-blue-300 bg-blue-600 px-5 py-4 text-white shadow-sm">
       <div className="flex items-start gap-3">
         <BarChart2 className="h-5 w-5 shrink-0 mt-0.5 opacity-90" />
         <div>
@@ -516,7 +516,7 @@ export function AltimeterContent({
       <AltimeterBanner />
 
       {/* Monthly Performance chart */}
-      <Card className="rounded-2xl border-slate-200 shadow-sm">
+      <Card className="rounded-xl border-slate-200 shadow-sm">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div>
@@ -543,7 +543,7 @@ export function AltimeterContent({
       {(ytdDealCount > 0 || pipelineCount > 0) && (
         <div className="grid gap-4 sm:grid-cols-2">
           {ytdDealCount > 0 && (
-            <Card className="rounded-2xl border-slate-200 shadow-sm">
+            <Card className="rounded-xl border-slate-200 shadow-sm">
               <CardHeader className="pb-3">
                 <div className="flex items-center gap-1.5">
                   <CardTitle className="text-sm font-semibold">Commission Mix</CardTitle>
@@ -590,7 +590,7 @@ export function AltimeterContent({
           )}
 
           {pipelineCount > 0 && (
-            <Card className="rounded-2xl border-slate-200 shadow-sm">
+            <Card className="rounded-xl border-slate-200 shadow-sm">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
@@ -638,7 +638,7 @@ export function AltimeterContent({
 
       {/* Goal Progress */}
       {goalGCI > 0 && (
-        <Card className="rounded-2xl border-emerald-200 bg-white shadow-sm">
+        <Card className="rounded-xl border-emerald-200 bg-white shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Goal Progress</CardTitle>
             <CardDescription>
@@ -701,7 +701,7 @@ export function AltimeterContent({
             </div>
           </div>
           {insights.length > 1 && (
-            <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+            <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100">
@@ -724,7 +724,7 @@ export function AltimeterContent({
 
       {/* Market Momentum */}
       {marketMomentum && marketMomentum.momentumTier !== "no_data" && (
-        <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+        <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
           <CardHeader className="pb-2">
             <div className="flex items-center gap-1.5">
               <CardTitle className="text-base">Your Pace</CardTitle>
@@ -803,7 +803,7 @@ export function AltimeterContent({
           leading:     { bg: "bg-violet-50",  text: "text-violet-500",  active: "bg-violet-600 text-white" },
         };
         return (
-          <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+          <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
             <CardHeader className="pb-2">
               <div className="flex items-center gap-1.5">
                 <Compass className="h-4 w-4 text-slate-500" />
@@ -845,7 +845,7 @@ export function AltimeterContent({
       })()}
 
       {/* Benchmark */}
-      <Card className="rounded-2xl border-violet-200 bg-white shadow-sm">
+      <Card className="rounded-xl border-violet-200 bg-white shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-center gap-1.5">
             <CardTitle className="text-base">Benchmark</CardTitle>

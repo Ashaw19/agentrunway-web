@@ -535,7 +535,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
         <div className="space-y-4">
 
           {/* 1 ── Post Setup: month + deals ─────────────────────────────── */}
-          <Card className="rounded-2xl border-slate-200 shadow-sm">
+          <Card className="rounded-xl border-slate-200 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">1 — Post Setup</CardTitle>
             </CardHeader>
@@ -672,7 +672,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
           </Card>
 
           {/* 2 ── Template Style ─────────────────────────────────────────── */}
-          <Card className="rounded-2xl border-slate-200 shadow-sm">
+          <Card className="rounded-xl border-slate-200 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">2 — Template Style</CardTitle>
             </CardHeader>
@@ -698,7 +698,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
           </Card>
 
           {/* 3 ── Branding ───────────────────────────────────────────────── */}
-          <Card className="rounded-2xl border-slate-200 shadow-sm">
+          <Card className="rounded-xl border-slate-200 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">3 — Branding</CardTitle>
               <CardDescription className="text-xs">
@@ -808,7 +808,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
           </Card>
 
           {/* 4 ── Slide Options ───────────────────────────────────────────── */}
-          <Card className="rounded-2xl border-slate-200 shadow-sm">
+          <Card className="rounded-xl border-slate-200 shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">4 — Slide Options</CardTitle>
             </CardHeader>
@@ -842,7 +842,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
           </Card>
 
           {/* Connect accounts ────────────────────────────────────────────── */}
-          <Card className="rounded-2xl border-dashed border-slate-200 bg-slate-50/50">
+          <Card className="rounded-xl border-dashed border-slate-200 bg-slate-50/50">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <Link2 className="h-4 w-4" />
@@ -884,7 +884,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
         <div className="space-y-5">
 
           {/* Carousel preview ─────────────────────────────────────────────── */}
-          <Card className="rounded-2xl border-slate-200 shadow-sm">
+          <Card className="rounded-xl border-slate-200 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -1015,7 +1015,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
           </Card>
 
           {/* Caption ─────────────────────────────────────────────────────── */}
-          <Card className="rounded-2xl border-slate-200 shadow-sm">
+          <Card className="rounded-xl border-slate-200 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -1080,7 +1080,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
           </Card>
 
           {/* Quick Post ──────────────────────────────────────────────────── */}
-          <Card className="rounded-2xl border-blue-200 bg-blue-50/40 shadow-sm">
+          <Card className="rounded-xl border-blue-200 bg-blue-50/40 shadow-sm">
             <CardContent className="pt-5 space-y-4">
               <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Quick Post</div>
 
@@ -1153,7 +1153,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
           </Card>
 
           {/* Canva Export ────────────────────────────────────────────────── */}
-          <Card className="rounded-2xl border-violet-200 bg-violet-50/30 shadow-sm">
+          <Card className="rounded-xl border-violet-200 bg-violet-50/30 shadow-sm">
             <CardContent className="pt-5">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>

@@ -446,7 +446,7 @@ export function ForecastContent({
         <div className="grid gap-4 sm:grid-cols-2">
           {/* Break-even analysis */}
           {breakEvenDeals !== null && avgDealGCIForBreakEven > 0 && (
-            <Card className="rounded-2xl border-slate-200 shadow-sm">
+            <Card className="rounded-xl border-slate-200 shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Break-Even Analysis</CardTitle>
                 <CardDescription>How many deals you need to cover all costs</CardDescription>
@@ -486,7 +486,7 @@ export function ForecastContent({
           {/* Cap milestone */}
           {capConfigured && (
             <Card className={cn(
-              "rounded-2xl shadow-sm",
+              "rounded-xl shadow-sm",
               hasHitCap
                 ? "border border-emerald-200 bg-emerald-50/60"
                 : "border-slate-200",
@@ -524,7 +524,7 @@ export function ForecastContent({
       )}
 
       {/* Financial waterfall with tax */}
-      <Card className="rounded-2xl border-slate-200 shadow-sm">
+      <Card className="rounded-xl border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-1.5">
             Financial Waterfall
@@ -632,7 +632,7 @@ export function ForecastContent({
       </Card>
 
       {/* Tax details */}
-        <Card className="rounded-2xl border border-amber-200 bg-amber-50/50 shadow-sm">
+        <Card className="rounded-xl border border-amber-200 bg-amber-50/50 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-1.5">
               Tax Estimates
@@ -699,7 +699,7 @@ export function ForecastContent({
 
       {/* Tax Deduction Estimates */}
       {taxOptResult.cardCount > 0 && (
-        <Card className="rounded-2xl border border-amber-200 bg-amber-50/40 shadow-sm">
+        <Card className="rounded-xl border border-amber-200 bg-amber-50/40 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               💰 Tax Deduction Estimates
@@ -736,7 +736,7 @@ export function ForecastContent({
 
       {/* Compensation Optimizer — incorporated users only */}
       {corpTaxResult && (
-        <Card className="rounded-2xl border border-violet-200 bg-violet-50/40 shadow-sm">
+        <Card className="rounded-xl border border-violet-200 bg-violet-50/40 shadow-sm">
           <CardHeader>
             <div className="flex items-center gap-2">
               <Building2 className="h-4 w-4 text-violet-600" />
@@ -872,7 +872,7 @@ export function ForecastContent({
 
       {/* Goal gap analysis */}
       {goalGCI > 0 && (
-        <Card className="rounded-2xl border border-emerald-200 bg-emerald-50/50 shadow-sm">
+        <Card className="rounded-xl border border-emerald-200 bg-emerald-50/50 shadow-sm">
           <CardHeader>
             <CardTitle className="text-base">Goal Gap Analysis</CardTitle>
           </CardHeader>
@@ -906,7 +906,7 @@ export function ForecastContent({
       )}
 
       {/* Probability bands — chart + text summary */}
-      <Card className="rounded-2xl border border-blue-200 bg-blue-50/40 shadow-sm">
+      <Card className="rounded-xl border border-blue-200 bg-blue-50/40 shadow-sm">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-1.5">
             Projection Range
@@ -966,7 +966,7 @@ export function ForecastContent({
 
       {/* 5-Year growth plan with probability bands */}
       {yearBands.length > 0 && (
-          <Card className="rounded-2xl border border-violet-200 bg-violet-50/40 shadow-sm">
+          <Card className="rounded-xl border border-violet-200 bg-violet-50/40 shadow-sm">
             <CardHeader className="flex flex-row items-start justify-between">
               <div>
                 <CardTitle className="text-base">5-Year Growth Plan (Illustrative)</CardTitle>
@@ -1006,7 +1006,7 @@ export function ForecastContent({
 
       {/* Advisor cards */}
       {advisorCards.length > 0 && (
-          <Card className="rounded-2xl border border-indigo-200 bg-indigo-50/40 shadow-sm">
+          <Card className="rounded-xl border border-indigo-200 bg-indigo-50/40 shadow-sm">
             <CardHeader>
               <CardTitle className="text-base">Advisor</CardTitle>
               <CardDescription>

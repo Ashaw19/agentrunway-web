@@ -303,7 +303,7 @@ function TaxSavingsSection({
   const allDismissed = visibleCards.length === 0 && taxOptResult.cardCount > 0;
 
   return (
-    <Card className="rounded-2xl border-amber-200 bg-white shadow-sm">
+    <Card className="rounded-xl border-amber-200 bg-white shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
@@ -540,7 +540,7 @@ function OverheadBanner() {
   if (!visible) return null;
 
   return (
-    <div className="flex items-start justify-between gap-4 rounded-2xl border border-amber-300 bg-amber-600 px-5 py-4 text-white shadow-sm">
+    <div className="flex items-start justify-between gap-4 rounded-xl border border-amber-300 bg-amber-600 px-5 py-4 text-white shadow-sm">
       <div className="flex items-start gap-3">
         <Receipt className="h-5 w-5 shrink-0 mt-0.5 opacity-90" />
         <div>
@@ -848,7 +848,7 @@ export function OverheadContent({
         <div className="grid gap-4 sm:grid-cols-2">
           {/* Tax Readiness */}
           {taxResult && settings && (
-            <Card className="rounded-2xl border-amber-200 bg-white shadow-sm">
+            <Card className="rounded-xl border-amber-200 bg-white shadow-sm">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <div>
@@ -922,7 +922,7 @@ export function OverheadContent({
 
           {/* Net Take-Home */}
           {ytdGCI > 0 && settings && (
-            <Card className="rounded-2xl border-emerald-200 bg-white shadow-sm">
+            <Card className="rounded-xl border-emerald-200 bg-white shadow-sm">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-1.5">
@@ -977,7 +977,7 @@ export function OverheadContent({
 
       {/* Time Value */}
       {timeValue ? (
-        <Card className="rounded-2xl border-blue-200 bg-white shadow-sm">
+        <Card className="rounded-xl border-blue-200 bg-white shadow-sm">
           <CardHeader className="pb-2">
             <div className="flex items-center gap-1.5">
               <Clock className="h-4 w-4 text-blue-600" />
@@ -1016,7 +1016,7 @@ export function OverheadContent({
           </CardContent>
         </Card>
       ) : settings && weeklyHours <= 0 ? (
-        <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+        <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
           <CardHeader className="pb-2">
             <div className="flex items-center gap-1.5">
               <Clock className="h-4 w-4 text-slate-400" />
@@ -1037,7 +1037,7 @@ export function OverheadContent({
 
       {/* Cap Progress */}
       {capConfigured && (
-        <Card className="rounded-2xl border-violet-200 bg-white shadow-sm">
+        <Card className="rounded-xl border-violet-200 bg-white shadow-sm">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-1.5">
@@ -1090,7 +1090,7 @@ export function OverheadContent({
 
       {/* Corporate Tax Estimate */}
       {corpTaxResult && settings && (
-        <Card className="rounded-2xl border-violet-200 bg-white shadow-sm">
+        <Card className="rounded-xl border-violet-200 bg-white shadow-sm">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1163,7 +1163,7 @@ export function OverheadContent({
 
       {/* No data state */}
       {ytdGCI === 0 && !taxResult && !capConfigured && (
-        <Card className="rounded-2xl border-dashed border-amber-300 bg-amber-50/50">
+        <Card className="rounded-xl border-dashed border-amber-300 bg-amber-50/50">
           <CardContent className="p-6 text-center">
             <Receipt className="h-8 w-8 text-amber-400 mx-auto mb-3" />
             <p className="font-semibold text-slate-700">No tax data yet</p>

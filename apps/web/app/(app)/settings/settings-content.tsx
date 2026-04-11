@@ -796,7 +796,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
           onSave={saveVoiceProfile}
           existingProfile={communicationProfile}
         />
-        <Card className="rounded-2xl shadow-sm overflow-hidden" style={{ border: "1.5px solid transparent", backgroundImage: "linear-gradient(var(--card), var(--card)), linear-gradient(135deg, #7c3aed, #f59e0b)", backgroundOrigin: "border-box", backgroundClip: "padding-box, border-box" }}>
+        <Card className="rounded-xl shadow-sm overflow-hidden" style={{ border: "1.5px solid transparent", backgroundImage: "linear-gradient(var(--card), var(--card)), linear-gradient(135deg, #7c3aed, #f59e0b)", backgroundOrigin: "border-box", backgroundClip: "padding-box, border-box" }}>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -1116,7 +1116,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </div>
 
       {/* Card P — Profile Identity */}
-      <Card className="rounded-2xl border-l-4 border-l-teal-500 shadow-sm">
+      <Card className="rounded-xl border-l-4 border-l-teal-500 shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
             <User className="h-4 w-4 text-teal-500" />
@@ -1210,7 +1210,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </Card>
 
       {/* Card 1 — Province & Tax */}
-      <Card className="rounded-2xl border-l-4 border-l-blue-500 shadow-sm">
+      <Card className="rounded-xl border-l-4 border-l-blue-500 shadow-sm">
         <CardHeader>
           <CardTitle>Province &amp; Tax</CardTitle>
           <CardDescription>
@@ -1245,7 +1245,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </Card>
 
       {/* Card 1c — Local Market Board */}
-      <Card className="rounded-2xl border-l-4 border-l-cyan-500 shadow-sm">
+      <Card className="rounded-xl border-l-4 border-l-cyan-500 shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-cyan-500" />
@@ -1321,7 +1321,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </Card>
 
       {/* Card 1b — Business Structure */}
-      <Card className="rounded-2xl border-l-4 border-l-emerald-500 shadow-sm">
+      <Card className="rounded-xl border-l-4 border-l-emerald-500 shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Building2 className="h-4 w-4 text-emerald-500" />
@@ -1445,7 +1445,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </Card>
 
       {/* Card 2 — Commission Structure */}
-      <Card className="rounded-2xl border-l-4 border-l-violet-500 shadow-sm">
+      <Card className="rounded-xl border-l-4 border-l-violet-500 shadow-sm">
         <CardHeader>
           <CardTitle>Commission Structure</CardTitle>
           <CardDescription>
@@ -1480,7 +1480,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </Card>
 
       {/* Card PC — Post-Cap Split */}
-      <Card className="rounded-2xl border-l-4 border-l-violet-400 shadow-sm">
+      <Card className="rounded-xl border-l-4 border-l-violet-400 shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
             <TrendingDown className="h-4 w-4 text-violet-500" />
@@ -1543,7 +1543,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </Card>
 
       {/* Card 3 — Brokerage Fees */}
-      <Card className="rounded-2xl border-l-4 border-l-amber-500 shadow-sm">
+      <Card className="rounded-xl border-l-4 border-l-amber-500 shadow-sm">
         <CardHeader>
           <CardTitle>Brokerage Fees</CardTitle>
           <CardDescription>
@@ -1634,7 +1634,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </Card>
 
       {/* Card 4 — Runway Inputs */}
-      <Card className="rounded-2xl border-l-4 border-l-emerald-500 shadow-sm">
+      <Card className="rounded-xl border-l-4 border-l-emerald-500 shadow-sm">
         <CardHeader>
           <CardTitle>Runway Inputs</CardTitle>
           <CardDescription>
@@ -1712,7 +1712,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </Card>
 
       {/* Card 5 — Annual Goal */}
-      <Card className="rounded-2xl border-l-4 border-l-orange-500 shadow-sm">
+      <Card className="rounded-xl border-l-4 border-l-orange-500 shadow-sm">
         <CardHeader>
           <CardTitle>Annual Goal</CardTitle>
           <CardDescription>
@@ -1741,7 +1741,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </Card>
 
       {/* Card 6 — 5-Year Growth Plan */}
-      <Card id="growth-plan" className="rounded-2xl border-l-4 border-l-violet-500 shadow-sm">
+      <Card id="growth-plan" className="rounded-xl border-l-4 border-l-violet-500 shadow-sm">
         <CardHeader>
           <CardTitle>5-Year Growth Plan</CardTitle>
           <CardDescription>
@@ -1806,7 +1806,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </Card>
 
       {/* Card 7 — Claiming (Home Office & Vehicle) */}
-      <Card className="rounded-2xl border-l-4 border-l-blue-400 shadow-sm">
+      <Card className="rounded-xl border-l-4 border-l-blue-400 shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Home className="h-5 w-5 text-blue-500" />
@@ -1901,7 +1901,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </Card>
 
       {/* Card 7b — Tax Filing */}
-      <Card className="rounded-2xl border-l-4 border-l-emerald-400 shadow-sm">
+      <Card className="rounded-xl border-l-4 border-l-emerald-400 shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Receipt className="h-5 w-5 text-emerald-500" />
@@ -1981,7 +1981,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </Card>
 
       {/* Card 8 — Bank Connections */}
-      <Card className="rounded-2xl border-l-4 border-l-cyan-400 shadow-sm">
+      <Card className="rounded-xl border-l-4 border-l-cyan-400 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-2">
@@ -2120,7 +2120,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </Card>
 
       {/* Card — Google Integrations */}
-      <Card className="rounded-2xl border-l-4 border-l-rose-400 shadow-sm">
+      <Card className="rounded-xl border-l-4 border-l-rose-400 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-2">
@@ -2242,7 +2242,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </Card>
 
       {/* Card — Other Email Providers (Microsoft + SMTP) */}
-      <Card className="rounded-2xl border-l-4 border-l-violet-400 shadow-sm">
+      <Card className="rounded-xl border-l-4 border-l-violet-400 shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
             <Mail className="h-5 w-5 text-violet-500" />
@@ -2593,7 +2593,7 @@ function PlanBillingCard({ settings }: { settings: UserSettings }) {
   }
 
   return (
-    <Card className="rounded-2xl border-l-4 border-l-indigo-500 shadow-sm">
+    <Card className="rounded-xl border-l-4 border-l-indigo-500 shadow-sm">
       <CardHeader>
         <CardTitle>Plan &amp; Billing</CardTitle>
         <CardDescription>

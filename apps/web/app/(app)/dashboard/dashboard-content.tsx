@@ -1451,7 +1451,7 @@ export function DashboardContent({
   );
 
   cardRenders["net_takehome"] = (ytdGCI > 0 && settings) ? (
-    <Card className="rounded-2xl border-emerald-200 bg-white shadow-sm">
+    <Card className="rounded-xl border-emerald-200 bg-white shadow-sm">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-1.5">
@@ -1514,7 +1514,7 @@ export function DashboardContent({
   cardRenders["commission_mix"] = (ytdDealCount > 0 || pipelineCount > 0) ? (
     <div className="grid gap-4 sm:grid-cols-2">
       {ytdDealCount > 0 && (
-        <Card className="rounded-2xl border-slate-200 shadow-sm">
+        <Card className="rounded-xl border-slate-200 shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-1.5">
               <CardTitle className="text-sm font-semibold">Commission Mix</CardTitle>
@@ -1561,7 +1561,7 @@ export function DashboardContent({
       )}
 
       {pipelineCount > 0 && (
-        <Card className="rounded-2xl border-slate-200 shadow-sm">
+        <Card className="rounded-xl border-slate-200 shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
@@ -1608,7 +1608,7 @@ export function DashboardContent({
   ) : null;
 
   cardRenders["cap_progress"] = capConfigured ? (
-    <Card className="rounded-2xl border-violet-200 bg-white shadow-sm">
+    <Card className="rounded-xl border-violet-200 bg-white shadow-sm">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-1.5">
@@ -1656,7 +1656,7 @@ export function DashboardContent({
     const upcoming = localTasks.filter((t) => t.due_date > todayStr).slice(0, 3);
     const shown    = [...overdue, ...dueToday, ...upcoming].slice(0, 5);
     return (
-      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+      <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
@@ -1747,7 +1747,7 @@ export function DashboardContent({
         </div>
       </div>
       {insights.length > 1 && (
-        <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+        <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
           <CardHeader>
             <div className="flex items-center gap-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100">
@@ -1769,7 +1769,7 @@ export function DashboardContent({
   ) : null;
 
   cardRenders["trends"] = (
-    <Card className="rounded-2xl border-slate-200 shadow-sm">
+    <Card className="rounded-xl border-slate-200 shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
@@ -1788,7 +1788,7 @@ export function DashboardContent({
 
   cardRenders["probability"] = (
     <div className="grid gap-4 sm:grid-cols-2">
-      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+      <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-center gap-1.5">
             <CardTitle className="text-base">Projection Range</CardTitle>
@@ -1831,7 +1831,7 @@ export function DashboardContent({
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+      <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-center gap-1.5">
             <CardTitle className="text-base">Benchmark</CardTitle>
@@ -1877,7 +1877,7 @@ export function DashboardContent({
     return (
       <div className="grid gap-4 sm:grid-cols-2">
         {taxResult && (
-          <Card className="rounded-2xl border-amber-200 bg-white shadow-sm">
+          <Card className="rounded-xl border-amber-200 bg-white shadow-sm">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div>
@@ -1950,7 +1950,7 @@ export function DashboardContent({
         )}
 
         {goalGCI > 0 && (
-          <Card className="rounded-2xl border-emerald-200 bg-white shadow-sm">
+          <Card className="rounded-xl border-emerald-200 bg-white shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Goal Progress</CardTitle>
               <CardDescription>
@@ -1974,7 +1974,7 @@ export function DashboardContent({
   })();
 
   cardRenders["corp_tax"] = (corpTaxResult && settings) ? (
-    <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+    <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -2046,7 +2046,7 @@ export function DashboardContent({
   ) : null;
 
   cardRenders["tax_savings"] = (taxOptResult && taxOptResult.cardCount > 0) ? (
-    <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+    <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>
@@ -2083,7 +2083,7 @@ export function DashboardContent({
   ) : null;
 
   cardRenders["recent_activity"] = (
-    <Card className="rounded-2xl border-slate-200 shadow-sm">
+    <Card className="rounded-xl border-slate-200 shadow-sm">
       <CardHeader>
         <CardTitle className="text-base">Recent Transactions</CardTitle>
         <CardDescription>
@@ -2147,7 +2147,7 @@ export function DashboardContent({
       yearFractionElapsed: fraction,
     });
     return (
-      <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+      <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
         <CardHeader className="pb-2">
           <div className="flex items-center gap-1.5">
             <Clock className="h-4 w-4 text-blue-600" />
@@ -2187,7 +2187,7 @@ export function DashboardContent({
       </Card>
     );
   })() : settings && !weeklyHours ? (
-    <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+    <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
       <CardHeader className="pb-2">
         <div className="flex items-center gap-1.5">
           <Clock className="h-4 w-4 text-slate-400" />
@@ -2418,7 +2418,7 @@ export function DashboardContent({
       )}
 
       {/* Runway Score Hero — always first */}
-      <Card data-tour="dashboard-score" className="rounded-2xl border-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-lg overflow-hidden relative">
+      <Card data-tour="dashboard-score" className="rounded-xl border-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 shadow-lg overflow-hidden relative">
         {/* Subtle brand gradient accent at top */}
         <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: "linear-gradient(90deg, #F0A800 0%, #1E72F2 45%, #7C3AED 80%, #10B981 100%)" }} />
         <CardContent className="pt-5 pb-4">
@@ -2880,7 +2880,7 @@ function PersonalRecordsCard({
   if (records.length === 0) return null;
 
   return (
-    <Card className="rounded-2xl border-slate-200 bg-white shadow-sm">
+    <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <Trophy className="h-4 w-4 text-brand-gold" />
@@ -2940,7 +2940,7 @@ function BusinessHealthNarrativeCard({
 }) {
   const styles = STATUS_STYLES[narrative.status];
   return (
-    <Card className={cn("rounded-2xl border-l-4 bg-gradient-to-br shadow-sm", styles.border, styles.bg)}>
+    <Card className={cn("rounded-xl border-l-4 bg-gradient-to-br shadow-sm", styles.border, styles.bg)}>
       {/* Clickable header — always visible */}
       <CardHeader
         className="cursor-pointer pb-2 pt-4 select-none"
