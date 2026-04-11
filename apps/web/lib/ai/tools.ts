@@ -15,11 +15,13 @@
  *
  * Tool categories:
  *   Search (read-only)  — searchClients, searchPipelineDeals
+ *   Create              — createClient, createPipelineDeal
  *   Autonomous          — logContactActivity, updateClientStatus,
  *                         updateClientNotes, updateClientDetails,
  *                         updatePipelineDealStage, updatePipelineDealProbability,
- *                         updatePipelineDealCloseDate, updateGCIGoal,
- *                         archiveClient, linkClientReferral
+ *                         updatePipelineDealCloseDate, updatePipelineDealDetails,
+ *                         updateGCIGoal, archiveClient, unarchiveClient,
+ *                         linkClientReferral, removePipelineDeal
  *   Confirm-required    — logExpense, recordTransaction, updatePipelineDealValue
  */
 
@@ -96,6 +98,135 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           ).join("\n");
         } catch {
           return "Pipeline deal search temporarily unavailable.";
+        }
+      },
+    }),
+
+    // ── CREATE CLIENT ─────────────────────────────────────────────────────────
+    createClient: tool({
+      description: "Create a new client in the CRM. Use this when the agent mentions a new person they're working with who doesn't exist yet. Always searchClients first to avoid duplicates. Returns the new client's UUID so you can chain it into createPipelineDeal if needed.",
+      inputSchema: z.object({
+        name: z.string().describe("Full name of the client (e.g. 'John Smith')"),
+        email: z.string().optional().describe("Client email address"),
+        phone: z.string().optional().describe("Client phone number"),
+        city: z.string().optional().describe("Client city"),
+        status: z.enum(CLIENT_STATUSES).default("boarding").describe("Initial flight status — defaults to 'boarding' (active lead)"),
+        propertyInterest: z.number().optional().describe("Budget (buyer) or expected listing price (seller) in dollars"),
+        propertyInterestType: z.enum(["budget", "listing"]).optional().describe("Whether the amount is a buyer budget or seller listing price"),
+        side: z.enum(["buyer", "seller"]).optional().describe("Whether this client is a buyer or seller — helps set defaults"),
+        timeframe: z.enum(["asap", "1_3_months", "3_6_months", "6_12_months", "12_plus", "unknown"]).optional().describe("Buying/selling timeframe"),
+        notes: z.string().optional().describe("Any initial notes about the client"),
+        leadSource: z.enum(["referral", "sphere", "open_house", "online", "sign_call", "cold_call", "door_knock", "social_media", "repeat", "other"]).optional().describe("How this client came to the agent"),
+      }),
+      execute: async ({ name, email, phone, city, status, propertyInterest, propertyInterestType, side, timeframe, notes, leadSource }) => {
+        try {
+          const nameSearch = name.toLowerCase().trim();
+
+          // Check for duplicate
+          const { data: existing } = await supabase
+            .from("clients")
+            .select("id, name")
+            .eq("user_id", userId)
+            .eq("name_search", nameSearch)
+            .is("archived_at", null)
+            .limit(1);
+
+          if (existing && existing.length > 0) {
+            return `A client named "${existing[0].name}" already exists (ID: ${existing[0].id}). No new client created. Use their existing ID for any follow-up actions.`;
+          }
+
+          // Split name into first/last
+          const nameParts = name.trim().split(/\s+/);
+          const firstName = nameParts[0] ?? "";
+          const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+          // Build insert object
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const record: Record<string, any> = {
+            user_id: userId,
+            name: name.trim(),
+            name_search: nameSearch,
+            first_name: firstName,
+            last_name: lastName,
+            status: status ?? "boarding",
+          };
+
+          if (email) record.email = email;
+          if (phone) record.phone = phone;
+          if (city) record.city = city;
+          if (propertyInterest !== undefined) record.property_interest = propertyInterest;
+          if (propertyInterestType) record.property_interest_type = propertyInterestType;
+          else if (side === "seller") record.property_interest_type = "listing";
+          if (timeframe) record.timeframe = timeframe;
+          if (notes) record.notes = notes;
+          if (leadSource) record.lead_source = leadSource;
+
+          const { data, error } = await supabase
+            .from("clients")
+            .insert(record)
+            .select("id")
+            .single();
+
+          if (error) return `Failed to create client: ${error.message}`;
+
+          const details: string[] = [];
+          if (city) details.push(city);
+          if (side) details.push(side);
+          if (propertyInterest) details.push(`$${propertyInterest.toLocaleString()}`);
+
+          return `✓ New client created — ${name.trim()}${details.length ? ` (${details.join(", ")})` : ""}, status: ${status ?? "boarding"}. Client ID: ${data.id}`;
+        } catch {
+          return "Failed to create client. Please try again.";
+        }
+      },
+    }),
+
+    // ── CREATE PIPELINE DEAL ──────────────────────────────────────────────────
+    createPipelineDeal: tool({
+      description: "Create a new pipeline deal (active or prospective listing/purchase). Use this when the agent mentions a new property they're working on. If the client already exists, pass their clientId to link it. Always searchClients first if a client name is mentioned.",
+      inputSchema: z.object({
+        address: z.string().describe("Property address (e.g. '44 Main Street, Saint John')"),
+        clientName: z.string().describe("Client name associated with this deal"),
+        clientId: z.string().uuid().optional().describe("UUID of the linked CRM client (from searchClients or createClient). Pass this to link the deal to the client record."),
+        side: z.enum(TRANSACTION_SIDES).describe("Agent side: buyer, seller, or both"),
+        estimatedPrice: z.number().min(0).describe("Expected sale/list price in dollars"),
+        commissionPct: z.number().min(0).max(10).optional().describe("Commission rate as a percentage (e.g. 2.5 for 2.5%). Defaults to 2.5%"),
+        stage: z.enum(PIPELINE_STAGES).default("lead").describe("Initial pipeline stage — defaults to 'lead'"),
+        expectedCloseDate: z.string().optional().describe("Expected close date in YYYY-MM-DD format"),
+        notes: z.string().optional().describe("Any notes about this deal"),
+      }),
+      execute: async ({ address, clientName, clientId, side, estimatedPrice, commissionPct, stage, expectedCloseDate, notes }) => {
+        try {
+          const commissionDecimal = commissionPct ? commissionPct / 100 : 0.025;
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const record: Record<string, any> = {
+            user_id: userId,
+            address,
+            client_name: clientName,
+            side,
+            estimated_price: estimatedPrice,
+            estimated_commission_pct: commissionDecimal,
+            original_estimated_price: estimatedPrice,
+            stage: stage ?? "lead",
+            notes: notes ?? "",
+          };
+
+          if (clientId) record.client_id = clientId;
+          if (expectedCloseDate) record.expected_close_date = expectedCloseDate;
+
+          const { data, error } = await supabase
+            .from("pipeline_deals")
+            .insert(record)
+            .select("id")
+            .single();
+
+          if (error) return `Failed to create pipeline deal: ${error.message}`;
+
+          const gci = estimatedPrice * commissionDecimal;
+          return `✓ Pipeline deal created — ${address} (${clientName}, ${side} side), $${estimatedPrice.toLocaleString()} list price, ~$${gci.toLocaleString()} GCI, stage: ${stage ?? "lead"}. Deal ID: ${data.id}`;
+        } catch {
+          return "Failed to create pipeline deal. Please try again.";
         }
       },
     }),
@@ -519,6 +650,102 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           return `✓ Transaction recorded — ${address} (${clientName}, ${side}) closed ${closeDate}.${gciStr} Your YTD metrics will update on next page refresh.`;
         } catch {
           return "Failed to record transaction. Please try again.";
+        }
+      },
+    }),
+
+    // ── UNARCHIVE CLIENT ───────────────────────────────────────────────────────
+    unarchiveClient: tool({
+      description: "Restore an archived client back to active status. Use when the agent wants to bring someone back from the archive/Hangar.",
+      inputSchema: z.object({
+        clientId: z.string().uuid().describe("The client UUID"),
+        clientName: z.string().describe("Client name for confirmation message"),
+      }),
+      execute: async ({ clientId, clientName }) => {
+        try {
+          const { error } = await supabase
+            .from("clients")
+            .update({
+              archived_at: null,
+              archive_reason: null,
+              status: "cruising",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", clientId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to restore client: ${error.message}`;
+
+          return `✓ ${clientName} has been restored from the archive with status Cruising. You can update their status if needed.`;
+        } catch {
+          return "Failed to restore client. Please try again.";
+        }
+      },
+    }),
+
+    // ── REMOVE PIPELINE DEAL ─────────────────────────────────────────────────
+    removePipelineDeal: tool({
+      description: "Delete a pipeline deal that fell through or was entered by mistake. This permanently removes the deal. Always confirm with the agent before calling this tool.",
+      inputSchema: z.object({
+        dealId: z.string().uuid().describe("The deal UUID from searchPipelineDeals"),
+        dealDescription: z.string().describe("Brief description for confirmation (e.g. '44 Main St — John Smith')"),
+      }),
+      execute: async ({ dealId, dealDescription }) => {
+        try {
+          const { error } = await supabase
+            .from("pipeline_deals")
+            .delete()
+            .eq("id", dealId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to remove deal: ${error.message}`;
+
+          return `✓ Pipeline deal removed — ${dealDescription}. This will no longer appear in your pipeline or forecasts.`;
+        } catch {
+          return "Failed to remove pipeline deal. Please try again.";
+        }
+      },
+    }),
+
+    // ── UPDATE PIPELINE DEAL DETAILS ─────────────────────────────────────────
+    updatePipelineDealDetails: tool({
+      description: "Update multiple fields on a pipeline deal at once — address, client name, side, commission rate, or notes. Only pass the fields that need updating. For stage, probability, close date, or estimated price, use the dedicated tools instead.",
+      inputSchema: z.object({
+        dealId: z.string().uuid().describe("The deal UUID from searchPipelineDeals"),
+        dealDescription: z.string().describe("Brief deal description for confirmation"),
+        address: z.string().optional().describe("New property address"),
+        clientName: z.string().optional().describe("New client name"),
+        clientId: z.string().uuid().optional().describe("Link or relink to a CRM client by their UUID"),
+        side: z.enum(TRANSACTION_SIDES).optional().describe("New agent side: buyer, seller, or both"),
+        commissionPct: z.number().min(0).max(10).optional().describe("New commission rate as percentage (e.g. 2.5 for 2.5%)"),
+        notes: z.string().optional().describe("New deal notes (replaces existing)"),
+      }),
+      execute: async ({ dealId, dealDescription, ...fields }) => {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+          const changed: string[] = [];
+
+          if (fields.address !== undefined) { updates.address = fields.address; changed.push(`address → ${fields.address}`); }
+          if (fields.clientName !== undefined) { updates.client_name = fields.clientName; changed.push(`client → ${fields.clientName}`); }
+          if (fields.clientId !== undefined) { updates.client_id = fields.clientId; changed.push("linked to CRM client"); }
+          if (fields.side !== undefined) { updates.side = fields.side; changed.push(`side → ${fields.side}`); }
+          if (fields.commissionPct !== undefined) { updates.estimated_commission_pct = fields.commissionPct / 100; changed.push(`commission → ${fields.commissionPct}%`); }
+          if (fields.notes !== undefined) { updates.notes = fields.notes; changed.push("notes updated"); }
+
+          if (changed.length === 0) return "No fields to update were provided.";
+
+          const { error } = await supabase
+            .from("pipeline_deals")
+            .update(updates)
+            .eq("id", dealId)
+            .eq("user_id", userId);
+
+          if (error) return `Failed to update deal: ${error.message}`;
+
+          return `✓ ${dealDescription} updated: ${changed.join(", ")}.`;
+        } catch {
+          return "Failed to update pipeline deal. Please try again.";
         }
       },
     }),
