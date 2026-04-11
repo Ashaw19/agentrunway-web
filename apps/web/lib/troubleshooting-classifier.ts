@@ -8,31 +8,9 @@
  * Returns the top matching topic (or "general" if no strong match).
  */
 
-export type TroubleshootingTopic =
-  | "runway-score"
-  | "tax"
-  | "pipeline"
-  | "expenses"
-  | "forecast"
-  | "crm"
-  | "flight-control"
-  | "transactions"
-  | "settings"
-  | "survival"
-  | "benchmark"
-  | "social"
-  | "import"
-  | "voice"
-  | "onboarding"
-  | "teams"
-  | "referrals"
-  | "overhead"
-  | "altimeter"
-  | "scenarios"
-  | "mileage"
-  | "recurring-expenses"
-  | "bank-sync"
-  | "general";
+// Re-export from centralized types for backward compatibility
+export type { TroubleshootingTopic } from "@/lib/types/chat";
+import type { TroubleshootingTopic } from "@/lib/types/chat";
 
 interface TopicRule {
   topic: TroubleshootingTopic;

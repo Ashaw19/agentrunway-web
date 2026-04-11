@@ -121,7 +121,9 @@ export const SUBJECT_LINE_RULES = `SUBJECT LINE RULES (apply strictly):
 
 // ── Tone system ───────────────────────────────────────────────────────────────
 
-export type Tone = "casual" | "friendly" | "professional" | "formal";
+// Re-export from centralized types for backward compatibility
+export type { Tone } from "@/lib/types/outreach";
+import type { Tone } from "@/lib/types/outreach";
 
 export const TONE_INSTRUCTIONS: Record<Tone, string> = {
   casual: `TONE: Very casual, like texting a close friend. Use contractions freely, short sentences, maybe even humour. First names only. Think "buddy sending a quick note" — not an agent running a campaign. No formal greetings. Canadian casual: self-deprecating warmth is good, aggressive informality is not. Sentence fragments are fine. Even encouraged.`,
