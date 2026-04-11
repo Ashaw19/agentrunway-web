@@ -741,12 +741,13 @@ export function ExpensesContent({
     settings?.cash_reserve ?? 0,
   );
 
-  // ── Donut chart data — per-category effective YTD (receipts + recurring estimates) ──
+  // ── Donut chart data — per-category effective YTD (receipts + recurring estimates + recurring_expenses table) ──
   const donutData: DonutDataPoint[] = categories
-    .map((cat) => ({
-      name: cat.title,
-      value: cat.items.reduce((s, i) => s + effectiveYTD(i), 0),
-    }))
+    .map((cat) => {
+      const itemsYTD = cat.items.reduce((s, i) => s + effectiveYTD(i), 0);
+      const recurringYTD = (recurringByCatKey[cat.key] || []).reduce((s, re) => s + reYTDAmount(re), 0);
+      return { name: cat.title, value: itemsYTD + recurringYTD };
+    })
     .filter((d) => d.value > 0);
 
   // ── Helpers ───────────────────────────────────────────────────────────
