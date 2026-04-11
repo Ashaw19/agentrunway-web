@@ -44,6 +44,9 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
   // Register global shortcuts
   useAppShortcuts(openQuickAdd);
 
+  // When voice is actively recording/processing, show a simplified UI
+  const voiceBusy = voiceActive && voiceState !== "idle" && voiceState !== "error";
+
   // Dismiss overlays on Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -119,9 +122,6 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
   ];
 
   const rightOffset = hasAiChat ? "right-[4.5rem]" : "right-5";
-
-  // When voice is actively recording/processing, show a simplified UI
-  const voiceBusy = voiceActive && voiceState !== "idle" && voiceState !== "error";
 
   return (
     <>
