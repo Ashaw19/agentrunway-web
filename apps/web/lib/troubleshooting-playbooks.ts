@@ -215,13 +215,13 @@ Required when annual tax owing >$3,000 (>$1,800 in Quebec)
 | Stage | Probability | Meaning |
 |-------|------------|---------|
 | Lead | 10% | Initial contact, very early |
-| Showing | 20% | Actively showing properties |
-| Offer | 40% | Offer submitted |
-| Conditional | 60% | Accepted offer with conditions |
+| Showing | 25% | Actively showing properties |
+| Offer | 50% | Offer submitted |
+| Conditional | 75% | Accepted offer with conditions |
 | Firm | 90% | Conditions waived, closing expected |
 
 **Weighted GCI** = Estimated Price × Commission% × Stage Probability
-Example: $500K home × 2.5% commission × 60% (Conditional) = $7,500 weighted GCI
+Example: $500K home × 2.5% commission × 75% (Conditional) = $9,375 weighted GCI
 
 **Probability Override**: Users can override the default probability on any deal. If set, the override replaces the stage probability in all calculations.
 

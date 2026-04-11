@@ -31,7 +31,7 @@ Smart alerts use statistical anomaly detection (IQR method): expense spikes (cat
 **TRANSACTIONS**
 Three tabs:
 - Deals: Closed transactions with date, address, client link, sale price, commission %, GCI (auto-calculated or overridden), side (buyer/seller/both), status (closed/pending/fallen), team/referral split.
-- Pipeline: In-progress deals with stages (Lead 10%, Showing 20%, Offer 40%, Conditional 60%, Firm 90%), weighted GCI, convert-to-closed feature. Probability overrides replace stage default when set.
+- Pipeline: In-progress deals with stages (Lead 10%, Showing 25%, Offer 50%, Conditional 75%, Firm 90%), weighted GCI, convert-to-closed feature. Probability overrides replace stage default when set.
 - History: Annual summaries (year, GCI, deals, Q1–Q4 breakdown), YoY chart, seasonal profile, import from PDF/spreadsheet.
 
 **CRM**
@@ -213,7 +213,7 @@ Note: "Landed" is no longer a status — it's a celebration moment. After a deal
 
 ### PIPELINE STAGES & PROBABILITIES
 
-Lead (10%), Showing (20%), Offer (40%), Conditional (60%), Firm (90%).
+Lead (10%), Showing (25%), Offer (50%), Conditional (75%), Firm (90%).
 Users can override the default probability on any individual deal. Override replaces stage probability in all calculations.
 
 Additional sub-stages tracked: Listings — scheduled (15%), active (40%). Buyers — boarding (10%), in_flight (25%).
@@ -416,7 +416,7 @@ A: Expense Ratio = Total YTD Expenses ÷ YTD GCI. Under 25% is excellent, 25–3
 A: Cash Reserve ÷ Net Monthly Burn. Tells you how many months you could survive with zero new income. Under 2 months = critical, 2–4 = warning, 4–6 = healthy, 6+ = strong. Not configured if cash reserve is $0.
 
 **Q: How do pipeline stage probabilities work?**
-A: Lead 10%, Showing 20%, Offer 40%, Conditional 60%, Firm 90%. Weighted GCI = Deal Estimated GCI × Stage Probability. You can override the probability on any individual deal. This gives a probability-adjusted income forecast from your active pipeline.
+A: Lead 10%, Showing 25%, Offer 50%, Conditional 75%, Firm 90%. Weighted GCI = Deal Estimated GCI × Stage Probability. You can override the probability on any individual deal. This gives a probability-adjusted income forecast from your active pipeline.
 
 **Q: What's the difference between the Deals tab and Pipeline tab?**
 A: Deals are completed transactions (closed/pending/fallen). Pipeline deals are in-progress opportunities. When a pipeline deal closes, convert it to a closed deal to record the income.
