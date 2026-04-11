@@ -17,6 +17,9 @@ import {
   Sparkles,
   Users,
   Share2,
+  Layers,
+  BarChart2,
+  BookOpen,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -53,8 +56,20 @@ const mobileNavEntries: MobileNavEntry[] = [
     iconActive: "text-emerald-300", iconInactive: "text-emerald-400/70", borderActive: "border-l-emerald-400",
   },
   {
-    type: "item", label: "Expenses", href: "/expenses", icon: Receipt,
+    type: "item", label: "Pipeline", href: "/pipeline", icon: Layers,
     iconActive: "text-amber-300", iconInactive: "text-amber-400/70", borderActive: "border-l-amber-400",
+  },
+  {
+    type: "item", label: "Expenses", href: "/expenses", icon: Receipt,
+    iconActive: "text-orange-300", iconInactive: "text-orange-400/70", borderActive: "border-l-orange-400",
+  },
+  {
+    type: "item", label: "Altimeter", href: "/altimeter", icon: BarChart2,
+    iconActive: "text-cyan-300", iconInactive: "text-cyan-400/70", borderActive: "border-l-cyan-400",
+  },
+  {
+    type: "item", label: "Overhead", href: "/overhead", icon: Receipt,
+    iconActive: "text-red-300", iconInactive: "text-red-400/70", borderActive: "border-l-red-400",
   },
   {
     type: "item", label: "Forecast", href: "/forecast", icon: TrendingUp,
@@ -62,7 +77,7 @@ const mobileNavEntries: MobileNavEntry[] = [
   },
   {
     type: "item", label: "Reports", href: "/reports", icon: FileText,
-    iconActive: "text-slate-200", iconInactive: "text-slate-400/70", borderActive: "border-l-slate-400",
+    iconActive: "text-sky-300", iconInactive: "text-sky-400/70", borderActive: "border-l-sky-400",
   },
   // ── CRM ────────────────────────────────────────────────────────
   { type: "header", label: "CRM" },
@@ -70,11 +85,19 @@ const mobileNavEntries: MobileNavEntry[] = [
     type: "item", label: "CRM", href: "/crm", icon: Users,
     iconActive: "text-teal-300", iconInactive: "text-teal-400/70", borderActive: "border-l-teal-400",
   },
+  {
+    type: "item", label: "Flight Control", href: "/flight-control", icon: Sparkles,
+    iconActive: "text-fuchsia-300", iconInactive: "text-fuchsia-400/70", borderActive: "border-l-fuchsia-400",
+  },
   // ── TOOLS ──────────────────────────────────────────────────────
   { type: "header", label: "TOOLS" },
   {
     type: "item", label: "Social", href: "/social", icon: Share2,
     iconActive: "text-rose-300", iconInactive: "text-rose-400/70", borderActive: "border-l-rose-400",
+  },
+  {
+    type: "item", label: "Guide", href: "/guide", icon: BookOpen,
+    iconActive: "text-indigo-300", iconInactive: "text-indigo-400/70", borderActive: "border-l-indigo-400",
   },
   {
     type: "item", label: "Settings", href: "/settings", icon: Settings,

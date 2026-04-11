@@ -107,7 +107,7 @@ import {
   type FilingFrequency,
 } from "@/lib/types/database";
 import { getCurrentFilingPeriod, deadlineUrgency } from "@agent-runway/core/engines/filing-period-engine";
-import { gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
+import { gstHstLabel, gstHstRate } from "@agent-runway/core/engines/canadian-tax-engine";
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
@@ -122,6 +122,7 @@ import { computeWhereYouStand, BAND_LABELS, type PerformanceBand } from "@/lib/e
 import { computeMarketMomentum, type LocalMarketData } from "@/lib/crea-board";
 import type { BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { survivalResult, type SurvivalResult } from "@/lib/engines/survival-engine";
+import { computeCashPosition, type CashPositionResult } from "@/lib/engines/cash-position-engine";
 import { compute as computeRunwayScore, type BusinessHealthReport, type RunwayScoreResult } from "@/lib/engines/runway-score-engine";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { buildHealthReport } from "@/lib/engines/health-report";
@@ -612,16 +613,56 @@ export function DashboardContent({
   const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
   const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
 
-  // ── Survival ──────────────────────────────────────────────────────────
-  // Pipeline monthly estimate: use weighted pipeline GCI (already probability-adjusted
-  // by stage weights in computeWeightedGCI) divided by remaining months in year.
-  // No additional haircut needed — the stage weights ARE the confidence factor.
+  // ── Survival prep (pipeline monthly estimate) ──────────────────────────
   const remainingMonths = Math.max(1, 12 - Math.floor(fraction * 12));
   const pipelineMonthlyEst = fraction > 0 ? pipelineWeightedGCI / remainingMonths : 0;
+
+  // ── Tax estimate ──────────────────────────────────────────────────────
+  // Project full-year expenses: actual YTD + remaining months of recurring.
+  // Using expRemainingMonths avoids double-counting recurring costs already in expensesYTD.
+  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
+  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
+  const projectedNet = computeProjectedNet(projectedGCI, settings);
+  // Net self-employment income = gross-of-brokerage minus all business expenses
+  const netForTax = Math.max(0, projectedNet - annualExpenses);
+  // Per-deal set-aside is more useful against projected deal count, not just YTD
+  const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);
+  const taxResult = settings
+    ? calculateTax(netForTax, settings.province, Math.max(projectedDealCount, 1))
+    : null;
+
+  // ── Cash Position (implied from YTD data) ─────────────────────────────
+  // Computes what *should* be in the agent's business account based on
+  // income earned minus expenses, tax set-aside, and HST owing.
+  const hstRateValue = settings ? gstHstRate(settings.province) : 0;
+  const ytdHstCollected = settings?.gst_hst_registered ? ytdGCI * hstRateValue : 0;
+  const ytdHstOnExpenses = settings?.gst_hst_paid_on_expenses ? expensesYTD * (hstRateValue / (1 + hstRateValue)) : 0;
+  const cashPosition: CashPositionResult = computeCashPosition({
+    ytdGCI,
+    ytdAgentNet: (() => {
+      if (!settings) return ytdGCI;
+      const { agentGross } = computeAgentGross(
+        ytdGCI, settings.split_preset, settings.post_cap_threshold_gci,
+        settings.post_cap_agent_pct, settings.post_cap_brokerage_pct,
+      );
+      const txFees = computeTxFees(ytdGCI, settings.tx_fee_rate_pct, settings.tx_fee_annual_cap);
+      const brokerageFees = settings.monthly_brokerage_fee * (now.getMonth() + 1);
+      return Math.max(0, agentGross - txFees - brokerageFees);
+    })(),
+    ytdExpenses: expensesYTD,
+    ytdTaxSetAside: taxResult ? taxResult.totalBurden * Math.min(fraction, 1) : 0,
+    ytdHstCollected,
+    ytdHstOnExpenses,
+    brokerageWithholdsHst: settings?.brokerage_withholds_hst ?? false,
+    manualCashReserve: settings?.cash_reserve ?? 0,
+    fractionElapsed: fraction,
+  });
+
+  // ── Survival (final — uses implied cash position) ─────────────────────
   const survival = survivalResult(
     settings?.monthly_brokerage_fee ?? 0,
     monthlyRecurring,
-    settings?.cash_reserve ?? 0,
+    cashPosition.effectiveCash,
     pipelineMonthlyEst,
   );
 
@@ -676,20 +717,6 @@ export function DashboardContent({
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runwayScore.score]);
-
-  // ── Tax estimate ──────────────────────────────────────────────────────
-  // Project full-year expenses: actual YTD + remaining months of recurring.
-  // Using expRemainingMonths avoids double-counting recurring costs already in expensesYTD.
-  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
-  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
-  const projectedNet = computeProjectedNet(projectedGCI, settings);
-  // Net self-employment income = gross-of-brokerage minus all business expenses
-  const netForTax = Math.max(0, projectedNet - annualExpenses);
-  // Per-deal set-aside is more useful against projected deal count, not just YTD
-  const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);
-  const taxResult = settings
-    ? calculateTax(netForTax, settings.province, Math.max(projectedDealCount, 1))
-    : null;
 
   // ── Value-add metrics ─────────────────────────────────────────────────────
   // Marginal tax rate (combined federal + provincial at projected income level)
@@ -2457,14 +2484,25 @@ export function DashboardContent({
               <div className="bg-slate-800/50 px-4 py-3 text-center">
                 <div className="flex items-center justify-center gap-1">
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Cash Runway</p>
-                  <MetricInfo tip="How many months you could sustain current expenses using only your cash reserve, with zero new income." />
+                  <MetricInfo tip={cashPosition.source === "implied"
+                    ? `Based on your YTD income (${fmtCurrency(cashPosition.breakdown.ytdAgentNet)}) minus expenses (${fmtCurrency(cashPosition.breakdown.ytdExpenses)}), tax set-aside (${fmtCurrency(cashPosition.breakdown.ytdTaxSetAside)})${cashPosition.breakdown.ytdHstOwing > 0 ? `, HST owing (${fmtCurrency(cashPosition.breakdown.ytdHstOwing)})` : ""}${cashPosition.manualReserve > 0 ? ` + starting reserve (${fmtCurrency(cashPosition.manualReserve)})` : ""}. Effective cash: ${fmtCurrency(cashPosition.effectiveCash)}.`
+                    : "How many months you could sustain current expenses using only your cash reserve, with zero new income. Update your cash reserve in Settings."
+                  } />
                   <GuideLink anchor="cash-runway" label="Cash Runway explained in Guide" />
                   {isPro && <ExplainButton question="What is my current cash runway and how can I extend it?" />}
                 </div>
                 <p className={cn("text-2xl font-bold mt-1 leading-none", riskColors[survival.riskLevel])}>
                   {formatSurvivalDisplay(survival)}
                 </p>
-                <p className="text-[10px] text-slate-500 mt-1">cash coverage</p>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  {cashPosition.source === "implied" ? (
+                    <span title={`Implied: ${fmtCurrency(cashPosition.impliedPosition)}${cashPosition.manualReserve > 0 ? ` + Reserve: ${fmtCurrency(cashPosition.manualReserve)}` : ""}`}>
+                      est. {fmtCurrency(cashPosition.effectiveCash)} position
+                    </span>
+                  ) : (
+                    "cash coverage"
+                  )}
+                </p>
               </div>
               {/* Your Pace — agent vs average agent in board */}
               <div className="bg-slate-800/50 px-4 py-3 text-center">
