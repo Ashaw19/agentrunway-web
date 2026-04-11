@@ -312,9 +312,9 @@ export function ExpensesBankImportsTab({
 
       {/* Table */}
       {filteredTxs.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border py-12 text-center">
-          <CheckCircle2 className="mx-auto h-8 w-8 text-muted-foreground mb-3 opacity-40" />
-          <p className="text-sm text-muted-foreground">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 px-4 text-center">
+          <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+          <p className="text-sm font-medium text-muted-foreground max-w-md">
             {filterStatus === "pending"
               ? "No pending transactions — all caught up!"
               : "No transactions match the current filter."}

@@ -145,11 +145,10 @@ export function InboxContent({ forwardingAddress, emails }: InboxContentProps) {
       <Card>
         <CardContent className="p-0">
           {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
-              <InboxIcon className="h-10 w-10 text-muted-foreground/50" />
-              <p className="text-sm font-medium">No messages yet</p>
-              <p className="max-w-xs text-xs text-muted-foreground">
-                Once you set up Gmail forwarding to your inbound address,
+            <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+              <InboxIcon className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-muted-foreground max-w-md">
+                No messages yet. Once you set up Gmail forwarding to your inbound address,
                 client replies will land here automatically.
               </p>
             </div>

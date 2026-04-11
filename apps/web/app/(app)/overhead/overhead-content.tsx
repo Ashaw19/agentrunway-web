@@ -833,8 +833,11 @@ export function OverheadContent({
         <ScenariosContent seed={scenarioSeed} />
       )}
       {activeTab === "scenarios" && !scenarioSeed && (
-        <div className="text-center py-16 text-sm text-muted-foreground">
-          Scenario data could not be loaded. Please try refreshing the page.
+        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 px-4 text-center">
+          <SlidersHorizontal className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+          <p className="text-sm font-medium text-muted-foreground max-w-md">
+            Scenario data could not be loaded. Please try refreshing the page.
+          </p>
         </div>
       )}
 

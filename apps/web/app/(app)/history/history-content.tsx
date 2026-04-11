@@ -168,6 +168,7 @@ function ConfidenceDot({
 export function HistoryContent({ historyItems: initial, transactions, settingsSplit, settings }: Props) {
   const [items, setItems] = useState(initial);
   const sandbox = useSandboxMode();
+  const supabase = useMemo(() => createClient(), []);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [addYear, setAddYear] = useState(new Date().getFullYear() - 1);
@@ -274,7 +275,6 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
   async function toggleLock(item: HistoryItem) {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
-    const supabase = createClient();
     const { error } = await supabase
       .from("history_items")
       .update({ is_locked: !item.is_locked })
@@ -299,7 +299,6 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     const prev_gci = item.annual_gci;
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, annual_gci: num } : i));
     setSaving(`${item.id}-annual_gci`);
-    const supabase = createClient();
     const { error } = await supabase.from("history_items").update({ annual_gci: num }).eq("id", item.id);
     setSaving(null);
     if (error) {
@@ -314,7 +313,6 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     const prev_tx = item.annual_tx;
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, annual_tx: num } : i));
     setSaving(`${item.id}-annual_tx`);
-    const supabase = createClient();
     const { error } = await supabase.from("history_items").update({ annual_tx: num }).eq("id", item.id);
     setSaving(null);
     if (error) {
@@ -331,7 +329,6 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     newArr[qi] = num;
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, quarter_gci: newArr } : i));
     setSaving(`${item.id}-qgci-${qi}`);
-    const supabase = createClient();
     const { error } = await supabase.from("history_items").update({ quarter_gci: newArr }).eq("id", item.id);
     setSaving(null);
     if (error) {
@@ -348,7 +345,6 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     newArr[qi] = num;
     setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, quarter_tx: newArr } : i));
     setSaving(`${item.id}-qtx-${qi}`);
-    const supabase = createClient();
     const { error } = await supabase.from("history_items").update({ quarter_tx: newArr }).eq("id", item.id);
     setSaving(null);
     if (error) {
@@ -359,7 +355,6 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
   async function handleAddYear() {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -391,7 +386,6 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
   async function handleDeleteYear(item: HistoryItem) {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -723,10 +717,9 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             msg.includes("network") || msg.includes("fetch failed")   ? "network_error"     :
             msg.includes("token") || msg.includes("context length")   ? "context_exceeded"  :
                                                                         "unknown";
-          const sb = createClient();
-          const { data: { user: u } } = await sb.auth.getUser();
+          const { data: { user: u } } = await supabase.auth.getUser();
           if (!u) return;
-          await sb.from("import_telemetry").insert({
+          await supabase.from("import_telemetry").insert({
             user_id:        u.id,
             event_type:     "error",
             file_type:      fileType,
@@ -749,7 +742,6 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     }
     setImportStatus("saving");
 
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -973,7 +965,6 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     if (batchImportData.length === 0) return;
     setImportStatus("saving");
 
-    const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -2043,11 +2034,12 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
       {/* ── History year cards ────────────────────────────────────────────── */}
       {items.length === 0 ? (
-        <Card className="rounded-2xl border-slate-200 shadow-sm">
-          <CardContent className="py-12 text-center text-muted-foreground">
+        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 px-4 text-center">
+          <BarChart2 className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+          <p className="text-sm font-medium text-muted-foreground max-w-md">
             No history years yet. Add your first year to improve projections.
-          </CardContent>
-        </Card>
+          </p>
+        </div>
       ) : (
         <div className="space-y-3">
           {items.map((item, idx) => {

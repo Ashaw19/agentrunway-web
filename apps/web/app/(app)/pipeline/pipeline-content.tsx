@@ -323,8 +323,8 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
       <div className="rounded-xl border border-border bg-card">
         {sortedItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-            <Layers className="h-10 w-10 text-muted-foreground/40 mb-3" />
-            <p className="text-sm text-muted-foreground max-w-md">
+            <Layers className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+            <p className="text-sm font-medium text-muted-foreground max-w-md">
               No active pipeline items. Add deals in Transactions, listing
               appointments in CRM, or track buyers to see them here.
             </p>

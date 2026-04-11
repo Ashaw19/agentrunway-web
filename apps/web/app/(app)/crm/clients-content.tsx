@@ -166,7 +166,6 @@ import { toast } from "sonner";
 import { guardSandboxWrite } from "@/lib/sandbox-guard";
 import { useSandboxMode } from "@/lib/sandbox-mode-context";
 import { markMemoryStaleClient } from "@/lib/ai/mark-memory-stale";
-import * as XLSX from "xlsx";
 import { validateClient, validateEmail, validatePhone, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -2387,9 +2386,10 @@ export function ClientsContent({
       // Parse Excel with SheetJS
       const reader = new FileReader();
       reader.onerror = () => toast.error("Failed to read file. Please try again or use a different file.");
-      reader.onload = (ev) => {
+      reader.onload = async (ev) => {
         try {
           const data = new Uint8Array(ev.target?.result as ArrayBuffer);
+          const XLSX = await import("xlsx");
           const workbook = XLSX.read(data, { type: "array" });
           const sheetName = workbook.SheetNames[0];
           if (!sheetName) { toast.error("Spreadsheet has no sheets."); return; }
@@ -3314,11 +3314,12 @@ export function ClientsContent({
 
           {/* Client table */}
           {!hasAnyData ? (
-            <Card className="rounded-2xl border-slate-200 shadow-sm">
-              <CardContent className="py-12 text-center text-muted-foreground">
+            <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 px-4 text-center">
+              <Users className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-muted-foreground max-w-md">
                 No clients yet. Use the <strong>Import CSV</strong> button above to import contacts from your current CRM, or add clients manually from the Transactions page.
-              </CardContent>
-            </Card>
+              </p>
+            </div>
           ) : (
               <Card className="rounded-2xl shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
@@ -3570,9 +3571,9 @@ export function ClientsContent({
       {tab === "portfolio" && (
         <>
           {!valuationResult || valuationResult.valuations.length === 0 ? (
-            <div className="py-16 text-center">
-              <Briefcase className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
-              <p className="text-sm font-medium text-muted-foreground">
+            <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 px-4 text-center">
+              <Briefcase className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-muted-foreground max-w-md">
                 {!settings
                   ? "Complete onboarding to unlock portfolio valuations."
                   : "Import client records to see portfolio analysis."}

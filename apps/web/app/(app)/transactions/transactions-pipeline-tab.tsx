@@ -511,8 +511,11 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
       <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardContent className="p-0">
           {deals.length === 0 ? (
-            <div className="py-16 text-center text-sm text-muted-foreground">
-              Empty pipeline. Even Gretzky skated to where the puck was going. 🎯
+            <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+              <Layers className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-muted-foreground max-w-md">
+                Empty pipeline. Even Gretzky skated to where the puck was going.
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">

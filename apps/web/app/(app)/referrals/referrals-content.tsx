@@ -457,16 +457,14 @@ export function ReferralsContent({
 
       {/* Referral List */}
       {filtered.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center">
-            <Users className="mx-auto mb-3 h-10 w-10 text-slate-300" />
-            <p className="text-sm font-medium text-slate-500">
-              {referrals.length === 0
-                ? "No referrals yet. Add your first one!"
-                : "No referrals match your filters."}
-            </p>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-16 px-4 text-center">
+          <Users className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+          <p className="text-sm font-medium text-muted-foreground max-w-md">
+            {referrals.length === 0
+              ? "No referrals yet. Add your first one!"
+              : "No referrals match your filters."}
+          </p>
+        </div>
       ) : (
         <div className="space-y-3">
           {filtered.map((r) => {

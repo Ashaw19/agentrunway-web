@@ -565,12 +565,18 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
       <Card className="rounded-2xl border-slate-200 shadow-sm">
         <CardContent className="p-0">
           {transactions.length === 0 ? (
-            <div className="py-16 text-center text-sm text-muted-foreground">
-              No closed deals yet. Every top producer has a day one. 🚀
+            <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+              <Briefcase className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-muted-foreground max-w-md">
+                No closed deals yet. Every top producer has a day one.
+              </p>
             </div>
           ) : visibleTransactions.length === 0 ? (
-            <div className="py-16 text-center text-sm text-muted-foreground">
-              No {filter} deals in the books. Yet.
+            <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+              <Briefcase className="mx-auto mb-3 h-10 w-10 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-muted-foreground max-w-md">
+                No {filter} deals in the books. Yet.
+              </p>
             </div>
           ) : (
             <div className="overflow-x-auto">
