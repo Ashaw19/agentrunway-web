@@ -30,7 +30,7 @@ import {
 } from "./card-registry";
 import { CountUp } from "@/components/count-up";
 import { useConfetti } from "@/hooks/use-confetti";
-import { AnnualReview } from "@/components/annual-review";
+import dynamic from "next/dynamic";
 import {
   Card,
   CardContent,
@@ -90,7 +90,7 @@ import {
 import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import { MonthlyChart, type MonthlyDataPoint } from "@/components/monthly-chart";
+import type { MonthlyDataPoint } from "@/components/monthly-chart";
 import {
   computeGCI,
   computeWeightedGCI,
@@ -143,7 +143,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ExplainButton } from "@/components/explain-button";
-import { WelcomeTour } from "@/components/welcome-tour";
+const AnnualReview = dynamic(() => import("@/components/annual-review").then(m => m.AnnualReview), { ssr: false });
+const MonthlyChart = dynamic(() => import("@/components/monthly-chart").then(m => m.MonthlyChart), { ssr: false });
+const WelcomeTour = dynamic(() => import("@/components/welcome-tour").then(m => m.WelcomeTour), { ssr: false });
 import { GuideLink } from "@/components/guide-link";
 import { AiProfilePrompt } from "./ai-profile-prompt";
 import { ClosingDayPrompt } from "./closing-day-prompt";

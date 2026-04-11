@@ -14,18 +14,18 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
+import { authenticateRequest }       from "@/lib/api-helpers";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return new Response("Unauthorized", { status: 401 });
+  const auth = await authenticateRequest();
+  if (auth.error) return auth.error;
+  const { supabase, userId } = auth;
 
   // Check sandbox mode
-  const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();
+  const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", userId).single();
   if (sandboxCheck?.sandbox_mode === true) {
     return NextResponse.json({ error: "Action blocked in Sandbox Mode" }, { status: 403 });
   }
@@ -51,7 +51,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Newsletter not found" }, { status: 404 });
   }
 
-  if (existing.user_id !== user.id) {
+  if (existing.user_id !== userId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

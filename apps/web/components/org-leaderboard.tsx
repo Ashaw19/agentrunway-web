@@ -35,8 +35,10 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { fmtCurrency, fmtCompact } from "@/lib/formatters";
 import { cohortFromYears, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
-import { MonthlyChart } from "@/components/monthly-chart";
+import dynamic from "next/dynamic";
 import type { MonthlyDataPoint } from "@/components/monthly-chart";
+
+const MonthlyChart = dynamic(() => import("@/components/monthly-chart").then(m => m.MonthlyChart), { ssr: false });
 import type { OrgAgentPerformance, PaceStatus, LeaderboardSortKey } from "@/lib/types/organizations";
 import { ORG_MEMBER_ROLE_LABELS } from "@/lib/types/organizations";
 

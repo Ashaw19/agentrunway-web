@@ -35,7 +35,10 @@ import {
 import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
-import { MonthlyChart, type MonthlyDataPoint } from "@/components/monthly-chart";
+import dynamic from "next/dynamic";
+import type { MonthlyDataPoint } from "@/components/monthly-chart";
+
+const MonthlyChart = dynamic(() => import("@/components/monthly-chart").then(m => m.MonthlyChart), { ssr: false });
 import {
   computeGCI,
   computeWeightedGCI,

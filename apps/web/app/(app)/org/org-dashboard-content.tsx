@@ -27,8 +27,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { OrgProductionChart } from "@/components/org-production-chart";
-import { OrgCohortChart } from "@/components/org-cohort-chart";
+import dynamic from "next/dynamic";
+
+const OrgProductionChart = dynamic(() => import("@/components/org-production-chart").then(m => m.OrgProductionChart), { ssr: false });
+const OrgCohortChart = dynamic(() => import("@/components/org-cohort-chart").then(m => m.OrgCohortChart), { ssr: false });
 import { OrgLeaderboard } from "@/components/org-leaderboard";
 import type {
   Organization,

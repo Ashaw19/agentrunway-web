@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { FLIGHT_PLAN_DEFAULTS } from "@/lib/flight-plan-defaults";
+import { authenticateRequest, apiError } from "@/lib/api-helpers";
 
 export async function POST() {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await authenticateRequest();
+    if (auth.error) return auth.error;
+    const { supabase, userId } = auth;
 
-    const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();
+    const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", userId).single();
     if (sandboxCheck?.sandbox_mode === true) {
       return NextResponse.json({ error: "Action blocked in Sandbox Mode" }, { status: 403 });
     }
@@ -17,7 +17,7 @@ export async function POST() {
     const { data: existing } = await supabase
       .from("flight_plans")
       .select("system_key")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .not("system_key", "is", null);
 
     const existingKeys = new Set((existing ?? []).map((r) => r.system_key as string));
@@ -35,7 +35,7 @@ export async function POST() {
       const { data: plan, error: planError } = await supabase
         .from("flight_plans")
         .insert({
-          user_id:        user.id,
+          user_id:        userId,
           name:           def.name,
           description:    def.description,
           trigger_status: def.trigger_status,

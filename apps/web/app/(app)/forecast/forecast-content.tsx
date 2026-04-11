@@ -43,7 +43,10 @@ import { survivalResult } from "@/lib/engines/survival-engine";
 import { compare } from "@/lib/engines/benchmark-engine";
 import { generateAdvisory, type AdvisorCard } from "@/lib/engines/advisor-engine";
 import { generateTaxOptimizations, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
-import { ProbabilityChart, type ProbabilityDataPoint } from "@/components/probability-chart";
+import dynamic from "next/dynamic";
+import type { ProbabilityDataPoint } from "@/components/probability-chart";
+
+const ProbabilityChart = dynamic(() => import("@/components/probability-chart").then(m => m.ProbabilityChart), { ssr: false });
 import Link from "next/link";
 import { Settings, CalendarCheck, Building2, TrendingDown, TrendingUp, AlertTriangle } from "lucide-react";
 import * as LucideIcons from "lucide-react";

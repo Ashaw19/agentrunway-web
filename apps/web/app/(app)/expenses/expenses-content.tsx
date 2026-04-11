@@ -36,10 +36,13 @@ interface PriorYearRow {
 }
 import { survivalResult } from "@/lib/engines/survival-engine";
 import { EXPENSE_KEY_TO_T2125 } from "@/lib/engines/t2125-engine";
-import { ExpenseDonut, type DonutDataPoint } from "@/components/expense-donut";
+import dynamic from "next/dynamic";
+import type { DonutDataPoint } from "@/components/expense-donut";
 import { cn } from "@/lib/utils";
-import { ReceiptCaptureDialog }     from "@/components/receipt-capture-dialog";
-import { ReceiptViewEditDialog }    from "@/components/receipt-view-edit-dialog";
+
+const ExpenseDonut = dynamic(() => import("@/components/expense-donut").then(m => m.ExpenseDonut), { ssr: false });
+const ReceiptCaptureDialog = dynamic(() => import("@/components/receipt-capture-dialog").then(m => m.ReceiptCaptureDialog), { ssr: false });
+const ReceiptViewEditDialog = dynamic(() => import("@/components/receipt-view-edit-dialog").then(m => m.ReceiptViewEditDialog), { ssr: false });
 import { ExpenseExportPdf }         from "@/components/pdf/expense-export-pdf";
 import {
   RECEIPT_CATEGORIES,

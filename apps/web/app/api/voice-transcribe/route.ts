@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { requirePro } from "@/lib/require-pro";
+import { authenticateRequest, apiError } from "@/lib/api-helpers";
 
 // NOTE: Groq Whisper audio transcription uses the OpenAI-compatible REST API,
 // NOT the Vercel AI SDK (which has no audio transcription support).
@@ -10,15 +10,15 @@ import { requirePro } from "@/lib/require-pro";
 
 export async function POST(req: NextRequest) {
   // ── Auth guard ────────────────────────────────────────────────────────────
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await authenticateRequest();
+  if (auth.error) return auth.error;
+  const { supabase, userId } = auth;
 
-  const proCheck = await requirePro(supabase, user.id);
+  const proCheck = await requirePro(supabase, userId);
   if (!proCheck.allowed) return proCheck.response!;
 
   // ── Rate limit: 20 voice transcriptions per 60-minute window ─────────────
-  const rl = await checkRateLimit(user.id, "voice-transcribe", 20, 60);
+  const rl = await checkRateLimit(userId, "voice-transcribe", 20, 60);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Too many voice requests. Please wait before trying again." },

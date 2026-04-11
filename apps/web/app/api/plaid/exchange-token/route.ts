@@ -9,9 +9,9 @@
  */
 import { NextRequest, NextResponse }                        from "next/server";
 import { Configuration, PlaidApi, PlaidEnvironments }       from "plaid";
-import { createClient }                                     from "@/lib/supabase/server";
 import { createAdminClient }                                from "@/lib/supabase/admin";
 import { requirePro }                                       from "@/lib/require-pro";
+import { authenticateRequest, apiError }                    from "@/lib/api-helpers";
 
 function buildPlaidClient() {
   const env    = (process.env.PLAID_ENV ?? "sandbox") as keyof typeof PlaidEnvironments;
@@ -34,17 +34,15 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 2. Authenticate ───────────────────────────────────────────────────────
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await authenticateRequest();
+  if (auth.error) return auth.error;
+  const { supabase, userId } = auth;
 
-  const proCheck = await requirePro(supabase, user.id);
+  const proCheck = await requirePro(supabase, userId);
   if (!proCheck.allowed) return proCheck.response!;
 
   // ── Sandbox guard ────────────────────────────────────────────────────────
-  const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();
+  const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", userId).single();
   if (sandboxCheck?.sandbox_mode === true) {
     return NextResponse.json({ error: "Action blocked in Sandbox Mode" }, { status: 403 });
   }
@@ -78,7 +76,7 @@ export async function POST(req: NextRequest) {
       .from("plaid_items")
       .upsert(
         {
-          user_id:          user.id,
+          user_id:          userId,
           plaid_item_id,
           access_token,
           institution_id,

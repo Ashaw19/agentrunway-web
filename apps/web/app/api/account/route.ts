@@ -21,8 +21,8 @@
 
 import { NextResponse }                                   from "next/server";
 import { Configuration, PlaidApi, PlaidEnvironments }    from "plaid";
-import { createClient }                                  from "@/lib/supabase/server";
 import { createAdminClient }                             from "@/lib/supabase/admin";
+import { authenticateRequest }                           from "@/lib/api-helpers";
 
 function buildPlaidClient() {
   const env = (process.env.PLAID_ENV ?? "sandbox") as keyof typeof PlaidEnvironments;
@@ -40,17 +40,15 @@ function buildPlaidClient() {
 
 export async function DELETE() {
   // ── 1. Authenticate ────────────────────────────────────────────────────────
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await authenticateRequest();
+  if (auth.error) return auth.error;
+  const { supabase, userId } = auth;
 
   // ── Block in sandbox mode — never delete a real account from sandbox ───────
   const { data: sbCheck } = await supabase
     .from("user_settings")
     .select("sandbox_mode")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .single();
   if (sbCheck?.sandbox_mode === true) {
     return NextResponse.json(
@@ -66,7 +64,7 @@ export async function DELETE() {
   const { data: items } = await admin
     .from("plaid_items")
     .select("id, plaid_item_id, access_token")
-    .eq("user_id", user.id);
+    .eq("user_id", userId);
 
   // ── 3. Revoke ALL Plaid access tokens before deleting the user ────────────
   if (items && items.length > 0 && process.env.PLAID_CLIENT_ID &&
@@ -87,7 +85,7 @@ export async function DELETE() {
   }
 
   // ── 4. Delete the user (cascades to all application data) ─────────────────
-  const { error: deleteError } = await admin.auth.admin.deleteUser(user.id);
+  const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
   if (deleteError) {
     console.error("[account/delete] Failed to delete user:", deleteError.message);
     return NextResponse.json({ error: "Failed to delete account" }, { status: 500 });

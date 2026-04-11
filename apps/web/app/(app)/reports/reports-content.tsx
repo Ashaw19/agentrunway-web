@@ -54,11 +54,17 @@ import {
   type ExpenseCategoryWithItems,
   type HistoryItem,
 } from "@/lib/types/database";
-import { ProductionReportDialog } from "@/components/production-report-dialog";
-import { YearOverYearChart, type YoYDataPoint } from "@/components/year-over-year-chart";
-import { ProbabilityChart, type ProbabilityDataPoint } from "@/components/probability-chart";
-import { ExpenseDonut, type DonutDataPoint } from "@/components/expense-donut";
-import { MonthlyChart, type MonthlyDataPoint } from "@/components/monthly-chart";
+import dynamic from "next/dynamic";
+import type { YoYDataPoint } from "@/components/year-over-year-chart";
+import type { ProbabilityDataPoint } from "@/components/probability-chart";
+import type { DonutDataPoint } from "@/components/expense-donut";
+import type { MonthlyDataPoint } from "@/components/monthly-chart";
+
+const ProductionReportDialog = dynamic(() => import("@/components/production-report-dialog").then(m => m.ProductionReportDialog), { ssr: false });
+const YearOverYearChart = dynamic(() => import("@/components/year-over-year-chart").then(m => m.YearOverYearChart), { ssr: false });
+const ProbabilityChart = dynamic(() => import("@/components/probability-chart").then(m => m.ProbabilityChart), { ssr: false });
+const ExpenseDonut = dynamic(() => import("@/components/expense-donut").then(m => m.ExpenseDonut), { ssr: false });
+const MonthlyChart = dynamic(() => import("@/components/monthly-chart").then(m => m.MonthlyChart), { ssr: false });
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,

@@ -43,8 +43,11 @@ import { cn } from "@/lib/utils";
 import type { ImportResult, ExtractedDeal } from "@/app/api/import-history/route";
 import type { ExtractionQuality } from "@/lib/import/types";
 import { applyValidation } from "@/lib/import/validation/validate-transactions";
-import { ProductionReportDialog } from "@/components/production-report-dialog";
-import { YearOverYearChart, type YoYDataPoint } from "@/components/year-over-year-chart";
+import dynamic from "next/dynamic";
+import type { YoYDataPoint } from "@/components/year-over-year-chart";
+
+const ProductionReportDialog = dynamic(() => import("@/components/production-report-dialog").then(m => m.ProductionReportDialog), { ssr: false });
+const YearOverYearChart = dynamic(() => import("@/components/year-over-year-chart").then(m => m.YearOverYearChart), { ssr: false });
 import { Download } from "lucide-react";
 import { guardSandboxWrite } from "@/lib/sandbox-guard";
 import { useSandboxMode } from "@/lib/sandbox-mode-context";

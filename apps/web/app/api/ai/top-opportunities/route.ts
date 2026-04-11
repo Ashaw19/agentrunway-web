@@ -7,22 +7,19 @@
  */
 
 import { NextResponse }  from "next/server";
-import { createClient }   from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { getTopOpportunities } from "@/app/api/ai/detect-opportunities/route";
+import { authenticateRequest } from "@/lib/api-helpers";
 
 export const maxDuration = 30;
 
 export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return new Response("Unauthorized", { status: 401 });
-  }
+  const auth = await authenticateRequest();
+  if (auth.error) return auth.error;
+  const { supabase, userId } = auth;
 
   // Rate limit: 20 reads/hour (lightweight, no writes)
-  const rl = await checkRateLimit(user.id, "top_opportunities", 20, 60);
+  const rl = await checkRateLimit(userId, "top_opportunities", 20, 60);
   if (!rl.allowed) {
     return NextResponse.json(
       { error: "Rate limit reached. Try again in a few minutes." },
@@ -31,7 +28,7 @@ export async function GET() {
   }
 
   try {
-    const opportunities = await getTopOpportunities(user.id, supabase);
+    const opportunities = await getTopOpportunities(userId, supabase);
 
     return NextResponse.json(
       { opportunities },

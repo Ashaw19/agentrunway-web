@@ -10,7 +10,7 @@
  *   { ok: false, error: '...' }  — auth or not-found errors
  */
 import { NextRequest, NextResponse } from "next/server";
-import { createClient }              from "@/lib/supabase/server";
+import { authenticateRequest }       from "@/lib/api-helpers";
 
 export async function GET(
   _req: NextRequest,
@@ -20,19 +20,16 @@ export async function GET(
     const { id } = await params;
 
     // ── 1. Authenticate ──────────────────────────────────────────────────────
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await authenticateRequest();
+    if (auth.error) return auth.error;
+    const { supabase, userId } = auth;
 
     // ── 2. Fetch token row (RLS ensures user can only read their own) ─────────
     const { data, error } = await supabase
       .from("receipt_upload_tokens")
       .select("id, user_id, status, receipt_path, extraction_result, error_message, expires_at")
       .eq("id", id)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
 
     if (error || !data) {

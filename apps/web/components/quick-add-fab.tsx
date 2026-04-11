@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Plus, X, ArrowLeftRight, Layers, Receipt, Keyboard, Mic } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -43,6 +43,24 @@ export function QuickAddFab({ hasAiChat = false }: QuickAddFabProps) {
 
   // Register global shortcuts
   useAppShortcuts(openQuickAdd);
+
+  // Dismiss overlays on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (showShortcuts) {
+          setShowShortcuts(false);
+        } else if (open || voiceActive) {
+          if (!voiceBusy) {
+            setOpen(false);
+            setVoiceActive(false);
+          }
+        }
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showShortcuts, open, voiceActive, voiceBusy]);
 
   /** Route a completed voice draft to the correct page */
   const handleVoiceDraft = useCallback((draft: VoiceDraft) => {

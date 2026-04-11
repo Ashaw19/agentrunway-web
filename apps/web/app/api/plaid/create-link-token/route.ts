@@ -10,8 +10,8 @@
 import { NextResponse }                                     from "next/server";
 import { Configuration, PlaidApi, PlaidEnvironments,
          Products, CountryCode }                            from "plaid";
-import { createClient }                                     from "@/lib/supabase/server";
 import { requirePro }                                       from "@/lib/require-pro";
+import { authenticateRequest, apiError }                    from "@/lib/api-helpers";
 
 function buildPlaidClient() {
   const env    = (process.env.PLAID_ENV ?? "sandbox") as keyof typeof PlaidEnvironments;
@@ -37,20 +37,18 @@ export async function POST() {
   }
 
   // ── 2. Authenticate ───────────────────────────────────────────────────────
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await authenticateRequest();
+  if (auth.error) return auth.error;
+  const { supabase, userId } = auth;
 
-  const proCheck = await requirePro(supabase, user.id);
+  const proCheck = await requirePro(supabase, userId);
   if (!proCheck.allowed) return proCheck.response!;
 
   // ── 3. Create link token ──────────────────────────────────────────────────
   try {
     const plaid = buildPlaidClient();
     const response = await plaid.linkTokenCreate({
-      user:          { client_user_id: user.id },
+      user:          { client_user_id: userId },
       client_name:   "Agent Runway",
       products:      [Products.Transactions],
       country_codes: [CountryCode.Ca],

@@ -68,7 +68,9 @@ import { createClient } from "@/lib/supabase/client";
 import { useUser } from "@/hooks/use-user";
 import { guardSandboxWrite, guardSandboxExternalAction } from "@/lib/sandbox-guard";
 import { useSandboxMode } from "@/lib/sandbox-mode-context";
-import { PhotoCropDialog } from "@/components/photo-crop-dialog";
+import dynamic from "next/dynamic";
+
+const PhotoCropDialog = dynamic(() => import("@/components/photo-crop-dialog").then(m => m.PhotoCropDialog), { ssr: false });
 import JSZip from "jszip";
 
 // ── Types ─────────────────────────────────────────────────────────────────────

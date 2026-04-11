@@ -41,8 +41,11 @@ import { fmtCurrency } from "@/lib/formatters";
 import { computeGCI, type HistoryItem, type Transaction, type UserSettings } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 import type { ImportResult } from "@/app/api/import-history/route";
-import { ProductionReportDialog } from "@/components/production-report-dialog";
-import { YearOverYearChart, type YoYDataPoint } from "@/components/year-over-year-chart";
+import dynamic from "next/dynamic";
+import type { YoYDataPoint } from "@/components/year-over-year-chart";
+
+const ProductionReportDialog = dynamic(() => import("@/components/production-report-dialog").then(m => m.ProductionReportDialog), { ssr: false });
+const YearOverYearChart = dynamic(() => import("@/components/year-over-year-chart").then(m => m.YearOverYearChart), { ssr: false });
 import { Download } from "lucide-react";
 
 interface Props {

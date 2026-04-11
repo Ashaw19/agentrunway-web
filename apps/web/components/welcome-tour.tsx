@@ -97,6 +97,15 @@ export function WelcomeTour({ hasAiChat = false, onComplete }: Props) {
     return () => window.removeEventListener("resize", updateTarget);
   }, [updateTarget, currentStep]);
 
+  // Dismiss tour on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleSkip();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleSkip]);
+
   const markComplete = useCallback(async () => {
     setVisible(false);
     const supabase = createClient();

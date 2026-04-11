@@ -51,6 +51,15 @@ export function AnnualReview({
     return () => clearTimeout(t);
   }, [slide]);
 
+  // Dismiss on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   // Confetti on last slide
   useEffect(() => {
     if (slide === "summary") fire("goal");
