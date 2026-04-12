@@ -1708,8 +1708,9 @@ export function ClientsContent({
       setLocalClients((prev) =>
         prev.map((c) => (c.id === clientId ? { ...c, [field]: value } : c)),
       );
-      const { error } = await supabase.from("clients").update({ [field]: value }).eq("id", clientId).eq("user_id", userId!);
+      const { error } = await supabase.from("clients").update({ [field]: value, updated_at: new Date().toISOString() }).eq("id", clientId).eq("user_id", userId!);
       if (error) {
+        console.error("[CRM] updateClientField failed:", field, value, error.message, error.code);
         setLocalClients((prev) =>
           prev.map((c) => (c.id === clientId ? { ...c, [field]: prevValue } : c)),
         );
