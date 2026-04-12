@@ -664,11 +664,21 @@ export function AiChat({ financialContext }: Props) {
             // Stream interrupted (network drop, timeout, abort)
             if (assistantText.length > 0) {
               assistantText += "\n\n_(Response may be incomplete — please try again.)_";
-              setMessages((prev) => [
-                ...prev.slice(0, -1),
-                { role: "assistant", content: assistantText, id: assistantId },
-              ]);
+            } else {
+              assistantText = "Sorry, something went wrong while processing that. Please try again.";
             }
+            setMessages((prev) => [
+              ...prev.slice(0, -1),
+              { role: "assistant", content: assistantText, id: assistantId },
+            ]);
+          }
+          // If stream completed but produced no text (silent error), show fallback
+          if (!assistantText) {
+            assistantText = "Sorry, I couldn't complete that action. Please try again.";
+            setMessages((prev) => [
+              ...prev.slice(0, -1),
+              { role: "assistant", content: assistantText, id: assistantId },
+            ]);
           }
           setToolStatus(null);
         }

@@ -1074,8 +1074,10 @@ ${troubleshootingContext}${escalationBlock}
     isTroubleshooting,
   );
 
-  // Dynamic max_tokens: troubleshooting needs more room, complex tier gets more
-  const maxTokens = isTroubleshooting ? 1200 : tier === "complex" ? 1000 : 600;
+  // Dynamic max_tokens: must be generous enough for multi-step tool calls.
+  // Each tool call step (search → update → response) needs output tokens for
+  // the tool_use JSON block + reasoning. 600 was too low and caused silent failures.
+  const maxTokens = tier === "complex" ? 4096 : tier === "fast" ? 2048 : 3000;
 
   // ── 7. Build system prompt (XML-structured, cache-optimized) ─────────────
   // Static content FIRST (cached at 90% discount), dynamic content LAST
@@ -1433,14 +1435,12 @@ BEING THE EXPERT — You know Agent Runway better than anyone. When agents ask q
         // - agent write tools: CRM, pipeline, expense, transaction actions
         // maxSteps: allows tool calls + follow-up response in the same stream.
         tools: {
-          webSearch: anthropic.tools.webSearch_20260209({
-            maxUses: 3,
-            userLocation: {
-              type: "approximate",
-              country: "CA",
-              timezone: "America/Toronto",
-            },
-          }),
+          // NOTE: webSearch temporarily disabled to isolate tool-call issues.
+          // Re-enable once basic tool use is confirmed working.
+          // webSearch: anthropic.tools.webSearch_20260209({
+          //   maxUses: 3,
+          //   userLocation: { type: "approximate", country: "CA", timezone: "America/Toronto" },
+          // }),
           ...createAgentTools(supabase, user.id),
         },
         stopWhen: stepCountIs(10),
@@ -1482,9 +1482,9 @@ BEING THE EXPERT — You know Agent Runway better than anyone. When agents ask q
       }
     }
 
-    // Clear abort timeout after stream starts delivering (not immediately)
-    // The abort signal stays active during streaming via the AbortController.
-    clearTimeout(abortTimeout);
+    // Don't clear abort timeout here — streamText() returns lazily before the API call starts.
+    // The 90s timeout protects against Anthropic hanging. It will be cleared inside the
+    // ReadableStream once chunks start flowing, or it fires and aborts the stream.
 
     // ── 9. Log analytics (fire-and-forget — never blocks response) ─────────
     const userMsgCount = safeMessages.filter((m) => m.role === "user").length;
@@ -1507,10 +1507,16 @@ BEING THE EXPERT — You know Agent Runway better than anyone. When agents ask q
     // This lets the frontend show progress during multi-step tool calls
     // instead of appearing to hang.
     const encoder = new TextEncoder();
+    let firstChunkReceived = false;
     const readable = new ReadableStream({
       async start(controller) {
         try {
           for await (const chunk of result.fullStream) {
+            // Clear abort timeout once first chunk arrives (API is responding)
+            if (!firstChunkReceived) {
+              firstChunkReceived = true;
+              clearTimeout(abortTimeout);
+            }
             if (chunk.type === "text-delta") {
               controller.enqueue(encoder.encode(`0:${JSON.stringify(chunk.text)}\n`));
             } else if (chunk.type === "tool-call") {
@@ -1519,7 +1525,11 @@ BEING THE EXPERT — You know Agent Runway better than anyone. When agents ask q
           }
         } catch (err) {
           log.error({ err, requestId }, "[chat] Stream error");
+          // Send error as text so the frontend can display it
+          const errMsg = "Sorry, something went wrong while processing that. Please try again.";
+          controller.enqueue(encoder.encode(`0:${JSON.stringify(errMsg)}\n`));
         } finally {
+          clearTimeout(abortTimeout);
           controller.close();
         }
       },
