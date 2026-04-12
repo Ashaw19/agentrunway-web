@@ -1,5 +1,7 @@
 import { streamText, stepCountIs } from "ai";
 import { NextRequest } from "next/server";
+
+export const maxDuration = 120;
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
@@ -1413,7 +1415,7 @@ BEING THE EXPERT — You know Agent Runway better than anyone. When agents ask q
     // Primary: Claude (selected tier) via Anthropic
     // Fallback: Groq Llama if Anthropic fails
     const abortController = new AbortController();
-    const abortTimeout = setTimeout(() => abortController.abort(), 30_000);
+    const abortTimeout = setTimeout(() => abortController.abort(), 90_000);
 
     let result;
     try {
