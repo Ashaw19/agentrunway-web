@@ -906,14 +906,14 @@ function MortgageEstimateSection({ price }: { price: number }) {
             max={20}
             value={annualRate}
             onChange={(e) => setAnnualRate(Number(e.target.value) || 0)}
-            className="h-6 text-[11px] w-16"
+            className="h-7 text-xs w-20 px-2"
           />
           <span className="text-[10px] text-muted-foreground">%</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-muted-foreground">Amort</span>
           <Select value={String(amort)} onValueChange={(v) => setAmort(Number(v))}>
-            <SelectTrigger className="h-6 text-[11px] w-16">
+            <SelectTrigger className="h-7 text-xs w-20">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -3678,7 +3678,7 @@ export function ClientsContent({
           setTaskNotes("");
         }
       }}>
-        <SheetContent side="right" className="sm:max-w-2xl w-full overflow-y-auto p-0">
+        <SheetContent side="right" className="sm:max-w-[880px] w-full overflow-y-auto p-0">
           {selectedClient && (
             <div className="flex flex-col">
               {/* ── Profile Header ───────────────────────────────────── */}
