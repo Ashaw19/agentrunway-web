@@ -44,6 +44,7 @@ export default async function ClientsPage() {
         flightPlanSteps={sb.flightPlanSteps}
         showings={sb.propertyShowings}
         listingAppointments={sb.listingAppointments}
+        userId={user.id}
       />
     );
   }
@@ -140,7 +141,7 @@ export default async function ClientsPage() {
       flightPlanSteps={(flightPlanStepsResult.data ?? []) as FlightPlanStep[]}
       showings={(showingsResult.data ?? []) as PropertyShowing[]}
       listingAppointments={(listingApptsResult.data ?? []) as ListingAppointment[]}
-      userId={useClientSideFetch ? user.id : undefined}
+      userId={user.id}
     />
   );
 }

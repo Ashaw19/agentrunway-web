@@ -178,8 +178,8 @@ interface Props {
   flightPlanSteps: FlightPlanStep[];
   showings: PropertyShowing[];
   listingAppointments: ListingAppointment[];
-  /** User ID — used for client-side data fetching when server passes empty clients */
-  userId?: string;
+  /** User ID — required for all client-side Supabase operations */
+  userId: string;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
