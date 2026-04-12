@@ -985,6 +985,7 @@ export function ClientsContent({
   const supabase = useMemo(() => createClient(), []);
 
   // ── Local state ─────────────────────────────────────────────────────────────
+  const [localRecords, setLocalRecords] = useState<ClientRecord[]>(records);
   const [localActivities, setLocalActivities] =
     useState<ContactActivity[]>(initialActivities);
   const [localTasks, setLocalTasks] = useState<ContactTask[]>(initialTasks);
@@ -1124,6 +1125,11 @@ export function ClientsContent({
   const [linkRelSearch, setLinkRelSearch] = useState("");
   const [linkRelType, setLinkRelType] = useState<RelationshipType>("spouse");
 
+  // Add Spouse/Partner — creates a new client copying shared details
+  const [addSpouseOpen, setAddSpouseOpen] = useState(false);
+  const [spouseName, setSpouseName] = useState("");
+  const [spouseSaving, setSpouseSaving] = useState(false);
+
   // Log activity form (in detail panel)
   const [showLogActivity, setShowLogActivity] = useState(false);
   const [logActivityClientId, setLogActivityClientId] = useState<string | null>(null);
@@ -1226,8 +1232,8 @@ export function ClientsContent({
 
   // ── Core data ───────────────────────────────────────────────────────────────
   const grouped = useMemo(
-    () => buildAllGroups(localClients, records),
-    [localClients, records],
+    () => buildAllGroups(localClients, localRecords),
+    [localClients, localRecords],
   );
   const totalGCI = useMemo(
     () => grouped.reduce((s, g) => s + g.totalGCI, 0),
@@ -1245,7 +1251,7 @@ export function ClientsContent({
       : 0;
   const totalDeals = grouped.reduce((s, g) => s + g.dealCount, 0);
 
-  const sourceStats = useMemo(() => computeSourceStats(records), [records]);
+  const sourceStats = useMemo(() => computeSourceStats(localRecords), [localRecords]);
   const topSource = sourceStats[0] ?? null;
 
   // ── Client Valuation Engine ───────────────────────────────────────────────
@@ -1302,10 +1308,10 @@ export function ClientsContent({
     () =>
       [
         ...new Set(
-          records.map((r) => r.source).filter(Boolean) as string[],
+          localRecords.map((r) => r.source).filter(Boolean) as string[],
         ),
       ].sort(),
-    [records],
+    [localRecords],
   );
 
   // Sets of archived client IDs for fast lookup
@@ -1387,7 +1393,7 @@ export function ClientsContent({
     return sorted[idx]?.totalGCI ?? 0;
   }, [grouped]);
 
-  const hasAnyData = records.length > 0;
+  const hasAnyData = localRecords.length > 0;
 
   // Open tasks sorted by due_date ASC
   const openTasks = useMemo(
@@ -1466,8 +1472,8 @@ export function ClientsContent({
   // Deal history for the selected client
   const clientDeals = useMemo(() => {
     if (!selectedClientId) return [];
-    return records.filter((r) => r.client_id === selectedClientId);
-  }, [records, selectedClientId]);
+    return localRecords.filter((r) => r.client_id === selectedClientId);
+  }, [localRecords, selectedClientId]);
 
   // Badges + reward budget for the selected client's detail panel
   const selectedClientBadges = useMemo(() => {
@@ -1840,7 +1846,7 @@ export function ClientsContent({
     "bedrooms", "bathrooms", "square_feet", "lot_acres", "garage", "waterfront",
   ]);
 
-  // Update a single field on a client_record (deal row) — no local state, DB write only
+  // Update a single field on a client_record (deal row) — optimistic local + DB write
   const updateClientRecordField = useCallback(
     async (recordId: string, field: string, value: unknown) => {
       if (guardSandboxWrite(sandbox.sandboxMode)) return;
@@ -1848,10 +1854,22 @@ export function ClientsContent({
         toast.error("Invalid field update");
         return;
       }
-      const { error } = await supabase.from("client_records").update({ [field]: value }).eq("id", recordId).eq("user_id", userId!);
-      if (error) toast.error("Failed to save changes");
+      // Optimistic update
+      const prevRecord = localRecords.find((r) => r.id === recordId);
+      const prevValue = prevRecord ? (prevRecord as unknown as Record<string, unknown>)[field] : undefined;
+      setLocalRecords((prev) =>
+        prev.map((r) => (r.id === recordId ? { ...r, [field]: value } : r)),
+      );
+      const { error } = await supabase.from("client_records").update({ [field]: value }).eq("id", recordId).eq("user_id", userId);
+      if (error) {
+        // Rollback
+        setLocalRecords((prev) =>
+          prev.map((r) => (r.id === recordId ? { ...r, [field]: prevValue } : r)),
+        );
+        toast.error("Failed to save changes");
+      }
     },
-    [],
+    [localRecords, userId],
   );
 
   // Archive a client (move to Hangar) — atomic single update
@@ -2104,6 +2122,70 @@ export function ClientsContent({
       }
     },
     [],
+  );
+
+  // Add spouse/partner: create a new client copying shared details, then link
+  const handleAddSpouse = useCallback(
+    async (name: string) => {
+      if (!selectedClientId || guardSandboxWrite(sandbox.sandboxMode)) return;
+      const source = localClients.find((c) => c.id === selectedClientId);
+      if (!source) return;
+      setSpouseSaving(true);
+      try {
+        const nameParts = name.trim().split(/\s+/);
+        const firstName = nameParts[0] ?? "";
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : source.last_name ?? "";
+        const fullName = lastName ? `${firstName} ${lastName}` : firstName;
+
+        // Copy shared details from the source client
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const record: Record<string, any> = {
+          user_id: userId,
+          name: fullName,
+          name_search: fullName.toLowerCase().trim(),
+          first_name: firstName,
+          last_name: lastName,
+          status: source.status,
+          // Copy address
+          street_address: source.street_address,
+          unit_number: source.unit_number,
+          city: source.city,
+          province_region: source.province_region,
+          postal_code: source.postal_code,
+          country: source.country,
+          // Copy relevant details
+          lead_source: source.lead_source,
+          timeframe: source.timeframe,
+          property_interest: source.property_interest,
+          property_interest_type: source.property_interest_type,
+          buyer_target_area: source.buyer_target_area,
+        };
+
+        const { data, error } = await supabase
+          .from("clients")
+          .insert(record)
+          .select("*")
+          .single();
+
+        if (error || !data) {
+          toast.error("Failed to create spouse/partner");
+          return;
+        }
+
+        // Add to local state
+        setLocalClients((prev) => [...prev, data as Client]);
+
+        // Link them as spouse
+        await addRelationship(source.id, data.id, "spouse");
+
+        toast.success(`${fullName} created and linked as spouse/partner`);
+        setAddSpouseOpen(false);
+        setSpouseName("");
+      } finally {
+        setSpouseSaving(false);
+      }
+    },
+    [selectedClientId, localClients, userId, addRelationship],
   );
 
   // Remove a relationship
@@ -3514,7 +3596,7 @@ export function ClientsContent({
           clients={localClients}
           activities={localActivities}
           tasks={localTasks}
-          records={records}
+          records={localRecords}
           clientById={clientById}
           onLogActivity={logActivity}
           onAddTask={addTask}
@@ -3529,7 +3611,7 @@ export function ClientsContent({
       {tab === "insights" && hasAnyData && (
         <InsightsTab
           clients={localClients}
-          records={records}
+          records={localRecords}
           activities={localActivities}
           grouped={grouped}
           totalGCI={totalGCI}
@@ -3655,7 +3737,7 @@ export function ClientsContent({
       {tab === "pipeline" && (
         <PipelineTab
           clients={localClients}
-          records={records}
+          records={localRecords}
           activities={localActivities}
           listingAppointments={localListingAppointments}
         />
@@ -3853,6 +3935,15 @@ export function ClientsContent({
                       placeholder="Add secondary email…"
                     />
                   </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <InlineEdit
+                      label="Birthday"
+                      value={selectedClient.birthdate ?? ""}
+                      type="date"
+                      onSave={(v) => updateClientField(selectedClient.id, "birthdate", v || null)}
+                      placeholder="Add birthday…"
+                    />
+                  </div>
                   <div className="flex items-center gap-3">
                     <div className="flex-1">
                       <span className="text-[10px] text-muted-foreground block mb-1">Preferred Contact</span>
@@ -4000,13 +4091,6 @@ export function ClientsContent({
                         </SelectContent>
                       </Select>
                     </div>
-                    <InlineEdit
-                      label="Birthday"
-                      value={selectedClient.birthdate ?? ""}
-                      type="date"
-                      onSave={(v) => updateClientField(selectedClient.id, "birthdate", v || null)}
-                      placeholder="Add birthday…"
-                    />
                     <div>
                       <span className="text-[10px] text-muted-foreground block mb-1">Lead Source</span>
                       <Select
@@ -4147,6 +4231,18 @@ export function ClientsContent({
                         <Link2 className="h-3 w-3" />
                         Link
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1 h-6 text-[10px] text-emerald-500 border-emerald-400/40 hover:border-emerald-400/70 hover:text-emerald-400"
+                        onClick={() => {
+                          setAddSpouseOpen((v) => !v);
+                          setSpouseName("");
+                        }}
+                      >
+                        <UserPlus className="h-3 w-3" />
+                        Add Spouse
+                      </Button>
                     </div>
                   </div>
 
@@ -4191,6 +4287,35 @@ export function ClientsContent({
                           ))}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {addSpouseOpen && (
+                    <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-3 space-y-2">
+                      <p className="text-[10px] text-emerald-600 font-medium leading-tight">
+                        Enter the spouse/partner&apos;s first name. Their last name, address, and shared details will be copied from {selectedClient.name.split(" ")[0]}&apos;s profile.
+                      </p>
+                      <div className="flex gap-2">
+                        <Input
+                          autoFocus
+                          placeholder="First name (e.g. Sarah)"
+                          value={spouseName}
+                          onChange={(e) => setSpouseName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && spouseName.trim()) handleAddSpouse(spouseName.trim());
+                            if (e.key === "Escape") { setAddSpouseOpen(false); setSpouseName(""); }
+                          }}
+                          className="h-7 text-xs flex-1"
+                        />
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs gap-1"
+                          disabled={!spouseName.trim() || spouseSaving}
+                          onClick={() => handleAddSpouse(spouseName.trim())}
+                        >
+                          {spouseSaving ? "Creating…" : "Create & Link"}
+                        </Button>
+                      </div>
                     </div>
                   )}
 
