@@ -41,12 +41,6 @@ export async function POST(req: NextRequest) {
   const proCheck = await requirePro(supabase, userId);
   if (!proCheck.allowed) return proCheck.response!;
 
-  // ── Sandbox guard ────────────────────────────────────────────────────────
-  const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", userId).single();
-  if (sandboxCheck?.sandbox_mode === true) {
-    return NextResponse.json({ error: "Action blocked in Sandbox Mode" }, { status: 403 });
-  }
-
   // ── 3. Parse body ─────────────────────────────────────────────────────────
   let public_token: string;
   let institution_id: string | null   = null;

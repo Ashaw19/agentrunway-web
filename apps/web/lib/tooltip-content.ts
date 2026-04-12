@@ -33,8 +33,6 @@ export interface TooltipEntry {
   drivers: TooltipDriver[];
   /** Threshold-based actionable advice (only surfaces when triggered) */
   action?: TooltipAction;
-  /** Sandbox-specific teaching line (shown when sandboxMode === true) */
-  sandboxNote: string;
 }
 
 // ── Registry ────────────────────────────────────────────────────────────────
@@ -54,7 +52,6 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
       href: "/pipeline",
       ctaLabel: "Review Pipeline",
     },
-    sandboxNote: "Try editing the fictional pipeline deals to see how weighted GCI and projections shift in real time.",
   },
 
   client_briefing: {
@@ -64,7 +61,6 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
       { label: "Contact activities", href: "/crm" },
       { label: "Follow-up tasks", href: "/crm" },
     ],
-    sandboxNote: "In sandbox mode, this card uses fictional CRM data. Your real CRM alerts will appear when you switch to live data.",
   },
 
   business_brief: {
@@ -74,7 +70,6 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
       { label: "Pipeline status", href: "/pipeline" },
       { label: "Expense categories", href: "/overhead" },
     ],
-    sandboxNote: "This narrative is generated from the sandbox dataset. Watch how it changes when you toggle between tiers.",
   },
 
   net_takehome: {
@@ -91,7 +86,6 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
       href: "/overhead",
       ctaLabel: "Review Expenses",
     },
-    sandboxNote: "This is the bottom line. Change the fictional brokerage fee or split in Settings to see how dramatically it affects your take-home.",
   },
 
   personal_records: {
@@ -100,7 +94,6 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
       { label: "Transaction history", href: "/transactions" },
       { label: "Historical data", href: "/settings" },
     ],
-    sandboxNote: "These records are from the sandbox history. Your real records will populate as you close deals.",
   },
 
   commission_mix: {
@@ -116,7 +109,6 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
       href: "/crm",
       ctaLabel: "Open CRM",
     },
-    sandboxNote: "Notice how the buyer/seller mix affects your projected income differently in each market.",
   },
 
   cap_progress: {
@@ -133,7 +125,6 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
       href: "/altimeter",
       ctaLabel: "View Projections",
     },
-    sandboxNote: "High producers often hit their cap mid-year. Toggle to that tier to see how cap progress changes the math.",
   },
 
   tasks: {
@@ -142,7 +133,6 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
       { label: "CRM tasks", href: "/crm" },
       { label: "Client contact activities", href: "/crm" },
     ],
-    sandboxNote: "Task management is connected to your real CRM. This card won't show sandbox data — it always reflects your actual pipeline.",
   },
 
   insights: {
@@ -152,7 +142,6 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
       { label: "Market data", href: "/settings" },
       { label: "Expense ratios", href: "/overhead" },
     ],
-    sandboxNote: "These insights are generated from the fictional dataset. They'll recalculate when you switch to your real data.",
   },
 
   trends: {
@@ -162,7 +151,6 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
       { label: "Seasonality weights", href: "/settings" },
       { label: "Pipeline weighted GCI", href: "/pipeline" },
     ],
-    sandboxNote: "The seasonal curve shows how Canadian real estate deals cluster in spring/summer. Watch how the projection bars shift.",
   },
 
   probability: {
@@ -179,7 +167,6 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
       href: "/pipeline",
       ctaLabel: "Build Pipeline",
     },
-    sandboxNote: "The benchmark comparison shows where you'd rank against other agents. Try different tiers to see how the bands shift.",
   },
 
   tax_planning: {
@@ -196,7 +183,6 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
       href: "/overhead",
       ctaLabel: "Tax Estimates",
     },
-    sandboxNote: "Tax is calculated using real Canadian federal/provincial rates. Change the province in Settings to see how tax varies.",
   },
 
   corp_tax: {
@@ -206,7 +192,6 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
       { label: "Compensation method", href: "/settings" },
       { label: "Projected income", href: "/altimeter" },
     ],
-    sandboxNote: "This card only appears for incorporated agents. It uses the Canadian small business deduction rate.",
   },
 
   tax_savings: {
@@ -216,7 +201,6 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
       { label: "Vehicle usage", href: "/overhead" },
       { label: "CCA assets", href: "/overhead" },
     ],
-    sandboxNote: "These savings estimates use real CRA rules. Experiment with the sandbox data to understand how each deduction category works.",
   },
 
   recent_activity: {
@@ -224,6 +208,5 @@ export const TOOLTIP_REGISTRY: Partial<Record<CardId, TooltipEntry>> = {
     drivers: [
       { label: "Transactions", href: "/transactions" },
     ],
-    sandboxNote: "These are fictional transactions generated from your board's average sale prices. Your real deals will appear here.",
   },
 };

@@ -8,11 +8,6 @@ export async function POST() {
     if (auth.error) return auth.error;
     const { supabase, userId } = auth;
 
-    const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", userId).single();
-    if (sandboxCheck?.sandbox_mode === true) {
-      return NextResponse.json({ error: "Action blocked in Sandbox Mode" }, { status: 403 });
-    }
-
     // Fetch existing system_keys for this user so we can skip duplicates
     const { data: existing } = await supabase
       .from("flight_plans")

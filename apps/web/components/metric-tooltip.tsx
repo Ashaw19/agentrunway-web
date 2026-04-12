@@ -9,7 +9,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { TOOLTIP_REGISTRY } from "@/lib/tooltip-content";
-import { useSandboxMode } from "@/lib/sandbox-mode-context";
 import type { CardId } from "@/app/(app)/dashboard/card-registry";
 
 // ============================================================================
@@ -18,7 +17,6 @@ import type { CardId } from "@/app/(app)/dashboard/card-registry";
 // Tier 1: "What is this?" — always shown
 // Tier 2: "What changes this?" — input drivers with navigation links
 // Tier 3: "What should I do?" — threshold-based, only when triggered
-// + Sandbox teaching note when sandbox mode is active
 // ============================================================================
 
 interface MetricTooltipProps {
@@ -32,8 +30,6 @@ interface MetricTooltipProps {
 
 export function MetricTooltip({ metricKey, value, context }: MetricTooltipProps) {
   const entry = TOOLTIP_REGISTRY[metricKey];
-  const { sandboxMode } = useSandboxMode();
-
   if (!entry) return null;
 
   const actionTriggered = entry.action && value !== undefined
@@ -100,14 +96,6 @@ export function MetricTooltip({ metricKey, value, context }: MetricTooltipProps)
             </div>
           )}
 
-          {/* Sandbox teaching note */}
-          {sandboxMode && (
-            <div className="border-t border-amber-200/60 pt-2">
-              <p className="text-[10px] leading-relaxed text-amber-700 italic">
-                {entry.sandboxNote}
-              </p>
-            </div>
-          )}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

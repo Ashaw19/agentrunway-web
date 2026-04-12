@@ -9,16 +9,6 @@ export async function POST() {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Block in sandbox mode
-  const { data: sbCheck } = await supabase
-    .from("user_settings")
-    .select("sandbox_mode")
-    .eq("user_id", user.id)
-    .single();
-  if (sbCheck?.sandbox_mode === true) {
-    return NextResponse.json({ error: "Blocked in sandbox mode." }, { status: 403 });
-  }
-
   // Fetch the connection to revoke the token at Google before deleting locally
   const { data: conn } = await supabase
     .from("google_connections")

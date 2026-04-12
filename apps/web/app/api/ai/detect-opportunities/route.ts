@@ -2787,11 +2787,6 @@ export async function POST(req: NextRequest) {
   const proCheck = await requirePro(supabase, user.id);
   if (!proCheck.allowed) return proCheck.response!;
 
-  const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();
-  if (sandboxCheck?.sandbox_mode === true) {
-    return NextResponse.json({ error: "Action blocked in Sandbox Mode" }, { status: 403 });
-  }
-
   const userId = user.id;
 
   // draft_only=true: skip detection, only draft already-queued "draft" items.

@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ClientsContent } from "./clients-content";
 import type { Client, ClientRecord, ContactActivity, ContactTask, UserSettings, ExpenseItem, ClientRelationship, FlightPlan, FlightPlanStep, PropertyShowing, ListingAppointment } from "@/lib/types/database";
-import { isSandboxActive, getSandboxData, mergeSandboxSettings, getSandboxExpenseItems } from "@/lib/sandbox-resolver";
+
 
 /**
  * Threshold: if a user has more than this many clients, skip sending them
@@ -25,31 +25,7 @@ export default async function ClientsPage() {
 
   const settings = settingsData as UserSettings | null;
 
-  // ── Step 2: Resolve data from sandbox or Supabase ───────────────────────
-  if (isSandboxActive(settings)) {
-    const sb = getSandboxData(settings);
-    const mergedSettings = mergeSandboxSettings(settings);
-    const expenseItems = getSandboxExpenseItems(sb);
-
-    return (
-      <ClientsContent
-        clients={sb.clients}
-        records={sb.clientRecords}
-        activities={sb.contactActivities.slice(0, 500)}
-        tasks={sb.contactTasks.filter((t) => t.completed_at === null)}
-        settings={mergedSettings}
-        expenseItems={expenseItems as ExpenseItem[]}
-        relationships={sb.clientRelationships}
-        flightPlans={sb.flightPlans}
-        flightPlanSteps={sb.flightPlanSteps}
-        showings={sb.propertyShowings}
-        listingAppointments={sb.listingAppointments}
-        userId={user.id}
-      />
-    );
-  }
-
-  // ── Step 3: Check client count to decide fetch strategy ─────────────────
+  // ── Check client count to decide fetch strategy ─────────────────────────
   const { count: clientCount } = await supabase
     .from("clients")
     .select("id", { count: "exact", head: true })
@@ -57,7 +33,7 @@ export default async function ClientsPage() {
 
   const useClientSideFetch = (clientCount ?? 0) > CLIENT_SIDE_FETCH_THRESHOLD;
 
-  // ── Step 4: Live Supabase queries ───────────────────────────────────────
+  // ── Live Supabase queries ───────────────────────────────────────────────
   const queries = [
     // Only fetch clients server-side if below threshold
     useClientSideFetch

@@ -34,7 +34,6 @@ const PROTECTED_PREFIXES = [
   "/drive",
   "/overhead",
   "/referrals",
-  "/sandbox",
   "/scenarios",
   "/social",
   "/tax",

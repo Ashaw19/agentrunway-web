@@ -105,9 +105,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     // ── 6. Detect auto-promotion (Phase 3 Wave A) ─────────────────────────
     // Only re-read when prior status was one the trigger could have flipped.
-    // NOTE: admin client bypasses RLS, but the trigger function also checks
-    // sandbox_mode from user_settings explicitly, so sandbox users are still
-    // safe here.
     let promoted = false;
     let newStatus: string | null = null;
     if (priorStatus === "cruising" || priorStatus === "scheduled") {

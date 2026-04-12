@@ -24,8 +24,6 @@ import { generateTaxOptimizations } from "@/lib/engines/tax-optimization-engine"
 import { T2125Pdf } from "@/components/pdf/t2125-pdf";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { useSandboxMode } from "@/lib/sandbox-mode-context";
-import { guardSandboxWrite } from "@/lib/sandbox-guard";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -159,7 +157,6 @@ export function ReportsT2125Tab({
 }: Props) {
   const router = useRouter();
   const supabase = createClient();
-  const sandbox = useSandboxMode();
 
   // ── State: user-editable overrides ─────────────────────────────────────────
   const [otherIncome, setOtherIncome] = useState(0);
@@ -222,7 +219,6 @@ export function ReportsT2125Tab({
   });
 
   const addCcaAsset = async () => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (!newAsset.description || newAsset.original_cost <= 0) {
       toast.error("Enter a description and cost");
       return;
@@ -248,7 +244,6 @@ export function ReportsT2125Tab({
   };
 
   const deleteCcaAsset = async (id: string) => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const { error } = await supabase.from("t2125_cca_assets").delete().eq("id", id).eq("user_id", userId);
     if (error) { toast.error("Failed to save your tax data. Please try again."); return; }
     setCcaAssets((prev) => prev.filter((a) => a.id !== id));

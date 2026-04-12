@@ -24,12 +24,6 @@ export async function PATCH(
   if (auth.error) return auth.error;
   const { supabase, userId } = auth;
 
-  // Check sandbox mode
-  const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", userId).single();
-  if (sandboxCheck?.sandbox_mode === true) {
-    return NextResponse.json({ error: "Action blocked in Sandbox Mode" }, { status: 403 });
-  }
-
   const { id } = await params;
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 

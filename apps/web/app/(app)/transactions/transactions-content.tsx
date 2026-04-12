@@ -42,8 +42,6 @@ import { TransactionsPipelineTab } from "./transactions-pipeline-tab";
 import { TransactionsHistoryTab } from "./transactions-history-tab";
 import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
 import type { VoiceDraft } from "@/lib/voice/types";
-import { guardSandboxWrite } from "@/lib/sandbox-guard";
-import { useSandboxMode } from "@/lib/sandbox-mode-context";
 
 interface Props {
   initialTransactions: Transaction[];
@@ -108,7 +106,6 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
   const [filter, setFilter] = useState<"all" | "closed" | "pending" | "fallen">("all");
   const [yearFilter, setYearFilter] = useState<"all" | number>("all");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "highest" | "lowest">("newest");
-  const sandbox = useSandboxMode();
 
   // ── Voice draft consumption ──────────────────────────────────────────────
   const [voiceDraft, setVoiceDraftLocal] = useState<VoiceDraft | null>(null);
@@ -189,7 +186,6 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
   }
 
   async function handleSave() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -267,7 +263,6 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
   }
 
   async function handleDelete(id: string) {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;

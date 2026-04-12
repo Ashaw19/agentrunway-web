@@ -37,12 +37,6 @@ export async function DELETE(req: NextRequest) {
   const proCheck = await requirePro(supabase, userId);
   if (!proCheck.allowed) return proCheck.response!;
 
-  // ── Sandbox guard ────────────────────────────────────────────────────────
-  const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", userId).single();
-  if (sandboxCheck?.sandbox_mode === true) {
-    return NextResponse.json({ error: "Action blocked in Sandbox Mode" }, { status: 403 });
-  }
-
   // ── 2. Parse body ─────────────────────────────────────────────────────────
   let item_id: string;
   try {

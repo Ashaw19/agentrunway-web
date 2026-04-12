@@ -2,12 +2,7 @@ import { createClient }   from "@/lib/supabase/server";
 import { redirect }        from "next/navigation";
 import { FlightControlContent } from "./flight-control-content";
 import type { OutreachQueueItem, NewsletterQueue } from "@/lib/types/database";
-import {
-  isSandboxActive,
-  getSandboxData,
-  mergeSandboxSettings,
-  getSandboxOutreachWithClients,
-} from "@/lib/sandbox-resolver";
+
 
 export const dynamic = "force-dynamic";
 
@@ -16,42 +11,14 @@ export default async function FlightControlPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // ── 1. Fetch user_settings first (needed for sandbox check) ──
+  // ── 1. Fetch user_settings ──
   const { data: settingsRow } = await supabase
     .from("user_settings")
     .select("*")
     .eq("user_id", user.id)
     .single();
 
-  // ── 2. Sandbox branch ──
-  if (isSandboxActive(settingsRow)) {
-    const sb      = getSandboxData(settingsRow);
-    const merged  = mergeSandboxSettings(settingsRow);
-
-    const initialQueue = getSandboxOutreachWithClients(sb).filter(
-      (q) => q.status === "draft" || q.status === "ready",
-    );
-    const sentThisMonth    = 0; // sandbox has no sent items
-    const initialSignature  = (merged.email_signature as string) ?? "";
-    const initialVoiceGuide = (merged.ai_voice_guide as string | null) ?? "";
-    const initialNewsletters = (sb.newsletterQueue ?? []) as NewsletterQueue[];
-    const gmailConnected    = false; // sandbox doesn't connect to real gmail
-    const gmailEmail        = null;
-
-    return (
-      <FlightControlContent
-        initialQueue={initialQueue as (OutreachQueueItem & { clients: { name: string; city: string | null; province_region: string | null; email: string | null } | null })[]}
-        sentThisMonth={sentThisMonth}
-        initialSignature={initialSignature}
-        initialVoiceGuide={initialVoiceGuide}
-        initialNewsletters={initialNewsletters}
-        gmailConnected={gmailConnected}
-        gmailEmail={gmailEmail}
-      />
-    );
-  }
-
-  // ── 3. Normal (live) queries ──
+  // ── 2. Live queries ──
 
   // Load pending (draft / ready) queue items with joined client name + email
   const { data: queue } = await supabase

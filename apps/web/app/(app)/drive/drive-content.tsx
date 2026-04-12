@@ -2,8 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useSandboxMode } from "@/lib/sandbox-mode-context";
-import { guardSandboxWrite } from "@/lib/sandbox-guard";
 import {
   FileText,
   FileSpreadsheet,
@@ -75,7 +73,6 @@ function FileIcon({ mimeType }: { mimeType: string }) {
 
 export function DriveContent({ isDriveConnected, connectedEmail, documents }: Props) {
   const router = useRouter();
-  const sandbox = useSandboxMode();
   const [search, setSearch] = useState("");
   const [indexing, startIndexing] = useTransition();
   const [analyzing, setAnalyzing] = useState<string | null>(null);
@@ -88,7 +85,6 @@ export function DriveContent({ isDriveConnected, connectedEmail, documents }: Pr
   );
 
   const handleIndexDrive = () => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     startIndexing(async () => {
       try {
         const res = await fetch("/api/ai/drive-analyze", {
@@ -105,7 +101,6 @@ export function DriveContent({ isDriveConnected, connectedEmail, documents }: Pr
   };
 
   const handleAnalyzeDocument = async (docId: string) => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setAnalyzing(docId);
     try {
       const res = await fetch("/api/ai/drive-analyze", {

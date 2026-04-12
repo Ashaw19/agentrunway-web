@@ -19,8 +19,6 @@ import { Label }     from "@/components/ui/label";
 import { toast }     from "sonner";
 import { cn }        from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { useSandboxMode } from "@/lib/sandbox-mode-context";
-import { guardSandboxWrite } from "@/lib/sandbox-guard";
 import {
   Newspaper, Landmark, BarChart2, Pen, Plus,
   Loader2, Copy, CheckCircle2, Mail, ChevronRight,
@@ -70,7 +68,6 @@ function DraftNewsletterDrawer({
   onClose:   () => void;
   onDrafted: (item: NewsletterQueue) => void;
 }) {
-  const sandbox = useSandboxMode();
   const [templateType, setTemplateType] = useState<TemplateType>("boc_rate_change");
   const [drafting,     setDrafting]     = useState(false);
 
@@ -112,7 +109,6 @@ function DraftNewsletterDrawer({
   }, [templateType, oldRate, newRate, topic]);
 
   const handleDraft = useCallback(async () => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (!isValid() || drafting) return;
     setDrafting(true);
 
@@ -369,7 +365,6 @@ function NewsletterReviewDrawer({
   onSent:    (id: string) => void;
   signature: string;
 }) {
-  const sandbox = useSandboxMode();
   const [editSubject, setEditSubject] = useState("");
   const [editBody,    setEditBody]    = useState("");
   const [saving,      setSaving]      = useState(false);
@@ -415,7 +410,6 @@ function NewsletterReviewDrawer({
 
   const markAsSent = useCallback(async () => {
     if (!item) return;
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     try {
       const supabase = createClient();
       const { error } = await supabase
@@ -721,7 +715,6 @@ export function NewsletterSection({
   const [newsletters,  setNewsletters]  = useState<NewsletterQueue[]>(initialNewsletters);
   const [draftOpen,    setDraftOpen]    = useState(false);
   const [reviewItem,   setReviewItem]   = useState<NewsletterQueue | null>(null);
-  const sandbox = useSandboxMode();
   const [sentThisMonth, setSentThisMonth] = useState(
     initialNewsletters.filter((n) => n.status === "sent").length,
   );
@@ -731,7 +724,6 @@ export function NewsletterSection({
   }, []);
 
   const handleSkip = useCallback(async (id: string) => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setNewsletters((prev) => prev.filter((n) => n.id !== id));
     try {
       const supabase = createClient();

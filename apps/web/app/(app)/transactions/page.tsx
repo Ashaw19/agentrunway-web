@@ -1,8 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { TransactionsContent } from "./transactions-content";
-import { SPLIT_PRESET_AGENT_PCT, type SplitPreset, type SandboxDataset } from "@/lib/types/database";
-import { isSandboxActive, getSandboxData, mergeSandboxSettings } from "@/lib/sandbox-resolver";
+import { SPLIT_PRESET_AGENT_PCT, type SplitPreset } from "@/lib/types/database";
+
 
 export default async function TransactionsPage({
   searchParams,
@@ -14,32 +14,12 @@ export default async function TransactionsPage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Fetch settings first (needed to check sandbox mode)
+  // Fetch settings first
   const { data: settingsRaw } = await supabase
     .from("user_settings")
     .select("*")
     .eq("user_id", user.id)
     .single();
-
-  if (isSandboxActive(settingsRaw)) {
-    const sb: SandboxDataset = getSandboxData(settingsRaw);
-    const settings = mergeSandboxSettings(settingsRaw);
-
-    const settingsSplit: number | null = settings?.split_preset
-      ? (SPLIT_PRESET_AGENT_PCT[settings.split_preset as SplitPreset] ?? null)
-      : null;
-
-    return (
-      <TransactionsContent
-        initialTransactions={sb.transactions ?? []}
-        initialPipelineDeals={sb.pipelineDeals ?? []}
-        historyItems={sb.historyItems ?? []}
-        settingsSplit={settingsSplit}
-        settings={settings ?? null}
-        initialTab={params?.tab ?? "deals"}
-      />
-    );
-  }
 
   const [
     { data: transactions },

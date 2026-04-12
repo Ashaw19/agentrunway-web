@@ -51,16 +51,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const proCheck = await requirePro(supabase, user.id);
   if (!proCheck.allowed) return proCheck.response!;
 
-  // Sandbox guard — this route writes to external Google Drive, not just local DB
-  const { data: sandboxCheck } = await supabase
-    .from("user_settings")
-    .select("sandbox_mode")
-    .eq("user_id", user.id)
-    .single();
-  if (sandboxCheck?.sandbox_mode === true) {
-    return NextResponse.json({ error: "Action blocked in Sandbox Mode" }, { status: 403 });
-  }
-
   const rl = await checkRateLimit(user.id, "drive_refine", 10, 60);
   if (!rl.allowed) {
     return new NextResponse("Too many requests. Please wait before sending more messages.", {

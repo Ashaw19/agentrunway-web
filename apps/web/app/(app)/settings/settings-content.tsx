@@ -56,8 +56,6 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceQuizModal } from "./voice-quiz-modal";
 import { cn } from "@/lib/utils";
-import { guardSandboxWrite, guardSandboxExternalAction } from "@/lib/sandbox-guard";
-import { useSandboxMode } from "@/lib/sandbox-mode-context";
 
 type GoogleConnection = {
   id: string;
@@ -111,7 +109,6 @@ function useSaved() {
 export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], plaidConfigured = false, googleConnection = null, emailConnections: initialEmailConnections = [] }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const sandbox = useSandboxMode();
   const supabase = useMemo(() => createClient(), []);
   const [googleConn, setGoogleConn] = useState<GoogleConnection>(googleConnection);
   const [googleDisconnecting, setGoogleDisconnecting] = useState(false);
@@ -149,7 +146,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   }, [searchParams, router]);
 
   async function handleGoogleDisconnect() {
-    if (guardSandboxExternalAction(sandbox.sandboxMode, "Google disconnect")) return;
     setGoogleDisconnecting(true);
     try {
       const res = await fetch("/api/auth/google/disconnect", { method: "POST" });
@@ -164,7 +160,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   }
 
   async function handleMsDisconnect() {
-    if (guardSandboxExternalAction(sandbox.sandboxMode, "Microsoft disconnect")) return;
     setMsDisconnecting(true);
     try {
       const res = await fetch("/api/auth/microsoft/disconnect", { method: "POST" });
@@ -205,7 +200,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   }
 
   async function handleSmtpSave() {
-    if (guardSandboxExternalAction(sandbox.sandboxMode, "SMTP save")) return;
     if (!smtpForm.email_address || !smtpForm.smtp_host) {
       toast.error("Email address and SMTP host are required.");
       return;
@@ -239,7 +233,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   }
 
   async function handleSmtpDisconnect() {
-    if (guardSandboxExternalAction(sandbox.sandboxMode, "SMTP disconnect")) return;
     setSmtpDisconnecting(true);
     try {
       const res = await fetch("/api/email-connections/smtp", { method: "DELETE" });
@@ -285,7 +278,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const aiProfileSaved = useSaved();
 
   async function saveVoiceProfile(profile: CommunicationProfile) {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const { error } = await supabase
       .from("user_settings")
       .update({
@@ -302,7 +294,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   }
 
   async function saveAiProfile() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingAiProfile(true);
     const updatedBiz: BusinessIdentity = {
       ...businessIdentity,
@@ -349,7 +340,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const selectedBoard = CREA_BOARDS.find((b) => b.slug === boardCode) ?? null;
 
   async function saveBoard() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingBoard(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSavingBoard(false); return; }
@@ -370,7 +360,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const provinceSaved = useSaved();
 
   async function saveProvince() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingProvince(true);
     const { error } = await supabase
       .from("user_settings")
@@ -396,7 +385,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const bizSaved = useSaved();
 
   async function saveBiz() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingBiz(true);
     const { error } = await supabase
       .from("user_settings")
@@ -422,7 +410,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const splitSaved = useSaved();
 
   async function saveSplit() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingSplit(true);
     const { error } = await supabase
       .from("user_settings")
@@ -451,7 +438,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const feesSaved = useSaved();
 
   async function saveFees() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingFees(true);
     const { error } = await supabase
       .from("user_settings")
@@ -499,7 +485,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const claimingSaved = useSaved();
 
   async function saveClaiming() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const vPct = Math.min(100, Math.max(0, parseFloat(vehiclePct)    || 0)) / 100;
     const hPct = Math.min(100, Math.max(0, parseFloat(homeOfficePct) || 0)) / 100;
     setSavingClaiming(true);
@@ -526,7 +511,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const filingSaved = useSaved();
 
   async function saveFiling() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingFiling(true);
     const { error } = await supabase
       .from("user_settings")
@@ -560,7 +544,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   }
 
   async function handleSync(itemId: string) {
-    if (guardSandboxExternalAction(sandbox.sandboxMode, "Plaid sync")) return;
     setSyncingId(itemId);
     try {
       const res = await fetch("/api/plaid/sync", {
@@ -581,7 +564,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   }
 
   async function handleDisconnect(itemId: string) {
-    if (guardSandboxExternalAction(sandbox.sandboxMode, "Plaid disconnect")) return;
     const prevItems = plaidItems;
     setPlaidItems((prev) => prev.filter((i) => i.id !== itemId));
     try {
@@ -601,7 +583,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   }
 
   function handlePlaidSuccess({ item_id, institution_name }: { item_id: string; institution_name: string }) {
-    if (guardSandboxExternalAction(sandbox.sandboxMode, "Plaid connect")) return;
     setConnectErr(null);
     setPlaidItems((prev) => [
       {
@@ -638,7 +619,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const profileSaved = useSaved();
 
   async function saveProfile() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingProfile(true);
     const { error } = await supabase
       .from("user_settings")
@@ -676,7 +656,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const postCapSaved = useSaved();
 
   async function savePostCap() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingPostCap(true);
     const threshold = parseFloat(postCapThreshold) || 0;
     const agentPct  = (parseFloat(postCapAgentPct)    || 0) / 100;
@@ -713,7 +692,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const growthGoalsSaved = useSaved();
 
   async function saveGrowthGoals() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingGoals(true);
     const { error } = await supabase
       .from("user_settings")
@@ -729,7 +707,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   }
 
   async function saveGoal() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingGoal(true);
     const { error } = await supabase
       .from("user_settings")
@@ -742,7 +719,6 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   }
 
   async function saveRunway() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSavingRunway(true);
     const { error } = await supabase
       .from("user_settings")
@@ -2546,7 +2522,6 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 function PlanBillingCard({ settings }: { settings: UserSettings }) {
-  const sandbox = useSandboxMode();
   const [loadingPortal, setLoadingPortal] = useState(false);
   const [portalError, setPortalError] = useState("");
 
@@ -2561,7 +2536,6 @@ function PlanBillingCard({ settings }: { settings: UserSettings }) {
     : null;
 
   async function openPortal() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setLoadingPortal(true);
     setPortalError("");
     try {

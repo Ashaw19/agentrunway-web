@@ -159,8 +159,6 @@ import { PipelineTab } from "./tabs/pipeline-tab";
 import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
 import type { VoiceDraft } from "@/lib/voice/types";
 import { toast } from "sonner";
-import { guardSandboxWrite } from "@/lib/sandbox-guard";
-import { useSandboxMode } from "@/lib/sandbox-mode-context";
 import { markMemoryStaleClient } from "@/lib/ai/mark-memory-stale";
 import { validateClient, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 
@@ -981,7 +979,6 @@ export function ClientsContent({
   userId,
 }: Props) {
   const router = useRouter();
-  const sandbox = useSandboxMode();
   const supabase = useMemo(() => createClient(), []);
 
   // ── Local state ─────────────────────────────────────────────────────────────
@@ -1544,7 +1541,6 @@ export function ClientsContent({
       description: string,
       activityDate: string,
     ) => {
-      if (guardSandboxWrite(sandbox.sandboxMode)) return;
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -1627,7 +1623,6 @@ export function ClientsContent({
       priority: TaskPriority,
       notes: string,
     ) => {
-      if (guardSandboxWrite(sandbox.sandboxMode)) return;
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -1657,7 +1652,6 @@ export function ClientsContent({
   );
 
   const completeTask = useCallback(async (taskId: string) => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     let removedTask: ContactTask | undefined;
     setLocalTasks((prev) => {
       removedTask = prev.find((t) => t.id === taskId);
@@ -1710,7 +1704,6 @@ export function ClientsContent({
   // Update a single field on a client record
   const updateClientField = useCallback(
     async (clientId: string, field: string, value: unknown) => {
-      if (guardSandboxWrite(sandbox.sandboxMode)) return;
       if (!ALLOWED_CLIENT_FIELDS.has(field)) {
         toast.error("Invalid field update");
         return;
@@ -1804,7 +1797,6 @@ export function ClientsContent({
   // ── Listing Appointment CRUD ─────────────────────────────────────────────────
 
   const addListingAppointment = useCallback(async () => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (!selectedClient || !newApptForm.appointment_date) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -1828,7 +1820,6 @@ export function ClientsContent({
   }, [selectedClient, newApptForm]);
 
   const updateApptField = useCallback(async (id: string, field: string, value: unknown) => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setLocalListingAppointments((prev) =>
       prev.map((a) => (a.id === id ? { ...a, [field]: value } : a)),
     );
@@ -1837,7 +1828,6 @@ export function ClientsContent({
   }, [userId]);
 
   const deleteListingAppointment = useCallback(async (id: string) => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setLocalListingAppointments((prev) => prev.filter((a) => a.id !== id));
     const { error } = await supabase.from("listing_appointments").delete().eq("id", id).eq("user_id", userId);
     if (error) toast.error("Failed to delete appointment");
@@ -1855,7 +1845,6 @@ export function ClientsContent({
   // Update a single field on a client_record (deal row) — optimistic local + DB write
   const updateClientRecordField = useCallback(
     async (recordId: string, field: string, value: unknown) => {
-      if (guardSandboxWrite(sandbox.sandboxMode)) return;
       if (!ALLOWED_RECORD_FIELDS.has(field)) {
         toast.error("Invalid field update");
         return;
@@ -1880,7 +1869,6 @@ export function ClientsContent({
 
   // Archive a client (move to Hangar) — atomic single update
   const handleArchiveClient = useCallback(async (clientId: string, reason: ArchiveReason) => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const archivedAt = new Date().toISOString();
     const { error } = await supabase
       .from("clients")
@@ -1900,7 +1888,6 @@ export function ClientsContent({
 
   // Restore a client from the Hangar — atomic single update
   const handleRestoreClient = useCallback(async (clientId: string) => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const { error } = await supabase
       .from("clients")
       .update({ archived_at: null, archive_reason: null })
@@ -1918,7 +1905,6 @@ export function ClientsContent({
 
   // Permanently delete a client
   const handleDeleteClient = useCallback(async (clientId: string) => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setDeleteLoading(true);
     const { error } = await supabase.from("clients").delete().eq("id", clientId).eq("user_id", userId!);
     setDeleteLoading(false);
@@ -1933,7 +1919,6 @@ export function ClientsContent({
 
   // Add a new client manually
   const handleAddClient = useCallback(async () => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     // Build full name from first + last (or use newClientName fallback for voice pre-fill)
     const fullName = (newClientFirstName.trim() && newClientLastName.trim())
       ? `${newClientFirstName.trim()} ${newClientLastName.trim()}`
@@ -2099,7 +2084,6 @@ export function ClientsContent({
   // For other types: IDs are alphabetically sorted (non-directional)
   const addRelationship = useCallback(
     async (clientIdA: string, clientIdB: string, type: RelationshipType) => {
-      if (guardSandboxWrite(sandbox.sandboxMode)) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -2133,7 +2117,7 @@ export function ClientsContent({
   // Add spouse/partner: create a new client copying shared details, then link
   const handleAddSpouse = useCallback(
     async (name: string) => {
-      if (!selectedClientId || guardSandboxWrite(sandbox.sandboxMode)) return;
+      if (!selectedClientId) return;
       const source = localClients.find((c) => c.id === selectedClientId);
       if (!source) return;
       setSpouseSaving(true);
@@ -2201,7 +2185,6 @@ export function ClientsContent({
   // Remove a relationship
   const removeRelationship = useCallback(
     async (relId: string) => {
-      if (guardSandboxWrite(sandbox.sandboxMode)) return;
       const { error } = await supabase
         .from("client_relationships")
         .delete()
@@ -2219,7 +2202,6 @@ export function ClientsContent({
   // ── Flight Plan CRUD ─────────────────────────────────────────────────────────
 
   const handleLoadDefaults = useCallback(async () => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const res = await fetch("/api/flight-plans/seed-defaults", { method: "POST" });
     const json = await res.json();
     if (!res.ok) {
@@ -2235,7 +2217,6 @@ export function ClientsContent({
   }, [router]);
 
   const handleSaveProfile = useCallback(async () => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (!selectedClient || !profileDraft) return;
     setProfileSaving(true);
     const first = profileDraft.first_name.trim().slice(0, FIELD_LIMITS.clientName);
@@ -2273,7 +2254,6 @@ export function ClientsContent({
       plan: { id?: string; name: string; description: string; trigger_status: ClientStatus | null; trigger_tag: string | null; is_active: boolean },
       steps: { step_order: number; delay_days: number; action_type: "task" | "email" | "text"; template: string }[],
     ) => {
-      if (guardSandboxWrite(sandbox.sandboxMode)) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -2365,7 +2345,6 @@ export function ClientsContent({
   );
 
   const handleDeleteFlightPlan = useCallback(async (planId: string) => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const { error } = await supabase.from("flight_plans").delete().eq("id", planId).eq("user_id", userId!);
     if (error) {
       toast.error("Failed to delete flight plan");
@@ -2376,7 +2355,6 @@ export function ClientsContent({
   }, []);
 
   const handleToggleFlightPlan = useCallback(async (planId: string, isActive: boolean) => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const { error } = await supabase.from("flight_plans").update({ is_active: isActive }).eq("id", planId).eq("user_id", userId!);
     if (error) {
       toast.error("Failed to update flight plan");
@@ -2409,7 +2387,6 @@ export function ClientsContent({
   }
 
   async function handleLogActivity() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (!logActivityClientId) return;
     setLogSaving(true);
     const desc = logDescription.trim() || ACTIVITY_TYPE_LABELS[logType];
@@ -2421,7 +2398,6 @@ export function ClientsContent({
   }
 
   async function handleAddTask() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (!taskTitle.trim() || !addTaskClientId) return;
     setTaskSaving(true);
     await addTask(addTaskClientId, taskTitle.trim(), taskDueDate, taskPriority, taskNotes.trim());
@@ -2742,7 +2718,6 @@ export function ClientsContent({
   }
 
   async function handleImport() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (!mapName) return;
     setImportLoading(true);
     setImportProgress({ current: 0, total: csvRows.length, phase: "Preparing..." });
@@ -4596,7 +4571,7 @@ export function ClientsContent({
                         if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && newNoteText.trim()) {
                           e.preventDefault();
                           (async () => {
-                            if (!selectedClient || guardSandboxWrite(sandbox.sandboxMode)) return;
+                            if (!selectedClient) return;
                             const { data: { user } } = await supabase.auth.getUser();
                             if (!user) return;
                             const { data, error } = await supabase
@@ -4619,7 +4594,7 @@ export function ClientsContent({
                       className="self-end shrink-0"
                       disabled={!newNoteText.trim()}
                       onClick={async () => {
-                        if (!selectedClient || guardSandboxWrite(sandbox.sandboxMode)) return;
+                        if (!selectedClient) return;
                         const { data: { user } } = await supabase.auth.getUser();
                         if (!user) return;
                         const { data, error } = await supabase
@@ -4659,7 +4634,6 @@ export function ClientsContent({
                             className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 dark:hover:bg-red-950/30 text-slate-400 hover:text-red-500"
                             title="Delete note"
                             onClick={async () => {
-                              if (guardSandboxWrite(sandbox.sandboxMode)) return;
                               const { error } = await supabase
                                 .from("client_notes")
                                 .delete()

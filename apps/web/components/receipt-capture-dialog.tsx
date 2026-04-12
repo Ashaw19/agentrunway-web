@@ -55,8 +55,6 @@ import {
   Smartphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { guardSandboxWrite } from "@/lib/sandbox-guard";
-import { useSandboxMode } from "@/lib/sandbox-mode-context";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -160,7 +158,6 @@ async function safeJson<T>(res: Response): Promise<T | null> {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
-  const sandbox = useSandboxMode();
   const [state,      setState]      = useState<FlowState>("idle");
   const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
   const [draft,      setDraft]      = useState<ReceiptDraft | null>(null);
@@ -219,7 +216,6 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
   // ── File selected (modes 1 & 2) ─────────────────────────────────────────
   const handleFile = useCallback(async (file: File | undefined | null) => {
     if (!file) return;
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
 
     setState("processing");
     setErrorMsg(null);
@@ -280,13 +276,12 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
       setErrorMsg(msg);
       setState("idle");
     }
-  }, [sandbox.sandboxMode]);
+  }, []);
 
   // ── QR handoff mode ─────────────────────────────────────────────────────
 
   /** Start QR mode: create token, build URL, begin polling + countdown */
   const handleQrMode = useCallback(async () => {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setErrorMsg(null);
 
     try {
@@ -364,7 +359,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
       setErrorMsg(msg);
     }
-  }, [stopPolling, sandbox.sandboxMode]);
+  }, [stopPolling]);
 
   // ── Form field update ────────────────────────────────────────────────────
   const updateDraft = useCallback(
@@ -377,7 +372,6 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
   // ── Save ─────────────────────────────────────────────────────────────────
   const handleSave = useCallback(async () => {
     if (!draft) return;
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setState("saving");
 
     const supabase  = createClient();
@@ -424,7 +418,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
       reset();
       onClose();
     }, 1200);
-  }, [draft, reset, onClose, onSaved, sandbox.sandboxMode]);
+  }, [draft, reset, onClose, onSaved]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (

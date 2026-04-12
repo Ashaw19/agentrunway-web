@@ -1,12 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardContent } from "./dashboard-content";
-import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord, UserSettings, ListingAppointment } from "@/lib/types/database";
+import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord, ListingAppointment } from "@/lib/types/database";
 import { CREA_BOARDS, fetchBoardData, type LocalMarketData } from "@/lib/crea-board";
 import { computeIntelligenceBriefing, type BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import type { RecurringExpense } from "@/lib/types/database";
-import { isSandboxActive, getSandboxData, mergeSandboxSettings, getSandboxReceiptYTD, getSandboxMileageTotal } from "@/lib/sandbox-resolver";
+
 
 export default async function DashboardPage({
   searchParams,
@@ -21,103 +21,13 @@ export default async function DashboardPage({
 
   const dashYear = new Date().getFullYear();
 
-  // ── Step 1: Fetch settings (full row) to check sandbox mode ─────────────
   const { data: settingsRow } = await supabase
     .from("user_settings")
     .select("*")
     .eq("user_id", user.id)
     .single();
 
-  const sandboxActive = isSandboxActive(settingsRow as UserSettings | null);
-
-  // ── Step 2: Resolve all data ────────────────────────────────────────────
-  if (sandboxActive) {
-    const sb = getSandboxData(settingsRow as UserSettings);
-    const mergedSettings = mergeSandboxSettings(settingsRow as UserSettings);
-
-    // Intelligence Briefing from sandbox clients
-    const sandboxListings = sb.listingAppointments?.filter(la => la.status === 'scheduled' || la.status === 'active') ?? [];
-    const briefingResult = sb.clients.length > 0 && sb.contactActivities.length > 0
-      ? computeIntelligenceBriefing(
-          sb.clients as Client[],
-          sb.contactActivities as ContactActivity[],
-          sb.clientRecords as ClientRecord[],
-          sandboxListings as ListingAppointment[],
-        )
-      : null;
-    const topBriefingItems: BriefingItem[] = briefingResult
-      ? [...briefingResult.items]
-          .sort((a, b) => {
-            const sev: Record<string, number> = { urgent: 0, attention: 1, upcoming: 2 };
-            return (sev[a.severity] ?? 3) - (sev[b.severity] ?? 3);
-          })
-          .slice(0, 3)
-      : [];
-
-    // CRM summary from sandbox data
-    const activeStatuses = new Set(["boarding", "in_flight"]);
-    const sandboxActiveClients = sb.clients.filter(c => activeStatuses.has(c.status));
-    const fourteenDaysAgo = new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10);
-    const recentlyContactedIds = new Set(
-      sb.contactActivities
-        .filter(a => a.activity_date >= fourteenDaysAgo)
-        .map(a => a.client_id)
-    );
-    const sandboxStaleCount = Math.max(0, sandboxActiveClients.length - recentlyContactedIds.size);
-
-    // Open tasks from sandbox
-    const sandboxTasks = sb.contactTasks
-      .filter(t => t.completed_at === null)
-      .slice(0, 10) as ContactTask[];
-
-    // Fetch live CREA board data (always real — external market data)
-    let boardMarketData: LocalMarketData | null = null;
-    const boardCode = mergedSettings.board_code ?? "";
-    if (boardCode) {
-      const board = CREA_BOARDS.find((b) => b.slug === boardCode);
-      if (board) {
-        try { boardMarketData = await fetchBoardData(board); } catch { /* non-critical */ }
-      }
-    }
-
-    const params = await searchParams;
-    const isAdmin = mergedSettings.is_admin ?? false;
-    const showUpgradeBanner = params.upgraded === "true" && !isAdmin;
-    const userName = mergedSettings.display_name || user.email?.split("@")[0] || undefined;
-
-    return (
-      <DashboardContent
-        transactions={sb.transactions}
-        pipelineDeals={sb.pipelineDeals}
-        settings={mergedSettings}
-        expenseCategories={sb.expenseCategories}
-        receiptYTD={getSandboxReceiptYTD(sb)}
-        historyItems={sb.historyItems as HistoryItem[]}
-        initialDashboardView={mergedSettings.dashboard_view ?? "standard"}
-        subscriptionTier={mergedSettings.subscription_tier ?? "starter"}
-        showUpgradeBanner={showUpgradeBanner}
-        userName={userName}
-        openTasks={sandboxTasks}
-        mileageKmTotal={getSandboxMileageTotal(sb)}
-        ccaAssetCount={sb.ccaAssets.length}
-        activeClientCount={sandboxActiveClients.length}
-        staleLeadCount={sandboxStaleCount}
-        hasSeenTour={settingsRow?.has_seen_tour ?? true}
-        boardMarketData={boardMarketData}
-        boardSubregion={mergedSettings.board_subregion ?? ""}
-        briefingItems={topBriefingItems}
-        upcomingConditions={[]}
-        runwayScoreSnapshot={(settingsRow?.runway_score_snapshot as { score: number; month: string } | null) ?? null}
-        dashboardLayout={(settingsRow?.dashboard_layout as import("./card-registry").DashboardLayout | null) ?? null}
-        communicationProfile={(settingsRow?.communication_profile as import("@/lib/types/database").CommunicationProfile | null) ?? null}
-        businessIdentity={(settingsRow?.business_identity as import("@/lib/types/database").BusinessIdentity | null) ?? null}
-        aiProfilePromptDismissedAt={settingsRow?.ai_profile_prompt_dismissed_at ?? null}
-        activeListings={sandboxListings as ListingAppointment[]}
-      />
-    );
-  }
-
-  // ── Step 3: Live Supabase queries (no sandbox) ──────────────────────────
+  // ── Live Supabase queries ──────────────────────────────────────────────
   const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult, listingResult, recurringExpResult] =
     await Promise.all([
       supabase

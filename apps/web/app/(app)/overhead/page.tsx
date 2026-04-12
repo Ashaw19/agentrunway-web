@@ -6,21 +6,14 @@ import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/eng
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
 import { projectedYearEndGCI, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
 import type { ScenarioSeedData } from "@/app/(app)/scenarios/page";
-import {
-  isSandboxActive,
-  getSandboxData,
-  mergeSandboxSettings,
-  getSandboxReceiptYTD,
-  getSandboxMileageTotal,
-  getSandboxExpenseItems,
-} from "@/lib/sandbox-resolver";
+
 
 export default async function OverheadPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // ── Fetch settings first (needed to check sandbox mode) ──
+  // ── Fetch settings ──
   const { data: rawSettings } = await supabase
     .from("user_settings")
     .select("*")
@@ -29,68 +22,7 @@ export default async function OverheadPage() {
 
   const currentYear = new Date().getFullYear();
 
-  // ── Sandbox path ──
-  if (isSandboxActive(rawSettings)) {
-    const sb = getSandboxData(rawSettings);
-    const settings = mergeSandboxSettings(rawSettings);
-
-    // Build scenario seed from sandbox data
-    const sbClosedTx = sb.transactions.filter(
-      (tx) => tx.status === "closed" && tx.date >= `${currentYear}-01-01`,
-    );
-    const sbYtdGCI = sbClosedTx.reduce((sum, tx) => sum + computeGCI(tx as Transaction), 0);
-    const sbPipelineWeightedGCI = sb.pipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d as PipelineDeal), 0);
-    const sbExpenseItems = getSandboxExpenseItems(sb);
-    const sbReceiptYTD = getSandboxReceiptYTD(sb);
-    const sbMonthlyRecurring = sbExpenseItems.reduce((sum, item) => sum + Number(item.monthly_recurring ?? 0), 0);
-    const now = new Date();
-    const sbExpMonthsElapsed = now.getMonth() + (now.getDate() / 30);
-    const sbExpensesYTD = Math.max(sbReceiptYTD, sbMonthlyRecurring * sbExpMonthsElapsed);
-    const sbQPcts = settings.national_quarter_pcts ?? [0.25, 0.25, 0.25, 0.25];
-    const sbFraction = seasonalFractionElapsed(sbQPcts);
-    const sbProjectedGCI = projectedYearEndGCI(sbYtdGCI, sbPipelineWeightedGCI, sbFraction, settings.goal_gci ?? 0);
-
-    const sbScenarioSeed: ScenarioSeedData = {
-      province: settings.province ?? "ontario",
-      goalGCI: settings.goal_gci ?? 0,
-      ytdGCI: sbYtdGCI,
-      projectedAnnualGCI: sbProjectedGCI,
-      dealCount: sbClosedTx.length,
-      pipelineWeightedGCI: sbPipelineWeightedGCI,
-      monthlyRecurring: sbMonthlyRecurring,
-      expensesYTD: sbExpensesYTD,
-      monthlyBrokerageFee: settings.monthly_brokerage_fee ?? 0,
-      cashReserve: settings.cash_reserve ?? 0,
-      isIncorporated: settings.is_incorporated ?? false,
-      compensationMethod: settings.compensation_method ?? "salary",
-      quarterPcts: sbQPcts,
-      splitPreset: (settings.split_preset ?? "p80_20") as SplitPreset,
-      postCapThreshold: settings.post_cap_threshold_gci ?? 0,
-      postCapAgentPct: settings.post_cap_agent_pct ?? 1,
-      postCapBrokeragePct: settings.post_cap_brokerage_pct ?? 0,
-      txFeeRate: settings.tx_fee_rate_pct ?? 0,
-      txFeeCap: settings.tx_fee_annual_cap ?? 0,
-      estimatedWeeklyHours: settings.estimated_weekly_hours ?? null,
-      vacationWeeks: settings.vacation_weeks_per_year ?? null,
-    };
-
-    return (
-      <OverheadContent
-        transactions={sb.transactions}
-        settings={settings}
-        expenseCategories={sb.expenseCategories}
-        receiptYTD={getSandboxReceiptYTD(sb)}
-        mileageKmTotal={getSandboxMileageTotal(sb)}
-        ccaAssetCount={sb.ccaAssets.length}
-        historyItems={sb.historyItems as HistoryItem[]}
-        pipelineDeals={sb.pipelineDeals}
-        subscriptionTier={settings.subscription_tier ?? "starter"}
-        scenarioSeed={sbScenarioSeed}
-      />
-    );
-  }
-
-  // ── Normal Supabase path ──
+  // ── Live Supabase queries ──
   const [
     txResult,
     expCatResult,

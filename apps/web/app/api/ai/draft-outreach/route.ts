@@ -218,12 +218,6 @@ export async function POST(req: NextRequest) {
   const proCheck = await requirePro(supabase, user.id);
   if (!proCheck.allowed) return proCheck.response!;
 
-  // Check sandbox mode
-  const { data: sandboxCheck } = await supabase.from("user_settings").select("sandbox_mode").eq("user_id", user.id).single();
-  if (sandboxCheck?.sandbox_mode === true) {
-    return NextResponse.json({ error: "Action blocked in Sandbox Mode" }, { status: 403 });
-  }
-
   // Rate limit: 20 on-demand drafts per hour
   const rl = await checkRateLimit(user.id, "draft_outreach", 20, 60);
   if (!rl.allowed) {

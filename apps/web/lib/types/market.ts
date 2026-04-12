@@ -1,7 +1,7 @@
 // ============================================================================
 // Agent Runway — Market Data Types
 // Shared type definitions for CREA board market data used across dashboard,
-// altimeter, sandbox, settings, and API routes.
+// altimeter, settings, and API routes.
 // ============================================================================
 
 export interface CreaBoard {

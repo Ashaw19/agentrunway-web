@@ -166,16 +166,6 @@ export async function POST(req: NextRequest) {
   const proCheck = await requirePro(supabase, user.id);
   if (!proCheck.allowed) return proCheck.response!;
 
-  // Block in sandbox mode (saves AI + Google Places credits)
-  const { data: sbCheck } = await supabase
-    .from("user_settings")
-    .select("sandbox_mode")
-    .eq("user_id", user.id)
-    .single();
-  if (sbCheck?.sandbox_mode === true) {
-    return NextResponse.json({ error: "Blocked in sandbox mode." }, { status: 403 });
-  }
-
   // Rate limit: 20 suggestions per hour per user
   const rl = await checkRateLimit(user.id, "reward_suggestion", 20, 60);
   if (!rl.allowed) {

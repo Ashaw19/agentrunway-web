@@ -3,12 +3,7 @@ import { redirect } from "next/navigation";
 import { ReportsContent } from "./reports-content";
 import type { CcaAsset, RecurringExpense } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import {
-  isSandboxActive,
-  getSandboxData,
-  mergeSandboxSettings,
-  getSandboxReceiptTotalsByKey,
-} from "@/lib/sandbox-resolver";
+
 
 export default async function ReportsPage() {
   const supabase = await createClient();
@@ -17,53 +12,14 @@ export default async function ReportsPage() {
 
   const year = new Date().getFullYear();
 
-  // Always fetch settings first (needed to check sandbox mode)
+  // Fetch settings
   const { data: settingsRaw } = await supabase
     .from("user_settings")
     .select("*")
     .eq("user_id", user.id)
     .single();
 
-  if (isSandboxActive(settingsRaw)) {
-    // ── Sandbox branch ──────────────────────────────────────────────────
-    const sb = getSandboxData(settingsRaw);
-    const settings = mergeSandboxSettings(settingsRaw);
-
-    const categories = sb.expenseCategories; // already have items mapped
-    const receiptTotalsByKey = getSandboxReceiptTotalsByKey(sb);
-
-    // Build expenseAmounts: receipts YTD + recurring for completed months
-    const now = new Date();
-    const completedMonths = now.getMonth();
-    const expenseAmounts: Record<string, number> = { ...receiptTotalsByKey };
-    const allItems = sb.expenseCategories.flatMap((cat) => cat.items);
-    for (const item of allItems) {
-      if (item.monthly_recurring > 0 && completedMonths > 0) {
-        expenseAmounts[item.key] =
-          (expenseAmounts[item.key] ?? 0) + item.monthly_recurring * completedMonths;
-      }
-    }
-
-    return (
-      <ReportsContent
-        settings={settings}
-        transactions={sb.transactions}
-        pipelineDeals={sb.pipelineDeals}
-        expenseCategories={categories}
-        subscriptionTier={settings.subscription_tier ?? "starter"}
-        historyItems={sb.historyItems}
-        receiptTotalsByKey={receiptTotalsByKey}
-        ccaAssets={(sb.ccaAssets ?? []) as CcaAsset[]}
-        expenseAmounts={expenseAmounts}
-        mileageLogs={[]}
-        taxYear={year}
-        userId={user.id}
-        referralSummary={undefined}
-      />
-    );
-  }
-
-  // ── Normal branch ───────────────────────────────────────────────────
+  // ── Live Supabase queries ───────────────────────────────────────────
   const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, ccaAssetsResult, mileageResult, referralsResult, recurringExpResult] =
     await Promise.all([
       supabase

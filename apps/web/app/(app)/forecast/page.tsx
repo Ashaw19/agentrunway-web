@@ -1,13 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ForecastContent } from "./forecast-content";
-import {
-  isSandboxActive,
-  getSandboxData,
-  mergeSandboxSettings,
-  getSandboxReceiptYTD,
-  getSandboxMileageTotal,
-} from "@/lib/sandbox-resolver";
+
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import type { RecurringExpense } from "@/lib/types/database";
 
@@ -16,7 +10,7 @@ export default async function ForecastPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Always fetch settings first to check sandbox mode
+  // Fetch settings
   const settingsResult = await supabase
     .from("user_settings")
     .select("*")
@@ -25,37 +19,7 @@ export default async function ForecastPage() {
 
   const rawSettings = settingsResult.data;
 
-  if (isSandboxActive(rawSettings)) {
-    // ── Sandbox path ──────────────────────────────────────────────
-    const sb = getSandboxData(rawSettings);
-    const settings = mergeSandboxSettings(rawSettings);
-
-    const transactions = sb.transactions
-      .filter((t) => t.status === "closed")
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    const expenseCategories = sb.expenseCategories;
-    const receiptYTD = getSandboxReceiptYTD(sb);
-    const mileageKmTotal = getSandboxMileageTotal(sb);
-    const ccaAssetCount = sb.ccaAssets.length;
-
-    return (
-      <ForecastContent
-        settings={settings}
-        transactions={transactions}
-        pipelineDeals={sb.pipelineDeals}
-        listingAppointments={sb.listingAppointments}
-        expenseCategories={expenseCategories}
-        historyItems={sb.historyItems}
-        subscriptionTier={settings?.subscription_tier ?? "starter"}
-        receiptYTD={receiptYTD}
-        mileageKmTotal={mileageKmTotal}
-        ccaAssetCount={ccaAssetCount}
-      />
-    );
-  }
-
-  // ── Normal path ───────────────────────────────────────────────
+  // ── Live Supabase queries ───────────────────────────────────────
   const year = new Date().getFullYear();
   const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, mileageResult, ccaResult, receiptTotalsResult, listingApptResult, recurringExpResult] =
     await Promise.all([

@@ -37,19 +37,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── Sandbox guard ────────────────────────────────────────────────────────
-  const { data: sandboxCheck } = await supabase
-    .from("user_settings")
-    .select("sandbox_mode")
-    .eq("user_id", user.id)
-    .single();
-  if (sandboxCheck?.sandbox_mode === true) {
-    return NextResponse.json(
-      { error: "Action blocked in Sandbox Mode" },
-      { status: 403 },
-    );
-  }
-
   // ── Parse body ──────────────────────────────────────────────────────────
   let body: { queue_item_id?: string; outreach_id?: string };
   try {

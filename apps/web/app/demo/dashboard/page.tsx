@@ -296,12 +296,6 @@ const DEMO_SETTINGS: UserSettings = {
   business_identity: null,
   agent_goals: null,
   ai_profile_prompt_dismissed_at: null,
-  // Sandbox mode (not applicable in public demo)
-  sandbox_mode: false,
-  sandbox_activated_at: null,
-  sandbox_expires_at: null,
-  sandbox_tier: null,
-  sandbox_data: null,
   filing_frequency: "quarterly",
   fiscal_year_end_month: 12,
   brokerage_withholds_hst: false,

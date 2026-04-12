@@ -119,19 +119,6 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
 
-  // Block in sandbox mode (saves AI credits)
-  const { data: sbCheck } = await supabase
-    .from("user_settings")
-    .select("sandbox_mode")
-    .eq("user_id", user.id)
-    .single();
-  if (sbCheck?.sandbox_mode === true) {
-    return NextResponse.json(
-      { error: "Blocked in sandbox mode." },
-      { status: 403 },
-    );
-  }
-
   // Rate limit: 10 scans per hour — scans are expensive and usually run once per import
   const rl = await checkRateLimit(user.id, "scan_import_notes", 10, 60);
   if (!rl.allowed) {

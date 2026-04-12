@@ -32,16 +32,6 @@ export async function POST(req: NextRequest) {
   const proCheck = await requirePro(supabase, user.id);
   if (!proCheck.allowed) return proCheck.response!;
 
-  // Block in sandbox mode (saves AI credits)
-  const { data: sbCheck } = await supabase
-    .from("user_settings")
-    .select("sandbox_mode")
-    .eq("user_id", user.id)
-    .single();
-  if (sbCheck?.sandbox_mode === true) {
-    return NextResponse.json({ error: "Blocked in sandbox mode." }, { status: 403 });
-  }
-
   const rl = await checkRateLimit(user.id, "buyer_analysis", 15, 60);
   if (!rl.allowed) {
     return NextResponse.json(

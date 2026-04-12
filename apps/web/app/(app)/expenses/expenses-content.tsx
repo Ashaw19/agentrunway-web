@@ -49,8 +49,6 @@ import {
   RECEIPT_CATEGORY_GROUPS,
   type ReceiptExpense,
 } from "@/lib/types/receipt";
-import { guardSandboxWrite } from "@/lib/sandbox-guard";
-import { useSandboxMode } from "@/lib/sandbox-mode-context";
 import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
 import type { VoiceDraft } from "@/lib/voice/types";
 import {
@@ -146,7 +144,6 @@ export function ExpensesContent({
   mileageLogs = [], plaidItems = [], plaidTransactions = [],
   plaidExpenseItems = [], plaidExpenseCategories = [], plaidConfigured = false,
 }: Props) {
-  const sandbox = useSandboxMode();
   const supabase = useMemo(() => createClient(), []);
   const thisYear = currentYear ?? new Date().getFullYear();
   const isPro = settings?.subscription_tier === "professional" || settings?.subscription_tier === "team";
@@ -416,7 +413,6 @@ export function ExpensesContent({
   }
 
   async function saveRecurringExpense() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (!reName.trim() || !reAmount.trim() || !reCategory) {
       toast.error("Name, amount, and category are required.");
       return;
@@ -470,7 +466,6 @@ export function ExpensesContent({
   }
 
   async function deleteRecurringExpense(id: string) {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const { error } = await supabase
       .from("recurring_expenses")
       .update({ is_active: false, updated_at: new Date().toISOString() })
@@ -523,7 +518,6 @@ export function ExpensesContent({
     voiceFilledFields.has(field) ? "bg-amber-50/60 border-amber-200/80" : "";
 
   async function handleQuickExpenseSave() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setQeSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setQeSaving(false); return; }
@@ -801,7 +795,6 @@ export function ExpensesContent({
     field: "monthly_recurring",
     value: string,
   ) {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const numValue = parseDollar(value) ?? 0;
     const recurringCheck = validateMonthlyRecurring(numValue);
     if (!recurringCheck.valid) {
@@ -824,7 +817,6 @@ export function ExpensesContent({
   }
 
   async function addItem(categoryId: string) {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const title = newItemTitle.trim();
     if (!title) return;
 
@@ -864,7 +856,6 @@ export function ExpensesContent({
   }
 
   async function deleteItem(categoryId: string, itemId: string) {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { error } = await supabase.from("expense_items").delete().eq("id", itemId).eq("user_id", user.id);
@@ -883,7 +874,6 @@ export function ExpensesContent({
   }
 
   async function saveVehiclePct(raw: string) {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const pct = Math.min(1, Math.max(0, parseFloat(raw) / 100));
     if (isNaN(pct)) return;
     const pctCheck = validateVehicleBusinessPct(pct);
@@ -953,7 +943,6 @@ export function ExpensesContent({
   const [savingYoy, setSavingYoy] = useState<number | null>(null); // year being saved
 
   async function saveYoyExpenses(yr: number, field: "annual_expenses" | "annual_mileage_km" | "annual_mileage_deduct", rawValue: string) {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const val = parseDollar(rawValue) ?? 0;
     const yoyCheck = validateExpenseAmount(val);
     if (!yoyCheck.valid) {

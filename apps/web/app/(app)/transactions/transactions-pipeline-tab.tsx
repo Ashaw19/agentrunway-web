@@ -3,8 +3,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { useSandboxMode } from "@/lib/sandbox-mode-context";
-import { guardSandboxWrite } from "@/lib/sandbox-guard";
 import { validateTransaction, validatePipelineDeal, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 import {
   Card,
@@ -140,7 +138,6 @@ type CloseForm = {
 };
 
 export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransactions = [] }: Props) {
-  const sandbox = useSandboxMode();
   const supabase = useMemo(() => createClient(), []);
   const [deals, setDeals] = useState(pipelineDeals);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -241,7 +238,6 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
   }
 
   async function handleSave() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSaving(false); return; }
@@ -316,7 +312,6 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
   }
 
   async function handleDelete(id: string) {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     const { error } = await supabase.from("pipeline_deals").delete().eq("id", id).eq("user_id", user.id);
@@ -330,7 +325,6 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
   }
 
   async function handleClose() {
-    if (guardSandboxWrite(sandbox.sandboxMode)) return;
     if (!closeTarget || closing) return;
     setClosing(true);
     const { data: { user } } = await supabase.auth.getUser();

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { SettingsContent } from "./settings-content";
 import { AccountantShareManager } from "@/components/accountant-share-manager";
 import { type UserSettings, type PlaidItem } from "@/lib/types/database";
-import { isSandboxActive, mergeSandboxSettings } from "@/lib/sandbox-resolver";
+
 
 export default async function SettingsPage() {
   const supabase = await createClient();
@@ -48,11 +48,7 @@ export default async function SettingsPage() {
 
   if (!settingsRaw) redirect("/dashboard");
 
-  // When sandbox is active, merge sandbox settings overrides so the user sees
-  // the fictional agent's brokerage split, fees, goals, etc.
-  const settings = isSandboxActive(settingsRaw)
-    ? mergeSandboxSettings(settingsRaw)
-    : settingsRaw;
+  const settings = settingsRaw;
 
   return (
     <div className="space-y-6">

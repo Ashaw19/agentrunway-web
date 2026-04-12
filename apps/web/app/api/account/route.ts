@@ -44,19 +44,6 @@ export async function DELETE() {
   if (auth.error) return auth.error;
   const { supabase, userId } = auth;
 
-  // ── Block in sandbox mode — never delete a real account from sandbox ───────
-  const { data: sbCheck } = await supabase
-    .from("user_settings")
-    .select("sandbox_mode")
-    .eq("user_id", userId)
-    .single();
-  if (sbCheck?.sandbox_mode === true) {
-    return NextResponse.json(
-      { error: "Account deletion is blocked in sandbox mode." },
-      { status: 403 },
-    );
-  }
-
   const admin = createAdminClient();
 
   // ── 2. Load all Plaid items for this user ──────────────────────────────────
