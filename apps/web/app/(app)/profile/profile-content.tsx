@@ -143,8 +143,6 @@ export function ProfileContent({
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Sandbox ──────────────────────────────────────────────────────────────
-
   // ── Derived ───────────────────────────────────────────────────────────────
   const initials = getInitials(displayName || email.split("@")[0]);
   const currentTheme = COLOR_THEMES.find((t) => t.value === colorTheme) ?? COLOR_THEMES[0];

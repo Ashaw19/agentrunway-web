@@ -55,7 +55,7 @@ export function TopBar() {
 
   return (
     <div className="hidden md:flex h-12 shrink-0 items-center justify-end gap-3 border-b border-border/40 bg-background/60 px-6">
-      {/* Portal target for page-specific action buttons (e.g. dashboard Customize, Sandbox) */}
+      {/* Portal target for page-specific action buttons (e.g. dashboard Customize) */}
       <div id="top-bar-actions" className="contents" />
 
       {/* Language picker */}
