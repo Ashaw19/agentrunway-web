@@ -1502,9 +1502,32 @@ BEING THE EXPERT — You know Agent Runway better than anyone. When agents ask q
       wasEscalation: isEscalation,
     }).catch(() => {}); // Swallow errors — analytics must never break chat
 
-    // Return as plain text stream (compatible with existing frontend reader)
-    return result.toTextStreamResponse({
+    // Custom stream that sends both text deltas and tool-call events.
+    // Format: `0:"text"\n` for text, `9:{"toolName":"x"}\n` for tool calls.
+    // This lets the frontend show progress during multi-step tool calls
+    // instead of appearing to hang.
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of result.fullStream) {
+            if (chunk.type === "text-delta") {
+              controller.enqueue(encoder.encode(`0:${JSON.stringify(chunk.text)}\n`));
+            } else if (chunk.type === "tool-call") {
+              controller.enqueue(encoder.encode(`9:${JSON.stringify({ toolName: chunk.toolName })}\n`));
+            }
+          }
+        } catch (err) {
+          log.error({ err, requestId }, "[chat] Stream error");
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(readable, {
       headers: {
+        "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache",
         "X-Content-Type-Options": "nosniff",
         "X-AI-Model-Tier": tier,

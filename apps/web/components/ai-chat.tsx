@@ -20,6 +20,70 @@ function nextMsgId(): string {
   return `msg-${++msgIdCounter}-${Date.now()}`;
 }
 
+// ── Tool call status labels (shown while tools execute) ─────────────────────
+const TOOL_STATUS_LABELS: Record<string, string> = {
+  searchClients: "Searching clients…",
+  searchClientsByFilter: "Filtering clients…",
+  searchPipelineDeals: "Searching pipeline…",
+  createClient: "Creating client…",
+  createPipelineDeal: "Adding pipeline deal…",
+  updateClientDetails: "Updating profile…",
+  updateClientNotes: "Adding notes…",
+  updateClientStatus: "Updating status…",
+  updateClientTags: "Updating tags…",
+  updateClientTone: "Setting tone…",
+  logContactActivity: "Logging activity…",
+  createContactTask: "Creating task…",
+  addRecurringExpense: "Adding expense…",
+  deleteRecurringExpense: "Removing expense…",
+  addPropertyShowing: "Logging showing…",
+  scheduleListingAppointment: "Scheduling appointment…",
+  linkClientReferral: "Linking referral…",
+  linkClientRelationship: "Linking relationship…",
+  getClientSummary: "Loading client summary…",
+  createFlightPlan: "Creating flight plan…",
+  webSearch: "Searching the web…",
+};
+
+/**
+ * Parse the Vercel AI SDK data stream protocol.
+ * Extracts text deltas (prefix 0:) and tool call events (prefix 9:).
+ * Returns { text, toolName } for each parsed chunk.
+ */
+function parseDataStreamChunk(raw: string): { text: string; toolName: string | null } {
+  let text = "";
+  let toolName: string | null = null;
+
+  const lines = raw.split("\n");
+  for (const line of lines) {
+    if (!line) continue;
+    const colonIdx = line.indexOf(":");
+    if (colonIdx < 1) continue;
+    const prefix = line.slice(0, colonIdx);
+    const payload = line.slice(colonIdx + 1);
+
+    if (prefix === "0") {
+      // Text delta — payload is a JSON string like "hello "
+      try {
+        text += JSON.parse(payload);
+      } catch {
+        // Not valid JSON, skip
+      }
+    } else if (prefix === "9") {
+      // Tool call start — payload is JSON with toolName
+      try {
+        const parsed = JSON.parse(payload);
+        if (parsed.toolName) toolName = parsed.toolName;
+      } catch {
+        // Skip
+      }
+    }
+    // Prefixes a (tool-result), e (step-finish), d (finish) — we don't need to surface these
+  }
+
+  return { text, toolName };
+}
+
 // ── Action Card Parsing ──────────────────────────────────────────────────────
 
 interface ParsedSegment {
@@ -456,6 +520,7 @@ export function AiChat({ financialContext }: Props) {
   const [messages, setMessages] = useState<Message[]>([initialMessage]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [toolStatus, setToolStatus] = useState<string | null>(null);
   const [unread, setUnread] = useState(0);
   // Enhancement #2: Tracks which message ID has been given feedback
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, "positive" | "negative">>({});
@@ -576,12 +641,24 @@ export function AiChat({ financialContext }: Props) {
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
-              assistantText += decoder.decode(value, { stream: true });
-              const captured = assistantText;
-              setMessages((prev) => [
-                ...prev.slice(0, -1),
-                { role: "assistant", content: captured, id: assistantId },
-              ]);
+              const chunk = decoder.decode(value, { stream: true });
+              const { text, toolName } = parseDataStreamChunk(chunk);
+
+              // Show tool call status so the user knows something is happening
+              if (toolName) {
+                setToolStatus(TOOL_STATUS_LABELS[toolName] ?? "Working…");
+              }
+
+              if (text) {
+                // Clear tool status once text starts flowing
+                setToolStatus(null);
+                assistantText += text;
+                const captured = assistantText;
+                setMessages((prev) => [
+                  ...prev.slice(0, -1),
+                  { role: "assistant", content: captured, id: assistantId },
+                ]);
+              }
             }
           } catch {
             // Stream interrupted (network drop, timeout, abort)
@@ -593,6 +670,7 @@ export function AiChat({ financialContext }: Props) {
               ]);
             }
           }
+          setToolStatus(null);
         }
 
         // Fire toast for completed actions
@@ -626,6 +704,7 @@ export function AiChat({ financialContext }: Props) {
         ]);
       } finally {
         setLoading(false);
+        setToolStatus(null);
       }
     },
     [input, loading, pathname, isOpen, router],
@@ -782,10 +861,19 @@ export function AiChat({ financialContext }: Props) {
                         <span style={{ whiteSpace: "pre-wrap" }}>{msg.content}</span>
                       )
                     ) : (
-                      <span className="inline-flex gap-1 text-slate-500">
-                        <span className="animate-bounce">·</span>
-                        <span className="animate-bounce [animation-delay:0.15s]">·</span>
-                        <span className="animate-bounce [animation-delay:0.3s]">·</span>
+                      <span className="inline-flex items-center gap-1.5 text-slate-500">
+                        {toolStatus ? (
+                          <>
+                            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-indigo-400/70" />
+                            <span className="text-xs text-slate-400">{toolStatus}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="animate-bounce">·</span>
+                            <span className="animate-bounce [animation-delay:0.15s]">·</span>
+                            <span className="animate-bounce [animation-delay:0.3s]">·</span>
+                          </>
+                        )}
                       </span>
                     )}
                   </div>
