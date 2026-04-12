@@ -627,9 +627,9 @@ export function generateSandboxData(
     ["Pre-construction"], ["Rental"], [], [], [], // empty = no tags (common)
   ];
   const TONES: CommunicationTone[] = ["casual", "friendly", "professional", "formal"];
-  const PHONE_TYPES: PhoneType[] = ["mobile", "mobile", "mobile", "home", "work"];
+  const PHONE_TYPES: PhoneType[] = ["mobile", "mobile", "mobile", "home", "work", "other"];
   const PREFERRED_CONTACTS: PreferredContact[] = ["phone", "email", "text", "email", "text"];
-  const CLIENT_TIMEFRAMES = ["asap", "1_3_months", "3_6_months", "6_12_months", "unknown"];
+  const CLIENT_TIMEFRAMES = ["asap", "1_3_months", "3_6_months", "6_12_months", "12_plus", "unknown"];
 
   // Collect all names already used in transactions and pipeline
   const usedNames = new Set<string>();
@@ -734,7 +734,7 @@ export function generateSandboxData(
       phone_type: pick(rng, PHONE_TYPES),
       secondary_email: null,
       secondary_phone: null,
-      secondary_phone_type: "mobile" as PhoneType,
+      secondary_phone_type: pick(rng, PHONE_TYPES),
       property_interest: cn.source === "pipeline" ? Math.round(avgBoardPrice * randRange(rng, 0.7, 1.3)) : null,
       property_interest_type: rng() < 0.5 ? "budget" as const : "listing" as const,
       timeframe: cn.source === "pipeline" ? pick(rng, ["asap", "1_3_months", "3_6_months"]) : pick(rng, CLIENT_TIMEFRAMES),
@@ -745,9 +745,11 @@ export function generateSandboxData(
       communication_tone: pick(rng, TONES),
       buyer_pre_approved: cn.source === "pipeline" && rng() < 0.5 ? true : null,
       buyer_pre_approval_amount: cn.source === "pipeline" && rng() < 0.4 ? Math.round(avgBoardPrice * randRange(rng, 0.8, 1.2) / 1000) * 1000 : null,
-      buyer_financing_type: rng() < 0.7 ? "mortgage" : rng() < 0.5 ? "cash" : null,
+      buyer_financing_type: rng() < 0.7 ? "mortgage" : rng() < 0.5 ? "cash" : rng() < 0.5 ? "bridge" : "unknown",
       buyer_target_close_date: null,
       buyer_target_area: null,
+      scheduled_for: null,
+      scheduled_phrase: null,
       imported_at: null,
       created_at: createdDate.toISOString(),
       updated_at: lastContactDate.toISOString(),

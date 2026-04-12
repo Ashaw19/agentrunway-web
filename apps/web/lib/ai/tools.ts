@@ -184,6 +184,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (propertyInterest !== undefined) record.property_interest = propertyInterest;
           if (propertyInterestType) record.property_interest_type = propertyInterestType;
           else if (side === "seller") record.property_interest_type = "listing";
+          else if (side === "buyer") record.property_interest_type = "budget";
           if (timeframe) record.timeframe = timeframe;
           if (notes) record.notes = notes;
           if (leadSource) record.lead_source = leadSource;

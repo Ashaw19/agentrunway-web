@@ -1218,7 +1218,7 @@ export function ClientsContent({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [profileDraft, setProfileDraft] = useState<{ first_name: string; last_name: string; notes: string } | null>(null);
+  const [profileDraft, setProfileDraft] = useState<{ first_name: string; last_name: string } | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
 
   function handleSort(col: SortCol) {
@@ -1423,7 +1423,6 @@ export function ClientsContent({
     setProfileDraft({
       first_name: selectedClient.first_name ?? "",
       last_name:  selectedClient.last_name  ?? "",
-      notes:      selectedClient.notes      ?? "",
     });
   }, [selectedClient?.id]);
 
@@ -1687,18 +1686,25 @@ export function ClientsContent({
 
   // Allowlisted fields for dynamic client updates (prevents mass assignment of user_id, created_at, etc.)
   const ALLOWED_CLIENT_FIELDS = new Set([
-    "name", "name_search", "first_name", "last_name", "email", "phone", "phone_type",
-    "secondary_phone", "secondary_phone_type", "status", "tags",
-    "lead_source", "notes", "street_address", "unit_number", "city", "province_region",
-    "postal_code", "country", "birthday", "birthdate", "contact_anniversary",
+    // Identity
+    "name", "name_search", "first_name", "last_name",
+    // Contact
+    "email", "secondary_email", "phone", "phone_type",
+    "secondary_phone", "secondary_phone_type",
     "preferred_contact", "communication_tone",
-    "archived_at", "archive_reason",
-    "mortgage_lender", "mortgage_renewal_date", "mortgage_rate", "mortgage_type",
-    "pre_approved", "pre_approval_amount", "buying_timeframe", "ideal_property_type",
-    "ideal_bedrooms", "ideal_bathrooms", "ideal_areas", "max_budget",
+    // Status & meta
+    "status", "tags", "lead_source", "notes",
+    "birthdate", "archived_at", "archive_reason",
+    // Address
+    "street_address", "unit_number", "city", "province_region",
+    "postal_code", "country",
+    // Property & deal
     "property_interest_type", "property_interest", "timeframe",
+    // Buyer profile
     "buyer_pre_approved", "buyer_financing_type", "buyer_pre_approval_amount",
     "buyer_target_close_date", "buyer_target_area",
+    // Scheduling
+    "scheduled_for", "scheduled_phrase",
   ]);
 
   // Update a single field on a client record
@@ -1826,16 +1832,16 @@ export function ClientsContent({
     setLocalListingAppointments((prev) =>
       prev.map((a) => (a.id === id ? { ...a, [field]: value } : a)),
     );
-    const { error } = await supabase.from("listing_appointments").update({ [field]: value }).eq("id", id).eq("user_id", userId!);
+    const { error } = await supabase.from("listing_appointments").update({ [field]: value }).eq("id", id).eq("user_id", userId);
     if (error) toast.error("Failed to update appointment");
-  }, []);
+  }, [userId]);
 
   const deleteListingAppointment = useCallback(async (id: string) => {
     if (guardSandboxWrite(sandbox.sandboxMode)) return;
     setLocalListingAppointments((prev) => prev.filter((a) => a.id !== id));
-    const { error } = await supabase.from("listing_appointments").delete().eq("id", id).eq("user_id", userId!);
+    const { error } = await supabase.from("listing_appointments").delete().eq("id", id).eq("user_id", userId);
     if (error) toast.error("Failed to delete appointment");
-  }, []);
+  }, [userId]);
 
   // Allowlisted fields for client_record updates
   const ALLOWED_RECORD_FIELDS = new Set([
@@ -3877,8 +3883,7 @@ export function ClientsContent({
                         onClick={handleSaveProfile}
                         disabled={profileSaving || !profileDraft || (
                           profileDraft.first_name === (selectedClient.first_name ?? "") &&
-                          profileDraft.last_name  === (selectedClient.last_name  ?? "") &&
-                          profileDraft.notes      === (selectedClient.notes      ?? "")
+                          profileDraft.last_name  === (selectedClient.last_name  ?? "")
                         )}
                         className="h-7 gap-1.5 text-xs shrink-0"
                       >
@@ -3917,7 +3922,7 @@ export function ClientsContent({
                     <div>
                       <div className="flex items-center gap-1 mb-0.5">
                         <Select
-                          value={selectedClient.phone_type}
+                          value={selectedClient.phone_type ?? "mobile"}
                           onValueChange={(v) => updateClientField(selectedClient.id, "phone_type", v)}
                         >
                           <SelectTrigger className="h-4 text-[10px] text-muted-foreground border-0 bg-transparent p-0 w-auto gap-0.5 shadow-none hover:text-foreground">
@@ -3946,7 +3951,7 @@ export function ClientsContent({
                     <div>
                       <div className="flex items-center gap-1 mb-0.5">
                         <Select
-                          value={selectedClient.secondary_phone_type}
+                          value={selectedClient.secondary_phone_type ?? "mobile"}
                           onValueChange={(v) => updateClientField(selectedClient.id, "secondary_phone_type", v)}
                         >
                           <SelectTrigger className="h-4 text-[10px] text-muted-foreground border-0 bg-transparent p-0 w-auto gap-0.5 shadow-none hover:text-foreground">
@@ -4093,7 +4098,7 @@ export function ClientsContent({
                       <span className="text-[10px] text-muted-foreground block mb-1">Property Interest</span>
                       <div className="flex items-center gap-1.5">
                         <Select
-                          value={selectedClient.property_interest_type}
+                          value={selectedClient.property_interest_type ?? "budget"}
                           onValueChange={(v) => updateClientField(selectedClient.id, "property_interest_type", v)}
                         >
                           <SelectTrigger className="h-7 w-24 text-[10px]">

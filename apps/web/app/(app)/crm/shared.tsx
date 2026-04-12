@@ -109,8 +109,13 @@ export function InlineEdit({
     <div
       className="cursor-pointer group"
       tabIndex={0}
+      role="button"
+      aria-label={label ? `Edit ${label}` : "Edit field"}
       onClick={() => { setLocalVal(value); setEditing(true); }}
       onFocus={() => { setLocalVal(value); setEditing(true); }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setLocalVal(value); setEditing(true); }
+      }}
     >
       {label && <span className="text-[10px] text-muted-foreground block mb-0.5">{label}</span>}
       <span className={cn(
