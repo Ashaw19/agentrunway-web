@@ -1508,25 +1508,47 @@ BEING THE EXPERT — You know Agent Runway better than anyone. When agents ask q
     // instead of appearing to hang.
     const encoder = new TextEncoder();
     let firstChunkReceived = false;
+    let chunkCount = 0;
+    let textChunks = 0;
+    let toolCallChunks = 0;
     const readable = new ReadableStream({
       async start(controller) {
         try {
           for await (const chunk of result.fullStream) {
+            chunkCount++;
             // Clear abort timeout once first chunk arrives (API is responding)
             if (!firstChunkReceived) {
               firstChunkReceived = true;
               clearTimeout(abortTimeout);
+              log.info({ requestId, chunkType: chunk.type }, "[chat] First stream chunk received");
             }
             if (chunk.type === "text-delta") {
+              textChunks++;
               controller.enqueue(encoder.encode(`0:${JSON.stringify(chunk.text)}\n`));
             } else if (chunk.type === "tool-call") {
+              toolCallChunks++;
+              log.info({ requestId, toolName: chunk.toolName }, "[chat] Tool call");
               controller.enqueue(encoder.encode(`9:${JSON.stringify({ toolName: chunk.toolName })}\n`));
+            } else if (chunk.type === "error") {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              log.error({ requestId, error: (chunk as any).error }, "[chat] Stream error event");
+              const errMsg = "Sorry, something went wrong. Please try again.";
+              controller.enqueue(encoder.encode(`0:${JSON.stringify(errMsg)}\n`));
             }
           }
+          log.info({ requestId, chunkCount, textChunks, toolCallChunks }, "[chat] Stream completed");
+          // If stream completed but produced no text at all, send a diagnostic message
+          if (textChunks === 0 && toolCallChunks === 0) {
+            console.error("[chat] Stream empty — no text or tool calls produced. Chunks:", chunkCount);
+            const emptyMsg = "I received your message but couldn't generate a response. This may be a temporary issue — please try again.";
+            controller.enqueue(encoder.encode(`0:${JSON.stringify(emptyMsg)}\n`));
+          }
         } catch (err) {
-          log.error({ err, requestId }, "[chat] Stream error");
-          // Send error as text so the frontend can display it
-          const errMsg = "Sorry, something went wrong while processing that. Please try again.";
+          const errDetail = err instanceof Error ? err.message : String(err);
+          log.error({ err, requestId, chunkCount, textChunks, toolCallChunks }, "[chat] Stream error");
+          console.error("[chat] Stream catch:", errDetail, "chunks:", chunkCount);
+          // Send diagnostic error message so we can debug
+          const errMsg = `I ran into an issue: ${errDetail.slice(0, 200)}. Please try again.`;
           controller.enqueue(encoder.encode(`0:${JSON.stringify(errMsg)}\n`));
         } finally {
           clearTimeout(abortTimeout);
