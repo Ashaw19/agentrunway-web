@@ -379,43 +379,34 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── UPDATE CLIENT NOTES ───────────────────────────────────────────────────
     updateClientNotes: tool({
-      description: "Add or update notes on a client's profile. Use mode 'append' to add to existing notes (default), or 'replace' to overwrite entirely.",
+      description: "Add a note to a client's notes log. Each call creates a new timestamped note entry visible in the client's Notes section.",
       inputSchema: z.object({
         clientId: z.string().uuid().describe("The client UUID from searchClients"),
         clientName: z.string().describe("Client name for confirmation message"),
-        note: z.string().describe("The note text to add or set"),
-        mode: z.enum(["append", "replace"]).default("append").describe("append adds to existing notes; replace overwrites"),
+        note: z.string().describe("The note text to add"),
       }),
-      execute: async ({ clientId, clientName, note, mode }) => {
+      execute: async ({ clientId, clientName, note }) => {
         try {
-          let finalNote = note;
-
-          if (mode === "append") {
-            const { data: existing } = await supabase
-              .from("clients")
-              .select("notes")
-              .eq("id", clientId)
-              .eq("user_id", userId)
-              .single();
-
-            const existingNotes = existing?.notes ?? "";
-            const timestamp = new Date().toLocaleDateString("en-CA");
-            finalNote = existingNotes
-              ? `${existingNotes}\n\n[${timestamp}] ${note}`
-              : `[${timestamp}] ${note}`;
-          }
-
           const { error } = await supabase
+            .from("client_notes")
+            .insert({
+              user_id: userId,
+              client_id: clientId,
+              content: note,
+            });
+
+          if (error) return `Failed to add note: ${error.message}`;
+
+          // Also touch the client's updated_at so it shows as recently modified
+          await supabase
             .from("clients")
-            .update({ notes: finalNote, updated_at: new Date().toISOString() })
+            .update({ updated_at: new Date().toISOString() })
             .eq("id", clientId)
             .eq("user_id", userId);
 
-          if (error) return `Failed to update notes: ${error.message}`;
-
-          return `✓ Note ${mode === "append" ? "added to" : "updated on"} ${clientName}'s profile.`;
+          return `✓ Note added to ${clientName}'s profile.`;
         } catch {
-          return "Failed to update client notes. Please try again.";
+          return "Failed to add client note. Please try again.";
         }
       },
     }),
