@@ -1331,7 +1331,7 @@ Agent Runway tracks referral partnerships — both inbound (another agent sends 
 The Overhead page is your complete tax visibility dashboard:
 
 1. **Tax Estimate Breakdown**
-   - Federal tax (multi-bracket: 15% / 20.5% / 26% / 29% / 33%)
+   - Federal tax (multi-bracket: 14.5% / 20.5% / 26% / 29% / 33%) — 14.5% is the 2025 blended rate (15% Jan–Jun, 14% Jul–Dec)
    - Provincial tax (varies by province — uses rates from Settings)
    - CPP self-employed contributions (both employer + employee portions)
    - Total estimated tax liability for the year
