@@ -1030,25 +1030,15 @@ IMPORTANT: When comparing this agent to team averages, always reference ${leader
   }
   const safeMessages = filtered.slice(startIdx);
 
-  // DEBUG: Return detailed info about what the server received
-  if (safeMessages.length === 0) {
-    const debug = {
-      rawCount: messages.length,
-      rawRoles: messages.map((m: { role?: string; content?: string }) => ({ role: m.role, contentLen: String(m.content ?? "").length })),
-      filteredCount: filtered.length,
-      startIdx,
-    };
-    return new Response(`DEBUG empty messages: ${JSON.stringify(debug)}`, { status: 400 });
-  }
-
   // Anthropic requires the first message to be from the user.
-  // Strip leading assistant messages.
+  // Strip leading assistant messages (greeting/nudge).
   while (safeMessages.length > 0 && safeMessages[0].role !== "user") {
     safeMessages.shift();
   }
 
+  // Guard: need at least one user message
   if (safeMessages.length === 0) {
-    return new Response("DEBUG: all messages were assistant role, no user message found", { status: 400 });
+    return new Response("No messages to process. Please try again.", { status: 400 });
   }
 
   const pageContext = safePage

@@ -518,6 +518,11 @@ export function AiChat({ financialContext }: Props) {
     id: nextMsgId(),
   });
   const [messages, setMessages] = useState<Message[]>([initialMessage]);
+  // Ref tracks latest messages so handleSend always has current state
+  // (React 18 batching can defer setState callbacks, making side-effect
+  // variable capture unreliable)
+  const messagesRef = useRef<Message[]>([initialMessage]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
@@ -607,12 +612,9 @@ export function AiChat({ financialContext }: Props) {
       setInput("");
       setLoading(true);
 
-      // Build newMessages from current state to avoid stale closure
-      let newMessages: Message[] = [];
-      setMessages((prev) => {
-        newMessages = [...prev, userMessage];
-        return [...newMessages, { role: "assistant", content: "", id: assistantId }];
-      });
+      // Build newMessages from ref (always current — immune to React 18 batching)
+      const newMessages = [...messagesRef.current, userMessage];
+      setMessages([...newMessages, { role: "assistant", content: "", id: assistantId }]);
 
       try {
         const res = await fetch("/api/chat", {
@@ -707,7 +709,7 @@ export function AiChat({ financialContext }: Props) {
         const errMsg =
           raw.includes("Too many") ? "You're sending messages too quickly. Please wait a moment." :
           raw.includes("not configured") ? "Co-Pilot is temporarily unavailable. Please try again shortly." :
-          `⚠️ ${raw.slice(0, 300) || "Connection failed. Please try again."}`;
+          "Sorry, I couldn't connect right now. Try again in a moment.";
         setMessages((prev) => [
           ...prev.slice(0, -1),
           { role: "assistant", content: errMsg, id: assistantId },
