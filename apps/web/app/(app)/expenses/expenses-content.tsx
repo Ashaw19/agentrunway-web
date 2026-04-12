@@ -621,12 +621,34 @@ export function ExpensesContent({
   const [newItemTitle, setNewItemTitle] = useState("");
 
   // ── Map item-level keys (e.g. "vehicle_payment") to parent category keys (e.g. "vehicle") ──
+  // Hardcoded canonical map from RECEIPT_CATEGORY_GROUPS group names → parent category keys.
+  // String manipulation is unreliable (e.g. "Professional Fees" → "professional_fees" ≠ "professional"),
+  // so we use an explicit lookup instead.
+  const GROUP_TO_CAT_KEY: Record<string, string> = {
+    "Vehicle": "vehicle",
+    "Marketing": "marketing",
+    "Office & Tech": "office_tech",
+    "Professional Fees": "professional",
+    "Education": "education",
+    "Meals": "meals",
+    "Entertainment": "entertainment",
+    "Other": "other",
+  };
+
   const itemKeyToCatKey = useMemo(() => {
     const map: Record<string, string> = {};
+    // 1. Canonical mapping from RECEIPT_CATEGORY_GROUPS (covers ALL possible item keys)
+    for (const group of RECEIPT_CATEGORY_GROUPS) {
+      const catKey = GROUP_TO_CAT_KEY[group.group];
+      if (catKey) {
+        for (const item of group.items) {
+          map[item.key] = catKey;
+        }
+      }
+    }
+    // 2. User's DB categories (overrides / fills any gaps)
     for (const cat of categories) {
-      // Map category's own key to itself
       map[cat.key] = cat.key;
-      // Map each item's key to the parent category key
       for (const item of cat.items) {
         map[item.key] = cat.key;
       }
