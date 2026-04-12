@@ -2134,8 +2134,12 @@ export function ClientsContent({
       try {
         const nameParts = name.trim().split(/\s+/);
         const firstName = nameParts[0] ?? "";
-        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : source.last_name ?? "";
-        const fullName = lastName ? `${firstName} ${lastName}` : firstName;
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+        if (!firstName || !lastName) {
+          toast.error("Please enter a first and last name");
+          return;
+        }
+        const fullName = `${firstName} ${lastName}`;
 
         // Copy shared details from the source client
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -4293,12 +4297,12 @@ export function ClientsContent({
                   {addSpouseOpen && (
                     <div className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-3 space-y-2">
                       <p className="text-[10px] text-emerald-600 font-medium leading-tight">
-                        Enter the spouse/partner&apos;s first name. Their last name, address, and shared details will be copied from {selectedClient.name.split(" ")[0]}&apos;s profile.
+                        Enter the spouse/partner&apos;s full name. Address and shared details will be copied from {selectedClient.name.split(" ")[0]}&apos;s profile.
                       </p>
                       <div className="flex gap-2">
                         <Input
                           autoFocus
-                          placeholder="First name (e.g. Sarah)"
+                          placeholder="Full name (e.g. Sarah Smith)"
                           value={spouseName}
                           onChange={(e) => setSpouseName(e.target.value)}
                           onKeyDown={(e) => {
