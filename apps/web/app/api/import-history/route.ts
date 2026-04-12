@@ -298,7 +298,8 @@ function computeAggregates(
     // Safety net: if LLM put the full "Name A / Name B" string into party_a
     // and left party_b empty, split it here in code — guaranteed correct.
     if (party_a.includes("/") && !party_b) {
-      const slashIdx = party_a.indexOf("/");
+      // Use lastIndexOf so company names like "ABC & Co. / XYZ Partners" split at the right place
+      const slashIdx = party_a.lastIndexOf("/");
       party_b = party_a.slice(slashIdx + 1).trim();
       party_a = party_a.slice(0, slashIdx).trim();
     }
@@ -325,7 +326,9 @@ function computeAggregates(
     const salePrice        = toNum(d.sale_price);
     let   gci              = toNum(d.gci) ?? 0;
     const netIncome        = toNum(d.net_income);
-    const commissionPct    = d.commission_percent != null ? (Number(d.commission_percent) || null) : null;
+    let   commissionPct    = d.commission_percent != null ? (Number(d.commission_percent) || null) : null;
+    // LLMs sometimes return commission as a whole number (e.g. 5 instead of 0.05). Normalize.
+    if (commissionPct != null && commissionPct > 1) commissionPct = commissionPct / 100;
     const address          = (d.address ?? "").trim();
 
     // GCI arithmetic fix: when the LLM had to compute GCI from sale_price × commission_percent,
@@ -691,13 +694,13 @@ export async function POST(req: NextRequest) {
         console.log("[import] step=parsed year=" + parsed.year + " deals=" + parsed.deals?.length);
       } catch {
         // Log the raw response so we can diagnose in Vercel logs
-        console.error("[import-history] JSON parse failed. Raw LLM response (first 2000 chars):", raw.slice(0, 2000));
+        console.error("[import-history] JSON parse failed. Response length:", raw.length, "First 100 chars:", raw.slice(0, 100));
         throw new Error("JSON parse failed");
       }
     }
 
     if (typeof parsed.year !== "number" || !Array.isArray(parsed.deals)) {
-      console.error("[import-history] Malformed response schema. Raw (first 500 chars):", raw.slice(0, 500));
+      console.error("[import-history] Malformed response schema. Response length:", raw.length);
       return NextResponse.json({ error: "Malformed response" }, { status: 422 });
     }
 

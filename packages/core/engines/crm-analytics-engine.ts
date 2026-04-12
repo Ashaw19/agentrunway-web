@@ -226,7 +226,7 @@ export function computeCrmDashboard(input: CrmDashboardInput): CrmDashboardResul
     }
   }
 
-  const activeStatuses: ClientStatus[] = ["boarding", "in_flight"];
+  const activeStatuses: ClientStatus[] = ["boarding", "scheduled", "in_flight"];
   const overdueClients: OverdueClient[] = [];
 
   // Grace period: suppress imported clients from overdue alerts for 7 days
@@ -392,7 +392,7 @@ export function computeSourceFunnel(
   // Build sets for contacted / active / closed per source
   const contactedSet = new Set(activities.map((a) => a.client_id));
 
-  const activeStatuses: ClientStatus[] = ["boarding", "in_flight"];
+  const activeStatuses: ClientStatus[] = ["boarding", "scheduled", "in_flight"];
   const closedStatuses: ClientStatus[] = ["cruising"];
 
   // GCI by client
@@ -571,6 +571,7 @@ export function computeIntelligenceBriefing(
       if (parts.length === 3) {
         const mm = parseInt(parts[1]) - 1;
         const dd = parseInt(parts[2]);
+        if (mm < 0 || mm > 11 || dd < 1 || dd > 31) continue;
         const thisYearBday = new Date(now.getFullYear(), mm, dd);
         const nextBday =
           thisYearBday.getTime() < now.getTime() - 86_400_000
