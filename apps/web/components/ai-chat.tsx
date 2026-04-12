@@ -703,11 +703,11 @@ export function AiChat({ financialContext }: Props) {
         if (!isOpen) setUnread((n) => n + 1);
       } catch (err) {
         console.error("Chat error:", err);
-        const raw = err instanceof Error ? err.message : "";
+        const raw = err instanceof Error ? err.message : String(err);
         const errMsg =
           raw.includes("Too many") ? "You're sending messages too quickly. Please wait a moment." :
           raw.includes("not configured") ? "Co-Pilot is temporarily unavailable. Please try again shortly." :
-          "Sorry, I couldn't connect right now. Try again in a moment.";
+          `⚠️ ${raw.slice(0, 300) || "Connection failed. Please try again."}`;
         setMessages((prev) => [
           ...prev.slice(0, -1),
           { role: "assistant", content: errMsg, id: assistantId },
