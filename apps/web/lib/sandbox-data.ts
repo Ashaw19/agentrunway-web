@@ -747,6 +747,7 @@ export function generateSandboxData(
       buyer_pre_approval_amount: cn.source === "pipeline" && rng() < 0.4 ? Math.round(avgBoardPrice * randRange(rng, 0.8, 1.2) / 1000) * 1000 : null,
       buyer_financing_type: rng() < 0.7 ? "mortgage" : rng() < 0.5 ? "cash" : null,
       buyer_target_close_date: null,
+      buyer_target_area: null,
       imported_at: null,
       created_at: createdDate.toISOString(),
       updated_at: lastContactDate.toISOString(),
