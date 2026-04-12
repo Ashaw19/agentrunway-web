@@ -620,17 +620,32 @@ export function ExpensesContent({
   const [addingTo, setAddingTo] = useState<string | null>(null);
   const [newItemTitle, setNewItemTitle] = useState("");
 
-  // ── Recurring expenses grouped by category key ───────────────────────
+  // ── Map item-level keys (e.g. "vehicle_payment") to parent category keys (e.g. "vehicle") ──
+  const itemKeyToCatKey = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const cat of categories) {
+      // Map category's own key to itself
+      map[cat.key] = cat.key;
+      // Map each item's key to the parent category key
+      for (const item of cat.items) {
+        map[item.key] = cat.key;
+      }
+    }
+    return map;
+  }, [categories]);
+
+  // ── Recurring expenses grouped by parent category key ───────────────────────
   const recurringByCatKey = useMemo(() => {
     const map: Record<string, RecurringExpense[]> = {};
     for (const re of recurringExpenses) {
       if (!re.is_active) continue;
-      const key = re.category_key;
+      // Resolve item-level key to parent category key
+      const key = itemKeyToCatKey[re.category_key] ?? re.category_key;
       if (!map[key]) map[key] = [];
       map[key].push(re);
     }
     return map;
-  }, [recurringExpenses]);
+  }, [recurringExpenses, itemKeyToCatKey]);
 
   /** Monthly equivalent for a recurring expense */
   function reMonthlyEquivalent(re: RecurringExpense): number {
