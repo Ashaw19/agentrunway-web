@@ -3678,7 +3678,7 @@ export function ClientsContent({
           setTaskNotes("");
         }
       }}>
-        <SheetContent side="right" className="sm:max-w-xl w-full overflow-y-auto p-0">
+        <SheetContent side="right" className="sm:max-w-2xl w-full overflow-y-auto p-0">
           {selectedClient && (
             <div className="flex flex-col">
               {/* ── Profile Header ───────────────────────────────────── */}
