@@ -1531,9 +1531,13 @@ BEING THE EXPERT — You know Agent Runway better than anyone. When agents ask q
               controller.enqueue(encoder.encode(`9:${JSON.stringify({ toolName: chunk.toolName })}\n`));
             } else if (chunk.type === "error") {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              log.error({ requestId, error: (chunk as any).error }, "[chat] Stream error event");
-              const errMsg = "Sorry, something went wrong. Please try again.";
+              const errObj = (chunk as any).error;
+              const errDetail = errObj instanceof Error ? errObj.message : typeof errObj === "string" ? errObj : JSON.stringify(errObj);
+              log.error({ requestId, error: errObj, errorDetail: errDetail }, "[chat] Stream error event");
+              console.error("[chat] Stream error event:", errDetail);
+              const errMsg = `⚠️ AI error: ${errDetail.slice(0, 300)}`;
               controller.enqueue(encoder.encode(`0:${JSON.stringify(errMsg)}\n`));
+              return; // Stop processing — don't hit the empty-stream fallback
             }
           }
           log.info({ requestId, chunkCount, textChunks, toolCallChunks }, "[chat] Stream completed");
