@@ -1277,10 +1277,17 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
         result = streamText({
           model: models.fallback,
           system: systemPrompt,
-          messages: safeMessages.map((m) => ({
-            role: m.role as "user" | "assistant",
-            content: m.content,
-          })),
+          // Merge consecutive same-role messages (Groq/Llama also requires alternating roles)
+          messages: safeMessages.reduce<{ role: "user" | "assistant"; content: string }[]>((acc, m) => {
+            const role = m.role as "user" | "assistant";
+            const last = acc[acc.length - 1];
+            if (last && last.role === role) {
+              last.content += "\n\n" + m.content;
+            } else {
+              acc.push({ role, content: m.content });
+            }
+            return acc;
+          }, []),
           tools: createCoreAgentTools(supabase, user.id),
           stopWhen: stepCountIs(10),
           maxOutputTokens: maxTokens,

@@ -757,7 +757,7 @@ export function generateSandboxData(
   });
 
   // ── Generate Contact Activities ─────────────────────────────────────────
-  const ACTIVITY_TYPES: ActivityType[] = ["call", "email", "text", "showing", "meeting", "note"];
+  const ACTIVITY_TYPES: ActivityType[] = ["call", "email", "text", "showing", "meeting", "offer", "note"];
   const ACTIVITY_DESCRIPTIONS: Record<ActivityType, string[]> = {
     call: ["Discussed listing strategy", "Follow-up call on showing feedback", "Checked in on financing", "Monthly check-in call", "Reviewed market update"],
     email: ["Sent new listings matching criteria", "Followed up on open house", "Shared market report", "Sent closing timeline", "Anniversary check-in email"],
