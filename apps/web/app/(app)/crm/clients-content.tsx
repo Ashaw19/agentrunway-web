@@ -1692,7 +1692,7 @@ export function ClientsContent({
     "ideal_bedrooms", "ideal_bathrooms", "ideal_areas", "max_budget",
     "property_interest_type", "property_interest", "timeframe",
     "buyer_pre_approved", "buyer_financing_type", "buyer_pre_approval_amount",
-    "buyer_target_close_date",
+    "buyer_target_close_date", "buyer_target_area",
   ]);
 
   // Update a single field on a client record
@@ -4078,6 +4078,12 @@ export function ClientsContent({
                         />
                       </div>
                     )}
+                    <InlineEdit
+                      label="Search Area"
+                      value={selectedClient.buyer_target_area ?? ""}
+                      onSave={(v) => updateClientField(selectedClient.id, "buyer_target_area", v || null)}
+                      placeholder="Where are they looking?"
+                    />
                     <InlineEdit
                       label="Target Close Date"
                       value={selectedClient.buyer_target_close_date ?? ""}

@@ -134,7 +134,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         name: z.string().describe("Full name of the client (e.g. 'John Smith')"),
         email: z.string().optional().describe("Client email address"),
         phone: z.string().optional().describe("Client phone number"),
-        city: z.string().optional().describe("Client city"),
+        city: z.string().optional().describe("Client's HOME city/address — NOT their buyer search area"),
+        buyerTargetArea: z.string().optional().describe("Where the buyer is LOOKING to purchase (city, neighbourhood, or region)"),
         status: z.enum(CLIENT_STATUSES).default("boarding").describe("Initial flight status — defaults to 'boarding' (active lead)"),
         propertyInterest: z.number().optional().describe("Budget (buyer) or expected listing price (seller) in dollars"),
         propertyInterestType: z.enum(["budget", "listing"]).optional().describe("Whether the amount is a buyer budget or seller listing price"),
@@ -143,7 +144,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         notes: z.string().optional().describe("Any initial notes about the client"),
         leadSource: z.enum(["referral", "sphere", "open_house", "online", "sign_call", "cold_call", "door_knock", "social_media", "repeat", "other"]).optional().describe("How this client came to the agent"),
       }),
-      execute: async ({ name, email, phone, city, status, propertyInterest, propertyInterestType, side, timeframe, notes, leadSource }) => {
+      execute: async ({ name, email, phone, city, buyerTargetArea, status, propertyInterest, propertyInterestType, side, timeframe, notes, leadSource }) => {
         try {
           const nameSearch = name.toLowerCase().trim();
 
@@ -179,6 +180,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (email) record.email = email;
           if (phone) record.phone = phone;
           if (city) record.city = city;
+          if (buyerTargetArea) record.buyer_target_area = buyerTargetArea;
           if (propertyInterest !== undefined) record.property_interest = propertyInterest;
           if (propertyInterestType) record.property_interest_type = propertyInterestType;
           else if (side === "seller") record.property_interest_type = "listing";
@@ -439,7 +441,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         buyerPreApprovalAmount: z.number().optional().describe("Pre-approval amount in dollars"),
         buyerFinancingType: z.enum(["mortgage", "cash", "bridge", "unknown"]).optional().describe("Buyer financing type"),
         buyerTargetCloseDate: z.string().optional().describe("Target close date in YYYY-MM-DD format"),
-        city: z.string().optional().describe("Client city"),
+        city: z.string().optional().describe("Client's HOME city/address — NOT their buyer search area. Only use for where the client lives."),
+        buyerTargetArea: z.string().optional().describe("Where the buyer is LOOKING to purchase (city, neighbourhood, or region). Use this instead of 'city' for search areas."),
         email: z.string().optional().describe("Client email address"),
         phone: z.string().optional().describe("Client phone number"),
       }),
@@ -465,7 +468,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (fields.buyerPreApprovalAmount !== undefined) { updates.buyer_pre_approval_amount = fields.buyerPreApprovalAmount; changed.push(`pre-approval amount → $${fields.buyerPreApprovalAmount.toLocaleString()}`); }
           if (fields.buyerFinancingType !== undefined) { updates.buyer_financing_type = fields.buyerFinancingType; changed.push(`financing → ${fields.buyerFinancingType}`); }
           if (fields.buyerTargetCloseDate !== undefined) { updates.buyer_target_close_date = fields.buyerTargetCloseDate; changed.push(`target close → ${fields.buyerTargetCloseDate}`); }
-          if (fields.city !== undefined) { updates.city = fields.city; changed.push(`city → ${fields.city}`); }
+          if (fields.city !== undefined) { updates.city = fields.city; changed.push(`home city → ${fields.city}`); }
+          if (fields.buyerTargetArea !== undefined) { updates.buyer_target_area = fields.buyerTargetArea; changed.push(`buyer search area → ${fields.buyerTargetArea}`); }
           if (fields.email !== undefined) { updates.email = fields.email; changed.push(`email → ${fields.email}`); }
           if (fields.phone !== undefined) { updates.phone = fields.phone; changed.push(`phone → ${fields.phone}`); }
 
@@ -1124,7 +1128,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         try {
           // Parallel queries for all client data
           const [clientRes, activitiesRes, tasksRes, dealsRes, relationshipsRes, transactionsRes] = await Promise.all([
-            supabase.from("clients").select("name, status, email, phone, city, tags, notes, lead_source, timeframe, property_interest, property_interest_type, preferred_contact, buyer_pre_approved, buyer_pre_approval_amount, last_contact_at, created_at").eq("id", clientId).eq("user_id", userId).single(),
+            supabase.from("clients").select("name, status, email, phone, city, buyer_target_area, tags, notes, lead_source, timeframe, property_interest, property_interest_type, preferred_contact, buyer_pre_approved, buyer_pre_approval_amount, last_contact_at, created_at").eq("id", clientId).eq("user_id", userId).single(),
             supabase.from("contact_activities").select("type, description, activity_date").eq("client_id", clientId).eq("user_id", userId).order("activity_date", { ascending: false }).limit(5),
             supabase.from("contact_tasks").select("title, due_date, priority, completed_at").eq("client_id", clientId).eq("user_id", userId).is("completed_at", null).order("due_date", { ascending: true }).limit(5),
             supabase.from("pipeline_deals").select("address, stage, estimated_price, expected_close_date, side").eq("client_id", clientId).eq("user_id", userId).limit(5),
@@ -1142,7 +1146,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           parts.push(`Status: ${c.status} | Since: ${new Date(c.created_at).toLocaleDateString("en-CA")}`);
           if (c.email) parts.push(`Email: ${c.email}`);
           if (c.phone) parts.push(`Phone: ${c.phone}`);
-          if (c.city) parts.push(`City: ${c.city}`);
+          if (c.city) parts.push(`Home City: ${c.city}`);
+          if (c.buyer_target_area) parts.push(`Search Area: ${c.buyer_target_area}`);
           if (c.lead_source) parts.push(`Lead Source: ${c.lead_source}`);
           if (c.tags?.length) parts.push(`Tags: ${c.tags.join(", ")}`);
           if (c.property_interest) parts.push(`${c.property_interest_type === "listing" ? "Listing Price" : "Budget"}: $${Number(c.property_interest).toLocaleString()}`);
@@ -3224,5 +3229,35 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       },
     }),
 
+  };
+}
+
+/**
+ * Create a CORE subset of AI Advisor tools for token-constrained requests.
+ * ~18 tools instead of ~75 — reduces tool definition tokens by ~75%.
+ * Includes: client CRUD, pipeline basics, activity/task, recurring expenses,
+ * client summary, filters, tone, and referral linking.
+ */
+export function createCoreAgentTools(supabase: SupabaseClient, userId: string): ToolSet {
+  const all = createAgentTools(supabase, userId);
+  return {
+    searchClients: all.searchClients,
+    createClient: all.createClient,
+    updateClientDetails: all.updateClientDetails,
+    updateClientNotes: all.updateClientNotes,
+    updateClientStatus: all.updateClientStatus,
+    updateClientTags: all.updateClientTags,
+    searchPipelineDeals: all.searchPipelineDeals,
+    createPipelineDeal: all.createPipelineDeal,
+    updatePipelineDealStage: all.updatePipelineDealStage,
+    logContactActivity: all.logContactActivity,
+    createContactTask: all.createContactTask,
+    createRecurringExpense: all.createRecurringExpense,
+    deleteRecurringExpense: all.deleteRecurringExpense,
+    getClientSummary: all.getClientSummary,
+    searchClientsByFilter: all.searchClientsByFilter,
+    updateClientTone: all.updateClientTone,
+    linkClientReferral: all.linkClientReferral,
+    getQuickStats: all.getQuickStats,
   };
 }

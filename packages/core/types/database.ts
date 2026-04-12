@@ -1037,6 +1037,7 @@ export interface Client {
   buyer_pre_approval_amount: number | null;
   buyer_financing_type:      string | null;  // BuyerFinancingType value
   buyer_target_close_date:   string | null;  // ISO date
+  buyer_target_area:         string | null;  // Where buyer is looking (city/neighbourhood)
 
   // CSV import tracking (migration 00054)
   imported_at: string | null;  // set when created via bulk CSV import; null = manually added
