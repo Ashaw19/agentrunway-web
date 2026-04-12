@@ -1691,7 +1691,7 @@ export function ClientsContent({
     "secondary_phone", "secondary_phone_type", "status", "tags",
     "lead_source", "notes", "street_address", "unit_number", "city", "province_region",
     "postal_code", "country", "birthday", "birthdate", "contact_anniversary",
-    "preferred_contact_method", "preferred_contact", "communication_tone",
+    "preferred_contact", "communication_tone",
     "archived_at", "archive_reason",
     "mortgage_lender", "mortgage_renewal_date", "mortgage_rate", "mortgage_type",
     "pre_approved", "pre_approval_amount", "buying_timeframe", "ideal_property_type",
@@ -1987,7 +1987,7 @@ export function ClientsContent({
         birthdate: newClientBirthdate || null,
         notes: newClientNotes.trim() || null,
         property_interest: newClientBudget ? parseFloat(newClientBudget.replace(/[$,]/g, "")) || null : null,
-        preferred_contact: newClientPreferredContact || "no_preference",
+        preferred_contact: newClientPreferredContact || null,
         timeframe: newClientTimeframe || null,
         street_address:  newClientStreet.trim().slice(0, FIELD_LIMITS.address)   || null,
         unit_number:     newClientUnit.trim()      || null,
@@ -3914,24 +3914,58 @@ export function ClientsContent({
                     Contact Information
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
-                    <InlineEdit
-                      label={`${PHONE_TYPE_LABELS[selectedClient.phone_type]} Phone`}
-                      value={selectedClient.phone ?? ""}
-                      onSave={(v) => updateClientField(selectedClient.id, "phone", v || null)}
-                      placeholder="Add phone…"
-                    />
+                    <div>
+                      <div className="flex items-center gap-1 mb-0.5">
+                        <Select
+                          value={selectedClient.phone_type}
+                          onValueChange={(v) => updateClientField(selectedClient.id, "phone_type", v)}
+                        >
+                          <SelectTrigger className="h-4 text-[10px] text-muted-foreground border-0 bg-transparent p-0 w-auto gap-0.5 shadow-none hover:text-foreground">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(Object.entries(PHONE_TYPE_LABELS) as [PhoneType, string][]).map(([k, label]) => (
+                              <SelectItem key={k} value={k} className="text-xs">{label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="text-[10px] text-muted-foreground">Phone</span>
+                      </div>
+                      <InlineEdit
+                        value={selectedClient.phone ?? ""}
+                        onSave={(v) => updateClientField(selectedClient.id, "phone", v || null)}
+                        placeholder="Add phone…"
+                      />
+                    </div>
                     <InlineEdit
                       label="Email"
                       value={selectedClient.email ?? ""}
                       onSave={(v) => updateClientField(selectedClient.id, "email", v || null)}
                       placeholder="Add email…"
                     />
-                    <InlineEdit
-                      label={`${PHONE_TYPE_LABELS[selectedClient.secondary_phone_type]} Phone`}
-                      value={selectedClient.secondary_phone ?? ""}
-                      onSave={(v) => updateClientField(selectedClient.id, "secondary_phone", v || null)}
-                      placeholder="Add secondary phone…"
-                    />
+                    <div>
+                      <div className="flex items-center gap-1 mb-0.5">
+                        <Select
+                          value={selectedClient.secondary_phone_type}
+                          onValueChange={(v) => updateClientField(selectedClient.id, "secondary_phone_type", v)}
+                        >
+                          <SelectTrigger className="h-4 text-[10px] text-muted-foreground border-0 bg-transparent p-0 w-auto gap-0.5 shadow-none hover:text-foreground">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(Object.entries(PHONE_TYPE_LABELS) as [PhoneType, string][]).map(([k, label]) => (
+                              <SelectItem key={k} value={k} className="text-xs">{label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="text-[10px] text-muted-foreground">Phone</span>
+                      </div>
+                      <InlineEdit
+                        value={selectedClient.secondary_phone ?? ""}
+                        onSave={(v) => updateClientField(selectedClient.id, "secondary_phone", v || null)}
+                        placeholder="Add secondary phone…"
+                      />
+                    </div>
                     <InlineEdit
                       label="Secondary Email"
                       value={selectedClient.secondary_email ?? ""}
