@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -73,10 +73,15 @@ export function InlineEdit({
 }) {
   const [editing, setEditing] = useState(false);
   const [localVal, setLocalVal] = useState(value);
+  const localValRef = useRef(localVal);
+
+  // Keep ref in sync so blur handler always reads the latest value
+  useEffect(() => { localValRef.current = localVal; }, [localVal]);
 
   function commit() {
+    const current = localValRef.current;
     setEditing(false);
-    if (localVal !== value) onSave(localVal);
+    if (current !== value) onSave(current);
   }
 
   if (editing) {
@@ -87,11 +92,11 @@ export function InlineEdit({
           autoFocus
           type={type}
           value={localVal}
-          onChange={(e) => setLocalVal(e.target.value)}
+          onChange={(e) => { setLocalVal(e.target.value); localValRef.current = e.target.value; }}
           onBlur={commit}
           onKeyDown={(e) => {
             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-            if (e.key === "Escape") { e.preventDefault(); setLocalVal(value); setEditing(false); }
+            if (e.key === "Escape") { e.preventDefault(); setLocalVal(value); localValRef.current = value; setEditing(false); }
             // Tab: onBlur handles saving; browser naturally moves to next focusable field
           }}
           className="h-7 text-xs"
