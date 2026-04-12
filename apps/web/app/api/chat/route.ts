@@ -1018,7 +1018,8 @@ IMPORTANT: When comparing this agent to team averages, always reference ${leader
   const MAX_CONVERSATION_CHARS = 200_000;
   const filtered = messages
     .filter((m) => m.role === "user" || m.role === "assistant")
-    .map((m) => ({ role: m.role, content: String(m.content).slice(0, 4000) }));
+    .map((m) => ({ role: m.role, content: String(m.content ?? "").slice(0, 4000) }))
+    .filter((m) => m.content.length > 0); // Drop empty messages — Anthropic rejects them
   // Keep the most recent messages that fit within the budget
   let totalChars = 0;
   let startIdx = filtered.length;
@@ -1028,6 +1029,24 @@ IMPORTANT: When comparing this agent to team averages, always reference ${leader
     startIdx = i;
   }
   const safeMessages = filtered.slice(startIdx);
+
+  // Guard: Anthropic requires at least 1 message
+  if (safeMessages.length === 0) {
+    log.error({ requestId, rawMessageCount: messages.length, filteredCount: filtered.length, startIdx }, "[chat] Empty messages after filtering");
+    console.error("[chat] Messages debug — raw:", messages.length, "filtered:", filtered.length, "startIdx:", startIdx, "roles:", messages.map((m: { role: string }) => m.role));
+    return new Response("No messages to process. Please try again.", { status: 400 });
+  }
+
+  // Anthropic requires the first message to be from the user.
+  // If conversation starts with assistant messages (greeting/nudge), strip leading assistant messages.
+  while (safeMessages.length > 0 && safeMessages[0].role !== "user") {
+    safeMessages.shift();
+  }
+
+  if (safeMessages.length === 0) {
+    log.error({ requestId }, "[chat] No user messages after stripping leading assistant messages");
+    return new Response("No user messages found. Please try again.", { status: 400 });
+  }
 
   const pageContext = safePage
     ? `\nThe user is currently viewing the "${safePage.replace(/^\//, "")}" page. Prioritize answers relevant to what they're looking at.`
@@ -1426,10 +1445,17 @@ BEING THE EXPERT — You know Agent Runway better than anyone. When agents ask q
         // Cache-optimised system: static prefix marked ephemeral (90% token discount on hits),
         // dynamic suffix with user data and canary sent uncached per-request.
         system: systemForClaude,
-        messages: safeMessages.map((m) => ({
-          role: m.role as "user" | "assistant",
-          content: m.content,
-        })),
+        // Merge consecutive same-role messages (Anthropic requires alternating roles)
+        messages: safeMessages.reduce<{ role: "user" | "assistant"; content: string }[]>((acc, m) => {
+          const role = m.role as "user" | "assistant";
+          const last = acc[acc.length - 1];
+          if (last && last.role === role) {
+            last.content += "\n\n" + m.content;
+          } else {
+            acc.push({ role, content: m.content });
+          }
+          return acc;
+        }, []),
         // Tools:
         // - webSearch: Anthropic-native search (server-side, CA locale)
         // - agent write tools: CRM, pipeline, expense, transaction actions
