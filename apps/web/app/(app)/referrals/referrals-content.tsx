@@ -266,64 +266,70 @@ export function ReferralsContent({
       return;
     }
     setSaving(true);
-    const supabase = createClient();
+    try {
+      const supabase = createClient();
 
-    const payload = {
-      user_id: userId,
-      direction: form.direction,
-      partner_name: form.partner_name.trim(),
-      partner_brokerage: form.partner_brokerage.trim(),
-      partner_email: form.partner_email.trim(),
-      partner_phone: form.partner_phone.trim(),
-      client_name: form.client_name.trim(),
-      client_email: form.client_email.trim(),
-      client_phone: form.client_phone.trim(),
-      referral_date: form.referral_date,
-      status: form.status,
-      property_address: form.property_address.trim(),
-      transaction_type: form.transaction_type,
-      referral_fee_pct: form.referral_fee_pct,
-      estimated_value: form.estimated_value,
-      actual_fee_paid: form.actual_fee_paid,
-      fee_paid_date: form.fee_paid_date || null,
-      transaction_id: form.transaction_id || null,
-      notes: form.notes.trim(),
-    };
+      const payload = {
+        user_id: userId,
+        direction: form.direction,
+        partner_name: form.partner_name.trim(),
+        partner_brokerage: form.partner_brokerage.trim(),
+        partner_email: form.partner_email.trim(),
+        partner_phone: form.partner_phone.trim(),
+        client_name: form.client_name.trim(),
+        client_email: form.client_email.trim(),
+        client_phone: form.client_phone.trim(),
+        referral_date: form.referral_date,
+        status: form.status,
+        property_address: form.property_address.trim(),
+        transaction_type: form.transaction_type,
+        referral_fee_pct: form.referral_fee_pct,
+        estimated_value: form.estimated_value,
+        actual_fee_paid: form.actual_fee_paid,
+        fee_paid_date: form.fee_paid_date || null,
+        transaction_id: form.transaction_id || null,
+        notes: form.notes.trim(),
+      };
 
-    if (editingId) {
-      const { data, error } = await supabase
-        .from("referrals")
-        .update(payload)
-        .eq("id", editingId)
-        .eq("user_id", userId)
-        .select()
-        .maybeSingle();
-      if (error || !data) {
-        toast.error(error ? "Failed to update referral." : "Referral not found — it may have been deleted.");
-        if (error) console.error(error);
+      if (editingId) {
+        const { data, error } = await supabase
+          .from("referrals")
+          .update(payload)
+          .eq("id", editingId)
+          .eq("user_id", userId)
+          .select()
+          .maybeSingle();
+        if (error || !data) {
+          toast.error(error ? "Failed to update referral." : "Referral not found — it may have been deleted.");
+          if (error) console.error(error);
+        } else {
+          setReferrals((prev) =>
+            prev.map((r) => (r.id === editingId ? (data as Referral) : r))
+          );
+          toast.success("Referral updated.");
+          setDialogOpen(false);
+        }
       } else {
-        setReferrals((prev) =>
-          prev.map((r) => (r.id === editingId ? (data as Referral) : r))
-        );
-        toast.success("Referral updated.");
-        setDialogOpen(false);
+        const { data, error } = await supabase
+          .from("referrals")
+          .insert(payload)
+          .select()
+          .single();
+        if (error) {
+          toast.error("Failed to create referral.");
+          console.error(error);
+        } else {
+          setReferrals((prev) => [data as Referral, ...prev]);
+          toast.success("Referral created.");
+          setDialogOpen(false);
+        }
       }
-    } else {
-      const { data, error } = await supabase
-        .from("referrals")
-        .insert(payload)
-        .select()
-        .single();
-      if (error) {
-        toast.error("Failed to create referral.");
-        console.error(error);
-      } else {
-        setReferrals((prev) => [data as Referral, ...prev]);
-        toast.success("Referral created.");
-        setDialogOpen(false);
-      }
+    } catch (err) {
+      console.error("handleSave unexpected error:", err);
+      toast.error("Something went wrong — please try again.");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   async function handleDelete(id: string) {

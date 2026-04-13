@@ -33,6 +33,7 @@ export function InviteContent({ invitation, token }: Props) {
     if (error) {
       if (error === "Not authenticated") {
         // Redirect to login with return URL
+        setAccepting(false);
         router.push(`/login?redirect=/invite/${token}`);
         return;
       }
@@ -40,6 +41,7 @@ export function InviteContent({ invitation, token }: Props) {
       setAccepting(false);
     } else {
       toast.success("Welcome to the team!");
+      setAccepting(false);
       router.push("/consent");
     }
   }

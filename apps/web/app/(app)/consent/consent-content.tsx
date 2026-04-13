@@ -60,6 +60,7 @@ export function ConsentContent({ memberships: initialMemberships }: Props) {
       );
       if (wasPending) {
         toast.success("You're all set! Redirecting to your dashboard…");
+        setSaving(null);
         router.push("/dashboard");
         return;
       }

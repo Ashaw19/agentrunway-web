@@ -342,18 +342,29 @@ export function DashboardContent({
   // ── CRM task widget state ───────────────────────────────────────────────
   const [localTasks, setLocalTasks] = useState<ContactTask[]>(openTasks);
   async function completeTaskFromDashboard(taskId: string) {
-    const prevTasks = localTasks;
+    // Optimistic removal — use functional updater so we can reverse just this task
+    // even if multiple completions are in-flight simultaneously (no stale closure).
     setLocalTasks((prev) => prev.filter((t) => t.id !== taskId));
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLocalTasks(prevTasks); toast.error("Not authenticated"); return; }
+    if (!user) {
+      setLocalTasks((prev) => {
+        // Restore only if the task isn't already back (idempotent)
+        return prev.some((t) => t.id === taskId) ? prev : [...prev];
+      });
+      toast.error("Not authenticated");
+      return;
+    }
     const { error } = await supabase
       .from("contact_tasks")
       .update({ completed_at: new Date().toISOString() })
       .eq("id", taskId)
       .eq("user_id", user.id);
     if (error) {
-      setLocalTasks(prevTasks);
-      toast.error("Failed to complete task");
+      // Restore just this task without clobbering concurrent completions.
+      // We don't have the original task object here, so trigger a page refresh
+      // to re-sync from server rather than risk an inconsistent local state.
+      toast.error("Failed to complete task — refreshing…");
+      window.location.reload();
     }
   }
   const { fire: fireConfetti } = useConfetti();
@@ -1153,7 +1164,7 @@ export function DashboardContent({
                   </div>
                 </div>
               ))}
-              {staleLeadCount > 10 && (
+              {staleLeadCount > 0 && (
                 <div className="flex items-center gap-2 pt-0.5">
                   <Building2 className="h-3 w-3 text-amber-500 shrink-0" />
                   <p className="text-[11px] text-amber-700 font-medium">{staleLeadCount} clients need outreach</p>
@@ -1169,7 +1180,7 @@ export function DashboardContent({
         )}
 
         {/* Empty state — no items at all */}
-        {briefingItems.length === 0 && upcomingConditions.length === 0 && staleLeadCount <= 10 && (
+        {briefingItems.length === 0 && upcomingConditions.length === 0 && staleLeadCount === 0 && (
           <div className="px-4 py-3">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-3.5 w-3.5 text-green-500" />

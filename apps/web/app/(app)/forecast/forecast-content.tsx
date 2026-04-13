@@ -128,7 +128,7 @@ export function ForecastContent({
   const LISTING_PROBS: Record<string, number> = { scheduled: 0.15, active: 0.40 };
   const listingWeightedGCI = (listingAppointments ?? []).reduce((sum, la) => {
     const price = la.estimated_list_price ?? 0;
-    const commPct = (la.estimated_commission_pct ?? 2.5) / 100;
+    const commPct = la.estimated_commission_pct ?? 0.025;
     const prob = LISTING_PROBS[la.status] ?? 0;
     return sum + price * commPct * prob;
   }, 0);

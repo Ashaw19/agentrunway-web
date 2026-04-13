@@ -226,11 +226,14 @@ export function ProfileContent({
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) { toast.error("File too large — maximum size is 2 MB."); if (e.target) e.target.value = ""; return; }
+    // Derive extension from MIME type whitelist (never from user-supplied filename)
+    const MIME_EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+    const ext = MIME_EXT[file.type];
+    if (!ext) { toast.error("Only JPEG, PNG, and WebP images are allowed."); if (e.target) e.target.value = ""; return; }
     setUploadingAvatar(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
       const path = `${user.id}/avatar.${ext}`;
       const { error } = await supabase.storage
         .from("profile-media")
@@ -261,11 +264,14 @@ export function ProfileContent({
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) { toast.error("File too large — maximum size is 2 MB."); if (e.target) e.target.value = ""; return; }
+    // Derive extension from MIME type whitelist (never from user-supplied filename)
+    const MIME_EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+    const ext = MIME_EXT[file.type];
+    if (!ext) { toast.error("Only JPEG, PNG, and WebP images are allowed."); if (e.target) e.target.value = ""; return; }
     setUploadingLogo(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const ext = file.name.split(".").pop()?.toLowerCase() ?? "png";
       const path = `${user.id}/logo.${ext}`;
       const { error } = await supabase.storage
         .from("profile-media")

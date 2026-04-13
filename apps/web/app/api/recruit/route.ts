@@ -101,6 +101,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Basic email format check
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(applicant_email.trim())) {
+      return NextResponse.json(
+        { error: "A valid email address is required" },
+        { status: 400 }
+      );
+    }
+
     if (applicant_name.length > 255 || applicant_email.length > 320 ||
         (applicant_phone && applicant_phone.length > 30) ||
         (current_brokerage && current_brokerage.length > 255) ||

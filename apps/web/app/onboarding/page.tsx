@@ -299,6 +299,7 @@ export default function OnboardingPage() {
         .eq("user_id", user.id)
         .eq("status", "pending");
 
+      setSaving(false);
       router.push(pendingOrgs && pendingOrgs > 0 ? "/consent" : "/dashboard");
     } catch (err) {
       console.error("Onboarding save error:", err);

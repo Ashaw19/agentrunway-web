@@ -153,12 +153,12 @@ export async function POST(request: Request) {
           console.log("[stripe] activated team billing for org", orgId, initStatus);
         }
 
-        // Grant all org members professional tier
+        // Grant all org members professional tier (active + pending consent)
         const { data: members } = await db
           .from("organization_members")
           .select("user_id")
           .eq("org_id", orgId)
-          .eq("status", "active");
+          .in("status", ["active", "pending"]);
 
         if (members?.length) {
           const userIds = members.map((m) => m.user_id);
@@ -272,7 +272,7 @@ export async function POST(request: Request) {
             .from("organization_members")
             .select("user_id")
             .eq("org_id", orgId)
-            .eq("status", "active");
+            .in("status", ["active", "pending"]);
 
           if (members && members.length > 0) {
             const memberIds = members.map((m: { user_id: string }) => m.user_id);
@@ -405,12 +405,12 @@ export async function POST(request: Request) {
         } else {
           console.log("[stripe] canceled org subscription", sub.id);
 
-          // Downgrade all team members to starter tier
+          // Downgrade all team members to starter tier (active + pending consent)
           const { data: members } = await db
             .from("organization_members")
             .select("user_id")
             .eq("org_id", orgId)
-            .eq("status", "active");
+            .in("status", ["active", "pending"]);
 
           if (members?.length) {
             const memberIds = members.map((m) => m.user_id);

@@ -193,8 +193,18 @@ export default async function DashboardPage({
     .slice(0, 5);
 
   const activeClientCount = activeClientsResult.count ?? 0;
+  // Only count recent activities for clients that are actually active (boarding/in_flight).
+  // Without this filter, activities on cruising/landed clients inflate recentlyContactedIds
+  // and cause staleLeadCount to undercount (or go negative before Math.max).
+  const activeClientIds = new Set(
+    (briefingClientsResult.data ?? [])
+      .filter((c) => c.status === "boarding" || c.status === "in_flight")
+      .map((c) => c.id),
+  );
   const recentlyContactedIds = new Set(
-    (recentActivitiesResult.data ?? []).map((a) => a.client_id)
+    (recentActivitiesResult.data ?? [])
+      .map((a) => a.client_id)
+      .filter((id) => activeClientIds.has(id)),
   );
   const staleLeadCount = Math.max(0, activeClientCount - recentlyContactedIds.size);
 
