@@ -606,7 +606,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
 
       } else if (fileType === "csv") {
         // ── CSV: read as plain text ──────────────────────────────────────────
-        textContent = await file.text();
+        textContent = (await file.text()).replace(/^\uFEFF/, ""); // strip UTF-8 BOM
       }
 
       setImportStatus("extracting");
@@ -762,6 +762,44 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
 
       if (clientInserts.length > 0) {
         await supabase.from("client_records").insert(clientInserts);
+      }
+
+      // ── Write imported transactions (for tax engine, reporting, dashboard) ──
+      const currentYear = new Date().getFullYear();
+      if (importData.year < currentYear && importData.deals.length > 0) {
+        await supabase.from("transactions")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("source", "imported")
+          .gte("date", `${importData.year}-01-01`)
+          .lte("date", `${importData.year}-12-31`);
+
+        const txInserts = importData.deals
+          .filter((d) => d.date && d.gci > 0)
+          .map((d) => ({
+            user_id: user.id,
+            date: d.date,
+            address: d.address || "",
+            sale_price: d.sale_price ?? 0,
+            commission_pct: d.commission_percent ?? 0.025,
+            gci_override: d.gci,
+            side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
+            status: "closed" as const,
+            client_name: ((d.agent_side === 1 ? d.party_b : d.party_a) ?? "").trim() || "",
+            notes: (d.agent_side === 1 ? d.party_a : d.party_b)?.trim() ? `Other party: ${(d.agent_side === 1 ? d.party_a : d.party_b)?.trim()}` : "",
+            source: "imported" as const,
+            date_precision: "day" as const,
+          }));
+
+        if (txInserts.length > 0) {
+          const { error: txInsertErr } = await supabase.from("transactions").insert(txInserts);
+          if (txInsertErr) {
+            console.error("[import] transaction insert failed:", txInsertErr);
+            toast.error("Failed to save transactions. Please re-import this year.");
+            setImportStatus("preview");
+            return;
+          }
+        }
       }
 
       setItems((prev) => {

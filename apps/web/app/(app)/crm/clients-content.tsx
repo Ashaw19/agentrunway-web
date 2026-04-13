@@ -2150,7 +2150,7 @@ export function ClientsContent({
         const record: Record<string, any> = {
           user_id: userId,
           name: fullName,
-          name_search: fullName.toLowerCase().trim(),
+          name_search: toNameSearch(fullName),
           first_name: firstName,
           last_name: lastName,
           status: source.status,
@@ -2199,10 +2199,12 @@ export function ClientsContent({
   // Remove a relationship
   const removeRelationship = useCallback(
     async (relId: string) => {
+      if (!userId) return;
       const { error } = await supabase
         .from("client_relationships")
         .delete()
-        .eq("id", relId);
+        .eq("id", relId)
+        .eq("user_id", userId);
 
       if (!error) {
         setLocalRelationships((prev) => prev.filter((r) => r.id !== relId));
@@ -2210,7 +2212,7 @@ export function ClientsContent({
         toast.error("Failed to remove relationship");
       }
     },
-    [],
+    [userId],
   );
 
   // ── Flight Plan CRUD ─────────────────────────────────────────────────────────

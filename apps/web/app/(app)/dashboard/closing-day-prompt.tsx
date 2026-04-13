@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -76,6 +76,7 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
   const [queue, setQueue]   = useState<PipelineDeal[]>([]);
   const [mode, setMode]     = useState<Mode>("main");
   const [saving, setSaving] = useState(false);
+  const savingRef           = useRef(false);
   const [copied, setCopied] = useState(false);
   const [quote]             = useState(() => QUOTES[Math.floor(Math.random() * QUOTES.length)]);
 
@@ -127,8 +128,9 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
   }
 
   async function handleRegisterClose() {
-    if (!current || saving) return;
+    if (!current || savingRef.current) return;
     if (!confirmForm.date) { toast.error("Please enter a close date."); return; }
+    savingRef.current = true;
     setSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -150,7 +152,7 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
       date: confirmForm.date,
       source: "manual",
     });
-    if (txErr) { toast.error("Failed to register close — please try again."); setSaving(false); return; }
+    if (txErr) { toast.error("Failed to register close — please try again."); savingRef.current = false; setSaving(false); return; }
 
     // DELETE pipeline deal
     const { error: delErr } = await supabase.from("pipeline_deals").delete().eq("id", current.id).eq("user_id", user.id);
@@ -167,6 +169,7 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
     const estRate    = marginalRate(Math.max(ytdBefore + gci, goalGCI), province);
 
     setCelebData({ gci, ytdGCIBefore: ytdBefore, goalGCI, province, estimatedMarginalRate: estRate, dealsThisMonth: dealsMonth, totalDealsThisYear: dealsYear });
+    savingRef.current = false;
     setSaving(false);
     setMode("celebrate");
     setTimeout(() => fireConfetti("goal"), 150);

@@ -22,10 +22,16 @@ type ActionResult<T> = { data: T; error: null } | { data: null; error: string };
 // Sync Stripe seat count after member changes — non-fatal
 async function syncOrgSeats(orgId: string): Promise<void> {
   try {
+    const { cookies } = await import("next/headers");
+    const cookieStore = await cookies();
+    const cookieHeader = cookieStore.getAll().map((c) => `${c.name}=${c.value}`).join("; ");
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://agentrunway.ca";
     await fetch(`${appUrl}/api/team-billing/update-seats`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: cookieHeader,
+      },
       body: JSON.stringify({ org_id: orgId }),
     });
   } catch {

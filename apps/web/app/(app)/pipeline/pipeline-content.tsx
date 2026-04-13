@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { PipelineSeedData } from "./page";
 import {
@@ -145,6 +145,7 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
   const [editingListing, setEditingListing] = useState<ListingAppointment | null>(null);
   const [listingSaving, setListingSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const savingListingRef = useRef(false);
 
   const emptyListingForm = {
     property_address: "",
@@ -167,7 +168,9 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
 
   const openAddListing = useCallback(() => {
     setEditingListing(null);
-    setListingForm(emptyListingForm);
+    const d = new Date();
+    const todayLocal = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    setListingForm({ ...emptyListingForm, appointment_date: todayLocal });
     setListingDialogOpen(true);
   }, []);
 
@@ -191,6 +194,7 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
   }, [seed.listingAppointments]);
 
   const handleSaveListing = useCallback(async () => {
+    if (savingListingRef.current) return;
     if (!listingForm.property_address.trim()) {
       toast.error("Property address is required.");
       return;
@@ -200,6 +204,7 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
       return;
     }
 
+    savingListingRef.current = true;
     setListingSaving(true);
     try {
       const supabase = createClient();
@@ -238,6 +243,7 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
       toast.error("Failed to save listing appointment.");
       console.error(err);
     } finally {
+      savingListingRef.current = false;
       setListingSaving(false);
     }
   }, [listingForm, editingListing, router]);

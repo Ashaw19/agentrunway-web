@@ -289,7 +289,9 @@ export function ReportsContent({
   const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
   const monthsElapsed = now.getMonth() + (now.getDate() / 30);
   const legacyRecurringYTDEstimate = legacyMonthlyRecurring * monthsElapsed;
-  const expensesYTD = receiptTotal + legacyRecurringYTDEstimate + recurringExpYTD;
+  // Receipts and legacy recurring may overlap (same expenses tracked both ways).
+  // Take the higher of the two, then add new-style recurring expenses — matches Forecast page.
+  const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
   const netPreTax = agentNet - expensesYTD;
   const expenseRatio = ytdGCI > 0 ? (expensesYTD / ytdGCI) * 100 : 0;
 
