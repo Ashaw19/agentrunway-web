@@ -96,7 +96,7 @@ export function ReceiptViewEditDialog({
     }
     setImageLoading(true);
     supabase.storage
-      .from("receipt-media")
+      .from("receipts")
       .createSignedUrl(receipt.receipt_path, 3600)
       .then(({ data, error }) => {
         setImageUrl(data?.signedUrl && !error ? data.signedUrl : null);
@@ -136,9 +136,14 @@ export function ReceiptViewEditDialog({
   async function handleDelete() {
     if (!receipt) return;
     setDeleting(true);
-    await supabase.from("receipt_expenses").delete().eq("id", receipt.id);
+    const { error: delErr } = await supabase.from("receipt_expenses").delete().eq("id", receipt.id);
+    if (delErr) {
+      toast.error("Couldn't delete receipt — please try again.");
+      setDeleting(false);
+      return;
+    }
     if (receipt.receipt_path) {
-      await supabase.storage.from("receipt-media").remove([receipt.receipt_path]);
+      await supabase.storage.from("receipts").remove([receipt.receipt_path]);
     }
     setDeleting(false);
     toast("Receipt deleted");
