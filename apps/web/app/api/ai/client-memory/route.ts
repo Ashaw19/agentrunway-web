@@ -57,14 +57,24 @@ export async function POST(req: NextRequest) {
 
   // ── Read action (no AI, no rate limit) ────────────────────────────────────
   if (action === "read") {
-    const profile = await getClientMemory(supabase, user.id, client_id);
-    return NextResponse.json({ success: true, profile });
+    try {
+      const profile = await getClientMemory(supabase, user.id, client_id);
+      return NextResponse.json({ success: true, profile });
+    } catch (err) {
+      console.error("[client-memory] read failed:", err instanceof Error ? err.message : String(err));
+      return NextResponse.json({ success: false, error: "Failed to read client memory" });
+    }
   }
 
   // ── Mark-stale action (no AI, no rate limit) ─────────────────────────────
   if (action === "mark-stale") {
-    await markMemoryStale(supabase, user.id, client_id);
-    return NextResponse.json({ success: true });
+    try {
+      await markMemoryStale(supabase, user.id, client_id);
+      return NextResponse.json({ success: true });
+    } catch (err) {
+      console.error("[client-memory] mark-stale failed:", err instanceof Error ? err.message : String(err));
+      return NextResponse.json({ success: false, error: "Failed to mark memory stale" });
+    }
   }
 
   // ── Compute action ────────────────────────────────────────────────────────
@@ -77,9 +87,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const result = await updateClientMemory(supabase, user.id, client_id);
-
-  return NextResponse.json(result);
+  try {
+    const result = await updateClientMemory(supabase, user.id, client_id);
+    return NextResponse.json(result);
+  } catch (err) {
+    console.error("[client-memory] compute failed:", err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ success: false, error: "Failed to compute client memory" });
+  }
 }
 
 // Allow up to 30s for Groq call
