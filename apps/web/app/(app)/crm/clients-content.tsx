@@ -1978,7 +1978,7 @@ export function ClientsContent({
         birthdate: newClientBirthdate || null,
         notes: newClientNotes.trim() || null,
         property_interest: newClientBudget ? parseFloat(newClientBudget.replace(/[$,]/g, "")) || null : null,
-        preferred_contact: newClientPreferredContact || null,
+        preferred_contact: newClientPreferredContact || "phone",
         timeframe: newClientTimeframe || null,
         street_address:  newClientStreet.trim().slice(0, FIELD_LIMITS.address)   || null,
         unit_number:     newClientUnit.trim()      || null,
@@ -1991,6 +1991,7 @@ export function ClientsContent({
       .single();
 
     if (error || !data) {
+      console.error("[crm] add-client failed:", error?.code, error?.message, error?.details);
       toast.error("Failed to add client — please try again");
       setAddClientSaving(false);
       return;
