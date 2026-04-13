@@ -225,6 +225,7 @@ export function ProfileContent({
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { toast.error("File too large — maximum size is 2 MB."); if (e.target) e.target.value = ""; return; }
     setUploadingAvatar(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -241,10 +242,11 @@ export function ProfileContent({
       // Display with cache buster so browser shows the new image immediately
       setAvatarUrl(`${publicUrl}?t=${Date.now()}`);
       // Store clean URL in DB (no cache buster)
-      await supabase
+      const { error: dbErr } = await supabase
         .from("user_settings")
         .update({ avatar_url: publicUrl })
         .eq("user_id", user.id);
+      if (dbErr) throw dbErr;
       toast.success("Avatar updated ✓");
     } catch (err) {
       console.error("Avatar upload failed:", err);
@@ -258,6 +260,7 @@ export function ProfileContent({
   async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { toast.error("File too large — maximum size is 2 MB."); if (e.target) e.target.value = ""; return; }
     setUploadingLogo(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -272,10 +275,11 @@ export function ProfileContent({
         .from("profile-media")
         .getPublicUrl(path);
       setBusinessLogoUrl(`${publicUrl}?t=${Date.now()}`);
-      await supabase
+      const { error: dbErr } = await supabase
         .from("user_settings")
         .update({ business_logo_url: publicUrl })
         .eq("user_id", user.id);
+      if (dbErr) throw dbErr;
       toast.success("Logo updated ✓");
     } catch (err) {
       console.error("Logo upload failed:", err);

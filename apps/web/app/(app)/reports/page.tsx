@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ReportsContent } from "./reports-content";
-import type { CcaAsset, RecurringExpense } from "@/lib/types/database";
+import type { CcaAsset, RecurringExpense, ListingAppointment } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 
 
@@ -20,7 +20,7 @@ export default async function ReportsPage() {
     .maybeSingle();
 
   // ── Live Supabase queries ───────────────────────────────────────────
-  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, ccaAssetsResult, mileageResult, referralsResult, recurringExpResult] =
+  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, ccaAssetsResult, mileageResult, referralsResult, recurringExpResult, listingApptResult] =
     await Promise.all([
       supabase
         .from("transactions")
@@ -83,6 +83,13 @@ export default async function ReportsPage() {
         .eq("user_id", user.id)
         .eq("is_active", true)
         .limit(10000),
+      // Listing appointments for projected GCI (matches Forecast page)
+      supabase
+        .from("listing_appointments")
+        .select("*")
+        .eq("user_id", user.id)
+        .not("status", "in", "(sold,expired,withdrawn,lost)")
+        .limit(10000),
     ]);
 
   const recurringExpenses = (recurringExpResult.data ?? []) as RecurringExpense[];
@@ -134,6 +141,7 @@ export default async function ReportsPage() {
       settings={settingsRaw}
       transactions={txResult.data ?? []}
       pipelineDeals={pipelineResult.data ?? []}
+      listingAppointments={(listingApptResult.data ?? []) as ListingAppointment[]}
       expenseCategories={categories}
       subscriptionTier={settingsRaw?.subscription_tier ?? "starter"}
       historyItems={historyResult.data ?? []}

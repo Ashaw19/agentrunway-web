@@ -46,7 +46,7 @@ export default async function AppLayout({
         .from("user_settings")
         .select("*")
         .eq("user_id", user.id)
-        .single(),
+        .maybeSingle(),
       supabase
         .from("transactions")
         .select("date, sale_price, commission_pct, team_split_pct, gci_override")
@@ -76,7 +76,7 @@ export default async function AppLayout({
     ]);
 
     // ── Onboarding guard — redirect if user hasn't completed setup ──────────
-    if (settings && settings.goal_gci === 0 && settings.display_name === "") {
+    if (!settings || (settings.goal_gci === 0 && settings.display_name === "")) {
       redirect("/onboarding");
     }
 

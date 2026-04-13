@@ -157,7 +157,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
   // Group transactions by year for auto-derived stats
   const txByYear = transactions.reduce<Record<number, Transaction[]>>(
     (acc, tx) => {
-      const y = new Date(tx.date).getFullYear();
+      const y = parseInt(tx.date.slice(0, 4), 10);
       (acc[y] ??= []).push(tx);
       return acc;
     },

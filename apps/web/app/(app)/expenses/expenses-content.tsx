@@ -833,7 +833,9 @@ export function ExpensesContent({
       recurringCheck.errors.forEach((msg) => toast.error(msg));
       return;
     }
-    const { error } = await supabase.from("expense_items").update({ [field]: numValue }).eq("id", itemId);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await supabase.from("expense_items").update({ [field]: numValue }).eq("id", itemId).eq("user_id", user.id);
     if (error) {
       toast.error("Couldn't save — please try again.");
       return;

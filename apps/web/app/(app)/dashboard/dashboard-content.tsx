@@ -222,7 +222,7 @@ function getStreakLabel(transactions: Transaction[]): string | null {
   const months = new Set(
     transactions
       .filter((tx) => tx.date.startsWith(String(currentYear)))
-      .map((tx) => new Date(tx.date).getMonth())
+      .map((tx) => new Date(tx.date + "T12:00:00").getMonth())
   );
   // Count consecutive months backwards from current
   let streak = 0;
@@ -569,7 +569,7 @@ export function DashboardContent({
   const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
   const expMonthsElapsed = now.getMonth() + (now.getDate() / 30);
   const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
-  const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate + recurringExpYTD);
+  const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
 
   // ── Survival prep (pipeline monthly estimate) ──────────────────────────
   const remainingMonths = Math.max(1, 12 - Math.floor(fraction * 12));
@@ -780,7 +780,7 @@ export function DashboardContent({
   // ── Deal velocity: this quarter vs same quarter last year ─────────────
   const currentQ = Math.floor(now.getMonth() / 3); // 0-based
   const dealsThisQ = transactions.filter(tx => {
-    const d = new Date(tx.date);
+    const d = new Date(tx.date + "T12:00:00");
     return d.getFullYear() === currentYear && Math.floor(d.getMonth() / 3) === currentQ;
   }).length;
   const lastYearQDeals: number | null = lastYearItem?.quarter_tx?.[currentQ] ?? null;
@@ -859,7 +859,7 @@ export function DashboardContent({
       title: "Cash runway is critically low",
       body: `At current burn, your reserves cover ~${survival.months.toFixed(1)} months. Time to close some pipeline.`,
     });
-  } else if (survival.months < 5) {
+  } else if (survival.riskLevel !== "notConfigured" && survival.months < 5) {
     smartAlerts.push({
       type: "warning",
       icon: "🟡",
@@ -2700,7 +2700,7 @@ function getPeriodRecap(
   const recapYear = day <= 3 && month === 0 ? year - 1 : year;
 
   const monthTxList = transactions.filter((tx) => {
-    const d = new Date(tx.date);
+    const d = new Date(tx.date + "T12:00:00");
     return d.getFullYear() === recapYear && d.getMonth() === recapMonth;
   });
   const monthGCI = monthTxList.reduce((s, tx) => s + computeGCI(tx), 0);
@@ -2737,7 +2737,7 @@ function computePersonalRecords(
   // Best month YTD
   const monthlyGCI: Record<number, number> = {};
   for (const tx of transactions) {
-    const m = new Date(tx.date).getMonth();
+    const m = new Date(tx.date + "T12:00:00").getMonth();
     monthlyGCI[m] = (monthlyGCI[m] ?? 0) + computeGCI(tx);
   }
   const bestMonthEntries = Object.entries(monthlyGCI).sort((a, b) => Number(b[1]) - Number(a[1]));

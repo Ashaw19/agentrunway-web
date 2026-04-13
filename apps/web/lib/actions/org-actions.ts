@@ -3,6 +3,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resend, FROM_ADDRESS } from "@/lib/resend";
+
+/** Escape user-supplied strings before interpolating into HTML email templates */
+function escHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
 import type {
   OrgType,
   OrgMemberRole,
@@ -254,12 +259,12 @@ export async function inviteMembers(
       void resend.emails.send({
         from: FROM_ADDRESS,
         to: inv.email,
-        subject: `You're invited to join ${orgName} on Agent Runway`,
+        subject: `You're invited to join ${escHtml(orgName)} on Agent Runway`,
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 0;">
             <h2 style="color: #1a1a1a; margin-bottom: 8px;">You've been invited!</h2>
             <p style="color: #555; line-height: 1.6; margin-bottom: 24px;">
-              <strong>${orgName}</strong> has invited you to join their team on Agent Runway as a <strong>${inv.role.replace("_", " ")}</strong>.
+              <strong>${escHtml(orgName)}</strong> has invited you to join their team on Agent Runway as a <strong>${inv.role.replace("_", " ")}</strong>.
             </p>
             <a href="${appUrl}/invite/${inv.token}" style="display: inline-block; background: #f97316; color: #fff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px;">
               Accept Invitation
@@ -399,12 +404,12 @@ export async function acceptInvitation(
     void resend.emails.send({
       from: FROM_ADDRESS,
       to: invitation.email,
-      subject: `Welcome to ${orgName} on Agent Runway`,
+      subject: `Welcome to ${escHtml(orgName)} on Agent Runway`,
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 0;">
-          <h2 style="color: #1a1a1a; margin-bottom: 8px;">Welcome to ${orgName}! 🎉</h2>
+          <h2 style="color: #1a1a1a; margin-bottom: 8px;">Welcome to ${escHtml(orgName)}! 🎉</h2>
           <p style="color: #555; line-height: 1.6; margin-bottom: 16px;">
-            You've officially joined <strong>${orgName}</strong> on Agent Runway. ${leaderName} and the rest of the team are glad to have you.
+            You've officially joined <strong>${escHtml(orgName)}</strong> on Agent Runway. ${escHtml(leaderName)} and the rest of the team are glad to have you.
           </p>
 
           <div style="background: #f8f9fa; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
@@ -444,12 +449,12 @@ export async function acceptInvitation(
         void resend.emails.send({
           from: FROM_ADDRESS,
           to: leaderEmail,
-          subject: `${invitation.email} joined ${orgName}`,
+          subject: `${escHtml(invitation.email)} joined ${escHtml(orgName)}`,
           html: `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 0;">
               <h2 style="color: #1a1a1a; margin-bottom: 8px;">New team member joined</h2>
               <p style="color: #555; line-height: 1.6; margin-bottom: 24px;">
-                <strong>${invitation.email}</strong> has accepted your invitation and joined <strong>${orgName}</strong> as a <strong>${invitation.role.replace("_", " ")}</strong>.
+                <strong>${escHtml(invitation.email)}</strong> has accepted your invitation and joined <strong>${escHtml(orgName)}</strong> as a <strong>${invitation.role.replace("_", " ")}</strong>.
               </p>
               <p style="color: #555; line-height: 1.6; margin-bottom: 24px;">
                 Their data will appear on your team dashboard once they start entering transactions and pipeline deals.

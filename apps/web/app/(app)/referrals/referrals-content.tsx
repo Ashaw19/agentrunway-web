@@ -298,9 +298,9 @@ export function ReferralsContent({
         .eq("user_id", userId)
         .select()
         .maybeSingle();
-      if (error) {
-        toast.error("Failed to update referral.");
-        console.error(error);
+      if (error || !data) {
+        toast.error(error ? "Failed to update referral." : "Referral not found — it may have been deleted.");
+        if (error) console.error(error);
       } else {
         setReferrals((prev) =>
           prev.map((r) => (r.id === editingId ? (data as Referral) : r))

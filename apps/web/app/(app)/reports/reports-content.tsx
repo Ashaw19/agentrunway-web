@@ -53,6 +53,7 @@ import {
   type UserSettings,
   type ExpenseCategoryWithItems,
   type HistoryItem,
+  type ListingAppointment,
 } from "@/lib/types/database";
 import dynamic from "next/dynamic";
 import type { YoYDataPoint } from "@/components/year-over-year-chart";
@@ -94,6 +95,7 @@ interface Props {
   settings: UserSettings | null;
   transactions: Transaction[];
   pipelineDeals: PipelineDeal[];
+  listingAppointments?: ListingAppointment[];
   expenseCategories: ExpenseCategoryWithItems[];
   subscriptionTier?: string;
   historyItems?: HistoryItem[];
@@ -194,6 +196,7 @@ export function ReportsContent({
   settings,
   transactions,
   pipelineDeals,
+  listingAppointments = [],
   expenseCategories,
   subscriptionTier = "starter",
   historyItems = [],
@@ -235,6 +238,16 @@ export function ReportsContent({
   // ── Pipeline ──────────────────────────────────────────────────────────────────
   const pipelineWeighted = pipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
 
+  // Listing appointments weighted by status probability (matches Forecast page)
+  const LISTING_PROBS: Record<string, number> = { scheduled: 0.15, active: 0.40 };
+  const listingWeightedGCI = listingAppointments.reduce((sum, la) => {
+    const price = Number(la.estimated_list_price ?? 0);
+    const commPct = la.estimated_commission_pct ?? 0.025;
+    const prob = LISTING_PROBS[la.status] ?? 0;
+    return sum + price * commPct * prob;
+  }, 0);
+  const totalPipelineWeighted = pipelineWeighted + listingWeightedGCI;
+
   // ── Seasonality & Projections ─────────────────────────────────────────────────
   // Prefer agent-specific weights derived from history (same logic as dashboard)
   const agentSeasonalWeights = (() => {
@@ -256,7 +269,7 @@ export function ReportsContent({
       : [0.25, 0.25, 0.25, 0.25]);
   const fraction = seasonalFractionElapsed(seasonalWeights);
   const goalGCI = settings.goal_gci ?? 0;
-  const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeighted, fraction, goalGCI);
+  const projectedGCI = projectedYearEndGCI(ytdGCI, totalPipelineWeighted, fraction, goalGCI);
   const projectedDeals = projectedYearEndTransactions(ytdTx.length, pipelineDeals.length, fraction);
   const gciProgress = goalGCI > 0 ? Math.min((ytdGCI / goalGCI) * 100, 100) : 0;
   const pacePercent = goalGCI > 0 ? paceVsGoalPercent(goalGCI, ytdGCI, fraction) : 0;
@@ -314,7 +327,7 @@ export function ReportsContent({
   const taxBurden = corpTaxResult ? corpTaxResult.totalCombinedTax : personalTaxResult.totalBurden;
   const taxLabel = gstHstLabel(settings.province);
   const taxRate = gstHstRate(settings.province);
-  const gstHstCollectedYTD = ytdGCI * taxRate;
+  const gstHstCollectedYTD = settings.gst_hst_registered ? ytdGCI * taxRate : 0;
   const afterTaxNet = Math.max(0, netForTax - taxBurden);
 
   // ── Benchmark ─────────────────────────────────────────────────────────────────
@@ -1027,7 +1040,7 @@ export function ReportsContent({
               </CardDescription>
             </div>
             <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-800">
-              {fmtPct(taxResult.effectiveRate)} effective rate
+              {fmtPct(corpTaxResult ? corpTaxResult.combinedEffectiveRate : taxResult.effectiveRate)} effective rate
             </Badge>
           </div>
         </CardHeader>
@@ -1069,11 +1082,17 @@ export function ReportsContent({
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
             <div className="rounded-xl border border-amber-200 bg-white px-4 py-3 text-center">
-              <div className="text-lg font-bold text-slate-900">{fmtCurrency(taxResult.quarterlyEstimate)}</div>
+              <div className="text-lg font-bold text-slate-900">
+                {fmtCurrency(corpTaxResult ? corpTaxResult.totalCombinedTax / 4 : taxResult.quarterlyEstimate)}
+              </div>
               <div className="text-xs text-slate-500 mt-0.5">Quarterly instalment</div>
             </div>
             <div className="rounded-xl border border-amber-200 bg-white px-4 py-3 text-center">
-              <div className="text-lg font-bold text-slate-900">{fmtCurrency(taxResult.perDealSetAside)}</div>
+              <div className="text-lg font-bold text-slate-900">
+                {fmtCurrency(corpTaxResult
+                  ? corpTaxResult.totalCombinedTax / Math.max(projectedDeals, 1)
+                  : taxResult.perDealSetAside)}
+              </div>
               <div className="text-xs text-slate-500 mt-0.5">Per-deal set-aside</div>
             </div>
             {settings.gst_hst_registered && (

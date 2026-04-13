@@ -221,6 +221,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
       team_split_pct: parsed.team_split_pct,
     };
 
+    let failed = false;
     if (editingId) {
       const { data, error } = await supabase
         .from("transactions")
@@ -236,6 +237,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
         );
         toast.success("Updated. Clean records win deals. ✓");
       } else if (error) {
+        failed = true;
         const detail = error.code === "23514" ? "Value out of allowed range" : "Something went wrong. Please try again.";
         toast.error(`Couldn't update transaction: ${detail}`);
       }
@@ -253,13 +255,14 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
           description: form.address ? `${form.address} added to your record.` : undefined,
         });
       } else if (error) {
+        failed = true;
         const detail = error.code === "23514" ? "Value out of allowed range" : "Something went wrong. Please try again.";
         toast.error(`Couldn't save transaction: ${detail}`);
       }
     }
 
     setSaving(false);
-    setDialogOpen(false);
+    if (!failed) setDialogOpen(false);
   }
 
   async function handleDelete(id: string) {

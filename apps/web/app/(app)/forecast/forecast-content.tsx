@@ -55,6 +55,8 @@ import { cn } from "@/lib/utils";
 // ── CRA quarterly remittance helper ─────────────────────────────────────────
 function nextRemittanceDate(from: Date): { date: Date; label: string; quarter: string } {
   // CRA quarterly filer deadlines: Apr 30, Jul 31, Oct 31, Jan 31
+  // Compare by calendar date only (strip time) so deadline-day itself counts as "today / 0 days away"
+  const fromDate = new Date(from.getFullYear(), from.getMonth(), from.getDate());
   const year = from.getFullYear();
   const candidates = [
     { date: new Date(year, 3, 30),     quarter: "Q1", label: "April 30" },
@@ -62,7 +64,7 @@ function nextRemittanceDate(from: Date): { date: Date; label: string; quarter: s
     { date: new Date(year, 9, 31),     quarter: "Q3", label: "October 31" },
     { date: new Date(year + 1, 0, 31), quarter: "Q4", label: "January 31" },
   ];
-  return candidates.find(c => c.date > from) ?? candidates[candidates.length - 1];
+  return candidates.find(c => c.date >= fromDate) ?? candidates[candidates.length - 1];
 }
 
 interface Props {
@@ -676,15 +678,23 @@ export function ForecastContent({
             )}
             <div className="grid gap-4 sm:grid-cols-3 pt-4">
               <div className="text-center">
-                <p className="text-2xl font-bold">{fmtCurrency(taxResult.quarterlyEstimate)}</p>
+                <p className="text-2xl font-bold">
+                  {fmtCurrency(corpTaxResult ? corpTaxResult.totalCombinedTax / 4 : taxResult.quarterlyEstimate)}
+                </p>
                 <p className="text-xs text-muted-foreground">Quarterly instalment</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold">{fmtCurrency(taxResult.perDealSetAside)}</p>
+                <p className="text-2xl font-bold">
+                  {fmtCurrency(corpTaxResult
+                    ? corpTaxResult.totalCombinedTax / Math.max(projectedDeals, 1)
+                    : taxResult.perDealSetAside)}
+                </p>
                 <p className="text-xs text-muted-foreground">Per-deal set-aside</p>
               </div>
               <div className="text-center">
-                <p className="text-2xl font-bold">{fmtPct(taxResult.effectiveRate)}</p>
+                <p className="text-2xl font-bold">
+                  {fmtPct(corpTaxResult ? corpTaxResult.combinedEffectiveRate : taxResult.effectiveRate)}
+                </p>
                 <p className="text-xs text-muted-foreground">Effective rate (all-in)</p>
               </div>
             </div>
