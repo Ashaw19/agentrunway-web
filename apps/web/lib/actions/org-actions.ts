@@ -182,12 +182,20 @@ export async function inviteMembers(
 
   const supabase = await createClient();
 
-  // Check seat limit
-  const { count: memberCount } = await supabase
-    .from("organization_members")
-    .select("*", { count: "exact", head: true })
-    .eq("org_id", orgId)
-    .in("status", ["active", "pending"]);
+  // Check seat limit (count both active members AND outstanding invitations)
+  const [{ count: memberCount }, { count: pendingInviteCount }] = await Promise.all([
+    supabase
+      .from("organization_members")
+      .select("*", { count: "exact", head: true })
+      .eq("org_id", orgId)
+      .in("status", ["active", "pending"]),
+    supabase
+      .from("organization_invitations")
+      .select("*", { count: "exact", head: true })
+      .eq("org_id", orgId)
+      .is("accepted_at", null)
+      .gt("expires_at", new Date().toISOString()),
+  ]);
 
   const { data: org } = await supabase
     .from("organizations")
@@ -195,10 +203,11 @@ export async function inviteMembers(
     .eq("id", orgId)
     .single();
 
-  if (org && memberCount !== null && memberCount + emails.length > org.max_seats) {
+  const totalUsed = (memberCount ?? 0) + (pendingInviteCount ?? 0);
+  if (org && totalUsed + emails.length > org.max_seats) {
     return {
       data: null,
-      error: `This would exceed the ${org.max_seats} seat limit. ${memberCount} seats currently used.`,
+      error: `This would exceed the ${org.max_seats} seat limit. ${totalUsed} seats currently used (including pending invitations).`,
     };
   }
 
@@ -293,6 +302,12 @@ export async function acceptInvitation(
   // Check expiry
   if (new Date(invitation.expires_at) < new Date()) {
     return { data: null, error: "This invitation has expired" };
+  }
+
+  // Verify the accepting user's email matches the invitation
+  const { data: { user: authUser } } = await admin.auth.admin.getUserById(userId);
+  if (!authUser || authUser.email?.toLowerCase() !== invitation.email?.toLowerCase()) {
+    return { data: null, error: "This invitation was sent to a different email address" };
   }
 
   // Check multi-org limit: 1 brokerage + 1 team max

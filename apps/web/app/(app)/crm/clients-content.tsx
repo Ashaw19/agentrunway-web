@@ -1819,19 +1819,33 @@ export function ClientsContent({
     setNewApptForm({ appointment_date: "", property_address: "", estimated_list_price: "", notes: "" });
   }, [selectedClient, newApptForm]);
 
+  const ALLOWED_APPT_FIELDS = new Set([
+    "property_address", "appointment_date", "estimated_list_price", "actual_list_price",
+    "estimated_commission_pct", "status", "notes", "outcome_notes",
+  ]);
+
   const updateApptField = useCallback(async (id: string, field: string, value: unknown) => {
-    setLocalListingAppointments((prev) =>
-      prev.map((a) => (a.id === id ? { ...a, [field]: value } : a)),
+    if (!ALLOWED_APPT_FIELDS.has(field)) { toast.error("Invalid field"); return; }
+    const prev = localListingAppointments.find((a) => a.id === id);
+    setLocalListingAppointments((p) =>
+      p.map((a) => (a.id === id ? { ...a, [field]: value } : a)),
     );
     const { error } = await supabase.from("listing_appointments").update({ [field]: value }).eq("id", id).eq("user_id", userId);
-    if (error) toast.error("Failed to update appointment");
-  }, [userId]);
+    if (error) {
+      toast.error("Failed to update appointment");
+      if (prev) setLocalListingAppointments((p) => p.map((a) => (a.id === id ? prev : a)));
+    }
+  }, [userId, localListingAppointments]);
 
   const deleteListingAppointment = useCallback(async (id: string) => {
+    const removed = localListingAppointments.find((a) => a.id === id);
     setLocalListingAppointments((prev) => prev.filter((a) => a.id !== id));
     const { error } = await supabase.from("listing_appointments").delete().eq("id", id).eq("user_id", userId);
-    if (error) toast.error("Failed to delete appointment");
-  }, [userId]);
+    if (error) {
+      toast.error("Failed to delete appointment");
+      if (removed) setLocalListingAppointments((prev) => [...prev, removed]);
+    }
+  }, [userId, localListingAppointments]);
 
   // Allowlisted fields for client_record updates
   const ALLOWED_RECORD_FIELDS = new Set([
@@ -2088,12 +2102,11 @@ export function ClientsContent({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Referrals are directional: A referred B. Don't sort.
-      // Other relationships are non-directional: sort for dedup.
-      const isDirectional = type === "referrer";
-      const [a, b] = isDirectional
-        ? [clientIdA, clientIdB]
-        : clientIdA < clientIdB ? [clientIdA, clientIdB] : [clientIdB, clientIdA];
+      // CHECK constraint requires client_id_a < client_id_b — always sort.
+      // For directional types like "referrer", we store the direction in
+      // relationship_type metadata. The UI already knows A referred B from
+      // the order passed to this function.
+      const [a, b] = clientIdA < clientIdB ? [clientIdA, clientIdB] : [clientIdB, clientIdA];
 
       const { data, error } = await supabase
         .from("client_relationships")
@@ -2280,7 +2293,8 @@ export function ClientsContent({
         }
 
         // Delete existing steps and re-insert
-        await supabase.from("flight_plan_steps").delete().eq("flight_plan_id", planId);
+        const { error: stepDelErr } = await supabase.from("flight_plan_steps").delete().eq("flight_plan_id", planId);
+        if (stepDelErr) { toast.error("Failed to update flight plan steps"); return; }
       } else {
         // Insert new plan
         const { data, error } = await supabase
@@ -2296,7 +2310,7 @@ export function ClientsContent({
           .select()
           .single();
 
-        if (error || !data) return;
+        if (error || !data) { toast.error("Failed to create flight plan"); return; }
         planId = data.id;
       }
 
@@ -4580,7 +4594,8 @@ export function ClientsContent({
                               .insert({ user_id: user.id, client_id: selectedClient.id, content: newNoteText.trim() })
                               .select()
                               .single();
-                            if (!error && data) {
+                            if (error) { toast.error("Failed to save note"); return; }
+                            if (data) {
                               setClientNotes((prev) => [data as ClientNote, ...prev]);
                               setNewNoteText("");
                               markMemoryStaleClient(selectedClient.id);
@@ -4603,7 +4618,8 @@ export function ClientsContent({
                           .insert({ user_id: user.id, client_id: selectedClient.id, content: newNoteText.trim() })
                           .select()
                           .single();
-                        if (!error && data) {
+                        if (error) { toast.error("Failed to save note"); return; }
+                        if (data) {
                           setClientNotes((prev) => [data as ClientNote, ...prev]);
                           setNewNoteText("");
                           markMemoryStaleClient(selectedClient.id);

@@ -163,13 +163,14 @@ export function ProfileContent({
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      await supabase
+      const { error } = await supabase
         .from("user_settings")
         .update({
           display_name: displayName.trim(),
           brokerage_name: brokerageName.trim(),
         })
         .eq("user_id", user.id);
+      if (error) { toast.error("Failed to save — please try again."); return; }
       setEditingIdentity(false);
       setSavedIdentity(true);
       setTimeout(() => setSavedIdentity(false), 2500);
@@ -184,13 +185,14 @@ export function ProfileContent({
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      await supabase
+      const { error } = await supabase
         .from("user_settings")
         .update({
           business_name: businessName.trim(),
           business_number: businessNumber.trim(),
         })
         .eq("user_id", user.id);
+      if (error) { toast.error("Failed to save — please try again."); return; }
       setEditingBusiness(false);
       setSavedBusiness(true);
       setTimeout(() => setSavedBusiness(false), 2500);
@@ -206,10 +208,11 @@ export function ProfileContent({
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      await supabase
+      const { error } = await supabase
         .from("user_settings")
         .update({ color_theme: theme })
         .eq("user_id", user.id);
+      if (error) { toast.error("Failed to save theme — please try again."); return; }
       setSavedTheme(true);
       setTimeout(() => setSavedTheme(false), 2000);
       toast.success("Theme updated — reloading…");

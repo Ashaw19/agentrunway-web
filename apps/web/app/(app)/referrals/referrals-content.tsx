@@ -229,7 +229,9 @@ export function ReferralsContent({
 
   function openNew() {
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    const d = new Date();
+    const todayLocal = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    setForm({ ...EMPTY_FORM, referral_date: todayLocal });
     setDialogOpen(true);
   }
 

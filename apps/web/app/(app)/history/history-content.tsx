@@ -730,7 +730,20 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
         throw new Error((err as { error?: string }).error ?? "Extraction failed");
       }
 
-      const data = await res.json() as ImportResult;
+      const rawData = await res.json();
+
+      // ── Multi-year response: API splits deals by year automatically ──
+      if (rawData.multi_year && Array.isArray(rawData.years)) {
+        const years = rawData.years as ImportResult[];
+        setBatchImportData(years);
+        const pcts: Record<number, number | null> = {};
+        years.forEach((yr) => { pcts[yr.year] = yr.split_pct ?? settingsSplit ?? null; });
+        setBatchSplitPcts(pcts);
+        setImportStatus("preview");
+        return;
+      }
+
+      const data = rawData as ImportResult;
 
       // Pre-populate agent_side selections from Groq's best guess
       const sides: Record<number, 0 | 1> = {};
@@ -790,7 +803,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     setImportStatus("saving");
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) { setImportStatus("preview"); toast.error("Session expired — please sign in again."); return; }
 
     // Apply any per-deal edits the user made during the preview step
     const resolvedDeals = importData.deals.map((deal, i) => getEffectiveDeal(deal, i));
@@ -891,9 +904,10 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       // ── Write imported transactions (for tax engine, reporting, dashboard) ──
       // Build the inserts first, then delete old rows only if inserts succeed.
       const txInserts = resolvedDeals
-        .filter((deal) => deal.date && deal.gci > 0)
-        .map((deal, i) => {
-          const sideSelected = agentSides[i] ?? deal.agent_side;
+        .map((deal, originalIdx) => ({ deal, originalIdx }))
+        .filter(({ deal }) => deal.date && deal.gci > 0)
+        .map(({ deal, originalIdx }) => {
+          const sideSelected = agentSides[originalIdx] ?? deal.agent_side;
           const clientName = ((sideSelected === 1 ? deal.party_b : deal.party_a) ?? "").trim();
           const txSide: "buyer" | "seller" | "both" = deal.side ?? "buyer";
           return {
@@ -1015,7 +1029,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     setImportStatus("saving");
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) { setImportStatus("preview"); toast.error("Session expired — please sign in again."); return; }
 
     let savedYears = 0;
     let totalClients = 0;

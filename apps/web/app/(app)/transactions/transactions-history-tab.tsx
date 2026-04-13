@@ -676,7 +676,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
     setImportStatus("saving");
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) { setImportStatus("preview"); toast.error("Session expired — please sign in again."); return; }
 
     const payload = {
       user_id: user.id,
@@ -801,7 +801,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
     setImportStatus("saving");
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) { setImportStatus("preview"); toast.error("Session expired — please sign in again."); return; }
 
     let savedYears = 0;
     let totalClients = 0;

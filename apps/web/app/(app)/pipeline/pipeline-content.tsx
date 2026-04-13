@@ -109,7 +109,7 @@ function accuracyColor(score: number): string {
 
 function formatDate(iso: string | null): string {
   if (!iso) return "\u2014";
-  const d = new Date(iso);
+  const d = new Date(iso + (iso.length === 10 ? "T12:00:00" : ""));
   if (isNaN(d.getTime())) return "\u2014";
   return d.toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" });
 }
@@ -148,7 +148,7 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
 
   const emptyListingForm = {
     property_address: "",
-    appointment_date: new Date().toISOString().slice(0, 10),
+    appointment_date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })(),
     estimated_list_price: "",
     estimated_commission_pct: "2.5",
     actual_list_price: "",

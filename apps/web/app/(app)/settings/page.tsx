@@ -18,11 +18,13 @@ export default async function SettingsPage() {
     process.env.PLAID_ENV
   );
 
-  // Run upsert and all selects in parallel
-  const [, { data: settingsRaw }, { data: plaidItems }, { data: googleConnection }, { data: emailConnections }] = await Promise.all([
-    supabase
-      .from("user_settings")
-      .upsert({ user_id: user.id }, { onConflict: "user_id", ignoreDuplicates: true }),
+  // Ensure user_settings row exists BEFORE reading it (sequential to avoid race condition)
+  await supabase
+    .from("user_settings")
+    .upsert({ user_id: user.id }, { onConflict: "user_id", ignoreDuplicates: true });
+
+  // Now read settings and other data in parallel
+  const [{ data: settingsRaw }, { data: plaidItems }, { data: googleConnection }, { data: emailConnections }] = await Promise.all([
     supabase
       .from("user_settings")
       .select("*")
