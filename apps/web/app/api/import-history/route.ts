@@ -650,22 +650,51 @@ export async function POST(req: NextRequest) {
         };
       });
 
-      const { text } = await generateText({
-        model: models.fast,
-        messages: [
-          {
-            role: "user" as const,
-            content: [
-              ...documentContent,
-              { type: "text" as const, text: VISION_PROMPT },
-            ],
-          },
-        ],
-        temperature: 0.1,
-        maxOutputTokens: 8000,
-        headers: aiHeaders,
-      });
-      raw = text;
+      // Primary: Claude Haiku (native PDF support), fallback to Groq Llama (images only)
+      try {
+        const { text } = await generateText({
+          model: models.fast,
+          messages: [
+            {
+              role: "user" as const,
+              content: [
+                ...documentContent,
+                { type: "text" as const, text: VISION_PROMPT },
+              ],
+            },
+          ],
+          temperature: 0.1,
+          maxOutputTokens: 8000,
+          headers: aiHeaders,
+        });
+        raw = text;
+      } catch (primaryErr) {
+        console.warn("[import] Vision model (Haiku) failed, falling back to Groq:", primaryErr);
+        // Groq doesn't support native PDF — filter to image-only content
+        const imageOnlyContent = documentContent.filter(
+          (c) => c.type === "image",
+        );
+        if (imageOnlyContent.length === 0) {
+          // All content was PDF (no image pages) — can't fall back to Groq
+          throw new Error("PDF extraction failed. Please try again or convert to images.");
+        }
+        const { text } = await generateText({
+          model: models.fallback,
+          messages: [
+            {
+              role: "user" as const,
+              content: [
+                ...imageOnlyContent,
+                { type: "text" as const, text: VISION_PROMPT },
+              ],
+            },
+          ],
+          temperature: 0.1,
+          maxOutputTokens: 8000,
+          headers: aiHeaders,
+        });
+        raw = text;
+      }
     }
 
     // Extract JSON from the LLM response — handles markdown fences, preamble text,

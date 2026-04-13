@@ -497,70 +497,99 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
         //   1. Try pdfjs text layer for every page → send as textContent (best quality)
         //   2. If text layer is mostly empty (scanned PDF) → render all pages as JPEG
         //      and send as images[] so the vision model sees the full document.
-        // This replaces the old hardcoded "render page 2 only" approach.
-        const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+        //   3. If pdfjs fails entirely (e.g. unsupported color space in older PDFs) →
+        //      send the raw PDF bytes to the API for Claude's native document handling.
+        const pdfArrayBuffer = await file.arrayBuffer();
+        try {
+          const pdfjsLib = await import("pdfjs-dist");
+          pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+          const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(pdfArrayBuffer) }).promise;
 
-        // Pass 1: extract text layer from every page
-        const pageTexts: string[] = [];
-        for (let p = 1; p <= pdf.numPages; p++) {
-          const page = await pdf.getPage(p);
-          const tc   = await page.getTextContent();
-          const text = (tc.items as Array<{ str?: string }>)
-            .map((item) => item.str ?? "")
-            .join(" ")
-            .trim();
-          pageTexts.push(text);
-        }
+          // Pass 1: extract text layer from every page
+          const pageTexts: string[] = [];
+          for (let p = 1; p <= pdf.numPages; p++) {
+            const page = await pdf.getPage(p);
+            const tc   = await page.getTextContent();
+            const text = (tc.items as Array<{ str?: string }>)
+              .map((item) => item.str ?? "")
+              .join(" ")
+              .trim();
+            pageTexts.push(text);
+          }
 
-        // Count non-whitespace characters across all pages to decide path
-        const combined     = pageTexts.join("\n\n--- Page Break ---\n\n");
-        const usableChars  = combined.replace(/\s/g, "").length;
+          // Count non-whitespace characters across all pages to decide path
+          const combined     = pageTexts.join("\n\n--- Page Break ---\n\n");
+          const usableChars  = combined.replace(/\s/g, "").length;
 
-        if (usableChars >= 200) {
-          // Text layer is usable — send as plain text (better structured input for LLM)
-          textContent = combined;
-        } else {
-          // Scanned PDF — render all pages (up to cap) as images
-          const MAX_VISION_PAGES = 10;
-          const totalPages = Math.min(pdf.numPages, MAX_VISION_PAGES);
-          if (pdf.numPages > MAX_VISION_PAGES) {
-            toast.warning(
-              `This PDF has ${pdf.numPages} pages but only the first ${MAX_VISION_PAGES} will be analyzed. For best results, split large reports into smaller files.`,
-              { duration: 8000 },
+          if (usableChars >= 200) {
+            // Text layer is usable — send as plain text (better structured input for LLM)
+            textContent = combined;
+          } else {
+            // Scanned PDF — render all pages (up to cap) as images
+            const MAX_VISION_PAGES = 10;
+            const totalPages = Math.min(pdf.numPages, MAX_VISION_PAGES);
+            if (pdf.numPages > MAX_VISION_PAGES) {
+              toast.warning(
+                `This PDF has ${pdf.numPages} pages but only the first ${MAX_VISION_PAGES} will be analyzed. For best results, split large reports into smaller files.`,
+                { duration: 8000 },
+              );
+            }
+            const pages: typeof multiPageImages = [];
+
+            // Use lower scale + quality for multi-page to stay under Vercel's 4.5MB body limit
+            const scale   = totalPages > 3 ? 1.5 : 2.0;
+            const quality = totalPages > 3 ? 0.70 : 0.90;
+
+            for (let p = 1; p <= totalPages; p++) {
+              const page     = await pdf.getPage(p);
+              const viewport = page.getViewport({ scale });
+              const canvas   = document.createElement("canvas");
+              canvas.width   = viewport.width;
+              canvas.height  = viewport.height;
+              await page.render({ canvas, viewport }).promise;
+              pages.push({
+                base64:   canvas.toDataURL("image/jpeg", quality).split(",")[1],
+                mimeType: "image/jpeg",
+                page:     p,
+              });
+            }
+
+            if (pages.length === 1) {
+              // Single-page scanned PDF → legacy single-image path
+              imageBase64 = pages[0].base64;
+              mimeType    = "image/jpeg";
+            } else {
+              // Multi-page scanned PDF → new images[] path
+              multiPageImages = pages;
+            }
+          }
+        } catch (pdfjsErr) {
+          // PDF.js can fail on PDFs that use uncommon color spaces or features
+          // (e.g. "n.toHex is not a function" on older brokerage reports).
+          // Fall back to sending the raw PDF bytes to the API for Claude's native
+          // document handling, which works on any valid PDF regardless of features.
+          console.warn("[import] pdfjs failed, falling back to native PDF path:", pdfjsErr);
+
+          // Vercel serverless functions have a 4.5 MB request body limit.
+          // Base64 encoding adds ~33% overhead, so PDFs over ~3 MB raw will
+          // exceed the limit when wrapped in JSON. Guard against this.
+          const MAX_PDF_RAW_BYTES = 3 * 1024 * 1024;
+          if (file.size > MAX_PDF_RAW_BYTES) {
+            throw new Error(
+              "This PDF is too large for direct processing. " +
+              "Please try exporting it as images or a smaller file.",
             );
           }
-          const pages: typeof multiPageImages = [];
 
-          // Use lower scale + quality for multi-page to stay under Vercel's 4.5MB body limit
-          const scale   = totalPages > 3 ? 1.5 : 2.0;
-          const quality = totalPages > 3 ? 0.70 : 0.90;
-
-          for (let p = 1; p <= totalPages; p++) {
-            const page     = await pdf.getPage(p);
-            const viewport = page.getViewport({ scale });
-            const canvas   = document.createElement("canvas");
-            canvas.width   = viewport.width;
-            canvas.height  = viewport.height;
-            await page.render({ canvas, viewport }).promise;
-            pages.push({
-              base64:   canvas.toDataURL("image/jpeg", quality).split(",")[1],
-              mimeType: "image/jpeg",
-              page:     p,
-            });
-          }
-
-          if (pages.length === 1) {
-            // Single-page scanned PDF → legacy single-image path
-            imageBase64 = pages[0].base64;
-            mimeType    = "image/jpeg";
-          } else {
-            // Multi-page scanned PDF → new images[] path
-            multiPageImages = pages;
-          }
+          // Re-read from file — pdfjs transfers the ArrayBuffer to its worker,
+          // detaching it from the main thread, so pdfArrayBuffer is no longer usable.
+          const freshBuffer = await file.arrayBuffer();
+          const bytes = new Uint8Array(freshBuffer);
+          let binary = "";
+          bytes.forEach((b) => (binary += String.fromCharCode(b)));
+          imageBase64 = btoa(binary);
+          mimeType    = "application/pdf";
         }
 
       } else if (fileType === "image") {

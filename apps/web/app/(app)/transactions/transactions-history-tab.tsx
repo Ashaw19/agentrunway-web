@@ -466,6 +466,18 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
           // Fall back to sending the raw PDF bytes to the API for Claude's native
           // document handling, which works on any valid PDF regardless of features.
           console.warn("[import] pdfjs failed, falling back to native PDF path:", pdfjsErr);
+
+          // Vercel serverless functions have a 4.5 MB request body limit.
+          // Base64 encoding adds ~33% overhead, so PDFs over ~3 MB raw will
+          // exceed the limit when wrapped in JSON. Guard against this.
+          const MAX_PDF_RAW_BYTES = 3 * 1024 * 1024; // 3 MB → ~4 MB base64 in JSON
+          if (file.size > MAX_PDF_RAW_BYTES) {
+            throw new Error(
+              "This PDF is too large for direct processing. " +
+              "Please try exporting it as images or a smaller file.",
+            );
+          }
+
           // Re-read from file — pdfjs transfers the ArrayBuffer to its worker,
           // detaching it from the main thread, so pdfArrayBuffer is no longer usable.
           const freshBuffer = await file.arrayBuffer();
