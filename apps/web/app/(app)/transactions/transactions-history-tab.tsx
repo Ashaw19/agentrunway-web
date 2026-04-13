@@ -404,58 +404,73 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
         //   1. Try pdfjs text layer for every page → send as textContent (best quality)
         //   2. If text layer is mostly empty (scanned PDF) → render all pages as JPEG
         //      and send as images[] so the vision model sees the full document.
-        const pdfjsLib = await import("pdfjs-dist");
-        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+        //   3. If pdfjs fails entirely (e.g. unsupported color space in older PDFs) →
+        //      send the raw PDF bytes to the API for Claude's native document handling.
+        const pdfArrayBuffer = await file.arrayBuffer();
+        try {
+          const pdfjsLib = await import("pdfjs-dist");
+          pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+          const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(pdfArrayBuffer) }).promise;
 
-        // Pass 1: extract text layer from every page
-        const pageTexts: string[] = [];
-        for (let p = 1; p <= pdf.numPages; p++) {
-          const page = await pdf.getPage(p);
-          const tc   = await page.getTextContent();
-          const text = (tc.items as Array<{ str?: string }>)
-            .map((item) => item.str ?? "")
-            .join(" ")
-            .trim();
-          pageTexts.push(text);
-        }
-
-        // Count non-whitespace characters across all pages to decide path
-        const combined     = pageTexts.join("\n\n--- Page Break ---\n\n");
-        const usableChars  = combined.replace(/\s/g, "").length;
-
-        if (usableChars >= 200) {
-          // Text layer is usable — send as plain text (better structured input for LLM)
-          textContent = combined;
-        } else {
-          // Scanned PDF — render all pages (up to 5) as images
-          const MAX_VISION_PAGES = 5;
-          const totalPages = Math.min(pdf.numPages, MAX_VISION_PAGES);
-          const pages: typeof multiPageImages = [];
-
-          for (let p = 1; p <= totalPages; p++) {
-            const page     = await pdf.getPage(p);
-            const scale    = 2.0;
-            const viewport = page.getViewport({ scale });
-            const canvas   = document.createElement("canvas");
-            canvas.width   = viewport.width;
-            canvas.height  = viewport.height;
-            await page.render({ canvas, viewport }).promise;
-            pages.push({
-              base64:   canvas.toDataURL("image/jpeg", 0.90).split(",")[1],
-              mimeType: "image/jpeg",
-              page:     p,
-            });
+          // Pass 1: extract text layer from every page
+          const pageTexts: string[] = [];
+          for (let p = 1; p <= pdf.numPages; p++) {
+            const page = await pdf.getPage(p);
+            const tc   = await page.getTextContent();
+            const text = (tc.items as Array<{ str?: string }>)
+              .map((item) => item.str ?? "")
+              .join(" ")
+              .trim();
+            pageTexts.push(text);
           }
 
-          if (pages.length === 1) {
-            imageBase64 = pages[0].base64;
-            mimeType    = "image/jpeg";
+          // Count non-whitespace characters across all pages to decide path
+          const combined     = pageTexts.join("\n\n--- Page Break ---\n\n");
+          const usableChars  = combined.replace(/\s/g, "").length;
+
+          if (usableChars >= 200) {
+            // Text layer is usable — send as plain text (better structured input for LLM)
+            textContent = combined;
           } else {
-            multiPageImages = pages;
+            // Scanned PDF — render all pages (up to 5) as images
+            const MAX_VISION_PAGES = 5;
+            const totalPages = Math.min(pdf.numPages, MAX_VISION_PAGES);
+            const pages: typeof multiPageImages = [];
+
+            for (let p = 1; p <= totalPages; p++) {
+              const page     = await pdf.getPage(p);
+              const scale    = 2.0;
+              const viewport = page.getViewport({ scale });
+              const canvas   = document.createElement("canvas");
+              canvas.width   = viewport.width;
+              canvas.height  = viewport.height;
+              await page.render({ canvas, viewport }).promise;
+              pages.push({
+                base64:   canvas.toDataURL("image/jpeg", 0.90).split(",")[1],
+                mimeType: "image/jpeg",
+                page:     p,
+              });
+            }
+
+            if (pages.length === 1) {
+              imageBase64 = pages[0].base64;
+              mimeType    = "image/jpeg";
+            } else {
+              multiPageImages = pages;
+            }
           }
+        } catch (pdfjsErr) {
+          // PDF.js can fail on PDFs that use uncommon color spaces or features
+          // (e.g. "n.toHex is not a function" on older brokerage reports).
+          // Fall back to sending the raw PDF bytes to the API for Claude's native
+          // document handling, which works on any valid PDF regardless of features.
+          console.warn("[import] pdfjs failed, falling back to native PDF path:", pdfjsErr);
+          const bytes = new Uint8Array(pdfArrayBuffer);
+          let binary = "";
+          bytes.forEach((b) => (binary += String.fromCharCode(b)));
+          imageBase64 = btoa(binary);
+          mimeType    = "application/pdf";
         }
 
       } else if (fileType === "image") {

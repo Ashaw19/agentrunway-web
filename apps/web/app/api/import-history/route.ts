@@ -631,13 +631,24 @@ export async function POST(req: NextRequest) {
       }
       console.log("[import] step=llm-done raw-len=" + raw.length);
     } else {
-      // ── Vision path: PDF pages or uploaded image(s) ───────────────────────
-      // Build message content: all images first, then the prompt text.
-      // Claude supports multiple images via messages array.
-      const imageContent = imageSources.map((img) => ({
-        type: "image" as const,
-        image: `data:${img.mimeType};base64,${img.base64}`,
-      }));
+      // ── Vision/document path: PDF pages or uploaded image(s) ─────────────
+      // Build message content: images/PDFs first, then the prompt text.
+      // When mimeType is "application/pdf", use Claude's native document type
+      // (handles all valid PDFs including those with uncommon color spaces that
+      // would fail pdfjs client-side). Otherwise use the image type for JPEG pages.
+      const documentContent = imageSources.map((img) => {
+        if (img.mimeType === "application/pdf") {
+          return {
+            type: "file" as const,
+            data: `data:application/pdf;base64,${img.base64}`,
+            mimeType: "application/pdf" as const,
+          };
+        }
+        return {
+          type: "image" as const,
+          image: `data:${img.mimeType};base64,${img.base64}`,
+        };
+      });
 
       const { text } = await generateText({
         model: models.fast,
@@ -645,7 +656,7 @@ export async function POST(req: NextRequest) {
           {
             role: "user" as const,
             content: [
-              ...imageContent,
+              ...documentContent,
               { type: "text" as const, text: VISION_PROMPT },
             ],
           },
