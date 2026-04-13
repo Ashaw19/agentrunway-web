@@ -21,7 +21,7 @@ export default async function ClientsPage() {
     .from("user_settings")
     .select("*")
     .eq("user_id", user.id)
-    .single();
+    .maybeSingle();
 
   const settings = settingsData as UserSettings | null;
 

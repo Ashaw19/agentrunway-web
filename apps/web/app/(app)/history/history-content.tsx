@@ -424,7 +424,9 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     }
 
     // 4. Orphan cleanup: if any client_records were deleted, check for clients
-    //    that now have zero remaining records for this user and remove them.
+    //    that now have zero remaining records AND no other CRM data, then remove.
+    //    Only delete import-created clients (imported_at IS NOT NULL) to avoid
+    //    destroying manually-created clients with active activities/tasks/deals.
     if (deletedRecords && deletedRecords.length > 0) {
       const { data: remainingRecords } = await supabase
         .from("client_records")
@@ -442,11 +444,35 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       const orphanedIds = candidateIds.filter((id) => !stillReferencedIds.has(id));
 
       if (orphanedIds.length > 0) {
-        await supabase
+        // Double-check: only delete clients that were auto-created by import
+        // (imported_at is set) AND have no pipeline deals, activities, or tasks.
+        // This prevents cascade-deleting active CRM data.
+        const { data: safeToDelete } = await supabase
           .from("clients")
-          .delete()
+          .select("id")
           .eq("user_id", user.id)
-          .in("id", orphanedIds);
+          .in("id", orphanedIds)
+          .not("imported_at", "is", null);
+
+        const safeIds = (safeToDelete ?? []).map((c) => c.id);
+        if (safeIds.length > 0) {
+          // Final safety: verify no pipeline deals reference these clients
+          const { data: linkedDeals } = await supabase
+            .from("pipeline_deals")
+            .select("client_id")
+            .eq("user_id", user.id)
+            .in("client_id", safeIds);
+          const dealLinkedIds = new Set((linkedDeals ?? []).map((d) => d.client_id).filter(Boolean));
+          const finalIds = safeIds.filter((id) => !dealLinkedIds.has(id));
+
+          if (finalIds.length > 0) {
+            await supabase
+              .from("clients")
+              .delete()
+              .eq("user_id", user.id)
+              .in("id", finalIds);
+          }
+        }
       }
     }
 
@@ -886,7 +912,8 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
           };
         });
 
-      // Delete previous imports for this year, then insert new ones
+      // Replace previous imports for this year with new ones.
+      // Delete first, then insert — if insert fails, the user is told clearly.
       if (txInserts.length > 0) {
         await supabase.from("transactions")
           .delete()
@@ -897,8 +924,10 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
         const { error: txError } = await supabase.from("transactions").insert(txInserts);
         if (txError) {
-          toast.error("Failed to save transactions — your previous data is intact.");
-          throw txError;
+          console.error("[import] transaction insert failed:", txError);
+          toast.error("Failed to save transactions. Please re-import this year.");
+          setImportStatus("preview");
+          return;
         }
       }
 

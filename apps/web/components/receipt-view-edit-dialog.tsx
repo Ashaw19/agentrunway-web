@@ -113,8 +113,8 @@ export function ReceiptViewEditDialog({
       .update({
         vendor:       vendor.trim() || null,
         expense_date: expenseDate   || null,
-        total_amount: parseFloat(totalAmt) || null,
-        tax_amount:   parseFloat(taxAmt)   || null,
+        total_amount: totalAmt.trim() !== "" && !isNaN(parseFloat(totalAmt)) ? parseFloat(totalAmt) : null,
+        tax_amount:   taxAmt.trim()  !== "" && !isNaN(parseFloat(taxAmt))  ? parseFloat(taxAmt)  : null,
         category_key: catKey               || null,
         notes:        notes.trim()         || null,
       })

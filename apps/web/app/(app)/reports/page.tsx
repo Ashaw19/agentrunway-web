@@ -17,7 +17,7 @@ export default async function ReportsPage() {
     .from("user_settings")
     .select("*")
     .eq("user_id", user.id)
-    .single();
+    .maybeSingle();
 
   // ── Live Supabase queries ───────────────────────────────────────────
   const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, ccaAssetsResult, mileageResult, referralsResult, recurringExpResult] =

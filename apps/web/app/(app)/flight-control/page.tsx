@@ -16,7 +16,7 @@ export default async function FlightControlPage() {
     .from("user_settings")
     .select("*")
     .eq("user_id", user.id)
-    .single();
+    .maybeSingle();
 
   // ── 2. Live queries ──
 

@@ -27,7 +27,7 @@ export default async function SettingsPage() {
       .from("user_settings")
       .select("*")
       .eq("user_id", user.id)
-      .single(),
+      .maybeSingle(),
     supabase
       .from("plaid_items")
       // access_token is intentionally excluded — server-only credential

@@ -13,7 +13,7 @@ export default async function ReferralsPage() {
     .from("user_settings")
     .select("subscription_tier, subscription_status, is_admin")
     .eq("user_id", user.id)
-    .single();
+    .maybeSingle();
 
   const isPro =
     settings?.is_admin ||

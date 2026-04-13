@@ -128,6 +128,7 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
 
   async function handleRegisterClose() {
     if (!current || saving) return;
+    if (!confirmForm.date) { toast.error("Please enter a close date."); return; }
     setSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -176,7 +177,9 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
     if (!current || !newDate) return;
     setSaving(true);
     const supabase = createClient();
-    const { error: delayErr } = await supabase.from("pipeline_deals").update({ expected_close_date: newDate, updated_at: new Date().toISOString() }).eq("id", current.id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSaving(false); return; }
+    const { error: delayErr } = await supabase.from("pipeline_deals").update({ expected_close_date: newDate, updated_at: new Date().toISOString() }).eq("id", current.id).eq("user_id", user.id);
     if (delayErr) { toast.error("Failed to update date — please try again."); setSaving(false); return; }
     setSaving(false);
     advance();

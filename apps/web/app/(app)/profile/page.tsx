@@ -18,7 +18,7 @@ export default async function ProfilePage() {
       .from("user_settings")
       .select("*")
       .eq("user_id", user.id)
-      .single(),
+      .maybeSingle(),
     supabase
       .from("transactions")
       .select("date, sale_price, commission_pct, team_split_pct, gci_override")

@@ -18,7 +18,7 @@ export default async function OverheadPage() {
     .from("user_settings")
     .select("*")
     .eq("user_id", user.id)
-    .single();
+    .maybeSingle();
 
   const currentYear = new Date().getFullYear();
 

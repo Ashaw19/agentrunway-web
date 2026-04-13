@@ -132,7 +132,7 @@ async function seedDefaultCategories(
         sort_order: cat.sort_order,
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (catRow && !error) {
       await supabase.from("expense_items").insert(
@@ -188,7 +188,7 @@ export default async function ExpensesPage() {
       .from("user_settings")
       .select("*")
       .eq("user_id", user.id)
-      .single(),
+      .maybeSingle(),
     supabase
       .from("transactions")
       .select("*")

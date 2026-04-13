@@ -13,7 +13,7 @@ export default async function GuidePage() {
     .from("user_settings")
     .select("subscription_tier, province, split_preset, business_structure")
     .eq("user_id", user.id)
-    .single();
+    .maybeSingle();
 
   return (
     <GuideContent

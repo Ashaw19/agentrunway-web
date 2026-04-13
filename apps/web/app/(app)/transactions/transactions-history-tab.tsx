@@ -207,51 +207,62 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       .from("history_items")
       .update({ is_locked: !item.is_locked })
       .eq("id", item.id);
-    if (!error) {
-      setItems((prev) =>
-        prev.map((i) =>
-          i.id === item.id ? { ...i, is_locked: !i.is_locked } : i,
-        ),
-      );
-      toast(item.is_locked ? "Year unlocked ✓" : "Year locked 🔒");
+    if (error) {
+      toast.error("Failed to update lock — please try again.");
+      return;
     }
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === item.id ? { ...i, is_locked: !i.is_locked } : i,
+      ),
+    );
+    toast(item.is_locked ? "Year unlocked ✓" : "Year locked 🔒");
   }
 
   // ── Inline edit helpers ──────────────────────────────────────────────────
+  // Optimistic update with rollback on failure.
 
   async function updateAnnualGCI(item: HistoryItem, value: string) {
     const num = parseFloat(value) || 0;
-    setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, annual_gci: num } : i));
+    const prev = item.annual_gci;
+    setItems((p) => p.map((i) => i.id === item.id ? { ...i, annual_gci: num } : i));
     setSaving(`${item.id}-annual_gci`);
-    await supabase.from("history_items").update({ annual_gci: num }).eq("id", item.id);
+    const { error } = await supabase.from("history_items").update({ annual_gci: num }).eq("id", item.id);
+    if (error) { setItems((p) => p.map((i) => i.id === item.id ? { ...i, annual_gci: prev } : i)); toast.error("Failed to save — please try again."); }
     setSaving(null);
   }
 
   async function updateAnnualTx(item: HistoryItem, value: string) {
     const num = parseInt(value) || 0;
-    setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, annual_tx: num } : i));
+    const prev = item.annual_tx;
+    setItems((p) => p.map((i) => i.id === item.id ? { ...i, annual_tx: num } : i));
     setSaving(`${item.id}-annual_tx`);
-    await supabase.from("history_items").update({ annual_tx: num }).eq("id", item.id);
+    const { error } = await supabase.from("history_items").update({ annual_tx: num }).eq("id", item.id);
+    if (error) { setItems((p) => p.map((i) => i.id === item.id ? { ...i, annual_tx: prev } : i)); toast.error("Failed to save — please try again."); }
     setSaving(null);
   }
 
   async function updateQuarterGCI(item: HistoryItem, qi: number, value: string) {
     const num = parseFloat(value) || 0;
-    const newArr = [...(item.quarter_gci as number[])];
+    const prevArr = [...(item.quarter_gci as number[])];
+    const newArr = [...prevArr];
     newArr[qi] = num;
-    setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, quarter_gci: newArr } : i));
+    setItems((p) => p.map((i) => i.id === item.id ? { ...i, quarter_gci: newArr } : i));
     setSaving(`${item.id}-qgci-${qi}`);
-    await supabase.from("history_items").update({ quarter_gci: newArr }).eq("id", item.id);
+    const { error } = await supabase.from("history_items").update({ quarter_gci: newArr }).eq("id", item.id);
+    if (error) { setItems((p) => p.map((i) => i.id === item.id ? { ...i, quarter_gci: prevArr } : i)); toast.error("Failed to save — please try again."); }
     setSaving(null);
   }
 
   async function updateQuarterTx(item: HistoryItem, qi: number, value: string) {
     const num = parseInt(value) || 0;
-    const newArr = [...(item.quarter_tx as number[])];
+    const prevArr = [...(item.quarter_tx as number[])];
+    const newArr = [...prevArr];
     newArr[qi] = num;
-    setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, quarter_tx: newArr } : i));
+    setItems((p) => p.map((i) => i.id === item.id ? { ...i, quarter_tx: newArr } : i));
     setSaving(`${item.id}-qtx-${qi}`);
-    await supabase.from("history_items").update({ quarter_tx: newArr }).eq("id", item.id);
+    const { error } = await supabase.from("history_items").update({ quarter_tx: newArr }).eq("id", item.id);
+    if (error) { setItems((p) => p.map((i) => i.id === item.id ? { ...i, quarter_tx: prevArr } : i)); toast.error("Failed to save — please try again."); }
     setSaving(null);
   }
 
@@ -331,7 +342,9 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
     }
 
     // 4. Orphan cleanup: if any client_records were deleted, check for clients
-    //    that now have zero remaining records for this user and remove them.
+    //    that now have zero remaining records AND no other CRM data, then remove.
+    //    Only delete import-created clients (imported_at IS NOT NULL) to avoid
+    //    destroying manually-created clients with active activities/tasks/deals.
     if (deletedRecords && deletedRecords.length > 0) {
       const { data: remainingRecords } = await supabase
         .from("client_records")
@@ -349,11 +362,34 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       const orphanedIds = candidateIds.filter((id) => !stillReferencedIds.has(id));
 
       if (orphanedIds.length > 0) {
-        await supabase
+        // Double-check: only delete clients that were auto-created by import
+        // (imported_at is set) AND have no pipeline deals referencing them.
+        // This prevents cascade-deleting active CRM data.
+        const { data: safeToDelete } = await supabase
           .from("clients")
-          .delete()
+          .select("id")
           .eq("user_id", user.id)
-          .in("id", orphanedIds);
+          .in("id", orphanedIds)
+          .not("imported_at", "is", null);
+
+        const safeIds = (safeToDelete ?? []).map((c) => c.id);
+        if (safeIds.length > 0) {
+          const { data: linkedDeals } = await supabase
+            .from("pipeline_deals")
+            .select("client_id")
+            .eq("user_id", user.id)
+            .in("client_id", safeIds);
+          const dealLinkedIds = new Set((linkedDeals ?? []).map((d) => d.client_id).filter(Boolean));
+          const finalIds = safeIds.filter((id) => !dealLinkedIds.has(id));
+
+          if (finalIds.length > 0) {
+            await supabase
+              .from("clients")
+              .delete()
+              .eq("user_id", user.id)
+              .in("id", finalIds);
+          }
+        }
       }
     }
 
@@ -809,9 +845,11 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
         .eq("user_id", user.id).eq("year", yearData.year);
 
       // ── Upsert client identities for this year, then attach client_id ─────
-      const uniqueYearNames = [
-        ...new Set(yearData.deals.map((d) => d.party_a?.trim()).filter(Boolean) as string[]),
-      ];
+      // Use agent_side to pick the correct party — 1 = agent represented party_b
+      const agentClientNames = yearData.deals.map((d) =>
+        ((d.agent_side === 1 ? d.party_b : d.party_a) ?? "").trim()
+      );
+      const uniqueYearNames = [...new Set(agentClientNames.filter(Boolean))];
       if (uniqueYearNames.length > 0) {
         await supabase.from("clients").upsert(
           uniqueYearNames.map((name) => ({ user_id: user.id, name, name_search: name.toLowerCase() })),
@@ -825,18 +863,24 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       const yearClientIdMap = new Map((yearClientRows ?? []).map((c) => [c.name_search, c.id]));
 
       const clientInserts = yearData.deals
-        .filter((d) => d.party_a?.trim())
-        .map((d) => ({
-          user_id: user.id,
-          name: d.party_a,
-          client_id: yearClientIdMap.get(d.party_a.toLowerCase()) ?? null,
-          side: d.side ?? null,
-          source: d.source ?? null,
-          address: d.address || null,
-          close_date: d.date || null,
-          year: yearData.year,
-          gci: d.gci,
-        }));
+        .filter((d) => {
+          const clientName = ((d.agent_side === 1 ? d.party_b : d.party_a) ?? "").trim();
+          return clientName.length > 0;
+        })
+        .map((d) => {
+          const clientName = ((d.agent_side === 1 ? d.party_b : d.party_a) ?? "").trim();
+          return {
+            user_id: user.id,
+            name: clientName,
+            client_id: yearClientIdMap.get(clientName.toLowerCase()) ?? null,
+            side: d.side ?? null,
+            source: d.source ?? null,
+            address: d.address || null,
+            close_date: d.date || null,
+            year: yearData.year,
+            gci: d.gci,
+          };
+        });
 
       if (clientInserts.length > 0) {
         await supabase.from("client_records").insert(clientInserts);
@@ -866,8 +910,8 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
             gci_override: d.gci,     // store GCI directly
             side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
             status: "closed" as const,
-            client_name: d.party_a || "",
-            notes: d.party_b ? `Other party: ${d.party_b}` : "",
+            client_name: ((d.agent_side === 1 ? d.party_b : d.party_a) ?? "").trim() || "",
+            notes: (d.agent_side === 1 ? d.party_a : d.party_b)?.trim() ? `Other party: ${(d.agent_side === 1 ? d.party_a : d.party_b)?.trim()}` : "",
             source: "imported" as const,
             date_precision: "day" as const,
           }));
