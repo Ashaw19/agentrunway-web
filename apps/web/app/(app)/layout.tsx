@@ -228,7 +228,7 @@ export default async function AppLayout({
         >
           <SidebarNav isPro={isPro} orgContext={orgContext} />
           <div className="flex flex-1 flex-col overflow-hidden">
-            <MobileNav isPro={isPro} />
+            <MobileNav isPro={isPro} orgContext={orgContext} />
             <TopBar />
             <main className="flex-1 overflow-y-auto overscroll-y-contain bg-[oklch(0.965_0.012_261)] p-4 sm:p-6 lg:p-8">
               <div className="mx-auto max-w-screen-xl page-enter">

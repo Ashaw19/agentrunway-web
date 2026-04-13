@@ -20,9 +20,14 @@ import {
   Layers,
   BarChart2,
   BookOpen,
+  Building2,
+  CreditCard,
+  Shield,
+  Lock,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { OrgContext } from "@/lib/types/organizations";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -109,10 +114,94 @@ const mobileNavEntries: MobileNavEntry[] = [
   },
 ];
 
-export function MobileNav({ isPro = false }: { isPro?: boolean }) {
+export function MobileNav({
+  isPro = false,
+  orgContext = null,
+}: {
+  isPro?: boolean;
+  orgContext?: OrgContext | null;
+}) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+
+  // Build org-specific mobile nav entries dynamically
+  const orgEntries: MobileNavEntry[] = orgContext
+    ? [
+        { type: "header", label: "YOUR TEAM" },
+        {
+          type: "item",
+          label: orgContext.org.name.length > 18
+            ? orgContext.org.name.slice(0, 16) + "\u2026"
+            : orgContext.org.name,
+          href: "/org",
+          icon: Building2,
+          iconActive: "text-white",
+          iconInactive: "text-sidebar-foreground/50",
+          borderActive: "border-l-primary",
+        },
+        ...(orgContext.isAdmin
+          ? [
+              {
+                type: "item" as const,
+                label: "Members",
+                href: "/org/members",
+                icon: Users,
+                iconActive: "text-orange-300",
+                iconInactive: "text-orange-400/60",
+                borderActive: "border-l-orange-400",
+              },
+              {
+                type: "item" as const,
+                label: "Settings",
+                href: "/org/settings",
+                icon: Settings,
+                iconActive: "text-orange-300",
+                iconInactive: "text-orange-400/60",
+                borderActive: "border-l-orange-400",
+              },
+              {
+                type: "item" as const,
+                label: "Billing",
+                href: "/org/billing",
+                icon: CreditCard,
+                iconActive: "text-orange-300",
+                iconInactive: "text-orange-400/60",
+                borderActive: "border-l-orange-400",
+              },
+              {
+                type: "item" as const,
+                label: "Audit Log",
+                href: "/org/audit-log",
+                icon: Shield,
+                iconActive: "text-orange-300",
+                iconInactive: "text-orange-400/60",
+                borderActive: "border-l-orange-400",
+              },
+            ]
+          : [
+              {
+                type: "item" as const,
+                label: "My Consent",
+                href: "/consent",
+                icon: Lock,
+                iconActive: "text-orange-300",
+                iconInactive: "text-orange-400/60",
+                borderActive: "border-l-orange-400",
+              },
+            ]),
+      ]
+    : [];
+
+  // Insert org entries between CRM and TOOLS sections
+  const allMobileEntries: MobileNavEntry[] = [];
+  for (const entry of mobileNavEntries) {
+    allMobileEntries.push(entry);
+    // Insert org entries after the last CRM item (Flight Control)
+    if (entry.type === "item" && entry.href === "/flight-control") {
+      allMobileEntries.push(...orgEntries);
+    }
+  }
 
   // Avatar state
   const [displayName, setDisplayName] = useState<string | null>(null);
@@ -253,7 +342,7 @@ export function MobileNav({ isPro = false }: { isPro?: boolean }) {
           <div className="mx-4 mt-4 h-px bg-sidebar-border/60" />
 
           <nav className="flex-1 space-y-0.5 px-2 py-4 overflow-y-auto">
-            {mobileNavEntries.map((entry, i) => {
+            {allMobileEntries.map((entry, i) => {
               if (entry.type === "header") {
                 return (
                   <div key={entry.label} className={cn("px-3 pb-1", i === 0 ? "pt-0" : "pt-4")}>

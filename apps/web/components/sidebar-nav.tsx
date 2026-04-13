@@ -176,12 +176,12 @@ export function SidebarNav({
       ]
     : [];
 
-  // Insert org entries between CRM and TOOLS
+  // Insert org entries between CRM and TOOLS sections
   const allEntries: SidebarEntry[] = [];
   for (const entry of sidebarEntries) {
     allEntries.push(entry);
-    // Insert org entries after the Referrals item (end of CRM section)
-    if (entry.type === "item" && entry.href === "/referrals") {
+    // Insert org entries after the last CRM item (Flight Control)
+    if (entry.type === "item" && entry.href === "/flight-control") {
       allEntries.push(...orgEntries);
     }
   }
