@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -260,11 +260,14 @@ export function ReferralsContent({
     setDialogOpen(true);
   }
 
+  const savingRef = useRef(false);
   async function handleSave() {
+    if (savingRef.current) return;
     if (!form.partner_name.trim() || !form.client_name.trim()) {
       toast.error("Partner name and client name are required.");
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     try {
       const supabase = createClient();
@@ -328,6 +331,7 @@ export function ReferralsContent({
       console.error("handleSave unexpected error:", err);
       toast.error("Something went wrong — please try again.");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
@@ -851,8 +855,8 @@ export function ReferralsContent({
                     variant="ghost"
                     size="sm"
                     className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                    onClick={() => {
-                      handleDelete(editingId);
+                    onClick={async () => {
+                      await handleDelete(editingId);
                       setDialogOpen(false);
                     }}
                   >

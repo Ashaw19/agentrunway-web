@@ -161,7 +161,10 @@ export function ProfileContent({
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
+  const savingIdentityRef = useRef(false);
   async function saveIdentity() {
+    if (savingIdentityRef.current) return;
+    savingIdentityRef.current = true;
     setSavingIdentity(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -180,11 +183,15 @@ export function ProfileContent({
       setTimeout(() => setSavedIdentity(false), 2500);
       toast.success("Profile updated ✓");
     } finally {
+      savingIdentityRef.current = false;
       setSavingIdentity(false);
     }
   }
 
+  const savingBusinessRef = useRef(false);
   async function saveBusinessIdentity() {
+    if (savingBusinessRef.current) return;
+    savingBusinessRef.current = true;
     setSavingBusiness(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -203,11 +210,15 @@ export function ProfileContent({
       setTimeout(() => setSavedBusiness(false), 2500);
       toast.success("Business info saved ✓");
     } finally {
+      savingBusinessRef.current = false;
       setSavingBusiness(false);
     }
   }
 
+  const savingThemeRef = useRef(false);
   async function saveTheme(theme: string) {
+    if (savingThemeRef.current) return;
+    savingThemeRef.current = true;
     setColorTheme(theme);
     setSavingTheme(true);
     try {
@@ -223,6 +234,7 @@ export function ProfileContent({
       toast.success("Theme updated — reloading…");
       window.location.reload();
     } finally {
+      savingThemeRef.current = false;
       setSavingTheme(false);
     }
   }

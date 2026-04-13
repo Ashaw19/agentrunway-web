@@ -63,7 +63,7 @@ async function verifyAdminRole(
     .eq("org_id", orgId)
     .eq("user_id", userId)
     .eq("status", "active")
-    .single();
+    .maybeSingle();
 
   if (!data) return { isAdmin: false, membership: null };
   return {

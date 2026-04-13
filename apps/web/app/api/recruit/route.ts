@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // Increment view count
+  // Increment view count (cosmetic counter — minor race on concurrent GETs is acceptable)
   await admin
     .from("recruitment_pages")
     .update({
