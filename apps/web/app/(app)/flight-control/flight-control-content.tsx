@@ -617,6 +617,14 @@ export function FlightControlContent({
   const [guideSaving,   setGuideSaving]   = useState(false);
   const guideDebounce   = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Cleanup debounce timers on unmount
+  useEffect(() => {
+    return () => {
+      if (sigDebounce.current) clearTimeout(sigDebounce.current);
+      if (guideDebounce.current) clearTimeout(guideDebounce.current);
+    };
+  }, []);
+
   // ── Load top opportunities on mount ──────────────────────────────────────
   const loadOpportunities = useCallback(async () => {
     setScanning(true);

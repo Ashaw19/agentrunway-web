@@ -367,18 +367,33 @@ export function ExpensesContent({
     localStorage.setItem("ar_dismissed_tax_tips", JSON.stringify(updated));
   }
 
+  // Ref-based guards to prevent double-submit from rapid clicks
+  const savingReRef = useRef(false);       // saveRecurringExpense
+  const savingQeRef = useRef(false);       // handleQuickExpenseSave
+  const addingItemRef = useRef(false);     // addItem
+  const deletingItemRef = useRef(false);   // deleteItem
+  const deletingReRef = useRef(false);     // deleteRecurringExpense
+
   // Fetch recurring expenses on mount
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-
       const { data } = await supabase
         .from("recurring_expenses")
         .select("*")
         .eq("is_active", true)
         .order("name")
         .limit(500);
-      if (data) setRecurringExpenses(data as RecurringExpense[]);
+      if (data && !cancelled) setRecurringExpenses(data as RecurringExpense[]);
     })();
+    return () => { cancelled = true; };
+  }, [supabase]);
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (receiptRefreshTimer.current) clearTimeout(receiptRefreshTimer.current);
+    };
   }, []);
 
   function openRecurringDialog(existing?: RecurringExpense) {
@@ -413,10 +428,12 @@ export function ExpensesContent({
   }
 
   async function saveRecurringExpense() {
+    if (savingReRef.current) return;
     if (!reName.trim() || !reAmount.trim() || !reCategory) {
       toast.error("Name, amount, and category are required.");
       return;
     }
+    savingReRef.current = true;
     setReSaving(true);
     const payload = {
       name: reName.trim(),
@@ -444,35 +461,39 @@ export function ExpensesContent({
         .from("recurring_expenses")
         .update({ ...payload, updated_at: new Date().toISOString() })
         .eq("id", editingRecurring.id);
-      if (error) { toast.error("Failed to update recurring expense."); setReSaving(false); return; }
+      if (error) { toast.error("Failed to update recurring expense."); savingReRef.current = false; setReSaving(false); return; }
       setRecurringExpenses((prev) =>
         prev.map((r) => r.id === editingRecurring.id ? { ...r, ...payload } : r),
       );
       toast.success("Recurring expense updated.");
     } else {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setReSaving(false); return; }
+      if (!user) { savingReRef.current = false; setReSaving(false); return; }
       const { data, error } = await supabase
         .from("recurring_expenses")
         .insert({ ...payload, user_id: user.id })
         .select()
         .single();
-      if (error) { toast.error("Failed to add recurring expense."); setReSaving(false); return; }
+      if (error) { toast.error("Failed to add recurring expense."); savingReRef.current = false; setReSaving(false); return; }
       setRecurringExpenses((prev) => [...prev, data as RecurringExpense]);
       toast.success("Recurring expense added.");
     }
+    savingReRef.current = false;
     setReSaving(false);
     setRecurringDialogOpen(false);
   }
 
   async function deleteRecurringExpense(id: string) {
+    if (deletingReRef.current) return;
+    deletingReRef.current = true;
     const { error } = await supabase
       .from("recurring_expenses")
       .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq("id", id);
-    if (error) { toast.error("Failed to remove recurring expense."); return; }
+    if (error) { toast.error("Failed to remove recurring expense."); deletingReRef.current = false; return; }
     setRecurringExpenses((prev) => prev.filter((r) => r.id !== id));
     toast.success("Recurring expense removed.");
+    deletingReRef.current = false;
   }
 
   // ── Voice-to-expense ─────────────────────────────────────────────────────
@@ -518,15 +539,18 @@ export function ExpensesContent({
     voiceFilledFields.has(field) ? "bg-amber-50/60 border-amber-200/80" : "";
 
   async function handleQuickExpenseSave() {
+    if (savingQeRef.current) return;
+    savingQeRef.current = true;
     setQeSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setQeSaving(false); return; }
+    if (!user) { savingQeRef.current = false; setQeSaving(false); return; }
 
     // ── Validate expense amount before writing ─────────────────────────────
     const amount = parseDollar(qeAmount);
     const amountCheck = validateExpenseAmount(amount);
     if (!amountCheck.valid) {
       amountCheck.errors.forEach((msg) => toast.error(msg));
+      savingQeRef.current = false;
       setQeSaving(false);
       return;
     }
@@ -556,6 +580,7 @@ export function ExpensesContent({
     } else {
       toast.error("Couldn't save — try again");
     }
+    savingQeRef.current = false;
     setQeSaving(false);
   }
 
@@ -590,7 +615,7 @@ export function ExpensesContent({
       const newTotals: Record<string, number> = {};
       for (const r of totalsData) {
         if (r.category_key && r.total_amount != null) {
-          newTotals[r.category_key] = (newTotals[r.category_key] ?? 0) + Number(r.total_amount);
+          newTotals[r.category_key] = Math.round(((newTotals[r.category_key] ?? 0) + Number(r.total_amount)) * 100) / 100;
         }
       }
       setReceiptTotals(newTotals);
@@ -817,11 +842,13 @@ export function ExpensesContent({
   }
 
   async function addItem(categoryId: string) {
+    if (addingItemRef.current) return;
     const title = newItemTitle.trim();
     if (!title) return;
+    addingItemRef.current = true;
 
     const { data: authData } = await supabase.auth.getUser();
-    if (!authData.user) return;
+    if (!authData.user) { addingItemRef.current = false; return; }
 
     const cat = categories.find((c) => c.id === categoryId);
     const sortOrder = cat?.items.length ?? 0;
@@ -851,16 +878,20 @@ export function ExpensesContent({
     } else if (error) {
       toast.error("Couldn't add item — please try again.");
     }
+    addingItemRef.current = false;
     setAddingTo(null);
     setNewItemTitle("");
   }
 
   async function deleteItem(categoryId: string, itemId: string) {
+    if (deletingItemRef.current) return;
+    deletingItemRef.current = true;
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) { deletingItemRef.current = false; return; }
     const { error } = await supabase.from("expense_items").delete().eq("id", itemId).eq("user_id", user.id);
     if (error) {
       toast.error("Couldn't remove item — please try again.");
+      deletingItemRef.current = false;
       return;
     }
     setCategories((prev) =>
@@ -871,6 +902,7 @@ export function ExpensesContent({
       ),
     );
     toast("Expense item removed");
+    deletingItemRef.current = false;
   }
 
   async function saveVehiclePct(raw: string) {
@@ -900,42 +932,32 @@ export function ExpensesContent({
     setViewOpen(true);
   }
 
-  function handleReceiptUpdated(updated: ReceiptExpense) {
-    setReceipts((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-    // Refresh YTD totals by re-querying
+  function refreshReceiptTotals() {
     const year = new Date().getFullYear();
     supabase
       .from("receipt_expenses")
       .select("category_key, total_amount")
       .gte("expense_date", `${year}-01-01`)
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) { console.error("[expenses] receipt totals refresh failed:", error); return; }
         if (!data) return;
         const newTotals: Record<string, number> = {};
         for (const row of data) {
           if (row.category_key && row.total_amount != null)
-            newTotals[row.category_key] = (newTotals[row.category_key] ?? 0) + Number(row.total_amount);
+            newTotals[row.category_key] = Math.round(((newTotals[row.category_key] ?? 0) + Number(row.total_amount)) * 100) / 100;
         }
         setReceiptTotals(newTotals);
       });
   }
 
+  function handleReceiptUpdated(updated: ReceiptExpense) {
+    setReceipts((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+    refreshReceiptTotals();
+  }
+
   function handleReceiptDeleted(id: string) {
     setReceipts((prev) => prev.filter((r) => r.id !== id));
-    // Refresh YTD totals
-    const year = new Date().getFullYear();
-    supabase
-      .from("receipt_expenses")
-      .select("category_key, total_amount")
-      .gte("expense_date", `${year}-01-01`)
-      .then(({ data }) => {
-        if (!data) return;
-        const newTotals: Record<string, number> = {};
-        for (const row of data) {
-          if (row.category_key && row.total_amount != null)
-            newTotals[row.category_key] = (newTotals[row.category_key] ?? 0) + Number(row.total_amount);
-        }
-        setReceiptTotals(newTotals);
-      });
+    refreshReceiptTotals();
   }
 
   // ── Year-over-year prior year editable rows ───────────────────────────────

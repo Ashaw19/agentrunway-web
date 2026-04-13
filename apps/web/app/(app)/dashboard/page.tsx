@@ -28,8 +28,8 @@ export default async function DashboardPage({
     .maybeSingle();
 
   // ── Live Supabase queries ──────────────────────────────────────────────
-  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult, listingResult, recurringExpResult] =
-    await Promise.all([
+  // Use Promise.allSettled so one failed query doesn't crash the entire dashboard
+  const settledResults = await Promise.allSettled([
       supabase
         .from("transactions")
         .select("*")
@@ -120,6 +120,19 @@ export default async function DashboardPage({
         .limit(10000),
     ]);
 
+  // Extract results — failed queries return empty data instead of crashing the page
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const unwrap = <T,>(r: PromiseSettledResult<T>): T =>
+    r.status === "fulfilled" ? r.value : ({ data: null, count: null, error: r.reason } as T);
+  const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult, listingResult, recurringExpResult] = [
+    unwrap(settledResults[0]), unwrap(settledResults[1]), unwrap(settledResults[2]),
+    unwrap(settledResults[3]), unwrap(settledResults[4]), unwrap(settledResults[5]),
+    unwrap(settledResults[6]), unwrap(settledResults[7]), unwrap(settledResults[8]),
+    unwrap(settledResults[9]), unwrap(settledResults[10]), unwrap(settledResults[11]),
+    unwrap(settledResults[12]), unwrap(settledResults[13]), unwrap(settledResults[14]),
+    unwrap(settledResults[15]),
+  ];
+
   const recurringExpenses = (recurringExpResult.data ?? []) as RecurringExpense[];
   const recurringExpMonthly = totalRecurringMonthly(recurringExpenses);
   const recurringExpYTD = totalRecurringYTD(recurringExpenses);
@@ -129,10 +142,12 @@ export default async function DashboardPage({
     items: (expItemResult.data ?? []).filter((i) => i.category_id === cat.id),
   }));
 
-  const receiptYTD = (receiptTotalsResult.data ?? []).reduce(
-    (sum, r) => sum + Number(r.total_amount ?? 0),
-    0,
-  );
+  const receiptYTD = Math.round(
+    (receiptTotalsResult.data ?? []).reduce(
+      (sum, r) => sum + Number(r.total_amount ?? 0),
+      0,
+    ) * 100,
+  ) / 100;
 
   const mileageKmTotal = (mileageResult.data ?? []).reduce(
     (sum, r) => sum + Number(r.km ?? 0),
