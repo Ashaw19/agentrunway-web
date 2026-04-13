@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Sparkles, X, Send, Bot, User, ChevronDown, ThumbsUp, ThumbsDown, CheckCircle2, AlertTriangle, ArrowRight, ExternalLink } from "lucide-react";
+import { Sparkles, X, Send, Bot, User, ChevronDown, ThumbsUp, ThumbsDown, CheckCircle2, AlertTriangle, ArrowRight, ExternalLink, ShieldCheck, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,14 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   id: string;
+}
+
+interface PendingApproval {
+  toolCallId: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  description: string;
+  messageId: string; // which assistant message this belongs to
 }
 
 let msgIdCounter = 0;
@@ -47,12 +55,18 @@ const TOOL_STATUS_LABELS: Record<string, string> = {
 
 /**
  * Parse the Vercel AI SDK data stream protocol.
- * Extracts text deltas (prefix 0:) and tool call events (prefix 9:).
- * Returns { text, toolName } for each parsed chunk.
+ * Extracts text deltas (prefix 0:), tool call events (prefix 9:),
+ * and approval-required events (prefix b:).
+ * Returns { text, toolName, approval } for each parsed chunk.
  */
-function parseDataStreamChunk(raw: string): { text: string; toolName: string | null } {
+function parseDataStreamChunk(raw: string): {
+  text: string;
+  toolName: string | null;
+  approval: { toolCallId: string; toolName: string; args: Record<string, unknown>; description: string } | null;
+} {
   let text = "";
   let toolName: string | null = null;
+  let approval: { toolCallId: string; toolName: string; args: Record<string, unknown>; description: string } | null = null;
 
   const lines = raw.split("\n");
   for (const line of lines) {
@@ -77,11 +91,21 @@ function parseDataStreamChunk(raw: string): { text: string; toolName: string | n
       } catch {
         // Skip
       }
+    } else if (prefix === "b") {
+      // Approval required — tool call paused, waiting for user confirmation
+      try {
+        const parsed = JSON.parse(payload);
+        if (parsed.toolCallId && parsed.toolName) {
+          approval = parsed;
+        }
+      } catch {
+        // Skip
+      }
     }
     // Prefixes a (tool-result), e (step-finish), d (finish) — we don't need to surface these
   }
 
-  return { text, toolName };
+  return { text, toolName, approval };
 }
 
 // ── Action Card Parsing ──────────────────────────────────────────────────────
@@ -433,6 +457,93 @@ function AssistantMessage({ content, isStreaming, onNavigate }: { content: strin
   );
 }
 
+/**
+ * Approval card — shown when a tool needs user confirmation before executing.
+ * Replaces the old `confirmed: true` parameter hack with a proper UI gate.
+ */
+function ApprovalCard({
+  approval,
+  onApprove,
+  onDeny,
+  isProcessing,
+  resolved,
+}: {
+  approval: PendingApproval;
+  onApprove: () => void;
+  onDeny: () => void;
+  isProcessing: boolean;
+  resolved: "approved" | "denied" | null;
+}) {
+  const TOOL_LABELS: Record<string, string> = {
+    logContactActivity: "Log Activity",
+    createContactTask: "Create Task",
+  };
+
+  return (
+    <div
+      className="rounded-lg px-3 py-2.5 my-1"
+      style={{
+        background: resolved === "approved"
+          ? "rgba(34, 197, 94, 0.08)"
+          : resolved === "denied"
+          ? "rgba(239, 68, 68, 0.08)"
+          : "rgba(99, 102, 241, 0.08)",
+        border: resolved === "approved"
+          ? "1px solid rgba(34, 197, 94, 0.20)"
+          : resolved === "denied"
+          ? "1px solid rgba(239, 68, 68, 0.20)"
+          : "1px solid rgba(99, 102, 241, 0.30)",
+      }}
+    >
+      <div className="flex items-start gap-2">
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-indigo-400" />
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] font-medium text-indigo-300 uppercase tracking-wide mb-1">
+            {TOOL_LABELS[approval.toolName] ?? "Action"} — Confirm?
+          </div>
+          <div className="text-sm text-slate-200">{approval.description}</div>
+          {!resolved && (
+            <div className="flex gap-2 mt-2">
+              <button
+                onClick={onApprove}
+                disabled={isProcessing}
+                className="flex items-center gap-1 rounded-md px-3 py-1 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-50"
+              >
+                {isProcessing ? (
+                  <span className="animate-pulse">Executing…</span>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-3 w-3" />
+                    Confirm
+                  </>
+                )}
+              </button>
+              <button
+                onClick={onDeny}
+                disabled={isProcessing}
+                className="flex items-center gap-1 rounded-md px-3 py-1 text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-300 transition-colors disabled:opacity-50"
+              >
+                <XCircle className="h-3 w-3" />
+                Cancel
+              </button>
+            </div>
+          )}
+          {resolved === "approved" && (
+            <div className="flex items-center gap-1 mt-1.5 text-xs text-emerald-400">
+              <CheckCircle2 className="h-3 w-3" /> Approved and executed
+            </div>
+          )}
+          {resolved === "denied" && (
+            <div className="flex items-center gap-1 mt-1.5 text-xs text-red-400">
+              <XCircle className="h-3 w-3" /> Cancelled
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface Props {
   financialContext: string;
 }
@@ -529,6 +640,9 @@ export function AiChat({ financialContext }: Props) {
   const [unread, setUnread] = useState(0);
   // Enhancement #2: Tracks which message ID has been given feedback
   const [feedbackGiven, setFeedbackGiven] = useState<Record<string, "positive" | "negative">>({});
+  // Approval gate: pending tool calls waiting for user confirmation
+  const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
+  const [approvalStates, setApprovalStates] = useState<Record<string, { processing: boolean; resolved: "approved" | "denied" | null }>>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasNudgedRef = useRef(false);
@@ -644,11 +758,34 @@ export function AiChat({ financialContext }: Props) {
               const { done, value } = await reader.read();
               if (done) break;
               const chunk = decoder.decode(value, { stream: true });
-              const { text, toolName } = parseDataStreamChunk(chunk);
+              const { text, toolName, approval } = parseDataStreamChunk(chunk);
 
               // Show tool call status so the user knows something is happening
               if (toolName) {
                 setToolStatus(TOOL_STATUS_LABELS[toolName] ?? "Working…");
+              }
+
+              // Handle approval-required tool calls
+              if (approval) {
+                setToolStatus(null);
+                const pendingApproval: PendingApproval = {
+                  ...approval,
+                  messageId: assistantId,
+                };
+                setPendingApprovals((prev) => [...prev, pendingApproval]);
+                setApprovalStates((prev) => ({
+                  ...prev,
+                  [approval.toolCallId]: { processing: false, resolved: null },
+                }));
+                // Set a message indicating the AI is waiting for confirmation
+                if (!assistantText) {
+                  assistantText = "I'd like to take an action — please confirm:";
+                }
+                const captured = assistantText;
+                setMessages((prev) => [
+                  ...prev.slice(0, -1),
+                  { role: "assistant", content: captured, id: assistantId },
+                ]);
               }
 
               if (text) {
@@ -757,6 +894,84 @@ export function AiChat({ financialContext }: Props) {
     },
     [feedbackGiven],
   );
+
+  // ── Approval handlers ──────────────────────────────────────────────────────
+  const handleApprove = useCallback(
+    async (approval: PendingApproval) => {
+      setApprovalStates((prev) => ({
+        ...prev,
+        [approval.toolCallId]: { processing: true, resolved: null },
+      }));
+
+      try {
+        const res = await fetch("/api/chat/approve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            toolName: approval.toolName,
+            args: approval.args,
+          }),
+        });
+
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "");
+          throw new Error(errText || `HTTP ${res.status}`);
+        }
+
+        const { result } = await res.json();
+
+        setApprovalStates((prev) => ({
+          ...prev,
+          [approval.toolCallId]: { processing: false, resolved: "approved" },
+        }));
+
+        // Append the tool result as a new assistant message
+        const resultMessage: Message = {
+          role: "assistant",
+          content: result,
+          id: nextMsgId(),
+        };
+        setMessages((prev) => [...prev, resultMessage]);
+
+        // Fire toast for the action
+        const actionCount = countActions(result);
+        if (actionCount > 0) {
+          const summary = getActionSummary(result);
+          const link = extractPageLink(result);
+          toast.success(summary, {
+            description: link ? `View in ${link.label}` : undefined,
+            action: link
+              ? { label: "Go →", onClick: () => router.push(link.href) }
+              : undefined,
+            duration: 5000,
+          });
+        }
+      } catch (err) {
+        console.error("Approval error:", err);
+        setApprovalStates((prev) => ({
+          ...prev,
+          [approval.toolCallId]: { processing: false, resolved: "denied" },
+        }));
+        const errMsg = err instanceof Error ? err.message : "Something went wrong";
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: `Failed to execute: ${errMsg}. Please try again.`, id: nextMsgId() },
+        ]);
+      }
+    },
+    [router],
+  );
+
+  const handleDeny = useCallback((approval: PendingApproval) => {
+    setApprovalStates((prev) => ({
+      ...prev,
+      [approval.toolCallId]: { processing: false, resolved: "denied" },
+    }));
+    setMessages((prev) => [
+      ...prev,
+      { role: "assistant", content: "No problem — cancelled that action.", id: nextMsgId() },
+    ]);
+  }, []);
 
   return (
     <>
@@ -868,7 +1083,22 @@ export function AiChat({ financialContext }: Props) {
                   >
                     {msg.content ? (
                       msg.role === "assistant" ? (
-                        <AssistantMessage content={parseConfidence(msg.content).text} isStreaming={loading && i === messages.length - 1} onNavigate={(href) => router.push(href)} />
+                        <>
+                          <AssistantMessage content={parseConfidence(msg.content).text} isStreaming={loading && i === messages.length - 1} onNavigate={(href) => router.push(href)} />
+                          {/* Render approval cards attached to this message */}
+                          {pendingApprovals
+                            .filter((a) => a.messageId === msg.id)
+                            .map((a) => (
+                              <ApprovalCard
+                                key={a.toolCallId}
+                                approval={a}
+                                onApprove={() => handleApprove(a)}
+                                onDeny={() => handleDeny(a)}
+                                isProcessing={approvalStates[a.toolCallId]?.processing ?? false}
+                                resolved={approvalStates[a.toolCallId]?.resolved ?? null}
+                              />
+                            ))}
+                        </>
                       ) : (
                         <span style={{ whiteSpace: "pre-wrap" }}>{msg.content}</span>
                       )

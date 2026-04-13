@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { WaitlistForm } from "./waitlist-form";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 import { Check, Sparkles, ArrowRight } from "lucide-react";
+import { charterSlotsRemaining } from "@/lib/stripe";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const metadata: Metadata = {
   title: "Charter Member Access | Agent Runway",
@@ -20,7 +23,7 @@ export const metadata: Metadata = {
 const PILLARS = [
   {
     label: "Runway Score",
-    description: "Real-time business health. Five factors. One number.",
+    description: "Know instantly if your business is healthy — pace, pipeline, cash flow, and tax obligations in one number.",
     accentColor: "amber",
     border: "rgba(240,168,0,0.35)",
     borderHover: "rgba(240,168,0,0.6)",
@@ -30,7 +33,7 @@ const PILLARS = [
   },
   {
     label: "Canadian Tax Engine",
-    description: "T2125. CCA. PREC estimation tools. Built for how you actually get paid.",
+    description: "See what you actually owe the CRA — HST, income tax, instalments — before April surprises you.",
     accentColor: "emerald",
     border: "rgba(16,185,129,0.35)",
     borderHover: "rgba(16,185,129,0.6)",
@@ -40,7 +43,7 @@ const PILLARS = [
   },
   {
     label: "Aviation CRM",
-    description: "Boarding to Cruising. Your pipeline always in view.",
+    description: "Track every client from first contact to closing — and know who needs a follow-up before they go cold.",
     accentColor: "blue",
     border: "rgba(59,130,246,0.35)",
     borderHover: "rgba(59,130,246,0.6)",
@@ -50,7 +53,7 @@ const PILLARS = [
   },
   {
     label: "AI That Sounds Like You",
-    description: "A personality quiz. Every draft sounds like you on a good day.",
+    description: "Draft outreach, follow-ups, and listing descriptions that match your voice — not a robot's.",
     accentColor: "violet",
     border: "rgba(124,58,237,0.35)",
     borderHover: "rgba(124,58,237,0.6)",
@@ -61,11 +64,7 @@ const PILLARS = [
 ] as const;
 
 // ── Charter Member offer ──────────────────────────────────────────────────────
-// Update CHARTER_SPOTS_CLAIMED manually as spots fill up.
-const CHARTER_SPOTS_TOTAL   = 50;
-const CHARTER_SPOTS_CLAIMED = 8;   // ← update this number as spots fill
-const CHARTER_SPOTS_LEFT    = CHARTER_SPOTS_TOTAL - CHARTER_SPOTS_CLAIMED;
-const CHARTER_PCT           = Math.round((CHARTER_SPOTS_CLAIMED / CHARTER_SPOTS_TOTAL) * 100);
+const CHARTER_SPOTS_TOTAL = 50;
 
 const CHARTER_CHECKLIST = [
   "3 months free on any paid plan — no credit card at signup",
@@ -322,7 +321,18 @@ function PillarVisual({ visual }: { visual: string }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export default function WaitlistPage() {
+export default async function WaitlistPage() {
+  // Fetch charter spots from the database (same source as /api/pricing-tier)
+  const admin = createAdminClient();
+  const { count: paidCount } = await admin
+    .from("user_settings")
+    .select("user_id", { count: "exact", head: true })
+    .eq("subscription_tier", "professional");
+
+  const CHARTER_SPOTS_LEFT = charterSlotsRemaining(paidCount ?? 0);
+  const CHARTER_SPOTS_CLAIMED = CHARTER_SPOTS_TOTAL - CHARTER_SPOTS_LEFT;
+  const CHARTER_PCT = Math.round((CHARTER_SPOTS_CLAIMED / CHARTER_SPOTS_TOTAL) * 100);
+
   return (
     <div className="flex min-h-[100dvh] flex-col" style={{ background: "#010D1F" }}>
       <MarketingNav isLoggedIn={false} />
@@ -332,7 +342,7 @@ export default function WaitlistPage() {
         {/* ══════════════════════════════════════════════════════════════════
             SECTION 1 — FULL-VIEWPORT HERO
         ══════════════════════════════════════════════════════════════════ */}
-        <section className="relative min-h-[100dvh] flex flex-col justify-center">
+        <section className="relative flex flex-col justify-center">
 
           {/* ── Background atmosphere ── */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
@@ -366,7 +376,7 @@ export default function WaitlistPage() {
             />
           </div>
 
-          <div className="relative mx-auto w-full max-w-7xl px-6 py-16 sm:px-10 sm:py-20 lg:py-28">
+          <div className="relative mx-auto w-full max-w-7xl px-6 py-10 sm:px-10 sm:py-12 lg:py-14">
             <div className="grid gap-12 lg:grid-cols-2 lg:gap-20 items-center">
 
               {/* ── Left column: Copy ── */}
@@ -398,12 +408,12 @@ export default function WaitlistPage() {
 
                 {/* Problem statement */}
                 <p className="text-base leading-relaxed text-slate-400 sm:text-lg max-w-lg">
-                  Most agents don&apos;t know what they actually keep, what they owe, or how long they can operate without a closing.
+                  You closed a $500K sale. Your commission was $12,500. After brokerage splits, transaction fees, HST, and taxes — you kept $5,769. Less than half. Most agents never do this math.
                 </p>
 
                 {/* Subheadline */}
                 <p className="text-base leading-relaxed text-slate-400 sm:text-xl max-w-lg">
-                  Agent Runway connects income, expenses, taxes, pipeline, and clients into one dashboard — so you always know where your business stands.
+                  Agent Runway shows you what you actually keep, what you owe, and how long you can operate without a closing — built specifically for Canadian agents.
                 </p>
 
                 {/* Inline trust signals */}
@@ -448,11 +458,6 @@ export default function WaitlistPage() {
             </div>
           </div>
 
-          {/* Scroll hint — hidden on very small screens to avoid layout overlap */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 hidden sm:flex flex-col items-center gap-2">
-            <span className="text-[10px] uppercase tracking-widest text-slate-600">Scroll</span>
-            <div className="h-6 w-px bg-gradient-to-b from-slate-600 to-transparent" />
-          </div>
         </section>
 
         {/* ══════════════════════════════════════════════════════════════════
@@ -642,9 +647,67 @@ export default function WaitlistPage() {
         </section>
 
         {/* ══════════════════════════════════════════════════════════════════
-            SECTION 4 — SOCIAL PROOF BAR
+            SECTION 4 — FROM THE BLOG
         ══════════════════════════════════════════════════════════════════ */}
         <section className="relative py-16 sm:py-20">
+          <div className="relative mx-auto max-w-4xl px-6 sm:px-10">
+            <ScrollRevealSection>
+              <div className="mb-8 text-center">
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 mb-2">
+                  From the blog
+                </p>
+                <h2 className="text-2xl font-bold text-white sm:text-3xl">
+                  The thinking behind the product
+                </h2>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Link
+                  href="/blog/the-real-cost-of-a-real-estate-deal"
+                  className="group rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5"
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    background: "rgba(255,255,255,0.02)",
+                  }}
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-amber-400/60 mb-2">
+                    Latest
+                  </p>
+                  <p className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors leading-snug">
+                    The Real Cost of a Real Estate Deal (What Most Canadian Agents Never Calculate)
+                  </p>
+                  <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                    You closed a $500K sale. Your commission was $12,500. But how much did you actually keep?
+                  </p>
+                </Link>
+
+                <Link
+                  href="/blog/why-i-built-agent-runway"
+                  className="group rounded-xl p-5 transition-all duration-200 hover:-translate-y-0.5"
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    background: "rgba(255,255,255,0.02)",
+                  }}
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-widest text-violet-400/60 mb-2">
+                    Founder Story
+                  </p>
+                  <p className="text-sm font-bold text-white group-hover:text-violet-300 transition-colors leading-snug">
+                    Why I Built Agent Runway
+                  </p>
+                  <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                    After years in real estate, I realized no tool was built for how Canadian agents actually run their business.
+                  </p>
+                </Link>
+              </div>
+            </ScrollRevealSection>
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════════════════════════════
+            SECTION 5 — FOUNDER CREDIBILITY + REAL PROOF
+        ══════════════════════════════════════════════════════════════════ */}
+        <section className="relative py-16 sm:py-24">
           <div
             className="pointer-events-none absolute inset-0"
             style={{
@@ -656,11 +719,30 @@ export default function WaitlistPage() {
 
           <div className="relative mx-auto max-w-4xl px-6 sm:px-10">
             <ScrollRevealSection>
+              {/* Founder quote */}
+              <div className="mx-auto max-w-2xl text-center mb-14">
+                <div
+                  className="inline-flex h-12 w-12 items-center justify-center rounded-full mb-5"
+                  style={{
+                    background: "linear-gradient(135deg, rgba(240,168,0,0.20) 0%, rgba(124,58,237,0.15) 100%)",
+                    border: "1px solid rgba(240,168,0,0.25)",
+                  }}
+                >
+                  <span className="text-lg font-black text-amber-400">A</span>
+                </div>
+                <blockquote className="text-lg leading-relaxed text-slate-300 sm:text-xl italic">
+                  &ldquo;I spent 4 years selling real estate before I realized I had no idea what I was actually keeping on each deal. I built Agent Runway because no tool on the market does this math for Canadian agents.&rdquo;
+                </blockquote>
+                <p className="mt-4 text-sm font-semibold text-white">Andrew Shaw</p>
+                <p className="text-xs text-slate-500">Founder &amp; REALTOR® · Saint John, NB</p>
+              </div>
+
+              {/* Proof points */}
               <div className="grid grid-cols-3 gap-4 sm:gap-8 text-center">
                 {[
-                  { num: "13", label: "Provinces & Territories", sub: "Canada-wide" },
-                  { num: "6",  label: "Score Dimensions",        sub: "For full business health" },
-                  { num: "CAD", label: "Always",                  sub: "Priced for Canadians" },
+                  { num: "4+", label: "Years in Real Estate", sub: "Built by someone who's lived it" },
+                  { num: "13",  label: "Provinces & Territories", sub: "Every Canadian tax jurisdiction" },
+                  { num: "CAD", label: "Always",                  sub: "No USD conversion headaches" },
                 ].map(({ num, label, sub }) => (
                   <div key={label} className="flex flex-col items-center gap-1">
                     <span
@@ -684,7 +766,7 @@ export default function WaitlistPage() {
         </section>
 
         {/* ══════════════════════════════════════════════════════════════════
-            SECTION 5 — FOUNDING MEMBER CTA
+            SECTION 6 — FOUNDING MEMBER CTA
         ══════════════════════════════════════════════════════════════════ */}
         <section className="relative py-24 sm:py-32 overflow-hidden">
 
@@ -727,7 +809,7 @@ export default function WaitlistPage() {
               </h2>
 
               <p className="mt-6 text-lg leading-relaxed text-slate-400 max-w-xl mx-auto">
-                Charter Members get 3 months free, lifetime price lock, and a referral bonus — available to the first 50 agents only. Offer closes September 30, 2026.
+                Stop guessing what you keep. Charter Members get 3 months free, lifetime price lock, and a referral bonus — available to the first 50 agents only.
               </p>
 
               {/* Checklist */}

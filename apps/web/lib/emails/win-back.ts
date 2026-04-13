@@ -10,7 +10,7 @@ interface WinBackOptions {
   firstName?: string | null;
   /** Pricing / resubscribe URL */
   pricingUrl?: string;
-  /** Dashboard URL so they can still access their Starter data */
+  /** Dashboard URL so they can still access their data */
   dashboardUrl?: string;
 }
 
@@ -98,7 +98,7 @@ export function winBackEmail({
                       <div>
                         <div style="font-size:14px;font-weight:600;color:#166534;margin-bottom:4px;">Your data is safe</div>
                         <div style="font-size:13px;color:#15803d;line-height:1.5;">
-                          Your transactions, pipeline, and expense history are all still here. You continue on the free Starter plan with access to your core data.
+                          Your transactions, pipeline, and expense history are all still here. Your data remains accessible in read-only mode.
                         </div>
                       </div>
                     </div>
@@ -123,7 +123,7 @@ export function winBackEmail({
               </table>
 
               <p style="margin:0 0 20px;font-size:15px;line-height:1.65;color:#334155;">
-                Whenever you're ready to come back, your full Professional feature set — Runway Score, Co-Pilot, probability forecasting, and tax estimates — is waiting for you.
+                Whenever you're ready to come back, your full Professional feature set — Runway Score, AI Business Assistant, probability forecasting, and tax estimates — is waiting for you.
               </p>
 
               <!-- Two CTAs -->
@@ -184,7 +184,7 @@ export function winBackEmail({
 Your Agent Runway Professional subscription has been cancelled.
 
 Your data is safe — your transactions, pipeline, and expense history are all still here.
-You continue on the free Starter plan with access to your core data.
+Your data remains accessible in read-only mode.
 
 You still have access to:
 ✓ Transaction tracking and GCI calculation

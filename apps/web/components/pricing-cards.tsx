@@ -33,24 +33,15 @@ const TEAM_LEADER_PRICES = {
 } as const;
 
 const TEAM_MEMBER_PRICES = {
-  charter: { monthly: 49, annual: 490 },
+  charter: { monthly: 55, annual: 550 },
   early_adopter: { monthly: 59, annual: 590 },
   standard: { monthly: 79, annual: 790 },
 } as const;
 
 // ── Static tier data ─────────────────────────────────────────────────────────
 
-const STARTER_FEATURES = [
-  "GCI tracking and deal log",
-  "Year-to-date dashboard",
-  "Basic income forecasting",
-  "Expense category tracking",
-  "Transaction history",
-  "Canadian agent profile setup",
-];
-
 const PRO_FEATURES = [
-  "Everything in Starter, plus:",
+  "GCI tracking and deal log",
   "Full CRM with flight statuses and outreach",
   "AI business assistant with financial context",
   "AI-powered outreach (21 opportunity types)",
@@ -59,11 +50,11 @@ const PRO_FEATURES = [
   "Tax estimation tools (10 categories)",
   "Probabilistic forecasting (P10–P90)",
   "Business health score (A+ to F)",
-  "Bank sync with auto-categorization",
-  "Google Calendar, Gmail, and Drive",
+  "Expense tracking and categorization",
   "CREA benchmark comparison",
   "Business reports and PDF export",
   "Mileage tracking (CRA-format logs)",
+  "Year-to-date dashboard and forecasting",
 ];
 
 const TEAM_FEATURES = [
@@ -206,38 +197,8 @@ export function PricingCards() {
       </div>
 
       {/* ── Cards ── */}
-      <div className="grid gap-6 sm:grid-cols-3">
-        {/* ── Starter (Free) ── */}
-        <div className="relative flex flex-col rounded-2xl border border-slate-200 bg-white p-8">
-          <div className="mb-6">
-            <h2 className="text-lg font-bold text-slate-900">Starter</h2>
-            <p className="mt-1 text-sm text-slate-500">For agents getting organised</p>
-          </div>
-          <div className="mb-6">
-            <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-bold tracking-tight text-slate-900">Free</span>
-            </div>
-            <p className="mt-1 text-xs text-slate-400">No credit card required</p>
-          </div>
-          <Link
-            href="/login"
-            className="mb-2 inline-flex w-full items-center justify-center rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-          >
-            Get Started
-          </Link>
-          <div className="mb-6" />
-          <div className="mb-6 border-t border-slate-100" />
-          <ul className="flex-1 space-y-3">
-            {STARTER_FEATURES.map((f) => (
-              <li key={f} className="flex items-start gap-2.5">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                <span className="text-sm leading-snug text-slate-600">{f}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* ── Professional (Paid) ── */}
+      <div className="mx-auto grid max-w-4xl gap-6 sm:grid-cols-2">
+        {/* ── Professional ── */}
         <div className="relative flex flex-col rounded-2xl border-2 border-blue-600 bg-white p-8 shadow-xl shadow-blue-600/10">
           {/* Badge */}
           <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">

@@ -54,6 +54,22 @@ import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+// ── Approval Gate ──────────────────────────────────────────────────────────
+// Tools in this set require explicit user confirmation before executing.
+// The AI Advisor will surface a confirmation card and wait for approval.
+export const NEEDS_APPROVAL_TOOLS = new Set([
+  "logContactActivity",
+  "createContactTask",
+]);
+
+// Human-readable descriptions for approval cards
+export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown>) => string> = {
+  logContactActivity: (args) =>
+    `Log ${args.type} with ${args.clientName}: "${String(args.description).slice(0, 80)}"`,
+  createContactTask: (args) =>
+    `Create task for ${args.clientName}: "${args.title}" — due ${args.dueDate}`,
+};
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 const CLIENT_STATUSES = ["boarding", "scheduled", "in_flight", "cruising"] as const;
@@ -297,6 +313,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         description: z.string().describe("Brief description of the activity"),
         activityDate: z.string().optional().describe("ISO date string (YYYY-MM-DD) — defaults to today if not provided"),
       }),
+      needsApproval: true,
       execute: async ({ clientId, clientName, type, description, activityDate }) => {
         try {
           const now = new Date();
@@ -898,6 +915,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         priority: z.enum(["low", "normal", "high"]).default("normal").describe("Task priority"),
         notes: z.string().optional().describe("Additional task notes"),
       }),
+      needsApproval: true,
       execute: async ({ clientId, clientName, title, dueDate, priority, notes }) => {
         try {
           const { error } = await supabase

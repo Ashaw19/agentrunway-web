@@ -52,13 +52,13 @@ export function paymentFailedEmail({
         ? ` Our next — and final — retry will be on <strong>${nextRetryDate}</strong>.`
         : ""
     }`,
-    3: "This was our final attempt to process your payment. If we're unable to collect payment, your account will be downgraded to the free Starter plan. Please update your payment method now to keep your Professional features.",
+    3: "This was our final attempt to process your payment. If we're unable to collect payment, your account will lose access to Professional features. Please update your payment method now.",
   };
 
   const calloutMessages: Record<number, string> = {
     1: "Your data is safe and your account remains fully active during this time. No features have been affected.",
     2: "Your data is safe and your account remains active, but please act soon to avoid losing access to Professional features.",
-    3: "Your data is safe regardless of what happens — your transactions, pipeline, and expense history will always be accessible on the Starter plan.",
+    3: "Your data is safe regardless of what happens — your transactions, pipeline, and expense history will remain accessible.",
   };
 
   const subject = subjects[attemptNumber] ?? subjects[1];
@@ -220,13 +220,13 @@ export function paymentFailedEmail({
         ? ` Our next — and final — retry will be on ${nextRetryDate}.`
         : ""
     }`,
-    3: "This was our final attempt to process your payment. If we're unable to collect payment, your account will be downgraded to the free Starter plan. Please update your payment method now to keep your Professional features.",
+    3: "This was our final attempt to process your payment. If we're unable to collect payment, your account will lose access to Professional features. Please update your payment method now.",
   };
 
   const textCallouts: Record<number, string> = {
     1: "Your data is safe and your account remains fully active during this time.",
     2: "Your data is safe and your account remains active, but please act soon.",
-    3: "Your data is safe regardless — your transactions, pipeline, and expense history will always be accessible on the Starter plan.",
+    3: "Your data is safe regardless — your transactions, pipeline, and expense history will remain accessible.",
   };
 
   const textBody = textBodies[attemptNumber] ?? textBodies[1];

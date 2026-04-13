@@ -35,11 +35,11 @@ const FAQ_SECTIONS = [
     faqs: [
       {
         q: "Is there a free trial for the Professional plan?",
-        a: "Yes. The Professional plan includes a 14-day free trial with no credit card required. You can explore every Pro feature — runway score, tax estimates, Co-Pilot, probability bands, and CREA benchmarks — before committing.",
+        a: "Yes. The Professional plan includes a 14-day free trial with no credit card required. You can explore every Pro feature — Runway Score, tax estimates, AI Business Assistant, probability bands, and CREA benchmarks — before committing.",
       },
       {
-        q: "What's the difference between Starter and Professional?",
-        a: "Starter gives you core GCI tracking and basic forecasting so you can get organised immediately. Professional adds probability-weighted forecasts (P10–P90), a six-component Runway Score, per-deal and quarterly tax estimates, AI insight cards, CREA benchmark comparisons, and PDF-ready reports. It's everything serious agents need to run their business with clarity.",
+        q: "What's included in the Professional plan?",
+        a: "Professional gives you the full platform: GCI tracking, CRM with flight statuses, probability-weighted forecasts (P10–P90), a six-component Runway Score, per-deal and quarterly tax estimates, AI business assistant, receipt scanning, mileage tracking, CREA benchmark comparisons, and PDF-ready reports — everything serious agents need to run their business with clarity.",
       },
       {
         q: "Can I cancel at any time?",
@@ -107,7 +107,7 @@ const FAQ_SECTIONS = [
       },
       {
         q: "What happens to my data if I cancel?",
-        a: "If you cancel your subscription, your data remains accessible through the end of your billing period. After that, your account moves to the Starter tier. If you delete your account entirely, your data is permanently removed from our servers within 30 days. We do not retain deleted account data.",
+        a: "If you cancel your subscription, your data remains accessible through the end of your billing period. After that, your account moves to a read-only state. If you delete your account entirely, your data is permanently removed from our servers within 30 days. We do not retain deleted account data.",
       },
       {
         q: "Does Agent Runway share my data with anyone?",

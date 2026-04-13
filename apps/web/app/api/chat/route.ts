@@ -49,7 +49,7 @@ import { models, heliconeHeaders, anthropic } from "@/lib/ai/provider";
 import { selectModelTier } from "@/lib/ai/router";
 import { buildPromptParts, injectCanary } from "@/lib/ai/security";
 import { fetchMemories, addMemory } from "@/lib/ai/memory";
-import { createAgentTools, createCoreAgentTools } from "@/lib/ai/tools";
+import { createAgentTools, createCoreAgentTools, NEEDS_APPROVAL_TOOLS, APPROVAL_DESCRIPTIONS } from "@/lib/ai/tools";
 import type { Province, Transaction as CoreTransaction, ContactActivity } from "@agent-runway/core/types/database";
 
 export async function POST(req: NextRequest) {
@@ -1344,8 +1344,23 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
               controller.enqueue(encoder.encode(`0:${JSON.stringify(chunk.text)}\n`));
             } else if (chunk.type === "tool-call") {
               toolCallChunks++;
-              log.info({ requestId, toolName: chunk.toolName }, "[chat] Tool call");
-              controller.enqueue(encoder.encode(`9:${JSON.stringify({ toolName: chunk.toolName })}\n`));
+              // Check if this tool requires user approval before executing
+              if (NEEDS_APPROVAL_TOOLS.has(chunk.toolName)) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const toolArgs = (chunk as any).args ?? (chunk as any).input ?? {};
+                const descFn = APPROVAL_DESCRIPTIONS[chunk.toolName];
+                const description = descFn ? descFn(toolArgs as Record<string, unknown>) : `Execute ${chunk.toolName}`;
+                log.info({ requestId, toolName: chunk.toolName }, "[chat] Tool call (approval required)");
+                controller.enqueue(encoder.encode(`b:${JSON.stringify({
+                  toolCallId: chunk.toolCallId,
+                  toolName: chunk.toolName,
+                  args: toolArgs,
+                  description,
+                })}\n`));
+              } else {
+                log.info({ requestId, toolName: chunk.toolName }, "[chat] Tool call");
+                controller.enqueue(encoder.encode(`9:${JSON.stringify({ toolName: chunk.toolName })}\n`));
+              }
             } else if (chunk.type === "error") {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const errObj = (chunk as any).error;

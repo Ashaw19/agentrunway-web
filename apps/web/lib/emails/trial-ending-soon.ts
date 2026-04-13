@@ -98,7 +98,7 @@ export function trialEndingSoonEmail({
               </p>
 
               <p style="margin:0 0 24px;font-size:15px;line-height:1.65;color:#334155;">
-                After your trial ends, you'll move to the free Starter plan. Here's what you'd lose access to:
+                After your trial ends, you'll lose access to Professional features. Here's what that includes:
               </p>
 
               <!-- Feature list -->

@@ -42,8 +42,8 @@ const FAQS = [
     a: "The Professional plan can be billed monthly or annually (save ~17% with annual billing). You can upgrade, downgrade, or cancel at any time from your account settings. Team plan pricing is scoped per team size and agreed at setup.",
   },
   {
-    q: "What's the difference between Starter and Professional?",
-    a: "Starter gives you the core GCI tracking and basic forecasting to get organised. Professional adds probability-weighted forecasts, a financial runway score, PDF reports, AI insight cards, tax estimation tools, and CREA benchmark data — everything serious agents need to run their business with clarity.",
+    q: "What's included in the Professional plan?",
+    a: "Professional gives you the full platform: GCI tracking, CRM with flight statuses, probability-weighted forecasts, a financial runway score, PDF reports, AI business assistant, tax estimation tools, receipt scanning, mileage tracking, and CREA benchmark data — everything serious agents need to run their business with clarity.",
   },
 ];
 
@@ -100,9 +100,9 @@ export default function PricingPage() {
                 href="/how-real-estate-agents-track-gci"
                 className="text-blue-400 underline underline-offset-2 hover:text-blue-300"
               >
-                Start for free
+                Start your free trial
               </Link>
-              , upgrade when you&apos;re ready.
+              , no credit card required.
             </p>
           </div>
         </section>
@@ -157,7 +157,7 @@ export default function PricingPage() {
               Start understanding your business today.
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-400">
-              No contracts. No setup fees. Start on the free Starter plan and
+              No contracts. No setup fees. Start with a 14-day free trial and
               upgrade when Agent Runway becomes the most important dashboard in
               your business.
             </p>
@@ -166,7 +166,7 @@ export default function PricingPage() {
                 href="/login"
                 className="inline-flex items-center rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:bg-blue-500 hover:shadow-blue-500/40"
               >
-                Get Started Free
+                Start Free Trial
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
               <Link

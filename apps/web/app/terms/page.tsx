@@ -212,9 +212,8 @@ export default function TermsPage() {
                 6. Subscription Plans, Billing, and Payments
               </h2>
               <p className="mb-4 leading-relaxed">
-                Agent Runway offers multiple subscription tiers including a free
-                Starter plan and paid plans (Professional and Teams). By
-                subscribing to a paid plan, you agree to the following:
+                Agent Runway offers paid subscription plans (Professional and
+                Teams). By subscribing to a plan, you agree to the following:
               </p>
               <ul className="list-disc space-y-2 pl-6 text-slate-400">
                 <li>
