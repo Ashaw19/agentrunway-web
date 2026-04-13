@@ -460,10 +460,13 @@ export function ExpensesContent({
     };
 
     if (editingRecurring) {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) { savingReRef.current = false; setReSaving(false); return; }
       const { error } = await supabase
         .from("recurring_expenses")
         .update({ ...payload, updated_at: new Date().toISOString() })
-        .eq("id", editingRecurring.id);
+        .eq("id", editingRecurring.id)
+        .eq("user_id", authUser.id);
       if (error) { toast.error("Failed to update recurring expense."); savingReRef.current = false; setReSaving(false); return; }
       setRecurringExpenses((prev) =>
         prev.map((r) => r.id === editingRecurring.id ? { ...r, ...payload } : r),
@@ -489,10 +492,13 @@ export function ExpensesContent({
   async function deleteRecurringExpense(id: string) {
     if (deletingReRef.current) return;
     deletingReRef.current = true;
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) { deletingReRef.current = false; return; }
     const { error } = await supabase
       .from("recurring_expenses")
       .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("user_id", authUser.id);
     if (error) { toast.error("Failed to remove recurring expense."); deletingReRef.current = false; return; }
     setRecurringExpenses((prev) => prev.filter((r) => r.id !== id));
     toast.success("Recurring expense removed.");
@@ -718,11 +724,14 @@ export function ExpensesContent({
       return chargeDate >= effectiveStart && chargeDate <= now ? amt : 0;
     }
     if (freq === "quarterly") {
-      // Count how many quarterly occurrences happened since start
+      // Count how many quarterly occurrences have fallen within thisYear so far.
+      // We enumerate all 4 quarterly slots starting from month_of_year; any slot
+      // that wraps past month 11 belongs to a different calendar year and is skipped.
       const startMonth = (re.month_of_year ?? 1) - 1;
       let count = 0;
       for (let q = 0; q < 4; q++) {
-        const m = (startMonth + q * 3) % 12;
+        const m = startMonth + q * 3;
+        if (m > 11) break; // occurrence falls in a later year — stop
         const occDate = new Date(thisYear, m, Math.min(re.day_of_month, 28));
         if (occDate >= effectiveStart && occDate <= now) count++;
       }

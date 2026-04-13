@@ -408,7 +408,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
         <TransactionsPipelineTab
           pipelineDeals={initialPipelineDeals}
           settings={settings}
-          closedTransactions={initialTransactions
+          closedTransactions={transactions
             .filter((t) => t.status === "closed")
             .map((t) => ({ sale_price: t.sale_price, commission_pct: t.commission_pct, date: t.date }))}
         />
