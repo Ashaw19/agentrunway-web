@@ -140,7 +140,7 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
     const { error: txErr } = await supabase.from("transactions").insert({
       user_id: user.id,
       address: current.address,
-      client_name: confirmForm.client_name || null,
+      client_name: confirmForm.client_name || "",
       sale_price: salePrice,
       commission_pct: commPct,
       side: confirmForm.side,

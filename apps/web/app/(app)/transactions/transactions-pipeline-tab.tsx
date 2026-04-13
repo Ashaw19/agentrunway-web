@@ -354,7 +354,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
     const { data: txData, error: txErr } = await supabase.from("transactions").insert({
       user_id: user.id,
       address: closeTarget.address,
-      client_name: closeForm.client_name || null,
+      client_name: closeForm.client_name || "",
       sale_price: salePrice,
       commission_pct: commPct,
       side: closeForm.side,
