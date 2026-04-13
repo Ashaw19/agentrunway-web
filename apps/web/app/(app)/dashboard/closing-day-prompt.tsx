@@ -177,13 +177,15 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
   }
 
   async function handleSaveDelay() {
-    if (!current || !newDate) return;
+    if (!current || !newDate || savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSaving(false); return; }
     const { error: delayErr } = await supabase.from("pipeline_deals").update({ expected_close_date: newDate, updated_at: new Date().toISOString() }).eq("id", current.id).eq("user_id", user.id);
-    if (delayErr) { toast.error("Failed to update date — please try again."); setSaving(false); return; }
+    if (delayErr) { toast.error("Failed to update date — please try again."); savingRef.current = false; setSaving(false); return; }
+    savingRef.current = false;
     setSaving(false);
     advance();
     router.refresh();

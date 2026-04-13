@@ -464,7 +464,7 @@ export function DashboardContent({
   const LISTING_PROBS: Record<string, number> = { scheduled: 0.15, active: 0.40 };
   const listingWeightedGCI = (activeListings ?? []).reduce((sum, la) => {
     const price = Number(la.estimated_list_price ?? 0);
-    const commPct = (la.estimated_commission_pct ?? 2.5) / 100;
+    const commPct = la.estimated_commission_pct ?? 0.025;
     const prob = LISTING_PROBS[la.status] ?? 0;
     return sum + price * commPct * prob;
   }, 0);
@@ -1600,7 +1600,8 @@ export function DashboardContent({
 
   cardRenders["tasks"] = (() => {
     if (localTasks.length === 0 && staleLeadCount === 0) return null;
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const _now = new Date();
+    const todayStr = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}-${String(_now.getDate()).padStart(2, "0")}`;
     const overdue  = localTasks.filter((t) => t.due_date < todayStr);
     const dueToday = localTasks.filter((t) => t.due_date === todayStr);
     const upcoming = localTasks.filter((t) => t.due_date > todayStr).slice(0, 3);

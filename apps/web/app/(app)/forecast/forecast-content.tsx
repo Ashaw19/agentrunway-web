@@ -187,13 +187,13 @@ export function ForecastContent({
   const legacyRecurringYTDEstimate = legacyMonthlyRecurring * _monthsElapsed;
   const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
   // Project full-year: actual YTD + remaining months of recurring
-  const remainingMonths = Math.max(0, 12 - Math.ceil(_monthsElapsed));
+  const remainingMonths = Math.max(0, 12 - (_now.getMonth() + 1));
   const annualExpenses = expensesYTD + monthlyRecurring * remainingMonths;
 
   // ── Tax estimate ──────────────────────────────────────────────────────
   const netForTax = Math.max(0, projectedNet - annualExpenses);
   const taxResult = calculateTax(netForTax, settings.province, Math.max(projectedDeals, 1));
-  const marginalTaxRate = marginalRate(Math.max(projectedGCI, ytdGCI), settings.province);
+  const marginalTaxRate = marginalRate(netForTax, settings.province);
 
   // ── Corporate tax estimate (incorporated users only) ──────────────────
   const corpTaxResult = settings.is_incorporated

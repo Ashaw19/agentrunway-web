@@ -77,6 +77,7 @@ import {
   gstHstLabel,
 } from "@/lib/engines/canadian-tax-engine";
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
+import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
 import {
   compute as computeRunwayScore,
@@ -300,11 +301,21 @@ export function ReportsContent({
   const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
   const projectedNet = computeProjectedNet(projectedGCI, settings);
   const netForTax = Math.max(0, projectedNet - annualExpenses);
-  const taxResult = calculateTax(netForTax, settings.province, Math.max(projectedDeals, 1));
+  const personalTaxResult = calculateTax(netForTax, settings.province, Math.max(projectedDeals, 1));
+  const corpTaxResult = settings.is_incorporated
+    ? calculateCorporateTax({
+        corporateIncome: netForTax,
+        province: settings.province,
+        compensationMethod: (settings.compensation_method as "salary" | "dividends" | "mixed") ?? "salary",
+        dealCount: Math.max(projectedDeals, 1),
+      })
+    : null;
+  const taxResult = personalTaxResult; // keep for detailed breakdown display
+  const taxBurden = corpTaxResult ? corpTaxResult.totalCombinedTax : personalTaxResult.totalBurden;
   const taxLabel = gstHstLabel(settings.province);
   const taxRate = gstHstRate(settings.province);
   const gstHstCollectedYTD = ytdGCI * taxRate;
-  const afterTaxNet = Math.max(0, netForTax - taxResult.totalBurden);
+  const afterTaxNet = Math.max(0, netForTax - taxBurden);
 
   // ── Benchmark ─────────────────────────────────────────────────────────────────
   const benchmark = compare(projectedGCI, settings.experience_years);

@@ -504,7 +504,7 @@ export function ExpensesContent({
   const [qeAmount,    setQeAmount]    = useState("");
   const [qeVendor,    setQeVendor]    = useState("");
   const [qeDesc,      setQeDesc]     = useState("");
-  const [qeDate,      setQeDate]     = useState(new Date().toISOString().split("T")[0]);
+  const [qeDate,      setQeDate]     = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; });
   const [qeSaving,    setQeSaving]   = useState(false);
   const { consume } = useVoiceDraft();
 
@@ -561,7 +561,7 @@ export function ExpensesContent({
       total_amount: amount!,
       vendor: (qeVendor || "").slice(0, FIELD_LIMITS.vendor) || null,
       notes: (qeDesc || "").slice(0, FIELD_LIMITS.notes) || null,
-      expense_date: qeDate || new Date().toISOString().split("T")[0],
+      expense_date: qeDate || (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; })(),
       currency: "CAD",
     });
 
@@ -574,7 +574,7 @@ export function ExpensesContent({
       setQeAmount("");
       setQeVendor("");
       setQeDesc("");
-      setQeDate(new Date().toISOString().split("T")[0]);
+      { const d = new Date(); setQeDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`); }
       // Refresh receipt totals
       await handleReceiptSaved();
     } else {

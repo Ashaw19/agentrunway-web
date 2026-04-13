@@ -775,21 +775,25 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
           .lte("date", `${importData.year}-12-31`);
 
         const txInserts = importData.deals
-          .filter((d) => d.date && d.gci > 0)
-          .map((d) => ({
-            user_id: user.id,
-            date: d.date,
-            address: d.address || "",
-            sale_price: d.sale_price ?? 0,
-            commission_pct: d.commission_percent ?? 0.025,
-            gci_override: d.gci,
-            side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
-            status: "closed" as const,
-            client_name: ((d.agent_side === 1 ? d.party_b : d.party_a) ?? "").trim() || "",
-            notes: (d.agent_side === 1 ? d.party_a : d.party_b)?.trim() ? `Other party: ${(d.agent_side === 1 ? d.party_a : d.party_b)?.trim()}` : "",
-            source: "imported" as const,
-            date_precision: "day" as const,
-          }));
+          .map((d, i) => ({ deal: d, origIdx: i }))
+          .filter(({ deal: d }) => d.date && d.gci > 0)
+          .map(({ deal: d, origIdx }) => {
+            const side = agentSides[origIdx] ?? d.agent_side;
+            return {
+              user_id: user.id,
+              date: d.date,
+              address: d.address || "",
+              sale_price: d.sale_price ?? null,
+              commission_pct: d.commission_percent ?? null,
+              gci_override: d.gci,
+              side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
+              status: "closed" as const,
+              client_name: ((side === 1 ? d.party_b : d.party_a) ?? "").trim() || "",
+              notes: (side === 1 ? d.party_a : d.party_b)?.trim() ? `Other party: ${(side === 1 ? d.party_a : d.party_b)?.trim()}` : "",
+              source: "imported" as const,
+              date_precision: "day" as const,
+            };
+          });
 
         if (txInserts.length > 0) {
           const { error: txInsertErr } = await supabase.from("transactions").insert(txInserts);
@@ -943,8 +947,8 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
             user_id: user.id,
             date: d.date,
             address: d.address || "",
-            sale_price: 0,           // not available from commission reports
-            commission_pct: 0,       // not available from commission reports
+            sale_price: d.sale_price ?? null,
+            commission_pct: d.commission_percent ?? null,
             gci_override: d.gci,     // store GCI directly
             side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
             status: "closed" as const,
@@ -2055,7 +2059,7 @@ function parseTrackerSheet(
     deals.push({
       date:       parseTrackerDate(rawDate, sheetYear),
       address,
-      sale_price: 0,  // local tracker parsing — sale price not extracted from column
+      sale_price: null,  // local tracker parsing — sale price not extracted from column
       gci,
       party_a:    name,
       party_b:    "",
