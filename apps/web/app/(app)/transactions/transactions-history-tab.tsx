@@ -466,7 +466,10 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
           // Fall back to sending the raw PDF bytes to the API for Claude's native
           // document handling, which works on any valid PDF regardless of features.
           console.warn("[import] pdfjs failed, falling back to native PDF path:", pdfjsErr);
-          const bytes = new Uint8Array(pdfArrayBuffer);
+          // Re-read from file — pdfjs transfers the ArrayBuffer to its worker,
+          // detaching it from the main thread, so pdfArrayBuffer is no longer usable.
+          const freshBuffer = await file.arrayBuffer();
+          const bytes = new Uint8Array(freshBuffer);
           let binary = "";
           bytes.forEach((b) => (binary += String.fromCharCode(b)));
           imageBase64 = btoa(binary);
