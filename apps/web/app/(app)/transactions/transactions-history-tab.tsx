@@ -327,7 +327,6 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
 
     if (crError) {
       toast.error(`${item.year} history removed, but some client records couldn't be deleted. Please refresh.`);
-      toast.success(`${item.year} removed from history.`);
       return;
     }
 
@@ -857,7 +856,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
           .lte("date", `${yearData.year}-12-31`);
 
         const txInserts = yearData.deals
-          .filter((d) => d.gci > 0) // skip $0 deals (headers, subtotals Groq might have slipped through)
+          .filter((d) => d.date && d.gci > 0) // skip deals with no date or $0 GCI
           .map((d) => ({
             user_id: user.id,
             date: d.date,
@@ -874,7 +873,8 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
           }));
 
         if (txInserts.length > 0) {
-          await supabase.from("transactions").insert(txInserts);
+          const { error: txInsertErr } = await supabase.from("transactions").insert(txInserts);
+          if (txInsertErr) throw txInsertErr;
         }
       }
       } catch (err) {

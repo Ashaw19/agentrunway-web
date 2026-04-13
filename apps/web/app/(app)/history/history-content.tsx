@@ -991,7 +991,9 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     let savedYears = 0;
     let totalClients = 0;
 
+    const failedYears: number[] = [];
     for (const yearData of batchImportData) {
+      try {
       const effectiveSplit = batchSplitPcts[yearData.year] ?? yearData.split_pct ?? settingsSplit ?? null;
       const payload = {
         user_id: user.id,
@@ -1081,13 +1083,13 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
           .lte("date", `${yearData.year}-12-31`);
 
         const txInserts = yearData.deals
-          .filter((d) => d.gci > 0) // skip $0 deals (headers, subtotals Groq might have slipped through)
+          .filter((d) => d.date && d.gci > 0) // skip deals with no date or $0 GCI
           .map((d) => ({
             user_id: user.id,
             date: d.date,
             address: d.address || "",
-            sale_price: d.sale_price ?? null,
-            commission_pct: d.commission_percent ?? null,
+            sale_price: d.sale_price ?? 0,
+            commission_pct: d.commission_percent ?? 0.025,
             gci_override: d.gci,     // gci = PRE-split gross commission income
             side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
             status: "closed" as const,
@@ -1098,8 +1100,13 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
           }));
 
         if (txInserts.length > 0) {
-          await supabase.from("transactions").insert(txInserts);
+          const { error: txInsertErr } = await supabase.from("transactions").insert(txInserts);
+          if (txInsertErr) throw txInsertErr;
         }
+      }
+      } catch (err) {
+        console.error(`[import] Failed to save year ${yearData.year}:`, err);
+        failedYears.push(yearData.year);
       }
     }
 
@@ -1132,9 +1139,15 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
     setImportOpen(false);
     setImportStatus("idle");
     setBatchImportData([]);
-    toast.success(
-      `${savedYears} years imported · ${totalClients} clients saved to your database ✓`,
-    );
+    if (failedYears.length > 0 && savedYears > 0) {
+      toast.warning(`${savedYears} years imported, but ${failedYears.join(", ")} failed. Please retry those years.`);
+    } else if (failedYears.length > 0) {
+      toast.error("Import failed — please try again.");
+    } else {
+      toast.success(
+        `${savedYears} years imported · ${totalClients} clients saved to your database ✓`,
+      );
+    }
   }
 
   // ── Per-deal edit helpers ─────────────────────────────────────────────────

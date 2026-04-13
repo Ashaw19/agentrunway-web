@@ -523,12 +523,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "AI provider is not configured" }, { status: 503 });
   }
 
-  // Reject oversized payloads before parsing (prevent OOM on base64 images)
+  // Reject oversized payloads before parsing (prevent OOM on base64 images).
+  // Vercel serverless functions enforce a ~4.5 MB body limit; set ours just
+  // below that so we return a helpful error message rather than Vercel's generic 413.
   const contentLength = parseInt(req.headers.get("content-length") ?? "0", 10);
-  const MAX_BODY_SIZE = 50 * 1024 * 1024; // 50MB
+  const MAX_BODY_SIZE = 4.5 * 1024 * 1024; // 4.5MB (Vercel serverless limit)
   if (contentLength > MAX_BODY_SIZE) {
     return NextResponse.json(
-      { error: "Request too large — maximum 50MB" },
+      { error: "File too large for direct upload. Try a smaller file or split into multiple uploads." },
       { status: 413 },
     );
   }

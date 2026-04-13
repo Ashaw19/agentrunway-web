@@ -12,6 +12,7 @@ import { computeEstimatedGCI } from "@/lib/types/database";
 import { gstHstRate, gstHstLabel, marginalRate } from "@/lib/engines/canadian-tax-engine";
 import { useConfetti } from "@/hooks/use-confetti";
 import { CountUp } from "@/components/count-up";
+import { toast } from "sonner";
 import type { PipelineDeal, UserSettings } from "@/lib/types/database";
 import {
   CalendarCheck, Clock, Moon, Home, User, TrendingUp,
@@ -148,10 +149,11 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
       date: confirmForm.date,
       source: "manual",
     });
-    if (txErr) { setSaving(false); return; }
+    if (txErr) { toast.error("Failed to register close — please try again."); setSaving(false); return; }
 
     // DELETE pipeline deal
-    await supabase.from("pipeline_deals").delete().eq("id", current.id).eq("user_id", user.id);
+    const { error: delErr } = await supabase.from("pipeline_deals").delete().eq("id", current.id).eq("user_id", user.id);
+    if (delErr) console.error("[closing-day] pipeline deal delete failed:", delErr);
 
     // Compute celebration data
     const province   = settings?.province ?? "ontario";
@@ -174,7 +176,8 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
     if (!current || !newDate) return;
     setSaving(true);
     const supabase = createClient();
-    await supabase.from("pipeline_deals").update({ expected_close_date: newDate, updated_at: new Date().toISOString() }).eq("id", current.id);
+    const { error: delayErr } = await supabase.from("pipeline_deals").update({ expected_close_date: newDate, updated_at: new Date().toISOString() }).eq("id", current.id);
+    if (delayErr) { toast.error("Failed to update date — please try again."); setSaving(false); return; }
     setSaving(false);
     advance();
     router.refresh();

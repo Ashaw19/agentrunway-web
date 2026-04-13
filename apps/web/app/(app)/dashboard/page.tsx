@@ -25,7 +25,7 @@ export default async function DashboardPage({
     .from("user_settings")
     .select("*")
     .eq("user_id", user.id)
-    .single();
+    .maybeSingle();
 
   // ── Live Supabase queries ──────────────────────────────────────────────
   const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult, listingResult, recurringExpResult] =
