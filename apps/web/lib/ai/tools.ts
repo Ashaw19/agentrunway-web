@@ -8,8 +8,11 @@
  * - createAgentTools(supabase, userId) returns all tool definitions
  * - Each tool validates inputs, writes to Supabase, and returns a
  *   natural-language result string the AI surfaces in its response
- * - Dollar-amount tools require confirmed: true before writing;
- *   when confirmed is false they return a preview for the AI to present
+ * - Core tools use needsApproval: true for human-in-the-loop gating —
+ *   the AI surfaces a confirmation card and waits for user approval
+ *   before executing. See NEEDS_APPROVAL_TOOLS set below.
+ * - Non-core dollar-amount tools still use the legacy confirmed: true
+ *   parameter pattern (to be migrated to needsApproval when promoted)
  * - All tools gracefully return error strings (never throw) so a tool
  *   failure never crashes the stream
  *
@@ -57,17 +60,59 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 // ── Approval Gate ──────────────────────────────────────────────────────────
 // Tools in this set require explicit user confirmation before executing.
 // The AI Advisor will surface a confirmation card and wait for approval.
+// Read-only tools (search*, get*) execute automatically — no gate needed.
 export const NEEDS_APPROVAL_TOOLS = new Set([
+  // Client mutations
+  "createClient",
+  "updateClientDetails",
+  "updateClientNotes",
+  "updateClientStatus",
+  "updateClientTags",
+  "updateClientTone",
+  "linkClientReferral",
+  // Pipeline mutations
+  "createPipelineDeal",
+  "updatePipelineDealStage",
+  // Activity & task mutations
   "logContactActivity",
   "createContactTask",
+  // Expense mutations
+  "createRecurringExpense",
+  "deleteRecurringExpense",
 ]);
 
 // Human-readable descriptions for approval cards
 export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown>) => string> = {
+  // Client
+  createClient: (args) =>
+    `Add new client: ${args.name}${args.side ? ` (${args.side})` : ""}`,
+  updateClientDetails: (args) =>
+    `Update ${args.clientName ?? "client"}'s profile details`,
+  updateClientNotes: (args) =>
+    `Add note to ${args.clientName ?? "client"}: "${String(args.note ?? args.notes ?? "").slice(0, 60)}"`,
+  updateClientStatus: (args) =>
+    `Move ${args.clientName ?? "client"} to ${args.status}`,
+  updateClientTags: (args) =>
+    `${args.action === "remove" ? "Remove" : "Add"} tag "${args.tag}" ${args.action === "remove" ? "from" : "to"} ${args.clientName ?? "client"}`,
+  updateClientTone: (args) =>
+    `Set ${args.clientName ?? "client"}'s tone to ${args.tone}`,
+  linkClientReferral: (args) =>
+    `Link referral: ${args.referrerName ?? "referrer"} → ${args.referredName ?? "referred"}`,
+  // Pipeline
+  createPipelineDeal: (args) =>
+    `Add pipeline deal: ${args.address ?? "new property"}${args.clientName ? ` for ${args.clientName}` : ""}`,
+  updatePipelineDealStage: (args) =>
+    `Move deal to ${args.stage}${args.address ? ` (${args.address})` : ""}`,
+  // Activity & tasks
   logContactActivity: (args) =>
     `Log ${args.type} with ${args.clientName}: "${String(args.description).slice(0, 80)}"`,
   createContactTask: (args) =>
     `Create task for ${args.clientName}: "${args.title}" — due ${args.dueDate}`,
+  // Expenses
+  createRecurringExpense: (args) =>
+    `Add recurring expense: ${args.vendor ?? args.description ?? "expense"} — $${args.amount}/mo`,
+  deleteRecurringExpense: (args) =>
+    `Remove recurring expense: ${args.vendor ?? args.description ?? args.expenseId ?? "expense"}`,
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -160,6 +205,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         notes: z.string().optional().describe("Any initial notes about the client"),
         leadSource: z.enum(["referral", "sphere", "open_house", "online", "sign_call", "cold_call", "door_knock", "social_media", "repeat", "other"]).optional().describe("How this client came to the agent"),
       }),
+      needsApproval: true,
       execute: async ({ name, email, phone, city, buyerTargetArea, status, propertyInterest, propertyInterestType, side, timeframe, notes, leadSource }) => {
         try {
           const nameSearch = name.toLowerCase().trim();
@@ -254,6 +300,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         expectedCloseDate: z.string().optional().describe("Expected close date in YYYY-MM-DD format"),
         notes: z.string().optional().describe("Any notes about this deal"),
       }),
+      needsApproval: true,
       execute: async ({ address, clientName, clientId, side, estimatedPrice, commissionPct, stage, expectedCloseDate, notes }) => {
         try {
           const commissionDecimal = commissionPct ? commissionPct / 100 : 0.025;
@@ -371,6 +418,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         clientName: z.string().describe("Client name for confirmation message"),
         status: z.enum(CLIENT_STATUSES).describe("New flight status"),
       }),
+      needsApproval: true,
       execute: async ({ clientId, clientName, status }) => {
         try {
           const { error } = await supabase
@@ -403,6 +451,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         clientName: z.string().describe("Client name for confirmation message"),
         note: z.string().describe("The note text to add"),
       }),
+      needsApproval: true,
       execute: async ({ clientId, clientName, note }) => {
         try {
           const { error } = await supabase
@@ -455,6 +504,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         email: z.string().optional().describe("Client email address"),
         phone: z.string().optional().describe("Client phone number"),
       }),
+      needsApproval: true,
       execute: async ({ clientId, clientName, ...fields }) => {
         try {
           // Build update object from only the provided fields
@@ -507,6 +557,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         dealDescription: z.string().describe("Brief deal description for confirmation (e.g. '123 Elm St — Johnson')"),
         stage: z.enum(PIPELINE_STAGES).describe("New pipeline stage"),
       }),
+      needsApproval: true,
       execute: async ({ dealId, dealDescription, stage }) => {
         try {
           const { error } = await supabase
@@ -839,6 +890,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         referredId: z.string().uuid().describe("The UUID of the client who WAS REFERRED (the new client)"),
         referredName: z.string().describe("Name of the referred client"),
       }),
+      needsApproval: true,
       execute: async ({ referrerId, referrerName, referredId, referredName }) => {
         try {
           // Check for existing relationship to avoid duplicates
@@ -1048,6 +1100,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         tags: z.array(z.string()).describe("Array of tag strings to add or remove"),
         mode: z.enum(["add", "remove"]).describe("'add' adds new tags, 'remove' removes specified tags"),
       }),
+      needsApproval: true,
       execute: async ({ clientId, clientName, tags, mode }) => {
         try {
           // Fetch existing tags
@@ -1302,13 +1355,9 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         categoryKey: z.enum(EXPENSE_CATEGORY_KEYS).describe("Expense category key"),
         dayOfMonth: z.number().int().min(1).max(28).default(1).describe("Day of month the expense recurs (1-28)"),
         notes: z.string().optional().describe("Optional notes"),
-        confirmed: z.boolean().default(false).describe("Must be true to execute."),
       }),
-      execute: async ({ name, amount, categoryKey, dayOfMonth, notes, confirmed }) => {
-        if (!confirmed) {
-          return `Ready to set up: $${amount.toLocaleString()}/month recurring expense for ${name} (${categoryKey.replace(/_/g, " ")}), recurring on day ${dayOfMonth} of each month. Confirm to save.`;
-        }
-
+      needsApproval: true,
+      execute: async ({ name, amount, categoryKey, dayOfMonth, notes }) => {
         try {
           const { error } = await supabase
             .from("recurring_expenses")
@@ -1909,6 +1958,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         clientName: z.string().describe("Client name for confirmation message"),
         tone: z.enum(["casual", "friendly", "professional", "formal"]).describe("The communication tone to set"),
       }),
+      needsApproval: true,
       execute: async ({ clientId, clientName, tone }) => {
         try {
           const { error } = await supabase
@@ -2549,11 +2599,9 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       inputSchema: z.object({
         recurringExpenseId: z.string().uuid().describe("The recurring expense UUID"),
         expenseName: z.string().describe("Name for confirmation"),
-        confirmed: z.boolean().describe("Must be true to delete"),
       }),
-      execute: async ({ recurringExpenseId, expenseName, confirmed }) => {
-        if (!confirmed) return `PREVIEW — I'll permanently delete the recurring expense "${expenseName}". Past confirmed entries will remain. Say "yes" to confirm.`;
-
+      needsApproval: true,
+      execute: async ({ recurringExpenseId, expenseName }) => {
         try {
           const { error } = await supabase
             .from("recurring_expenses")

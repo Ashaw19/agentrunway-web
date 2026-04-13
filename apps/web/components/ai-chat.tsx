@@ -475,8 +475,19 @@ function ApprovalCard({
   resolved: "approved" | "denied" | null;
 }) {
   const TOOL_LABELS: Record<string, string> = {
+    createClient: "Add Client",
+    updateClientDetails: "Update Profile",
+    updateClientNotes: "Add Note",
+    updateClientStatus: "Update Status",
+    updateClientTags: "Update Tags",
+    updateClientTone: "Set Tone",
+    linkClientReferral: "Link Referral",
+    createPipelineDeal: "Add Deal",
+    updatePipelineDealStage: "Move Deal",
     logContactActivity: "Log Activity",
     createContactTask: "Create Task",
+    createRecurringExpense: "Add Expense",
+    deleteRecurringExpense: "Remove Expense",
   };
 
   return (
