@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Shield, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,6 +20,7 @@ interface Props {
 export function InviteContent({ invitation, token }: Props) {
   const router = useRouter();
   const [accepting, setAccepting] = useState(false);
+  const acceptingRef = useRef(false);
   const [consentChecked, setConsentChecked] = useState(false);
 
   async function handleAccept() {
@@ -27,20 +28,25 @@ export function InviteContent({ invitation, token }: Props) {
       toast.error("Please review and accept the data sharing consent");
       return;
     }
+    if (acceptingRef.current) return;
+    acceptingRef.current = true;
 
     setAccepting(true);
     const { data: _data, error } = await acceptInvitation(token);
     if (error) {
       if (error === "Not authenticated") {
         // Redirect to login with return URL
+        acceptingRef.current = false;
         setAccepting(false);
         router.push(`/login?redirect=/invite/${token}`);
         return;
       }
       toast.error(error);
+      acceptingRef.current = false;
       setAccepting(false);
     } else {
       toast.success("Welcome to the team!");
+      acceptingRef.current = false;
       setAccepting(false);
       router.push("/consent");
     }

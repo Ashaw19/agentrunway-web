@@ -134,7 +134,7 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
     setSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setSaving(false); return; }
+    if (!user) { savingRef.current = false; setSaving(false); return; }
 
     const salePrice = parseFloat(confirmForm.sale_price) || 0;
     const commPct   = (parseFloat(confirmForm.commission_pct) || 0) / 100;
@@ -183,7 +183,7 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
     setSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setSaving(false); return; }
+    if (!user) { savingRef.current = false; setSaving(false); return; }
     const { error: delayErr } = await supabase.from("pipeline_deals").update({ expected_close_date: newDate, updated_at: new Date().toISOString() }).eq("id", current.id).eq("user_id", user.id);
     if (delayErr) { toast.error("Failed to update date — please try again."); savingRef.current = false; setSaving(false); return; }
     savingRef.current = false;

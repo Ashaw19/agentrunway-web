@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -139,6 +139,7 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [mounted, setMounted] = useState(false);
 
   // Form state
@@ -235,6 +236,8 @@ export default function OnboardingPage() {
   }
 
   async function handleFinish() {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     try {
       const supabase = createClient();
@@ -242,6 +245,7 @@ export default function OnboardingPage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) {
+        savingRef.current = false;
         setSaving(false);
         return;
       }
@@ -287,6 +291,7 @@ export default function OnboardingPage() {
 
       if (error) {
         toast.error("Failed to save your settings. Please try again.");
+        savingRef.current = false;
         setSaving(false);
         return;
       }
@@ -299,11 +304,13 @@ export default function OnboardingPage() {
         .eq("user_id", user.id)
         .eq("status", "pending");
 
+      savingRef.current = false;
       setSaving(false);
       router.push(pendingOrgs && pendingOrgs > 0 ? "/consent" : "/dashboard");
     } catch (err) {
       console.error("Onboarding save error:", err);
       toast.error("Something went wrong. Please try again.");
+      savingRef.current = false;
       setSaving(false);
     }
   }
