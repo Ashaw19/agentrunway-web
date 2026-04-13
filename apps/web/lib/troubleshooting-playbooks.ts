@@ -1346,7 +1346,7 @@ The Overhead page is your complete tax visibility dashboard:
    - Calculated as: Estimated Annual Tax ÷ 4
 
 4. **HST/GST Tracking**
-   - HST collected on commissions (13% in ON, 15% in NB/NS/NL/PE, etc.)
+   - HST collected on commissions (13% in ON, 14% in NS, 15% in NB/NL/PE, etc.)
    - Input Tax Credits (ITCs) from business expenses
    - Net HST owing = Collected − ITCs
    - Small supplier threshold: < $30,000 annual revenue = optional registration
