@@ -480,7 +480,7 @@ export function ReportsT2125Tab({
             <LineRow
               lineNum="8200"
               label="Total Gross Income"
-              value={result.totalGrossIncome + otherIncome}
+              value={result.totalGrossIncome}
               bold
               highlight
             />
