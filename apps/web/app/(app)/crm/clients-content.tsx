@@ -266,11 +266,13 @@ function recencyTextClass(iso: string | null): string {
 }
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function nowIso(): string {
-  return new Date().toISOString().slice(0, 16);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 // ── Lead Source options ────────────────────────────────────────────────────────
@@ -1077,6 +1079,7 @@ export function ClientsContent({
   const [newClientPostal,   setNewClientPostal]    = useState("");
   const [newClientCountry,  setNewClientCountry]   = useState("Canada");
   const [addClientSaving, setAddClientSaving] = useState(false);
+  const addClientRef = useRef(false);
   const [nameError, setNameError] = useState(false);
 
   // Archive / Delete dialogs
@@ -1752,7 +1755,7 @@ export function ClientsContent({
               .replace(/\[Name\]/g, clientName);
             const dueDate = new Date();
             dueDate.setDate(dueDate.getDate() + step.delay_days);
-            const dueDateStr = dueDate.toISOString().slice(0, 10);
+            const dueDateStr = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, "0")}-${String(dueDate.getDate()).padStart(2, "0")}`;
 
             if (step.action_type === "task") {
               await addTask(
@@ -1933,14 +1936,16 @@ export function ClientsContent({
 
   // Add a new client manually
   const handleAddClient = useCallback(async () => {
+    if (addClientRef.current) return;
     // Build full name from first + last (or use newClientName fallback for voice pre-fill)
     const fullName = (newClientFirstName.trim() && newClientLastName.trim())
       ? `${newClientFirstName.trim()} ${newClientLastName.trim()}`
       : newClientFirstName.trim() || newClientName.trim();
     if (!fullName) { setNameError(true); return; }
+    addClientRef.current = true;
     setAddClientSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setAddClientSaving(false); return; }
+    if (!user) { addClientRef.current = false; setAddClientSaving(false); return; }
 
     // Check for existing client with same name (normalized for dedup)
     const nameSearch = toNameSearch(fullName);
@@ -1954,6 +1959,7 @@ export function ClientsContent({
 
     if (existing) {
       toast.error(`A client named "${existing.name}" already exists`);
+      addClientRef.current = false;
       setAddClientSaving(false);
       return;
     }
@@ -1966,6 +1972,7 @@ export function ClientsContent({
     });
     if (!clientValidation.valid) {
       clientValidation.errors.forEach((msg) => toast.error(msg));
+      addClientRef.current = false;
       setAddClientSaving(false);
       return;
     }
@@ -2007,6 +2014,7 @@ export function ClientsContent({
     if (error || !data) {
       console.error("[crm] add-client failed:", error?.code, error?.message, error?.details);
       toast.error("Failed to add client — please try again");
+      addClientRef.current = false;
       setAddClientSaving(false);
       return;
     }
@@ -2036,6 +2044,7 @@ export function ClientsContent({
     setNewClientCountry("Canada");
     setVoiceDraft(null);
     setVoiceBanner(false);
+    addClientRef.current = false;
     setAddClientSaving(false);
   }, [newClientFirstName, newClientLastName, newClientName, newClientEmail, newClientPhone,
       newClientSecondaryEmail, newClientSecondaryPhone, newClientStatus, newClientSource, newClientTags,

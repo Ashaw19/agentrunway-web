@@ -86,6 +86,7 @@ function computeResult(
   txFeeRate: number,
   txFeeCap: number,
   expensesYTD: number,
+  ytdGCI: number,
 ): ComputedResult {
   // ── Match dashboard: deduct split, fees, brokerage, expenses before tax ──
   // Dashboard: projectedNet = agentGross - txFees - brokerageFeeAnnual
@@ -139,7 +140,7 @@ function computeResult(
   // ── Runway score (uses YTD GCI for pace, not projected) ──────────────
   const fraction = seasonalFractionElapsed(quarterPcts);
   const healthReport = buildHealthReport(
-    annualGCI,
+    ytdGCI,
     goalGCI,
     fraction,
     pipelineWeightedGCI,
@@ -230,6 +231,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
         seed.quarterPcts,
         seed.monthlyBrokerageFee,
         ...deductionArgs,
+        seed.ytdGCI,
       ),
     [seed, province, deductionArgs],
   );
@@ -251,6 +253,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
         seed.quarterPcts,
         seed.monthlyBrokerageFee,
         ...deductionArgs,
+        seed.ytdGCI,
       ),
     [
       scenarioGCI,
@@ -485,8 +488,8 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
                       onClick={() => setScenarioCompMethod(method)}
                       className={`rounded-lg border px-2 py-2 text-xs font-medium capitalize transition-colors ${
                         scenarioCompMethod === method
-                          ? "border-violet-500 bg-violet-500/20 text-violet-300"
-                          : "border-slate-600 bg-slate-700/30 text-slate-400 hover:text-white"
+                          ? "border-violet-500 bg-violet-50 text-violet-600"
+                          : "border-slate-300 bg-white text-slate-500 hover:text-slate-700"
                       }`}
                     >
                       {method}

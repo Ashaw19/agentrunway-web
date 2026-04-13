@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -67,8 +67,14 @@ type FormState = {
   team_split_pct: string; // display percentage, e.g. "60" = 60%
 };
 
+/** Local-timezone date string (avoids UTC date-shift at night) */
+function localDateStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 const emptyForm = (): FormState => ({
-  date: new Date().toISOString().split("T")[0],
+  date: localDateStr(),
   address: "",
   client_name: "",
   side: "buyer",
@@ -103,6 +109,8 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
   const [form, setForm] = useState<FormState>(emptyForm());
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const deletingRef = useRef(false);
   const [filter, setFilter] = useState<"all" | "closed" | "pending" | "fallen">("all");
   const [yearFilter, setYearFilter] = useState<"all" | number>("all");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "highest" | "lowest">("newest");
@@ -186,10 +194,12 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
   }
 
   async function handleSave() {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setSaving(false); return; }
+    if (!user) { savingRef.current = false; setSaving(false); return; }
 
     // ── Validate all numeric fields before writing ──────────────────────────
     const validation = validateTransaction({
@@ -203,6 +213,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
     });
     if (!validation.valid || !validation.parsed) {
       validation.errors.forEach((msg) => toast.error(msg));
+      savingRef.current = false;
       setSaving(false);
       return;
     }
@@ -261,14 +272,17 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
       }
     }
 
+    savingRef.current = false;
     setSaving(false);
     if (!failed) setDialogOpen(false);
   }
 
   async function handleDelete(id: string) {
+    if (deletingRef.current) return;
+    deletingRef.current = true;
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) { deletingRef.current = false; return; }
     const { error } = await supabase.from("transactions").delete().eq("id", id).eq("user_id", user.id);
     if (!error) {
       setTransactions((prev) => prev.filter((t) => t.id !== id));
@@ -277,6 +291,7 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
       toast.error("Couldn't delete — try again");
     }
     setDeleteConfirmId(null);
+    deletingRef.current = false;
   }
 
   // Compare year strings directly to avoid UTC-vs-local-timezone mismatch

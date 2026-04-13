@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { validateTransaction, validatePipelineDeal, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
@@ -66,6 +66,11 @@ import {
   type UserSettings,
 } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
+/** Local-timezone date string (avoids UTC date-shift at night) */
+function localDateStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 import { useConfetti } from "@/hooks/use-confetti";
 import { marginalRate } from "@/lib/engines/canadian-tax-engine";
 import { DealCloseCelebration, type CelebrationData } from "./deal-close-celebration";
@@ -145,6 +150,8 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
   const [form, setForm] = useState<FormState>(emptyForm());
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const deletingRef = useRef(false);
   const [closing, setClosing] = useState(false);
   const [closeTarget, setCloseTarget] = useState<PipelineDeal | null>(null);
 
@@ -184,7 +191,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
     sale_price: "",
     commission_pct: "",
     side: "buyer",
-    date: new Date().toISOString().split("T")[0],
+    date: localDateStr(),
   });
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
   const { fire: fireConfetti } = useConfetti();
@@ -198,7 +205,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
           ? String(closeTarget.estimated_commission_pct * 100)
           : "",
         side: closeTarget.side ?? "buyer",
-        date: new Date().toISOString().split("T")[0],
+        date: localDateStr(),
       });
     }
   }, [closeTarget]);
@@ -238,9 +245,11 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
   }
 
   async function handleSave() {
+    if (savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setSaving(false); return; }
+    if (!user) { savingRef.current = false; setSaving(false); return; }
 
     // ── Validate all numeric fields before writing ──────────────────────────
     const validation = validatePipelineDeal({
@@ -252,6 +261,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
     });
     if (!validation.valid || !validation.parsed) {
       validation.errors.forEach((msg) => toast.error(msg));
+      savingRef.current = false;
       setSaving(false);
       return;
     }
@@ -284,6 +294,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
         setDeals((prev) => prev.map((d) => (d.id === editingId ? data : d)));
         if (form.stage === "closed") {
           // Auto-open the Close Deal dialog so the deal converts immediately
+          savingRef.current = false;
           setSaving(false);
           setDialogOpen(false);
           setCloseTarget(data);
@@ -311,13 +322,16 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
       }
     }
 
+    savingRef.current = false;
     setSaving(false);
     if (!failed) setDialogOpen(false);
   }
 
   async function handleDelete(id: string) {
+    if (deletingRef.current) return;
+    deletingRef.current = true;
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) { deletingRef.current = false; return; }
     const { error } = await supabase.from("pipeline_deals").delete().eq("id", id).eq("user_id", user.id);
     if (!error) {
       setDeals((prev) => prev.filter((d) => d.id !== id));
@@ -326,6 +340,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
       toast.error("Couldn't delete — try again");
     }
     setDeleteConfirmId(null);
+    deletingRef.current = false;
   }
 
   async function handleClose() {
