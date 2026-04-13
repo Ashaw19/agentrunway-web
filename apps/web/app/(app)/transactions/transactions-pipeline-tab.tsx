@@ -367,7 +367,8 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
     if (!closeTarget.original_estimated_price) {
       await supabase.from("pipeline_deals")
         .update({ original_estimated_price: closeTarget.estimated_price })
-        .eq("id", closeTarget.id);
+        .eq("id", closeTarget.id)
+        .eq("user_id", user.id);
     }
 
     const { data: txData, error: txErr } = await supabase.from("transactions").insert({
@@ -411,8 +412,9 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
     // ── Compute celebration data ──────────────────────────────────────────
     const province = settings?.province ?? "ontario";
     const goalGCI  = settings?.goal_gci ?? 0;
-    const thisYear = new Date().getFullYear().toString();
-    const thisMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const _now = new Date();
+    const thisYear = _now.getFullYear().toString();
+    const thisMonth = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}`;
 
     // YTD GCI from passed-in closed transactions (before this deal)
     const ytdGCIBefore = closedTransactions
