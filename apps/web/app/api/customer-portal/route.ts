@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       .eq("status", "active")
       .maybeSingle();
 
-    if (!member || !["owner", "team_leader"].includes(member.role)) {
+    if (!member || !["owner", "admin", "team_leader"].includes(member.role)) {
       return NextResponse.json({ error: "Not authorized." }, { status: 403 });
     }
 

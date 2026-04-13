@@ -586,7 +586,8 @@ export async function updateConsent(
     .eq("user_id", userId)
     .single();
 
-  if (current?.status === "pending") {
+  const becomingActive = current?.status === "pending";
+  if (becomingActive) {
     updates.status = "active";
     updates.joined_at = new Date().toISOString();
   }
@@ -607,6 +608,12 @@ export async function updateConsent(
     tier,
     version: CURRENT_CONSENT_VERSION,
   });
+
+  // When a pending member becomes active, sync Stripe seat count so
+  // the org is billed for the new active seat.
+  if (becomingActive) {
+    void syncOrgSeats(orgId);
+  }
 
   return { data: data as OrganizationMember, error: null };
 }

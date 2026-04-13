@@ -115,6 +115,8 @@ export function ProfileContent({
   const [editingIdentity, setEditingIdentity] = useState(false);
   const [savingIdentity, setSavingIdentity] = useState(false);
   const [savedIdentity, setSavedIdentity] = useState(false);
+  // Track last-saved values so cancel resets to the saved state, not stale props
+  const lastSavedIdentity = useRef({ displayName: settings?.display_name ?? "", brokerageName: settings?.brokerage_name ?? "" });
 
   // ── Theme ─────────────────────────────────────────────────────────────────
   const [colorTheme, setColorTheme] = useState(settings?.color_theme ?? "blue");
@@ -137,6 +139,7 @@ export function ProfileContent({
   const [editingBusiness, setEditingBusiness] = useState(false);
   const [savingBusiness, setSavingBusiness] = useState(false);
   const [savedBusiness, setSavedBusiness] = useState(false);
+  const lastSavedBusiness = useRef({ businessName: settings?.business_name ?? "", businessNumber: settings?.business_number ?? "" });
 
   // ── Business logo ─────────────────────────────────────────────────────────
   const [businessLogoUrl, setBusinessLogoUrl] = useState(settings?.business_logo_url ?? "");
@@ -171,6 +174,7 @@ export function ProfileContent({
         })
         .eq("user_id", user.id);
       if (error) { toast.error("Failed to save — please try again."); return; }
+      lastSavedIdentity.current = { displayName: displayName.trim(), brokerageName: brokerageName.trim() };
       setEditingIdentity(false);
       setSavedIdentity(true);
       setTimeout(() => setSavedIdentity(false), 2500);
@@ -193,6 +197,7 @@ export function ProfileContent({
         })
         .eq("user_id", user.id);
       if (error) { toast.error("Failed to save — please try again."); return; }
+      lastSavedBusiness.current = { businessName: businessName.trim(), businessNumber: businessNumber.trim() };
       setEditingBusiness(false);
       setSavedBusiness(true);
       setTimeout(() => setSavedBusiness(false), 2500);
@@ -417,8 +422,8 @@ export function ProfileContent({
                       variant="ghost"
                       onClick={() => {
                         setEditingIdentity(false);
-                        setDisplayName(settings?.display_name ?? "");
-                        setBrokerageName(settings?.brokerage_name ?? "");
+                        setDisplayName(lastSavedIdentity.current.displayName);
+                        setBrokerageName(lastSavedIdentity.current.brokerageName);
                       }}
                       className="text-white/50 hover:text-white hover:bg-white/10 h-8 text-xs"
                     >
@@ -804,8 +809,8 @@ export function ProfileContent({
                       variant="ghost"
                       onClick={() => {
                         setEditingBusiness(false);
-                        setBusinessName(settings?.business_name ?? "");
-                        setBusinessNumber(settings?.business_number ?? "");
+                        setBusinessName(lastSavedBusiness.current.businessName);
+                        setBusinessNumber(lastSavedBusiness.current.businessNumber);
                       }}
                       className="h-8 text-xs"
                     >
