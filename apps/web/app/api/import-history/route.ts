@@ -641,7 +641,7 @@ export async function POST(req: NextRequest) {
           return {
             type: "file" as const,
             data: `data:application/pdf;base64,${img.base64}`,
-            mimeType: "application/pdf" as const,
+            mediaType: "application/pdf" as const,
           };
         }
         return {
