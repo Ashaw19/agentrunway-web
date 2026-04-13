@@ -657,7 +657,8 @@ export function FlightControlContent({
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          await supabase.from("user_settings").update({ email_signature: value }).eq("user_id", user.id);
+          const { error } = await supabase.from("user_settings").update({ email_signature: value }).eq("user_id", user.id);
+          if (error) throw error;
         }
       } catch (err) {
         console.error("[flight-control] Failed to save email signature:", err);
@@ -675,7 +676,8 @@ export function FlightControlContent({
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          await supabase.from("user_settings").update({ ai_voice_guide: value }).eq("user_id", user.id);
+          const { error } = await supabase.from("user_settings").update({ ai_voice_guide: value }).eq("user_id", user.id);
+          if (error) throw error;
         }
       } catch (err) {
         console.error("[flight-control] Failed to save AI voice guide:", err);

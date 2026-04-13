@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     .eq("org_id", org_id)
     .eq("user_id", user.id)
     .in("role", ["owner", "admin"])
-    .single();
+    .maybeSingle();
 
   if (!membership) {
     return NextResponse.json(
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     .from("organizations")
     .select("is_beta, stripe_subscription_id")
     .eq("id", org_id)
-    .single();
+    .maybeSingle();
 
   if (org?.is_beta) {
     return NextResponse.json(

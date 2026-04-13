@@ -378,9 +378,12 @@ export function ExpensesContent({
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser || cancelled) return;
       const { data } = await supabase
         .from("recurring_expenses")
         .select("*")
+        .eq("user_id", authUser.id)
         .eq("is_active", true)
         .order("name")
         .limit(500);
@@ -596,11 +599,14 @@ export function ExpensesContent({
     });
 
     const year = new Date().getFullYear();
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) return;
 
     // Refresh receipt display log
     const { data: logData } = await supabase
       .from("receipt_expenses")
       .select("*")
+      .eq("user_id", authUser.id)
       .order("expense_date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(50);
@@ -610,6 +616,7 @@ export function ExpensesContent({
     const { data: totalsData } = await supabase
       .from("receipt_expenses")
       .select("category_key, total_amount")
+      .eq("user_id", authUser.id)
       .gte("expense_date", `${year}-01-01`);
     if (totalsData) {
       const newTotals: Record<string, number> = {};
@@ -932,22 +939,23 @@ export function ExpensesContent({
     setViewOpen(true);
   }
 
-  function refreshReceiptTotals() {
+  async function refreshReceiptTotals() {
     const year = new Date().getFullYear();
-    supabase
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) return;
+    const { data, error } = await supabase
       .from("receipt_expenses")
       .select("category_key, total_amount")
-      .gte("expense_date", `${year}-01-01`)
-      .then(({ data, error }) => {
-        if (error) { console.error("[expenses] receipt totals refresh failed:", error); return; }
-        if (!data) return;
-        const newTotals: Record<string, number> = {};
-        for (const row of data) {
-          if (row.category_key && row.total_amount != null)
-            newTotals[row.category_key] = Math.round(((newTotals[row.category_key] ?? 0) + Number(row.total_amount)) * 100) / 100;
-        }
-        setReceiptTotals(newTotals);
-      });
+      .eq("user_id", authUser.id)
+      .gte("expense_date", `${year}-01-01`);
+    if (error) { console.error("[expenses] receipt totals refresh failed:", error); return; }
+    if (!data) return;
+    const newTotals: Record<string, number> = {};
+    for (const row of data) {
+      if (row.category_key && row.total_amount != null)
+        newTotals[row.category_key] = Math.round(((newTotals[row.category_key] ?? 0) + Number(row.total_amount)) * 100) / 100;
+    }
+    setReceiptTotals(newTotals);
   }
 
   function handleReceiptUpdated(updated: ReceiptExpense) {

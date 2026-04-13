@@ -228,7 +228,7 @@ export function ReportsT2125Tab({
       .from("t2125_cca_assets")
       .insert({ ...newAsset, user_id: userId })
       .select()
-      .single();
+      .maybeSingle();
     setAddingAsset(false);
     if (error) { toast.error("Failed to save your tax data. Please try again."); return; }
     if (data) {

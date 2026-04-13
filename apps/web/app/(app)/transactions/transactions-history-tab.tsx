@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -115,6 +115,10 @@ const SPLIT_OPTIONS: { label: string; value: number }[] = [
 
 export function TransactionsHistoryTab({ historyItems: initial, transactions, settingsSplit, settings }: Props) {
   const supabase = useMemo(() => createClient(), []);
+  const userIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => { userIdRef.current = user?.id ?? null; });
+  }, [supabase]);
   const [items, setItems] = useState(initial);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
@@ -203,10 +207,13 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
   }
 
   async function toggleLock(item: HistoryItem) {
+    const uid = userIdRef.current;
+    if (!uid) return;
     const { error } = await supabase
       .from("history_items")
       .update({ is_locked: !item.is_locked })
-      .eq("id", item.id);
+      .eq("id", item.id)
+      .eq("user_id", uid);
     if (error) {
       toast.error("Failed to update lock — please try again.");
       return;
@@ -227,7 +234,9 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
     const prev = item.annual_gci;
     setItems((p) => p.map((i) => i.id === item.id ? { ...i, annual_gci: num } : i));
     setSaving(`${item.id}-annual_gci`);
-    const { error } = await supabase.from("history_items").update({ annual_gci: num }).eq("id", item.id);
+    const uid = userIdRef.current;
+    if (!uid) return;
+    const { error } = await supabase.from("history_items").update({ annual_gci: num }).eq("id", item.id).eq("user_id", uid);
     if (error) { setItems((p) => p.map((i) => i.id === item.id ? { ...i, annual_gci: prev } : i)); toast.error("Failed to save — please try again."); }
     setSaving(null);
   }
@@ -237,7 +246,9 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
     const prev = item.annual_tx;
     setItems((p) => p.map((i) => i.id === item.id ? { ...i, annual_tx: num } : i));
     setSaving(`${item.id}-annual_tx`);
-    const { error } = await supabase.from("history_items").update({ annual_tx: num }).eq("id", item.id);
+    const uid = userIdRef.current;
+    if (!uid) return;
+    const { error } = await supabase.from("history_items").update({ annual_tx: num }).eq("id", item.id).eq("user_id", uid);
     if (error) { setItems((p) => p.map((i) => i.id === item.id ? { ...i, annual_tx: prev } : i)); toast.error("Failed to save — please try again."); }
     setSaving(null);
   }
@@ -249,7 +260,9 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
     newArr[qi] = num;
     setItems((p) => p.map((i) => i.id === item.id ? { ...i, quarter_gci: newArr } : i));
     setSaving(`${item.id}-qgci-${qi}`);
-    const { error } = await supabase.from("history_items").update({ quarter_gci: newArr }).eq("id", item.id);
+    const uid = userIdRef.current;
+    if (!uid) return;
+    const { error } = await supabase.from("history_items").update({ quarter_gci: newArr }).eq("id", item.id).eq("user_id", uid);
     if (error) { setItems((p) => p.map((i) => i.id === item.id ? { ...i, quarter_gci: prevArr } : i)); toast.error("Failed to save — please try again."); }
     setSaving(null);
   }
@@ -261,7 +274,9 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
     newArr[qi] = num;
     setItems((p) => p.map((i) => i.id === item.id ? { ...i, quarter_tx: newArr } : i));
     setSaving(`${item.id}-qtx-${qi}`);
-    const { error } = await supabase.from("history_items").update({ quarter_tx: newArr }).eq("id", item.id);
+    const uid = userIdRef.current;
+    if (!uid) return;
+    const { error } = await supabase.from("history_items").update({ quarter_tx: newArr }).eq("id", item.id).eq("user_id", uid);
     if (error) { setItems((p) => p.map((i) => i.id === item.id ? { ...i, quarter_tx: prevArr } : i)); toast.error("Failed to save — please try again."); }
     setSaving(null);
   }
@@ -304,7 +319,8 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
     const { error: historyError } = await supabase
       .from("history_items")
       .delete()
-      .eq("id", item.id);
+      .eq("id", item.id)
+      .eq("user_id", user.id);
 
     if (historyError) {
       toast.error("Couldn't delete year — please try again.");

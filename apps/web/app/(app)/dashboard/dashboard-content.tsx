@@ -344,10 +344,13 @@ export function DashboardContent({
   async function completeTaskFromDashboard(taskId: string) {
     const prevTasks = localTasks;
     setLocalTasks((prev) => prev.filter((t) => t.id !== taskId));
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLocalTasks(prevTasks); toast.error("Not authenticated"); return; }
     const { error } = await supabase
       .from("contact_tasks")
       .update({ completed_at: new Date().toISOString() })
-      .eq("id", taskId);
+      .eq("id", taskId)
+      .eq("user_id", user.id);
     if (error) {
       setLocalTasks(prevTasks);
       toast.error("Failed to complete task");
@@ -413,29 +416,32 @@ export function DashboardContent({
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
+    const currentHidden = hiddenCards;
     setCardOrder((prev) => {
       const oldIndex = prev.indexOf(active.id as CardId);
       const newIndex = prev.indexOf(over.id as CardId);
       const next = arrayMove(prev, oldIndex, newIndex);
-      persistLayout(next, hiddenCards);
+      persistLayout(next, currentHidden);
       return next;
     });
   }
 
   function toggleHide(id: CardId) {
+    const currentOrder = cardOrder;
     setHiddenCards((prev) => {
       const next = new Set(prev);
       next.add(id);
-      persistLayout(cardOrder, next);
+      persistLayout(currentOrder, next);
       return next;
     });
   }
 
   function toggleShow(id: CardId) {
+    const currentOrder = cardOrder;
     setHiddenCards((prev) => {
       const next = new Set(prev);
       next.delete(id);
-      persistLayout(cardOrder, next);
+      persistLayout(currentOrder, next);
       return next;
     });
   }
@@ -563,7 +569,7 @@ export function DashboardContent({
   const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
   const expMonthsElapsed = now.getMonth() + (now.getDate() / 30);
   const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
-  const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
+  const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate + recurringExpYTD);
 
   // ── Survival prep (pipeline monthly estimate) ──────────────────────────
   const remainingMonths = Math.max(1, 12 - Math.floor(fraction * 12));
@@ -671,7 +677,7 @@ export function DashboardContent({
   // ── Value-add metrics ─────────────────────────────────────────────────────
   // Marginal tax rate (combined federal + provincial at projected income level)
   const marginalTaxRate = settings
-    ? marginalRate(Math.max(rawProjectedGCI, ytdGCI), settings.province)
+    ? marginalRate(netForTax, settings.province)
     : 0;
 
   // After-tax take-home per projected deal

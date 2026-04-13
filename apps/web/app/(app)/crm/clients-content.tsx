@@ -1556,7 +1556,7 @@ export function ClientsContent({
         .select("name, status")
         .eq("id", clientId)
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
       const priorStatus = beforeRow?.status as string | undefined;
       const priorName = (beforeRow?.name as string | undefined) ?? "Client";
 
@@ -1593,7 +1593,7 @@ export function ClientsContent({
             .select("status")
             .eq("id", clientId)
             .eq("user_id", user.id)
-            .single();
+            .maybeSingle();
           const newStatus = updated?.status as string | undefined;
           if (newStatus && newStatus !== priorStatus) {
             setLocalClients((prev) =>
@@ -1950,7 +1950,7 @@ export function ClientsContent({
       .eq("user_id", user.id)
       .eq("name_search", nameSearch)
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (existing) {
       toast.error(`A client named "${existing.name}" already exists`);
@@ -2344,7 +2344,8 @@ export function ClientsContent({
         .from("flight_plans")
         .select("*")
         .eq("id", planId)
-        .single();
+        .eq("user_id", user.id)
+        .maybeSingle();
 
       if (refreshed) {
         setLocalFlightPlans((prev) => {

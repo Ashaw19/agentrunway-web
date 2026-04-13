@@ -161,8 +161,9 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
     // Compute celebration data
     const province   = settings?.province ?? "ontario";
     const goalGCI    = settings?.goal_gci ?? 0;
-    const thisYear   = new Date().getFullYear().toString();
-    const thisMonth  = new Date().toISOString().slice(0, 7);
+    const _now       = new Date();
+    const thisYear   = _now.getFullYear().toString();
+    const thisMonth  = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, "0")}`;
     const ytdBefore  = ytdTransactions.filter(t => t.date?.startsWith(thisYear)).reduce((s, t) => s + t.sale_price * t.commission_pct, 0);
     const dealsMonth = ytdTransactions.filter(t => t.date?.startsWith(thisMonth)).length + 1;
     const dealsYear  = ytdTransactions.filter(t => t.date?.startsWith(thisYear)).length + 1;

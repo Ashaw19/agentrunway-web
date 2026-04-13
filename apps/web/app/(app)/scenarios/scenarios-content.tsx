@@ -203,7 +203,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
   ].filter(Boolean).length;
 
   // Shared args for split/fee deductions (passed to computeResult)
-  const deductionArgs = [
+  const deductionArgs = useMemo(() => [
     seed.splitPreset,
     seed.postCapThreshold,
     seed.postCapAgentPct,
@@ -211,7 +211,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
     seed.txFeeRate,
     seed.txFeeCap,
     seed.expensesYTD,
-  ] as const;
+  ] as const, [seed.splitPreset, seed.postCapThreshold, seed.postCapAgentPct, seed.postCapBrokeragePct, seed.txFeeRate, seed.txFeeCap, seed.expensesYTD]);
 
   // ── Current result (from real data — matches dashboard logic) ─────────
   const current = useMemo(

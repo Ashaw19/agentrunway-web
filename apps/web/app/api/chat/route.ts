@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
     const todayISO = new Date().toISOString().split("T")[0];
     const ytdStart = `${new Date().getFullYear()}-01-01`;
     const settled = await Promise.allSettled([
-        supabase.from("user_settings").select("*").eq("user_id", user.id).single(),                                                                  // 0
+        supabase.from("user_settings").select("*").eq("user_id", user.id).maybeSingle(),                                                                  // 0
         supabase.from("transactions").select("date, sale_price, commission_pct, team_split_pct, gci_override").eq("user_id", user.id).eq("status", "closed"), // 1
         supabase.from("pipeline_deals").select("estimated_price, estimated_commission_pct, probability_override, stage").eq("user_id", user.id),       // 2
         supabase.from("expense_categories").select("key, expense_items(key, ytd_amount, monthly_recurring)").eq("user_id", user.id),                   // 3

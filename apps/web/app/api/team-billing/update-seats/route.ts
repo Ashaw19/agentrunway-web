@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     .eq("org_id", org_id)
     .eq("user_id", user.id)
     .in("role", ["owner", "admin"])
-    .single();
+    .maybeSingle();
 
   if (!membership) {
     return NextResponse.json(
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     .from("organizations")
     .select("stripe_subscription_id, is_beta")
     .eq("id", org_id)
-    .single();
+    .maybeSingle();
 
   if (!org) {
     return NextResponse.json(

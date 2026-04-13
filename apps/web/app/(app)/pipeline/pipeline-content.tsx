@@ -222,10 +222,13 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
       };
 
       if (editingListing) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Not authenticated");
         const { error } = await supabase
           .from("listing_appointments")
           .update(payload)
-          .eq("id", editingListing.id);
+          .eq("id", editingListing.id)
+          .eq("user_id", user.id);
         if (error) throw error;
         toast.success("Listing appointment updated.");
       } else {
@@ -252,7 +255,9 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
     setDeletingId(id);
     try {
       const supabase = createClient();
-      const { error } = await supabase.from("listing_appointments").delete().eq("id", id);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      const { error } = await supabase.from("listing_appointments").delete().eq("id", id).eq("user_id", user.id);
       if (error) throw error;
       toast.success("Listing appointment removed.");
       router.refresh();

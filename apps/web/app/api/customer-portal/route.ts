@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       .eq("org_id", orgId)
       .eq("user_id", user.id)
       .eq("status", "active")
-      .single();
+      .maybeSingle();
 
     if (!member || !["owner", "team_leader"].includes(member.role)) {
       return NextResponse.json({ error: "Not authorized." }, { status: 403 });
@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       .from("organizations")
       .select("stripe_customer_id")
       .eq("id", orgId)
-      .single();
+      .maybeSingle();
 
     customerId = org?.stripe_customer_id ?? null;
     returnUrl = `${appUrl}/org/settings`;
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
       .from("user_settings")
       .select("stripe_customer_id")
       .eq("user_id", user.id)
-      .single();
+      .maybeSingle();
 
     customerId = settings?.stripe_customer_id ?? null;
   }

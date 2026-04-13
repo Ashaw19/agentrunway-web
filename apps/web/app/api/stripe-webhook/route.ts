@@ -409,7 +409,8 @@ export async function POST(request: Request) {
           const { data: members } = await db
             .from("organization_members")
             .select("user_id")
-            .eq("org_id", orgId);
+            .eq("org_id", orgId)
+            .eq("status", "active");
 
           if (members?.length) {
             const memberIds = members.map((m) => m.user_id);
@@ -613,7 +614,7 @@ export async function POST(request: Request) {
           .from("organizations")
           .select("subscription_status")
           .eq("id", orgId)
-          .single();
+          .maybeSingle();
 
         if (org?.subscription_status === "past_due") {
           const { error: orgErr } = await db
@@ -632,7 +633,7 @@ export async function POST(request: Request) {
           .from("user_settings")
           .select("subscription_status")
           .eq("stripe_customer_id", cid)
-          .single();
+          .maybeSingle();
 
         if (userRow?.subscription_status === "past_due") {
           const { error: userErr } = await db

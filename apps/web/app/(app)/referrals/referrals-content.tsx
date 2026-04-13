@@ -295,8 +295,9 @@ export function ReferralsContent({
         .from("referrals")
         .update(payload)
         .eq("id", editingId)
+        .eq("user_id", userId)
         .select()
-        .single();
+        .maybeSingle();
       if (error) {
         toast.error("Failed to update referral.");
         console.error(error);
