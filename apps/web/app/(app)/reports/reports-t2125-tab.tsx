@@ -185,8 +185,9 @@ export function ReportsT2125Tab({
       expenseAmounts,
       ccaAssets,
       taxYear,
+      otherIncome,
     });
-  }, [localSettings, transactions, expenseAmounts, ccaAssets, taxYear]);
+  }, [localSettings, transactions, expenseAmounts, ccaAssets, taxYear, otherIncome]);
 
   // ── Save settings changes to Supabase ────────────────────────────────────────
   const saveSettings = useCallback(async (updates: Partial<UserSettings>) => {
@@ -639,12 +640,6 @@ export function ReportsT2125Tab({
               <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/40 p-4 space-y-3">
                 <p className="text-sm font-semibold text-orange-800">Add CCA Asset</p>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <EditableAmount
-                    label="Description (e.g. 2023 Honda CR-V)"
-                    value={0}
-                    onChange={() => {}}
-                    note="Use the text field below"
-                  />
                   <div className="space-y-1">
                     <Label className="text-xs font-medium">Description</Label>
                     <Input

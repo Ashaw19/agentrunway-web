@@ -199,6 +199,7 @@ export interface T2125Input {
   expenseAmounts: Record<string, number>; // key → YTD amount (receipts + recurring)
   ccaAssets: CcaAsset[];
   taxYear?: number;
+  otherIncome?: number;                // user-entered other business income (referrals, etc.)
 }
 
 // ── Main compute function ─────────────────────────────────────────────────────
@@ -206,13 +207,14 @@ export interface T2125Input {
 export function computeT2125(input: T2125Input): T2125Result {
   const { settings, transactions, expenseAmounts, ccaAssets } = input;
   const taxYear = input.taxYear ?? new Date().getFullYear();
+  const otherIncome = input.otherIncome ?? 0;
 
   // ── 1. Gross commission income ─────────────────────────────────────────────
   const grossCommissionIncome = transactions
     .filter((tx) => tx.status === "closed")
     .reduce((sum, tx) => sum + computeGCI(tx), 0);
 
-  const totalGrossIncome = grossCommissionIncome; // + otherIncome when added
+  const totalGrossIncome = grossCommissionIncome + otherIncome;
 
   // ── 2. Build expense lines ─────────────────────────────────────────────────
   const vehicleUsePct = Math.min(1, Math.max(0, settings.vehicle_business_use_pct ?? 0));
@@ -398,7 +400,7 @@ export function computeT2125(input: T2125Input): T2125Result {
     industryCode: "531210",
 
     grossCommissionIncome,
-    otherIncome: 0,
+    otherIncome,
     totalGrossIncome,
 
     expenseLines,
