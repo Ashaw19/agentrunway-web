@@ -77,16 +77,59 @@ export async function GET(req: NextRequest) {
   // Find all professional-tier users (active or trialing)
   // Include seasonal_weights, use_national_seasonality, national_quarter_pcts,
   // experience_years, monthly_brokerage_fee, and cash_reserve for canonical score.
-  const { data: proUsers, error: usersErr } = await admin
+  const userSelectCols = "user_id, display_name, goal_gci, province, subscription_tier, subscription_status, seasonal_weights, use_national_seasonality, national_quarter_pcts, experience_years, monthly_brokerage_fee, cash_reserve";
+
+  const { data: tierUsers, error: usersErr } = await admin
     .from("user_settings")
-    .select("user_id, display_name, goal_gci, province, subscription_tier, subscription_status, seasonal_weights, use_national_seasonality, national_quarter_pcts, experience_years, monthly_brokerage_fee, cash_reserve")
+    .select(userSelectCols)
     .in("subscription_tier", ["professional", "team"])
     .in("subscription_status", ["active", "trialing"]);
 
-  if (usersErr || !proUsers?.length) {
+  if (usersErr) {
     return NextResponse.json({
       sent: 0,
-      error: usersErr?.message ?? "No professional subscribers found",
+      error: usersErr.message,
+    });
+  }
+
+  // Also include members of beta orgs (is_beta = true) or orgs with active subscriptions
+  const { data: betaOrgMembers } = await admin
+    .from("organization_members")
+    .select("user_id, organizations!inner(is_beta, subscription_status)")
+    .eq("status", "active");
+
+  const betaUserIds = new Set(
+    (betaOrgMembers ?? [])
+      .filter((m: Record<string, unknown>) => {
+        const org = m.organizations as Record<string, unknown> | null;
+        return (
+          org?.is_beta === true ||
+          org?.subscription_status === "active" ||
+          org?.subscription_status === "trialing"
+        );
+      })
+      .map((m: Record<string, unknown>) => m.user_id as string),
+  );
+
+  // Fetch settings for beta org members not already in tierUsers
+  const tierUserIds = new Set((tierUsers ?? []).map((u) => u.user_id));
+  const missingBetaIds = [...betaUserIds].filter((id) => !tierUserIds.has(id));
+
+  let betaUsers: typeof tierUsers = [];
+  if (missingBetaIds.length > 0) {
+    const { data: extraUsers } = await admin
+      .from("user_settings")
+      .select(userSelectCols)
+      .in("user_id", missingBetaIds);
+    betaUsers = extraUsers ?? [];
+  }
+
+  const proUsers = [...(tierUsers ?? []), ...betaUsers];
+
+  if (!proUsers.length) {
+    return NextResponse.json({
+      sent: 0,
+      error: "No professional subscribers found",
     });
   }
 

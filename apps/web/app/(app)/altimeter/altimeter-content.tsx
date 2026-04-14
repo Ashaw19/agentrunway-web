@@ -282,7 +282,7 @@ interface Props {
   historyItems?: HistoryItem[];
   boardMarketData?: LocalMarketData | null;
   boardSubregion?: string;
-  subscriptionTier?: string;
+  isPro?: boolean;
   recurringExpMonthly?: number;
   expensesYTD?: number;
 }
@@ -339,11 +339,10 @@ export function AltimeterContent({
   settings,
   historyItems = [],
   boardMarketData = null,
-  subscriptionTier = "starter",
+  isPro: isPro = false,
   recurringExpMonthly = 0,
   expensesYTD: expensesYTDProp = 0,
 }: Props) {
-  const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const now = new Date();
   const currentYear = now.getFullYear();
 

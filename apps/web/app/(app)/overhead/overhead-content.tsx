@@ -503,7 +503,7 @@ interface Props {
   ccaAssetCount?: number;
   historyItems?: HistoryItem[];
   pipelineDeals?: PipelineDeal[];
-  subscriptionTier?: string;
+  isPro?: boolean;
   scenarioSeed?: ScenarioSeedData | null;
   recurringExpMonthly?: number;
   recurringExpYTD?: number;
@@ -566,13 +566,12 @@ export function OverheadContent({
   ccaAssetCount = 0,
   historyItems = [],
   pipelineDeals = [],
-  subscriptionTier = "starter",
+  isPro: isPro = false,
   scenarioSeed = null,
   recurringExpMonthly = 0,
   recurringExpYTD = 0,
 }: Props) {
   const [activeTab, setActiveTab] = useState<OverheadTab>("overview");
-  const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const now = new Date();
   const _currentYear = now.getFullYear();
   const monthsElapsed = now.getMonth() + 1;

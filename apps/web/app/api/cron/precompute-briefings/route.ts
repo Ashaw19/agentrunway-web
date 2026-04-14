@@ -36,19 +36,54 @@ export async function POST(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
 
-  // ── Fetch eligible users (active, professional+ tier) ───────────────────
-  const { data: users, error: usersError } = await supabase
+  // ── Fetch eligible users (active professional+ tier OR beta org members) ──
+  const { data: tierUsers, error: tierError } = await supabase
     .from("user_settings")
     .select("user_id, display_name, goal_gci, subscription_tier, use_national_seasonality, national_quarter_pcts")
     .in("subscription_tier", ["professional", "team"])
     .limit(500);
 
-  if (usersError) {
-    console.error("[precompute-briefings] Failed to fetch users:", usersError);
+  if (tierError) {
+    console.error("[precompute-briefings] Failed to fetch tier users:", tierError);
     return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
   }
 
-  if (!users || users.length === 0) {
+  // Also include members of beta orgs (is_beta = true) or orgs with active subscriptions
+  const { data: betaOrgMembers } = await supabase
+    .from("organization_members")
+    .select("user_id, organizations!inner(is_beta, subscription_status)")
+    .eq("status", "active");
+
+  const betaUserIds = new Set(
+    (betaOrgMembers ?? [])
+      .filter((m: Record<string, unknown>) => {
+        const org = m.organizations as Record<string, unknown> | null;
+        return (
+          org?.is_beta === true ||
+          org?.subscription_status === "active" ||
+          org?.subscription_status === "trialing"
+        );
+      })
+      .map((m: Record<string, unknown>) => m.user_id as string),
+  );
+
+  // Fetch settings for beta org members not already in tierUsers
+  const tierUserIds = new Set((tierUsers ?? []).map((u) => u.user_id));
+  const missingBetaIds = [...betaUserIds].filter((id) => !tierUserIds.has(id));
+
+  let betaUsers: typeof tierUsers = [];
+  if (missingBetaIds.length > 0) {
+    const { data: extraUsers } = await supabase
+      .from("user_settings")
+      .select("user_id, display_name, goal_gci, subscription_tier, use_national_seasonality, national_quarter_pcts")
+      .in("user_id", missingBetaIds)
+      .limit(500);
+    betaUsers = extraUsers ?? [];
+  }
+
+  const users = [...(tierUsers ?? []), ...betaUsers];
+
+  if (users.length === 0) {
     return NextResponse.json({ status: "no_users", processed: 0, errors: 0 });
   }
 

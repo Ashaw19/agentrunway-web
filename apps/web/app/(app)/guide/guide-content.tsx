@@ -482,14 +482,14 @@ function escapeRegex(str: string): string {
 /* ── Guide page component ──────────────────────────────────────── */
 
 interface Props {
-  subscriptionTier: string;
+  isPro: boolean;
   province: string;
   businessStructure: string;
   splitPreset: string;
 }
 
 export function GuideContent({
-  subscriptionTier,
+  isPro,
   province: _province,
   businessStructure: _businessStructure,
   splitPreset: _splitPreset,
@@ -501,7 +501,6 @@ export function GuideContent({
   const [showGettingStarted, setShowGettingStarted] = useState(true);
   const contentRef = useRef<HTMLDivElement>(null);
   const { askQuestion } = useAiChat();
-  const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
 
   const sections = useMemo(() => parseSections(KNOWLEDGE_BASE), []);
 

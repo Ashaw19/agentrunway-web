@@ -16,6 +16,7 @@ import { sendEmail } from "@/lib/email-sender";
 import { canSendEmail, recordSend } from "@/lib/email/warm-up";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { markMemoryStale } from "@/lib/ai/client-memory-engine";
+import { requirePro } from "@/lib/require-pro";
 
 export async function POST(req: NextRequest) {
   // ── Auth ────────────────────────────────────────────────────────────────
@@ -27,6 +28,10 @@ export async function POST(req: NextRequest) {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // ── Pro gate ───────────────────────────────────────────────────────────
+  const proCheck = await requirePro(supabase, user.id);
+  if (!proCheck.allowed) return proCheck.response!;
 
   // ── Rate limit (50 sends per hour) ──────────────────────────────────────
   const rl = await checkRateLimit(user.id, "outreach-send", 50, 60);

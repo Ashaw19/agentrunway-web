@@ -6,6 +6,7 @@ import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/eng
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
 import { projectedYearEndGCI, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
 import type { ScenarioSeedData } from "@/app/(app)/scenarios/page";
+import { computeIsPro } from "@/lib/compute-is-pro";
 
 
 export default async function OverheadPage() {
@@ -160,7 +161,7 @@ export default async function OverheadPage() {
       ccaAssetCount={ccaAssetCount}
       historyItems={(historyResult.data ?? []) as HistoryItem[]}
       pipelineDeals={pipelineDeals}
-      subscriptionTier={rawSettings?.subscription_tier ?? "starter"}
+      isPro={await computeIsPro(supabase, user.id, rawSettings)}
       scenarioSeed={scenarioSeed}
       recurringExpMonthly={recurringExpMonthly}
       recurringExpYTD={recurringExpYTD}

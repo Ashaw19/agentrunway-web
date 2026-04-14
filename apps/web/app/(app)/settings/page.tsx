@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SettingsContent } from "./settings-content";
 import { AccountantShareManager } from "@/components/accountant-share-manager";
+import { computeIsPro } from "@/lib/compute-is-pro";
 import { type UserSettings, type PlaidItem } from "@/lib/types/database";
 
 
@@ -51,6 +52,7 @@ export default async function SettingsPage() {
   if (!settingsRaw) redirect("/dashboard");
 
   const settings = settingsRaw;
+  const isPro = (settings as UserSettings).is_admin || await computeIsPro(supabase, user.id, settings);
 
   return (
     <div className="space-y-6">
@@ -60,10 +62,9 @@ export default async function SettingsPage() {
         plaidConfigured={plaidConfigured}
         googleConnection={googleConnection ?? null}
         emailConnections={emailConnections ?? []}
+        isPro={isPro}
       />
-      {(settings as UserSettings).subscription_tier === "professional" ||
-      (settings as UserSettings).subscription_tier === "team" ||
-      (settings as UserSettings).is_admin ? (
+      {isPro ? (
         <AccountantShareManager />
       ) : null}
     </div>

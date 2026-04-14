@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { generateMorningBriefing, type BriefingData } from "@/lib/ai/precompute";
+import { requirePro } from "@/lib/require-pro";
 
 export const maxDuration = 30;
 
@@ -25,6 +26,10 @@ export async function GET() {
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  // ── Pro gate ───────────────────────────────────────────────────────────
+  const proCheck = await requirePro(supabase, user.id);
+  if (!proCheck.allowed) return proCheck.response!;
 
   // ── Check for fresh pre-computed briefing ───────────────────────────────
   const { data: cached } = await supabase

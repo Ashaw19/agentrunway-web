@@ -117,6 +117,7 @@ interface Props {
   plaidExpenseItems?: ExpenseItemForPlaid[];
   plaidExpenseCategories?: ExpenseCategoryForPlaid[];
   plaidConfigured?: boolean;
+  isPro?: boolean;
 }
 
 // Per-category colour accent (left border + header icon tint)
@@ -143,10 +144,11 @@ export function ExpensesContent({
   receiptTotalsByKey, priorYearHistory = [], currentYear,
   mileageLogs = [], plaidItems = [], plaidTransactions = [],
   plaidExpenseItems = [], plaidExpenseCategories = [], plaidConfigured = false,
+  isPro: isProProp = false,
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const thisYear = currentYear ?? new Date().getFullYear();
-  const isPro = settings?.subscription_tier === "professional" || settings?.subscription_tier === "team";
+  const isPro = isProProp;
   const [categories, setCategories] = useState(initialCategories);
 
   // ── Tab state ─────────────────────────────────────────────────────────────

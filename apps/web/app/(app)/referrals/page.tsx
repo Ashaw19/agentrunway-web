@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ReferralsContent } from "./referrals-content";
+import { computeIsPro } from "@/lib/compute-is-pro";
 
 export default async function ReferralsPage() {
   const supabase = await createClient();
@@ -16,9 +17,7 @@ export default async function ReferralsPage() {
     .maybeSingle();
 
   const isPro =
-    settings?.is_admin ||
-    settings?.subscription_tier === "professional" ||
-    settings?.subscription_tier === "team";
+    settings?.is_admin || await computeIsPro(supabase, user.id, settings);
 
   const { data: referrals } = await supabase
     .from("referrals")

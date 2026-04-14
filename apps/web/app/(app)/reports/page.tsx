@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ReportsContent } from "./reports-content";
 import type { CcaAsset, RecurringExpense, ListingAppointment } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { computeIsPro } from "@/lib/compute-is-pro";
 
 
 export default async function ReportsPage() {
@@ -136,6 +137,8 @@ export default async function ReportsPage() {
       .reduce((sum, r) => sum + Number(r.actual_fee_paid ?? 0), 0),
   } : undefined;
 
+  const isPro = await computeIsPro(supabase, user.id, settingsRaw);
+
   return (
     <ReportsContent
       settings={settingsRaw}
@@ -143,7 +146,7 @@ export default async function ReportsPage() {
       pipelineDeals={pipelineResult.data ?? []}
       listingAppointments={(listingApptResult.data ?? []) as ListingAppointment[]}
       expenseCategories={categories}
-      subscriptionTier={settingsRaw?.subscription_tier ?? "starter"}
+      isPro={isPro}
       historyItems={historyResult.data ?? []}
       receiptTotalsByKey={receiptTotalsByKey}
       ccaAssets={(ccaAssetsResult.data ?? []) as CcaAsset[]}

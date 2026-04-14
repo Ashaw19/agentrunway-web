@@ -175,7 +175,7 @@ interface Props {
   receiptYTD?: number;
   historyItems?: HistoryItem[];
   initialDashboardView?: string;
-  subscriptionTier?: string;
+  isPro?: boolean;
   showUpgradeBanner?: boolean;
   userName?: string;
   openTasks?: ContactTask[];
@@ -282,7 +282,7 @@ export function DashboardContent({
   receiptYTD = 0,
   historyItems = [],
   initialDashboardView: _initialDashboardView,
-  subscriptionTier = "starter",
+  isPro: isPro = false,
   showUpgradeBanner = false,
   userName,
   openTasks = [],
@@ -305,8 +305,6 @@ export function DashboardContent({
   recurringExpMonthly = 0,
   recurringExpYTD = 0,
 }: Props) {
-  const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
-
   const supabase = useMemo(() => createClient(), []);
 
   // ── Filing deadline alert ────────────────────────────────────────────

@@ -4,6 +4,7 @@ import { ForecastContent } from "./forecast-content";
 
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import type { RecurringExpense } from "@/lib/types/database";
+import { computeIsPro } from "@/lib/compute-is-pro";
 
 export default async function ForecastPage() {
   const supabase = await createClient();
@@ -116,7 +117,7 @@ export default async function ForecastPage() {
       listingAppointments={listingApptResult.data ?? []}
       expenseCategories={expenseCategories}
       historyItems={historyResult.data ?? []}
-      subscriptionTier={rawSettings?.subscription_tier ?? "starter"}
+      isPro={await computeIsPro(supabase, user.id, rawSettings)}
       receiptYTD={receiptYTD}
       mileageKmTotal={mileageKmTotal}
       ccaAssetCount={ccaAssetCount}

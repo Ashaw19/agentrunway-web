@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { ExpensesContent } from "./expenses-content";
+import { computeIsPro } from "@/lib/compute-is-pro";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PlaidItem, PlaidTransaction } from "@/lib/types/database";
 
@@ -294,6 +295,7 @@ export default async function ExpensesPage() {
   // Join items into their categories, filtering out conditional categories
   // based on user's business structure flags so they don't appear until enabled.
   const settings = settingsResult.data;
+  const isPro = await computeIsPro(supabase, user.id, settings);
   const categories = cats
     .map((cat) => ({
       ...cat,
@@ -309,6 +311,7 @@ export default async function ExpensesPage() {
     <ExpensesContent
       initialCategories={categories}
       settings={settings}
+      isPro={isPro}
       transactions={txResult.data ?? []}
       initialReceipts={receiptsResult.data ?? []}
       receiptTotalsByKey={receiptTotalsByKey}

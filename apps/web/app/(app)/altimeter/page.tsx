@@ -4,6 +4,7 @@ import { AltimeterContent } from "./altimeter-content";
 import type { HistoryItem, Transaction, PipelineDeal, RecurringExpense } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { CREA_BOARDS, fetchBoardData, type LocalMarketData } from "@/lib/crea-board";
+import { computeIsPro } from "@/lib/compute-is-pro";
 
 
 export default async function AltimeterPage() {
@@ -113,7 +114,7 @@ export default async function AltimeterPage() {
       historyItems={historyItems}
       boardMarketData={boardMarketData}
       boardSubregion={settings?.board_subregion ?? ""}
-      subscriptionTier={settings?.subscription_tier ?? "starter"}
+      isPro={await computeIsPro(supabase, user.id, settings)}
       recurringExpMonthly={altMonthlyRecurring}
       expensesYTD={altExpensesYTD}
     />

@@ -74,7 +74,7 @@ interface Props {
   expenseCategories: ExpenseCategoryWithItems[];
   historyItems: HistoryItem[];
   listingAppointments?: ListingAppointment[];
-  subscriptionTier?: string;
+  isPro?: boolean;
   receiptYTD?: number;
   mileageKmTotal?: number;
   ccaAssetCount?: number;
@@ -89,15 +89,13 @@ export function ForecastContent({
   listingAppointments,
   expenseCategories,
   historyItems,
-  subscriptionTier = "starter",
+  isPro: isPro = false,
   receiptYTD: receiptYTDProp = 0,
   mileageKmTotal = 0,
   ccaAssetCount = 0,
   recurringExpMonthly = 0,
   recurringExpYTD = 0,
 }: Props) {
-  const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
-
   // ── Scenario selector (Conservative −15% / Base / Optimistic +15%) ────
   const [scenario, setScenario] = useState<"conservative" | "base" | "optimistic">("base");
 

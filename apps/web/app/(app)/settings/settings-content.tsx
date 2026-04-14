@@ -85,6 +85,7 @@ interface Props {
   plaidConfigured?: boolean;
   googleConnection?: GoogleConnection;
   emailConnections?: EmailConnection[];
+  isPro?: boolean;
 }
 
 const SPLIT_OPTIONS: { value: SplitPreset; label: string }[] = [
@@ -106,7 +107,7 @@ function useSaved() {
   return { saved, flash };
 }
 
-export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], plaidConfigured = false, googleConnection = null, emailConnections: initialEmailConnections = [] }: Props) {
+export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], plaidConfigured = false, googleConnection = null, emailConnections: initialEmailConnections = [], isPro: isProProp = false }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
@@ -2499,7 +2500,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </Card>
 
       {/* Card 9 — Plan & Billing */}
-      <PlanBillingCard settings={settings} />
+      <PlanBillingCard settings={settings} isPro={isProProp} />
     </div>
   );
 }
@@ -2521,13 +2522,12 @@ const STATUS_STYLES: Record<string, string> = {
   free: "bg-slate-100 text-slate-600",
 };
 
-function PlanBillingCard({ settings }: { settings: UserSettings }) {
+function PlanBillingCard({ settings, isPro = false }: { settings: UserSettings; isPro?: boolean }) {
   const [loadingPortal, setLoadingPortal] = useState(false);
   const [portalError, setPortalError] = useState("");
 
   const tier = settings.subscription_tier ?? "starter";
   const status = settings.subscription_status ?? "free";
-  const isPro = tier === "professional" || tier === "team";
   const renewalDate = settings.subscription_current_period_end
     ? new Date(settings.subscription_current_period_end).toLocaleDateString(
         "en-CA",

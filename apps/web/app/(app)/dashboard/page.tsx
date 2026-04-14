@@ -6,6 +6,7 @@ import { CREA_BOARDS, fetchBoardData, type LocalMarketData } from "@/lib/crea-bo
 import { computeIntelligenceBriefing, type BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import type { RecurringExpense } from "@/lib/types/database";
+import { computeIsPro } from "@/lib/compute-is-pro";
 
 
 export default async function DashboardPage({
@@ -234,6 +235,8 @@ export default async function DashboardPage({
     teamWelcome = { orgName: orgRow?.name ?? "your team" };
   }
 
+  const isPro = await computeIsPro(supabase, user.id, settingsRow);
+
   const params = await searchParams;
   const isAdmin = settingsRow?.is_admin ?? false;
   const showUpgradeBanner = params.upgraded === "true" && !isAdmin;
@@ -248,7 +251,7 @@ export default async function DashboardPage({
       receiptYTD={receiptYTD}
       historyItems={(historyResult.data ?? []) as HistoryItem[]}
       initialDashboardView={settingsRow?.dashboard_view ?? "standard"}
-      subscriptionTier={settingsRow?.subscription_tier ?? "starter"}
+      isPro={isPro}
       showUpgradeBanner={showUpgradeBanner}
       userName={userName}
       openTasks={(tasksResult.data ?? []) as ContactTask[]}

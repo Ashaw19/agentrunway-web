@@ -97,7 +97,7 @@ interface Props {
   pipelineDeals: PipelineDeal[];
   listingAppointments?: ListingAppointment[];
   expenseCategories: ExpenseCategoryWithItems[];
-  subscriptionTier?: string;
+  isPro?: boolean;
   historyItems?: HistoryItem[];
   receiptTotalsByKey?: Record<string, number>;
   /** T2125 tab data */
@@ -198,7 +198,7 @@ export function ReportsContent({
   pipelineDeals,
   listingAppointments = [],
   expenseCategories,
-  subscriptionTier = "starter",
+  isPro: isPro = false,
   historyItems = [],
   receiptTotalsByKey = {},
   ccaAssets = [],
@@ -210,7 +210,6 @@ export function ReportsContent({
   recurringExpMonthly = 0,
   recurringExpYTD = 0,
 }: Props) {
-  const isPro = subscriptionTier === "professional" || subscriptionTier === "team";
   const [downloading, setDownloading] = useState(false);
   const [histReportOpen, setHistReportOpen] = useState(false);
 

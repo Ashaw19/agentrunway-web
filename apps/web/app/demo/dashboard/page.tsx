@@ -523,7 +523,7 @@ export default function DemoDashboardPage() {
               settings={DEMO_SETTINGS}
               expenseCategories={DEMO_EXPENSE_CATEGORIES}
               initialDashboardView="standard"
-              subscriptionTier="professional"
+              isPro={true}
               showUpgradeBanner={false}
             />
           </div>
