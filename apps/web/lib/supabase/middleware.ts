@@ -38,6 +38,7 @@ const PROTECTED_PREFIXES = [
   "/social",
   "/tax",
   "/guide",
+  "/oauth",
 ];
 
 export async function updateSession(request: NextRequest) {
