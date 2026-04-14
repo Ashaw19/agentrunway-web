@@ -44,18 +44,20 @@ export function buildToolRegistry(
                 url: "https://agentrunway.ca",
                 available_tools: [
                   "get_server_info",
-                  "get_dashboard_kpis",
-                  "get_runway_score",
-                  "get_forecast",
-                  "get_tax_estimate",
-                  // Coming in Steps 5–9:
-                  // "get_transactions", "get_transaction_summary",
-                  // "get_pipeline", "get_pipeline_forecast",
-                  // "get_clients", "get_client_detail",
-                  // "get_expenses", "get_mileage_summary",
-                  // "get_flight_control_priorities", "get_user_settings",
+                  // Analytics (Step 4)
+                  "get_dashboard_kpis", "get_runway_score", "get_forecast", "get_tax_estimate",
+                  // Transactions (Step 5)
+                  "get_transactions", "get_transaction_summary",
+                  // Pipeline (Step 6)
+                  "get_pipeline", "get_pipeline_forecast",
+                  // CRM (Step 7)
+                  "get_clients", "get_client_detail",
+                  // Expenses (Step 8)
+                  "get_expenses", "get_mileage_summary",
+                  // Outreach + Settings (Step 9)
+                  "get_flight_control_priorities", "get_user_settings",
                 ],
-                phase: "Step 4 complete — analytics tools live",
+                phase: "Phase 1 complete — all 16 tools live",
               },
               null,
               2,
