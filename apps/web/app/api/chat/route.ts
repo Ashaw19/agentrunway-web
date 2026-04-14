@@ -1063,7 +1063,7 @@ Instead of another explanation, provide:
 1. A structured summary of what you've diagnosed so far
 2. The specific data points that seem unusual
 3. 2-3 concrete actions they can take right now
-4. A note: "If this still doesn't look right, reach out to support@agentrunway.com with this summary and we'll investigate your account directly."
+4. A note: "If this still doesn't look right, reach out to support@agentrunway.ca with this summary and we'll investigate your account directly."
 Keep your tone supportive, not defensive.`
     : "";
 

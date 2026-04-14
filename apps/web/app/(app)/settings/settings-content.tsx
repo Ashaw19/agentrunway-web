@@ -2137,12 +2137,10 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
                 </AlertDialogContent>
               </AlertDialog>
             ) : (
-              <a href="/api/auth/google/connect">
-                <Button size="sm" className="shrink-0">
-                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                  Connect Google
-                </Button>
-              </a>
+              <Button size="sm" className="shrink-0" variant="outline" disabled>
+                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                Coming Soon
+              </Button>
             )}
           </div>
         </CardHeader>

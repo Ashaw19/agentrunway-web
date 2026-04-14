@@ -1258,7 +1258,7 @@ Generates coaching insights from aggregate data:
 **"How do I add more seats?"**
 - Go to /org/billing → adjust seat count in subscription
 - Seat limit is enforced — inviting over max_seats is blocked
-- Contact support@agentrunway.com for bulk seat changes
+- Contact support@agentrunway.ca for bulk seat changes
 
 **"How do I leave a team?"**
 - Members can leave from their Consent settings at any time
