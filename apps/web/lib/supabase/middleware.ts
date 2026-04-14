@@ -122,13 +122,21 @@ export async function updateSession(request: NextRequest) {
   if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    // Preserve the original URL so login can redirect back after auth
+    url.searchParams.set("redirect", pathname);
     return NextResponse.redirect(url);
   }
 
-  // Authenticated user on /login → send to dashboard
+  // Authenticated user on /login → send to redirect param or dashboard
   if (user && pathname === "/login") {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+    const redirectParam = request.nextUrl.searchParams.get("redirect");
+    // Sanitize: must start with / and not // (prevent open redirect)
+    const safeRedirect = redirectParam && redirectParam.startsWith("/") && !redirectParam.startsWith("//")
+      ? redirectParam
+      : "/dashboard";
+    url.pathname = safeRedirect;
+    url.search = "";
     return NextResponse.redirect(url);
   }
 

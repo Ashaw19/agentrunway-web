@@ -584,7 +584,7 @@ export async function updateConsent(
     .select("status, joined_at")
     .eq("org_id", orgId)
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();
 
   const becomingActive = current?.status === "pending";
   if (becomingActive) {

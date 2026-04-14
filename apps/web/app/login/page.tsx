@@ -33,6 +33,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Read redirect param from URL (e.g. /login?redirect=/invite/TOKEN)
+  const redirectTo = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("redirect") ?? "/dashboard"
+    : "/dashboard";
+  // Sanitize: must start with / and not // (prevent open redirect)
+  const safeRedirect = redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : "/dashboard";
+
   function switchMode(next: Mode) {
     setMode(next);
     setError("");
@@ -46,7 +53,17 @@ export default function LoginPage() {
     const supabase = createClient();
 
     if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({ email, password });
+      // Pass redirect through email confirmation link so the user returns
+      // to the right page (e.g. /invite/TOKEN) after confirming their email.
+      const origin = window.location.origin;
+      const confirmRedirect = safeRedirect !== "/dashboard"
+        ? `${origin}/auth/callback?next=${encodeURIComponent(safeRedirect)}`
+        : `${origin}/auth/callback`;
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: confirmRedirect },
+      });
       if (error) {
         setError(friendlyAuthError(error.message));
       } else {
@@ -76,7 +93,7 @@ export default function LoginPage() {
       if (error) {
         setError(friendlyAuthError(error.message));
       } else {
-        router.push("/dashboard");
+        router.push(safeRedirect);
         return;
       }
     }
