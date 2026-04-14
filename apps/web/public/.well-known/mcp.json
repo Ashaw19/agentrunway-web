@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "agent-runway": {
+      "url": "https://wlxkvnbncfzkmxzexgxt.supabase.co/functions/v1/mcp-server",
+      "name": "Agent Runway",
+      "description": "Real estate business analytics for Canadian agents — transactions, pipeline, CRM, expenses, forecasts, and AI insights.",
+      "transport": "streamable-http",
+      "authentication": {
+        "type": "bearer",
+        "instructions": "Use your Agent Runway access token (Supabase JWT). Requires a Pro subscription."
+      }
+    }
+  }
+}
