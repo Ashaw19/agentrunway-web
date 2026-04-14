@@ -13,7 +13,7 @@ export default async function ProfilePage() {
 
   if (!user) redirect("/login");
 
-  const [{ data: settings }, { data: transactions }, { data: historyData }] = await Promise.all([
+  const [{ data: settings }, { data: transactions }, { data: historyData }, { data: orgMembership }] = await Promise.all([
     supabase
       .from("user_settings")
       .select("*")
@@ -29,6 +29,13 @@ export default async function ProfilePage() {
       .select("year, annual_gci")
       .eq("user_id", user.id)
       .order("year", { ascending: false }),
+    supabase
+      .from("organization_members")
+      .select("role, status, joined_at, created_at, organizations(name)")
+      .eq("user_id", user.id)
+      .in("status", ["active", "pending"])
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   // YTD stats — cast partial rows since computeGCI only needs these 5 fields
@@ -50,6 +57,16 @@ export default async function ProfilePage() {
   ].filter((y) => y.gci > 0);
   const bestYearEntry = allYearGCIs.sort((a, b) => b.gci - a.gci)[0] ?? null;
 
+  // Shape org membership for display
+  const orgInfo = orgMembership
+    ? {
+        orgName: (orgMembership.organizations as unknown as { name: string })?.name ?? "Unknown",
+        role: orgMembership.role as string,
+        status: orgMembership.status as string,
+        memberSince: orgMembership.joined_at ?? orgMembership.created_at,
+      }
+    : null;
+
   return (
     <ProfileContent
       email={user.email ?? ""}
@@ -61,6 +78,7 @@ export default async function ProfilePage() {
       lifetimeGCI={lifetimeGCI}
       historyItems={historyItems}
       bestYear={bestYearEntry}
+      orgInfo={orgInfo}
     />
   );
 }

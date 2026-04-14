@@ -555,12 +555,11 @@ function ReviewDrawer({
               <Button variant="ghost" className="w-full text-muted-foreground text-xs h-8" onClick={markAsSent} disabled={saving}>
                 Mark as sent without opening
               </Button>
-              <a
-                href="/api/auth/google/connect"
-                className="block text-center text-[10px] text-violet-400 hover:text-violet-300 underline underline-offset-2 transition-colors"
+              <span
+                className="block text-center text-[10px] text-muted-foreground/50"
               >
-                Connect Gmail to send directly from Agent Runway
-              </a>
+                Gmail integration coming soon
+              </span>
             </>
           )}
         </div>

@@ -135,10 +135,9 @@ export function DriveContent({ isDriveConnected, connectedEmail, documents }: Pr
               <HardDrive className="h-8 w-8 text-muted-foreground" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold">Connect Google Drive</h2>
+              <h2 className="text-lg font-semibold">Google Drive</h2>
               <p className="text-sm text-muted-foreground mt-1 max-w-md">
-                Connect your Drive to let the Co-Pilot read, analyze, and improve your listing
-                agreements, marketing materials, and training documents.
+                Google Drive integration is coming soon. We&apos;ll notify you when it&apos;s available.
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-lg mt-2">
@@ -149,7 +148,7 @@ export function DriveContent({ isDriveConnected, connectedEmail, documents }: Pr
               ].map((item) => (
                 <div
                   key={item.label}
-                  className="flex flex-col items-center gap-2 p-4 rounded-xl bg-muted/30 border border-border/40"
+                  className="flex flex-col items-center gap-2 p-4 rounded-xl bg-muted/30 border border-border/40 opacity-50"
                 >
                   <item.icon className="h-5 w-5 text-primary" />
                   <span className="text-xs font-semibold">{item.label}</span>
@@ -157,9 +156,9 @@ export function DriveContent({ isDriveConnected, connectedEmail, documents }: Pr
                 </div>
               ))}
             </div>
-            <Button asChild className="mt-2">
-              <a href="/settings?tab=integrations">Connect Google Drive in Settings</a>
-            </Button>
+            <Badge variant="secondary" className="mt-2 text-xs">
+              Coming Soon
+            </Badge>
           </CardContent>
         </Card>
       </div>

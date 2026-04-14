@@ -82,6 +82,13 @@ function getInitials(name: string): string {
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
+interface OrgInfo {
+  orgName: string;
+  role: string;
+  status: string;
+  memberSince: string;
+}
+
 interface ProfileContentProps {
   email: string;
   settings: UserSettings | null;
@@ -92,6 +99,7 @@ interface ProfileContentProps {
   lifetimeGCI?: number;
   historyItems?: HistoryItem[];
   bestYear?: { year: number; gci: number } | null;
+  orgInfo?: OrgInfo | null;
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -106,6 +114,7 @@ export function ProfileContent({
   lifetimeGCI = 0,
   historyItems = [],
   bestYear = null,
+  orgInfo = null,
 }: ProfileContentProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -557,6 +566,43 @@ export function ProfileContent({
             </Card>
           ))}
         </div>
+      )}
+
+      {/* ── Organization Membership ─────────────────────────────────────── */}
+      {orgInfo && (
+        <Card className="rounded-2xl border-slate-200 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              Organization
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2.5">
+              <ConfigRow label="Organization" value={orgInfo.orgName} />
+              <ConfigRow
+                label="Role"
+                value={orgInfo.role.charAt(0).toUpperCase() + orgInfo.role.slice(1).replace("_", " ")}
+              />
+              <ConfigRow
+                label="Status"
+                value={orgInfo.status.charAt(0).toUpperCase() + orgInfo.status.slice(1)}
+              />
+              <ConfigRow
+                label="Member Since"
+                value={
+                  orgInfo.memberSince
+                    ? new Date(orgInfo.memberSince).toLocaleDateString("en-CA", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })
+                    : "---"
+                }
+              />
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* ── My Business, By the Numbers ───────────────────────────────────── */}
