@@ -3,7 +3,7 @@
  * Agent Runway — Seed Ellis Realty Beta Team
  * ============================================
  * Creates the Ellis Realty beta organization with 6 team members
- * (1 owner + 5 agents), all with lifetime free professional access.
+ * (1 owner + 1 admin + 4 agents), all with price-locked professional access.
  *
  * Usage:
  *   npx tsx apps/web/scripts/seed-beta-team.ts
@@ -38,7 +38,7 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
 interface TeamMember {
   email: string;
   displayName: string;
-  orgRole: "owner" | "agent";
+  orgRole: "owner" | "admin" | "agent";
   dataSharingTier: "tier1" | "tier2";
   goalGci: number;
 }
@@ -46,48 +46,50 @@ interface TeamMember {
 const ORG_SLUG = "ellis-realty";
 const ORG_NAME = "Ellis Realty";
 
+// Real Ellis Realty beta team. goal_gci is seeded to 0 so each agent sets
+// their own target on first login — their number to own, not ours to assume.
 const TEAM: TeamMember[] = [
   {
     email: "erin@ellisrealty.ca",
     displayName: "Erin Ellis",
     orgRole: "owner",
     dataSharingTier: "tier2",
-    goalGci: 500_000,
+    goalGci: 0,
   },
   {
-    email: "agent1@ellisrealty.ca",
-    displayName: "Jordan Ellis",
-    orgRole: "agent",
-    dataSharingTier: "tier1",
-    goalGci: 300_000,
+    email: "homes@ellisrealty.ca",
+    displayName: "Jess McCluskey",
+    orgRole: "admin",
+    dataSharingTier: "tier2",
+    goalGci: 0,
   },
   {
-    email: "agent2@ellisrealty.ca",
-    displayName: "Taylor Kim",
+    email: "aidan@ellisrealty.ca",
+    displayName: "Aidan Finnegan",
     orgRole: "agent",
     dataSharingTier: "tier1",
-    goalGci: 250_000,
+    goalGci: 0,
   },
   {
-    email: "agent3@ellisrealty.ca",
-    displayName: "Morgan Patel",
+    email: "liz@ellisrealty.ca",
+    displayName: "Liz Spragg",
     orgRole: "agent",
     dataSharingTier: "tier1",
-    goalGci: 200_000,
+    goalGci: 0,
   },
   {
-    email: "agent4@ellisrealty.ca",
-    displayName: "Riley Chen",
+    email: "grace@ellisrealty.ca",
+    displayName: "Grace Chappel",
     orgRole: "agent",
     dataSharingTier: "tier1",
-    goalGci: 175_000,
+    goalGci: 0,
   },
   {
-    email: "agent5@ellisrealty.ca",
-    displayName: "Casey Santos",
+    email: "genevieve@ellisrealty.ca",
+    displayName: "Genevieve Bishop",
     orgRole: "agent",
     dataSharingTier: "tier1",
-    goalGci: 150_000,
+    goalGci: 0,
   },
 ];
 
@@ -226,21 +228,22 @@ async function main() {
 
   console.log("Step 4: Creating/updating user_settings...\n");
 
+  // The handle_new_user trigger already created a user_settings row for each
+  // new auth user. We ONLY want to overwrite fields that this script owns
+  // (display_name, subscription tier/status). goal_gci belongs to the user —
+  // if they've set it, we must not stomp it, and if they haven't, the trigger
+  // already seeded it to 0.
   for (const member of TEAM) {
     const userId = userIds.get(member.email)!;
 
     const { error: settingsErr } = await supabase
       .from("user_settings")
-      .upsert(
-        {
-          user_id: userId,
-          display_name: member.displayName,
-          subscription_tier: "professional",
-          subscription_status: "active",
-          goal_gci: member.goalGci,
-        },
-        { onConflict: "user_id" }
-      );
+      .update({
+        display_name: member.displayName,
+        subscription_tier: "professional",
+        subscription_status: "active",
+      })
+      .eq("user_id", userId);
 
     if (settingsErr) {
       console.error(
@@ -248,7 +251,7 @@ async function main() {
       );
     } else {
       console.log(
-        `  [settings] ${member.displayName} — professional, goal_gci=${member.goalGci.toLocaleString()}`
+        `  [settings] ${member.displayName} — professional (goal_gci preserved)`
       );
     }
   }
@@ -260,9 +263,10 @@ async function main() {
   console.log(`  Organization: ${ORG_NAME} (${org.id})`);
   console.log(`  Type: brokerage | is_beta: true | max_seats: 10`);
   console.log(`  Owner: Erin Ellis (erin@ellisrealty.ca)`);
-  console.log(`  Agents: 5 (agent1-agent5@ellisrealty.ca)`);
+  console.log(`  Admin: Jess McCluskey (homes@ellisrealty.ca)`);
+  console.log(`  Agents: 4 (aidan, liz, grace, genevieve @ellisrealty.ca)`);
   console.log(`  All members: professional tier, active subscription`);
-  console.log(`  Lifetime free access via is_beta flag.`);
+  console.log(`  Price-locked access via is_beta flag.`);
 }
 
 main().catch((err) => {
