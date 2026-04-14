@@ -44,15 +44,18 @@ export function buildToolRegistry(
                 url: "https://agentrunway.ca",
                 available_tools: [
                   "get_server_info",
-                  // Phase 1 tools added in Steps 4–9:
-                  // "get_dashboard_kpis", "get_runway_score", "get_forecast", "get_tax_estimate",
+                  "get_dashboard_kpis",
+                  "get_runway_score",
+                  "get_forecast",
+                  "get_tax_estimate",
+                  // Coming in Steps 5–9:
                   // "get_transactions", "get_transaction_summary",
                   // "get_pipeline", "get_pipeline_forecast",
                   // "get_clients", "get_client_detail",
                   // "get_expenses", "get_mileage_summary",
                   // "get_flight_control_priorities", "get_user_settings",
                 ],
-                phase: "Scaffold — Phase 1 tools coming in Steps 4–9",
+                phase: "Step 4 complete — analytics tools live",
               },
               null,
               2,
