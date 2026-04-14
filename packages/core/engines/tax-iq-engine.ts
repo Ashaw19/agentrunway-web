@@ -198,7 +198,7 @@ const TAX_TIPS: TaxTip[] = [
   {
     id: "cpp-self-employed",
     title: "Self-employed agents pay both CPP portions",
-    body: "Unlike employees who split CPP contributions with their employer, self-employed individuals pay both the employee and employer portions. For 2026, this can total over $7,500. The employer-equivalent half is deductible on your tax return, reducing your taxable income.",
+    body: "Unlike employees who split CPP contributions with their employer, self-employed individuals pay both the employee and employer portions. For 2025, this can total over $8,800 (CPP1 max $8,068 + CPP2 max $792). The employer-equivalent half is deductible on your tax return, reducing your taxable income.",
     source: "CRA T4002, Chapter 6 — Canada Pension Plan contributions",
     url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4002.html",
     category: "planning",

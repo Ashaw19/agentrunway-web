@@ -875,6 +875,21 @@ Example: $500/month + 3% per deal, capped at $20,000/year. After cap → 0% per 
 - Cash reserve $0 with positive burn: Runway = 0 (critical — no savings to cover costs).
 - Division by zero protection: If burn is exactly 0, returns cap (24 months)
 
+### Implied Cash Position (from cash-position-engine.ts)
+
+Once an agent has closed at least one deal, the system computes an **implied cash position** in addition to the manual cash reserve:
+
+**Formula**: Implied Cash = YTD Agent Net − YTD Expenses − YTD Tax Set-Aside − YTD HST Owing
+
+- If brokerage withholds HST from commission cheques → HST Owing = $0 (they handle it)
+- Otherwise → HST Owing = HST collected on GCI − HST ITCs on expenses
+
+**Effective Cash** = max(0, Implied Cash + Manual Cash Reserve)
+
+This is used as the cash figure for survival calculations when the agent has transaction data. With no closed deals yet, only the manual cash reserve is used.
+
+*Note: This is an estimate of what should be in the account if the agent has been disciplined — not an actual bank balance.*
+
 ### Survival Impact on Other Metrics
 1. **Runway Score**: Survival is 15% of composite score
 2. **Advisor Cards**: Flags when <3 months
@@ -1073,7 +1088,15 @@ Used for: Year-over-year comparison, seasonal profile, trend detection
 → PDF import works best with structured tabular data. Some PDF formats (image-based, non-standard layouts) may not parse correctly. Try exporting as CSV from the source system instead.
 
 **"Duplicate transactions after import"**
-→ The system attempts to detect duplicates by date + address + amount. If duplicates slip through, manually delete the extras from the Deals tab.
+→ The system uses a scored reconciliation engine to detect duplicates. Each imported deal is scored against existing transactions:
+- Address similarity: up to 40 points (Dice coefficient string match)
+- Date proximity: 40 pts (exact), 25 pts (±7 days), 10 pts (±30 days), 0 pts (>30 days)
+- GCI proximity: 20 pts (within 5%), 10 pts (within 15%), 0 pts (>15% off)
+- Score ≥70 → "Match" (auto-skip, likely duplicate)
+- Score 40–69 → "Possible" (needs manual review)
+- Score <40 → "New" (added as a new transaction)
+
+If duplicates slip through, the match was below 70. Manually delete extras from the Deals tab.
 
 **CRITICAL**: Import reliability is essential. Users who hit problems during onboarding import may not come back. If import fails, help them troubleshoot step by step.
 `,
@@ -1365,11 +1388,31 @@ The Overhead page is your complete tax visibility dashboard:
    - Recommended amount to set aside from each commission cheque
    - Based on your effective tax rate applied to average deal GCI
 
+### GST34 Return Pre-Fill (from gst34-engine.ts)
+
+The Overhead page can pre-fill your GST34 return for any filing period:
+
+| Line | Label | Formula |
+|------|-------|---------|
+| 101 | Total sales & revenue | Sum of GCI from closed deals in the period |
+| 103 | GST/HST collected | Line 101 × provincial rate (5%/13%/14%/14.975%/15%) |
+| 105 | Total HST + adjustments | Line 103 + Line 104 (adjustments usually $0) |
+| 106 | Input Tax Credits (ITCs) | GST/HST paid on eligible business expenses |
+| 107 | ITC adjustments | −50% of ITCs on meals & entertainment (CRA rule) |
+| 108 | Total ITCs | Line 106 + Line 107 |
+| 109 | Net tax | Line 105 − Line 108 (positive = owing, negative = refund) |
+| 110 | Instalments paid | Payments already remitted for this period |
+| 113 | Balance / refund | Line 109 − Line 110 |
+
+**Quick Method**: Available if taxable revenue ≤ $400K. Instead of tracking every ITC, remit a flat rate (typically 8.8% of HST-included revenue for service providers). May result in lower remittance but Agent Runway uses the detailed method — consult an accountant before switching.
+
 ### Common Issues
 - **"Tax estimate seems too high/low"**: Check Settings → province, business structure (sole prop vs incorporated), and whether expenses are fully entered.
 - **"CCA not showing"**: You need to add CCA assets first — use the Co-Pilot ("I bought a $2,400 laptop for work") or add manually on the Overhead page.
 - **"HST numbers wrong"**: Verify your GST/HST registration status in Settings. If you're below $30K revenue, you may not need to collect HST.
 - **"Instalment amounts changed"**: They update as your estimated tax changes throughout the year based on new transactions and expenses.
+- **"What is line 109 on my GST34?"**: Net tax = GST collected on commissions minus ITCs from expenses. Positive means you owe CRA; negative means CRA refunds you.
+- **"My ITCs seem low"**: Insurance premiums are GST/HST exempt — no ITC can be claimed. Meals & entertainment ITCs are 50% disallowed.
 `,
 
   // ═══════════════════════════════════════════════════════════════════════════

@@ -372,8 +372,8 @@ const TOPIC_RULES: TopicRule[] = [
   },
   {
     topic: "survival",
-    primary: ["survival", "runway months", "cash reserve", "burn rate", "emergency"],
-    secondary: ["survive", "months left", "critical", "warning"],
+    primary: ["survival", "runway months", "cash reserve", "burn rate", "emergency", "cash position"],
+    secondary: ["survive", "months left", "critical", "warning", "implied cash"],
     phrases: [
       "survival runway",
       "how long can i survive",
@@ -384,6 +384,9 @@ const TOPIC_RULES: TopicRule[] = [
       "runway warning",
       "set cash reserve",
       "update cash reserve",
+      "implied cash position",
+      "effective cash",
+      "cash position",
     ],
   },
   {
@@ -530,8 +533,8 @@ const TOPIC_RULES: TopicRule[] = [
   },
   {
     topic: "overhead",
-    primary: ["overhead", "tax breakdown", "instalment", "depreciation", "cca class", "t2125 category"],
-    secondary: ["effective rate", "marginal rate", "quarterly payment", "deduction summary", "capital cost allowance"],
+    primary: ["overhead", "tax breakdown", "instalment", "depreciation", "cca class", "t2125 category", "gst34", "gst 34"],
+    secondary: ["effective rate", "marginal rate", "quarterly payment", "deduction summary", "capital cost allowance", "quick method"],
     phrases: [
       "overhead page",
       "tax breakdown",
@@ -551,6 +554,14 @@ const TOPIC_RULES: TopicRule[] = [
       "net hst owing",
       "set aside per deal",
       "paycheque allocation",
+      "gst34 form",
+      "gst return",
+      "hst return",
+      "quick method",
+      "filing period",
+      "line 101",
+      "line 103",
+      "line 109",
     ],
   },
   {
