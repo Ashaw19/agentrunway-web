@@ -10,7 +10,8 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "test": "turbo test",
-    "typecheck": "turbo typecheck"
+    "typecheck": "turbo typecheck",
+    "build:mcp-shared": "node scripts/build-mcp-shared.js"
   },
   "devDependencies": {
     "tsx": "^4.21.0",
