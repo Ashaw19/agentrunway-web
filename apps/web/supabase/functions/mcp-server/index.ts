@@ -103,7 +103,7 @@ Deno.serve(async (req: Request) => {
 
   // ── MCP: build tool registry & route ─────────────────────────────────────
   const tools = buildToolRegistry(supabase, user.id);
-  const response = await routeRequest(rpcRequest, tools);
+  const response = await routeRequest(rpcRequest, tools, supabase, user.id);
 
   return new Response(JSON.stringify(response), {
     status: 200,
@@ -116,6 +116,8 @@ Deno.serve(async (req: Request) => {
 async function routeRequest(
   req: JsonRpcRequest,
   tools: McpTool[],
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
 ): Promise<JsonRpcResponse> {
   const { method, id, params } = req;
 
@@ -169,7 +171,21 @@ async function routeRequest(
           };
         }
 
-        const result = await tool.handler(toolArgs);
+        const t0 = Date.now();
+        let isError = false;
+        let result;
+        try {
+          result = await tool.handler(toolArgs);
+        } catch (handlerErr) {
+          isError = true;
+          throw handlerErr;
+        } finally {
+          // Fire-and-forget usage logging — never block the response
+          supabase
+            .from("mcp_events")
+            .insert({ user_id: userId, tool_name: toolName!, latency_ms: Date.now() - t0, is_error: isError })
+            .then(({ error: logErr }) => { if (logErr) console.warn("[mcp-server] event log failed:", logErr.message); });
+        }
         return { jsonrpc: "2.0", id, result };
       }
 
