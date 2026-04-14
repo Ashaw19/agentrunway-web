@@ -2338,9 +2338,9 @@ export function DashboardContent({
         {/* Subtle brand gradient accent at top */}
         <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: "linear-gradient(90deg, #F0A800 0%, #1E72F2 45%, #7C3AED 80%, #10B981 100%)" }} />
         <CardContent className="pt-5 pb-4">
-          <div className="flex flex-wrap items-center justify-between gap-6">
+          <div className="flex flex-nowrap items-center justify-between gap-6">
             {/* Left: grade circle + score */}
-            <div className="flex items-center gap-5">
+            <div className="flex items-center gap-5 min-w-0">
               {/* Commission Gold grade circle — signature brand moment */}
               <div
                 className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full"
@@ -2353,7 +2353,7 @@ export function DashboardContent({
                   {runwayScore.grade}
                 </span>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-1">
                   <span className="flex items-center gap-1">
                     <p className="text-sm font-semibold text-slate-400">Runway Score</p>
@@ -2384,11 +2384,10 @@ export function DashboardContent({
                     {scoreDelta > 0 ? `+${scoreDelta}` : scoreDelta} vs last month
                   </p>
                 )}
-                <p className="mt-1 text-xs text-slate-400">{scoreNarrative}</p>
               </div>
             </div>
             {/* Right: survival + pace — aligned two-column mini-grid */}
-            <div className="grid grid-cols-2 gap-px rounded-xl border border-slate-700 bg-slate-700 overflow-hidden">
+            <div className="grid grid-cols-2 gap-px rounded-xl border border-slate-700 bg-slate-700 overflow-hidden shrink-0">
               {/* Cash Runway */}
               <div className="bg-slate-800/50 px-4 py-3 text-center">
                 <div className="flex items-center justify-center gap-1">
@@ -2470,6 +2469,8 @@ export function DashboardContent({
               </div>
             </div>
           </div>
+          {/* Narrative — full-width line below the score/stats row */}
+          <p className="mt-3 text-xs text-slate-400">{scoreNarrative}</p>
           {/* Score components */}
           <div className="mt-3 grid grid-cols-5 gap-3 border-t border-slate-700 pt-3">
             {runwayScore.components.map((c) => {
