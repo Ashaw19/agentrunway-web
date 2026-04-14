@@ -21,6 +21,7 @@ import {
   Lock,
   BarChart2,
   Layers,
+  UserPlus,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
@@ -157,6 +158,15 @@ export function SidebarNav({
                 label: "Audit Log",
                 href: "/org/audit-log",
                 icon: Shield,
+                iconActive: "text-orange-300",
+                iconInactive: "text-orange-400/60",
+                borderActive: "border-l-orange-400",
+              },
+              {
+                type: "item" as const,
+                label: "Recruiting",
+                href: "/org/recruit",
+                icon: UserPlus,
                 iconActive: "text-orange-300",
                 iconInactive: "text-orange-400/60",
                 borderActive: "border-l-orange-400",
