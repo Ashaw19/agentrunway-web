@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * Opens the Stripe Customer Portal for the authenticated user or their org.
@@ -50,7 +51,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Not authorized." }, { status: 403 });
     }
 
-    const { data: org } = await supabase
+    // `stripe_customer_id` is revoked from the `authenticated` role
+    // (migration 00117). Read it via the admin client — safe because the
+    // owner/admin/team_leader check above already gates this branch.
+    const admin = createAdminClient();
+    const { data: org } = await admin
       .from("organizations")
       .select("stripe_customer_id")
       .eq("id", orgId)

@@ -151,6 +151,7 @@ import {
 } from "@/lib/engines/client-valuation-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
 import { createClient } from "@/lib/supabase/client";
+import { describeSupabaseError } from "@/lib/supabase-errors";
 import { CrmDashboardTab } from "./tabs/crm-dashboard-tab";
 import { InsightsTab } from "./tabs/insights-tab";
 import { FlightPlansTab } from "./tabs/flight-plans-tab";
@@ -1981,6 +1982,21 @@ export function ClientsContent({
     const firstName = newClientFirstName.trim() || (trimmedName.indexOf(" ") === -1 ? trimmedName : trimmedName.slice(0, trimmedName.indexOf(" ")));
     const lastName = newClientLastName.trim() || (trimmedName.indexOf(" ") === -1 ? null : trimmedName.slice(trimmedName.indexOf(" ") + 1).trim() || null);
 
+    // Build the insert payload with `undefined` for empty optional fields so
+    // that column DEFAULTs (where they exist) can fire. `|| null` would
+    // explicitly pass JS null and defeat the DEFAULT.
+    const emailValue = newClientEmail.trim().slice(0, FIELD_LIMITS.email);
+    const phoneValue = newClientPhone.trim().slice(0, FIELD_LIMITS.phone);
+    const secondaryEmailValue = newClientSecondaryEmail.trim();
+    const secondaryPhoneValue = newClientSecondaryPhone.trim();
+    const notesValue = newClientNotes.trim();
+    const streetValue = newClientStreet.trim().slice(0, FIELD_LIMITS.address);
+    const unitValue = newClientUnit.trim();
+    const cityValue = newClientCity.trim();
+    const provinceValue = newClientProvince.trim();
+    const postalValue = newClientPostal.trim();
+    const countryValue = newClientCountry.trim();
+
     const { data, error } = await supabase
       .from("clients")
       .insert({
@@ -1989,31 +2005,42 @@ export function ClientsContent({
         first_name: firstName || null,
         last_name: lastName,
         name_search: nameSearch,
-        email: newClientEmail.trim().slice(0, FIELD_LIMITS.email) || null,
-        phone: newClientPhone.trim().slice(0, FIELD_LIMITS.phone) || null,
-        secondary_email: newClientSecondaryEmail.trim() || null,
-        secondary_phone: newClientSecondaryPhone.trim() || null,
+        email: emailValue || null,
+        phone: phoneValue || null,
+        secondary_email: secondaryEmailValue || null,
+        secondary_phone: secondaryPhoneValue || null,
         status: newClientStatus,
         lead_source: newClientSource || null,
         tags: newClientTags,
         birthdate: newClientBirthdate || null,
-        notes: newClientNotes.trim() || null,
-        property_interest: newClientBudget ? parseFloat(newClientBudget.replace(/[$,]/g, "")) || null : null,
+        notes: notesValue || null,
+        property_interest: newClientBudget
+          ? parseFloat(newClientBudget.replace(/[$,]/g, "")) || null
+          : null,
         preferred_contact: newClientPreferredContact || "phone",
         timeframe: newClientTimeframe || null,
-        street_address:  newClientStreet.trim().slice(0, FIELD_LIMITS.address)   || null,
-        unit_number:     newClientUnit.trim()      || null,
-        city:            newClientCity.trim()      || null,
-        province_region: newClientProvince.trim()  || null,
-        postal_code:     newClientPostal.trim()    || null,
-        country:         newClientCountry.trim()   || "Canada",
+        street_address: streetValue || null,
+        unit_number: unitValue || null,
+        city: cityValue || null,
+        province_region: provinceValue || null,
+        postal_code: postalValue || null,
+        country: countryValue || "Canada",
       })
       .select()
       .single();
 
     if (error || !data) {
-      console.error("[crm] add-client failed:", error?.code, error?.message, error?.details);
-      toast.error("Failed to add client — please try again");
+      console.error("[crm] add-client failed:", error);
+      toast.error(
+        describeSupabaseError(error, {
+          action: "add this client",
+          fieldLabels: {
+            email: "email address",
+            phone: "phone number",
+            name_search: "name",
+          },
+        }),
+      );
       addClientRef.current = false;
       setAddClientSaving(false);
       return;

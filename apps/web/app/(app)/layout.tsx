@@ -9,6 +9,7 @@ import { VoiceDraftProvider } from "@/lib/voice/voice-draft-context";
 import { AiChatProvider } from "@/lib/ai-chat-context";
 import { Toaster } from "sonner";
 import { createClient } from "@/lib/supabase/server";
+import { ORG_PUBLIC_COLUMNS } from "@/lib/org-context";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
 import type { OrgContext, Organization, OrganizationMember } from "@/lib/types/organizations";
@@ -70,7 +71,7 @@ export default async function AppLayout({
         .eq("user_id", user.id),
       supabase
         .from("organization_members")
-        .select("*, organizations(*)")
+        .select(`*, organizations(${ORG_PUBLIC_COLUMNS})`)
         .eq("user_id", user.id)
         .in("status", ["active", "pending"])
         .order("created_at", { ascending: true }),
@@ -123,7 +124,18 @@ export default async function AppLayout({
         memberships.find((m: Record<string, unknown>) => m.status === "active");
 
       if (activeMembership) {
-        const org = activeMembership.organizations as unknown as Organization;
+        // The query projects only non-billing columns. Null out the Stripe
+        // fields so the Organization type is satisfied without carrying
+        // missing-property shapes downstream. Billing pages fetch these
+        // fields separately via getOrgBillingFields().
+        const orgRaw = activeMembership.organizations as Record<string, unknown>;
+        const org = {
+          ...orgRaw,
+          stripe_customer_id: null,
+          stripe_subscription_id: null,
+          stripe_price_id: null,
+          billing_email: null,
+        } as unknown as Organization;
         const membership = {
           id: activeMembership.id,
           org_id: activeMembership.org_id,

@@ -62,7 +62,11 @@ export async function POST(request: Request) {
   }
 
   // ── Check org isn't already on a paid plan ──────────────────────────────
-  const { data: org } = await supabase
+  // `stripe_subscription_id` is revoked from the `authenticated` role
+  // (migration 00117). Use the admin client — safe because the owner/admin
+  // check above already authorizes this branch.
+  const admin = createAdminClient();
+  const { data: org } = await admin
     .from("organizations")
     .select("is_beta, stripe_subscription_id")
     .eq("id", org_id)
@@ -83,7 +87,6 @@ export async function POST(request: Request) {
   }
 
   // ── Resolve prices based on current pricing tier ────────────────────────
-  const admin = createAdminClient();
   const { count: paidCount } = await admin
     .from("user_settings")
     .select("user_id", { count: "exact", head: true })

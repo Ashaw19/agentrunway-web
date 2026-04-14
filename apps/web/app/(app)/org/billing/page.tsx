@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getOrgContext } from "@/lib/org-context";
+import { getOrgContext, getOrgBillingFields } from "@/lib/org-context";
 import { stripe } from "@/lib/stripe";
 import { BillingContent } from "./billing-content";
 
@@ -16,7 +16,15 @@ export default async function OrgBillingPage() {
     redirect("/org");
   }
 
-  const { org } = orgContext;
+  // Admin-gated billing field read (org context omits Stripe fields).
+  const billingFields = await getOrgBillingFields(orgContext.org.id);
+  const org = {
+    ...orgContext.org,
+    stripe_customer_id: billingFields?.stripe_customer_id ?? null,
+    stripe_subscription_id: billingFields?.stripe_subscription_id ?? null,
+    stripe_price_id: billingFields?.stripe_price_id ?? null,
+    billing_email: billingFields?.billing_email ?? null,
+  };
 
   // Count active members for seat display
   const { count: activeMemberCount } = await supabase
