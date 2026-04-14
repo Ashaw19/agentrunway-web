@@ -14,6 +14,7 @@ export const COHORT_LABELS: Record<Cohort, string> = {
 };
 
 export function cohortFromYears(years: number): Cohort {
+  if (!isFinite(years) || years < 0) return "growth"; // safe fallback for NaN / Infinity / negative
   if (years <= 2) return "rookie";
   if (years <= 5) return "growth";
   if (years <= 10) return "established";

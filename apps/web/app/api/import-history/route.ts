@@ -317,17 +317,25 @@ function computeAggregates(
       sale_price?: number | string | null;
     };
 
-    // Parse numeric fields safely — strip currency symbols/commas the LLM may include
+    // Parse numeric fields safely — strip currency symbols/commas the LLM may include.
+    // Also handles accounting-format negatives: (1,500.00) → -1500.
     const toNum = (v: unknown): number | null => {
       if (v == null) return null;
-      const n = Number(String(v).replace(/[$,\s]/g, ""));
-      return isNaN(n) ? null : n;
+      let s = String(v).replace(/[$,\s]/g, "");
+      const isAccounting = s.startsWith("(") && s.endsWith(")");
+      if (isAccounting) s = s.slice(1, -1);
+      const n = Number(s);
+      if (isNaN(n)) return null;
+      return isAccounting ? -n : n;
     };
     const salePrice        = toNum(d.sale_price);
     let   gci              = toNum(d.gci) ?? 0;
     const netIncome        = toNum(d.net_income);
-    let   commissionPct    = d.commission_percent != null ? (Number(d.commission_percent) || null) : null;
-    // LLMs sometimes return commission as a whole number (e.g. 5 instead of 0.05). Normalize.
+    // LLMs sometimes return commission as a string with a % sign (e.g. "3.5%") — strip it before parsing.
+    // Also normalize whole-number percentages (e.g. 5 → 0.05).
+    let   commissionPct    = d.commission_percent != null
+      ? (Number(String(d.commission_percent).replace(/[%\s]/g, "")) || null)
+      : null;
     if (commissionPct != null && commissionPct > 1) commissionPct = commissionPct / 100;
     const address          = (d.address ?? "").trim();
 
