@@ -35,6 +35,9 @@ import {
   CheckCircle,
   AlertTriangle,
   Lightbulb,
+  Rocket,
+  Plus,
+  Receipt,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -618,20 +621,33 @@ export function ReportsContent({
         </div>
       </div>
 
-      {/* ── No-data banner (new users) ───────────────────────────────────────── */}
+      {/* ── First-run guidance banner ──────────────────────────────────────── */}
       {transactions.length === 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 flex items-start gap-3">
-          <BarChart2 className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-          <div>
-            <p className="text-sm font-medium text-amber-900">No transactions yet</p>
-            <p className="text-sm text-amber-700 mt-0.5">
-              Your income report, GCI breakdown, and tax projections will populate once you log your first deal.{" "}
-              <Link href="/transactions" className="underline underline-offset-2 font-medium">
-                Add a deal →
-              </Link>
-            </p>
-          </div>
-        </div>
+        <Card className="border-dashed border-amber-300 bg-amber-50/60">
+          <CardContent className="p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                <Rocket className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-semibold">Reports generate from your transaction and expense data.</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Start by adding deals and tracking expenses to unlock your financial overview.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Link href="/transactions" className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+                    <Plus className="h-4 w-4" />
+                    Add First Deal
+                  </Link>
+                  <Link href="/expenses" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors">
+                    <Receipt className="h-4 w-4" />
+                    Track Expenses
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* ── Tab bar ──────────────────────────────────────────────────────────── */}

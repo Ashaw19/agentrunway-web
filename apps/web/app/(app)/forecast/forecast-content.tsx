@@ -48,7 +48,7 @@ import type { ProbabilityDataPoint } from "@/components/probability-chart";
 
 const ProbabilityChart = dynamic(() => import("@/components/probability-chart").then(m => m.ProbabilityChart), { ssr: false });
 import Link from "next/link";
-import { Settings, CalendarCheck, Building2, TrendingDown, TrendingUp, AlertTriangle } from "lucide-react";
+import { Settings, CalendarCheck, Building2, TrendingDown, TrendingUp, AlertTriangle, Rocket, Plus } from "lucide-react";
 import * as LucideIcons from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -384,6 +384,31 @@ export function ForecastContent({
           ))}
         </div>
       </div>
+
+      {/* First-run guidance banner */}
+      {transactions.length === 0 && (
+        <Card className="border-dashed border-amber-300 bg-amber-50/60">
+          <CardContent className="p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-6">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                <Rocket className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-semibold">Your forecast builds as you add deals.</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Log your first transaction to see projections, tax estimates, and goal tracking come to life.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Link href="/transactions" className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
+                    <Plus className="h-4 w-4" />
+                    Add First Deal
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Projection summary */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
