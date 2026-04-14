@@ -246,13 +246,45 @@ export function ExpensesContent({
     setReconUploading(true);
     setReconResult(null);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("mode", "reconcile");
+      // /api/import-history expects JSON with either `textContent` (for
+      // CSV/XLSX/TXT) or `imageBase64` + `mimeType` (for PDFs and images).
+      // Previously this path POSTed `multipart/form-data` with a `mode=reconcile`
+      // flag, but the route does `await req.json()` and never consumed `mode`
+      // — so every statement upload was silently failing with a JSON parse
+      // error. Match the contract history-content.tsx uses.
+      const isTextFile = /\.(csv|txt|tsv)$/i.test(file.name) ||
+        file.type === "text/csv" || file.type === "text/plain";
+
+      let payload: Record<string, unknown>;
+      if (isTextFile) {
+        const textContent = (await file.text()).replace(/^\uFEFF/, "");
+        payload = { textContent };
+      } else if (/\.xlsx?$/i.test(file.name)) {
+        const XLSX = await import("xlsx");
+        const buf = await file.arrayBuffer();
+        const workbook = XLSX.read(buf, { type: "array" });
+        const firstSheet = workbook.SheetNames[0];
+        const textContent = XLSX.utils.sheet_to_csv(workbook.Sheets[firstSheet]);
+        payload = { textContent };
+      } else {
+        // Image or PDF → send as base64. Vercel serverless body cap is ~4.5MB,
+        // so we reject oversized files here with a clearer message than a 413.
+        const buf = await file.arrayBuffer();
+        if (buf.byteLength > 4 * 1024 * 1024) {
+          throw new Error("File is larger than 4 MB. Try exporting a CSV from your brokerage instead.");
+        }
+        let binary = "";
+        const bytes = new Uint8Array(buf);
+        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+        const imageBase64 = btoa(binary);
+        const mimeType = file.type || (file.name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg");
+        payload = { imageBase64, mimeType };
+      }
 
       const res = await fetch("/api/import-history", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: "Upload failed" }));

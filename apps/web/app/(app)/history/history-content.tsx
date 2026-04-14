@@ -2470,10 +2470,12 @@ function findTrackerHeaders(rows: string[][]): TrackerHeaders | null {
   return null;
 }
 
-/** Parse a messy date cell from the agent tracker into YYYY-MM-DD. */
-function parseTrackerDate(raw: string, year: number): string {
+/** Parse a messy date cell from the agent tracker into YYYY-MM-DD.
+ *  Returns `null` for blank or unparseable input — see the same function in
+ *  transactions-history-tab.tsx for why fabricating a mid-year date is bad. */
+function parseTrackerDate(raw: string, year: number): string | null {
   const s = raw?.trim() ?? "";
-  if (!s) return `${year}-06-15`;
+  if (!s) return null;
 
   // Q1 / Q2 / Q3 / Q4
   const qm = s.match(/^Q([1-4])$/i);
@@ -2500,7 +2502,30 @@ function parseTrackerDate(raw: string, year: number): string {
     const day = String(d.getDate()).padStart(2, "0");
     return `${y}-${m}-${day}`;
   }
-  return `${year}-06-15`;
+  return null;
+}
+
+/**
+ * Parse a money cell from an agent tracker. Handles "$14,500", "CA$14,500",
+ * accounting negatives "(14,500)" → -14500, and leading minus. Returns NaN
+ * for blank/unparseable so callers can guard with Number.isFinite.
+ */
+function parseTrackerMoney(raw: string): number {
+  if (!raw) return NaN;
+  let s = String(raw).trim();
+  if (!s) return NaN;
+  let sign = 1;
+  if (/^\(.*\)$/.test(s)) {
+    sign = -1;
+    s = s.slice(1, -1).trim();
+  }
+  s = s.replace(/(?:^|\s)(ca\$|us\$|cad|usd)\s*/gi, "")
+       .replace(/[$£€]/g, "")
+       .replace(/[,\s\u00A0]/g, "");
+  if (!s || s === "-" || s === ".") return NaN;
+  const n = parseFloat(s);
+  if (!Number.isFinite(n)) return NaN;
+  return sign * n;
 }
 
 /** Parse all deal rows from a tracker sheet.
@@ -2539,17 +2564,15 @@ function parseTrackerSheet(
     // Skip blank / total / header rows
     if (!name || /^(totals?|number|name|transaction|$)/i.test(name)) continue;
 
-    // Strip $ and commas: "$14,500" → 14500
-    const rawGCI = (row[moneyCol] ?? "").replace(/[$,\s]/g, "");
-    const gci = parseFloat(rawGCI) || 0;
-    if (gci <= 0) continue;
+    // Parse GCI with tracker-aware money parser (handles "CA$14,500", "(14,500)" etc.)
+    const gci = parseTrackerMoney(row[moneyCol] ?? "");
+    if (!Number.isFinite(gci) || gci <= 0) continue;
 
     // net_income = POST-split amount. Collect for split-ratio detection.
     let netIncome: number | null = null;
     if (hdrs.gciCol >= 0 && hdrs.netCol >= 0) {
-      const rawNet = (row[hdrs.netCol] ?? "").replace(/[$,\s]/g, "");
-      const netVal = parseFloat(rawNet) || 0;
-      if (netVal > 0) {
+      const netVal = parseTrackerMoney(row[hdrs.netCol] ?? "");
+      if (Number.isFinite(netVal) && netVal > 0) {
         netIncome = netVal;
         if (netVal < gci) splitRatios.push(netVal / gci);
       }
@@ -2569,13 +2592,16 @@ function parseTrackerSheet(
     // sale_price — null when the column is absent or has no value (NEVER use 0 as placeholder)
     let salePrice: number | null = null;
     if (hdrs.salePriceCol >= 0) {
-      const rawSP = (row[hdrs.salePriceCol] ?? "").replace(/[$,\s]/g, "");
-      const spVal = parseFloat(rawSP);
-      if (spVal > 0) salePrice = spVal;
+      const spVal = parseTrackerMoney(row[hdrs.salePriceCol] ?? "");
+      if (Number.isFinite(spVal) && spVal > 0) salePrice = spVal;
     }
 
+    // Skip rows whose date cell is blank/unparseable — better to drop than fabricate.
+    const parsedDate = parseTrackerDate(rawDate, sheetYear);
+    if (!parsedDate) continue;
+
     deals.push({
-      date:       parseTrackerDate(rawDate, sheetYear),
+      date:       parsedDate,
       address,
       sale_price: salePrice,
       gci,

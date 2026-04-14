@@ -24,6 +24,7 @@ import {
   CreditCard,
   Shield,
   Lock,
+  LifeBuoy,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -404,6 +405,18 @@ export function MobileNav({
           )}
 
           <div className="mx-4 h-px bg-sidebar-border/60" />
+
+          {/* Support contact — beta users need a human-reachable escape hatch
+              from inside the app, not buried on the marketing site. */}
+          <div className="px-3 pt-3">
+            <a
+              href="mailto:support@agentrunway.ca"
+              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-sidebar-foreground/60 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground transition-colors"
+            >
+              <LifeBuoy className="h-[18px] w-[18px] shrink-0" />
+              Contact Support
+            </a>
+          </div>
 
           <div className="p-3">
             <Button

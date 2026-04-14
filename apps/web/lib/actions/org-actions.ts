@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resend, FROM_ADDRESS } from "@/lib/resend";
+import { log } from "@/lib/logger";
 
 /** Escape user-supplied strings before interpolating into HTML email templates */
 function escHtml(s: string): string {
@@ -256,6 +257,9 @@ export async function inviteMembers(
     const orgName = orgData?.name ?? "your organization";
 
     for (const inv of created as OrganizationInvitation[]) {
+      // Email delivery is non-fatal (admin can share the invite link manually)
+      // but we MUST log failures — silent swallow left beta admins debugging
+      // "my teammate never got the email" with no signal on our end.
       void resend.emails.send({
         from: FROM_ADDRESS,
         to: inv.email,
@@ -276,9 +280,21 @@ export async function inviteMembers(
             <p style="color: #aaa; font-size: 12px;">Agent Runway — Real estate business analytics</p>
           </div>
         `,
-      }).catch(() => {
-        // Email send failure is non-fatal — admin can share link manually
-      });
+      })
+        .then((result) => {
+          if (result?.error) {
+            log.error(
+              { err: result.error, email: inv.email, orgId, invitationId: inv.id },
+              "[org-actions] Resend returned error sending invitation email",
+            );
+          }
+        })
+        .catch((err) => {
+          log.error(
+            { err, email: inv.email, orgId, invitationId: inv.id },
+            "[org-actions] Failed to send invitation email",
+          );
+        });
     }
   }
 

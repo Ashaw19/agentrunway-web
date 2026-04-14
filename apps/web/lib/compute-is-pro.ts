@@ -25,12 +25,16 @@ export async function computeIsPro(
 
   if (hasIndividualPro) return true;
 
-  // 2. Check org membership (active/trialing org subscription OR beta org)
+  // 2. Check org membership (active/trialing org subscription OR beta org).
+  // Only `active` memberships count — a `pending` invite would show the UI
+  // as Pro while require-pro.ts (the API gate) rejects the same user with
+  // 403 SUBSCRIPTION_REQUIRED, leaving them in a broken half-Pro state.
+  // Keep these two in lockstep: status = 'active' on both sides.
   const { data: memberships } = await supabase
     .from("organization_members")
     .select("status, organizations(subscription_status, is_beta)")
     .eq("user_id", userId)
-    .in("status", ["active", "pending"]);
+    .eq("status", "active");
 
   const hasOrgAccess = (memberships ?? []).some((m: Record<string, unknown>) => {
     const org = m.organizations as Record<string, unknown> | null;

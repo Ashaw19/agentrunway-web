@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import * as Sentry from "@sentry/nextjs";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { MobileNav } from "@/components/mobile-nav";
 import { TopBar } from "@/components/top-bar";
@@ -33,6 +34,13 @@ export default async function AppLayout({
   let financialContext = "No user data available.";
 
   if (user) {
+    // Attach the authenticated user to Sentry's request scope so server-side
+    // errors and captured exceptions are tagged with `user.id`. Without this,
+    // production errors in the (app) tree can't be traced back to a specific
+    // agent, which makes triage nearly impossible. Only id + email are sent —
+    // no names, no phone, no financial data.
+    Sentry.setUser({ id: user.id, email: user.email ?? undefined });
+
     // All data fetched in a single parallel round-trip
     const [
       { data: settings },

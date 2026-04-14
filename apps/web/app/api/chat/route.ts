@@ -358,6 +358,25 @@ export async function POST(req: NextRequest) {
             .eq("user_id", user.id),
         ]);
 
+        // Zero-data guard — on a brand-new account, the engines would emit a
+        // wall of misleading zeros ("0% of goal", "D grade", "$0 projected
+        // year-end"). Skip engine computation entirely and inject a clear
+        // onboarding hint so the AI knows to welcome the user instead of
+        // reciting a deficit.
+        const hasEngineData =
+          (transactions ?? []).length > 0 ||
+          (pipeline ?? []).length > 0 ||
+          (historyItems ?? []).length > 0 ||
+          expensesYTD > 0;
+        if (!hasEngineData) {
+          financialContext +=
+            "\n\n── ACCOUNT STATE ──\n" +
+            "This user has no business activity logged yet (no closed transactions, no pipeline deals, no history, no expenses). " +
+            "Do not cite goal %, projections, runway score, benchmark percentile, or survival figures — those are all meaningless without data. " +
+            "Welcome them, explain what Agent Runway can do for them, and guide them toward logging their first transaction or importing history.";
+          throw new Error("ZERO_DATA_SKIP_ENGINES"); // jump to catch block cleanly
+        }
+
         // ── Compute agent-specific seasonal weights (same logic as dashboard) ──
         // This ensures the AI uses the same seasonality as the dashboard projection card.
         const agentSeasonalWeights = (() => {
@@ -890,8 +909,12 @@ export async function POST(req: NextRequest) {
 
         financialContext += "\n\n" + engineLines.filter(Boolean).join("\n");
       } catch (engineErr) {
-        // Engine computation is non-critical — the AI still has raw financial data
-        log.warn({ err: engineErr }, "[chat] Engine computation failed, continuing with raw data");
+        // ZERO_DATA_SKIP_ENGINES is an intentional early-exit for brand-new
+        // accounts — not a failure, so we don't log it as a warning.
+        if ((engineErr as Error)?.message !== "ZERO_DATA_SKIP_ENGINES") {
+          // Engine computation is non-critical — the AI still has raw financial data
+          log.warn({ err: engineErr }, "[chat] Engine computation failed, continuing with raw data");
+        }
       }
     }
 

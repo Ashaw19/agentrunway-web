@@ -621,8 +621,17 @@ function buildInitialMessage(context: string): string {
   if (gciMatch && goalMatch) {
     const ytd = parseInt(gciMatch[1].replace(/,/g, ""));
     const goal = parseInt(goalMatch[1].replace(/,/g, ""));
-    const pct = Math.round((ytd / goal) * 100);
     const deals = dealsMatch ? parseInt(dealsMatch[1]) : 0;
+
+    // Zero-data onboarding: no closed deals AND no YTD income. A pct/behind
+    // narrative here would be misleading ("0% of goal, ground to make up")
+    // — the reality is they just haven't logged anything yet. Give them a
+    // welcoming onboarding nudge instead of a pep talk about a deficit.
+    if (deals === 0 && ytd === 0) {
+      return "Hey! I'm your Co-Pilot. I don't see any transactions yet — once you log your first deal or import history, I'll start turning your numbers into real answers.\n\nIn the meantime I can walk you through how Agent Runway works, explain any metric, or help you think through your goal for the year. What's on your mind?";
+    }
+
+    const pct = Math.round((ytd / goal) * 100);
     return `Hey! I've got your numbers in front of me.\n\nYou're at ${pct}% of your annual goal with ${deals} deal${deals !== 1 ? "s" : ""} closed. ${pct >= 75 ? "You're killing it — let's make sure you finish strong." : pct >= 50 ? "You're past the halfway mark — solid position." : "There's ground to make up, but the year isn't over."}\n\nWhat do you want to dig into?`;
   }
 

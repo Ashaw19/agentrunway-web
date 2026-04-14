@@ -22,6 +22,7 @@ import {
   BarChart2,
   Layers,
   UserPlus,
+  LifeBuoy,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
@@ -299,8 +300,17 @@ export function SidebarNav({
         </div>
       )}
 
-      {/* Visit marketing site */}
-      <div className="px-3 pb-3">
+      {/* Support contact + Visit marketing site.
+          Support is a plain mailto: so it works without any in-app form —
+          beta users (Ellis Realty) need a human-reachable escape hatch. */}
+      <div className="px-3 pb-3 space-y-1">
+        <a
+          href="mailto:support@agentrunway.ca"
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-colors"
+        >
+          <LifeBuoy className="h-3.5 w-3.5 shrink-0" />
+          Contact Support
+        </a>
         <Link
           href="/"
           className="flex items-center gap-2 w-full px-3 py-2 rounded-md text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-colors"

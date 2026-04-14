@@ -468,6 +468,14 @@ export function DashboardContent({
   const ytdDealCount = transactions.length;
   const avgDealSize = ytdDealCount > 0 ? ytdGCI / ytdDealCount : 0;
 
+  // ── Zero-data gate ────────────────────────────────────────────────────
+  // The Runway Score, pace percentile, and behind-goal % are only meaningful
+  // once there's business activity to score. On a brand-new account all five
+  // component inputs are zero, which collapses to a misleading "D / 0" hero.
+  // Any closed transaction OR historical import (prior-year data) is enough
+  // signal to render the real score.
+  const hasData = transactions.length > 0 || historyItems.length > 0;
+
   // ── Pipeline ──────────────────────────────────────────────────────────
   const pipelineWeightedGCI = pipelineDeals.reduce(
     (sum, d) => sum + computeWeightedGCI(d),
@@ -2338,19 +2346,31 @@ export function DashboardContent({
         {/* Subtle brand gradient accent at top */}
         <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: "linear-gradient(90deg, #F0A800 0%, #1E72F2 45%, #7C3AED 80%, #10B981 100%)" }} />
         <CardContent className="pt-5 pb-4">
-          <div className="flex flex-nowrap items-center justify-between gap-6">
+          {/* Stack vertically on mobile (<640px) — the two-column stats grid
+              on the right doesn't fit beside the grade circle at narrow
+              widths and overflows the card. Row layout resumes at sm+. */}
+          <div className="flex flex-col sm:flex-row sm:flex-nowrap sm:items-center sm:justify-between gap-4 sm:gap-6">
             {/* Left: grade circle + score */}
             <div className="flex items-center gap-5 min-w-0">
-              {/* Commission Gold grade circle — signature brand moment */}
+              {/* Commission Gold grade circle — signature brand moment.
+                  On a fresh account (no transactions or history) we show a
+                  neutral "—" placeholder so the user doesn't see a misleading
+                  D-grade before they've logged any activity. */}
               <div
                 className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-full"
-                style={{
+                style={hasData ? {
                   background: "linear-gradient(135deg, #F0A800 0%, #D97706 55%, #a85c00 100%)",
                   boxShadow: "0 0 24px rgba(240,168,0,0.45), 0 0 60px rgba(240,168,0,0.14), inset 0 1px 1px rgba(255,255,255,0.22)",
+                } : {
+                  background: "rgba(148, 163, 184, 0.12)",
+                  boxShadow: "inset 0 0 0 1px rgba(148, 163, 184, 0.3)",
                 }}
               >
-                <span className="text-2xl font-black leading-none" style={{ color: "#15110A" }}>
-                  {runwayScore.grade}
+                <span
+                  className="text-2xl font-black leading-none"
+                  style={{ color: hasData ? "#15110A" : "#94A3B8" }}
+                >
+                  {hasData ? runwayScore.grade : "—"}
                 </span>
               </div>
               <div className="min-w-0">
@@ -2359,24 +2379,30 @@ export function DashboardContent({
                     <p className="text-sm font-semibold text-slate-400">Runway Score</p>
                     <MetricInfo tip="A composite score across 5 factors: pace vs goal (35%), pipeline health (25%), expense ratio (15%), cash survival (15%), and benchmark ranking (10%)." />
                     <GuideLink anchor="runway-score" label="Runway Score explained in Guide" />
-                    {isPro && <ExplainButton question="How is my Runway Score calculated and what can I do to improve it?" />}
+                    {isPro && hasData && <ExplainButton question="How is my Runway Score calculated and what can I do to improve it?" />}
                   </span>
                   <RunwayScoreInfoDialog />
                 </div>
-                <div className="flex items-center gap-2.5 mt-0.5">
-                  <p className="text-4xl font-extrabold text-white leading-none">
-                    {runwayScore.score}
-                    <span className="text-base font-medium text-slate-500">/100</span>
+                {hasData ? (
+                  <div className="flex items-center gap-2.5 mt-0.5">
+                    <p className="text-4xl font-extrabold text-white leading-none">
+                      {runwayScore.score}
+                      <span className="text-base font-medium text-slate-500">/100</span>
+                    </p>
+                    <span className={cn(
+                      "text-[10px] font-semibold border rounded-full px-2 py-0 leading-5",
+                      scoreBand(runwayScore.score).colorClass,
+                    )}>
+                      {scoreBand(runwayScore.score).label}
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 mt-1 max-w-xs leading-snug">
+                    Your Runway Score appears after you log your first transaction or import history.
                   </p>
-                  <span className={cn(
-                    "text-[10px] font-semibold border rounded-full px-2 py-0 leading-5",
-                    scoreBand(runwayScore.score).colorClass,
-                  )}>
-                    {scoreBand(runwayScore.score).label}
-                  </span>
-                </div>
+                )}
                 {/* Month-over-month trend */}
-                {scoreDelta !== null && (
+                {hasData && scoreDelta !== null && (
                   <p className={cn(
                     "text-[10px] font-semibold tabular-nums mt-1",
                     scoreDelta > 0 ? "text-emerald-600" : scoreDelta < 0 ? "text-red-500" : "text-slate-400",
@@ -2469,34 +2495,41 @@ export function DashboardContent({
               </div>
             </div>
           </div>
-          {/* Narrative — full-width line below the score/stats row */}
-          <p className="mt-3 text-xs text-slate-400">{scoreNarrative}</p>
-          {/* Score components */}
-          <div className="mt-3 grid grid-cols-5 gap-3 border-t border-slate-700 pt-3">
-            {runwayScore.components.map((c) => {
-              // Bar colour reflects score tier — colour carries meaning, not decoration
-              const barColor = c.score >= 80 ? "[&>div]:bg-amber-500"
-                             : c.score >= 60 ? "[&>div]:bg-emerald-500"
-                             : c.score >= 40 ? "[&>div]:bg-blue-400"
-                             :                 "[&>div]:bg-red-400";
-              const textColor = c.score >= 80 ? "#D97706"
-                              : c.score >= 60 ? "#059669"
-                              : c.score >= 40 ? "#3b82f6"
-                              :                 "#ef4444";
-              return (
-              <div key={c.label} className="text-center">
-                <p className="text-[10px] font-semibold text-slate-400">{c.label}</p>
-                <p className="text-sm font-bold mt-0.5" style={{ color: textColor }}>
-                  {c.score}
-                </p>
-                <Progress value={c.score} className={cn("mt-1.5 h-2", barColor)} />
-              </div>
-              );
-            })}
-          </div>
+          {/* Narrative — full-width line below the score/stats row.
+              On zero-data we don't have a meaningful narrative, so we
+              suppress it entirely rather than print a misleading one. */}
+          {hasData && (
+            <p className="mt-3 text-xs text-slate-400">{scoreNarrative}</p>
+          )}
+          {/* Score components — hidden on zero-data; component scores are
+              all 0 until transactions exist and would just look broken. */}
+          {hasData && (
+            <div className="mt-3 grid grid-cols-5 gap-3 border-t border-slate-700 pt-3">
+              {runwayScore.components.map((c) => {
+                // Bar colour reflects score tier — colour carries meaning, not decoration
+                const barColor = c.score >= 80 ? "[&>div]:bg-amber-500"
+                               : c.score >= 60 ? "[&>div]:bg-emerald-500"
+                               : c.score >= 40 ? "[&>div]:bg-blue-400"
+                               :                 "[&>div]:bg-red-400";
+                const textColor = c.score >= 80 ? "#D97706"
+                                : c.score >= 60 ? "#059669"
+                                : c.score >= 40 ? "#3b82f6"
+                                :                 "#ef4444";
+                return (
+                <div key={c.label} className="text-center">
+                  <p className="text-[10px] font-semibold text-slate-400">{c.label}</p>
+                  <p className="text-sm font-bold mt-0.5" style={{ color: textColor }}>
+                    {c.score}
+                  </p>
+                  <Progress value={c.score} className={cn("mt-1.5 h-2", barColor)} />
+                </div>
+                );
+              })}
+            </div>
+          )}
           {/* Deviation insights — progressive disclosure: collapsed by default */}
           {/* Suppress before mid-Feb: annualization math unreliable with < 2 months YTD data */}
-          {fraction * 12 >= 2 && deviationMessages.length > 0 && (
+          {hasData && fraction * 12 >= 2 && deviationMessages.length > 0 && (
             <details className="mt-3 border-t border-slate-700 pt-2 group">
               <summary className="text-[10px] text-slate-500 cursor-pointer hover:text-slate-400 transition-colors select-none list-none flex items-center gap-1">
                 <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />

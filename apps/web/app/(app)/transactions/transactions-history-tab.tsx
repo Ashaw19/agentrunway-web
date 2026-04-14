@@ -1991,12 +1991,19 @@ function findTrackerHeaders(rows: string[][]): TrackerHeaders | null {
   return null;
 }
 
-/** Parse a messy date cell from the agent tracker into YYYY-MM-DD. */
-function parseTrackerDate(raw: string, year: number): string {
+/** Parse a messy date cell from the agent tracker into YYYY-MM-DD.
+ *  Returns `null` for blank or unparseable input — callers MUST surface this
+ *  to the user rather than silently fabricating a mid-year date. Historically
+ *  this function returned `${year}-06-15` as a fallback, which meant any row
+ *  with a missing or malformed date was quietly backdated to June 15th and
+ *  landed in Q2 of the quarter_gci breakdown. That corrupted seasonality
+ *  calculations, deal-pace benchmarking, and any month-of-year analytics. */
+function parseTrackerDate(raw: string, year: number): string | null {
   const s = raw?.trim() ?? "";
-  if (!s) return `${year}-06-15`;
+  if (!s) return null;
 
-  // Q1 / Q2 / Q3 / Q4
+  // Q1 / Q2 / Q3 / Q4 — the cell explicitly claims a quarter, so using the
+  // quarter-end as the date is accurate, not fabricated.
   const qm = s.match(/^Q([1-4])$/i);
   if (qm) {
     const ends = [{ m: 3, d: 31 }, { m: 6, d: 30 }, { m: 9, d: 30 }, { m: 12, d: 31 }];
@@ -2021,7 +2028,36 @@ function parseTrackerDate(raw: string, year: number): string {
     const day = String(d.getDate()).padStart(2, "0");
     return `${y}-${m}-${day}`;
   }
-  return `${year}-06-15`;
+  return null;
+}
+
+/**
+ * Parse a money cell from an agent tracker.
+ * Handles common variants:
+ *   - Currency symbols / prefixes: "$14,500", "CA$14,500", "USD 14500", "14500"
+ *   - Accounting-style negatives: "(14,500)"  →  -14500
+ *   - Leading minus:              "-14,500"    →  -14500
+ *   - Whitespace, non-breaking spaces, and thousands separators.
+ * Returns `NaN` for blank or unparseable input so callers can `if (!Number.isFinite(x))` skip it.
+ */
+function parseTrackerMoney(raw: string): number {
+  if (!raw) return NaN;
+  let s = String(raw).trim();
+  if (!s) return NaN;
+  // Accounting negative: "(1,234)" or "(1234.56)"
+  let sign = 1;
+  if (/^\(.*\)$/.test(s)) {
+    sign = -1;
+    s = s.slice(1, -1).trim();
+  }
+  // Drop currency prefixes (CA$, US$, USD, CAD, $, €, £) and thousands separators
+  s = s.replace(/(?:^|\s)(ca\$|us\$|cad|usd)\s*/gi, "")
+       .replace(/[$£€]/g, "")
+       .replace(/[,\s\u00A0]/g, "");
+  if (!s || s === "-" || s === ".") return NaN;
+  const n = parseFloat(s);
+  if (!Number.isFinite(n)) return NaN;
+  return sign * n;
 }
 
 /** Parse all deal rows from a tracker sheet.
@@ -2047,16 +2083,17 @@ function parseTrackerSheet(
     // Skip blank / total / header rows
     if (!name || /^(totals?|number|name|transaction|$)/i.test(name)) continue;
 
-    // Strip $ and commas: "$14,500" → 14500
-    const rawGCI = (row[moneyCol] ?? "").replace(/[$,\s]/g, "");
-    const gci = parseFloat(rawGCI) || 0;
-    if (gci <= 0) continue;
+    // Parse money with accounting-negative + CA$ support. A deal with a
+    // blank, negative, or unparseable GCI cell is a data-entry error on the
+    // agent's side — skip it rather than silently coercing to $0 and landing
+    // a phantom zero-dollar deal in the history.
+    const gci = parseTrackerMoney(row[moneyCol] ?? "");
+    if (!Number.isFinite(gci) || gci <= 0) continue;
 
     // Collect split ratios when both GCI and Net columns exist
     if (hdrs.gciCol >= 0 && hdrs.netCol >= 0) {
-      const rawNet = (row[hdrs.netCol] ?? "").replace(/[$,\s]/g, "");
-      const netVal = parseFloat(rawNet) || 0;
-      if (netVal > 0 && netVal < gci) {
+      const netVal = parseTrackerMoney(row[hdrs.netCol] ?? "");
+      if (Number.isFinite(netVal) && netVal > 0 && netVal < gci) {
         splitRatios.push(netVal / gci);
       }
     }
@@ -2072,8 +2109,15 @@ function parseTrackerSheet(
     const address = (hdrs.addrCol   >= 0 ? row[hdrs.addrCol]?.trim()   : "") ?? "";
     const rawDate = (hdrs.dateCol   >= 0 ? row[hdrs.dateCol]?.trim()   : "") ?? "";
 
+    // Skip rows with missing/unparseable dates. Fabricating a date silently
+    // drops the deal into the wrong quarter and corrupts seasonality. The
+    // UI surfaces skipped rows via deals.length < raw-row count so the user
+    // can see how many rows were dropped and fix the source data.
+    const parsedDate = parseTrackerDate(rawDate, sheetYear);
+    if (!parsedDate) continue;
+
     deals.push({
-      date:       parseTrackerDate(rawDate, sheetYear),
+      date:       parsedDate,
       address,
       sale_price: null,  // local tracker parsing — sale price not extracted from column
       gci,

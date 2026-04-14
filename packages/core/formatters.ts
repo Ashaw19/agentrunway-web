@@ -14,8 +14,10 @@ export function fmtCurrency(value: number): string {
   return cadFormatter.format(value);
 }
 
-/** Format as percentage: 25% or 25.5% */
+/** Format as percentage: 25% or 25.5%. Returns em-dash for NaN / Infinity
+ *  (e.g. when a ratio is 0/0 on a zero-data day). */
 export function fmtPct(value: number): string {
+  if (!Number.isFinite(value)) return "—";
   const pct = value * 100;
   return pct === Math.floor(pct) ? `${pct}%` : `${pct.toFixed(1)}%`;
 }
