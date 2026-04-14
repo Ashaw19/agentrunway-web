@@ -1,14 +1,7 @@
-import type { McpServer } from "npm:@modelcontextprotocol/sdk@1/server/mcp.js";
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
+import type { McpTool } from "./index.ts";
 
-/**
- * Settings tools — Step 9
- * get_user_settings
- */
-export function registerSettingsTools(
-  _server: McpServer,
-  _supabase: SupabaseClient,
-  _userId: string,
-): void {
-  // Implemented in Step 9
+/** Settings tools — Step 9: get_user_settings */
+export function getSettingsTools(_supabase: SupabaseClient, _userId: string): McpTool[] {
+  return []; // Implemented in Step 9
 }

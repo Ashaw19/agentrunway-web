@@ -4,24 +4,22 @@
  * Exposes Agent Runway business data to MCP-compatible AI clients
  * (Claude, Cursor, etc.) via the Model Context Protocol.
  *
- * Transport:  Streamable HTTP (current MCP standard, replaces SSE)
- * Auth:       Supabase OAuth 2.1 Server — Bearer token per request
+ * Transport:  Streamable HTTP — manual JSON-RPC 2.0 handler
+ *             (WebStandardStreamableHTTPServerTransport has a Deno
+ *              subpath resolution issue; manual impl is simpler here)
+ * Auth:       Bearer token (Supabase OAuth 2.1 access token)
  * Gate:       Pro subscription or beta org membership required
+ * Protocol:   MCP 2024-11-05
  * URL:        https://wlxkvnbncfzkmxzexgxt.supabase.co/functions/v1/mcp-server
- *
- * Deploy:
- *   pnpm build:mcp-shared
- *   supabase functions deploy mcp-server --project-ref wlxkvnbncfzkmxzexgxt
  */
 
-import { McpServer } from "npm:@modelcontextprotocol/sdk@1/server/mcp.js";
-import { WebStandardStreamableHTTPServerTransport } from "npm:@modelcontextprotocol/sdk@1/server/web.js";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { checkIsPro } from "./pro-gate.ts";
-import { registerAllTools } from "./tools/index.ts";
+import { buildToolRegistry, type McpTool } from "./tools/index.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+const PROTOCOL_VERSION = "2024-11-05";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -30,12 +28,33 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, GET, DELETE, OPTIONS",
 };
 
+// ── Types ──────────────────────────────────────────────────────────────────
+
+interface JsonRpcRequest {
+  jsonrpc: "2.0";
+  id: string | number | null;
+  method: string;
+  params?: unknown;
+}
+
+interface JsonRpcResponse {
+  jsonrpc: "2.0";
+  id: string | number | null;
+  result?: unknown;
+  error?: { code: number; message: string; data?: unknown };
+}
+
 // ── Request handler ────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
   // CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
+  }
+
+  // Only accept POST for MCP
+  if (req.method !== "POST") {
+    return jsonError(405, "Method not allowed.");
   }
 
   // ── Auth: extract Bearer token ───────────────────────────────────────────
@@ -70,77 +89,124 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  // ── MCP: create server + transport per request (stateless mode) ──────────
-  const server = new McpServer({
-    name: "Agent Runway",
-    version: "1.0.0",
-  });
-
-  // Register the server_info tool (always available)
-  server.tool(
-    "get_server_info",
-    "Returns information about the Agent Runway MCP server, its version, and the list of available tools.",
-    {},
-    async () => ({
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify(
-            {
-              name: "Agent Runway",
-              version: "1.0.0",
-              description:
-                "Real estate business analytics for Canadian agents — transactions, pipeline, CRM, expenses, forecasts, and AI insights.",
-              url: "https://agentrunway.ca",
-              available_tools: [
-                "get_server_info",
-                // Phase 1 tools added in Steps 4–9:
-                // "get_dashboard_kpis", "get_runway_score", "get_forecast", "get_tax_estimate",
-                // "get_transactions", "get_transaction_summary",
-                // "get_pipeline", "get_pipeline_forecast",
-                // "get_clients", "get_client_detail",
-                // "get_expenses", "get_mileage_summary",
-                // "get_flight_control_priorities", "get_user_settings",
-              ],
-              phase: "Scaffold — Phase 1 tools coming in Steps 4–9",
-            },
-            null,
-            2,
-          ),
-        },
-      ],
-    }),
-  );
-
-  // Register all domain tools (populated in Steps 4–9)
-  registerAllTools(server, supabase, user.id);
-
-  // ── MCP: handle the request ───────────────────────────────────────────────
-  const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: undefined, // stateless — no session persistence
-  });
-
-  await server.connect(transport);
-
-  const mcpResponse = await transport.handleRequest(req);
-
-  // Add CORS headers to the MCP response
-  const responseHeaders = new Headers(mcpResponse.headers);
-  for (const [key, value] of Object.entries(CORS_HEADERS)) {
-    responseHeaders.set(key, value);
+  // ── MCP: parse JSON-RPC request ───────────────────────────────────────────
+  let rpcRequest: JsonRpcRequest;
+  try {
+    rpcRequest = await req.json() as JsonRpcRequest;
+  } catch {
+    return mcpError(null, -32700, "Parse error");
   }
 
-  return new Response(mcpResponse.body, {
-    status: mcpResponse.status,
-    headers: responseHeaders,
+  if (rpcRequest.jsonrpc !== "2.0") {
+    return mcpError(rpcRequest.id ?? null, -32600, "Invalid Request");
+  }
+
+  // ── MCP: build tool registry & route ─────────────────────────────────────
+  const tools = buildToolRegistry(supabase, user.id);
+  const response = await routeRequest(rpcRequest, tools);
+
+  return new Response(JSON.stringify(response), {
+    status: 200,
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
 });
+
+// ── MCP protocol router ────────────────────────────────────────────────────
+
+async function routeRequest(
+  req: JsonRpcRequest,
+  tools: McpTool[],
+): Promise<JsonRpcResponse> {
+  const { method, id, params } = req;
+
+  try {
+    switch (method) {
+      // MCP handshake
+      case "initialize":
+        return {
+          jsonrpc: "2.0",
+          id,
+          result: {
+            protocolVersion: PROTOCOL_VERSION,
+            capabilities: { tools: {} },
+            serverInfo: { name: "Agent Runway", version: "1.0.0" },
+          },
+        };
+
+      case "notifications/initialized":
+        // Notification — no response body needed, but MCP spec allows empty result
+        return { jsonrpc: "2.0", id, result: {} };
+
+      case "ping":
+        return { jsonrpc: "2.0", id, result: {} };
+
+      // Tool discovery
+      case "tools/list":
+        return {
+          jsonrpc: "2.0",
+          id,
+          result: {
+            tools: tools.map(({ name, description, inputSchema }) => ({
+              name,
+              description,
+              inputSchema,
+            })),
+          },
+        };
+
+      // Tool invocation
+      case "tools/call": {
+        const p = params as { name?: string; arguments?: unknown };
+        const toolName = p?.name;
+        const toolArgs = p?.arguments ?? {};
+
+        const tool = tools.find((t) => t.name === toolName);
+        if (!tool) {
+          return {
+            jsonrpc: "2.0",
+            id,
+            error: { code: -32602, message: `Unknown tool: ${toolName}` },
+          };
+        }
+
+        const result = await tool.handler(toolArgs);
+        return { jsonrpc: "2.0", id, result };
+      }
+
+      default:
+        return {
+          jsonrpc: "2.0",
+          id,
+          error: { code: -32601, message: "Method not found" },
+        };
+    }
+  } catch (err: unknown) {
+    console.error("[mcp-server] Tool error:", err);
+    return {
+      jsonrpc: "2.0",
+      id,
+      error: { code: -32603, message: "Internal error" },
+    };
+  }
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function jsonError(status: number, message: string): Response {
   return new Response(JSON.stringify({ error: message }), {
     status,
+    headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+  });
+}
+
+function mcpError(
+  id: string | number | null,
+  code: number,
+  message: string,
+): Response {
+  const body: JsonRpcResponse = { jsonrpc: "2.0", id, error: { code, message } };
+  return new Response(JSON.stringify(body), {
+    status: 200, // MCP errors are returned as 200 with error in JSON-RPC body
     headers: { "Content-Type": "application/json", ...CORS_HEADERS },
   });
 }

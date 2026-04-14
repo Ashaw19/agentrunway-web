@@ -1,23 +1,73 @@
-import type { McpServer } from "npm:@modelcontextprotocol/sdk@1/server/mcp.js";
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
-import { registerAnalyticsTools } from "./analytics.ts";
-import { registerTransactionTools } from "./transactions.ts";
-import { registerPipelineTools } from "./pipeline.ts";
-import { registerCrmTools } from "./crm.ts";
-import { registerExpenseTools } from "./expenses.ts";
-import { registerOutreachTools } from "./outreach.ts";
-import { registerSettingsTools } from "./settings.ts";
+import { getAnalyticsTools } from "./analytics.ts";
+import { getTransactionTools } from "./transactions.ts";
+import { getPipelineTools } from "./pipeline.ts";
+import { getCrmTools } from "./crm.ts";
+import { getExpenseTools } from "./expenses.ts";
+import { getOutreachTools } from "./outreach.ts";
+import { getSettingsTools } from "./settings.ts";
 
-export function registerAllTools(
-  server: McpServer,
+// Each tool: name, description, JSON Schema for input, and async handler
+export interface McpTool {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  handler: (args: unknown) => Promise<McpToolResult>;
+}
+
+export interface McpToolResult {
+  content: Array<{ type: "text"; text: string }>;
+  isError?: boolean;
+}
+
+export function buildToolRegistry(
   supabase: SupabaseClient,
   userId: string,
-): void {
-  registerAnalyticsTools(server, supabase, userId);   // Step 4
-  registerTransactionTools(server, supabase, userId); // Step 5
-  registerPipelineTools(server, supabase, userId);    // Step 6
-  registerCrmTools(server, supabase, userId);         // Step 7
-  registerExpenseTools(server, supabase, userId);     // Step 8
-  registerOutreachTools(server, supabase, userId);    // Step 9
-  registerSettingsTools(server, supabase, userId);    // Step 9
+): McpTool[] {
+  return [
+    // Always available
+    {
+      name: "get_server_info",
+      description:
+        "Returns information about the Agent Runway MCP server, its version, and the list of available tools.",
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      handler: async () => ({
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                name: "Agent Runway",
+                version: "1.0.0",
+                description:
+                  "Real estate business analytics for Canadian agents — transactions, pipeline, CRM, expenses, forecasts, and AI insights.",
+                url: "https://agentrunway.ca",
+                available_tools: [
+                  "get_server_info",
+                  // Phase 1 tools added in Steps 4–9:
+                  // "get_dashboard_kpis", "get_runway_score", "get_forecast", "get_tax_estimate",
+                  // "get_transactions", "get_transaction_summary",
+                  // "get_pipeline", "get_pipeline_forecast",
+                  // "get_clients", "get_client_detail",
+                  // "get_expenses", "get_mileage_summary",
+                  // "get_flight_control_priorities", "get_user_settings",
+                ],
+                phase: "Scaffold — Phase 1 tools coming in Steps 4–9",
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      }),
+    },
+    // Domain tools — populated per step
+    ...getAnalyticsTools(supabase, userId),    // Step 4
+    ...getTransactionTools(supabase, userId),  // Step 5
+    ...getPipelineTools(supabase, userId),     // Step 6
+    ...getCrmTools(supabase, userId),          // Step 7
+    ...getExpenseTools(supabase, userId),      // Step 8
+    ...getOutreachTools(supabase, userId),     // Step 9
+    ...getSettingsTools(supabase, userId),     // Step 9
+  ];
 }
