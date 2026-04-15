@@ -49,6 +49,11 @@ const CSP = [
 ].join("; ");
 
 const securityHeaders = [
+  // Force HTTPS for 1 year across the apex + every subdomain. No `preload`
+  // flag yet — preload is a one-way commitment to Chrome's hardcoded HSTS
+  // list that can take weeks to reverse. Revisit once the policy has been
+  // stable in production for 3+ months.
+  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
   // Prevent the page from being embedded in iframes (clickjacking defence)
   { key: "X-Frame-Options", value: "DENY" },
   // Stop browsers from MIME-sniffing response content-type

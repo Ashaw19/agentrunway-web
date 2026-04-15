@@ -42,7 +42,9 @@ export default function SignUpScreen() {
       setError(t("signup.errors.passwordMismatch"));
       return;
     }
-    if (password.length < 6) {
+    // Minimum password length — kept in sync with supabase/config.toml and
+    // the web app's auth/update-password/page.tsx + login/page.tsx.
+    if (password.length < 10) {
       setError(t("signup.errors.passwordTooShort"));
       return;
     }

@@ -15,8 +15,12 @@ import {
 } from "@/components/ui/card";
 import { Plane } from "lucide-react";
 
+// Minimum password length — kept in sync with supabase/config.toml and the
+// Supabase dashboard's Authentication → Policies → Password Security setting.
+const MIN_PASSWORD_LENGTH = 10;
+
 function friendlyPasswordError(msg: string): string {
-  if (msg.includes("at least 6 characters")) return msg;
+  if (msg.includes("at least") && msg.includes("characters")) return msg;
   if (msg.includes("same as")) return "New password must be different from your current password.";
   if (msg.includes("rate limit")) return "Too many attempts. Please wait a moment and try again.";
   return "Something went wrong. Please try again.";
@@ -37,8 +41,8 @@ export default function UpdatePasswordPage() {
       setError("Passwords do not match.");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
       return;
     }
 
@@ -72,8 +76,8 @@ export default function UpdatePasswordPage() {
                 id="password"
                 type="password"
                 required
-                minLength={6}
-                placeholder="At least 6 characters"
+                minLength={MIN_PASSWORD_LENGTH}
+                placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -84,7 +88,7 @@ export default function UpdatePasswordPage() {
                 id="confirm"
                 type="password"
                 required
-                minLength={6}
+                minLength={MIN_PASSWORD_LENGTH}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
               />

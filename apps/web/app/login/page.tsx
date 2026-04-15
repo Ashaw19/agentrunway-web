@@ -17,11 +17,16 @@ import { Plane, CheckCircle2 } from "lucide-react";
 
 type Mode = "signin" | "signup" | "reset" | "reset-sent";
 
+// Minimum password length — kept in sync with supabase/config.toml and the
+// Supabase dashboard's Authentication → Policies → Password Security setting.
+const MIN_PASSWORD_LENGTH = 10;
+
 function friendlyAuthError(msg: string): string {
   if (msg.includes("Invalid login credentials")) return "Incorrect email or password.";
   if (msg.includes("User already registered")) return "An account with this email already exists.";
   if (msg.includes("Email not confirmed")) return "Please check your email to confirm your account.";
   if (msg.includes("rate limit")) return "Too many attempts. Please wait a moment and try again.";
+  if (msg.includes("at least") && msg.includes("characters")) return msg;
   return "Something went wrong. Please try again.";
 }
 
@@ -53,6 +58,14 @@ export default function LoginPage() {
     const supabase = createClient();
 
     if (mode === "signup") {
+      // Client-side guard: match the server-side Supabase minimum so users
+      // see a friendly message instead of a raw "Password should be at least
+      // X characters" error from Supabase.
+      if (password.length < MIN_PASSWORD_LENGTH) {
+        setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+        setLoading(false);
+        return;
+      }
       // Pass redirect through email confirmation link so the user returns
       // to the right page (e.g. /invite/TOKEN) after confirming their email.
       const origin = window.location.origin;
@@ -191,7 +204,11 @@ export default function LoginPage() {
                     id="password"
                     type="password"
                     required
-                    minLength={6}
+                    // Only constrain length on signup — existing accounts may
+                    // have shorter passwords from the previous policy; sign-in
+                    // still needs to accept them and prompt for a reset later.
+                    minLength={mode === "signup" ? MIN_PASSWORD_LENGTH : undefined}
+                    placeholder={mode === "signup" ? `At least ${MIN_PASSWORD_LENGTH} characters` : undefined}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
