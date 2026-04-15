@@ -13,7 +13,7 @@
 // the process and reaches Sentry's servers.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import type { Event, EventHint } from "@sentry/nextjs";
+import type { ErrorEvent, EventHint, TransactionEvent } from "@sentry/nextjs";
 
 // ── PII regex patterns ──────────────────────────────────────────────────────
 // Kept deliberately permissive to err on the side of redaction.
@@ -53,21 +53,31 @@ function walk(value: unknown, depth = 0): unknown {
   return value;
 }
 
-/**
- * Sentry `beforeSend` / `beforeSendTransaction` hook.
- * Returns the scrubbed event, or null to drop it entirely.
- */
-export function scrubEvent(event: Event, _hint?: EventHint): Event | null {
-  // Redact the canonical user-identity fields first — Sentry treats these as
-  // PII already but we want them hashed/masked, not null, so we can still
-  // correlate by user-id.
+/** Common user-context redaction: masks identity fields, preserves internal UUID. */
+function scrubUserFields(event: { user?: { email?: string | null; ip_address?: string | null; username?: string | null } }): void {
   if (event.user) {
     if (event.user.email) event.user.email = "[redacted-email]";
     if (event.user.ip_address) event.user.ip_address = "[redacted-ip]";
     if (event.user.username) event.user.username = "[redacted-username]";
     // Preserve event.user.id (our internal UUID, not PII).
   }
+}
 
-  // Walk every remaining string in the event tree through the redactor.
-  return walk(event) as Event;
+/**
+ * Sentry `beforeSend` hook (error events).
+ * Redacts user identity fields, walks the event tree, scrubs PII from every
+ * string. Returns the scrubbed event or null to drop it entirely.
+ */
+export function scrubErrorEvent(event: ErrorEvent, _hint?: EventHint): ErrorEvent | null {
+  scrubUserFields(event);
+  return walk(event) as ErrorEvent;
+}
+
+/**
+ * Sentry `beforeSendTransaction` hook (performance / tracing events).
+ * Same scrubbing applied to transaction events.
+ */
+export function scrubTransactionEvent(event: TransactionEvent, _hint?: EventHint): TransactionEvent | null {
+  scrubUserFields(event);
+  return walk(event) as TransactionEvent;
 }

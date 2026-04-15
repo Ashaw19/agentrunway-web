@@ -9,7 +9,7 @@
 //   has explicitly accepted cookies via the consent banner.
 
 import * as Sentry from "@sentry/nextjs";
-import { scrubEvent } from "@/lib/sentry-scrubber";
+import { scrubErrorEvent, scrubTransactionEvent } from "@/lib/sentry-scrubber";
 
 // Instrument client-side navigation transitions for performance monitoring
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
@@ -48,8 +48,8 @@ Sentry.init({
   // Defense-in-depth PII scrubbing on every outgoing event (errors + transactions).
   // Complements `maskAllText: true` on session replay above — that masks DOM text;
   // this scrubs event payloads (error messages, breadcrumbs, tags, etc.).
-  beforeSend: scrubEvent,
-  beforeSendTransaction: scrubEvent,
+  beforeSend: scrubErrorEvent,
+  beforeSendTransaction: scrubTransactionEvent,
 });
 
 // Listen for mid-session consent changes so replay can be enabled if the user
