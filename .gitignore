@@ -1,6 +1,9 @@
 # dependencies
 node_modules
 
+# Local DB dumps (contain user PII — never commit; see scripts/db/dump-production.sh)
+/backups/
+
 # pnpm
 .pnp
 .pnp.*

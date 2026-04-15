@@ -158,9 +158,16 @@ These are the things we maintain *before* an incident so the response is fast.
 - [x] Dependabot running weekly, security updates immediate
 - [x] GitHub secret scanning enabled on the repository
 - [x] `security.txt` at `/.well-known/security.txt`
-- [ ] Supabase backup restore drill (run quarterly, last run: never — do this)
 - [ ] Cyber-liability insurance in force (pending incorporation)
 - [ ] Incident-response tabletop exercise (run annually, last run: never — do this once the company has a second person)
+
+### Backups
+
+**Production is on Supabase Free, which provides NO automated backups and NO point-in-time recovery.** Until that changes, the only safety net is the manual dump procedure in §8 below. Decision pending: upgrade to Pro ($25/mo) for daily automated backups + 7-day retention, or stay on Free with weekly manual dumps.
+
+- [ ] Run `scripts/db/dump-production.sh` weekly (last run: never)
+- [ ] Run a restore drill on a fresh project quarterly (last run: never — do this)
+- [ ] Decide on Pro plan upgrade for automated backups (pending user decision)
 
 ---
 
@@ -175,3 +182,31 @@ After the first real SEV-1 or SEV-2 incident this runbook gets rewritten based o
 | Date | Change | Reviewer |
 |------|--------|----------|
 | 2026-04-15 | Initial version | Andrew Shaw |
+| 2026-04-15 | Added §8 backup + restore procedure; flagged Free-plan backup gap | Andrew Shaw |
+
+---
+
+## 8. Backup + restore procedure
+
+### Take a manual backup
+
+```bash
+./scripts/db/dump-production.sh
+```
+
+This writes `backups/<timestamp>/` containing `schema.sql`, `data.sql`, `roles.sql`, and `manifest.json`. The `backups/` directory is gitignored — these dumps contain user PII and **must never be committed**. After running, copy the directory to encrypted off-machine storage (cloud drive, external disk).
+
+### Restore to a fresh Supabase project (recovery drill or real recovery)
+
+1. Create a new Supabase project in the same region (`ca-central-1`) via the dashboard.
+2. Link the local CLI to the new project: `cd apps/web && npx supabase link --project-ref <new-ref>`.
+3. Apply roles first: `npx supabase db push --linked --include-all` then `psql "$NEW_DB_URL" -f backups/<ts>/roles.sql`.
+4. Apply schema: `psql "$NEW_DB_URL" -f backups/<ts>/schema.sql`.
+5. Apply data: `psql "$NEW_DB_URL" -f backups/<ts>/data.sql`.
+6. Spot-check a handful of user records via `npx supabase db query` to verify integrity.
+7. Update `NEXT_PUBLIC_SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` in Vercel to point at the new project.
+8. Redeploy. Verify users can sign in and dashboard loads.
+
+### Once on Pro
+
+Pro plan provides one-click PITR restore via the dashboard. The manual procedure above becomes a fallback rather than the primary recovery path, but `dump-production.sh` is still useful for off-cloud copies before risky migrations.
