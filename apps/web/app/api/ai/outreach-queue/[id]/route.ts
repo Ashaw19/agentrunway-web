@@ -74,6 +74,9 @@ export async function PATCH(
     }
   }
 
+  // Belt-and-suspenders: .eq("user_id", userId) below is the app-level ownership
+  // guard. If the row does not belong to this user, .single() returns an error
+  // (no rows matched) and we return 404 — avoiding enumeration of other users' IDs.
   const { data, error } = await supabase
     .from("outreach_queue")
     .update(allowed)
@@ -83,6 +86,11 @@ export async function PATCH(
     .single();
 
   if (error) {
+    // PGRST116 = no rows found → item doesn't exist or doesn't belong to this user
+    const isNotFound = (error as { code?: string }).code === "PGRST116";
+    if (isNotFound) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
     console.error("[outreach-queue] PATCH error:", error);
     return NextResponse.json({ error: "Failed to update draft" }, { status: 500 });
   }

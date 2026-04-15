@@ -77,6 +77,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Belt-and-suspenders: explicit app-level ownership check.
+    // The .eq("user_id", user.id) filter above already guarantees this; this
+    // assertion ensures correctness survives any future query refactor.
+    if (item.user_id !== user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     // ── 2. Verify client has an email ─────────────────────────────────────
     const toEmail = item.clients?.email?.trim();
     if (!toEmail) {

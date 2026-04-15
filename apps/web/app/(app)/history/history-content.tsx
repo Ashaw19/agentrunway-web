@@ -705,10 +705,25 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       } else if (fileType === "csv") {
         // ── CSV: read as plain text ──────────────────────────────────────────
         textContent = (await file.text()).replace(/^\uFEFF/, ""); // strip UTF-8 BOM
+        // Detect potential Latin-1 / Windows-1252 encoding: UTF-8 decode failures
+        // produce U+FFFD replacement chars. Common with CSVs from older Canadian
+        // real-estate software (Lone Wolf, RE/MAX legacy exports).
+        if (textContent.includes("\uFFFD")) {
+          toast.warning(
+            "This file may not be saved as UTF-8 — accented characters (é, à, ç) may appear incorrectly in client names. For best results, re-save as UTF-8 CSV before importing.",
+            { duration: 9000 },
+          );
+        }
 
       } else if (fileType === "txt") {
         // ── TXT: read as plain text (freeform narrative / Format C) ─────────
         textContent = (await file.text()).replace(/^\uFEFF/, ""); // strip UTF-8 BOM
+        if (textContent.includes("\uFFFD")) {
+          toast.warning(
+            "This file may not be saved as UTF-8 — some characters may appear incorrectly. For best results, re-save as UTF-8 before importing.",
+            { duration: 9000 },
+          );
+        }
       }
 
       setImportStatus("extracting");
@@ -2002,6 +2017,16 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
                     I have reviewed the GCI and Net Income values against my brokerage statement and confirm they are correct.
                   </span>
                 </label>
+              )}
+
+              {/* Replace-warning: shown when saving would overwrite an existing year */}
+              {items.some((i) => i.year === importData.year) && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+                  <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <span>
+                    You already have data for <strong>{importData.year}</strong>. Saving will overwrite your existing entries for that year.
+                  </span>
+                </div>
               )}
 
               {/* Actions */}
