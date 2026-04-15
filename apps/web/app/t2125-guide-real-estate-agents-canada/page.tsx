@@ -741,6 +741,17 @@ export default function T2125GuidePage() {
                 Read the Founder Story
               </Link>
             </div>
+
+            {/* Soft CTA to free tax estimator */}
+            <p className="mt-6 text-sm text-slate-400">
+              Want a quick estimate first?{" "}
+              <Link
+                href="/tools/realtor-tax-estimator"
+                className="font-semibold text-blue-400 underline underline-offset-2 hover:text-blue-300"
+              >
+                Try the free Canadian Realtor Tax Estimator →
+              </Link>
+            </p>
           </div>
         </section>
 

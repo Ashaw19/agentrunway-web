@@ -129,6 +129,17 @@ export default function TaxSavingsGuidePage() {
             <ScrollRevealSection>
               <TaxSavingsCalculator />
             </ScrollRevealSection>
+
+            {/* Cross-link: full tax estimator for detailed breakdown */}
+            <div className="mt-10 rounded-xl border border-blue-200 bg-blue-50 p-5">
+              <p className="text-sm text-blue-900">
+                <strong>Want the full breakdown?</strong>{" "}
+                The <Link href="/tools/realtor-tax-estimator" className="font-semibold text-blue-700 underline underline-offset-2 hover:text-blue-900">Canadian Realtor Tax Estimator</Link>{" "}
+                shows federal tax, provincial tax, CPP/QPP, quarterly instalment amounts,
+                and per-deal set-asides — with the full 2025 bracket-by-bracket calculation
+                for every province and territory.
+              </p>
+            </div>
           </div>
         </section>
 

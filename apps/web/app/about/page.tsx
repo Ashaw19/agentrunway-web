@@ -15,6 +15,7 @@ import {
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
+import { andrewShawPersonSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "About Agent Runway | Built by a Real Estate Agent, for Real Estate Agents",
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
 
 // ── JSON-LD structured data ──────────────────────────────────────────────────
 
-const JSON_LD = {
+const JSON_LD_ABOUT = {
   "@context": "https://schema.org",
   "@type": "AboutPage",
   name: "About Agent Runway",
@@ -43,14 +44,14 @@ const JSON_LD = {
     name: "Agent Runway",
     applicationCategory: "BusinessApplication",
     operatingSystem: "Web",
-    creator: {
-      "@type": "Person",
-      name: "Andrew Shaw",
-      jobTitle: "Real Estate Agent & Founder",
-      address: { "@type": "PostalAddress", addressRegion: "NB", addressCountry: "CA" },
-    },
+    creator: { "@id": "https://agentrunway.ca/about/andrew-shaw#person" },
   },
 };
+
+const JSON_LD_BREADCRUMB = breadcrumbSchema([
+  { name: "Home", url: "/" },
+  { name: "About", url: "/about" },
+]);
 
 // ── "Who it's for" cards ──────────────────────────────────────────────────────
 
@@ -89,7 +90,15 @@ export default function AboutPage() {
     <div className="flex min-h-screen flex-col bg-slate-950">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD_ABOUT) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(andrewShawPersonSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD_BREADCRUMB) }}
       />
 
       {/* ── Navigation ── */}

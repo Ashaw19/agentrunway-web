@@ -173,6 +173,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
     {
+      url: `${BASE_URL}/tools`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
       url: `${BASE_URL}/tools/realtor-tax-estimator`,
       lastModified: now,
       changeFrequency: "monthly",

@@ -794,6 +794,15 @@ export default function BusinessExpensesGuidePage() {
                 Read the founder story
               </Link>
             </div>
+            <p className="mt-6 text-sm text-slate-300">
+              Want to see how your expenses affect your tax bill?{" "}
+              <Link
+                href="/tools/realtor-tax-estimator"
+                className="font-semibold text-blue-300 underline underline-offset-2 hover:text-blue-200"
+              >
+                Try the free Canadian Realtor Tax Estimator →
+              </Link>
+            </p>
           </div>
         </section>
 
