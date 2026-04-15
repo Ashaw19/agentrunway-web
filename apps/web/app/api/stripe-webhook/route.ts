@@ -7,6 +7,7 @@ import { trialWelcomeEmail, formatTrialEndDate } from "@/lib/emails/trial-welcom
 import { trialEndingSoonEmail } from "@/lib/emails/trial-ending-soon";
 import { winBackEmail } from "@/lib/emails/win-back";
 import { paymentFailedEmail } from "@/lib/emails/payment-failed";
+import { logAuditEvent } from "@/lib/audit-log";
 import type Stripe from "stripe";
 
 /**
@@ -171,6 +172,23 @@ export async function POST(request: Request) {
             .in("user_id", userIds);
 
           console.log("[stripe] granted professional to", userIds.length, "team members");
+
+          // Audit each member's tier upgrade — actor is the org admin who paid.
+          for (const memberId of userIds) {
+            await logAuditEvent({
+              userId: memberId,
+              eventType: "subscription_activated",
+              eventCategory: "billing",
+              actorUserId: userId,
+              metadata: {
+                tier: "professional",
+                status: initStatus,
+                orgId,
+                via: "team_checkout",
+                stripeEventId: event.id,
+              },
+            });
+          }
         }
         break;
       }
@@ -194,6 +212,19 @@ export async function POST(request: Request) {
         );
       } else {
         console.log("[stripe] activated professional for user", userId, initStatus);
+
+        // Audit: user's own subscription activated (self-service checkout).
+        await logAuditEvent({
+          userId,
+          eventType: "subscription_activated",
+          eventCategory: "billing",
+          metadata: {
+            tier: "professional",
+            status: initStatus,
+            via: "self_checkout",
+            stripeEventId: event.id,
+          },
+        });
 
         // ── Send welcome email on trial start ───────────────────────────────
         // Only send when a free trial begins (no card collected yet).
@@ -428,6 +459,20 @@ export async function POST(request: Request) {
               console.error("[stripe] failed to downgrade team members", orgId, downgradeErr.message);
             } else {
               console.log(`[stripe] downgraded ${memberIds.length} team members for org ${orgId}`);
+
+              // Audit each member's downgrade — actor unknown (Stripe-initiated).
+              for (const memberId of memberIds) {
+                await logAuditEvent({
+                  userId: memberId,
+                  eventType: "subscription_canceled",
+                  eventCategory: "billing",
+                  metadata: {
+                    orgId,
+                    via: "team_subscription_deleted",
+                    stripeEventId: event.id,
+                  },
+                });
+              }
             }
           }
         }
@@ -439,7 +484,7 @@ export async function POST(request: Request) {
         break;
       }
 
-      const { error } = await db
+      const { data: downgraded, error } = await db
         .from("user_settings")
         .update({
           subscription_tier: "starter",
@@ -447,7 +492,8 @@ export async function POST(request: Request) {
           stripe_subscription_id: null,
           subscription_current_period_end: null,
         })
-        .eq("stripe_customer_id", cid);
+        .eq("stripe_customer_id", cid)
+        .select("user_id");
 
       if (error) {
         console.error(
@@ -457,6 +503,20 @@ export async function POST(request: Request) {
         );
       } else {
         console.log("[stripe] downgraded to starter for customer", cid);
+
+        // Audit: user's subscription canceled.
+        const targetUserId = downgraded?.[0]?.user_id;
+        if (targetUserId) {
+          await logAuditEvent({
+            userId: targetUserId,
+            eventType: "subscription_canceled",
+            eventCategory: "billing",
+            metadata: {
+              via: "subscription_deleted",
+              stripeEventId: event.id,
+            },
+          });
+        }
       }
 
       // ── Send win-back email ────────────────────────────────────────────────
@@ -519,6 +579,9 @@ export async function POST(request: Request) {
       const orgId = sub.metadata?.orgId;
 
       // ── Update subscription status to past_due ───────────────────────────
+      // We capture the attempt count once and reuse below for both audit + email.
+      const attemptCount = invoice.attempt_count ?? 1;
+
       if (orgId) {
         const { error: orgErr } = await db
           .from("organizations")
@@ -529,22 +592,60 @@ export async function POST(request: Request) {
           console.error("[stripe] failed to set org past_due", orgId, orgErr.message);
         } else {
           console.log("[stripe] set org past_due for", orgId);
+
+          // Audit each member that the org's payment failed.
+          const { data: members } = await db
+            .from("organization_members")
+            .select("user_id")
+            .eq("org_id", orgId)
+            .in("status", ["active", "pending"]);
+
+          if (members?.length) {
+            for (const m of members) {
+              await logAuditEvent({
+                userId: m.user_id,
+                eventType: "payment_failed",
+                eventCategory: "billing",
+                metadata: {
+                  orgId,
+                  attemptCount,
+                  via: "team_invoice_payment_failed",
+                  stripeEventId: event.id,
+                },
+              });
+            }
+          }
         }
       } else {
-        const { error: userErr } = await db
+        const { data: pastDueUsers, error: userErr } = await db
           .from("user_settings")
           .update({ subscription_status: "past_due" })
-          .eq("stripe_customer_id", cid);
+          .eq("stripe_customer_id", cid)
+          .select("user_id");
 
         if (userErr) {
           console.error("[stripe] failed to set user past_due for customer", cid, userErr.message);
         } else {
           console.log("[stripe] set user past_due for customer", cid);
+
+          // Audit: user's invoice payment failed.
+          const targetUserId = pastDueUsers?.[0]?.user_id;
+          if (targetUserId) {
+            await logAuditEvent({
+              userId: targetUserId,
+              eventType: "payment_failed",
+              eventCategory: "billing",
+              metadata: {
+                attemptCount,
+                via: "invoice_payment_failed",
+                stripeEventId: event.id,
+              },
+            });
+          }
         }
       }
 
       // ── Determine retry info ─────────────────────────────────────────────
-      const attemptCount = invoice.attempt_count ?? 1;
       // Stripe Smart Retries typically retry at day 1, 3, 7
       const nextRetryDaysMap: Record<number, number | null> = { 1: 3, 2: 4, 3: null };
       const nextRetryDays = nextRetryDaysMap[attemptCount] ?? null;
