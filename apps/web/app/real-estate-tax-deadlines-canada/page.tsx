@@ -378,7 +378,7 @@ export default function RealEstateTaxDeadlinesPage() {
                   For most agents in their second year of decent commission income, instalments
                   become mandatory. The CRA sends an <em>instalment reminder</em> notice in
                   February and August listing the amount they expect. You can pay that amount,
-                  or use the <em>prior-year</em> method (1/4 of last year's total tax), or use
+                  or use the <em>prior-year</em> method (1/4 of last year&apos;s total tax), or use
                   the <em>current-year</em> method if you expect to earn less this year.
                 </p>
               </div>
@@ -420,7 +420,7 @@ export default function RealEstateTaxDeadlinesPage() {
                 </div>
                 <p className="mt-3 text-sm leading-relaxed text-slate-400">
                   Brokerages collect HST on your commission and remit it to you as part of
-                  your payout (if you're registered). You then remit the net HST to the CRA
+                  your payout (if you&apos;re registered). You then remit the net HST to the CRA
                   after deducting input tax credits on your business purchases. Most agents
                   file annually; larger agents file quarterly.
                 </p>
