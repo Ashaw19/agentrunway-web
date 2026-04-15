@@ -888,7 +888,7 @@ export function DashboardContent({
   // Alert 2: Significantly behind pace
   if (pacePercent < -30 && goalGCI > 0) {
     const gap = goalGCI - ytdGCI;
-    const dealsNeededForAlert = ytdDealCount > 0 ? Math.ceil(gap / (ytdGCI / Math.max(ytdDealCount, 1))) : null;
+    const dealsNeededForAlert = ytdDealCount > 0 && ytdGCI > 0 ? Math.ceil(gap / (ytdGCI / ytdDealCount)) : null;
     smartAlerts.push({
       type: "warning",
       icon: "⚠️",

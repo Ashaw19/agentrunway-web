@@ -1260,7 +1260,8 @@ export function computeProbability(deal: PipelineDeal): number {
   if (deal.probability_override != null) {
     return Math.max(0, Math.min(1, deal.probability_override));
   }
-  return PIPELINE_STAGE_DEFAULTS[deal.stage];
+  // Guard against unknown stage values from DB (would otherwise return undefined → NaN in weightedGCI)
+  return PIPELINE_STAGE_DEFAULTS[deal.stage] ?? PIPELINE_STAGE_DEFAULTS.lead;
 }
 
 /** Compute estimated GCI for a pipeline deal */
