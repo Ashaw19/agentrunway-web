@@ -2,6 +2,7 @@
 // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/#create-initialization-config-files
 
 import * as Sentry from "@sentry/nextjs";
+import { scrubEvent } from "@/lib/sentry-scrubber";
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
@@ -10,6 +11,11 @@ export async function register() {
       tracesSampleRate: 0.1,
       environment: process.env.NODE_ENV,
       enabled: process.env.NODE_ENV === "production",
+      // Defense-in-depth PII scrubbing on every outgoing event.
+      // Source code should never log PII in the first place; this ensures
+      // accidental leakage is stripped before reaching Sentry's servers.
+      beforeSend: scrubEvent,
+      beforeSendTransaction: scrubEvent,
     });
   }
 
@@ -20,6 +26,9 @@ export async function register() {
       tracesSampleRate: 0.05,
       environment: process.env.NODE_ENV,
       enabled: process.env.NODE_ENV === "production",
+      // Same PII scrubbing on the edge runtime.
+      beforeSend: scrubEvent,
+      beforeSendTransaction: scrubEvent,
     });
   }
 }

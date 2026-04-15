@@ -237,7 +237,8 @@ export async function POST(request: Request) {
               // Non-fatal — log but don't fail the webhook
               console.error("[resend] failed to send trial welcome email", emailError);
             } else {
-              console.log("[resend] trial welcome email sent to", toEmail);
+              // PII-safe: never log recipient email; correlate via event id if needed.
+              console.log("[resend] trial welcome email sent");
             }
           }
         }
@@ -372,7 +373,8 @@ export async function POST(request: Request) {
               if (emailError) {
                 console.error("[resend] failed to send trial_will_end email", emailError);
               } else {
-                console.log("[resend] trial_will_end email sent to", toEmail);
+                // PII-safe: never log recipient email.
+                console.log("[resend] trial_will_end email sent");
               }
             }
           }
@@ -482,7 +484,8 @@ export async function POST(request: Request) {
             if (emailError) {
               console.error("[resend] failed to send win-back email", emailError);
             } else {
-              console.log("[resend] win-back email sent to", stripeCustomer.email);
+              // PII-safe: never log recipient email.
+              console.log("[resend] win-back email sent");
             }
           }
         } catch (err) {
@@ -575,7 +578,8 @@ export async function POST(request: Request) {
             if (emailError) {
               console.error("[resend] failed to send payment-failed email", emailError);
             } else {
-              console.log("[resend] payment-failed email sent to", stripeCustomer.email, "attempt", attemptCount);
+              // PII-safe: never log recipient email; attempt count is fine.
+              console.log("[resend] payment-failed email sent | attempt:", attemptCount);
             }
           }
         } catch (err) {

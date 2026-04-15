@@ -41,7 +41,13 @@ export async function POST(request: NextRequest) {
     source = body.source ?? "website";
     name = body.name;
     brokerage = body.brokerage;
-    console.log("[subscribe] parsed body:", { email, source, name: name ?? "(none)", brokerage: brokerage ?? "(none)" });
+    // PII-safe: never log email, name, or brokerage to server output. Presence-only.
+    console.log("[subscribe] parsed body:", {
+      source,
+      hasEmail: Boolean(email),
+      hasName: Boolean(name?.trim()),
+      hasBrokerage: Boolean(brokerage?.trim()),
+    });
   } catch {
     console.error("[subscribe] ✗ invalid request body");
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
@@ -81,7 +87,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  console.log(`[subscribe] ✓ upsert OK | email=${email.toLowerCase().trim()} source=${source} resend=${!!resend} apiKey=${!!process.env.RESEND_API_KEY}`);
+  // PII-safe: never log email to server output.
+  console.log(`[subscribe] ✓ upsert OK | source=${source} resend=${!!resend} apiKey=${!!process.env.RESEND_API_KEY}`);
 
   // Send charter welcome email for waitlist signups (awaited to prevent Vercel lambda termination)
   if (source === "waitlist_event" && resend) {
@@ -96,7 +103,8 @@ export async function POST(request: NextRequest) {
         html,
         text,
       });
-      console.log(`[subscribe] ✓ email sent | id=${result.data?.id ?? "unknown"} error=${result.error ? JSON.stringify(result.error) : "none"}`);
+      // PII-safe: log Resend message id only, never the recipient email or response body (may echo address).
+      console.log(`[subscribe] ✓ email sent | id=${result.data?.id ?? "unknown"} error=${result.error ? "yes" : "none"}`);
     } catch (err) {
       console.error(`[subscribe] ✗ email FAILED |`, err instanceof Error ? err.message : err);
     }

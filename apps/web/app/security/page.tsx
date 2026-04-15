@@ -194,10 +194,11 @@ export default function SecurityPage() {
               </p>
               <p>
                 Authentication is handled by{" "}
-                <strong className="text-slate-300">Supabase Auth</strong>, which
-                uses bcrypt for password hashing. Passwords are never stored in
-                plaintext. Agent Runway supports passwordless sign-in via
-                magic link as the default authentication method.
+                <strong className="text-slate-300">Supabase Auth</strong>, using
+                bcrypt for password hashing — passwords are never stored in
+                plaintext. Sign-in today is email and password over TLS.{" "}
+                <strong className="text-slate-300">Two-factor authentication</strong>{" "}
+                is on the near-term roadmap for accounts handling client data.
               </p>
               <p>
                 All API routes are protected by session verification on the server.
