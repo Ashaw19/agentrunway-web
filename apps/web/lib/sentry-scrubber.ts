@@ -13,7 +13,16 @@
 // the process and reaches Sentry's servers.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import type { ErrorEvent, EventHint, TransactionEvent } from "@sentry/nextjs";
+// Structural type — matches both Sentry ErrorEvent and TransactionEvent.
+// We don't import named types from @sentry/nextjs because it doesn't re-export
+// them; a generic constraint keeps the scrubber usable for any Sentry event shape.
+type ScrubTarget = {
+  user?: {
+    email?: string | null;
+    ip_address?: string | null;
+    username?: string | null;
+  };
+};
 
 // ── PII regex patterns ──────────────────────────────────────────────────────
 // Kept deliberately permissive to err on the side of redaction.
@@ -54,7 +63,7 @@ function walk(value: unknown, depth = 0): unknown {
 }
 
 /** Common user-context redaction: masks identity fields, preserves internal UUID. */
-function scrubUserFields(event: { user?: { email?: string | null; ip_address?: string | null; username?: string | null } }): void {
+function scrubUserFields(event: ScrubTarget): void {
   if (event.user) {
     if (event.user.email) event.user.email = "[redacted-email]";
     if (event.user.ip_address) event.user.ip_address = "[redacted-ip]";
@@ -67,17 +76,21 @@ function scrubUserFields(event: { user?: { email?: string | null; ip_address?: s
  * Sentry `beforeSend` hook (error events).
  * Redacts user identity fields, walks the event tree, scrubs PII from every
  * string. Returns the scrubbed event or null to drop it entirely.
+ *
+ * Uses a generic so TypeScript narrows T to Sentry's concrete ErrorEvent type
+ * at the call site — satisfies the `beforeSend` signature without needing to
+ * import named types that @sentry/nextjs doesn't re-export.
  */
-export function scrubErrorEvent(event: ErrorEvent, _hint?: EventHint): ErrorEvent | null {
+export function scrubErrorEvent<T extends ScrubTarget>(event: T): T | null {
   scrubUserFields(event);
-  return walk(event) as ErrorEvent;
+  return walk(event) as T;
 }
 
 /**
  * Sentry `beforeSendTransaction` hook (performance / tracing events).
  * Same scrubbing applied to transaction events.
  */
-export function scrubTransactionEvent(event: TransactionEvent, _hint?: EventHint): TransactionEvent | null {
+export function scrubTransactionEvent<T extends ScrubTarget>(event: T): T | null {
   scrubUserFields(event);
-  return walk(event) as TransactionEvent;
+  return walk(event) as T;
 }
