@@ -4,7 +4,7 @@ import { Calculator, TrendingUp, ArrowRight, Sparkles, FileText } from "lucide-r
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
-import { breadcrumbSchema } from "@/lib/schema";
+import { breadcrumbSchema, faqSchema } from "@/lib/schema";
 
 const URL = "https://agentrunway.ca/tools";
 
@@ -70,12 +70,46 @@ const JSON_LD_BREADCRUMB = breadcrumbSchema([
   { name: "Tools", url: "/tools" },
 ]);
 
+const TOOLS_FAQS = [
+  {
+    question: "Are these calculators really free to use?",
+    answer:
+      "Yes. Every tool on this page is free for Canadian real estate agents — no signup, no credit card, no email required. We built them for our own use at Agent Runway and open-sourced them for every realtor in Canada.",
+  },
+  {
+    question: "How accurate are the tax estimates?",
+    answer:
+      "The 2025 Canadian Realtor Tax Estimator uses current federal brackets, provincial brackets for all 13 provinces and territories, CPP Tier 1 and Tier 2 rates, and QPP for Quebec residents. It's designed to get you within a few hundred dollars of your actual bill for planning purposes. It is not a substitute for a CRA-licensed accountant at filing time.",
+  },
+  {
+    question: "Do these tools work for every province?",
+    answer:
+      "Yes. Every calculator supports all 13 Canadian provinces and territories, including Quebec (which uses QPP instead of CPP and has its own Relevé 1 rules).",
+  },
+  {
+    question: "What's the difference between these tools and the Agent Runway app?",
+    answer:
+      "These calculators are one-off snapshots — you plug in numbers, get an answer. The Agent Runway app tracks every deal automatically so your tax estimate, pipeline forecast, and Runway Score stay updated in real time without any manual entry. The agentic Co-Pilot can also log deals, draft client outreach, and update your pipeline with a single approval.",
+  },
+  {
+    question: "Are more calculators planned?",
+    answer:
+      "Yes. Upcoming free tools include a per-deal tax set-aside calculator, a runway months calculator, an HST instalment schedule, and a PREC vs. sole proprietor break-even analyzer.",
+  },
+];
+
+const JSON_LD_FAQ = faqSchema(TOOLS_FAQS);
+
 export default function ToolsIndexPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD_BREADCRUMB) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD_FAQ) }}
       />
 
       <MarketingNav />
@@ -190,6 +224,32 @@ export default function ToolsIndexPage() {
                   </Link>
                 ))}
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── FAQ ── Visible counterpart to the FAQPage JSON-LD for AEO */}
+        <section className="bg-slate-950 px-6 pb-16 sm:px-10">
+          <div className="mx-auto max-w-3xl">
+            <h2 className="text-2xl font-black text-white sm:text-3xl">
+              Frequently asked questions
+            </h2>
+            <div className="mt-6 divide-y divide-slate-800 rounded-2xl border border-slate-800 bg-slate-900/30">
+              {TOOLS_FAQS.map((faq, i) => (
+                <details key={i} className="group p-5 sm:p-6">
+                  <summary className="cursor-pointer list-none text-base font-semibold text-white marker:hidden">
+                    <span className="flex items-start justify-between gap-4">
+                      {faq.question}
+                      <span className="mt-1 shrink-0 text-slate-500 transition-transform group-open:rotate-45">
+                        +
+                      </span>
+                    </span>
+                  </summary>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-300">
+                    {faq.answer}
+                  </p>
+                </details>
+              ))}
             </div>
           </div>
         </section>
