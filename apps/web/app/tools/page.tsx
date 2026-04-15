@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Calculator, TrendingUp, ArrowRight, Sparkles } from "lucide-react";
+import { Calculator, TrendingUp, ArrowRight, Sparkles, FileText } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
@@ -142,6 +142,54 @@ export default function ToolsIndexPage() {
                 More calculators coming: per-deal tax set-aside, runway months, HST instalment schedule,
                 PREC vs. sole proprietor break-even.
               </p>
+            </div>
+
+            {/* Deep-dive guides — long-form Canadian realtor references */}
+            <div className="mt-14">
+              <h2 className="text-xl font-bold text-white">
+                Deep-dive guides for Canadian realtors
+              </h2>
+              <p className="mt-2 text-sm text-slate-400">
+                The context behind the numbers — written for agents, by an agent.
+              </p>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                {[
+                  {
+                    href: "/how-much-should-real-estate-agents-save-for-taxes-canada",
+                    title: "How much should you save for taxes?",
+                    description: "Province-by-province tax-save percentages with CPP, GST/HST, and quarterly instalments.",
+                  },
+                  {
+                    href: "/t2125-guide-real-estate-agents-canada",
+                    title: "T2125 filing guide",
+                    description: "Line-by-line walkthrough of the CRA T2125 for real estate agents.",
+                  },
+                  {
+                    href: "/real-estate-agent-tax-planning-canada",
+                    title: "Year-round tax planning",
+                    description: "How to plan quarterly instalments, CPP contributions, and year-end moves.",
+                  },
+                  {
+                    href: "/real-estate-agent-business-expenses-canada",
+                    title: "Deductible business expenses",
+                    description: "Every CRA category real estate agents can deduct — with examples.",
+                  },
+                ].map((guide) => (
+                  <Link
+                    key={guide.href}
+                    href={guide.href}
+                    className="group flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/40 p-4 transition hover:border-slate-700 hover:bg-slate-900/70"
+                  >
+                    <FileText className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 transition-colors group-hover:text-blue-400" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-white">{guide.title}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                        {guide.description}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
             </div>
           </div>
         </section>

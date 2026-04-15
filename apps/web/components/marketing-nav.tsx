@@ -26,7 +26,7 @@ import { useRouter } from "next/navigation";
 const NAV_LINKS = [
   { label: "Features", href: "/features" },
   { label: "Pricing", href: "/pricing" },
-  { label: "Tax Calculator", href: "/how-much-should-real-estate-agents-save-for-taxes-canada" },
+  { label: "Free Tools", href: "/tools" },
   { label: "Demo", href: "/demo" },
   { label: "Blog", href: "/blog" },
   { label: "About", href: "/about" },
