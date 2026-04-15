@@ -353,6 +353,27 @@ The Dashboard smart alerts section uses statistical anomaly detection to flag un
 This means alerts are relative to the agent's own spending history — not industry averages.
 If a user has <4 months of data in a category, no alert will fire for that category.
 
+### Tax IQ Tips (tax-iq-engine.ts)
+The Expenses page shows an amber-bordered "Tax IQ" card — CRA-referenced education tips selected based on the agent's context:
+- **Trigger logic**: Tips are filtered by expense categories used, transaction count, current quarter, province, and filing frequency
+- **Storage**: Dismissed tips are stored in localStorage (key: "ar_dismissed_tax_tips") — they never reappear once dismissed
+- **Source verification**: Every tip includes a CRA publication link (T4002, RC4022, IC78-10R5, etc.)
+- **Categories**: Deductions, GST/HST, Record Keeping, Filing, Tax Planning
+- **Max shown**: 5 tips at once, contextual triggers sorted first
+
+Active tips the agent might ask about:
+- Meals & entertainment: Only 50% deductible (also affects ITCs)
+- Vehicle logbook: Required for CRA audit compliance; base-year method available
+- Home office: Must be principal place of business or exclusive regular use
+- Insurance: GST/HST-exempt — no ITC can be claimed on premiums
+- ITC 4-year limit: Missed ITCs can still be claimed within 4 years
+- Quick method: Available if taxable revenue ≤ $400K
+- Receipt retention: 6 years minimum (digital copies accepted)
+- Quarterly instalments: Required if tax owing >$3,000 in current year AND either of 2 prior years
+- RRSP deadline: March 1 deadline applies to prior tax year
+
+If a user asks "what are these tips?" or "why is Agent Runway showing me this?" — explain it's the Tax IQ feature: contextual CRA-sourced tax education based on their specific expense profile and filing situation.
+
 ### Common Problems & Diagnostics
 
 **"My expense ratio seems wrong"**
@@ -373,6 +394,9 @@ If a user has <4 months of data in a category, no alert will fire for that categ
 
 **"Meals & Entertainment — why only 50%?"**
 → CRA rule: Only 50% of meals & entertainment costs are deductible. The system tracks the full amount but only claims 50% on T2125 line 8216.
+
+**"Why does Agent Runway show me tax tips?"** / **"What is Tax IQ?"**
+→ Tax IQ is a contextual education feature on the Expenses page. It selects relevant CRA-referenced tips based on the agent's expense categories, filing situation, province, and current quarter. Tips can be dismissed and are stored in browser localStorage. They do not affect calculations — they are educational only.
 
 **Edge Cases:**
 - Zero GCI: Expense ratio is undefined (shown as N/A or 0%)

@@ -21,7 +21,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **CRM** — Clients (name, email, phone, city/province, birthday, lead source, tags, budget, timeframe, property interest, tone pref, notes, relationships, activity log, status Boarding/Scheduled/In-Flight/Cruising, tier Platinum/Gold/Silver/Bronze). CRM Dashboard (engagement analytics). Insights (stale leads, referrals). Flight Plans (automated follow-up sequences). Property Showings (buyer: address, date, rating 1-10). Listing Appointments (seller: address, date, outcome). Contact Tasks (title, due date, priority, completion). Tags (custom labels). Hangar (archived clients, restorable).
 
-**EXPENSES** — Receipts (manual/OCR, by category), Mileage (CRA rates), Recurring (monthly/quarterly/annual auto-generated entries), Bank Imports (Plaid sync), CCA Assets (Class 8=20%, Class 10=30%, Class 12=100%, Class 50=55%, half-year rule).
+**EXPENSES** — Receipts (manual/OCR, by category), Mileage (CRA rates), Recurring (monthly/quarterly/annual auto-generated entries), Bank Imports (Plaid sync), CCA Assets (Class 8=20%, Class 10=30%, Class 12=100%, Class 50=55%, half-year rule). Tax IQ: amber-bordered contextual CRA education tips on the Expenses page, filtered by province/quarter/categories, dismissible (localStorage), purely educational.
 
 **FORECAST** — Waterfall (GCI→split→fees→expenses→tax→take-home), tax card, P10-P90 bands, 5-year growth, goal gap analysis.
 
