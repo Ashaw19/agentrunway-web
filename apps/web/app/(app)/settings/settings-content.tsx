@@ -55,6 +55,7 @@ import { MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceQuizModal } from "./voice-quiz-modal";
+import { DataExportCard } from "./data-export";
 import { cn } from "@/lib/utils";
 
 type GoogleConnection = {
@@ -2499,6 +2500,9 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
 
       {/* Card 9 — Plan & Billing */}
       <PlanBillingCard settings={settings} isPro={isProProp} />
+
+      {/* Card 10 — Privacy & your data */}
+      <DataExportCard />
     </div>
   );
 }
