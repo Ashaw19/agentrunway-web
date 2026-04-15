@@ -21,8 +21,8 @@ interface TierInfo {
 // ── Pricing by tier ──────────────────────────────────────────────────────────
 
 const INDIVIDUAL_PRICES = {
-  charter: { monthly: 79, annual: 790, label: "Charter Member", badge: "Locked for life" },
-  early_adopter: { monthly: 99, annual: 990, label: "Early Adopter", badge: "Locked for life" },
+  charter: { monthly: 79, annual: 790, label: "Charter Member", badge: "Locked while subscribed" },
+  early_adopter: { monthly: 99, annual: 990, label: "Early Adopter", badge: "Locked while subscribed" },
   standard: { monthly: 149, annual: 1490, label: "Professional", badge: null },
 } as const;
 
@@ -151,7 +151,7 @@ export function PricingCards() {
           <p className="text-sm text-amber-800">
             <span className="font-bold text-amber-900">{tierInfo.charterRemaining}</span> of{" "}
             {tierInfo.charterTotal} charter spots remaining. Lock in{" "}
-            <span className="font-bold">${indivPrice.monthly}/mo for life.</span>
+            <span className="font-bold">${indivPrice.monthly}/mo for as long as your subscription stays active.</span>
           </p>
         </div>
       )}
@@ -164,7 +164,7 @@ export function PricingCards() {
           </div>
           <p className="text-sm text-blue-800">
             Charter spots are filled! Lock in{" "}
-            <span className="font-bold">${indivPrice.monthly}/mo for life</span> before standard
+            <span className="font-bold">${indivPrice.monthly}/mo for as long as your subscription stays active</span> before standard
             pricing begins.
           </p>
         </div>

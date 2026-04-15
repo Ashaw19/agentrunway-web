@@ -22,7 +22,7 @@ Canadian real estate agents (sole proprietors, PRECs, and teams) who want a sing
 
 ## Pricing
 
-- **Charter seats** (first 50 users): $79/month locked for life
+- **Charter seats** (first 50 users): $79/month — locked for as long as your subscription stays active
 - **Founding seats** (next 50 users): $99/month
 - **Standard**: $149/month
 - **Teams**: $149/month for the leader + $55/month per additional member

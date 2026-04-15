@@ -108,7 +108,7 @@ export function charterWelcomeEmail({
                 <tr>
                   <td style="padding:8px 0;font-size:14px;line-height:1.5;color:#334155;">
                     <span style="color:#10b981;font-weight:700;margin-right:8px;">&#10003;</span>
-                    Your price locked for life at launch rate
+                    Your price locked at launch rate while your subscription stays active
                   </td>
                 </tr>
                 <tr>
@@ -171,7 +171,7 @@ Your Charter Member spot is confirmed. When we launch, you'll be among the first
 What that means for you:
 
 - 3 months free on any paid plan
-- Your price locked for life at launch rate
+- Your price locked at launch rate while your subscription stays active
 - 3 extra free months for every referral
 - Direct line to the founder
 

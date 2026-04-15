@@ -68,7 +68,7 @@ const CHARTER_SPOTS_TOTAL = 50;
 
 const CHARTER_CHECKLIST = [
   "3 months free on any paid plan — no credit card at signup",
-  "Your price locked for life — never pay more as the product grows",
+  "Your price locked while subscribed — never pay more as the product grows, as long as your subscription stays active",
   "Earn 3 extra free months for every referral who starts a paid plan",
   "Direct line to the founder — your feedback shapes the roadmap",
 ];
@@ -420,7 +420,7 @@ export default async function WaitlistPage() {
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-x-6 sm:gap-y-2">
                   {[
                     "3 months free — Charter Members only",
-                    "Price locked for life at launch rate",
+                    "Price locked at launch rate while subscribed",
                     "Priced in Canadian dollars",
                   ].map((item) => (
                     <div key={item} className="flex items-center gap-2">

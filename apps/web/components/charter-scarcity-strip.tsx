@@ -7,7 +7,7 @@ import { Sparkles } from "lucide-react";
 // ─────────────────────────────────────────────────────────────────────────────
 // CharterScarcityStrip
 // ─────────────────────────────────────────────────────────────────────────────
-// Displays "X of 50 charter seats remaining at $79/mo for life" — a conversion
+// Displays "X of 50 charter seats remaining at $79/mo locked while subscribed" — a conversion
 // lift mechanism recommended in the v4 visibility plan.
 //
 // Reuses the existing GET /api/pricing-tier endpoint. Hides itself when:
@@ -69,7 +69,7 @@ export function CharterScarcityStrip({
         >
           {charterRemaining} of {charterTotal} charter seats remaining
         </Link>
-        <span className="text-slate-500">· $79/mo locked for life</span>
+        <span className="text-slate-500">· $79/mo locked while subscribed</span>
       </span>
     );
   }
@@ -89,7 +89,7 @@ export function CharterScarcityStrip({
           </p>
           <p className="mt-0.5 text-[13px] leading-relaxed text-amber-800">
             First 50 Agent Runway users lock in{" "}
-            <strong>$79/month for life</strong>. After that, $99, then $149.{" "}
+            <strong>$79/month for as long as your subscription stays active</strong>. After that, $99, then $149.{" "}
             <Link
               href="/pricing"
               className="font-semibold underline underline-offset-2 hover:text-amber-950"
@@ -121,7 +121,7 @@ export function CharterScarcityStrip({
       </span>
       <span>
         <strong className="font-bold text-amber-200">{charterRemaining}</strong> of {charterTotal}{" "}
-        charter seats · $79/mo for life
+        charter seats · $79/mo locked while subscribed
       </span>
       <span className="text-amber-400/60 transition group-hover:translate-x-0.5 group-hover:text-amber-300">
         →

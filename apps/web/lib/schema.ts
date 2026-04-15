@@ -94,7 +94,7 @@ export const softwareApplicationSchema = {
       price: "79.00",
       priceCurrency: "CAD",
       availability: "https://schema.org/LimitedAvailability",
-      description: "Charter pricing — first 50 users, locked for life",
+      description: "Charter pricing — first 50 users, locked for as long as your subscription stays active",
       billingIncrement: 1,
       priceSpecification: {
         "@type": "UnitPriceSpecification",

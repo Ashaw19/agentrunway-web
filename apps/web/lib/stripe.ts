@@ -23,8 +23,8 @@ export const stripe = process.env.STRIPE_SECRET_KEY
 
 /**
  * Pricing Tiers:
- *   Charter      — first 50 users, locked rate for life
- *   Early Adopter — year 1 users after charter slots fill, locked rate for life
+ *   Charter      — first 50 users, rate locked for as long as subscription stays active
+ *   Early Adopter — year 1 users after charter slots fill, rate locked for as long as subscription stays active
  *   Standard     — post year-1 pricing
  */
 export type PricingTier = "charter" | "early_adopter" | "standard";

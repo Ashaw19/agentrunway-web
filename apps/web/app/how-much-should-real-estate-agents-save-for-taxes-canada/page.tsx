@@ -4,18 +4,17 @@ import { ArrowRight, Calculator, AlertTriangle } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
-import { TaxSavingsCalculator } from "./tax-savings-calculator";
 import { EmailCapture } from "@/components/email-capture";
 import { articleSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "How Much Should Real Estate Agents Save for Taxes in Canada? | Agent Runway",
   description:
-    "Use our free calculator to estimate how much Canadian real estate agents should set aside for federal tax, provincial tax, CPP, and HST/GST. Based on 2025 tax brackets.",
+    "A practical guide for Canadian real estate agents on how much to set aside for federal tax, provincial tax, CPP, and HST/GST — with a free 2025 tax estimator tool.",
   openGraph: {
     title: "How Much Should Real Estate Agents Save for Taxes in Canada?",
     description:
-      "Free calculator for Canadian real estate agents. Estimate federal tax, provincial tax, CPP, and HST/GST set-asides based on your GCI and province.",
+      "Practical guide for Canadian real estate agents. Federal tax, provincial tax, CPP, and HST/GST set-asides — plus a free 2025 tax estimator.",
     url: "https://agentrunway.ca/how-much-should-real-estate-agents-save-for-taxes-canada",
     images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
@@ -29,7 +28,7 @@ export const metadata: Metadata = {
 const JSON_LD_ARTICLE = articleSchema({
   headline: "How Much Should Real Estate Agents Save for Taxes in Canada?",
   description:
-    "A practical guide with an interactive calculator for Canadian real estate agents to estimate their tax set-aside from every commission cheque.",
+    "A practical guide for Canadian real estate agents on how much to set aside from every commission cheque — with a free tax estimator tool.",
   url: "/how-much-should-real-estate-agents-save-for-taxes-canada",
   datePublished: "2025-03-01",
   dateModified: "2026-04-15",
@@ -100,39 +99,55 @@ export default function TaxSavingsGuidePage() {
           <div className="mx-auto max-w-3xl">
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-semibold text-emerald-400">
               <Calculator className="h-3.5 w-3.5" />
-              Free Calculator for Canadian Agents
+              Canadian Tax Guide for Agents
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
               How Much Should Real Estate Agents Save for Taxes in Canada?
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
               Most agents know they should be setting money aside. Few know
-              exactly how much. Use the calculator below to estimate your
-              federal tax, provincial tax, CPP, and HST/GST obligations —
-              based on your GCI, province, and brokerage split.
+              exactly how much. This guide explains what percentage to set aside,
+              why it varies by province, and what the CRA expects — plus a free
+              tax estimator to plug in your own numbers.
             </p>
           </div>
         </section>
 
         {/* ════════════════════════════════════════════════════════
-            INTERACTIVE CALCULATOR
+            TOOL CALLOUT — points to the canonical Canadian Realtor Tax Estimator
         ════════════════════════════════════════════════════════ */}
         <section className="bg-white px-6 py-16 sm:px-10" id="calculator">
           <div className="mx-auto max-w-3xl">
             <ScrollRevealSection>
-              <TaxSavingsCalculator />
+              <Link
+                href="/tools/realtor-tax-estimator"
+                className="group block overflow-hidden rounded-2xl border-2 border-blue-600 bg-gradient-to-br from-blue-50 via-white to-emerald-50 p-8 shadow-lg shadow-blue-600/10 transition hover:shadow-xl hover:shadow-blue-600/20 sm:p-10"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white">
+                    <Calculator className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-700">
+                      Free tool · Updated for 2025
+                    </p>
+                    <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                      Canadian Realtor Tax Estimator
+                    </h2>
+                    <p className="mt-3 text-base leading-relaxed text-slate-600">
+                      Plug in your GCI, province, and deal count. Get federal tax,
+                      provincial tax, CPP/QPP, and quarterly instalment amounts —
+                      calculated with the same engine that powers the Agent Runway
+                      dashboard. All 13 provinces and territories, 2025 brackets.
+                    </p>
+                    <p className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-blue-700 transition group-hover:gap-2.5">
+                      Open the free estimator
+                      <ArrowRight className="h-4 w-4" />
+                    </p>
+                  </div>
+                </div>
+              </Link>
             </ScrollRevealSection>
-
-            {/* Cross-link: full tax estimator for detailed breakdown */}
-            <div className="mt-10 rounded-xl border border-blue-200 bg-blue-50 p-5">
-              <p className="text-sm text-blue-900">
-                <strong>Want the full breakdown?</strong>{" "}
-                The <Link href="/tools/realtor-tax-estimator" className="font-semibold text-blue-700 underline underline-offset-2 hover:text-blue-900">Canadian Realtor Tax Estimator</Link>{" "}
-                shows federal tax, provincial tax, CPP/QPP, quarterly instalment amounts,
-                and per-deal set-asides — with the full 2025 bracket-by-bracket calculation
-                for every province and territory.
-              </p>
-            </div>
           </div>
         </section>
 
@@ -210,8 +225,15 @@ export default function TaxSavingsGuidePage() {
                 <p>
                   The fix is straightforward but requires discipline: know your
                   estimated rate, set aside that percentage from every cheque,
-                  and pay your quarterly instalments on time. The calculator
-                  above gives you a starting point. For a deeper look, see our{" "}
+                  and pay your quarterly instalments on time. The{" "}
+                  <Link
+                    href="/tools/realtor-tax-estimator"
+                    className="text-blue-600 underline underline-offset-2 hover:text-blue-500"
+                  >
+                    free tax estimator
+                  </Link>{" "}
+                  gives you a starting point with your own numbers. For a
+                  deeper look, see our{" "}
                   <Link
                     href="/real-estate-agent-tax-planning-canada"
                     className="text-blue-600 underline underline-offset-2 hover:text-blue-500"
@@ -310,12 +332,13 @@ export default function TaxSavingsGuidePage() {
             <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
               <p className="text-xs leading-relaxed text-amber-800">
-                <strong>Disclaimer:</strong> This calculator provides estimates
-                for educational purposes only and does not constitute tax,
-                legal, or financial advice. Tax obligations vary based on
-                individual circumstances. Consult a qualified accountant or tax
-                professional for advice specific to your situation. Agent Runway
-                assumes no liability for tax-related decisions.
+                <strong>Disclaimer:</strong> This guide and the linked estimator
+                provide information for educational purposes only and do not
+                constitute tax, legal, or financial advice. Tax obligations
+                vary based on individual circumstances. Consult a qualified
+                accountant or tax professional for advice specific to your
+                situation. Agent Runway assumes no liability for tax-related
+                decisions.
               </p>
             </div>
           </div>
