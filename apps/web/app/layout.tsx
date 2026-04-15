@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { CookieConsent } from "@/components/cookie-consent";
 import { ConsentAwareAnalytics } from "@/components/consent-aware-analytics";
 import { rtlLocales, type Locale } from "@/i18n/routing";
+import { organizationSchema, webSiteSchema } from "@/lib/schema";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -81,6 +82,19 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} dir={dir} suppressHydrationWarning>
+      <head>
+        {/* Global JSON-LD: Organization + WebSite entities on every page.
+            Page-specific schemas (SoftwareApplication, FAQPage, Article, etc.)
+            are emitted by individual pages. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(webSiteSchema) }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

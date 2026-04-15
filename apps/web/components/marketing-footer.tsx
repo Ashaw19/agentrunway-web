@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
 
 // ── Footer link columns ───────────────────────────────────────────────────────
 
@@ -83,8 +84,13 @@ export function MarketingFooter() {
           )}
         </div>
 
+        {/* Charter scarcity strip — auto-hides after seat 50 */}
+        <div className="mt-12 flex justify-center border-t border-slate-800 pt-8">
+          <CharterScarcityStrip variant="compact" />
+        </div>
+
         {/* Bottom bar */}
-        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-slate-800 pt-8 sm:flex-row">
+        <div className="mt-6 flex flex-col items-center justify-between gap-4 sm:flex-row">
           <p className="text-xs text-slate-500">
             © {new Date().getFullYear()} Agent Runway. Built in Canada 🇨🇦
           </p>
