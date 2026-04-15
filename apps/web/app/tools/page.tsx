@@ -208,6 +208,11 @@ export default function ToolsIndexPage() {
                     title: "Deductible business expenses",
                     description: "Every CRA category real estate agents can deduct — with examples.",
                   },
+                  {
+                    href: "/real-estate-tax-deadlines-canada",
+                    title: "2026 tax deadlines",
+                    description: "Every CRA deadline Canadian realtors need — instalments, T1, HST, T4A, RRSP.",
+                  },
                 ].map((guide) => (
                   <Link
                     key={guide.href}

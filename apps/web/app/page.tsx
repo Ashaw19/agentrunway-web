@@ -408,6 +408,17 @@ export default async function Home() {
                   </Link>
                 </div>
 
+                {/* Free tools — low-friction tire-kicker entry point */}
+                <p className="mt-4 text-center text-sm text-slate-500 lg:text-left">
+                  Not ready yet?{" "}
+                  <Link
+                    href="/tools"
+                    className="font-semibold text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                  >
+                    Try the free tools for Canadian realtors →
+                  </Link>
+                </p>
+
                 <div className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-2 lg:justify-start">
                   {["14-day free trial", "No credit card required", "Cancel anytime"].map((item) => (
                     <div key={item} className="flex items-center gap-1.5 text-sm text-slate-500">

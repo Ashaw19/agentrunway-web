@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, BookOpen, AlertTriangle } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { articleSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "Real Estate Agent Tax Planning in Canada | Agent Runway",
@@ -16,6 +17,17 @@ export const metadata: Metadata = {
     canonical: "https://agentrunway.ca/real-estate-agent-tax-planning-canada",
   },
 };
+
+// ── JSON-LD structured data ──────────────────────────────────────────────────
+
+const JSON_LD_ARTICLE = articleSchema({
+  headline: "Real Estate Agent Tax Planning in Canada",
+  description:
+    "A practical guide to tax planning for Canadian real estate agents — quarterly instalments, deductible expenses, CPP contributions, and HST/GST registration.",
+  url: "/real-estate-agent-tax-planning-canada",
+  datePublished: "2025-03-15",
+  dateModified: "2026-04-15",
+});
 
 // ── Table of contents entries ─────────────────────────────────────────────────
 
@@ -31,6 +43,10 @@ const TOC = [
 export default function RealEstateAgentTaxPlanningCanadaPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD_ARTICLE) }}
+      />
 
       {/* ── Navigation ── */}
       <MarketingNav />
@@ -191,6 +207,18 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                 <li><strong>September 15</strong></li>
                 <li><strong>December 15</strong></li>
               </ul>
+
+              <p>
+                See the full{" "}
+                <Link
+                  href="/real-estate-tax-deadlines-canada"
+                  className="font-semibold text-blue-600 underline underline-offset-2"
+                >
+                  2026 Canadian real estate agent tax deadline calendar
+                </Link>
+                {" "}for every key CRA date this year — T1 filing, HST returns, T4A issuance,
+                and RRSP contribution deadlines alongside the instalment schedule.
+              </p>
 
               <p>
                 Missing an instalment date does not result in an immediate penalty, but

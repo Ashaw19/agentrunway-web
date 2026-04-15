@@ -5,6 +5,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 import { EmailCapture } from "@/components/email-capture";
+import { articleSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "How to Fill Out T2125 as a Real Estate Agent in Canada | Agent Runway",
@@ -24,22 +25,14 @@ export const metadata: Metadata = {
 
 // -- JSON-LD structured data --------------------------------------------------
 
-const JSON_LD_ARTICLE = {
-  "@context": "https://schema.org",
-  "@type": "Article",
+const JSON_LD_ARTICLE = articleSchema({
   headline: "How to Fill Out T2125 as a Real Estate Agent in Canada",
   description:
     "A line-by-line guide to CRA Form T2125 for self-employed real estate agents in Canada, covering industry code, commission income, deductible expenses, and common filing mistakes.",
-  author: { "@type": "Person", name: "Andrew Shaw" },
-  publisher: { "@type": "Organization", name: "Agent Runway", url: "https://agentrunway.ca" },
+  url: "/t2125-guide-real-estate-agents-canada",
   datePublished: "2025-04-01",
-  dateModified: "2025-04-01",
-  url: "https://agentrunway.ca/t2125-guide-real-estate-agents-canada",
-  mainEntityOfPage: {
-    "@type": "WebPage",
-    "@id": "https://agentrunway.ca/t2125-guide-real-estate-agents-canada",
-  },
-};
+  dateModified: "2026-04-15",
+});
 
 const JSON_LD_FAQ = {
   "@context": "https://schema.org",

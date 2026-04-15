@@ -5,6 +5,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 import { EmailCapture } from "@/components/email-capture";
+import { articleSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "Real Estate Agent Business Expenses You Can Deduct in Canada | Agent Runway",
@@ -24,22 +25,14 @@ export const metadata: Metadata = {
 
 // ── JSON-LD structured data ──────────────────────────────────────────────────
 
-const JSON_LD_ARTICLE = {
-  "@context": "https://schema.org",
-  "@type": "Article",
+const JSON_LD_ARTICLE = articleSchema({
   headline: "Real Estate Agent Business Expenses You Can Deduct in Canada",
   description:
     "A practical guide to every deduction available to self-employed Canadian real estate agents — organized by CRA category, with T2125 line references.",
-  author: { "@type": "Person", name: "Andrew Shaw" },
-  publisher: { "@type": "Organization", name: "Agent Runway", url: "https://agentrunway.ca" },
+  url: "/real-estate-agent-business-expenses-canada",
   datePublished: "2025-04-01",
-  dateModified: "2025-04-01",
-  url: "https://agentrunway.ca/real-estate-agent-business-expenses-canada",
-  mainEntityOfPage: {
-    "@type": "WebPage",
-    "@id": "https://agentrunway.ca/real-estate-agent-business-expenses-canada",
-  },
-};
+  dateModified: "2026-04-15",
+});
 
 const JSON_LD_FAQ = {
   "@context": "https://schema.org",

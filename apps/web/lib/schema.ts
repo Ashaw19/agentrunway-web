@@ -239,9 +239,20 @@ export function articleSchema(params: {
   url: string;
   datePublished: string; // ISO
   dateModified?: string;
+  /** If provided, overrides the default Andrew Shaw @id reference. */
   authorName?: string;
   imageUrl?: string;
 }) {
+  // Default: reference the canonical Andrew Shaw Person entity by @id so
+  // every Agent Runway article links to the same author node in the graph.
+  const author = params.authorName
+    ? {
+        "@type": "Person" as const,
+        name: params.authorName,
+        url: `${BASE_URL}/about`,
+      }
+    : { "@id": `${BASE_URL}/about/andrew-shaw#person` };
+
   return {
     "@context": "https://schema.org",
     "@type": "Article",
@@ -253,11 +264,7 @@ export function articleSchema(params: {
     },
     datePublished: params.datePublished,
     dateModified: params.dateModified ?? params.datePublished,
-    author: {
-      "@type": "Person",
-      name: params.authorName ?? "Andrew Shaw",
-      url: `${BASE_URL}/about`,
-    },
+    author,
     publisher: { "@id": `${BASE_URL}/#organization` },
     ...(params.imageUrl
       ? {
