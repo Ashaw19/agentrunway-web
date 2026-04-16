@@ -8,11 +8,9 @@
  * - createAgentTools(supabase, userId) returns all tool definitions
  * - Each tool validates inputs, writes to Supabase, and returns a
  *   natural-language result string the AI surfaces in its response
- * - Core tools use needsApproval: true for human-in-the-loop gating —
+ * - Write tools use needsApproval: true for human-in-the-loop gating —
  *   the AI surfaces a confirmation card and waits for user approval
  *   before executing. See NEEDS_APPROVAL_TOOLS set below.
- * - Delete tools still use the legacy confirmed: true parameter pattern
- *   (to be promoted to needsApproval in a follow-up)
  * - All tools gracefully return error strings (never throw) so a tool
  *   failure never crashes the stream
  *
@@ -36,8 +34,7 @@
  *                         updateUserSettings, archiveClient, unarchiveClient,
  *                         linkClientRelationship, removePipelineDeal,
  *                         completeContactTask, updateContactTask,
- *                         skipOutreachItem, deleteContactActivity,
- *                         deleteContactTask, manageFlightPlan
+ *                         skipOutreachItem, manageFlightPlan
  *                         (none currently exposed via createCoreAgentTools)
  *   Needs-approval      — createClient, updateClientDetails, updateClientNotes,
  *                         updateClientStatus, updateClientTags, updateClientTone,
@@ -47,11 +44,11 @@
  *                         deleteRecurringExpense, logExpense, logMileage,
  *                         updateExpense, recordReferral, recordTransaction,
  *                         updateTransaction, updatePipelineDealValue,
- *                         addCCAAsset, updateListingAppointment
- *   Confirm-required    — deleteExpense, deleteTransaction, deleteCCAAsset,
- *                         deleteMileage, deleteReferral,
- *                         deleteListingAppointment, deletePropertyShowing
- *                         (legacy pattern — to be promoted to needsApproval)
+ *                         addCCAAsset, updateListingAppointment,
+ *                         deleteExpense, deleteMileage, deleteTransaction,
+ *                         deleteCCAAsset, deleteReferral,
+ *                         deleteListingAppointment, deletePropertyShowing,
+ *                         deleteContactActivity, deleteContactTask
  */
 
 import { tool, type ToolSet } from "ai";
@@ -77,23 +74,32 @@ export const NEEDS_APPROVAL_TOOLS = new Set([
   // Activity & task mutations
   "logContactActivity",
   "createContactTask",
+  "deleteContactActivity",
+  "deleteContactTask",
   // Expense mutations
   "createRecurringExpense",
   "deleteRecurringExpense",
   "logExpense",
   "logMileage",
   "updateExpense",
+  "deleteExpense",
+  "deleteMileage",
   // Referral mutations
   "recordReferral",
+  "deleteReferral",
   // Transaction mutations
   "recordTransaction",
   "updateTransaction",
+  "deleteTransaction",
   // Pipeline value mutations
   "updatePipelineDealValue",
   // CCA / tax assets
   "addCCAAsset",
-  // Listings
+  "deleteCCAAsset",
+  // Listings & showings
   "updateListingAppointment",
+  "deleteListingAppointment",
+  "deletePropertyShowing",
 ]);
 
 // Human-readable descriptions for approval cards
@@ -176,6 +182,25 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
     if (args.notes !== undefined) changes.push("notes");
     return `Update listing: ${changes.length ? changes.join(", ") : "(details)"}`;
   },
+  // Deletes (destructive — irreversible)
+  deleteExpense: (args) =>
+    `Delete expense: ${args.expenseDescription ?? args.expenseId} — cannot be undone`,
+  deleteMileage: (args) =>
+    `Delete mileage entry: ${args.tripDescription ?? args.mileageId} — cannot be undone`,
+  deleteTransaction: (args) =>
+    `Delete transaction: ${args.transactionDescription ?? args.transactionId} — will adjust YTD GCI and pace`,
+  deleteCCAAsset: (args) =>
+    `Remove CCA asset: "${args.assetDescription ?? args.assetId}" from depreciation schedule`,
+  deleteReferral: (args) =>
+    `Delete referral: ${args.referralDescription ?? args.referralId} — cannot be undone`,
+  deleteListingAppointment: (args) =>
+    `Delete listing appointment: ${args.appointmentDescription ?? args.appointmentId}`,
+  deletePropertyShowing: (args) =>
+    `Delete property showing: ${args.showingDescription ?? args.showingId}`,
+  deleteContactActivity: (args) =>
+    `Delete activity: ${args.activityDescription ?? args.activityId}`,
+  deleteContactTask: (args) =>
+    `Delete task: "${args.taskTitle ?? args.taskId}"`,
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -1454,17 +1479,13 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DELETE EXPENSE ────────────────────────────────────────────────────────
     deleteExpense: tool({
-      description: "Delete a receipt expense (e.g., duplicate entry). Always searchExpenses first to find the ID. Requires confirmation.",
+      description: "Delete a receipt expense (e.g., duplicate entry). Always searchExpenses first to find the ID. Gated by the approval card.",
       inputSchema: z.object({
         expenseId: z.string().uuid().describe("The expense UUID from searchExpenses"),
-        expenseDescription: z.string().describe("Brief description for confirmation (e.g. '$45 at Shell on 2026-04-10')"),
-        confirmed: z.boolean().default(false).describe("Must be true to execute."),
+        expenseDescription: z.string().describe("Brief description for the approval card (e.g. '$45 at Shell on 2026-04-10')"),
       }),
-      execute: async ({ expenseId, expenseDescription, confirmed }) => {
-        if (!confirmed) {
-          return `Ready to delete expense: ${expenseDescription}. This cannot be undone. Confirm to proceed.`;
-        }
-
+      needsApproval: true,
+      execute: async ({ expenseId, expenseDescription }) => {
         try {
           const { error } = await supabase
             .from("receipt_expenses")
@@ -1804,17 +1825,13 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DELETE TRANSACTION ────────────────────────────────────────────────────
     deleteTransaction: tool({
-      description: "Delete a closed transaction (e.g., duplicate or entered by mistake). This permanently removes it. Always confirm before executing.",
+      description: "Delete a closed transaction (e.g., duplicate or entered by mistake). This permanently removes it. Gated by the approval card.",
       inputSchema: z.object({
         transactionId: z.string().uuid().describe("The transaction UUID"),
-        transactionDescription: z.string().describe("Brief description for confirmation"),
-        confirmed: z.boolean().default(false).describe("Must be true to execute."),
+        transactionDescription: z.string().describe("Brief description for the approval card"),
       }),
-      execute: async ({ transactionId, transactionDescription, confirmed }) => {
-        if (!confirmed) {
-          return `Ready to delete transaction: ${transactionDescription}. This cannot be undone and will affect your YTD GCI. Confirm to proceed.`;
-        }
-
+      needsApproval: true,
+      execute: async ({ transactionId, transactionDescription }) => {
         try {
           const { error } = await supabase
             .from("transactions")
@@ -1862,14 +1879,13 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DELETE CONTACT ACTIVITY ───────────────────────────────────────────────
     deleteContactActivity: tool({
-      description: "Delete a contact activity entry (e.g., duplicate or incorrect log). Use when the agent says 'remove that activity' or 'I logged that by mistake'. Requires confirmation.",
+      description: "Delete a contact activity entry (e.g., duplicate or incorrect log). Use when the agent says 'remove that activity' or 'I logged that by mistake'. Gated by the approval card.",
       inputSchema: z.object({
         activityId: z.string().uuid().describe("The activity UUID"),
-        activityDescription: z.string().describe("Brief description for confirmation"),
-        confirmed: z.boolean().default(false).describe("Must be true to delete"),
+        activityDescription: z.string().describe("Brief description for the approval card"),
       }),
-      execute: async ({ activityId, activityDescription, confirmed }) => {
-        if (!confirmed) return `PREVIEW — I'll permanently delete the activity: ${activityDescription}. Say "yes" to confirm.`;
+      needsApproval: true,
+      execute: async ({ activityId, activityDescription }) => {
         try {
           const { error } = await supabase
             .from("contact_activities")
@@ -2684,15 +2700,13 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DELETE: CCA asset ────────────────────────────────────────────────────
     deleteCCAAsset: tool({
-      description: "Delete a CCA asset from your depreciation schedule. Requires confirmation.",
+      description: "Delete a CCA asset from your depreciation schedule. Gated by the approval card.",
       inputSchema: z.object({
         assetId: z.string().uuid().describe("The CCA asset UUID"),
-        assetDescription: z.string().describe("Description for confirmation"),
-        confirmed: z.boolean().describe("Must be true to delete"),
+        assetDescription: z.string().describe("Description for the approval card"),
       }),
-      execute: async ({ assetId, assetDescription, confirmed }) => {
-        if (!confirmed) return `PREVIEW — I'll permanently remove "${assetDescription}" from your CCA schedule. Say "yes" to confirm.`;
-
+      needsApproval: true,
+      execute: async ({ assetId, assetDescription }) => {
         try {
           const { error } = await supabase
             .from("t2125_cca_assets")
@@ -3171,14 +3185,13 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DELETE: Mileage entry ─────────────────────────────────────────────────
     deleteMileage: tool({
-      description: "Delete a mileage log entry. Use searchMileageLogs first to find the entry ID. Requires confirmation.",
+      description: "Delete a mileage log entry. Use searchMileageLogs first to find the entry ID. Gated by the approval card.",
       inputSchema: z.object({
         mileageId: z.string().uuid().describe("The mileage log UUID"),
-        tripDescription: z.string().describe("Brief description for confirmation"),
-        confirmed: z.boolean().default(false).describe("Must be true to delete"),
+        tripDescription: z.string().describe("Brief description for the approval card"),
       }),
-      execute: async ({ mileageId, tripDescription, confirmed }) => {
-        if (!confirmed) return `PREVIEW — I'll permanently delete the mileage entry: ${tripDescription}. Say "yes" to confirm.`;
+      needsApproval: true,
+      execute: async ({ mileageId, tripDescription }) => {
         try {
           const { error } = await supabase
             .from("mileage_logs")
@@ -3194,14 +3207,13 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DELETE: Contact task ──────────────────────────────────────────────────
     deleteContactTask: tool({
-      description: "Delete a contact task. Use searchContactTasks first to find the task ID. Requires confirmation.",
+      description: "Delete a contact task. Use searchContactTasks first to find the task ID. Gated by the approval card.",
       inputSchema: z.object({
         taskId: z.string().uuid().describe("The task UUID"),
-        taskTitle: z.string().describe("Task title for confirmation"),
-        confirmed: z.boolean().default(false).describe("Must be true to delete"),
+        taskTitle: z.string().describe("Task title for the approval card"),
       }),
-      execute: async ({ taskId, taskTitle, confirmed }) => {
-        if (!confirmed) return `PREVIEW — I'll permanently delete the task: "${taskTitle}". Say "yes" to confirm.`;
+      needsApproval: true,
+      execute: async ({ taskId, taskTitle }) => {
         try {
           const { error } = await supabase
             .from("contact_tasks")
@@ -3217,14 +3229,13 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DELETE: Referral ──────────────────────────────────────────────────────
     deleteReferral: tool({
-      description: "Delete a referral record. Use searchReferrals first to find the referral ID. Requires confirmation.",
+      description: "Delete a referral record. Use searchReferrals first to find the referral ID. Gated by the approval card.",
       inputSchema: z.object({
         referralId: z.string().uuid().describe("The referral UUID"),
-        referralDescription: z.string().describe("Description for confirmation"),
-        confirmed: z.boolean().describe("Must be true to delete"),
+        referralDescription: z.string().describe("Description for the approval card"),
       }),
-      execute: async ({ referralId, referralDescription, confirmed }) => {
-        if (!confirmed) return `PREVIEW — I'll permanently delete the referral: ${referralDescription}. Say "yes" to confirm.`;
+      needsApproval: true,
+      execute: async ({ referralId, referralDescription }) => {
         try {
           const { error } = await supabase
             .from("referrals")
@@ -3240,14 +3251,13 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DELETE: Listing appointment ───────────────────────────────────────────
     deleteListingAppointment: tool({
-      description: "Delete a listing appointment. Use searchListingAppointments first to find the ID. Requires confirmation.",
+      description: "Delete a listing appointment. Use searchListingAppointments first to find the ID. Gated by the approval card.",
       inputSchema: z.object({
         appointmentId: z.string().uuid().describe("The listing appointment UUID"),
-        appointmentDescription: z.string().describe("Description for confirmation"),
-        confirmed: z.boolean().default(false).describe("Must be true to delete"),
+        appointmentDescription: z.string().describe("Description for the approval card"),
       }),
-      execute: async ({ appointmentId, appointmentDescription, confirmed }) => {
-        if (!confirmed) return `PREVIEW — I'll permanently delete the listing appointment: ${appointmentDescription}. Say "yes" to confirm.`;
+      needsApproval: true,
+      execute: async ({ appointmentId, appointmentDescription }) => {
         try {
           const { error } = await supabase
             .from("listing_appointments")
@@ -3295,14 +3305,13 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── DELETE: Property showing ───────────────────────────────────────────��──
     deletePropertyShowing: tool({
-      description: "Delete a property showing record. Use searchPropertyShowings first to find the showing ID. Requires confirmation.",
+      description: "Delete a property showing record. Use searchPropertyShowings first to find the showing ID. Gated by the approval card.",
       inputSchema: z.object({
         showingId: z.string().uuid().describe("The property showing UUID"),
-        showingDescription: z.string().describe("Description for confirmation"),
-        confirmed: z.boolean().default(false).describe("Must be true to delete"),
+        showingDescription: z.string().describe("Description for the approval card"),
       }),
-      execute: async ({ showingId, showingDescription, confirmed }) => {
-        if (!confirmed) return `PREVIEW — I'll permanently delete the property showing: ${showingDescription}. Say "yes" to confirm.`;
+      needsApproval: true,
+      execute: async ({ showingId, showingDescription }) => {
         try {
           const { error } = await supabase
             .from("property_showings")
