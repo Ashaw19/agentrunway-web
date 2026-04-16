@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, BookOpen } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { articleSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "How Real Estate Agents Calculate Net Income | Agent Runway",
@@ -18,6 +19,21 @@ export const metadata: Metadata = {
   },
 };
 
+const pageArticleSchema = articleSchema({
+  headline: "How Real Estate Agents Calculate Net Income",
+  description:
+    "A step-by-step guide for Canadian real estate agents on how to calculate true net income from GCI — accounting for commission splits, brokerage fees, business expenses, and tax obligations.",
+  url: "/how-real-estate-agents-calculate-net-income",
+  datePublished: "2025-11-01",
+  dateModified: "2026-04-16",
+  imageUrl: "/og-image-v2.png",
+});
+
+const breadcrumb = breadcrumbSchema([
+  { name: "Home", url: "/" },
+  { name: "How Agents Calculate Net Income", url: "/how-real-estate-agents-calculate-net-income" },
+]);
+
 // ── Table of contents entries ─────────────────────────────────────────────────
 
 const TOC = [
@@ -32,6 +48,16 @@ const TOC = [
 export default function HowRealEstateAgentsCalculateNetIncomePage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
+
+      {/* ── JSON-LD (Article + BreadcrumbList) ── */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(pageArticleSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
 
       {/* ── Navigation ── */}
       <MarketingNav />

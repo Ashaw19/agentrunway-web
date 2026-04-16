@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "FAQ | Agent Runway",
@@ -183,6 +184,11 @@ const FAQ_SCHEMA = {
   ),
 };
 
+const FAQ_BREADCRUMB = breadcrumbSchema([
+  { name: "Home", url: "/" },
+  { name: "FAQ",  url: "/faq" },
+]);
+
 // ── Color map ─────────────────────────────────────────────────────────────────
 
 const COLOR = {
@@ -200,6 +206,10 @@ export default function FAQPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_SCHEMA) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_BREADCRUMB) }}
       />
 
       <MarketingNav />

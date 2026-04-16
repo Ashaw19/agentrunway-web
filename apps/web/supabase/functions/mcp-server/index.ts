@@ -148,10 +148,11 @@ async function routeRequest(
           jsonrpc: "2.0",
           id,
           result: {
-            tools: tools.map(({ name, description, inputSchema }) => ({
+            tools: tools.map(({ name, description, inputSchema, annotations }) => ({
               name,
               description,
               inputSchema,
+              ...(annotations ? { annotations } : {}),
             })),
           },
         };

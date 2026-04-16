@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Users, CheckCircle2, XCircle, TrendingDown } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { definedTermSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "Real Estate Conversion Rate Explained | Agent Runway",
@@ -17,9 +18,31 @@ export const metadata: Metadata = {
   },
 };
 
+const conversionRateSchema = definedTermSchema({
+  name: "Conversion Rate (Real Estate)",
+  alternateName: ["Lead-to-Client Rate", "Client-to-Close Rate", "Lead Conversion"],
+  description:
+    "In real estate, conversion rate measures how effectively leads move through the pipeline. It is typically expressed as two ratios: lead-to-client conversion (signed buyer/seller agreements divided by total leads) and client-to-close conversion (closed transactions divided by signed clients).",
+  url: "/metrics/conversion-rate",
+});
+
+const breadcrumb = breadcrumbSchema([
+  { name: "Home", url: "/" },
+  { name: "Real Estate Metrics", url: "/real-estate-metrics" },
+  { name: "Conversion Rate", url: "/metrics/conversion-rate" },
+]);
+
 export default function ConversionRateMetricPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(conversionRateSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
       <MarketingNav />
       <main>
 

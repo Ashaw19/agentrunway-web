@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Shield, Monitor, Building2, ShieldCheck, Car, Receipt } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { definedTermSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "Financial Runway for Real Estate Agents Explained | Agent Runway",
@@ -17,9 +18,31 @@ export const metadata: Metadata = {
   },
 };
 
+const runwaySchema = definedTermSchema({
+  name: "Financial Runway (Real Estate Agent)",
+  alternateName: ["Cash Runway", "Months of Coverage", "Agent Runway"],
+  description:
+    "Financial runway for a real estate agent is the number of months current cash reserves can cover fixed business and personal expenses if no new commission income is received. It is the single best resilience metric for a commission-based business because income is inherently lumpy — agents can go 60 to 120 days between closings.",
+  url: "/metrics/financial-runway",
+});
+
+const breadcrumb = breadcrumbSchema([
+  { name: "Home", url: "/" },
+  { name: "Real Estate Metrics", url: "/real-estate-metrics" },
+  { name: "Financial Runway", url: "/metrics/financial-runway" },
+]);
+
 export default function FinancialRunwayMetricPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(runwaySchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
       <MarketingNav />
       <main>
 

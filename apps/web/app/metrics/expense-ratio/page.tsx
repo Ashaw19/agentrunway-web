@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { definedTermSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "Real Estate Expense Ratio Explained | Agent Runway",
@@ -27,9 +28,31 @@ export const metadata: Metadata = {
   },
 };
 
+const expenseRatioSchema = definedTermSchema({
+  name: "Expense Ratio (Real Estate Agent)",
+  alternateName: ["Cost Ratio", "Operating Expense Ratio"],
+  description:
+    "Expense Ratio for a real estate agent is total business expenses divided by Gross Commission Income (GCI), expressed as a percentage. It measures what share of revenue is consumed by operating costs (marketing, fees, tools, vehicle, insurance, education) before taxes. Canadian real estate expense ratios typically range from 20% to 45% of GCI.",
+  url: "/metrics/expense-ratio",
+});
+
+const breadcrumb = breadcrumbSchema([
+  { name: "Home", url: "/" },
+  { name: "Real Estate Metrics", url: "/real-estate-metrics" },
+  { name: "Expense Ratio", url: "/metrics/expense-ratio" },
+]);
+
 export default function ExpenseRatioMetricPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(expenseRatioSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
       <MarketingNav />
       <main>
 

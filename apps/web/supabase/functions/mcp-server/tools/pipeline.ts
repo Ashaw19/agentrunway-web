@@ -23,6 +23,12 @@ export function getPipelineTools(supabase: SupabaseClient, userId: string): McpT
         },
         additionalProperties: false,
       },
+      annotations: {
+        title: "Pipeline Deals",
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
       handler: async (args) => {
         const { stage } = args as { stage?: string };
 
@@ -79,6 +85,12 @@ export function getPipelineTools(supabase: SupabaseClient, userId: string): McpT
       description:
         "Returns a stage-by-stage breakdown of the pipeline with deal counts, estimated GCI, and weighted GCI per stage. Shows coverage ratio vs annual goal.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      annotations: {
+        title: "Pipeline Forecast",
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
       handler: async () => {
         const [pipelineRes, settingsRes] = await Promise.all([
           supabase

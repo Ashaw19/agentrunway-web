@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, TrendingUp, Building2, CreditCard, Receipt, Wrench, Landmark } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { definedTermSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "Net Income for Real Estate Agents Explained | Agent Runway",
@@ -17,9 +18,31 @@ export const metadata: Metadata = {
   },
 };
 
+const netIncomeSchema = definedTermSchema({
+  name: "Net Income (Real Estate Agent)",
+  alternateName: ["Take-home Income", "Agent Net Income", "After-Expense Income"],
+  description:
+    "Net income for a real estate agent is what remains from Gross Commission Income (GCI) after brokerage splits, transaction fees, desk fees, and all business expenses are deducted — but before income tax. It is the true measure of business profitability.",
+  url: "/metrics/net-income",
+});
+
+const breadcrumb = breadcrumbSchema([
+  { name: "Home", url: "/" },
+  { name: "Real Estate Metrics", url: "/real-estate-metrics" },
+  { name: "Net Income", url: "/metrics/net-income" },
+]);
+
 export default function NetIncomeMetricPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(netIncomeSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
       <MarketingNav />
       <main>
 

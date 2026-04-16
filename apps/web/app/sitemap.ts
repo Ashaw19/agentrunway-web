@@ -1,6 +1,16 @@
 import { MetadataRoute } from "next";
 import { getAllPosts } from "@/lib/blog";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent Runway sitemap.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// Only public, crawlable pages belong here. Authenticated app routes
+// (/dashboard, /transactions, /pipeline, etc.) are DISALLOWED in robots.ts —
+// putting them in the sitemap sends a conflicting signal and wastes crawl
+// budget. Keep this list in sync with the `/app` directory: any new public
+// page should be added here, any page behind auth should stay out.
+// ─────────────────────────────────────────────────────────────────────────────
+
 const BASE_URL = "https://agentrunway.ca";
 
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -15,228 +25,58 @@ export default function sitemap(): MetadataRoute.Sitemap {
   }));
 
   return [
+    // ── Blog (dynamic) ──────────────────────────────────────────────────
     ...blogEntries,
-    {
-      url:             `${BASE_URL}/blog`,
-      lastModified:    now,
-      changeFrequency: "weekly" as const,
-      priority:        0.8,
-    },
-    {
-      url: `${BASE_URL}/`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 1.0,
-    },
-    {
-      url: `${BASE_URL}/pricing`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.9,
-    },
-    {
-      url: `${BASE_URL}/features`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.9,
-    },
-    {
-      url: `${BASE_URL}/demo`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.9,
-    },
-    {
-      url: `${BASE_URL}/about`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/contact`,
-      lastModified: now,
-      changeFrequency: "yearly",
-      priority: 0.6,
-    },
-    {
-      url: `${BASE_URL}/review`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.5,
-    },
-    {
-      url: `${BASE_URL}/privacy`,
-      lastModified: now,
-      changeFrequency: "yearly",
-      priority: 0.3,
-    },
-    {
-      url: `${BASE_URL}/terms`,
-      lastModified: now,
-      changeFrequency: "yearly",
-      priority: 0.3,
-    },
-    {
-      url: `${BASE_URL}/real-estate-metrics`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/metrics/gci`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/metrics/conversion-rate`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/metrics/average-commission`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/metrics/expense-ratio`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/metrics/net-income`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/metrics/financial-runway`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/real-estate-business-analytics`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/how-real-estate-agents-track-gci`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/how-real-estate-agents-calculate-net-income`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/real-estate-agent-tax-planning-canada`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/how-much-should-real-estate-agents-save-for-taxes-canada`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/real-estate-analytics-vs-spreadsheets`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.9,
-    },
-    {
-      url: `${BASE_URL}/t2125-guide-real-estate-agents-canada`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/real-estate-tax-deadlines-canada`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/real-estate-commission-calculator-canada`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/real-estate-agent-business-expenses-canada`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/tools`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/tools/realtor-tax-estimator`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.9,
-    },
-    {
-      url: `${BASE_URL}/dashboard`,
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 0.9,
-    },
-    {
-      url: `${BASE_URL}/transactions`,
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/pipeline`,
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/crm`,
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/forecast`,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/expenses`,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/reports`,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.7,
-    },
-    {
-      url: `${BASE_URL}/settings`,
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.5,
-    },
+    { url: `${BASE_URL}/blog`,                                lastModified: now, changeFrequency: "weekly",  priority: 0.8 },
+
+    // ── Core marketing pages ────────────────────────────────────────────
+    { url: `${BASE_URL}/`,                                    lastModified: now, changeFrequency: "monthly", priority: 1.0 },
+    { url: `${BASE_URL}/pricing`,                             lastModified: now, changeFrequency: "monthly", priority: 0.9 },
+    { url: `${BASE_URL}/features`,                            lastModified: now, changeFrequency: "monthly", priority: 0.9 },
+    { url: `${BASE_URL}/demo`,                                lastModified: now, changeFrequency: "monthly", priority: 0.9 },
+    { url: `${BASE_URL}/about`,                               lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${BASE_URL}/about/andrew-shaw`,                   lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${BASE_URL}/contact`,                             lastModified: now, changeFrequency: "yearly",  priority: 0.6 },
+    { url: `${BASE_URL}/faq`,                                 lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${BASE_URL}/review`,                              lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+
+    // ── Developer / integration pages ───────────────────────────────────
+    { url: `${BASE_URL}/mcp`,                                 lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+
+    // ── Trust & security ────────────────────────────────────────────────
+    { url: `${BASE_URL}/security`,                            lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${BASE_URL}/subprocessors`,                       lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+
+    // ── Legal ──────────────────────────────────────────────────────────
+    { url: `${BASE_URL}/privacy`,                             lastModified: now, changeFrequency: "yearly",  priority: 0.3 },
+    { url: `${BASE_URL}/terms`,                               lastModified: now, changeFrequency: "yearly",  priority: 0.3 },
+    { url: `${BASE_URL}/cookie-policy`,                       lastModified: now, changeFrequency: "yearly",  priority: 0.2 },
+    { url: `${BASE_URL}/ai-disclaimer`,                       lastModified: now, changeFrequency: "yearly",  priority: 0.2 },
+    { url: `${BASE_URL}/acceptable-use`,                      lastModified: now, changeFrequency: "yearly",  priority: 0.2 },
+
+    // ── Metrics hub + per-metric pages ─────────────────────────────────
+    { url: `${BASE_URL}/real-estate-metrics`,                 lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/metrics/gci`,                         lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${BASE_URL}/metrics/conversion-rate`,             lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${BASE_URL}/metrics/average-commission`,          lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${BASE_URL}/metrics/expense-ratio`,               lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${BASE_URL}/metrics/net-income`,                  lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${BASE_URL}/metrics/financial-runway`,            lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+
+    // ── SEO content cluster (tax, GCI, expenses, T2125) ─────────────────
+    { url: `${BASE_URL}/real-estate-business-analytics`,              lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/how-real-estate-agents-track-gci`,            lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/how-real-estate-agents-calculate-net-income`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/real-estate-agent-tax-planning-canada`,       lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/how-much-should-real-estate-agents-save-for-taxes-canada`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/real-estate-analytics-vs-spreadsheets`,       lastModified: now, changeFrequency: "monthly", priority: 0.9 },
+    { url: `${BASE_URL}/t2125-guide-real-estate-agents-canada`,       lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/real-estate-tax-deadlines-canada`,            lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/real-estate-commission-calculator-canada`,    lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/real-estate-agent-business-expenses-canada`,  lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+
+    // ── Tools (hero asset: realtor tax estimator) ──────────────────────
+    { url: `${BASE_URL}/tools`,                                       lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/tools/realtor-tax-estimator`,                 lastModified: now, changeFrequency: "monthly", priority: 0.9 },
   ];
 }

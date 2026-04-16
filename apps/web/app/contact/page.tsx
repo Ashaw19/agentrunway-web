@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Mail, MessageSquare, ArrowRight } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "Contact Agent Runway | Real Estate Analytics Software",
@@ -16,6 +17,52 @@ export const metadata: Metadata = {
     canonical: "https://agentrunway.ca/contact",
   },
 };
+
+const BASE_URL = "https://agentrunway.ca";
+
+const contactPageSchema = {
+  "@context": "https://schema.org",
+  "@type": "ContactPage",
+  name: "Contact Agent Runway",
+  description:
+    "Contact Agent Runway — support, general inquiries, and feedback from Canadian real estate agents. We respond within one business day.",
+  url: `${BASE_URL}/contact`,
+  isPartOf: { "@id": `${BASE_URL}/#website` },
+  publisher: { "@id": `${BASE_URL}/#organization` },
+  inLanguage: "en-CA",
+  mainEntity: {
+    "@type": "Organization",
+    "@id": `${BASE_URL}/#organization`,
+    contactPoint: [
+      {
+        "@type": "ContactPoint",
+        contactType: "customer support",
+        email: "hello@agentrunway.ca",
+        areaServed: "CA",
+        availableLanguage: ["en"],
+      },
+      {
+        "@type": "ContactPoint",
+        contactType: "security",
+        email: "security@agentrunway.ca",
+        areaServed: "CA",
+        availableLanguage: ["en"],
+      },
+      {
+        "@type": "ContactPoint",
+        contactType: "privacy",
+        email: "privacy@agentrunway.ca",
+        areaServed: "CA",
+        availableLanguage: ["en"],
+      },
+    ],
+  },
+};
+
+const contactBreadcrumb = breadcrumbSchema([
+  { name: "Home",    url: "/" },
+  { name: "Contact", url: "/contact" },
+]);
 
 // ── Contact reasons ────────────────────────────────────────────────────────────
 
@@ -41,6 +88,16 @@ const CONTACT_REASONS = [
 export default function ContactPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
+
+      {/* ── JSON-LD (ContactPage + BreadcrumbList) ── */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(contactPageSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(contactBreadcrumb) }}
+      />
 
       {/* ── Navigation ── */}
       <MarketingNav />

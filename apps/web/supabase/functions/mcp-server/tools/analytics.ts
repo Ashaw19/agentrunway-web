@@ -15,6 +15,12 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
       description:
         "Returns the agent's key performance indicators for the current year: YTD GCI, transaction count, pipeline value, expenses, goal progress, and projected year-end GCI.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      annotations: {
+        title: "Dashboard KPIs",
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
       handler: async () => {
         const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0];
         const today = new Date().toISOString().split("T")[0];
@@ -113,6 +119,12 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
       description:
         "Returns the agent's Runway Score — a 0–100 composite business health grade (A+ to F) based on goal pace, pipeline health, expense control, market benchmark, and financial runway.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      annotations: {
+        title: "Runway Score",
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
       handler: async () => {
         const { data: settings } = await supabase
           .from("user_settings")
@@ -157,6 +169,12 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
       description:
         "Returns the agent's projected year-end GCI and transaction count based on current pace, pipeline, and historical performance.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      annotations: {
+        title: "Year-End Forecast",
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
       handler: async () => {
         const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0];
         const today = new Date().toISOString().split("T")[0];
@@ -271,6 +289,12 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
           },
         },
         additionalProperties: false,
+      },
+      annotations: {
+        title: "Canadian Tax Estimate",
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
       },
       handler: async (args) => {
         const overrideIncome = (args as { override_income?: number }).override_income;

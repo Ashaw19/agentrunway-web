@@ -20,6 +20,12 @@ export function getOutreachTools(supabase: SupabaseClient, userId: string): McpT
         },
         additionalProperties: false,
       },
+      annotations: {
+        title: "Flight Control Priorities",
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
       handler: async (args) => {
         const { status, limit = 20 } = args as { status?: string; limit?: number };
         const cap = Math.min(limit, 100);

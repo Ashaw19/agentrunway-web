@@ -4,6 +4,7 @@ import { ArrowRight, Clock, CalendarDays, Tag } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { getAllPosts, formatPostDate } from "@/lib/blog";
+import { breadcrumbSchema } from "@/lib/schema";
 
 // ── Metadata ──────────────────────────────────────────────────────────────────
 
@@ -25,8 +26,42 @@ export const metadata: Metadata = {
 export default function BlogPage() {
   const posts = getAllPosts();
 
+  const BASE_URL = "https://agentrunway.ca";
+  const blogSchema = {
+    "@context":   "https://schema.org",
+    "@type":      "Blog",
+    "@id":        `${BASE_URL}/blog#blog`,
+    name:         "Agent Runway Blog",
+    description:
+      "Practical insights for Canadian real estate agents — GCI tracking, income forecasting, tax planning, and business analytics.",
+    url:          `${BASE_URL}/blog`,
+    publisher:    { "@id": `${BASE_URL}/#organization` },
+    inLanguage:   "en-CA",
+    blogPost:     posts.map((post) => ({
+      "@type":       "BlogPosting",
+      headline:      post.title,
+      description:   post.description,
+      url:           `${BASE_URL}/blog/${post.slug}`,
+      datePublished: post.date,
+      author:        { "@id": `${BASE_URL}/about/andrew-shaw#person` },
+    })),
+  };
+
+  const breadcrumb = breadcrumbSchema([
+    { name: "Home", url: "/" },
+    { name: "Blog", url: "/blog" },
+  ]);
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(blogSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
       <MarketingNav />
 
       <main className="min-h-screen bg-slate-950">

@@ -9,6 +9,12 @@ export function getSettingsTools(supabase: SupabaseClient, userId: string): McpT
       description:
         "Returns the agent's profile and business settings: goals, province, brokerage info, subscription status, and CRM preferences. Does not return sensitive financial credentials.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      annotations: {
+        title: "User Settings",
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
       handler: async () => {
         const { data, error } = await supabase
           .from("user_settings")

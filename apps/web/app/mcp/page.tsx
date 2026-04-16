@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { webPageSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "MCP Server | Agent Runway — Connect AI to Your Real Estate Data",
@@ -26,6 +27,20 @@ export const metadata: Metadata = {
     canonical: "https://agentrunway.ca/mcp",
   },
 };
+
+const mcpWebPage = webPageSchema({
+  name:
+    "Agent Runway MCP Server — Connect AI to Your Real Estate Data",
+  description:
+    "The Agent Runway MCP server exposes 16 read-only tools for transactions, pipeline, CRM, expenses, forecasts, and Canadian tax estimates. Compatible with Claude, Cursor, and any MCP client.",
+  url: "/mcp",
+  lastReviewed: "2026-04-16",
+});
+
+const mcpBreadcrumb = breadcrumbSchema([
+  { name: "Home",       url: "/" },
+  { name: "MCP Server", url: "/mcp" },
+]);
 
 const TOOLS = [
   {
@@ -89,6 +104,14 @@ const TOOLS = [
 export default function McpPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(mcpWebPage) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(mcpBreadcrumb) }}
+      />
       <MarketingNav />
 
       <main>

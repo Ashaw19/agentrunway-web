@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { softwareApplicationSchema } from "@/lib/schema";
 
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 
@@ -31,19 +32,9 @@ export const metadata: Metadata = {
 };
 
 // ── Structured data (JSON-LD) ─────────────────────────────────────────────────
-
-const JSON_LD = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  name: "Agent Runway",
-  description:
-    "Agent Runway connects income, taxes, expenses, clients, and pipeline into one system for Canadian real estate agents — so you always know where you stand and what to do next.",
-  applicationCategory: "BusinessApplication",
-  operatingSystem: "Web",
-  url: "https://agentrunway.ca",
-  image: "https://agentrunway.ca/og-image-v2.png",
-  creator: { "@type": "Organization", name: "Agent Runway" },
-};
+// Canonical SoftwareApplication schema lives in lib/schema.ts so every page
+// references the same entity with the same @id. Keeping it out of this file
+// avoids accidental drift between inline and factory versions.
 
 // ── Feature data ──────────────────────────────────────────────────────────────
 
@@ -314,7 +305,7 @@ export default async function Home() {
 
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationSchema) }}
       />
 
       <MarketingNav isLoggedIn={!!user} avatarUrl={avatarUrl} displayName={displayName} />

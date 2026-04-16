@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { softwareApplicationSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "Agent Runway Features | Real Estate Business Analytics",
@@ -25,6 +26,11 @@ export const metadata: Metadata = {
     canonical: "https://agentrunway.ca/features",
   },
 };
+
+const breadcrumb = breadcrumbSchema([
+  { name: "Home",     url: "/" },
+  { name: "Features", url: "/features" },
+]);
 
 // ── Feature data ──────────────────────────────────────────────────────────────
 
@@ -138,6 +144,16 @@ const FEATURES = [
 export default function FeaturesPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
+
+      {/* ── JSON-LD (SoftwareApplication + BreadcrumbList) ── */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
 
       {/* ── Navigation ── */}
       <MarketingNav />

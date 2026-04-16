@@ -9,6 +9,12 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
       description:
         "Returns the agent's YTD business expenses by category and line item, plus monthly recurring totals.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      annotations: {
+        title: "Business Expenses",
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
       handler: async () => {
         const { data, error } = await supabase
           .from("expense_items")
@@ -72,6 +78,12 @@ export function getExpenseTools(supabase: SupabaseClient, userId: string): McpTo
           include_trips: { type: "boolean", description: "Include individual trip records (default false)." },
         },
         additionalProperties: false,
+      },
+      annotations: {
+        title: "Mileage Summary",
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
       },
       handler: async (args) => {
         const { year = new Date().getFullYear(), include_trips = false } = args as { year?: number; include_trips?: boolean };

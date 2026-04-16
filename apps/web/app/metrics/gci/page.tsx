@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, BarChart3, Building2, CreditCard, Receipt, Wrench } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { definedTermSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "Gross Commission Income (GCI) Explained | Agent Runway",
@@ -17,9 +18,32 @@ export const metadata: Metadata = {
   },
 };
 
+const gciSchema = definedTermSchema({
+  name: "Gross Commission Income (GCI)",
+  termCode: "GCI",
+  alternateName: ["Gross Commission", "Commission Revenue", "Real Estate Commission Income"],
+  description:
+    "Gross Commission Income (GCI) is the total commission a real estate agent earns from all transactions in a given period, before any brokerage splits, transaction fees, or business expenses are deducted. GCI is calculated as Sale Price × Commission Rate on each transaction, summed across the period.",
+  url: "/metrics/gci",
+});
+
+const breadcrumb = breadcrumbSchema([
+  { name: "Home", url: "/" },
+  { name: "Real Estate Metrics", url: "/real-estate-metrics" },
+  { name: "GCI", url: "/metrics/gci" },
+]);
+
 export default function GCIMetricPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(gciSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
       <MarketingNav />
       <main>
 

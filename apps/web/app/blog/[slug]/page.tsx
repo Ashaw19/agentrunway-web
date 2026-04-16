@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { getPostBySlug, getAllPosts, formatPostDate } from "@/lib/blog";
+import { articleSchema, breadcrumbSchema } from "@/lib/schema";
 
 // ── Static generation ─────────────────────────────────────────────────────────
 
@@ -50,8 +51,30 @@ export default async function BlogPostPage({ params }: Props) {
 
   if (!post) notFound();
 
+  const postArticleSchema = articleSchema({
+    headline:      post.title,
+    description:   post.description,
+    url:           `/blog/${slug}`,
+    datePublished: post.date,
+    imageUrl:      "/og-image-v2.png",
+  });
+
+  const postBreadcrumb = breadcrumbSchema([
+    { name: "Home",  url: "/" },
+    { name: "Blog",  url: "/blog" },
+    { name: post.title, url: `/blog/${slug}` },
+  ]);
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(postArticleSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(postBreadcrumb) }}
+      />
       <MarketingNav />
 
       <main className="min-h-screen bg-slate-950">

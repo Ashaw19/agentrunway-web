@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, DollarSign, TrendingUp, Home, Percent, Users, Building } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { definedTermSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "Average Commission Per Deal Explained | Agent Runway",
@@ -17,9 +18,31 @@ export const metadata: Metadata = {
   },
 };
 
+const avgCommissionSchema = definedTermSchema({
+  name: "Average Commission Per Deal",
+  alternateName: ["Avg. Commission", "GCI per Deal", "Per-Transaction Commission"],
+  description:
+    "Average Commission Per Deal is the agent's total Gross Commission Income (GCI) divided by the number of closed transactions in a period. It is a core planning input — multiply expected deal count by this figure to project annual GCI.",
+  url: "/metrics/average-commission",
+});
+
+const breadcrumb = breadcrumbSchema([
+  { name: "Home", url: "/" },
+  { name: "Real Estate Metrics", url: "/real-estate-metrics" },
+  { name: "Average Commission", url: "/metrics/average-commission" },
+]);
+
 export default function AverageCommissionMetricPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(avgCommissionSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
       <MarketingNav />
       <main>
 

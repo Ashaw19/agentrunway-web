@@ -21,6 +21,12 @@ export function getCrmTools(supabase: SupabaseClient, userId: string): McpTool[]
         },
         additionalProperties: false,
       },
+      annotations: {
+        title: "CRM Clients",
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
       handler: async (args) => {
         const { status, search, limit = 50 } = args as { status?: string; search?: string; limit?: number };
         const cap = Math.min(limit, 200);
@@ -83,6 +89,12 @@ export function getCrmTools(supabase: SupabaseClient, userId: string): McpTool[]
           client_name: { type: "string", description: "Search by client name if ID is unknown." },
         },
         additionalProperties: false,
+      },
+      annotations: {
+        title: "Client Detail",
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
       },
       handler: async (args) => {
         const { client_id, client_name } = args as { client_id?: string; client_name?: string };

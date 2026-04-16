@@ -34,6 +34,7 @@ export const organizationSchema = {
     height: 512,
   },
   image: `${BASE_URL}/og-image-v2.png`,
+  slogan: "Know where your business stands.",
   description:
     "Agent Runway is an agentic business operating system for Canadian real estate agents — unifying transactions, pipeline, CRM, Canadian taxes, and forecasting, with a Co-Pilot that executes tasks with human approval.",
   founder: {
@@ -42,7 +43,17 @@ export const organizationSchema = {
     name: "Andrew Shaw",
     jobTitle: "Founder & REALTOR®",
     worksFor: { "@id": `${BASE_URL}/#organization` },
-    url: `${BASE_URL}/about`,
+    url: `${BASE_URL}/about/andrew-shaw`,
+  },
+  foundingLocation: {
+    "@type": "Place",
+    name: "Saint John, New Brunswick, Canada",
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: "Saint John",
+      addressRegion: "NB",
+      addressCountry: "CA",
+    },
   },
   areaServed: {
     "@type": "Country",
@@ -59,13 +70,29 @@ export const organizationSchema = {
     "PREC (Personal Real Estate Corporation)",
     "Real estate CRM and pipeline management",
   ],
-  contactPoint: {
-    "@type": "ContactPoint",
-    contactType: "customer support",
-    email: "support@agentrunway.ca",
-    areaServed: "CA",
-    availableLanguage: ["en"],
-  },
+  contactPoint: [
+    {
+      "@type": "ContactPoint",
+      contactType: "customer support",
+      email: "hello@agentrunway.ca",
+      areaServed: "CA",
+      availableLanguage: ["en"],
+    },
+    {
+      "@type": "ContactPoint",
+      contactType: "security",
+      email: "security@agentrunway.ca",
+      areaServed: "CA",
+      availableLanguage: ["en"],
+    },
+    {
+      "@type": "ContactPoint",
+      contactType: "privacy",
+      email: "privacy@agentrunway.ca",
+      areaServed: "CA",
+      availableLanguage: ["en"],
+    },
+  ],
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -85,6 +112,9 @@ export const softwareApplicationSchema = {
   url: BASE_URL,
   image: `${BASE_URL}/og-image-v2.png`,
   screenshot: `${BASE_URL}/og-image-v2.png`,
+  inLanguage: "en-CA",
+  isAccessibleForFree: false,
+  countriesSupported: "CA",
   publisher: { "@id": `${BASE_URL}/#organization` },
   creator: { "@id": `${BASE_URL}/#organization` },
   offers: [
@@ -277,6 +307,98 @@ export function articleSchema(params: {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DefinedTerm factory — for metric / glossary pages
+// ─────────────────────────────────────────────────────────────────────────────
+// Use this on /metrics/* pages so answer engines can surface the definition
+// directly when users ask things like "what is GCI" or "how is expense ratio
+// calculated for real estate agents."
+
+export function definedTermSchema(params: {
+  name: string;
+  description: string;
+  url: string;
+  /** Short canonical code/abbreviation (e.g. "GCI"). Optional. */
+  termCode?: string;
+  /** Alternate phrasings so AI engines can match more queries. */
+  alternateName?: string | string[];
+  /** Hub page this term belongs to (defaults to /real-estate-metrics). */
+  definedTermSetUrl?: string;
+  definedTermSetName?: string;
+}) {
+  const BASE = BASE_URL;
+  return {
+    "@context": "https://schema.org",
+    "@type": "DefinedTerm",
+    "@id": `${params.url.startsWith("http") ? params.url : BASE + params.url}#term`,
+    name: params.name,
+    description: params.description,
+    url: params.url.startsWith("http") ? params.url : `${BASE}${params.url}`,
+    ...(params.termCode ? { termCode: params.termCode } : {}),
+    ...(params.alternateName ? { alternateName: params.alternateName } : {}),
+    inDefinedTermSet: {
+      "@type": "DefinedTermSet",
+      name: params.definedTermSetName ?? "Real Estate Business Metrics",
+      url: params.definedTermSetUrl ?? `${BASE}/real-estate-metrics`,
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CollectionPage factory — for hub / index pages that list other pages
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function collectionPageSchema(params: {
+  name: string;
+  description: string;
+  url: string;
+  items: { name: string; url: string; description?: string }[];
+}) {
+  const BASE = BASE_URL;
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: params.name,
+    description: params.description,
+    url: params.url.startsWith("http") ? params.url : `${BASE}${params.url}`,
+    isPartOf: { "@id": `${BASE}/#website` },
+    mainEntity: {
+      "@type": "ItemList",
+      itemListElement: params.items.map((item, idx) => ({
+        "@type": "ListItem",
+        position: idx + 1,
+        url: item.url.startsWith("http") ? item.url : `${BASE}${item.url}`,
+        name: item.name,
+        ...(item.description ? { description: item.description } : {}),
+      })),
+    },
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WebPage factory — for general pages that aren't articles or collections
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function webPageSchema(params: {
+  name: string;
+  description: string;
+  url: string;
+  lastReviewed?: string; // ISO date
+}) {
+  const BASE = BASE_URL;
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: params.name,
+    description: params.description,
+    url: params.url.startsWith("http") ? params.url : `${BASE}${params.url}`,
+    isPartOf: { "@id": `${BASE}/#website` },
+    publisher: { "@id": `${BASE}/#organization` },
+    inLanguage: "en-CA",
+    ...(params.lastReviewed ? { lastReviewed: params.lastReviewed } : {}),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Person — for founder/author pages
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -290,7 +412,9 @@ export const andrewShawPersonSchema = {
   jobTitle: "REALTOR® and Founder of Agent Runway",
   description:
     "Andrew Shaw is a working REALTOR® on the Ellis Team in Saint John, New Brunswick, and the founder of Agent Runway — an agentic business operating system for Canadian real estate agents.",
-  url: `${BASE_URL}/about`,
+  url: `${BASE_URL}/about/andrew-shaw`,
+  mainEntityOfPage: `${BASE_URL}/about/andrew-shaw`,
+  image: `${BASE_URL}/og-image-v2.png`,
   worksFor: { "@id": `${BASE_URL}/#organization` },
   knowsAbout: [
     "Canadian real estate practice",
@@ -302,5 +426,15 @@ export const andrewShawPersonSchema = {
   homeLocation: {
     "@type": "Place",
     name: "Saint John, New Brunswick, Canada",
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: "Saint John",
+      addressRegion: "NB",
+      addressCountry: "CA",
+    },
+  },
+  nationality: {
+    "@type": "Country",
+    name: "Canada",
   },
 };

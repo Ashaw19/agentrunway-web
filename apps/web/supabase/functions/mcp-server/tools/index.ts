@@ -7,11 +7,30 @@ import { getExpenseTools } from "./expenses.ts";
 import { getOutreachTools } from "./outreach.ts";
 import { getSettingsTools } from "./settings.ts";
 
-// Each tool: name, description, JSON Schema for input, and async handler
+// MCP tool annotations (per MCP spec).
+// These are behavioral hints for clients — they do NOT enforce anything
+// server-side. Claude and other clients use them to pick better UX (e.g.
+// read-only tools can be called without a confirmation prompt, titles are
+// shown in tool pickers, closed-world tools don't need network warnings).
+export interface McpToolAnnotations {
+  /** Human-readable title for UI display (e.g. "Year-End Forecast"). */
+  title?: string;
+  /** True if the tool does not modify the user's environment. */
+  readOnlyHint?: boolean;
+  /** True if the tool may perform destructive updates (default assumption when readOnly is false). */
+  destructiveHint?: boolean;
+  /** True if repeated calls with the same args have no additional effect. */
+  idempotentHint?: boolean;
+  /** True if the tool interacts with external systems / the open internet. */
+  openWorldHint?: boolean;
+}
+
+// Each tool: name, description, JSON Schema for input, async handler, and optional annotations.
 export interface McpTool {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  annotations?: McpToolAnnotations;
   handler: (args: unknown) => Promise<McpToolResult>;
 }
 
@@ -31,6 +50,12 @@ export function buildToolRegistry(
       description:
         "Returns information about the Agent Runway MCP server, its version, and the list of available tools.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      annotations: {
+        title: "Agent Runway Server Info",
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
       handler: async () => ({
         content: [
           {

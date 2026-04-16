@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { Shield, Lock, CreditCard, Building2, Eye, Bell, Mail } from "lucide-react";
+import { webPageSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "Security | Agent Runway",
@@ -11,6 +12,20 @@ export const metadata: Metadata = {
     canonical: "https://agentrunway.ca/security",
   },
 };
+
+const securityWebPage = webPageSchema({
+  name:
+    "Agent Runway Security — Encryption, Bank Security, Payment Security",
+  description:
+    "How Agent Runway protects your financial data: TLS 1.3, AES-256, row-level security, Canadian data residency, Plaid-mediated bank access, Stripe PCI DSS Level 1 payments, PIPEDA and Law 25 compliance, and responsible disclosure.",
+  url: "/security",
+  lastReviewed: "2026-04-16",
+});
+
+const securityBreadcrumb = breadcrumbSchema([
+  { name: "Home",     url: "/" },
+  { name: "Security", url: "/security" },
+]);
 
 function Section({
   icon,
@@ -47,6 +62,14 @@ function Pill({ label }: { label: string }) {
 export default function SecurityPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(securityWebPage) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(securityBreadcrumb) }}
+      />
       <MarketingNav />
 
       <main className="flex-1 px-6 py-16 sm:px-10">

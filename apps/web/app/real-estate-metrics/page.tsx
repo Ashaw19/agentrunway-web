@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { collectionPageSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "Real Estate Business Metrics | Agent Runway",
@@ -24,6 +25,26 @@ export const metadata: Metadata = {
     canonical: "https://agentrunway.ca/real-estate-metrics",
   },
 };
+
+const metricsCollectionSchema = collectionPageSchema({
+  name: "Real Estate Business Metrics",
+  description:
+    "A library of the core business metrics Canadian real estate agents use to measure performance: GCI, net income, average commission, conversion rate, expense ratio, and financial runway.",
+  url: "/real-estate-metrics",
+  items: [
+    { name: "Gross Commission Income (GCI)", url: "/metrics/gci" },
+    { name: "Net Income",                    url: "/metrics/net-income" },
+    { name: "Average Commission Per Deal",    url: "/metrics/average-commission" },
+    { name: "Conversion Rate",                url: "/metrics/conversion-rate" },
+    { name: "Expense Ratio",                  url: "/metrics/expense-ratio" },
+    { name: "Financial Runway",               url: "/metrics/financial-runway" },
+  ],
+});
+
+const breadcrumb = breadcrumbSchema([
+  { name: "Home",                    url: "/" },
+  { name: "Real Estate Metrics",     url: "/real-estate-metrics" },
+]);
 
 // ── Metric cards ──────────────────────────────────────────────────────────────
 
@@ -77,6 +98,16 @@ const METRICS = [
 export default function RealEstateMetricsPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
+
+      {/* ── JSON-LD (CollectionPage + BreadcrumbList) ── */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(metricsCollectionSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
 
       {/* ── Navigation ── */}
       <MarketingNav />

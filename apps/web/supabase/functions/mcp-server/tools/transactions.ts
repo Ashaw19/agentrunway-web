@@ -17,6 +17,12 @@ export function getTransactionTools(supabase: SupabaseClient, userId: string): M
         },
         additionalProperties: false,
       },
+      annotations: {
+        title: "Transactions",
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
       handler: async (args) => {
         const { year, limit = 50, status } = args as { year?: number; limit?: number; status?: string };
         const cap = Math.min(limit, 200);
@@ -78,6 +84,12 @@ export function getTransactionTools(supabase: SupabaseClient, userId: string): M
           years: { type: "number", description: "Number of past years to include (default 3, max 10)." },
         },
         additionalProperties: false,
+      },
+      annotations: {
+        title: "Transaction Summary by Year",
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
       },
       handler: async (args) => {
         const { years = 3 } = args as { years?: number };

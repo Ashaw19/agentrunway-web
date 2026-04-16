@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { articleSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "Real Estate Business Analytics Software | Agent Runway",
@@ -26,6 +27,21 @@ export const metadata: Metadata = {
     canonical: "https://agentrunway.ca/real-estate-business-analytics",
   },
 };
+
+const pageArticleSchema = articleSchema({
+  headline: "Real Estate Business Analytics Software for Canadian Agents",
+  description:
+    "A framework for evaluating business analytics tools for real estate agents — what metrics matter, how to measure them, and why purpose-built software beats spreadsheets.",
+  url: "/real-estate-business-analytics",
+  datePublished: "2025-11-01",
+  dateModified: "2026-04-16",
+  imageUrl: "/og-image-v2.png",
+});
+
+const breadcrumb = breadcrumbSchema([
+  { name: "Home", url: "/" },
+  { name: "Real Estate Business Analytics", url: "/real-estate-business-analytics" },
+]);
 
 // ── Why-analytics pain points ─────────────────────────────────────────────────
 
@@ -109,6 +125,16 @@ const FEATURES = [
 export default function RealEstateBusinessAnalyticsPage() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-950">
+
+      {/* ── JSON-LD (Article + BreadcrumbList) ── */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(pageArticleSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
 
       {/* ── Navigation ── */}
       <MarketingNav />
