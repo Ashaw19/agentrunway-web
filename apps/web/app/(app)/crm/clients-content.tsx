@@ -506,8 +506,8 @@ function buildAllGroups(clients: Client[], records: ClientRecord[]): ClientGroup
   for (const r of records) {
     const key =
       r.client_id ??
-      nameToId.get(r.name.trim().toLowerCase()) ??
-      `__v__${r.name.trim().toLowerCase()}`;
+      nameToId.get(toNameSearch(r.name)) ??
+      `__v__${toNameSearch(r.name)}`;
     const b = buckets.get(key) ?? [];
     b.push(r);
     buckets.set(key, b);

@@ -206,7 +206,7 @@ export async function buildDiagnostics(
     (sum: number, r: { total_amount?: number | string }) => sum + Number(r.total_amount ?? 0), 0,
   );
   const expNow = new Date();
-  const expMonthsElapsed = expNow.getMonth() + (expNow.getDate() / 30);
+  const expMonthsElapsed = expNow.getMonth() + 1; // 1-12, consistent with dashboard engine
   const recurringYTDEstimate = monthlyRecurring * expMonthsElapsed;
   const expensesYTD = Math.max(receiptTotal, recurringYTDEstimate);
 

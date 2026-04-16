@@ -203,6 +203,11 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
       toast.error("Estimated list price is required.");
       return;
     }
+    const commPct = Number(listingForm.estimated_commission_pct);
+    if (listingForm.estimated_commission_pct !== "" && (commPct < 0 || commPct > 50)) {
+      toast.error("Commission must be between 0% and 50%.");
+      return;
+    }
 
     savingListingRef.current = true;
     setListingSaving(true);

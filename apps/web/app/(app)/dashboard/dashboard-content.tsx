@@ -584,7 +584,7 @@ export function DashboardContent({
     0,
   );
   const monthlyRecurring = legacyMonthlyRecurring + recurringExpMonthly;
-  const expMonthsElapsed = now.getMonth() + (now.getDate() / 30);
+  const expMonthsElapsed = now.getMonth() + 1; // 1-12, consistent with expRemainingMonths denominator
   const legacyRecurringYTDEstimate = legacyMonthlyRecurring * expMonthsElapsed;
   const expensesYTD = Math.max(receiptTotal, legacyRecurringYTDEstimate) + recurringExpYTD;
 

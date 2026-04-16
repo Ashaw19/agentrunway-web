@@ -290,6 +290,11 @@ function serializeCell(value: unknown): string {
 
 function csvEscape(value: string): string {
   if (value === "") return "";
+  // Prevent Excel/Sheets formula injection by prefixing dangerous leading characters.
+  const first = value.charAt(0);
+  if (first === "=" || first === "+" || first === "-" || first === "@" || first === "|" || first === "\t") {
+    value = "'" + value;
+  }
   if (/[",\r\n]/.test(value)) {
     return `"${value.replace(/"/g, '""')}"`;
   }

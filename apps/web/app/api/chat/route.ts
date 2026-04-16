@@ -52,6 +52,17 @@ import { fetchMemories, addMemory } from "@/lib/ai/memory";
 import { createAgentTools, createCoreAgentTools, NEEDS_APPROVAL_TOOLS, APPROVAL_DESCRIPTIONS } from "@/lib/ai/tools";
 import type { Province, Transaction as CoreTransaction, ContactActivity } from "@agent-runway/core/types/database";
 
+/** Returns a safe user-facing message for AI stream errors without leaking internal details. */
+function safeUserErrorMessage(detail: string): string {
+  const d = detail.toLowerCase();
+  if (d.includes("rate limit") || d.includes("429")) return "⚠️ The AI is currently busy. Please wait a moment and try again.";
+  if (d.includes("overloaded") || d.includes("503")) return "⚠️ The AI service is temporarily overloaded. Please try again shortly.";
+  if (d.includes("context length") || d.includes("too long") || d.includes("token")) return "⚠️ Your conversation is too long for the AI to process. Try starting a new chat.";
+  if (d.includes("content policy") || d.includes("safety")) return "⚠️ The AI declined to respond to this request.";
+  if (d.includes("timeout") || d.includes("timed out")) return "⚠️ The AI took too long to respond. Please try again.";
+  return "⚠️ Something went wrong with the AI. Please try again.";
+}
+
 export async function POST(req: NextRequest) {
   const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
 
@@ -1398,7 +1409,7 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
               const errDetail = errObj instanceof Error ? errObj.message : typeof errObj === "string" ? errObj : JSON.stringify(errObj);
               log.error({ requestId, error: errObj, errorDetail: errDetail }, "[chat] Stream error event");
               console.error("[chat] Stream error event:", errDetail);
-              const errMsg = `⚠️ AI error: ${errDetail.slice(0, 300)}`;
+              const errMsg = safeUserErrorMessage(errDetail);
               controller.enqueue(encoder.encode(`0:${JSON.stringify(errMsg)}\n`));
               return; // Stop processing — don't hit the empty-stream fallback
             }
@@ -1415,7 +1426,7 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
           log.error({ err, requestId, chunkCount, textChunks, toolCallChunks }, "[chat] Stream error");
           console.error("[chat] Stream catch:", errDetail, "chunks:", chunkCount);
           // Send diagnostic error message so we can debug
-          const errMsg = `I ran into an issue: ${errDetail.slice(0, 200)}. Please try again.`;
+          const errMsg = safeUserErrorMessage(errDetail);
           controller.enqueue(encoder.encode(`0:${JSON.stringify(errMsg)}\n`));
         } finally {
           clearTimeout(abortTimeout);
