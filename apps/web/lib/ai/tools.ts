@@ -44,13 +44,11 @@
  *                         updateContactTask, skipOutreachItem,
  *                         deleteContactActivity, deleteContactTask,
  *                         manageFlightPlan
- *   Confirm-required    — logExpense, logMileage, recordTransaction,
- *                         recordReferral, deleteExpense, updateExpense,
+ *   Confirm-required    — recordTransaction, deleteExpense, updateExpense,
  *                         addCCAAsset, updateTransaction, deleteTransaction,
- *                         updatePipelineDealValue, deleteRecurringExpense,
- *                         deleteCCAAsset, deleteMileage,
- *                         deleteReferral, deleteListingAppointment,
- *                         deletePropertyShowing
+ *                         updatePipelineDealValue, deleteCCAAsset,
+ *                         deleteMileage, deleteReferral,
+ *                         deleteListingAppointment, deletePropertyShowing
  */
 
 import { tool, type ToolSet } from "ai";
@@ -79,6 +77,10 @@ export const NEEDS_APPROVAL_TOOLS = new Set([
   // Expense mutations
   "createRecurringExpense",
   "deleteRecurringExpense",
+  "logExpense",
+  "logMileage",
+  // Referral mutations
+  "recordReferral",
 ]);
 
 // Human-readable descriptions for approval cards
@@ -113,6 +115,13 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
     `Add recurring expense: ${args.vendor ?? args.description ?? "expense"} — $${args.amount}/mo`,
   deleteRecurringExpense: (args) =>
     `Remove recurring expense: ${args.vendor ?? args.description ?? args.expenseId ?? "expense"}`,
+  logExpense: (args) =>
+    `Log $${Number(args.amount).toLocaleString()} expense at ${args.vendor} on ${args.expenseDate}`,
+  logMileage: (args) =>
+    `Log ${args.km} km on ${args.tripDate}: "${String(args.description ?? "").slice(0, 60)}"`,
+  // Referrals
+  recordReferral: (args) =>
+    `Log ${args.direction} referral: ${args.clientName} ${args.direction === "inbound" ? "from" : "to"} ${args.partnerName}`,
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -679,16 +688,16 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── LOG EXPENSE (confirm required) ────────────────────────────────────────
     logExpense: tool({
-      description: "Log a business expense. Requires confirmed: true before writing. When confirmed is false, return a preview for the agent to confirm. Category keys: vehicle, marketing, office_tech, professional_fees, travel_meals, insurance_licenses, education_dev, other.",
+      description: "Log a business expense. Category keys: vehicle, marketing, office_tech, professional_fees, travel_meals, insurance_licenses, education_dev, other.",
       inputSchema: z.object({
         vendor: z.string().describe("Business or vendor name (e.g. 'Shell', 'Facebook Ads', 'Rogers')"),
         amount: z.number().positive().describe("Expense total in dollars"),
         categoryKey: z.enum(EXPENSE_CATEGORY_KEYS).describe("Expense category key"),
         expenseDate: z.string().describe("Expense date in YYYY-MM-DD format"),
         notes: z.string().optional().describe("Optional notes about the expense"),
-        confirmed: z.boolean().default(false).describe("Must be true to execute. When false, returns a preview for confirmation."),
       }),
-      execute: async ({ vendor, amount, categoryKey, expenseDate, notes, confirmed }) => {
+      needsApproval: true,
+      execute: async ({ vendor, amount, categoryKey, expenseDate, notes }) => {
         const categoryLabels: Record<string, string> = {
           vehicle: "Vehicle",
           marketing: "Marketing",
@@ -699,10 +708,6 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           education_dev: "Education & Development",
           other: "Other",
         };
-
-        if (!confirmed) {
-          return `Ready to log: $${amount.toLocaleString()} expense at ${vendor} (${categoryLabels[categoryKey] ?? categoryKey}) on ${expenseDate}${notes ? ` — "${notes}"` : ""}. Confirm to save.`;
-        }
 
         try {
           const { error } = await supabase
@@ -1059,15 +1064,10 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         description: z.string().describe("Trip purpose (e.g. 'Showing at 44 Main St', 'Client meeting with John Smith')"),
         fromLocation: z.string().optional().describe("Starting point (e.g. 'Home office', '100 King St')"),
         toLocation: z.string().optional().describe("Destination (e.g. '44 Main Street, Saint John')"),
-        confirmed: z.boolean().default(false).describe("Must be true to execute. When false, returns a preview."),
       }),
-      execute: async ({ tripDate, km, description, fromLocation, toLocation, confirmed }) => {
+      needsApproval: true,
+      execute: async ({ tripDate, km, description, fromLocation, toLocation }) => {
         const deduction = km * 0.72; // Simplified — engine handles 5K threshold
-
-        if (!confirmed) {
-          const route = fromLocation && toLocation ? ` (${fromLocation} → ${toLocation})` : "";
-          return `Ready to log: ${km} km${route} on ${tripDate} — "${description}". Estimated deduction: $${deduction.toFixed(2)}. Confirm to save.`;
-        }
 
         try {
           const { error } = await supabase
@@ -1450,15 +1450,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         referralFeePct: z.number().min(0).max(100).optional().describe("Referral fee as a percentage of GCI (default 25%)"),
         estimatedValue: z.number().optional().describe("Estimated referral fee amount in dollars"),
         notes: z.string().optional().describe("Optional notes"),
-        confirmed: z.boolean().default(false).describe("Must be true to execute."),
       }),
-      execute: async ({ direction, partnerName, partnerBrokerage, clientName, propertyAddress, transactionType, referralFeePct, estimatedValue, notes, confirmed }) => {
+      needsApproval: true,
+      execute: async ({ direction, partnerName, partnerBrokerage, clientName, propertyAddress, transactionType, referralFeePct, estimatedValue, notes }) => {
         const feePct = referralFeePct ?? 25;
         const dirLabel = direction === "inbound" ? "received from" : "sent to";
-
-        if (!confirmed) {
-          return `Ready to log ${direction} referral: ${clientName} — ${dirLabel} ${partnerName}${partnerBrokerage ? ` (${partnerBrokerage})` : ""}, ${feePct}% fee${estimatedValue ? `, ~$${estimatedValue.toLocaleString()}` : ""}. Confirm to save.`;
-        }
 
         try {
           const { error } = await supabase
