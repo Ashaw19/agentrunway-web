@@ -11,8 +11,8 @@
  * - Core tools use needsApproval: true for human-in-the-loop gating —
  *   the AI surfaces a confirmation card and waits for user approval
  *   before executing. See NEEDS_APPROVAL_TOOLS set below.
- * - Non-core dollar-amount tools still use the legacy confirmed: true
- *   parameter pattern (to be migrated to needsApproval when promoted)
+ * - Delete tools still use the legacy confirmed: true parameter pattern
+ *   (to be promoted to needsApproval in a follow-up)
  * - All tools gracefully return error strings (never throw) so a tool
  *   failure never crashes the stream
  *
@@ -29,26 +29,29 @@
  *   Create              — createClient, createPipelineDeal, createContactTask,
  *                         createRecurringExpense, addPropertyShowing,
  *                         addListingAppointment, createFlightPlan
- *   Update              — updateListingAppointment, updateReferral,
- *                         updateRecurringExpense, updateCCAAsset,
- *                         updateMileage, updatePropertyShowing
- *   Autonomous          — logContactActivity, updateClientStatus,
- *                         updateClientNotes, updateClientDetails,
- *                         updateClientTags, updateClientTone,
- *                         updatePipelineDealStage,
- *                         updatePipelineDealProbability, updatePipelineDealCloseDate,
+ *   Update              — updateReferral, updateRecurringExpense,
+ *                         updateCCAAsset, updateMileage, updatePropertyShowing
+ *   Autonomous          — updatePipelineDealProbability, updatePipelineDealCloseDate,
  *                         updatePipelineDealDetails, updateGCIGoal,
  *                         updateUserSettings, archiveClient, unarchiveClient,
- *                         linkClientReferral, linkClientRelationship,
- *                         removePipelineDeal, completeContactTask,
- *                         updateContactTask, skipOutreachItem,
- *                         deleteContactActivity, deleteContactTask,
- *                         manageFlightPlan
- *   Confirm-required    — recordTransaction, deleteExpense, updateExpense,
- *                         addCCAAsset, updateTransaction, deleteTransaction,
- *                         updatePipelineDealValue, deleteCCAAsset,
+ *                         linkClientRelationship, removePipelineDeal,
+ *                         completeContactTask, updateContactTask,
+ *                         skipOutreachItem, deleteContactActivity,
+ *                         deleteContactTask, manageFlightPlan
+ *                         (none currently exposed via createCoreAgentTools)
+ *   Needs-approval      — createClient, updateClientDetails, updateClientNotes,
+ *                         updateClientStatus, updateClientTags, updateClientTone,
+ *                         linkClientReferral, createPipelineDeal,
+ *                         updatePipelineDealStage, logContactActivity,
+ *                         createContactTask, createRecurringExpense,
+ *                         deleteRecurringExpense, logExpense, logMileage,
+ *                         updateExpense, recordReferral, recordTransaction,
+ *                         updateTransaction, updatePipelineDealValue,
+ *                         addCCAAsset, updateListingAppointment
+ *   Confirm-required    — deleteExpense, deleteTransaction, deleteCCAAsset,
  *                         deleteMileage, deleteReferral,
  *                         deleteListingAppointment, deletePropertyShowing
+ *                         (legacy pattern — to be promoted to needsApproval)
  */
 
 import { tool, type ToolSet } from "ai";
@@ -79,8 +82,18 @@ export const NEEDS_APPROVAL_TOOLS = new Set([
   "deleteRecurringExpense",
   "logExpense",
   "logMileage",
+  "updateExpense",
   // Referral mutations
   "recordReferral",
+  // Transaction mutations
+  "recordTransaction",
+  "updateTransaction",
+  // Pipeline value mutations
+  "updatePipelineDealValue",
+  // CCA / tax assets
+  "addCCAAsset",
+  // Listings
+  "updateListingAppointment",
 ]);
 
 // Human-readable descriptions for approval cards
@@ -119,9 +132,50 @@ export const APPROVAL_DESCRIPTIONS: Record<string, (args: Record<string, unknown
     `Log $${Number(args.amount).toLocaleString()} expense at ${args.vendor} on ${args.expenseDate}`,
   logMileage: (args) =>
     `Log ${args.km} km on ${args.tripDate}: "${String(args.description ?? "").slice(0, 60)}"`,
+  updateExpense: (args) => {
+    const changes: string[] = [];
+    if (args.vendor) changes.push(`vendor → ${args.vendor}`);
+    if (args.totalAmount !== undefined) changes.push(`amount → $${Number(args.totalAmount).toLocaleString()}`);
+    if (args.categoryKey) changes.push(`category → ${args.categoryKey}`);
+    if (args.expenseDate) changes.push(`date → ${args.expenseDate}`);
+    if (args.notes !== undefined) changes.push("notes");
+    return `Update expense: ${changes.length ? changes.join(", ") : "(details)"}`;
+  },
   // Referrals
   recordReferral: (args) =>
     `Log ${args.direction} referral: ${args.clientName} ${args.direction === "inbound" ? "from" : "to"} ${args.partnerName}`,
+  // Transactions
+  recordTransaction: (args) => {
+    const price = args.salePrice ? ` at $${Number(args.salePrice).toLocaleString()}` : "";
+    const gci = args.gciOverride ? ` (GCI $${Number(args.gciOverride).toLocaleString()})` : "";
+    return `Record transaction: ${args.address} — ${args.clientName} (${args.side}) closed ${args.closeDate}${price}${gci}`;
+  },
+  updateTransaction: (args) => {
+    const changes: string[] = [];
+    if (args.address) changes.push(`address → ${args.address}`);
+    if (args.salePrice !== undefined) changes.push(`sale → $${Number(args.salePrice).toLocaleString()}`);
+    if (args.commissionPct !== undefined) changes.push(`commission → ${args.commissionPct}%`);
+    if (args.gciOverride !== undefined) changes.push(`GCI → $${Number(args.gciOverride).toLocaleString()}`);
+    if (args.closeDate) changes.push(`close → ${args.closeDate}`);
+    if (args.notes !== undefined) changes.push("notes");
+    return `Update transaction ${args.transactionDescription ?? ""}: ${changes.length ? changes.join(", ") : "(details)"}`.trim();
+  },
+  // Pipeline value
+  updatePipelineDealValue: (args) =>
+    `Update ${args.dealDescription} estimated price → $${Number(args.estimatedPrice).toLocaleString()}`,
+  // CCA assets
+  addCCAAsset: (args) =>
+    `Add CCA asset: "${args.description}" Class ${args.ccaClass} @ ${args.classRate}% — $${Number(args.cost).toLocaleString()}`,
+  // Listings
+  updateListingAppointment: (args) => {
+    const changes: string[] = [];
+    if (args.status) changes.push(`status → ${args.status}`);
+    if (args.actualListPrice !== undefined) changes.push(`list $${Number(args.actualListPrice).toLocaleString()}`);
+    if (args.actualSalePrice !== undefined) changes.push(`sold $${Number(args.actualSalePrice).toLocaleString()}`);
+    if (args.expectedCloseDate) changes.push(`close ${args.expectedCloseDate}`);
+    if (args.notes !== undefined) changes.push("notes");
+    return `Update listing: ${changes.length ? changes.join(", ") : "(details)"}`;
+  },
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -733,7 +787,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── RECORD CLOSED TRANSACTION (confirm required) ──────────────────────────
     recordTransaction: tool({
-      description: "Record a closed real estate transaction. Requires confirmed: true before writing. When confirmed is false, return a preview for the agent to confirm. Use gciOverride to enter the exact commission received; otherwise set salePrice and commissionPct and it will be calculated automatically.",
+      description: "Record a closed real estate transaction. Gated by the approval card — just call the tool when the agent describes a deal they closed. Use gciOverride to enter the exact commission received; otherwise set salePrice and commissionPct and it will be calculated automatically.",
       inputSchema: z.object({
         address: z.string().describe("Property address"),
         clientName: z.string().describe("Client name"),
@@ -743,21 +797,15 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         commissionPct: z.number().min(0).max(10).optional().describe("Commission rate as a percentage, e.g. 2.5 for 2.5%"),
         gciOverride: z.number().positive().optional().describe("Exact GCI received in dollars — use this instead of salePrice + commissionPct when you know the final commission amount"),
         notes: z.string().optional().describe("Optional transaction notes"),
-        confirmed: z.boolean().default(false).describe("Must be true to execute. When false, returns a preview for confirmation."),
       }),
-      execute: async ({ address, clientName, side, closeDate, salePrice, commissionPct, gciOverride, notes, confirmed }) => {
-        // Calculate preview GCI for the confirmation message
+      needsApproval: true,
+      execute: async ({ address, clientName, side, closeDate, salePrice, commissionPct, gciOverride, notes }) => {
+        // Calculate GCI for the success message
         let previewGCI: number | null = null;
         if (gciOverride) {
           previewGCI = gciOverride;
         } else if (salePrice && commissionPct) {
           previewGCI = salePrice * (commissionPct / 100);
-        }
-
-        if (!confirmed) {
-          const gciStr = previewGCI ? ` — GCI: $${previewGCI.toLocaleString()}` : "";
-          const priceStr = salePrice ? ` at $${salePrice.toLocaleString()}` : "";
-          return `Ready to record: ${address} (${clientName}, ${side} side)${priceStr}${gciStr}, closed ${closeDate}. Confirm to save.`;
         }
 
         try {
@@ -933,18 +981,14 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── UPDATE PIPELINE DEAL VALUE (confirm required) ─────────────────────────
     updatePipelineDealValue: tool({
-      description: "Update the estimated sale price of a pipeline deal. Requires confirmed: true before writing.",
+      description: "Update the estimated sale price of a pipeline deal. Gated by the approval card — just call the tool when the agent describes a price change.",
       inputSchema: z.object({
         dealId: z.string().uuid().describe("The deal UUID from searchPipelineDeals"),
-        dealDescription: z.string().describe("Brief deal description for confirmation"),
+        dealDescription: z.string().describe("Brief deal description for the approval card"),
         estimatedPrice: z.number().positive().describe("New estimated sale price in dollars"),
-        confirmed: z.boolean().default(false).describe("Must be true to execute. When false, returns a preview for confirmation."),
       }),
-      execute: async ({ dealId, dealDescription, estimatedPrice, confirmed }) => {
-        if (!confirmed) {
-          return `Ready to update: ${dealDescription} estimated price → $${estimatedPrice.toLocaleString()}. Confirm to save.`;
-        }
-
+      needsApproval: true,
+      execute: async ({ dealId, dealDescription, estimatedPrice }) => {
         try {
           const { error } = await supabase
             .from("pipeline_deals")
@@ -1627,7 +1671,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── ADD CCA ASSET ────────────────────────────────────────────────────────
     addCCAAsset: tool({
-      description: "Add a capital cost allowance (CCA) asset for tax depreciation. Use when the agent mentions buying business equipment (laptop, camera, vehicle, etc.). Common CCA classes: Class 8 (office equipment/furniture, 20%), Class 10 (vehicles, 30%), Class 10.1 (passenger vehicles >$37,000, 30%), Class 12 (software/tools <$500, 100%), Class 50 (computers, 55%). The half-year rule applies automatically in the acquisition year.",
+      description: "Add a capital cost allowance (CCA) asset for tax depreciation. Use when the agent mentions buying business equipment (laptop, camera, vehicle, etc.). Common CCA classes: Class 8 (office equipment/furniture, 20%), Class 10 (vehicles, 30%), Class 10.1 (passenger vehicles >$37,000, 30%), Class 12 (software/tools <$500, 100%), Class 50 (computers, 55%). The half-year rule applies automatically in the acquisition year. Gated by the approval card.",
       inputSchema: z.object({
         description: z.string().describe("Asset description (e.g. 'MacBook Pro 16-inch', '2024 Honda CR-V')"),
         ccaClass: z.number().describe("CRA CCA class number (8, 10, 12, 50, etc.)"),
@@ -1636,16 +1680,12 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         acquisitionDate: z.string().describe("Purchase date YYYY-MM-DD"),
         businessUsePct: z.number().min(0).max(100).optional().describe("Business use percentage (default 100%)"),
         notes: z.string().optional().describe("Optional notes"),
-        confirmed: z.boolean().default(false).describe("Must be true to execute."),
       }),
-      execute: async ({ description, ccaClass, classRate, cost, acquisitionDate, businessUsePct, notes, confirmed }) => {
+      needsApproval: true,
+      execute: async ({ description, ccaClass, classRate, cost, acquisitionDate, businessUsePct, notes }) => {
         const bizPct = (businessUsePct ?? 100) / 100;
         const rateDecimal = classRate / 100;
         const firstYearCCA = cost * bizPct * rateDecimal * 0.5; // half-year rule
-
-        if (!confirmed) {
-          return `Ready to add CCA asset: "${description}" — Class ${ccaClass} (${classRate}%), cost $${cost.toLocaleString()}, ${(bizPct * 100).toFixed(0)}% business use. First-year CCA deduction: ~$${firstYearCCA.toFixed(0)}. Confirm to save.`;
-        }
 
         try {
           const { error } = await supabase
@@ -1720,19 +1760,19 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── UPDATE TRANSACTION ───────────────────────────────────────────────────
     updateTransaction: tool({
-      description: "Update details on a closed transaction. Use when the agent says 'change the sale price on that deal' or 'update the commission on [address]'. Requires confirmation for dollar changes.",
+      description: "Update details on a closed transaction. Use when the agent says 'change the sale price on that deal' or 'update the commission on [address]'. Gated by the approval card.",
       inputSchema: z.object({
         transactionId: z.string().uuid().describe("The transaction UUID"),
-        transactionDescription: z.string().describe("Brief description for confirmation"),
+        transactionDescription: z.string().describe("Brief description for the approval card"),
         address: z.string().optional().describe("Updated property address"),
         salePrice: z.number().optional().describe("Updated sale price in dollars"),
         commissionPct: z.number().min(0).max(10).optional().describe("Updated commission rate as percentage"),
         gciOverride: z.number().optional().describe("Updated exact GCI in dollars"),
         closeDate: z.string().optional().describe("Updated close date YYYY-MM-DD"),
         notes: z.string().optional().describe("Updated notes"),
-        confirmed: z.boolean().default(false).describe("Must be true to execute."),
       }),
-      execute: async ({ transactionId, transactionDescription, address, salePrice, commissionPct, gciOverride, closeDate, notes, confirmed }) => {
+      needsApproval: true,
+      execute: async ({ transactionId, transactionDescription, address, salePrice, commissionPct, gciOverride, closeDate, notes }) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const updates: Record<string, any> = { updated_at: new Date().toISOString() };
         const changed: string[] = [];
@@ -1745,10 +1785,6 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         if (notes !== undefined) { updates.notes = notes; changed.push("notes updated"); }
 
         if (changed.length === 0) return "No fields to update were provided.";
-
-        if (!confirmed) {
-          return `Ready to update ${transactionDescription}: ${changed.join(", ")}. Confirm to save.`;
-        }
 
         try {
           const { error } = await supabase
@@ -1852,7 +1888,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── UPDATE: Edit an existing expense ──────────────────────────────────────
     updateExpense: tool({
-      description: "Update an existing expense (change amount, vendor, category, date, or notes). Use searchExpenses first to find the expense ID. Requires confirmation for amount changes.",
+      description: "Update an existing expense (change amount, vendor, category, date, or notes). Use searchExpenses first to find the expense ID. Gated by the approval card.",
       inputSchema: z.object({
         expenseId: z.string().uuid().describe("The expense UUID from searchExpenses"),
         vendor: z.string().optional().describe("Updated vendor name"),
@@ -1860,11 +1896,11 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         categoryKey: z.enum(EXPENSE_CATEGORY_KEYS).optional().describe("Updated T2125 category"),
         expenseDate: z.string().optional().describe("Updated date (YYYY-MM-DD)"),
         notes: z.string().optional().describe("Updated notes"),
-        confirmed: z.boolean().describe("Must be true to apply changes. When false, returns a preview."),
       }),
-      execute: async ({ expenseId, vendor, totalAmount, categoryKey, expenseDate, notes, confirmed }) => {
+      needsApproval: true,
+      execute: async ({ expenseId, vendor, totalAmount, categoryKey, expenseDate, notes }) => {
         try {
-          // Fetch current expense for preview
+          // Fetch current expense so we can narrate the before/after diff in the result
           const { data: current, error: fetchErr } = await supabase
             .from("receipt_expenses")
             .select("vendor, total_amount, category_key, expense_date, notes")
@@ -1882,10 +1918,6 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           if (notes !== undefined && notes !== current.notes) changes.push(`notes updated`);
 
           if (changes.length === 0) return "No changes detected — the expense already matches what you described.";
-
-          if (!confirmed) {
-            return `PREVIEW — I'll update this expense:\n${changes.join("\n")}\n\nDoes this look right? Say "yes" to confirm.`;
-          }
 
           const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
           if (vendor) updateData.vendor = vendor;
@@ -2475,7 +2507,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── UPDATE: Listing appointment status/details ────────────────────────────
     updateListingAppointment: tool({
-      description: "Update a listing appointment — change status (scheduled/active/sold/expired/withdrawn/lost), actual list price, actual sale price, or dates. Use when the user says 'the listing at 44 Main just went live' or 'that listing sold'.",
+      description: "Update a listing appointment — change status (scheduled/active/sold/expired/withdrawn/lost), actual list price, actual sale price, or dates. Use when the user says 'the listing at 44 Main just went live' or 'that listing sold'. Gated by the approval card.",
       inputSchema: z.object({
         appointmentId: z.string().uuid().describe("The listing appointment UUID"),
         status: z.enum(["scheduled", "active", "sold", "expired", "withdrawn", "lost"]).optional().describe("Updated status"),
@@ -2484,6 +2516,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
         expectedCloseDate: z.string().optional().describe("Expected close date (YYYY-MM-DD)"),
         notes: z.string().optional().describe("Updated notes"),
       }),
+      needsApproval: true,
       execute: async ({ appointmentId, status, actualListPrice, actualSalePrice, expectedCloseDate, notes }) => {
         try {
           const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -3288,34 +3321,50 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
 /**
  * Create a CORE subset of AI Advisor tools for token-constrained requests.
- * ~21 tools instead of ~75 — reduces tool definition tokens by ~70%.
+ * ~28 tools instead of ~75 — reduces tool definition tokens by ~60%.
  * Includes: client CRUD, pipeline basics, activity/task, recurring expenses,
- * expense/mileage/referral logging, client summary, filters, tone, and
- * referral linking.
+ * expense/mileage/referral logging, transactions, CCA assets, listing
+ * appointment updates, client summary, filters, tone, and referral linking.
  */
 export function createCoreAgentTools(supabase: SupabaseClient, userId: string): ToolSet {
   const all = createAgentTools(supabase, userId);
   return {
+    // Read-only
     searchClients: all.searchClients,
+    searchPipelineDeals: all.searchPipelineDeals,
+    searchTransactions: all.searchTransactions,
+    searchExpenses: all.searchExpenses,
+    searchListingAppointments: all.searchListingAppointments,
+    searchCCAAssets: all.searchCCAAssets,
+    searchClientsByFilter: all.searchClientsByFilter,
+    getClientSummary: all.getClientSummary,
+    getQuickStats: all.getQuickStats,
+    // Writes (client)
     createClient: all.createClient,
     updateClientDetails: all.updateClientDetails,
     updateClientNotes: all.updateClientNotes,
     updateClientStatus: all.updateClientStatus,
     updateClientTags: all.updateClientTags,
-    searchPipelineDeals: all.searchPipelineDeals,
+    updateClientTone: all.updateClientTone,
+    linkClientReferral: all.linkClientReferral,
+    // Writes (pipeline)
     createPipelineDeal: all.createPipelineDeal,
     updatePipelineDealStage: all.updatePipelineDealStage,
+    updatePipelineDealValue: all.updatePipelineDealValue,
+    // Writes (activity / tasks)
     logContactActivity: all.logContactActivity,
     createContactTask: all.createContactTask,
+    // Writes (expenses / mileage / referrals)
     createRecurringExpense: all.createRecurringExpense,
     deleteRecurringExpense: all.deleteRecurringExpense,
     logExpense: all.logExpense,
+    updateExpense: all.updateExpense,
     logMileage: all.logMileage,
     recordReferral: all.recordReferral,
-    getClientSummary: all.getClientSummary,
-    searchClientsByFilter: all.searchClientsByFilter,
-    updateClientTone: all.updateClientTone,
-    linkClientReferral: all.linkClientReferral,
-    getQuickStats: all.getQuickStats,
+    // Writes (transactions / CCA / listings)
+    recordTransaction: all.recordTransaction,
+    updateTransaction: all.updateTransaction,
+    addCCAAsset: all.addCCAAsset,
+    updateListingAppointment: all.updateListingAppointment,
   };
 }

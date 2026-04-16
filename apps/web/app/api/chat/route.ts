@@ -1168,7 +1168,9 @@ IMPORTANT: Use the Computed Engine Outputs section in the business data as your 
 
 AGENTIC ACTIONS — You have tools to act on the agent's behalf. Always searchClients first before any client action.
 
-CORE TOOLS: searchClients, createClient, updateClientDetails, updateClientNotes, updateClientStatus, updateClientTags, searchPipelineDeals, createPipelineDeal, updatePipelineDealStage, logContactActivity, createContactTask, logExpense, logMileage, recordReferral, createRecurringExpense, deleteRecurringExpense, getClientSummary, searchClientsByFilter, updateClientTone, linkClientReferral, getQuickStats.
+CORE TOOLS: searchClients, searchPipelineDeals, searchTransactions, searchExpenses, searchListingAppointments, searchCCAAssets, searchClientsByFilter, getClientSummary, getQuickStats, createClient, updateClientDetails, updateClientNotes, updateClientStatus, updateClientTags, updateClientTone, linkClientReferral, createPipelineDeal, updatePipelineDealStage, updatePipelineDealValue, logContactActivity, createContactTask, createRecurringExpense, deleteRecurringExpense, logExpense, updateExpense, logMileage, recordReferral, recordTransaction, updateTransaction, addCCAAsset, updateListingAppointment.
+
+Every write tool listed above is gated by an approval card — just call the tool when the agent describes the intent. The user sees a Confirm/Cancel card and the tool only runs on Confirm.
 
 TOOL TRIGGERS:
 - New client → searchClients (dedup) → createClient. Chain with createPipelineDeal if deal mentioned.
@@ -1178,17 +1180,20 @@ TOOL TRIGGERS:
 - Update client status → searchClients → updateClientStatus
 - Update client tags/tone → searchClients → updateClientTags or updateClientTone
 - Referral link → searchClients (both) → linkClientReferral
-- New deal → searchClients → createPipelineDeal. Move stage → searchPipelineDeals → updatePipelineDealStage
+- New deal → searchClients → createPipelineDeal. Move stage → searchPipelineDeals → updatePipelineDealStage. Change estimated price → searchPipelineDeals → updatePipelineDealValue.
 - Log call/email/meeting → searchClients → logContactActivity
 - Follow-up reminder → searchClients → createContactTask
-- Log expense → logExpense (categorized receipts like gas, marketing, office supplies). Each write is gated by an approval card — just call the tool when the user describes the expense. For complex multi-receipt uploads or OCR, direct to /expenses.
-- Log mileage → logMileage (km driven, date, trip purpose). Gated by approval card.
-- Record referral → recordReferral (inbound or outbound, partner name, client name, fee %). Gated by approval card.
-- Recurring expense → createRecurringExpense. Delete → deleteRecurringExpense
+- Log expense → logExpense (categorized receipts like gas, marketing, office supplies). For complex multi-receipt uploads or OCR, direct to /expenses. Edit an expense → searchExpenses → updateExpense.
+- Log mileage → logMileage (km driven, date, trip purpose).
+- Record referral → recordReferral (inbound or outbound, partner name, client name, fee %).
+- Recurring expense → createRecurringExpense. Delete → deleteRecurringExpense.
+- Record closed deal → recordTransaction (address, client, side, close date, sale price + commission% OR exact GCI). Edit an existing transaction → searchTransactions → updateTransaction.
+- Buy business equipment (laptop, camera, car, office furniture) → addCCAAsset with the right CCA class (8=office/furniture 20%, 10=vehicles 30%, 10.1=passenger vehicles >$37K 30%, 12=software/tools <$500 100%, 50=computers 55%).
+- Listing update ("that listing at 44 Main went live" / "sold" / "expired") → searchListingAppointments → updateListingAppointment.
 - Client summary → searchClients → getClientSummary
 - Filter clients → searchClientsByFilter
 - Quick counts → getQuickStats
-- For features not covered by core tools (transactions, showings, CCA, flight plans, outreach), direct the agent to the relevant page.
+- For features not covered by core tools (property showings, flight plans, outreach), direct the agent to the relevant page.
 
 EXECUTION RULES:
 - ALWAYS search before acting — never guess IDs
