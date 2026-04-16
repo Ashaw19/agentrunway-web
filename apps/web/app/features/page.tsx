@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
 import { softwareApplicationSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
@@ -243,6 +244,13 @@ export default function FeaturesPage() {
             </section>
           )
         )}
+
+        {/* ── Charter Scarcity Strip (auto-hides when sold out) ── */}
+        <section className="bg-slate-950 px-6 pt-16 sm:px-10">
+          <div className="mx-auto max-w-3xl">
+            <CharterScarcityStrip variant="prominent" />
+          </div>
+        </section>
 
         {/* ── Closing CTA ── */}
         <section className="bg-slate-950 px-6 py-24 text-center sm:px-10">

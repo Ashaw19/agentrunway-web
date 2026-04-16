@@ -4,6 +4,8 @@ import { ArrowRight } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { PricingCards } from "@/components/pricing-cards";
+import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
+import { breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
   title: "Agent Runway Pricing | Real Estate Analytics Software",
@@ -59,6 +61,11 @@ const FAQ_SCHEMA = {
   })),
 };
 
+const PRICING_BREADCRUMB = breadcrumbSchema([
+  { name: "Home",    url: "/" },
+  { name: "Pricing", url: "/pricing" },
+]);
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PricingPage() {
@@ -67,6 +74,10 @@ export default function PricingPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_SCHEMA) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(PRICING_BREADCRUMB) }}
       />
 
       {/* ── Navigation ── */}
@@ -104,6 +115,13 @@ export default function PricingPage() {
               </Link>
               , no credit card required.
             </p>
+          </div>
+        </section>
+
+        {/* ── Charter Scarcity Strip ── */}
+        <section className="bg-slate-950 px-6 pb-4 sm:px-10">
+          <div className="mx-auto max-w-3xl">
+            <CharterScarcityStrip variant="prominent" />
           </div>
         </section>
 

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
 import { softwareApplicationSchema } from "@/lib/schema";
 
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
@@ -464,6 +465,15 @@ export default async function Home() {
             </div>
           </div>
         </div>
+
+        {/* ════════════════════════════════════════════════════════
+            CHARTER SCARCITY STRIP (auto-hides when sold out)
+        ════════════════════════════════════════════════════════ */}
+        <section className="px-6 py-10 sm:px-10" style={{ background: "#010D1F" }}>
+          <div className="mx-auto max-w-3xl">
+            <CharterScarcityStrip variant="prominent" />
+          </div>
+        </section>
 
         {/* ════════════════════════════════════════════════════════
             FEATURES
