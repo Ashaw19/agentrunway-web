@@ -795,6 +795,8 @@ Annual summaries by year. Import via CSV/PDF for prior years. Shows:
 | Experience Years | Benchmark cohort, deviation tone | 0 |
 | Business Structure | Tax calculation method (sole prop/PREC/corp) | Sole prop |
 | Seasonal Weights | Projection accuracy, pace calculation | National default |
+| Estimated Weekly Hours | Time Value card on Overhead page | Not set (card hidden) |
+| Vacation Weeks/Year | Reduces annual hours for Time Value calc | 0 |
 
 ### Commission Split Options
 Presets: 70/30, 75/25, 80/20, 85/15, 90/10, 95/5, 100/0
@@ -1430,6 +1432,38 @@ The Overhead page can pre-fill your GST34 return for any filing period:
 
 **Quick Method**: Available if taxable revenue ≤ $400K. Instead of tracking every ITC, remit a flat rate (typically 8.8% of HST-included revenue for service providers). May result in lower remittance but Agent Runway uses the detailed method — consult an accountant before switching.
 
+### GST/HST Filing Period Deadlines (from filing-period-engine.ts)
+
+**IMPORTANT**: These are DIFFERENT from income tax instalment dates.
+
+| Filing Frequency | Due Dates |
+|-----------------|-----------|
+| Quarterly | Q1 (Jan–Mar): April 30 / Q2 (Apr–Jun): July 31 / Q3 (Jul–Sep): October 31 / Q4 (Oct–Dec): March 31 (next year) |
+| Monthly | One month after period end (e.g., January → February 28) |
+| Annual | June 15 following year (sole prop) or March 31 (corp) |
+
+**Income Tax Instalment Dates** (separate from GST): March 15, June 15, September 15, December 15.
+If a user asks "when is my GST filing due?" → use the GST/HST quarterly deadlines above, NOT the income tax instalment dates.
+
+### Time Value Calculator (from time-value-engine.ts)
+
+The Overhead page includes a **Time Value** card that appears when the agent has set their weekly hours in Settings.
+
+**Required Setting**: Settings → "Estimated Weekly Hours" (and optionally "Vacation Weeks/Year")
+
+**Metrics Shown**:
+- **Effective Hourly Rate (net)**: Projected annual net income ÷ annual working hours
+- **Gross Hourly Rate**: Projected annual GCI ÷ annual working hours
+- **Hours Per Deal**: Annual hours ÷ projected deal count (annualized)
+- **Net Per Deal**: Net income per closed deal
+- **Net Per Deal-Hour**: Net per deal ÷ hours per deal (what each hour on a deal earns)
+- **Break-Even Deal Count**: Number of deals needed just to cover annual expenses
+- **Cost Per Hour**: Annual expenses ÷ annual working hours
+
+**Formula**: Annual hours = (52 − vacation weeks) × weekly hours
+
+If the card doesn't show: the agent hasn't set 'estimated_weekly_hours' in Settings.
+
 ### Common Issues
 - **"Tax estimate seems too high/low"**: Check Settings → province, business structure (sole prop vs incorporated), and whether expenses are fully entered.
 - **"CCA not showing"**: You need to add CCA assets first — use the Co-Pilot ("I bought a $2,400 laptop for work") or add manually on the Overhead page.
@@ -1437,6 +1471,9 @@ The Overhead page can pre-fill your GST34 return for any filing period:
 - **"Instalment amounts changed"**: They update as your estimated tax changes throughout the year based on new transactions and expenses.
 - **"What is line 109 on my GST34?"**: Net tax = GST collected on commissions minus ITCs from expenses. Positive means you owe CRA; negative means CRA refunds you.
 - **"My ITCs seem low"**: Insurance premiums are GST/HST exempt — no ITC can be claimed. Meals & entertainment ITCs are 50% disallowed.
+- **"When is my GST/HST quarterly filing due?"**: Q1 Apr 30, Q2 Jul 31, Q3 Oct 31, Q4 Mar 31 (next year). These are different from income tax instalment dates (Mar 15, Jun 15, Sep 15, Dec 15).
+- **"Time Value card not showing"**: Set your estimated weekly hours in Settings. The card only appears when weekly hours are configured.
+- **"What does effective hourly rate mean?"**: It's your projected annual net income divided by your annual working hours. Lower than expected? Check if your deal count or expenses are pulling it down.
 `,
 
   // ═══════════════════════════════════════════════════════════════════════════

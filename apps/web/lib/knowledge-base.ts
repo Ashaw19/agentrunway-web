@@ -27,7 +27,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **REPORTS** — Overview (score, benchmark, waterfall, tables), Benchmark (CREA cohort), Tax/T2125 (CRA lines, CCA, home office, mileage).
 
-**OVERHEAD** — Tax estimates (federal+provincial+CPP), per-deal set-aside, quarterly instalments (Mar15/Jun15/Sep15/Dec15), GST/HST (collected vs ITCs vs net), deduction summary by T2125 line, CCA schedule, home office, paycheque allocation.
+**OVERHEAD** — Tax estimates (federal+provincial+CPP), per-deal set-aside, income tax instalments (Mar15/Jun15/Sep15/Dec15), GST/HST (collected vs ITCs vs net; quarterly filing deadlines: Q1 Apr30, Q2 Jul31, Q3 Oct31, Q4 Mar31-next-year — separate from income tax instalment dates), deduction summary by T2125 line, CCA schedule, home office, paycheque allocation. Time Value card (effective hourly rate/hr, hours per deal, break-even deal count — requires Settings → Weekly Hours).
 
 **ALTIMETER** — Personal records (best year/month/deal), YoY comparison, all insights ranked by $impact, board benchmarking, performance bands (Launching/Climbing/Competitive/Advancing/Leading), deviation detection (>=20% from baseline), Runway Score breakdown (Pace 35%/Pipeline 30%/Expense 15%/Survival 15%/Benchmark 5%).
 
@@ -37,7 +37,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **SOCIAL STUDIO** — Instagram month-in-review carousel builder with templates and Canva export.
 
-**SETTINGS** — Province, business structure, split (70/30-100/0), brokerage fees (monthly+per-deal+cap+post-cap), cash reserve, experience years, GCI goal, vehicle %, home office method/sqft, GST/HST registration, filing frequency, brokerage withholds HST toggle, seasonality, bank connections, AI Voice Guide, CREA board.
+**SETTINGS** — Province, business structure, split (70/30-100/0), brokerage fees (monthly+per-deal+cap+post-cap), cash reserve, experience years, GCI goal, vehicle %, home office method/sqft, GST/HST registration, filing frequency, brokerage withholds HST toggle, seasonality, bank connections, AI Voice Guide, CREA board, estimated weekly hours + vacation weeks (unlocks Time Value card on Overhead).
 
 **PROFILE** — Name, brokerage, avatar, 15 themes, dark mode, production stats.
 
