@@ -13,6 +13,20 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   id: string;
+  /**
+   * Optional structured record of a gated tool call that resolved on this
+   * message. Populated when the user approves or denies a tool via the
+   * approval card. Not rendered in the UI — only folded into `content` when
+   * the message is serialized for the next /api/chat call, so the model
+   * knows what it actually ran (or was asked to run) on the previous turn.
+   */
+  toolInvocation?: {
+    toolName: string;
+    args: Record<string, unknown>;
+    status: "approved" | "denied";
+    /** Tool result text — only present when status === "approved". */
+    result?: string;
+  };
 }
 
 interface PendingApproval {
@@ -21,6 +35,31 @@ interface PendingApproval {
   args: Record<string, unknown>;
   description: string;
   messageId: string; // which assistant message this belongs to
+}
+
+/**
+ * Fold a message's toolInvocation (if any) into a content-prefix annotation
+ * the model can parse. Keeps the UI message clean (renders `m.content` only)
+ * while giving the next model turn structured context about the tool that
+ * just ran. Called by handleSend when building the /api/chat payload.
+ */
+function serializeMessageForAI(m: Message): { role: "user" | "assistant"; content: string } {
+  if (m.role !== "assistant" || !m.toolInvocation) {
+    return { role: m.role, content: m.content };
+  }
+  const { toolName, args, status, result } = m.toolInvocation;
+  let argsJson: string;
+  try {
+    argsJson = JSON.stringify(args);
+  } catch {
+    argsJson = "{}";
+  }
+  // Cap args to keep the annotation bounded — server slices messages to 4000 chars.
+  if (argsJson.length > 600) argsJson = argsJson.slice(0, 600) + "…";
+  const annotation = status === "approved"
+    ? `[Co-Pilot called ${toolName} (user approved). Args: ${argsJson}. Result: ${String(result ?? "").slice(0, 800)}]`
+    : `[Co-Pilot proposed ${toolName} (user denied — no action taken). Args: ${argsJson}]`;
+  return { role: m.role, content: `${annotation}\n\n${m.content}` };
 }
 
 let msgIdCounter = 0;
@@ -758,10 +797,10 @@ export function AiChat({ financialContext }: Props) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: newMessages.map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
+            // serializeMessageForAI folds any tool-approval outcome into the
+            // content prefix so the model sees what it ran (or was denied)
+            // on the previous turn. UI still renders m.content only.
+            messages: newMessages.map(serializeMessageForAI),
             currentPage: pathname,
           }),
         });
@@ -948,11 +987,21 @@ export function AiChat({ financialContext }: Props) {
           [approval.toolCallId]: { processing: false, resolved: "approved" },
         }));
 
-        // Append the tool result as a new assistant message
+        // Append the tool result as a new assistant message. The
+        // toolInvocation record is folded into the wire content on the next
+        // /api/chat call so the model knows what it just ran (and with which
+        // args). Without this, follow-ups like "undo that" or "edit that
+        // expense" have no structured context to reference.
         const resultMessage: Message = {
           role: "assistant",
           content: result,
           id: nextMsgId(),
+          toolInvocation: {
+            toolName: approval.toolName,
+            args: approval.args,
+            status: "approved",
+            result,
+          },
         };
         setMessages((prev) => [...prev, resultMessage]);
 
@@ -990,9 +1039,21 @@ export function AiChat({ financialContext }: Props) {
       ...prev,
       [approval.toolCallId]: { processing: false, resolved: "denied" },
     }));
+    // Record the denial on the message so the next model turn has structured
+    // context — the user can ask "why did you cancel?" or "what did you want
+    // to do?" and the model can answer from the preserved args.
     setMessages((prev) => [
       ...prev,
-      { role: "assistant", content: "No problem — cancelled that action.", id: nextMsgId() },
+      {
+        role: "assistant",
+        content: "No problem — cancelled that action.",
+        id: nextMsgId(),
+        toolInvocation: {
+          toolName: approval.toolName,
+          args: approval.args,
+          status: "denied",
+        },
+      },
     ]);
   }, []);
 
