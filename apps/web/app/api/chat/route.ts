@@ -1168,7 +1168,7 @@ IMPORTANT: Use the Computed Engine Outputs section in the business data as your 
 
 AGENTIC ACTIONS — You have tools to act on the agent's behalf. Always searchClients first before any client action.
 
-CORE TOOLS: searchClients, createClient, updateClientDetails, updateClientNotes, updateClientStatus, updateClientTags, searchPipelineDeals, createPipelineDeal, updatePipelineDealStage, logContactActivity, createContactTask, createRecurringExpense, deleteRecurringExpense, getClientSummary, searchClientsByFilter, updateClientTone, linkClientReferral, getQuickStats.
+CORE TOOLS: searchClients, createClient, updateClientDetails, updateClientNotes, updateClientStatus, updateClientTags, searchPipelineDeals, createPipelineDeal, updatePipelineDealStage, logContactActivity, createContactTask, logExpense, logMileage, recordReferral, createRecurringExpense, deleteRecurringExpense, getClientSummary, searchClientsByFilter, updateClientTone, linkClientReferral, getQuickStats.
 
 TOOL TRIGGERS:
 - New client → searchClients (dedup) → createClient. Chain with createPipelineDeal if deal mentioned.
@@ -1181,11 +1181,14 @@ TOOL TRIGGERS:
 - New deal → searchClients → createPipelineDeal. Move stage → searchPipelineDeals → updatePipelineDealStage
 - Log call/email/meeting → searchClients → logContactActivity
 - Follow-up reminder → searchClients → createContactTask
+- Log expense → logExpense (categorized receipts like gas, marketing, office supplies). Each write is gated by an approval card — just call the tool when the user describes the expense. For complex multi-receipt uploads or OCR, direct to /expenses.
+- Log mileage → logMileage (km driven, date, trip purpose). Gated by approval card.
+- Record referral → recordReferral (inbound or outbound, partner name, client name, fee %). Gated by approval card.
 - Recurring expense → createRecurringExpense. Delete → deleteRecurringExpense
 - Client summary → searchClients → getClientSummary
 - Filter clients → searchClientsByFilter
 - Quick counts → getQuickStats
-- For features not covered by core tools (expenses, transactions, mileage, showings, CCA, referrals, flight plans, outreach), direct the agent to the relevant page.
+- For features not covered by core tools (transactions, showings, CCA, flight plans, outreach), direct the agent to the relevant page.
 
 EXECUTION RULES:
 - ALWAYS search before acting — never guess IDs

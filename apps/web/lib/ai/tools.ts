@@ -3288,9 +3288,10 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
 /**
  * Create a CORE subset of AI Advisor tools for token-constrained requests.
- * ~18 tools instead of ~75 — reduces tool definition tokens by ~75%.
+ * ~21 tools instead of ~75 — reduces tool definition tokens by ~70%.
  * Includes: client CRUD, pipeline basics, activity/task, recurring expenses,
- * client summary, filters, tone, and referral linking.
+ * expense/mileage/referral logging, client summary, filters, tone, and
+ * referral linking.
  */
 export function createCoreAgentTools(supabase: SupabaseClient, userId: string): ToolSet {
   const all = createAgentTools(supabase, userId);
@@ -3308,6 +3309,9 @@ export function createCoreAgentTools(supabase: SupabaseClient, userId: string): 
     createContactTask: all.createContactTask,
     createRecurringExpense: all.createRecurringExpense,
     deleteRecurringExpense: all.deleteRecurringExpense,
+    logExpense: all.logExpense,
+    logMileage: all.logMileage,
+    recordReferral: all.recordReferral,
     getClientSummary: all.getClientSummary,
     searchClientsByFilter: all.searchClientsByFilter,
     updateClientTone: all.updateClientTone,
