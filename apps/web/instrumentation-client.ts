@@ -25,9 +25,14 @@ Sentry.init({
   // Capture 10% of all traces for performance monitoring (low cost)
   tracesSampleRate: 0.1,
 
-  // Session Replay — only active when user has consented to non-essential cookies
+  // Session Replay — only active when user has consented to non-essential cookies.
+  // Errors-only mode: we capture every error session (high signal, low volume)
+  // but NEVER record random sessions. At beta scale, a 1% random-session sample
+  // burns through the monthly replay budget on routine page views — we hit 80%
+  // of the 50/mo cap in three weeks with only 18 errors (April 2026). Keep the
+  // rate at 0 unless/until we upgrade the plan. Error replays remain at 100%.
   replaysOnErrorSampleRate: hasConsented ? 1.0 : 0,
-  replaysSessionSampleRate: hasConsented ? 0.01 : 0,
+  replaysSessionSampleRate: 0,
 
   // Only include replay integration when user has consented
   integrations: hasConsented
