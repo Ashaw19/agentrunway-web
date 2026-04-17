@@ -244,7 +244,7 @@ function RunwayScorePreview() {
               </div>
               <div className="space-y-1.5">
                 <p className="text-[9px] leading-relaxed text-slate-400">
-                  ⚡ Sarah Chen hasn&apos;t been contacted in 21 days — approach stage
+                  ⚡ Sarah Chen hasn&apos;t been contacted in 21 days — in-flight
                 </p>
                 <p className="text-[9px] leading-relaxed text-slate-400">
                   📅 David Kim&apos;s offer conditional expires in 3 days

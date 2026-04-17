@@ -291,14 +291,13 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
           Track clients through the &quot;flight metaphor&quot; lifecycle:
         </Text>
         <Text style={S.bullet}>{"\u2022"} Boarding — New lead just entered pipeline</Text>
-        <Text style={S.bullet}>{"\u2022"} Taxiing — Warming up, actively engaging</Text>
+        <Text style={S.bullet}>{"\u2022"} Scheduled — Deferred intent with a future timeframe</Text>
         <Text style={S.bullet}>{"\u2022"} In-Flight — Active client, showing/negotiating</Text>
-        <Text style={S.bullet}>{"\u2022"} Landed — Deal closed, transaction completed</Text>
         <Text style={S.bullet}>{"\u2022"} Cruising — Past client, long-term relationship</Text>
 
         <View style={S.infoBox}>
           <Text style={S.infoBoxText}>
-            Tip: A &quot;stale lead&quot; is any active client (Boarding/Taxiing/In-Flight) with no recorded
+            Tip: A &quot;stale lead&quot; is any active client (Boarding/In-Flight) with no recorded
             contact in 14+ days. The Dashboard tracks these so you never lose touch.
           </Text>
         </View>

@@ -165,8 +165,8 @@ const QUICK_REFS: QuickRef[] = [
   },
   {
     title: "Flight Statuses",
-    value: "6 stages",
-    sublabel: "Boarding → Taxiing → Approach → In-Flight → Landed → Cruising",
+    value: "4 stages",
+    sublabel: "Boarding → Scheduled → In-Flight → Cruising",
     icon: Plane,
     anchor: "client-status-flight-metaphor",
   },

@@ -703,14 +703,22 @@ export function FlightControlContent({
       // First, persist the opportunity to outreach_queue via the scan endpoint
       const scanRes = await fetch("/api/ai/detect-opportunities", { method: "POST" });
       const scanData = await scanRes.json();
-      if (scanRes.ok && scanData.queue) {
+      if (!scanRes.ok) {
+        toast.error(scanData?.error ?? "Couldn't scan opportunities — try again");
+        return;
+      }
+      if (scanData.queue) {
         setQueue(scanData.queue as QueueItemWithClient[]);
       }
 
       // Then draft any pending items
       const draftRes = await fetch("/api/ai/detect-opportunities?draft_only=true", { method: "POST" });
       const draftData = await draftRes.json();
-      if (draftRes.ok && draftData.queue) {
+      if (!draftRes.ok) {
+        toast.error(draftData?.error ?? "Couldn't generate draft — try again");
+        return;
+      }
+      if (draftData.queue) {
         setQueue(draftData.queue as QueueItemWithClient[]);
 
         // Find the drafted message for this client
