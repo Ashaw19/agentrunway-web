@@ -950,20 +950,32 @@ export function AiChat({ financialContext }: Props) {
         const handoffTarget = detectHandoff(assistantText, effectivePersona);
         if (handoffTarget && assistantText && !assistantText.startsWith("Sorry")) {
           const followupId = nextMsgId();
-          const captainMsg: Message = {
-            role: "assistant",
-            content: assistantText,
-            id: assistantId,
-            persona: effectivePersona,
-          };
+          // Captain's handoff is ALREADY in state (streamed into the placeholder
+          // with id=assistantId during the first pass). We add a new placeholder
+          // for the handoff target's response. The existing handoff-seam
+          // renderer draws between the two because their personas differ.
           setMessages((prev) => [
             ...prev,
             { role: "assistant", content: "", id: followupId, persona: handoffTarget },
           ]);
 
           try {
+            // IMPORTANT: do NOT include captainMsg in the outgoing payload.
+            // Anthropic treats a trailing assistant message as a PREFILL and
+            // will try to continue Captain's sentence instead of starting a
+            // fresh Navigator turn. With the target persona's prompt pulling
+            // in a different direction, the model lands in an inconsistent
+            // state and the stream errors out with a generic failure.
+            //
+            // The right shape is: send only through the user's question. The
+            // target persona's system-prompt prefix tells it who it is and
+            // what to do. Captain's handoff stays visible in the UI (it's in
+            // messagesRef and renders normally); it just isn't in THIS one
+            // outgoing request. On the next user turn, the array is
+            // [..., captain-handoff, navigator-response, new-user-message]
+            // — last message is user, so Anthropic generates naturally.
             const followupBody = {
-              messages: [...newMessages, captainMsg].map(serializeMessageForAI),
+              messages: newMessages.map(serializeMessageForAI),
               currentPage: pathname,
               persona: handoffTarget,
             };
