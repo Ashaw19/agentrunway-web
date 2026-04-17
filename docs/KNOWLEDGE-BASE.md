@@ -197,7 +197,7 @@ FROM ...
 2. **Transaction descriptions** — find comparable past deals
 3. **Outreach templates** — semantic template matching
 4. **Google Drive documents** — listing descriptions, marketing materials
-5. **AI advisor conversation history** — recall past advice given
+5. **Flight Crew conversation history** — recall past advice given
 
 ---
 
@@ -248,7 +248,7 @@ Generate on schedule instead of on-demand to eliminate 30-50% of real-time LLM c
 ### Cost Per User — Detailed Model
 | Activity | Frequency | Tokens/Event | Monthly Tokens |
 |----------|-----------|-------------|---------------|
-| AI Advisor chat | 15/day × 20 days | 4,000 avg | 1,200,000 |
+| Flight Crew chat | 15/day × 20 days | 4,000 avg | 1,200,000 |
 | CRM lookups | 10/day | 2,000 avg | 400,000 |
 | Pipeline analysis | 3/week | 5,000 avg | 60,000 |
 | Email drafts | 5/week | 3,000 avg | 60,000 |
@@ -1098,7 +1098,7 @@ Canadian RE peak: March-June. Apply indices to forecasts.
 
 ### Activation Metrics
 - Users who retain 90+ days → work backward to find shared first-week behaviors
-- **Likely activation events**: Import 10+ CRM contacts, log 1+ transaction, view dashboard, set flight status, use AI Advisor
+- **Likely activation events**: Import 10+ CRM contacts, log 1+ transaction, view dashboard, set flight status, use Flight Crew
 - Target: 40-60% of trial users activated within 7 days
 
 ### Churn Prevention
@@ -1118,7 +1118,7 @@ Canadian RE peak: March-June. Apply indices to forecasts.
 - Ontario: 8% refundable + additional → up to ~55% combined
 - Quebec: 30% on first $1M → up to ~65% combined (best in world)
 
-**Eligible work**: AI/ML development, algorithm design, novel integration architectures, experimental data processing — basically all Agent Runway's AI Advisor, predictive analytics, and Google integration work.
+**Eligible work**: AI/ML development, algorithm design, novel integration architectures, experimental data processing — basically all Agent Runway's Flight Crew, predictive analytics, and Google integration work.
 
 **Action**: Engage SR&ED consultant (fee: 15-25% of recovered credits). Document technical challenges, experiments, outcomes NOW for current fiscal year.
 
@@ -1293,7 +1293,7 @@ User Speech → Deepgram Nova-3 (STT) → Claude (reasoning) → OpenAI gpt-4o-m
 
 ### AI Stickiness Patterns (Prevent 40% AI Churn)
 - **Daily workflow integration** is the only path — GitHub Copilot gets 80% utilization because it's in the daily workflow, 67% use 5+ days/week
-- AI Advisor must be the thing agents check every morning: "Here are your 3 priorities today" / "2 follow-ups overdue" / "Monthly target on track"
+- Flight Crew must be the thing agents check every morning: "Here are your 3 priorities today" / "2 follow-ups overdue" / "Monthly target on track"
 - **Proactive alerts** beat reactive queries: "Your marketing spend jumped 40% but closings are flat" / "You haven't contacted [client] in 14 days"
 - **Explain reasoning, not just answers**: "Based on your last 12 transactions..." builds trust more than raw accuracy numbers
 - **Adaptive dashboards**: Learn which metrics each agent checks first, surface those prominently
@@ -1303,7 +1303,7 @@ User Speech → Deepgram Nova-3 (STT) → Claude (reasoning) → OpenAI gpt-4o-m
 1. **AI-generated weekly/monthly business reports** — Automated narrative from real data ("Your Q1 GCI was $X, up 12%...") — no RE tool does this
 2. **Proactive anomaly alerts** — Only QuickBooks-level tools do this, not for RE
 3. **Scenario modeling** — "What if I hire an assistant?" / "What if rates drop 1%?" — 5,000-10,000 Monte Carlo iterations for stable results
-4. **Natural language data querying** — "What was my average commission in Q3?" via AI Advisor (Xero's JAX achieved 61% adoption)
+4. **Natural language data querying** — "What was my average commission in Q3?" via Flight Crew (Xero's JAX achieved 61% adoption)
 5. **Goal-based coaching with real data** — Like SkySlope Ayce but backed by actual performance data
 
 ### What NOT to Build Yet
