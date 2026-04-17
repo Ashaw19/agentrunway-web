@@ -939,16 +939,34 @@ export function AiChat({ financialContext }: Props) {
         // target persona. Otherwise the handoff is prose theater: the message
         // reads like a routing action but nothing downstream responds.
         //
-        // detectHandoff returns the target persona if the just-completed
-        // message is short (≤ 400 chars), contains a handoff phrase, and names
-        // a crew member OTHER than the current speaker. See personas.ts.
+        // detectHandoff returns { target, displayText } when the completed
+        // message contains a handoff phrase within the first 300 chars and
+        // names a crew member OTHER than the current speaker. displayText is
+        // the truncated handoff sentence — when a persona over-generates past
+        // the handoff (e.g. Captain emits "...passing it over.\n---\nDispatcher
+        // here. [full answer]" in one stream), we drop the extra text and let
+        // the real target persona answer cleanly in its own bubble.
         //
-        // On match: append a placeholder with the TARGET persona (so the
-        // existing handoff-seam renderer draws between the two), then fire a
-        // second /api/chat call that includes the handoff message in context
-        // and uses the target persona for its system-prompt prefix.
-        const handoffTarget = detectHandoff(assistantText, effectivePersona);
-        if (handoffTarget && assistantText && !assistantText.startsWith("Sorry")) {
+        // On match: truncate the first bubble to the handoff sentence, append
+        // a placeholder with the TARGET persona (so the existing handoff-seam
+        // renderer draws between the two), then fire a second /api/chat call
+        // that uses the target persona for its system-prompt prefix.
+        const handoff = detectHandoff(assistantText, effectivePersona);
+        if (handoff && assistantText && !assistantText.startsWith("Sorry")) {
+          const { target: handoffTarget, displayText } = handoff;
+
+          // If the speaker over-generated past the handoff sentence, truncate
+          // the displayed message so only the handoff sentence remains. The
+          // real target persona's response will render in its own bubble.
+          if (displayText !== assistantText) {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId ? { ...m, content: displayText } : m,
+              ),
+            );
+            assistantText = displayText;
+          }
+
           const followupId = nextMsgId();
           // Captain's handoff is ALREADY in state (streamed into the placeholder
           // with id=assistantId during the first pass). We add a new placeholder

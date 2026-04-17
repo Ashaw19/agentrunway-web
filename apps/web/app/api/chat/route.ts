@@ -1318,6 +1318,20 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
           ...createPersonaAgentTools(supabase, user.id, persona),
         },
         stopWhen: stepCountIs(10),
+        // Stop sequences: when a persona narrates a handoff ("...passing it
+        // over."), halt generation at the end of the handoff sentence so it
+        // cannot over-generate a simulated target-persona answer in the same
+        // bubble. Client-side detectHandoff then routes the follow-up to the
+        // real target persona. Any handoff variant not covered here is caught
+        // by client-side truncation via detectHandoff.displayText.
+        // Anthropic caps at 4 stop sequences — picked the 4 most common
+        // handoff tails from the persona prompts.
+        stopSequences: [
+          "passing it over.",
+          "passing this over.",
+          "handing it over.",
+          "handing this over.",
+        ],
         maxOutputTokens: maxTokens,
         temperature: 0.7,
         abortSignal: abortController.signal,
@@ -1354,6 +1368,13 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
           }, []),
           tools: createPersonaAgentTools(supabase, user.id, persona),
           stopWhen: stepCountIs(10),
+          // See stopSequences note on the primary streamText call above.
+          stopSequences: [
+            "passing it over.",
+            "passing this over.",
+            "handing it over.",
+            "handing this over.",
+          ],
           maxOutputTokens: maxTokens,
           temperature: 0.7,
           abortSignal: abortController.signal,

@@ -154,60 +154,113 @@ export function parseMention(text: string): Persona | null {
 }
 
 /**
+ * Result of handoff detection. Includes the target persona to route to and
+ * the truncated display text — when a persona over-generates past the
+ * handoff sentence (emitting a handoff-then-answer hybrid), the extra text
+ * is dropped so only the handoff sentence shows in the first bubble.
+ */
+export interface HandoffDetection {
+  target: Persona;
+  /**
+   * The handoff sentence to display in the speaker's bubble. May be shorter
+   * than the full generated text when the speaker over-generated past the
+   * handoff phrase. Always ends with terminal punctuation if present.
+   */
+  displayText: string;
+}
+
+const HANDOFF_PHRASES = [
+  "passing it over",
+  "passing this over",
+  "handing it over",
+  "handing this over",
+  "passing this to",
+  "handing this to",
+  "passing to",
+] as const;
+
+/**
  * Detect a narrated handoff in a completed assistant message. Returns the
- * target persona if the message is a pure handoff (not a full answer that
- * merely mentions another crew member), else null.
+ * target persona AND the handoff sentence (so the caller can truncate the
+ * displayed message to just that sentence), or null if no handoff is
+ * detected.
  *
  * Detection rules:
- * - Message must be short (≤ 400 chars). Full domain answers are long;
- *   narrated handoffs are ~1 sentence, ~2 at most when Captain adds
- *   strategic framing before routing.
- * - Must contain an explicit handoff phrase ("passing it over", "handing
- *   this over", "passing this to", etc.).
- * - Must name a crew member OTHER than the current speaker.
+ * - Must contain a handoff phrase ("passing it over", "handing this over",
+ *   "passing this to", etc.) within the first 300 characters — handoffs
+ *   appear early; phrase mentions late in an answer are not handoffs.
+ * - Must name a crew member (other than the current speaker) in the handoff
+ *   sentence itself (not elsewhere in over-generated text).
+ *
+ * Over-generation handling:
+ * - If a persona emits the handoff sentence and then keeps writing (e.g.
+ *   Captain saying "...passing it over.\n\n---\n\nDispatcher here. Let me
+ *   pull your data..."), we treat that as a successful handoff and TRUNCATE
+ *   to the handoff sentence. The auto-router then fires the real target
+ *   persona, which responds cleanly in its own bubble. Prior contract (if
+ *   text > 400 chars, skip) was too conservative — it treated over-
+ *   generation as a non-handoff and let the wrong persona "answer."
  *
  * Called client-side by ai-chat.tsx after a streaming response completes.
- * If it returns a target, the client auto-fires a follow-up /api/chat
- * call with that persona so the handoff actually routes rather than just
- * sounding like it routes.
  *
- * Examples that match:
- *   "Navigator can speak to this — passing it over."           →  "navigator"
- *   "Dispatcher handles that — passing it over."               →  "dispatcher"
- *   "Your runway's tight. Navigator can speak to the numbers — passing it over." → "navigator"
+ * Examples:
+ *   "Navigator can speak to this — passing it over." (56 chars)
+ *     → { target: "navigator", displayText: same }
  *
- * Examples that don't match:
- *   "Your Q2 instalment is $4,750… Navigator can dig deeper."   →  null (too long — a full answer, not a handoff)
- *   "Let me know if Navigator can help."                        →  null (no handoff phrase)
- *   "Passing it over." (no name)                                →  null (no named target)
+ *   "Dispatcher handles client follow-up — passing it over.\n\n---\n\n
+ *    Dispatcher here. Let me pull your follow-up picture..."
+ *     → { target: "dispatcher",
+ *         displayText: "Dispatcher handles client follow-up — passing it over." }
+ *     (the simulated "Dispatcher here…" text is dropped; the real Dispatcher
+ *      persona responds in the next auto-routed turn)
+ *
+ *   "Your Q2 is $4,750. Navigator can dig deeper if you want." (57 chars,
+ *    no handoff phrase) → null
+ *
+ *   "Passing it over." (no named target) → null
  */
 export function detectHandoff(
   text: string,
   currentPersona: Persona,
-): Persona | null {
+): HandoffDetection | null {
   if (!text) return null;
-  // Pure handoffs only. Long responses that mention another crew member are
-  // already-answered messages with suggestions, not handoffs.
-  if (text.length > 400) return null;
 
   const lower = text.toLowerCase();
 
-  const hasHandoffPhrase =
-    lower.includes("passing it over") ||
-    lower.includes("passing this over") ||
-    lower.includes("handing it over") ||
-    lower.includes("handing this over") ||
-    lower.includes("passing this to") ||
-    lower.includes("handing this to") ||
-    lower.includes("passing to");
-  if (!hasHandoffPhrase) return null;
+  // Find the earliest handoff phrase occurrence, if any.
+  let earliestIdx = -1;
+  let foundPhrase: string | null = null;
+  for (const phrase of HANDOFF_PHRASES) {
+    const idx = lower.indexOf(phrase);
+    if (idx >= 0 && (earliestIdx === -1 || idx < earliestIdx)) {
+      earliestIdx = idx;
+      foundPhrase = phrase;
+    }
+  }
+  if (earliestIdx === -1 || foundPhrase === null) return null;
 
-  // First crew member named (other than the current speaker) wins.
+  // Handoff phrase must appear near the start — phrases mid-answer are not
+  // handoffs, they're answers that happen to mention the pattern.
+  if (earliestIdx > 300) return null;
+
+  // Extract the handoff sentence: everything up to the next sentence-ending
+  // punctuation or newline AFTER the handoff phrase. We intentionally keep
+  // the closing punctuation (period, exclamation, question mark) for a clean
+  // display.
+  const phraseEnd = earliestIdx + foundPhrase.length;
+  const tail = text.slice(phraseEnd);
+  const tailMatch = tail.match(/^[^.!?\n]*[.!?]?/);
+  const handoffEndIdx = phraseEnd + (tailMatch?.[0].length ?? 0);
+  const handoffSentence = text.slice(0, handoffEndIdx).trim();
+
+  // The named target must appear in the handoff sentence itself.
+  const sentenceLower = handoffSentence.toLowerCase();
   const candidates: Persona[] = ["navigator", "dispatcher", "captain"];
   for (const p of candidates) {
     if (p === currentPersona) continue;
-    if (lower.includes(p)) return p;
+    if (sentenceLower.includes(p)) {
+      return { target: p, displayText: handoffSentence };
+    }
   }
-
   return null;
 }
