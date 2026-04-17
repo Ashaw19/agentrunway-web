@@ -66,8 +66,13 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ result: String(result) });
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
+    // Full error details stay in the server log (Sentry-captured via log.error).
+    // Client receives a generic message to avoid leaking internals (DB schema
+    // hints, column names, constraint details, etc.) to an authenticated user.
     log.error({ toolName, err, userId: user.id }, "[approve] Tool execution failed");
-    return NextResponse.json({ error: errMsg }, { status: 500 });
+    return NextResponse.json(
+      { error: "Tool execution failed. Please try again, or contact support if this persists." },
+      { status: 500 },
+    );
   }
 }
