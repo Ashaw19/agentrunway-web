@@ -152,3 +152,62 @@ export function parseMention(text: string): Persona | null {
 
   return null;
 }
+
+/**
+ * Detect a narrated handoff in a completed assistant message. Returns the
+ * target persona if the message is a pure handoff (not a full answer that
+ * merely mentions another crew member), else null.
+ *
+ * Detection rules:
+ * - Message must be short (≤ 400 chars). Full domain answers are long;
+ *   narrated handoffs are ~1 sentence, ~2 at most when Captain adds
+ *   strategic framing before routing.
+ * - Must contain an explicit handoff phrase ("passing it over", "handing
+ *   this over", "passing this to", etc.).
+ * - Must name a crew member OTHER than the current speaker.
+ *
+ * Called client-side by ai-chat.tsx after a streaming response completes.
+ * If it returns a target, the client auto-fires a follow-up /api/chat
+ * call with that persona so the handoff actually routes rather than just
+ * sounding like it routes.
+ *
+ * Examples that match:
+ *   "Navigator can speak to this — passing it over."           →  "navigator"
+ *   "Dispatcher handles that — passing it over."               →  "dispatcher"
+ *   "Your runway's tight. Navigator can speak to the numbers — passing it over." → "navigator"
+ *
+ * Examples that don't match:
+ *   "Your Q2 instalment is $4,750… Navigator can dig deeper."   →  null (too long — a full answer, not a handoff)
+ *   "Let me know if Navigator can help."                        →  null (no handoff phrase)
+ *   "Passing it over." (no name)                                →  null (no named target)
+ */
+export function detectHandoff(
+  text: string,
+  currentPersona: Persona,
+): Persona | null {
+  if (!text) return null;
+  // Pure handoffs only. Long responses that mention another crew member are
+  // already-answered messages with suggestions, not handoffs.
+  if (text.length > 400) return null;
+
+  const lower = text.toLowerCase();
+
+  const hasHandoffPhrase =
+    lower.includes("passing it over") ||
+    lower.includes("passing this over") ||
+    lower.includes("handing it over") ||
+    lower.includes("handing this over") ||
+    lower.includes("passing this to") ||
+    lower.includes("handing this to") ||
+    lower.includes("passing to");
+  if (!hasHandoffPhrase) return null;
+
+  // First crew member named (other than the current speaker) wins.
+  const candidates: Persona[] = ["navigator", "dispatcher", "captain"];
+  for (const p of candidates) {
+    if (p === currentPersona) continue;
+    if (lower.includes(p)) return p;
+  }
+
+  return null;
+}

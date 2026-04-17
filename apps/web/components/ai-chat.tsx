@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useAiChat } from "@/lib/ai-chat-context";
 import { toast } from "sonner";
-import { getPersona, DEFAULT_PERSONA, parseMention, type Persona } from "@/lib/flight-crew/personas";
+import { getPersona, DEFAULT_PERSONA, parseMention, detectHandoff, type Persona } from "@/lib/flight-crew/personas";
 import { PersonaBadge } from "@/components/flight-crew/persona-badge";
 import { PersonaSelector } from "@/components/flight-crew/persona-selector";
 import { MentionAutocomplete } from "@/components/flight-crew/mention-autocomplete";
@@ -848,78 +848,163 @@ export function AiChat({ financialContext }: Props) {
           throw new Error(errText || `HTTP ${res.status}`);
         }
 
-        const reader = res.body?.getReader();
         const decoder = new TextDecoder();
-        let assistantText = "";
 
-        if (reader) {
+        // Inner helper: run one streaming pass, progressively updating the
+        // LAST message in state (which must already be a placeholder with
+        // targetId + targetPersona). Returns the final text for post-stream
+        // logic (e.g., handoff detection). Used twice: once for the primary
+        // response, and once more if a Flight Crew handoff is detected.
+        const streamOneTurn = async (
+          reader: ReadableStreamDefaultReader<Uint8Array>,
+          targetId: string,
+          targetPersona: Persona,
+        ): Promise<string> => {
+          let text = "";
           try {
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
               const chunk = decoder.decode(value, { stream: true });
-              const { text, toolName, approval } = parseDataStreamChunk(chunk);
+              const parsed = parseDataStreamChunk(chunk);
 
-              // Show tool call status so the user knows something is happening
-              if (toolName) {
-                setToolStatus(TOOL_STATUS_LABELS[toolName] ?? "Working…");
+              if (parsed.toolName) {
+                setToolStatus(TOOL_STATUS_LABELS[parsed.toolName] ?? "Working…");
               }
 
-              // Handle approval-required tool calls
-              if (approval) {
+              if (parsed.approval) {
+                const approval = parsed.approval;
                 setToolStatus(null);
                 const pendingApproval: PendingApproval = {
                   ...approval,
-                  messageId: assistantId,
+                  messageId: targetId,
                 };
                 setPendingApprovals((prev) => [...prev, pendingApproval]);
                 setApprovalStates((prev) => ({
                   ...prev,
                   [approval.toolCallId]: { processing: false, resolved: null },
                 }));
-                // Set a message indicating the AI is waiting for confirmation
-                if (!assistantText) {
-                  assistantText = "I'd like to take an action — please confirm:";
+                if (!text) {
+                  text = "I'd like to take an action — please confirm:";
                 }
-                const captured = assistantText;
+                const captured = text;
                 setMessages((prev) => [
                   ...prev.slice(0, -1),
-                  { role: "assistant", content: captured, id: assistantId, persona: prev[prev.length - 1]?.persona },
+                  { role: "assistant", content: captured, id: targetId, persona: targetPersona },
                 ]);
               }
 
-              if (text) {
-                // Clear tool status once text starts flowing
+              if (parsed.text) {
                 setToolStatus(null);
-                assistantText += text;
-                const captured = assistantText;
+                text += parsed.text;
+                const captured = text;
                 setMessages((prev) => [
                   ...prev.slice(0, -1),
-                  { role: "assistant", content: captured, id: assistantId, persona: prev[prev.length - 1]?.persona },
+                  { role: "assistant", content: captured, id: targetId, persona: targetPersona },
                 ]);
               }
             }
           } catch {
-            // Stream interrupted (network drop, timeout, abort)
-            if (assistantText.length > 0) {
-              assistantText += "\n\n_(Response may be incomplete — please try again.)_";
+            if (text.length > 0) {
+              text += "\n\n_(Response may be incomplete — please try again.)_";
             } else {
-              assistantText = "Sorry, something went wrong while processing that. Please try again.";
+              text = "Sorry, something went wrong while processing that. Please try again.";
             }
             setMessages((prev) => [
               ...prev.slice(0, -1),
-              { role: "assistant", content: assistantText, id: assistantId, persona: prev[prev.length - 1]?.persona },
+              { role: "assistant", content: text, id: targetId, persona: targetPersona },
             ]);
           }
-          // If stream completed but produced no text (silent error), show fallback
-          if (!assistantText) {
-            assistantText = "Sorry, I couldn't complete that action. Please try again.";
+          if (!text) {
+            text = "Sorry, I couldn't complete that action. Please try again.";
             setMessages((prev) => [
               ...prev.slice(0, -1),
-              { role: "assistant", content: assistantText, id: assistantId, persona: prev[prev.length - 1]?.persona },
+              { role: "assistant", content: text, id: targetId, persona: targetPersona },
             ]);
           }
           setToolStatus(null);
+          return text;
+        };
+
+        const reader = res.body?.getReader();
+        let assistantText = "";
+
+        if (reader) {
+          assistantText = await streamOneTurn(reader, assistantId, effectivePersona);
+        }
+
+        // Flight Crew — narrated-handoff auto-routing.
+        // When a persona responds with a pure handoff sentence ("Navigator can
+        // speak to this — passing it over."), we need to actually invoke the
+        // target persona. Otherwise the handoff is prose theater: the message
+        // reads like a routing action but nothing downstream responds.
+        //
+        // detectHandoff returns the target persona if the just-completed
+        // message is short (≤ 400 chars), contains a handoff phrase, and names
+        // a crew member OTHER than the current speaker. See personas.ts.
+        //
+        // On match: append a placeholder with the TARGET persona (so the
+        // existing handoff-seam renderer draws between the two), then fire a
+        // second /api/chat call that includes the handoff message in context
+        // and uses the target persona for its system-prompt prefix.
+        const handoffTarget = detectHandoff(assistantText, effectivePersona);
+        if (handoffTarget && assistantText && !assistantText.startsWith("Sorry")) {
+          const followupId = nextMsgId();
+          const captainMsg: Message = {
+            role: "assistant",
+            content: assistantText,
+            id: assistantId,
+            persona: effectivePersona,
+          };
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: "", id: followupId, persona: handoffTarget },
+          ]);
+
+          try {
+            const followupRes = await fetch("/api/chat", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                messages: [...newMessages, captainMsg].map(serializeMessageForAI),
+                currentPage: pathname,
+                persona: handoffTarget,
+              }),
+            });
+
+            if (followupRes.ok) {
+              const followupReader = followupRes.body?.getReader();
+              if (followupReader) {
+                const followupText = await streamOneTurn(followupReader, followupId, handoffTarget);
+                // If the follow-up also counts as a completed action, toast.
+                const followupActions = countActions(followupText);
+                if (followupActions > 0) {
+                  const summary = getActionSummary(followupText);
+                  toast.success(summary, { duration: 5000 });
+                }
+              }
+            } else {
+              setMessages((prev) => [
+                ...prev.slice(0, -1),
+                {
+                  role: "assistant",
+                  content: "The handoff didn't complete — please try your question again.",
+                  id: followupId,
+                  persona: handoffTarget,
+                },
+              ]);
+            }
+          } catch {
+            setMessages((prev) => [
+              ...prev.slice(0, -1),
+              {
+                role: "assistant",
+                content: "The handoff was interrupted — please try your question again.",
+                id: followupId,
+                persona: handoffTarget,
+              },
+            ]);
+          }
         }
 
         // Fire toast for completed actions
