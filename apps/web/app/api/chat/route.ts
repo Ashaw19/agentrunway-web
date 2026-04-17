@@ -51,7 +51,7 @@ import { models, heliconeHeaders, anthropic } from "@/lib/ai/provider";
 import { selectModelTier } from "@/lib/ai/router";
 import { buildPromptParts, injectCanary } from "@/lib/ai/security";
 import { fetchMemories, addMemory } from "@/lib/ai/memory";
-import { createAgentTools, createCoreAgentTools, NEEDS_APPROVAL_TOOLS, APPROVAL_DESCRIPTIONS } from "@/lib/ai/tools";
+import { createAgentTools, createCoreAgentTools, createPersonaAgentTools, NEEDS_APPROVAL_TOOLS, APPROVAL_DESCRIPTIONS } from "@/lib/ai/tools";
 import type { Province, Transaction as CoreTransaction, ContactActivity } from "@agent-runway/core/types/database";
 
 /** Returns a safe user-facing message for AI stream errors without leaking internal details. */
@@ -1302,7 +1302,11 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
         }, []),
         // Tools:
         // - webSearch: Anthropic-native search (server-side, CA locale)
-        // - agent write tools: CRM, pipeline, expense, transaction actions
+        // - agent write tools: persona-partitioned (see createPersonaAgentTools).
+        //   Captain gets getQuickStats only; Navigator gets money tools;
+        //   Dispatcher gets people+pipeline tools. This enforces the handoff
+        //   rule at the tool layer — Captain physically cannot list clients
+        //   or search transactions, so it must hand off when asked.
         // maxSteps: allows tool calls + follow-up response in the same stream.
         tools: {
           // NOTE: webSearch temporarily disabled to isolate tool-call issues.
@@ -1311,7 +1315,7 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
           //   maxUses: 3,
           //   userLocation: { type: "approximate", country: "CA", timezone: "America/Toronto" },
           // }),
-          ...createCoreAgentTools(supabase, user.id),
+          ...createPersonaAgentTools(supabase, user.id, persona),
         },
         stopWhen: stepCountIs(10),
         maxOutputTokens: maxTokens,
@@ -1348,7 +1352,7 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
             }
             return acc;
           }, []),
-          tools: createCoreAgentTools(supabase, user.id),
+          tools: createPersonaAgentTools(supabase, user.id, persona),
           stopWhen: stepCountIs(10),
           maxOutputTokens: maxTokens,
           temperature: 0.7,

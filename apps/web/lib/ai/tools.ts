@@ -3377,3 +3377,103 @@ export function createCoreAgentTools(supabase: SupabaseClient, userId: string): 
     updateListingAppointment: all.updateListingAppointment,
   };
 }
+
+/**
+ * Flight Crew persona ID — duplicated here rather than imported from
+ * `/lib/flight-crew/personas` to avoid a Next.js client/server import issue
+ * (personas.ts imports lucide-react for icons). The literal union is the
+ * source of truth; ai-chat.tsx + route.ts both validate against it.
+ */
+type FlightCrewPersona = "captain" | "navigator" | "dispatcher";
+
+/**
+ * Per-persona tool allow-lists. Previously every persona got the full Core
+ * tool set, which meant Captain could use Dispatcher's client-search tools
+ * (and answer questions that should have been handed off) and Navigator
+ * could touch Dispatcher's pipeline writes. Dogfooding Test A.2 caught
+ * Captain answering "who haven't I followed up with" by calling client
+ * tools despite a forceful prompt rule against doing so — prompt adherence
+ * alone is unreliable when the model has tempting tools available.
+ *
+ * Partitioning rule:
+ * - CAPTAIN → getQuickStats only (strategic synthesis). No client search,
+ *   no transaction writes, no pipeline actions. If Captain is asked anything
+ *   requiring a specific name, dollar figure, or stage change, it must hand
+ *   off because it physically has no tool to answer.
+ * - NAVIGATOR → money/finance tools (transactions, expenses, mileage, CCA,
+ *   recurring expenses, listing-appointment reads for financial context).
+ *   No client writes, no pipeline actions.
+ * - DISPATCHER → people/pipeline tools (clients, pipeline, activities,
+ *   tasks, listing appointment updates, referrals). No transaction writes,
+ *   no expense logging.
+ *
+ * Listing appointments and referrals are shared in read form but partitioned
+ * on writes — Dispatcher updates listing appointments as a pipeline action,
+ * Navigator reads them for income context.
+ */
+export function createPersonaAgentTools(
+  supabase: SupabaseClient,
+  userId: string,
+  persona: FlightCrewPersona,
+): ToolSet {
+  const all = createAgentTools(supabase, userId);
+
+  if (persona === "captain") {
+    // Strategic synthesis only — nothing domain-specific.
+    // Captain's "how am I doing" answers come from data injected in the
+    // system prompt (runway, pace, KPIs); getQuickStats is a small backup
+    // for cross-domain dashboard questions.
+    return {
+      getQuickStats: all.getQuickStats,
+    };
+  }
+
+  if (persona === "navigator") {
+    // Money + finance mechanics. No client or pipeline actions.
+    return {
+      // Reads
+      searchTransactions: all.searchTransactions,
+      searchExpenses: all.searchExpenses,
+      searchListingAppointments: all.searchListingAppointments,
+      searchCCAAssets: all.searchCCAAssets,
+      getQuickStats: all.getQuickStats,
+      // Writes — transactions, expenses, CCA, mileage
+      createRecurringExpense: all.createRecurringExpense,
+      deleteRecurringExpense: all.deleteRecurringExpense,
+      logExpense: all.logExpense,
+      updateExpense: all.updateExpense,
+      logMileage: all.logMileage,
+      recordTransaction: all.recordTransaction,
+      updateTransaction: all.updateTransaction,
+      addCCAAsset: all.addCCAAsset,
+    };
+  }
+
+  // Dispatcher — people + pipeline. No financial writes.
+  return {
+    // Reads
+    searchClients: all.searchClients,
+    searchClientsByFilter: all.searchClientsByFilter,
+    searchPipelineDeals: all.searchPipelineDeals,
+    searchListingAppointments: all.searchListingAppointments,
+    getClientSummary: all.getClientSummary,
+    getQuickStats: all.getQuickStats,
+    // Writes — clients
+    createClient: all.createClient,
+    updateClientDetails: all.updateClientDetails,
+    updateClientNotes: all.updateClientNotes,
+    updateClientStatus: all.updateClientStatus,
+    updateClientTags: all.updateClientTags,
+    updateClientTone: all.updateClientTone,
+    linkClientReferral: all.linkClientReferral,
+    recordReferral: all.recordReferral,
+    // Writes — pipeline
+    createPipelineDeal: all.createPipelineDeal,
+    updatePipelineDealStage: all.updatePipelineDealStage,
+    updatePipelineDealValue: all.updatePipelineDealValue,
+    // Writes — activities / tasks / appointments
+    logContactActivity: all.logContactActivity,
+    createContactTask: all.createContactTask,
+    updateListingAppointment: all.updateListingAppointment,
+  };
+}
