@@ -884,7 +884,7 @@ export function AiChat({ financialContext }: Props) {
                 const captured = assistantText;
                 setMessages((prev) => [
                   ...prev.slice(0, -1),
-                  { role: "assistant", content: captured, id: assistantId },
+                  { role: "assistant", content: captured, id: assistantId, persona: prev[prev.length - 1]?.persona },
                 ]);
               }
 
@@ -895,7 +895,7 @@ export function AiChat({ financialContext }: Props) {
                 const captured = assistantText;
                 setMessages((prev) => [
                   ...prev.slice(0, -1),
-                  { role: "assistant", content: captured, id: assistantId },
+                  { role: "assistant", content: captured, id: assistantId, persona: prev[prev.length - 1]?.persona },
                 ]);
               }
             }
@@ -908,7 +908,7 @@ export function AiChat({ financialContext }: Props) {
             }
             setMessages((prev) => [
               ...prev.slice(0, -1),
-              { role: "assistant", content: assistantText, id: assistantId },
+              { role: "assistant", content: assistantText, id: assistantId, persona: prev[prev.length - 1]?.persona },
             ]);
           }
           // If stream completed but produced no text (silent error), show fallback
@@ -916,7 +916,7 @@ export function AiChat({ financialContext }: Props) {
             assistantText = "Sorry, I couldn't complete that action. Please try again.";
             setMessages((prev) => [
               ...prev.slice(0, -1),
-              { role: "assistant", content: assistantText, id: assistantId },
+              { role: "assistant", content: assistantText, id: assistantId, persona: prev[prev.length - 1]?.persona },
             ]);
           }
           setToolStatus(null);
@@ -949,7 +949,7 @@ export function AiChat({ financialContext }: Props) {
           "Sorry, I couldn't connect right now. Try again in a moment.";
         setMessages((prev) => [
           ...prev.slice(0, -1),
-          { role: "assistant", content: errMsg, id: assistantId },
+          { role: "assistant", content: errMsg, id: assistantId, persona: prev[prev.length - 1]?.persona },
         ]);
       } finally {
         setLoading(false);
@@ -1030,18 +1030,25 @@ export function AiChat({ financialContext }: Props) {
         // /api/chat call so the model knows what it just ran (and with which
         // args). Without this, follow-ups like "undo that" or "edit that
         // expense" have no structured context to reference.
-        const resultMessage: Message = {
-          role: "assistant",
-          content: result,
-          id: nextMsgId(),
-          toolInvocation: {
-            toolName: approval.toolName,
-            args: approval.args,
-            status: "approved",
-            result,
-          },
-        };
-        setMessages((prev) => [...prev, resultMessage]);
+        // Flight Crew: tag the tool-result message with the same persona as
+        // the preceding assistant message so the UI renders the correct
+        // avatar/color/name (not a default fallback to Captain).
+        setMessages((prev) => {
+          const lastPersona = prev[prev.length - 1]?.persona;
+          const resultMessage: Message = {
+            role: "assistant",
+            content: result,
+            id: nextMsgId(),
+            persona: lastPersona,
+            toolInvocation: {
+              toolName: approval.toolName,
+              args: approval.args,
+              status: "approved",
+              result,
+            },
+          };
+          return [...prev, resultMessage];
+        });
 
         // Fire toast for the action
         const actionCount = countActions(result);
@@ -1065,7 +1072,7 @@ export function AiChat({ financialContext }: Props) {
         const errMsg = err instanceof Error ? err.message : "Something went wrong";
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: `Failed to execute: ${errMsg}. Please try again.`, id: nextMsgId() },
+          { role: "assistant", content: `Failed to execute: ${errMsg}. Please try again.`, id: nextMsgId(), persona: prev[prev.length - 1]?.persona },
         ]);
       }
     },
