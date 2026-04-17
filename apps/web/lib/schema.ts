@@ -36,7 +36,7 @@ export const organizationSchema = {
   image: `${BASE_URL}/og-image-v2.png`,
   slogan: "Know where your business stands.",
   description:
-    "Agent Runway is an agentic business operating system for Canadian real estate agents — unifying transactions, pipeline, CRM, Canadian taxes, and forecasting, with a Co-Pilot that executes tasks with human approval.",
+    "Agent Runway is an agentic business operating system for Canadian real estate agents — unifying transactions, pipeline, CRM, Canadian taxes, and forecasting, with a Flight Crew that executes tasks with human approval.",
   founder: {
     "@type": "Person",
     "@id": `${BASE_URL}/about/andrew-shaw#person`,
@@ -105,7 +105,7 @@ export const softwareApplicationSchema = {
   "@id": `${BASE_URL}/#software`,
   name: "Agent Runway",
   description:
-    "An agentic business operating system for Canadian real estate agents. Unifies income, taxes, expenses, pipeline, CRM, and forecasting — with a Co-Pilot that executes tasks with human approval.",
+    "An agentic business operating system for Canadian real estate agents. Unifies income, taxes, expenses, pipeline, CRM, and forecasting — with a Flight Crew that executes tasks with human approval.",
   applicationCategory: "BusinessApplication",
   applicationSubCategory: "Real Estate Management Software",
   operatingSystem: "Web, iOS, Android",
@@ -161,7 +161,7 @@ export const softwareApplicationSchema = {
     },
   ],
   featureList: [
-    "Agentic Co-Pilot with 60+ write-enabled tools",
+    "Agentic Flight Crew with 60+ write-enabled tools",
     "Runway Score (0-100 composite business health grade)",
     "Flight Control outreach triggers with AI-drafted messages",
     "Canadian tax estimation for all 13 provinces and territories",
