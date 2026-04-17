@@ -962,21 +962,35 @@ export function AiChat({ financialContext }: Props) {
           ]);
 
           try {
+            const followupBody = {
+              messages: [...newMessages, captainMsg].map(serializeMessageForAI),
+              currentPage: pathname,
+              persona: handoffTarget,
+            };
+            // eslint-disable-next-line no-console
+            console.info("[flight-crew] auto-handoff", {
+              from: effectivePersona,
+              to: handoffTarget,
+              messageCount: followupBody.messages.length,
+              lastTwoRoles: followupBody.messages.slice(-2).map((m) => m.role),
+            });
+
             const followupRes = await fetch("/api/chat", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                messages: [...newMessages, captainMsg].map(serializeMessageForAI),
-                currentPage: pathname,
-                persona: handoffTarget,
-              }),
+              body: JSON.stringify(followupBody),
             });
 
             if (followupRes.ok) {
               const followupReader = followupRes.body?.getReader();
               if (followupReader) {
                 const followupText = await streamOneTurn(followupReader, followupId, handoffTarget);
-                // If the follow-up also counts as a completed action, toast.
+                // eslint-disable-next-line no-console
+                console.info("[flight-crew] handoff response", {
+                  to: handoffTarget,
+                  length: followupText.length,
+                  preview: followupText.slice(0, 120),
+                });
                 const followupActions = countActions(followupText);
                 if (followupActions > 0) {
                   const summary = getActionSummary(followupText);
@@ -984,17 +998,25 @@ export function AiChat({ financialContext }: Props) {
                 }
               }
             } else {
+              const errBody = await followupRes.text().catch(() => "");
+              // eslint-disable-next-line no-console
+              console.error("[flight-crew] handoff request failed", {
+                status: followupRes.status,
+                body: errBody.slice(0, 500),
+              });
               setMessages((prev) => [
                 ...prev.slice(0, -1),
                 {
                   role: "assistant",
-                  content: "The handoff didn't complete — please try your question again.",
+                  content: `The handoff didn't complete (HTTP ${followupRes.status}) — please try your question again.`,
                   id: followupId,
                   persona: handoffTarget,
                 },
               ]);
             }
-          } catch {
+          } catch (handoffErr) {
+            // eslint-disable-next-line no-console
+            console.error("[flight-crew] handoff threw", handoffErr);
             setMessages((prev) => [
               ...prev.slice(0, -1),
               {
