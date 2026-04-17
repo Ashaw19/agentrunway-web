@@ -8,8 +8,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useAiChat } from "@/lib/ai-chat-context";
 import { toast } from "sonner";
-import { getPersona, type Persona } from "@/lib/flight-crew/personas";
+import { getPersona, DEFAULT_PERSONA, type Persona } from "@/lib/flight-crew/personas";
 import { PersonaBadge } from "@/components/flight-crew/persona-badge";
+import { PersonaSelector } from "@/components/flight-crew/persona-selector";
 
 interface Message {
   role: "user" | "assistant";
@@ -705,8 +706,13 @@ export function AiChat({ financialContext }: Props) {
     role: "assistant",
     content: buildInitialMessage(financialContext),
     id: nextMsgId(),
+    persona: "captain",
   });
   const [messages, setMessages] = useState<Message[]>([initialMessage]);
+  // Flight Crew: currently active persona — determines which system prompt
+  // the server uses for the next message. Default is Captain (per locked
+  // direction decision). User can change via the selector or @mention.
+  const [activePersona, setActivePersona] = useState<Persona>(DEFAULT_PERSONA);
   // Ref tracks latest messages so handleSend always has current state
   // (React 18 batching can defer setState callbacks, making side-effect
   // variable capture unreliable)
@@ -806,7 +812,10 @@ export function AiChat({ financialContext }: Props) {
 
       // Build newMessages from ref (always current — immune to React 18 batching)
       const newMessages = [...messagesRef.current, userMessage];
-      setMessages([...newMessages, { role: "assistant", content: "", id: assistantId }]);
+      setMessages([
+        ...newMessages,
+        { role: "assistant", content: "", id: assistantId, persona: activePersona },
+      ]);
 
       try {
         const res = await fetch("/api/chat", {
@@ -934,7 +943,7 @@ export function AiChat({ financialContext }: Props) {
         setToolStatus(null);
       }
     },
-    [input, loading, pathname, isOpen, router],
+    [input, loading, pathname, isOpen, router, activePersona],
   );
 
   // Handle pending questions from ExplainButton / Guide
@@ -1140,6 +1149,20 @@ export function AiChat({ financialContext }: Props) {
             >
               <X className="h-4 w-4" />
             </button>
+          </div>
+
+          {/* Flight Crew: persona selector */}
+          <div
+            className="flex items-center px-4 py-2"
+            style={{
+              background: "rgba(255,255,255,0.02)",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            <PersonaSelector
+              activePersona={activePersona}
+              onChange={setActivePersona}
+            />
           </div>
 
           {/* Messages */}
