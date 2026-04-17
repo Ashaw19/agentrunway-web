@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, Fragment } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sparkles, X, Send, Bot, User, ChevronDown, ThumbsUp, ThumbsDown, CheckCircle2, AlertTriangle, ArrowRight, ExternalLink, ShieldCheck, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -1185,9 +1185,31 @@ export function AiChat({ financialContext }: Props) {
               const personaMeta = msg.role === "assistant" ? getPersona(msg.persona) : null;
               const PersonaIcon = personaMeta?.icon;
 
+              // Flight Crew: detect a crew handoff — when consecutive AI
+              // messages come from different personas. Render a subtle seam
+              // between them so the persona change is visually unmistakable.
+              const prevMsg = i > 0 ? messages[i - 1] : null;
+              const isHandoff =
+                msg.role === "assistant" &&
+                prevMsg?.role === "assistant" &&
+                prevMsg.persona !== undefined &&
+                msg.persona !== undefined &&
+                prevMsg.persona !== msg.persona;
+
               return (
+              <Fragment key={msg.id}>
+              {isHandoff && (
+                <div
+                  className="flex items-center gap-2 px-2 text-[10px] uppercase tracking-wider text-slate-500"
+                  aria-label="Crew handoff"
+                  role="separator"
+                >
+                  <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/10 to-white/10" />
+                  <span>handoff</span>
+                  <div className="h-px flex-1 bg-gradient-to-r from-white/10 via-white/10 to-transparent" />
+                </div>
+              )}
               <div
-                key={msg.id}
                 className={cn(
                   "flex items-start gap-2",
                   msg.role === "user" ? "flex-row-reverse" : "flex-row",
@@ -1368,6 +1390,7 @@ export function AiChat({ financialContext }: Props) {
                   })()}
                 </div>
               </div>
+              </Fragment>
               );
             })}
             <div ref={messagesEndRef} />
