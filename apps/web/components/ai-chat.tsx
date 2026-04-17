@@ -835,6 +835,11 @@ export function AiChat({ financialContext }: Props) {
             // on the previous turn. UI still renders m.content only.
             messages: newMessages.map(serializeMessageForAI),
             currentPage: pathname,
+            // Flight Crew: tell the server which persona is responding so it
+            // loads the correct system-prompt prefix. effectivePersona is
+            // either the @mention override from this message or the active
+            // dropdown selection.
+            persona: effectivePersona,
           }),
         });
 

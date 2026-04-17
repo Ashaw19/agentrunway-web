@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { KNOWLEDGE_BASE } from "@/lib/knowledge-base";
+import { buildPersonaPrefix } from "@/lib/flight-crew/system-prompts";
+import { DEFAULT_PERSONA, type Persona } from "@/lib/flight-crew/personas";
 import { AGENT_RUNWAY_VOICE } from "@/lib/outreach-prompts";
 import { requirePro } from "@/lib/require-pro";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
@@ -93,11 +95,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { messages, currentPage } = await req.json();
+  const { messages, currentPage, persona: personaRaw } = await req.json();
 
   if (!Array.isArray(messages)) {
     return new Response("Invalid request body", { status: 400 });
   }
+
+  // Flight Crew: validate persona, default to Captain for legacy clients
+  // that don't send the field.
+  const persona: Persona =
+    personaRaw === "captain" || personaRaw === "navigator" || personaRaw === "dispatcher"
+      ? personaRaw
+      : DEFAULT_PERSONA;
 
   // Sanitize currentPage to a plain path segment — prevents prompt injection
   const safePage = typeof currentPage === "string"
@@ -1126,8 +1135,17 @@ ${troubleshootingContext}${escalationBlock}
   const maxTokens = tier === "complex" ? 4096 : tier === "fast" ? 2048 : 3000;
 
   // ── 7. Build system prompt (XML-structured, cache-optimized) ─────────────
-  // Static content FIRST (cached at 90% discount), dynamic content LAST
-  const identity = `You are an AI business assistant for a Canadian real estate agent using Agent Runway — a financial analytics platform.
+  // Static content FIRST (cached at 90% discount), dynamic content LAST.
+  //
+  // Flight Crew: buildPersonaPrefix(persona) returns the shared constitution
+  // + the active persona's identity, voice tuning, and handoff rules. This
+  // prefix is prepended to the existing identity so the rest of the prompt
+  // assembly (knowledge base, guidelines, voice guide) stays intact.
+  const personaPrefix = buildPersonaPrefix(persona);
+
+  const identity = `${personaPrefix}
+
+You are part of Agent Runway's Flight Crew — an agentic business OS for Canadian real estate agents.
 
 Important: All outputs you generate are estimates for informational purposes only. You do not provide financial, tax, or legal advice. Always remind users to consult their accountant or professional advisor for decisions.`;
 
