@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useAiChat } from "@/lib/ai-chat-context";
 import { toast } from "sonner";
-import type { Persona } from "@/lib/flight-crew/personas";
+import { getPersona, type Persona } from "@/lib/flight-crew/personas";
+import { PersonaBadge } from "@/components/flight-crew/persona-badge";
 
 interface Message {
   role: "user" | "assistant";
@@ -1146,7 +1147,14 @@ export function AiChat({ financialContext }: Props) {
             className="flex flex-1 flex-col gap-3 overflow-y-auto p-4"
             style={{ maxHeight: "min(520px, calc(100vh - 240px))", minHeight: "200px" }}
           >
-            {messages.map((msg, i) => (
+            {messages.map((msg, i) => {
+              // Flight Crew: derive persona metadata for assistant messages.
+              // Legacy messages without a persona default to Captain (per
+              // getPersona() safe-fallback behavior).
+              const personaMeta = msg.role === "assistant" ? getPersona(msg.persona) : null;
+              const PersonaIcon = personaMeta?.icon;
+
+              return (
               <div
                 key={msg.id}
                 className={cn(
@@ -1160,23 +1168,42 @@ export function AiChat({ financialContext }: Props) {
                     "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px]",
                     msg.role === "user"
                       ? "bg-blue-600 text-white"
-                      : "bg-white/10 text-blue-300",
+                      : cn(personaMeta?.accentBg ?? "bg-white/10"),
                   )}
+                  aria-label={
+                    msg.role === "assistant" && personaMeta
+                      ? `${personaMeta.name} — ${personaMeta.domain}`
+                      : undefined
+                  }
                 >
-                  {msg.role === "user" ? <User className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
+                  {msg.role === "user" ? (
+                    <User className="h-3 w-3" />
+                  ) : PersonaIcon ? (
+                    <PersonaIcon className={cn("h-3 w-3", personaMeta?.accentText)} aria-hidden="true" />
+                  ) : (
+                    <Bot className="h-3 w-3" />
+                  )}
                 </div>
                 {/* Bubble + feedback */}
                 <div className="max-w-[82%]">
+                  {/* Flight Crew: persona name label above AI messages */}
+                  {msg.role === "assistant" && personaMeta && (
+                    <div className="mb-1 px-1">
+                      <PersonaBadge persona={personaMeta.id} variant="inline" />
+                    </div>
+                  )}
                   <div
                     className={cn(
                       "rounded-2xl px-3 py-2 text-sm leading-relaxed",
                       msg.role === "user"
                         ? "rounded-tr-sm bg-blue-600 text-white"
                         : "rounded-tl-sm text-slate-200",
+                      msg.role === "assistant" && personaMeta && "border-l-[3px]",
+                      msg.role === "assistant" && personaMeta?.accent,
                     )}
                     style={
                       msg.role === "assistant"
-                        ? { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }
+                        ? { background: "rgba(255,255,255,0.06)", borderTop: "1px solid rgba(255,255,255,0.08)", borderRight: "1px solid rgba(255,255,255,0.08)", borderBottom: "1px solid rgba(255,255,255,0.08)" }
                         : {}
                     }
                   >
@@ -1310,7 +1337,8 @@ export function AiChat({ financialContext }: Props) {
                   })()}
                 </div>
               </div>
-            ))}
+              );
+            })}
             <div ref={messagesEndRef} />
           </div>
 
