@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { log } from "@/lib/logger";
+import { sanitizeRedirect } from "@/lib/security/safe-redirect";
 
 /**
  * Explicit list of route prefixes that require a valid Supabase session.
@@ -131,12 +132,10 @@ export async function updateSession(request: NextRequest) {
   // Authenticated user on /login → send to redirect param or dashboard
   if (user && pathname === "/login") {
     const url = request.nextUrl.clone();
-    const redirectParam = request.nextUrl.searchParams.get("redirect");
-    // Sanitize: must start with / and not // (prevent open redirect)
-    const safeRedirect = redirectParam && redirectParam.startsWith("/") && !redirectParam.startsWith("//")
-      ? redirectParam
-      : "/dashboard";
-    url.pathname = safeRedirect;
+    url.pathname = sanitizeRedirect(
+      request.nextUrl.searchParams.get("redirect"),
+      request.nextUrl.origin,
+    );
     url.search = "";
     return NextResponse.redirect(url);
   }

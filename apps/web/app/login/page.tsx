@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Plane, CheckCircle2 } from "lucide-react";
+import { sanitizeRedirect } from "@/lib/security/safe-redirect";
 
 type Mode = "signin" | "signup" | "reset" | "reset-sent";
 
@@ -38,12 +39,14 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Read redirect param from URL (e.g. /login?redirect=/invite/TOKEN)
-  const redirectTo = typeof window !== "undefined"
-    ? new URLSearchParams(window.location.search).get("redirect") ?? "/dashboard"
+  // Read and sanitize redirect param (e.g. /login?redirect=/invite/TOKEN).
+  // sanitizeRedirect() uses new URL() parsing to prevent open-redirect bypass.
+  const safeRedirect = typeof window !== "undefined"
+    ? sanitizeRedirect(
+        new URLSearchParams(window.location.search).get("redirect"),
+        window.location.origin,
+      )
     : "/dashboard";
-  // Sanitize: must start with / and not // (prevent open redirect)
-  const safeRedirect = redirectTo.startsWith("/") && !redirectTo.startsWith("//") ? redirectTo : "/dashboard";
 
   function switchMode(next: Mode) {
     setMode(next);
