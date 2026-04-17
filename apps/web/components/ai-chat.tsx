@@ -8,9 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useAiChat } from "@/lib/ai-chat-context";
 import { toast } from "sonner";
-import { getPersona, DEFAULT_PERSONA, type Persona } from "@/lib/flight-crew/personas";
+import { getPersona, DEFAULT_PERSONA, parseMention, type Persona } from "@/lib/flight-crew/personas";
 import { PersonaBadge } from "@/components/flight-crew/persona-badge";
 import { PersonaSelector } from "@/components/flight-crew/persona-selector";
+import { MentionAutocomplete } from "@/components/flight-crew/mention-autocomplete";
 
 interface Message {
   role: "user" | "assistant";
@@ -810,11 +811,18 @@ export function AiChat({ financialContext }: Props) {
       setInput("");
       setLoading(true);
 
+      // Flight Crew: an @mention in this message overrides activePersona for
+      // this single turn only — the dropdown selection persists for the NEXT
+      // message. Matches the "@mention is for a single message, selector is
+      // for the active persona" model locked in the direction decisions.
+      const mentionedPersona = parseMention(trimmed);
+      const effectivePersona = mentionedPersona ?? activePersona;
+
       // Build newMessages from ref (always current — immune to React 18 batching)
       const newMessages = [...messagesRef.current, userMessage];
       setMessages([
         ...newMessages,
-        { role: "assistant", content: "", id: assistantId, persona: activePersona },
+        { role: "assistant", content: "", id: assistantId, persona: effectivePersona },
       ]);
 
       try {
@@ -1395,21 +1403,25 @@ export function AiChat({ financialContext }: Props) {
             className="flex items-end gap-2 p-3"
             style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
           >
-            <Textarea
-              ref={textareaRef}
-              rows={1}
-              placeholder="Ask anything about your business…"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={loading}
-              className="max-h-24 min-h-9 resize-none text-sm"
-              style={{
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                color: "white",
-              }}
-            />
+            <div className="relative flex-1">
+              {/* Flight Crew @mention autocomplete — only renders when relevant */}
+              <MentionAutocomplete value={input} onSelect={setInput} />
+              <Textarea
+                ref={textareaRef}
+                rows={1}
+                placeholder="Ask anything… (try @Navigator for tax, @Dispatcher for clients)"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={loading}
+                className="max-h-24 min-h-9 resize-none text-sm"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.08)",
+                  color: "white",
+                }}
+              />
+            </div>
             <Button
               size="icon"
               onClick={() => handleSend()}
