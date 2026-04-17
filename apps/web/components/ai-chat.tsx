@@ -57,8 +57,8 @@ function serializeMessageForAI(m: Message): { role: "user" | "assistant"; conten
   // Cap args to keep the annotation bounded — server slices messages to 4000 chars.
   if (argsJson.length > 600) argsJson = argsJson.slice(0, 600) + "…";
   const annotation = status === "approved"
-    ? `[Co-Pilot called ${toolName} (user approved). Args: ${argsJson}. Result: ${String(result ?? "").slice(0, 800)}]`
-    : `[Co-Pilot proposed ${toolName} (user denied — no action taken). Args: ${argsJson}]`;
+    ? `[Flight Crew called ${toolName} (user approved). Args: ${argsJson}. Result: ${String(result ?? "").slice(0, 800)}]`
+    : `[Flight Crew proposed ${toolName} (user denied — no action taken). Args: ${argsJson}]`;
   return { role: m.role, content: `${annotation}\n\n${m.content}` };
 }
 
@@ -676,14 +676,14 @@ function buildInitialMessage(context: string): string {
     // — the reality is they just haven't logged anything yet. Give them a
     // welcoming onboarding nudge instead of a pep talk about a deficit.
     if (deals === 0 && ytd === 0) {
-      return "Hey! I'm your Co-Pilot. I don't see any transactions yet — once you log your first deal or import history, I'll start turning your numbers into real answers.\n\nIn the meantime I can walk you through how Agent Runway works, explain any metric, or help you think through your goal for the year. What's on your mind?";
+      return "Hey! I'm Captain, part of your Flight Crew. I coordinate with Navigator (finance) and Dispatcher (clients).\n\nI don't see any transactions yet — once you log your first deal or import history, we'll start turning your numbers into real answers. In the meantime I can walk you through how Agent Runway works, explain any metric, or help you think through your goal for the year.\n\nWhat's on your mind?";
     }
 
     const pct = Math.round((ytd / goal) * 100);
     return `Hey! I've got your numbers in front of me.\n\nYou're at ${pct}% of your annual goal with ${deals} deal${deals !== 1 ? "s" : ""} closed. ${pct >= 75 ? "You're killing it — let's make sure you finish strong." : pct >= 50 ? "You're past the halfway mark — solid position." : "There's ground to make up, but the year isn't over."}\n\nWhat do you want to dig into?`;
   }
 
-  return "Hey! I'm your Co-Pilot. I can help you explore your business data — GCI, pipeline, expenses, and more. All outputs are estimates for informational purposes only.\n\nWhat do you want to know?";
+  return "Hey! I'm Captain, part of your Flight Crew. I coordinate with Navigator (finance) and Dispatcher (clients). Ask me anything, or @-mention a specialist.\n\nAll outputs are estimates for informational purposes only. What do you want to know?";
 }
 
 export function AiChat({ financialContext }: Props) {
@@ -913,7 +913,7 @@ export function AiChat({ financialContext }: Props) {
         const raw = err instanceof Error ? err.message : String(err);
         const errMsg =
           raw.includes("Too many") ? "You're sending messages too quickly. Please wait a moment." :
-          raw.includes("not configured") ? "Co-Pilot is temporarily unavailable. Please try again shortly." :
+          raw.includes("not configured") ? "Flight Crew is temporarily unavailable. Please try again shortly." :
           "Sorry, I couldn't connect right now. Try again in a moment.";
         setMessages((prev) => [
           ...prev.slice(0, -1),
@@ -1083,7 +1083,7 @@ export function AiChat({ financialContext }: Props) {
                 boxShadow: "0 4px 24px rgba(99,102,241,0.5)",
               }
         }
-        aria-label="Open Co-Pilot"
+        aria-label="Open Flight Crew"
       >
         {isOpen ? (
           <ChevronDown className="h-5 w-5" />
@@ -1120,7 +1120,7 @@ export function AiChat({ financialContext }: Props) {
                 <Sparkles className="h-4 w-4 text-blue-300" />
               </div>
               <div>
-                <p className="text-sm font-bold text-white">Co-Pilot</p>
+                <p className="text-sm font-bold text-white">Flight Crew</p>
                 <p className="text-[10px] text-blue-300/70">Sees your live business data</p>
               </div>
             </div>

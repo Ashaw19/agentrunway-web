@@ -106,7 +106,7 @@ const SECTION_META: Record<string, { icon: LucideIcon; description: string; colo
   },
   "AI ASSISTANT BEHAVIORAL GUIDELINES": {
     icon: MessageSquare,
-    description: "How the Co-Pilot communicates — style, tone, and proactive triggers",
+    description: "How the Flight Crew communicates — style, tone, and proactive triggers",
     color: "from-indigo-500/15 to-indigo-600/5 border-indigo-500/20",
   },
   "PROACTIVE INSIGHT TRIGGERS": {
@@ -855,7 +855,7 @@ export function GuideContent({
                       onClick={() => askQuestion(searchQuery)}
                       className="text-primary underline underline-offset-2 hover:text-primary/80"
                     >
-                      ask your Co-Pilot
+                      ask your Flight Crew
                     </button>
                   </>
                 )}

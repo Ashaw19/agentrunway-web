@@ -392,7 +392,7 @@ export function MobileNav({
                 </span>
               </div>
               <p className="mb-3 text-[11px] leading-relaxed text-sidebar-foreground/45">
-                Runway score, tax estimates, Co-Pilot &amp; more.
+                Runway score, tax estimates, Flight Crew &amp; more.
               </p>
               <Link
                 href="/pricing"

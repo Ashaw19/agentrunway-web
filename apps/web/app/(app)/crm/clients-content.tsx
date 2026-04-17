@@ -6020,7 +6020,7 @@ export function ClientsContent({
                           detectedCommHistory.callHeaders.length > 0 && `${detectedCommHistory.callHeaders.length} calls`,
                           detectedCommHistory.textHeaders.length > 0 && `${detectedCommHistory.textHeaders.length} texts`,
                         ].filter(Boolean).join(", ")}{" "}
-                        per contact. These will be imported as activity history so the Co-Pilot has context from day one.
+                        per contact. These will be imported as activity history so the Flight Crew has context from day one.
                       </p>
                     </div>
                   </div>
