@@ -28,6 +28,8 @@ import {
   Pencil,
   ArrowRight,
   ListTodo,
+  Mail,
+  MessageSquare,
   Zap,
   Sparkles,
   Tag,
@@ -475,6 +477,18 @@ export function FlightPlansTab({
                               <span className="flex items-center gap-1.5">
                                 <ListTodo className="h-3 w-3" />
                                 Task
+                              </span>
+                            </SelectItem>
+                            <SelectItem value="email">
+                              <span className="flex items-center gap-1.5">
+                                <Mail className="h-3 w-3" />
+                                Email
+                              </span>
+                            </SelectItem>
+                            <SelectItem value="text">
+                              <span className="flex items-center gap-1.5">
+                                <MessageSquare className="h-3 w-3" />
+                                Text
                               </span>
                             </SelectItem>
                           </SelectContent>

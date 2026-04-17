@@ -1334,11 +1334,11 @@ export function ClientsContent({
       const isArchived = g.clientId ? archivedClientIds.has(g.clientId) : false;
       if (showArchived ? !isArchived : isArchived) return false;
 
-      if (search) {
-        const q = search.toLowerCase();
+      if (search.trim()) {
+        const q = toNameSearch(search);
         if (
-          !g.name.toLowerCase().includes(q) &&
-          !g.deals.some((d) => d.address?.toLowerCase().includes(q))
+          !toNameSearch(g.name).includes(q) &&
+          !g.deals.some((d) => d.address?.toLowerCase().includes(search.trim().toLowerCase()))
         )
           return false;
       }
@@ -1734,7 +1734,7 @@ export function ClientsContent({
         const clientTags: string[] = client?.tags ?? [];
         const matchingPlans = localFlightPlans.filter((fp) => {
           if (!fp.is_active || fp.trigger_status !== value) return false;
-          if (fp.trigger_tag && !clientTags.includes(fp.trigger_tag)) return false;
+          if (fp.trigger_tag && !clientTags.map((t) => t.toLowerCase()).includes(fp.trigger_tag.toLowerCase())) return false;
           return true;
         });
         for (const plan of matchingPlans) {
