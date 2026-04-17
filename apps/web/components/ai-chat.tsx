@@ -8,11 +8,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useAiChat } from "@/lib/ai-chat-context";
 import { toast } from "sonner";
+import type { Persona } from "@/lib/flight-crew/personas";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
   id: string;
+  /**
+   * Flight Crew persona who authored this message (for "assistant" role only).
+   * "captain" | "navigator" | "dispatcher". Optional for backwards
+   * compatibility with messages stored before the Flight Crew ship —
+   * legacy messages default to "captain" via getPersona() at render time.
+   * See lib/flight-crew/personas.ts for the canonical type.
+   */
+  persona?: Persona;
   /**
    * Optional structured record of a gated tool call that resolved on this
    * message. Populated when the user approves or denies a tool via the
