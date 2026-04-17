@@ -85,12 +85,21 @@ interface ExpenseCategory {
 
 // ─── Shared computed context passed to each diagnostic function ───────────────
 
+interface ReferralRow {
+  direction: string;
+  status: string;
+  referral_fee_pct: number;
+  estimated_value: number;
+  actual_fee_paid: number | null;
+}
+
 interface DiagContext {
   settings: UserSettings;
   closedTx: Transaction[];
   pipelineDeals: PipelineDeal[];
   expenses: ExpenseCategory[];
   clients: { id: string; status: string; last_contact_at: string | null; created_at: string }[];
+  referrals: ReferralRow[];
   ytdGCI: number;
   pipelineWeighted: number;
   currentYear: number;
@@ -127,6 +136,7 @@ export async function buildDiagnostics(
     { data: clients },
     { data: historyItems },
     { data: receiptExpenses },
+    { data: referralRows },
   ] = await Promise.all([
     supabase.from("user_settings").select("*").eq("user_id", userId).single(),
     supabase
@@ -155,6 +165,10 @@ export async function buildDiagnostics(
       .select("total_amount")
       .eq("user_id", userId)
       .gte("expense_date", `${currentYear}-01-01`),
+    supabase
+      .from("referrals")
+      .select("direction, status, referral_fee_pct, estimated_value, actual_fee_paid")
+      .eq("user_id", userId),
   ]);
 
   if (!settings) return "\n[DIAGNOSTIC: No user settings found — user may not have completed onboarding]";
@@ -216,6 +230,7 @@ export async function buildDiagnostics(
     pipelineDeals,
     expenses,
     clients: clients ?? [],
+    referrals: (referralRows ?? []) as ReferralRow[],
     ytdGCI,
     pipelineWeighted,
     currentYear,
@@ -265,6 +280,8 @@ function buildTopicDiagnostic(
       return diagSurvival(ctx);
     case "benchmark":
       return diagBenchmark(ctx);
+    case "referrals":
+      return diagReferrals(ctx.referrals);
     default:
       return null;
   }
@@ -650,6 +667,38 @@ Total Monthly Burn: ${fmtCurrency(survival.monthlyBurn)}
 Monthly Avg Income (for context): ${fmtCurrency(monthlyAvgIncome)}
 Runway: ${survival.label}
 Risk Level: ${survival.riskLevel === "notConfigured" ? "Not Configured" : survival.riskLevel.charAt(0).toUpperCase() + survival.riskLevel.slice(1)}`;
+}
+
+function diagReferrals(referrals: ReferralRow[]): string {
+  const inbound = referrals.filter((r) => r.direction === "inbound");
+  const outbound = referrals.filter((r) => r.direction === "outbound");
+
+  const statusCounts: Record<string, number> = {};
+  for (const r of referrals) {
+    statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
+  }
+
+  const totalEstimatedFees = referrals.reduce((sum, r) => {
+    return sum + (r.estimated_value ?? 0) * (r.referral_fee_pct ?? 0.25);
+  }, 0);
+  const totalActualFees = referrals.reduce((sum, r) => sum + (r.actual_fee_paid ?? 0), 0);
+  const avgFeePct = referrals.length > 0
+    ? referrals.reduce((sum, r) => sum + (r.referral_fee_pct ?? 0.25), 0) / referrals.length
+    : 0.25;
+
+  const statusLines = Object.entries(statusCounts)
+    .map(([status, count]) => `  ${status}: ${count}`)
+    .join("\n");
+
+  return `[REFERRALS DIAGNOSTIC]
+Total Referrals: ${referrals.length}
+Inbound (received from partners): ${inbound.length}
+Outbound (sent to partners): ${outbound.length}
+By Status:
+${statusLines || "  (none)"}
+Avg Referral Fee %: ${(avgFeePct * 100).toFixed(0)}%
+Total Estimated Fees: ${fmtCurrency(totalEstimatedFees)}
+Total Actual Fees Paid/Received: ${fmtCurrency(totalActualFees)}`;
 }
 
 /**
