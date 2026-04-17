@@ -88,7 +88,7 @@ const FAQS = [
   {
     question: "How is this different from Agent Runway's full product?",
     answer:
-      "This free calculator gives you a one-time tax estimate. The full Agent Runway product tracks your GCI, expenses, and mileage in real time; updates your tax estimate with every new transaction; sends quarterly instalment reminders; calculates per-deal set-asides automatically; and includes an agentic Co-Pilot that can execute tasks like logging deals, drafting client outreach, and updating your pipeline — all with human approval.",
+      "This free calculator gives you a one-time tax estimate. The full Agent Runway product tracks your GCI, expenses, and mileage in real time; updates your tax estimate with every new transaction; sends quarterly instalment reminders; calculates per-deal set-asides automatically; and includes an agentic Flight Crew that can execute tasks like logging deals, drafting client outreach, and updating your pipeline — all with human approval.",
   },
 ];
 
@@ -430,7 +430,7 @@ export default function RealtorTaxEstimatorPage() {
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
               Agent Runway is an agentic business operating system for Canadian real estate agents.
               Every deal updates your income, tax estimate, pipeline forecast, and Runway Score.
-              The Co-Pilot doesn&rsquo;t just answer questions — it logs deals, drafts client
+              The Flight Crew doesn&rsquo;t just answer questions — it logs deals, drafts client
               outreach, and updates your pipeline with a single approval.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">

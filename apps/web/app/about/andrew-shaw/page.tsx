@@ -131,7 +131,7 @@ export default function AndrewShawPage() {
                 Today, Agent Runway serves Canadian agents across all thirteen
                 provinces and territories, with tax calculations tuned to each
                 jurisdiction, forecasting grounded in Canadian market
-                seasonality, and a Co-Pilot that understands the realities of
+                seasonality, and a Flight Crew that understands the realities of
                 how real estate businesses actually run.
               </p>
             </div>

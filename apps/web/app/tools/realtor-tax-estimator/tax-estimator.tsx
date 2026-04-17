@@ -295,7 +295,7 @@ export function TaxEstimator() {
             <h3 className="text-base font-bold text-white">Want this running automatically all year?</h3>
             <p className="mt-1 text-sm leading-relaxed text-slate-300">
               Agent Runway tracks your GCI, expenses, and mileage in real time — and updates your tax estimate
-              with every new deal. Quarterly instalment reminders, per-deal set-asides, and an agentic Co-Pilot
+              with every new deal. Quarterly instalment reminders, per-deal set-asides, and an agentic Flight Crew
               that executes tasks for you.
             </p>
             <div className="mt-4 flex flex-wrap gap-3">

@@ -564,7 +564,7 @@ export default function RealEstateTaxDeadlinesPage() {
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
               Agent Runway tracks every deal automatically, calculates your projected tax
               bill in real time, and reminds you before each quarterly instalment is due.
-              The Co-Pilot flags tax-owing risks before they become CRA interest charges.
+              The Flight Crew flags tax-owing risks before they become CRA interest charges.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <Link

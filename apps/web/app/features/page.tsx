@@ -129,7 +129,7 @@ const FEATURES = [
     iconClass: "text-sky-300",
     heading: "Get AI-Powered Insights About Your Business",
     explanation:
-      "Agent Runway includes a Co-Pilot with full access to your live business data. Ask natural-language questions, review insight cards ranked by potential impact, and explore tax estimate tools — all grounded in your actual numbers, not generic templates.",
+      "Agent Runway includes a Flight Crew with full access to your live business data. Ask natural-language questions, review insight cards ranked by potential impact, and explore tax estimate tools — all grounded in your actual numbers, not generic templates.",
     bullets: [
       "AI chat assistant that understands your GCI, pipeline, expenses, and runway",
       "Contextual insight cards ranked by potential business impact",

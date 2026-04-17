@@ -89,7 +89,7 @@ const TOOLS_FAQS = [
   {
     question: "What's the difference between these tools and the Agent Runway app?",
     answer:
-      "These calculators are one-off snapshots — you plug in numbers, get an answer. The Agent Runway app tracks every deal automatically so your tax estimate, pipeline forecast, and Runway Score stay updated in real time without any manual entry. The agentic Co-Pilot can also log deals, draft client outreach, and update your pipeline with a single approval.",
+      "These calculators are one-off snapshots — you plug in numbers, get an answer. The Agent Runway app tracks every deal automatically so your tax estimate, pipeline forecast, and Runway Score stay updated in real time without any manual entry. The agentic Flight Crew can also log deals, draft client outreach, and update your pipeline with a single approval.",
   },
   {
     question: "Are more calculators planned?",
@@ -268,7 +268,7 @@ export default function ToolsIndexPage() {
             </h2>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
               Every deal updates your tax estimate, pipeline forecast, and Runway Score automatically.
-              The agentic Co-Pilot logs deals, drafts client outreach, and updates your pipeline — with
+              The agentic Flight Crew logs deals, drafts client outreach, and updates your pipeline — with
               a single approval.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
