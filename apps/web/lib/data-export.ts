@@ -87,14 +87,14 @@ const EXPORT_TABLES: readonly ExportTable[] = [
 
   // ── Insights, analytics, market data ─────────────────────────────────────
   { table: "precomputed_insights", filename: "precomputed-insights.csv", description: "Cached AI-generated insights" },
-  { table: "chat_analytics", filename: "chat-analytics.csv", description: "Co-Pilot chat usage analytics" },
+  { table: "chat_analytics", filename: "chat-analytics.csv", description: "Flight Crew chat usage analytics" },
   { table: "market_data_points", filename: "market-data.csv", description: "Custom market data points you've entered" },
 
   // ── Notifications & telemetry ────────────────────────────────────────────
   { table: "milestones", filename: "milestones.csv", description: "Achievement notifications" },
   { table: "notification_log", filename: "notification-log.csv", description: "Past notifications sent to you" },
   { table: "import_telemetry", filename: "import-history.csv", description: "Audit trail of CSV/document imports" },
-  { table: "mcp_events", filename: "mcp-events.csv", description: "MCP / Co-Pilot activity log" },
+  { table: "mcp_events", filename: "mcp-events.csv", description: "MCP / Flight Crew activity log" },
   { table: "user_security_events", filename: "security-events.csv", description: "Per-user security audit events (auth, billing, etc.)" },
 
   // ── Team-leader rows you own ──────────────────────────────────────────────

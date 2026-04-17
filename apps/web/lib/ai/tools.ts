@@ -1,7 +1,7 @@
 /**
- * AI Advisor Write Tools
+ * Flight Crew Write Tools
  *
- * Gives the AI Advisor the ability to act on behalf of the user —
+ * Gives the Flight Crew the ability to act on behalf of the user —
  * creating and updating records across the Agent Runway data model.
  *
  * Architecture:
@@ -57,7 +57,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 // ── Approval Gate ──────────────────────────────────────────────────────────
 // Tools in this set require explicit user confirmation before executing.
-// The AI Advisor will surface a confirmation card and wait for approval.
+// The Flight Crew will surface a confirmation card and wait for approval.
 // Read-only tools (search*, get*) execute automatically — no gate needed.
 export const NEEDS_APPROVAL_TOOLS = new Set([
   // Client mutations
@@ -215,7 +215,7 @@ const ARCHIVE_REASONS = ["deceased", "moved_away", "do_not_contact", "other"] as
 // ── Factory ──────────────────────────────────────────────────────────────────
 
 /**
- * Create all AI Advisor tools bound to the authenticated Supabase client.
+ * Create all Flight Crew tools bound to the authenticated Supabase client.
  * Pass the result directly to streamText({ tools: createAgentTools(...) }).
  */
 export function createAgentTools(supabase: SupabaseClient, userId: string): ToolSet {
@@ -3329,7 +3329,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 }
 
 /**
- * Create a CORE subset of AI Advisor tools for token-constrained requests.
+ * Create a CORE subset of Flight Crew tools for token-constrained requests.
  * ~28 tools instead of ~75 — reduces tool definition tokens by ~60%.
  * Includes: client CRUD, pipeline basics, activity/task, recurring expenses,
  * expense/mileage/referral logging, transactions, CCA assets, listing

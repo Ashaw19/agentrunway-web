@@ -1,7 +1,7 @@
 /**
  * Mem0 Memory Layer
  *
- * Gives the AI Advisor persistent, per-user memory across conversations.
+ * Gives the Flight Crew persistent, per-user memory across conversations.
  * Memories are extracted automatically from each conversation and retrieved
  * on the next request — the AI knows who you are without re-reading history.
  *

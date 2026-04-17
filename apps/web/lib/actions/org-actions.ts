@@ -434,7 +434,7 @@ export async function acceptInvitation(
               <tr><td style="padding: 6px 0; color: #555; font-size: 13px;">✅ Complete your personal setup</td></tr>
               <tr><td style="padding: 6px 0; color: #555; font-size: 13px;">📊 Add your first transaction or pipeline deal</td></tr>
               <tr><td style="padding: 6px 0; color: #555; font-size: 13px;">🧾 Capture a receipt to start expense tracking</td></tr>
-              <tr><td style="padding: 6px 0; color: #555; font-size: 13px;">💬 Ask the Co-Pilot anything about your business</td></tr>
+              <tr><td style="padding: 6px 0; color: #555; font-size: 13px;">💬 Ask your Flight Crew anything about your business</td></tr>
             </table>
           </div>
 

@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
   // ── 3. Config guard ──────────────────────────────────────────────────────
   if (!process.env.ANTHROPIC_API_KEY) {
     return new Response(
-      "Co-Pilot is not configured yet. Please add your ANTHROPIC_API_KEY to Vercel environment variables.",
+      "Flight Crew is not configured yet. Please add your ANTHROPIC_API_KEY to Vercel environment variables.",
       { status: 503 },
     );
   }
@@ -655,7 +655,7 @@ export async function POST(req: NextRequest) {
         }
 
         // ── Tax Intelligence Block ──────────────────────────────────────────
-        // Pre-computed tax insights the Co-Pilot can surface proactively.
+        // Pre-computed tax insights the Flight Crew can surface proactively.
         // Rule: NEVER encourage higher claims or suggest specific percentages
         // for vehicle/home-office business-use. Only promote responsible documentation.
         const taxIntelLines: (string | null)[] = [

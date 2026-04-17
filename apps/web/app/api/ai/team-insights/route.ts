@@ -12,7 +12,7 @@ import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 
 const SYSTEM_PROMPT =
-  "You are a Co-Pilot for a Canadian real estate brokerage. Given the team report data below, provide a brief 2-3 sentence insight highlighting the most actionable finding. Be specific with numbers. Focus on what the team leader should do next.";
+  "You are part of the Flight Crew for a Canadian real estate brokerage. Given the team report data below, provide a brief 2-3 sentence insight highlighting the most actionable finding. Be specific with numbers. Focus on what the team leader should do next.";
 
 export async function POST(req: NextRequest) {
   // Auth guard

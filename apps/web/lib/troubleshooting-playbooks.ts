@@ -1207,7 +1207,7 @@ All settings are editable later in Settings.
 ### Welcome Tour
 After onboarding, a welcome tour highlights key features:
 - Dashboard overview
-- Co-Pilot access
+- Flight Crew access
 - Quick Actions FAB
 - Navigation structure
 
@@ -1301,7 +1301,7 @@ Generates coaching insights from aggregate data:
 
 **"Team comparison in my dashboard?"**
 - The comparative insights engine shows agents how they compare to team averages
-- This appears in the Co-Pilot chat and on the dashboard when team data is available
+- This appears in the Flight Crew chat and on the dashboard when team data is available
 - Comparisons reference the team leader by first name for coaching context
 
 **"How do I add more seats?"**
@@ -1326,7 +1326,7 @@ When a new team leader asks "What should I do first?", guide them through:
 4. Wait for acceptance → monitor pending invites on /org/members
 5. Review team dashboard → /org once members start entering data
 6. Explore reports → /org/reports for pipeline health, CRM consistency, forecasting
-7. Ask the Co-Pilot about team performance any time — it has team context built in
+7. Ask the Flight Crew about team performance any time — it has team context built in
 
 ### Member Onboarding Checklist
 When a new member asks "I just joined a team, what do I do?":
@@ -1334,7 +1334,7 @@ When a new member asks "I just joined a team, what do I do?":
 2. Complete personal onboarding → province, split, goal, experience
 3. Start entering data → transactions, pipeline, expenses
 4. Your leader can see your GCI and pipeline (Tier 1) — nothing else
-5. Ask the Co-Pilot — it knows your team context and can compare your pace
+5. Ask the Flight Crew — it knows your team context and can compare your pace
 `,
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1368,7 +1368,7 @@ Agent Runway tracks referral partnerships — both inbound (another agent sends 
 
 ### Where to Find It
 - **Referrals page** (/referrals) — full list, partner management, fee tracking
-- **Co-Pilot**: "Log a referral" or "Cara Coes referred Travis Radtke to me"
+- **Flight Crew**: "Log a referral" or "Cara Coes referred Travis Radtke to me"
 `,
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1466,7 +1466,7 @@ If the card doesn't show: the agent hasn't set 'estimated_weekly_hours' in Setti
 
 ### Common Issues
 - **"Tax estimate seems too high/low"**: Check Settings → province, business structure (sole prop vs incorporated), and whether expenses are fully entered.
-- **"CCA not showing"**: You need to add CCA assets first — use the Co-Pilot ("I bought a $2,400 laptop for work") or add manually on the Overhead page.
+- **"CCA not showing"**: You need to add CCA assets first — use the Flight Crew ("I bought a $2,400 laptop for work") or add manually on the Overhead page.
 - **"HST numbers wrong"**: Verify your GST/HST registration status in Settings. If you're below $30K revenue, you may not need to collect HST.
 - **"Instalment amounts changed"**: They update as your estimated tax changes throughout the year based on new transactions and expenses.
 - **"What is line 109 on my GST34?"**: Net tax = GST collected on commissions minus ITCs from expenses. Positive means you owe CRA; negative means CRA refunds you.
@@ -1594,14 +1594,14 @@ The deduction uses the tiered CRA rate:
 ### Common Issues
 - **"My deduction seems low"**: Check your vehicle business-use percentage in Settings. If it's set to 50%, only half your km count.
 - **"Mileage not showing in deductions"**: Mileage deductions appear on the Overhead page under vehicle expenses. Make sure trips are logged.
-- **"I forgot to log trips"**: You can backdate mileage entries. Use the Co-Pilot: "I drove 45km to a showing last Tuesday."
+- **"I forgot to log trips"**: You can backdate mileage entries. Use the Flight Crew: "I drove 45km to a showing last Tuesday."
 - **"Rate changed mid-year"**: CRA rates are set annually. The platform uses the current year's rates for all entries in that year.
 
 ### Best Practices
 - Log trips the same day — easier to remember details
 - Include the property address and purpose for CRA compliance
 - Keep a separate log book as backup (CRA may request it)
-- The Co-Pilot can log mileage: "I drove 32km to a showing at 88 King Street"
+- The Flight Crew can log mileage: "I drove 32km to a showing at 88 King Street"
 
 ### Where to Find It
 - **Expenses page** (/expenses) → Mileage tab
@@ -1642,7 +1642,7 @@ Set up templates for expenses that repeat on a schedule (monthly, quarterly, or 
 - They appear in T2125 category breakdowns on the Overhead page
 - Tax estimates update when recurring entries are confirmed
 
-### Co-Pilot Integration
+### Flight Crew Integration
 - "I pay $150/month for Mailchimp" → creates a recurring expense template
 - "What are my recurring expenses?" → lists active recurring items from context
 `,
@@ -1708,7 +1708,7 @@ If the user's question doesn't clearly match a specific feature area, follow thi
 
 ### Subscription Tiers
 - **Free**: Limited features, basic dashboard
-- **Professional**: Full access to all features including Co-Pilot, Flight Control, Forecast, Reports, Social Studio
+- **Professional**: Full access to all features including Flight Crew, Flight Control, Forecast, Reports, Social Studio
 - **Team**: Professional features + team management and org insights
 
 ### Keyboard Shortcuts
