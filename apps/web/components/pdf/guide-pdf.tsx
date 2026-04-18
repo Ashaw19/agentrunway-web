@@ -142,7 +142,12 @@ const S = StyleSheet.create({
 function Footer({ pageNum }: { pageNum: number }) {
   return (
     <View style={S.footer} fixed>
-      <Text style={S.footerText}>Agent Runway — Getting Started Guide</Text>
+      <View style={{ flexDirection: "column" }}>
+        <Text style={S.footerText}>Agent Runway — Getting Started Guide</Text>
+        <Text style={S.footerText}>
+          © 2026 Agent Runway Inc. · Canada Corporation No. 1786542-2
+        </Text>
+      </View>
       <Text style={S.footerText}>Page {pageNum}</Text>
     </View>
   );

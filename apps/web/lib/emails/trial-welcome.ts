@@ -152,11 +152,14 @@ export function trialWelcomeEmail({
               <p style="margin:0 0 6px;font-size:11.5px;color:#94a3b8;">
                 Agent Runway · Built for Canadian real estate agents
               </p>
-              <p style="margin:0;font-size:11.5px;color:#94a3b8;">
+              <p style="margin:0 0 6px;font-size:11.5px;color:#94a3b8;">
                 You're receiving this because you started a trial at
                 <a href="https://agentrunway.ca" style="color:#1E72F2;text-decoration:none;">agentrunway.ca</a>.
                 &nbsp;·&nbsp;
                 <a href="https://agentrunway.ca/settings" style="color:#1E72F2;text-decoration:none;">Manage subscription</a>
+              </p>
+              <p style="margin:0;font-size:10.5px;color:#cbd5e1;line-height:1.5;">
+                &copy; 2026 Agent Runway Inc. &middot; Canada Corporation No. 1786542-2
               </p>
             </td>
           </tr>
@@ -190,7 +193,9 @@ Open your dashboard: ${dashboardUrl}
 If you have any questions, just reply to this email.
 
 — The Agent Runway team
-https://agentrunway.ca`;
+https://agentrunway.ca
+
+(c) 2026 Agent Runway Inc. - Canada Corporation No. 1786542-2`;
 
   return { subject, html, text };
 }

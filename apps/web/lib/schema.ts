@@ -25,6 +25,7 @@ export const organizationSchema = {
   "@type": "Organization",
   "@id": `${BASE_URL}/#organization`,
   name: "Agent Runway",
+  legalName: "Agent Runway Inc.",
   alternateName: "Agent Runway Inc.",
   url: BASE_URL,
   logo: {
@@ -37,23 +38,23 @@ export const organizationSchema = {
   slogan: "Know where your business stands.",
   description:
     "Agent Runway is an agentic business operating system for Canadian real estate agents — unifying transactions, pipeline, CRM, Canadian taxes, and forecasting, with a Flight Crew that executes tasks with human approval.",
+  foundingDate: "2026-04-16",
   founder: {
     "@type": "Person",
     "@id": `${BASE_URL}/about/andrew-shaw#person`,
     name: "Andrew Shaw",
-    jobTitle: "Founder & REALTOR®",
+    jobTitle: "Founder & Director",
     worksFor: { "@id": `${BASE_URL}/#organization` },
     url: `${BASE_URL}/about/andrew-shaw`,
   },
   foundingLocation: {
-    "@type": "Place",
-    name: "Saint John, New Brunswick, Canada",
-    address: {
-      "@type": "PostalAddress",
-      addressLocality: "Saint John",
-      addressRegion: "NB",
-      addressCountry: "CA",
-    },
+    "@type": "Country",
+    name: "Canada",
+  },
+  address: {
+    "@type": "PostalAddress",
+    addressRegion: "NB",
+    addressCountry: "CA",
   },
   areaServed: {
     "@type": "Country",

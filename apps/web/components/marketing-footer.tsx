@@ -91,9 +91,14 @@ export function MarketingFooter() {
 
         {/* Bottom bar */}
         <div className="mt-6 flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <p className="text-xs text-slate-500">
-            © {new Date().getFullYear()} Agent Runway. Built in Canada 🇨🇦
-          </p>
+          <div className="flex flex-col items-center gap-1 sm:items-start">
+            <p className="text-xs text-slate-500">
+              © 2026 Agent Runway Inc. All rights reserved.
+            </p>
+            <p className="text-[11px] text-slate-600">
+              Agent Runway Inc. — Canada Corporation No. 1786542-2
+            </p>
+          </div>
           <p className="text-xs text-slate-600">
             For informational purposes only. Not financial or tax advice.
           </p>

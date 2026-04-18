@@ -115,7 +115,7 @@ export default function AboutPage() {
               Our Story
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-              Built by a Real Estate Agent.
+              Built by a Real Estate Agent.{" "}
               <br className="hidden sm:block" />
               <span className="text-slate-300">
                 For Real Estate Agents.
@@ -412,6 +412,33 @@ export default function AboutPage() {
                 management, tax estimation tools, and AI-powered data exploration in a single
                 platform built around how real estate agents actually work.
               </p>
+            </div>
+          </ScrollRevealSection>
+        </section>
+
+        {/* ════════════════════════════════════════════════════════
+            COMPANY
+        ════════════════════════════════════════════════════════ */}
+        <section className="bg-white px-6 py-16 sm:px-10">
+          <ScrollRevealSection>
+            <div className="mx-auto max-w-3xl">
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                The Company
+              </h2>
+              <p className="mt-5 text-base leading-relaxed text-slate-600">
+                Agent Runway Inc. is a private corporation incorporated on
+                April 16, 2026 under the Canada Business Corporations Act
+                (Canada Corporation No. 1786542-2), with its registered office
+                in New Brunswick, Canada.
+              </p>
+              <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">
+                  Leadership
+                </p>
+                <p className="mt-2 text-sm font-semibold text-slate-900">
+                  Andrew Shaw — Founder &amp; Director
+                </p>
+              </div>
             </div>
           </ScrollRevealSection>
         </section>

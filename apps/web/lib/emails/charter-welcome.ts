@@ -149,8 +149,11 @@ export function charterWelcomeEmail({
               <p style="margin:0 0 4px;font-size:12px;color:#94a3b8;">
                 Agent Runway &mdash; built for Canadian real estate agents.
               </p>
-              <p style="margin:0;font-size:11px;color:#cbd5e1;">
+              <p style="margin:0 0 6px;font-size:11px;color:#cbd5e1;">
                 <a href="https://agentrunway.ca" style="color:#64748b;text-decoration:underline;">agentrunway.ca</a>
+              </p>
+              <p style="margin:0;font-size:10px;color:#cbd5e1;line-height:1.5;">
+                &copy; 2026 Agent Runway Inc. &middot; Canada Corporation No. 1786542-2
               </p>
             </td>
           </tr>
@@ -181,7 +184,9 @@ View charter details: ${waitlistUrl}
 
 ---
 Agent Runway - built for Canadian real estate agents.
-https://agentrunway.ca`;
+https://agentrunway.ca
+
+(c) 2026 Agent Runway Inc. - Canada Corporation No. 1786542-2`;
 
   return { subject, html, text };
 }

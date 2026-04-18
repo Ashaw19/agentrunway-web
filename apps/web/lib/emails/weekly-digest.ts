@@ -214,13 +214,16 @@ export function weeklyDigestEmail(data: WeeklyDigestData): { subject: string; ht
               <p style="margin:0 0 6px;font-size:11.5px;color:#94a3b8;">
                 Agent Runway · Built for Canadian real estate agents
               </p>
-              <p style="margin:0;font-size:11.5px;color:#94a3b8;">
+              <p style="margin:0 0 6px;font-size:11.5px;color:#94a3b8;">
                 You're receiving this weekly digest as a Professional subscriber at
                 <a href="https://agentrunway.ca" style="color:#1E72F2;text-decoration:none;">agentrunway.ca</a>.
                 &nbsp;&middot;&nbsp;
                 <a href="https://agentrunway.ca/settings" style="color:#1E72F2;text-decoration:none;">Manage preferences</a>
                 ${unsubscribeUrl ? `&nbsp;&middot;&nbsp;
                 <a href="${unsubscribeUrl}" style="color:#94a3b8;text-decoration:none;">Unsubscribe from weekly digest</a>` : ""}
+              </p>
+              <p style="margin:0;font-size:10.5px;color:#cbd5e1;line-height:1.5;">
+                &copy; 2026 Agent Runway Inc. &middot; Canada Corporation No. 1786542-2
               </p>
             </td>
           </tr>
@@ -256,6 +259,8 @@ Open your dashboard: ${dashboardUrl}
 Have a great week!
 — Agent Runway
 https://agentrunway.ca
+
+(c) 2026 Agent Runway Inc. - Canada Corporation No. 1786542-2
 ${unsubscribeUrl ? `\nUnsubscribe from weekly digest: ${unsubscribeUrl}` : ""}`;
 
   return { subject, html, text, unsubscribeUrl };

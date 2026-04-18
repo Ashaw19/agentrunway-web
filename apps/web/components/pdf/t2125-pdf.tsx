@@ -308,6 +308,9 @@ function Footer({ year, agentName }: { year: number; agentName: string }) {
       <Text style={s.footerText}>
         ESTIMATES ONLY — NOT PROFESSIONAL TAX ADVICE — CONSULT YOUR ACCOUNTANT
       </Text>
+      <Text style={s.footerText}>
+        © 2026 Agent Runway Inc. · Canada Corporation No. 1786542-2
+      </Text>
     </View>
   );
 }
@@ -562,9 +565,10 @@ export function T2125Pdf({ result, settings, taxYear, mileageSummary, taxOptCard
             estimates based on data entered in Agent Runway and may not reflect all deductions,
             credits, adjustments, or CRA changes applicable to your situation. This document is
             NOT a filed T2125 and does NOT constitute tax advice or professional services. Your
-            accountant must review, verify, and file your actual T2125 with CRA. Neither Agent
-            Runway nor Andrew Shaw accepts any liability for tax obligations, penalties, interest,
-            or other consequences arising from reliance on this document. See agentrunway.ca/terms.
+            accountant must review, verify, and file your actual T2125 with CRA. Agent Runway
+            Inc. (Canada Corporation No. 1786542-2) accepts no liability for tax obligations,
+            penalties, interest, or other consequences arising from reliance on this document.
+            See agentrunway.ca/terms.
           </Text>
         </View>
 

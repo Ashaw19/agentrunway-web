@@ -12,8 +12,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "April 6, 2026";
-const EFFECTIVE_DATE = "April 3, 2026";
+const LAST_UPDATED = "April 16, 2026";
+const EFFECTIVE_DATE = "April 16, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -50,6 +50,17 @@ export default function PrivacyPage() {
               use, and disclosure of your information as described in this
               policy.
             </p>
+            <div className="mt-5 rounded-lg border border-blue-800/40 bg-blue-950/30 p-4 text-sm leading-relaxed text-blue-100/90">
+              <strong className="text-white">Notice (April 16, 2026):</strong>{" "}
+              On April 16, 2026, the Agent Runway business transitioned from
+              a sole proprietorship to{" "}
+              <strong className="text-white">Agent Runway Inc.</strong>, a
+              Canadian federal corporation incorporated under the{" "}
+              <em>Canada Business Corporations Act</em> (Canada Corporation
+              No.&nbsp;1786542-2), with its registered office in the Province
+              of New Brunswick, Canada. The data controller for personal
+              information is Agent Runway Inc. as of this date.
+            </div>
             <p className="mt-3 text-base leading-relaxed text-slate-400">
               This policy is designed to reflect the{" "}
               <strong className="text-slate-300">
@@ -72,9 +83,12 @@ export default function PrivacyPage() {
                 1. Who We Are
               </h2>
               <p className="leading-relaxed">
-                Agent Runway is a software-as-a-service product operated by
-                Andrew Shaw, a sole proprietorship based in New Brunswick,
-                Canada. Andrew Shaw is the data controller responsible for your
+                Agent Runway is a software-as-a-service product operated by{" "}
+                <strong className="text-slate-300">Agent Runway Inc.</strong>,
+                a corporation incorporated under the Canada Business
+                Corporations Act (Canada Corporation No.&nbsp;1786542-2), with
+                its registered office in the Province of New Brunswick, Canada.
+                Agent Runway Inc. is the data controller responsible for your
                 personal information. You can reach us at{" "}
                 <a
                   href="mailto:privacy@agentrunway.ca"
@@ -772,9 +786,9 @@ export default function PrivacyPage() {
                 >
                   privacy@agentrunway.ca
                 </a>{" "}
-                (Andrew Shaw, New Brunswick, Canada), who is the designated
-                representative responsible for answering questions about
-                cross-border data transfers.
+                (Agent Runway Inc., New Brunswick, Canada), which is the
+                designated representative responsible for answering questions
+                about cross-border data transfers.
               </p>
             </section>
 
@@ -1337,7 +1351,7 @@ export default function PrivacyPage() {
                 or to file a privacy complaint, contact:
               </p>
               <address className="mt-4 not-italic text-slate-400">
-                <strong className="text-slate-300">Agent Runway</strong>
+                <strong className="text-slate-300">Agent Runway Inc.</strong>
                 <br />
                 Privacy Officer: Andrew Shaw
                 <br />
@@ -1349,7 +1363,9 @@ export default function PrivacyPage() {
                   andrew@agentrunway.ca
                 </a>
                 <br />
-                Address: 13 Susan Street, Quispamsis, NB, E2E 4T5
+                Registered office: New Brunswick, Canada
+                <br />
+                Canada Corporation No. 1786542-2
               </address>
               <p className="mt-4 leading-relaxed text-slate-500 text-sm">
                 You may also contact the{" "}

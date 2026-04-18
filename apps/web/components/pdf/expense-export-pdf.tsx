@@ -155,6 +155,8 @@ export function ExpenseExportPdf({
         {"\n"}
         FOR PLANNING PURPOSES ONLY — NOT A FILED CRA RETURN. This report is an estimate based on receipts entered into Agent Runway.
         {" "}Actual deductible amounts may differ. Always consult a qualified accountant or tax professional before filing.
+        {"\n"}
+        © 2026 Agent Runway Inc. · Canada Corporation No. 1786542-2
       </Text>
     </View>
   );

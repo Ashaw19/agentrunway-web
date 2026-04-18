@@ -12,8 +12,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "April 6, 2026";
-const EFFECTIVE_DATE = "April 3, 2026";
+const LAST_UPDATED = "April 16, 2026";
+const EFFECTIVE_DATE = "April 16, 2026";
 
 /* ──────────────────────────────────────────────────────────────────────────── */
 
@@ -32,6 +32,19 @@ export default function TermsPage() {
             <p className="mt-3 text-sm text-slate-500">
               Last updated: {LAST_UPDATED} &middot; Effective: {EFFECTIVE_DATE}
             </p>
+            <div className="mt-5 rounded-lg border border-blue-800/40 bg-blue-950/30 p-4 text-sm leading-relaxed text-blue-100/90">
+              <strong className="text-white">Notice (April 16, 2026):</strong>{" "}
+              On April 16, 2026, the Agent Runway business transitioned from
+              a sole proprietorship to{" "}
+              <strong className="text-white">Agent Runway Inc.</strong>, a
+              Canadian federal corporation incorporated under the{" "}
+              <em>Canada Business Corporations Act</em> (Canada Corporation
+              No.&nbsp;1786542-2), with its registered office in the Province
+              of New Brunswick, Canada. References to &ldquo;Agent
+              Runway,&rdquo; &ldquo;the Company,&rdquo; &ldquo;we,&rdquo;
+              &ldquo;us,&rdquo; or &ldquo;our&rdquo; in this document refer to
+              Agent Runway Inc. as of this date.
+            </div>
             <p className="mt-5 text-base leading-relaxed text-slate-400">
               Please read these Terms of Service (&ldquo;Terms&rdquo;) carefully
               before using Agent Runway. By creating an account, accessing, or
@@ -60,11 +73,14 @@ export default function TermsPage() {
               <ul className="list-disc space-y-2 pl-6 text-slate-400 leading-relaxed">
                 <li>
                   <strong className="text-slate-300">&ldquo;Agent Runway&rdquo;</strong>,{" "}
+                  <strong className="text-slate-300">&ldquo;the Company&rdquo;</strong>,{" "}
                   <strong className="text-slate-300">&ldquo;we&rdquo;</strong>,{" "}
                   <strong className="text-slate-300">&ldquo;us&rdquo;</strong>, or{" "}
                   <strong className="text-slate-300">&ldquo;our&rdquo;</strong>{" "}
-                  means the software-as-a-service product operated by Andrew Shaw,
-                  a sole proprietorship based in New Brunswick, Canada.
+                  means Agent Runway Inc., a corporation incorporated under the
+                  Canada Business Corporations Act (Canada Corporation
+                  No.&nbsp;1786542-2), with its registered office in the
+                  Province of New Brunswick, Canada.
                 </li>
                 <li>
                   <strong className="text-slate-300">&ldquo;Service&rdquo;</strong>{" "}
@@ -1032,17 +1048,17 @@ export default function TermsPage() {
                 The Agent Runway Service — including all software, source code,
                 algorithms, models, user interfaces, designs, graphics, logos,
                 trademarks, documentation, and all other original content — is
-                owned by Andrew Shaw and protected by Canadian and international
-                intellectual property laws. These Terms grant you only a limited,
-                non-exclusive, non-transferable, revocable licence to access and
-                use the Service during your active subscription, subject to these
-                Terms. No other rights are granted to you, whether express or
-                implied.
+                owned by Agent Runway Inc. and protected by Canadian and
+                international intellectual property laws. These Terms grant you
+                only a limited, non-exclusive, non-transferable, revocable
+                licence to access and use the Service during your active
+                subscription, subject to these Terms. No other rights are
+                granted to you, whether express or implied.
               </p>
               <p className="leading-relaxed">
                 The Agent Runway name, logo, and all related product and service
-                names, designs, and slogans are trademarks of Andrew Shaw. You
-                may not use these marks without our prior written permission.
+                names, designs, and slogans are trademarks of Agent Runway Inc.
+                You may not use these marks without our prior written permission.
               </p>
             </section>
 
@@ -1128,7 +1144,7 @@ export default function TermsPage() {
                 <p>
                   <strong className="text-white uppercase">
                     TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO
-                    EVENT SHALL AGENT RUNWAY, ITS OPERATOR (ANDREW SHAW), OR ANY
+                    EVENT SHALL AGENT RUNWAY INC. OR ANY
                     OF ITS AFFILIATES, OFFICERS, DIRECTORS, EMPLOYEES, AGENTS,
                     SUPPLIERS, OR LICENSORS BE LIABLE TO YOU OR ANY THIRD PARTY
                     FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL,
@@ -1201,8 +1217,8 @@ export default function TermsPage() {
                 25. Indemnification
               </h2>
               <p className="mb-4 leading-relaxed">
-                You agree to indemnify, defend, and hold harmless Agent Runway,
-                its operator (Andrew Shaw), and any affiliates, officers,
+                You agree to indemnify, defend, and hold harmless Agent Runway
+                Inc. and any affiliates, officers,
                 directors, employees, agents, successors, and assigns from and
                 against any and all claims, liabilities, damages, judgments,
                 awards, losses, costs, and expenses (including reasonable
@@ -1480,11 +1496,11 @@ export default function TermsPage() {
                 Questions about these Terms may be directed to:
               </p>
               <address className="mt-4 not-italic text-slate-400">
-                <strong className="text-slate-300">Agent Runway</strong>
+                <strong className="text-slate-300">Agent Runway Inc.</strong>
                 <br />
-                Andrew Shaw
+                Registered office: New Brunswick, Canada
                 <br />
-                New Brunswick, Canada
+                Canada Corporation No. 1786542-2
                 <br />
                 <br />
                 General inquiries:{" "}

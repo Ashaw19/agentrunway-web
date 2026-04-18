@@ -98,7 +98,7 @@ export default function AndrewShawPage() {
                   Andrew Shaw
                 </h1>
                 <p className="mt-2 text-base leading-relaxed text-slate-300 sm:text-lg">
-                  REALTOR® and Founder of Agent Runway
+                  REALTOR® · Founder &amp; Director of Agent Runway Inc.
                 </p>
                 <p className="mt-3 flex items-center gap-1.5 text-sm text-slate-500">
                   <MapPin className="h-4 w-4" />

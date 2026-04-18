@@ -327,4 +327,8 @@ Questions about your privacy rights?
 PIPEDA and Quebec's Law 25 give you the right to a portable copy of your
 personal information. This export is how we honour that. For a full list
 of what we collect and why, see https://agentrunway.ca/privacy.
+
+---
+© 2026 Agent Runway Inc. — Canada Corporation No. 1786542-2
+Registered office: New Brunswick, Canada
 `;

@@ -1052,12 +1052,17 @@ function PageHeaderComp({
 function FooterComp() {
   return (
     <View style={s.footer} fixed>
-      <View style={{ flexDirection: "row", gap: 4 }}>
-        <Text style={s.footerBrand}>Agent Runway</Text>
-        <Text style={s.footerSep}>·</Text>
-        <Text style={s.footerConfidential}>agentrunway.ca</Text>
-        <Text style={s.footerSep}>·</Text>
-        <Text style={s.footerConfidential}>CONFIDENTIAL</Text>
+      <View style={{ flexDirection: "column" }}>
+        <View style={{ flexDirection: "row", gap: 4 }}>
+          <Text style={s.footerBrand}>Agent Runway</Text>
+          <Text style={s.footerSep}>·</Text>
+          <Text style={s.footerConfidential}>agentrunway.ca</Text>
+          <Text style={s.footerSep}>·</Text>
+          <Text style={s.footerConfidential}>CONFIDENTIAL</Text>
+        </View>
+        <Text style={s.footerConfidential}>
+          © 2026 Agent Runway Inc. · Canada Corporation No. 1786542-2
+        </Text>
       </View>
       <Text
         style={s.footerPage}

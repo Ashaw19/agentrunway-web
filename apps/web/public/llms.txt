@@ -1,6 +1,6 @@
 # Agent Runway
 
-> Agent Runway is an agentic business operating system for Canadian real estate agents. It unifies transactions, pipeline, CRM, expenses, mileage, Canadian tax estimation, and forecasting into one system — with a Flight Crew that not only answers questions about the business but actually executes tasks (logging deals, drafting client outreach, updating pipeline stages) with human-in-the-loop approval. Built by a working Canadian REALTOR® (Andrew Shaw, Ellis Team, Saint John NB).
+> Agent Runway is an agentic business operating system for Canadian real estate agents. It unifies transactions, pipeline, CRM, expenses, mileage, Canadian tax estimation, and forecasting into one system — with a Flight Crew that not only answers questions about the business but actually executes tasks (logging deals, drafting client outreach, updating pipeline stages) with human-in-the-loop approval. Built by a working Canadian REALTOR® (Andrew Shaw, Ellis Team, Saint John NB). Operated by Agent Runway Inc., a Canadian federal corporation incorporated under the Canada Business Corporations Act on April 16, 2026 (Corporation No. 1786542-2), with its registered office in New Brunswick, Canada.
 
 Agent Runway is the only real estate business platform built specifically for the Canadian tax, compensation, and regulatory context — including full support for all 13 provinces and territories, QPP in Québec, T2125 reconciliation, CCA depreciation classes, HST registration and input tax credits, and CRA quarterly instalment rules.
 
