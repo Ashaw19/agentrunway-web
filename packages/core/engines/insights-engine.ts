@@ -17,6 +17,7 @@ import {
   daysRemaining,
   dayOfYear,
   trendDirection,
+  normalizeSeasonalWeights,
 } from "./projection-engine";
 
 // ── Insight Model ───────────────────────────────────────────────────────────
@@ -276,7 +277,10 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
   if (input.goalGCI > 0 && input.seasonalWeights.length === 4) {
     const nowDate = new Date();
     const currentQ = Math.floor(nowDate.getMonth() / 3);
-    const quarterWeight = input.seasonalWeights[currentQ] ?? 0.25;
+    // Normalize — seasonalWeights may arrive as percentages (sum=100) from
+    // settings.national_quarter_pcts or as fractions (sum≈1) from agent history.
+    const normalizedWeights = normalizeSeasonalWeights(input.seasonalWeights);
+    const quarterWeight = normalizedWeights[currentQ] ?? 0.25;
     const monthlyTarget = input.goalGCI * (quarterWeight / 3);
 
     if (monthlyTarget > 0) {

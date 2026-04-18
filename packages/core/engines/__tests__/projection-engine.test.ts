@@ -16,6 +16,7 @@ import {
   currentQuarter,
   weekOfYear,
   seasonalFractionElapsed,
+  normalizeSeasonalWeights,
   projectedYearEndGCI,
   projectedYearEndTransactions,
   dailyPaceRequired,
@@ -139,6 +140,110 @@ describe("seasonalFractionElapsed", () => {
     vi.setSystemTime(new Date(2026, 11, 31));
     const result2 = seasonalFractionElapsed([0.25, 0.25, 0.25, 0.25]);
     expect(result2).toBeLessThanOrEqual(0.999);
+  });
+
+  // ── Normalization: percentages vs fractions ─────────────────────────────
+  // The DB stores `settings.national_quarter_pcts` as percentages (sum=100);
+  // agent-derived weights are fractions (sum≈1). The engine must produce the
+  // same fraction for equivalent inputs in either form — otherwise any user
+  // on the national default sees a Runway Score / forecast computed from
+  // a clamp artifact (~25× the correct fraction → clamped to 0.999).
+  it("normalizes percentages: [25,25,25,25] === [0.25,0.25,0.25,0.25]", () => {
+    const asPercentages = seasonalFractionElapsed([25, 25, 25, 25]);
+    const asFractions = seasonalFractionElapsed([0.25, 0.25, 0.25, 0.25]);
+    expect(asPercentages).toBeCloseTo(asFractions, 6);
+  });
+
+  it("normalizes uneven percentages: [20,30,25,25] === [0.20,0.30,0.25,0.25]", () => {
+    const asPercentages = seasonalFractionElapsed([20, 30, 25, 25]);
+    const asFractions = seasonalFractionElapsed([0.20, 0.30, 0.25, 0.25]);
+    expect(asPercentages).toBeCloseTo(asFractions, 6);
+  });
+
+  it("normalizes non-standard sums (e.g. [40,30,20,10])", () => {
+    // Sum = 100; front-loaded. Should equal the fraction equivalent.
+    const asPercentages = seasonalFractionElapsed([40, 30, 20, 10]);
+    const asFractions = seasonalFractionElapsed([0.40, 0.30, 0.20, 0.10]);
+    expect(asPercentages).toBeCloseTo(asFractions, 6);
+  });
+
+  it("falls back to uniform when weights are all zero", () => {
+    const result = seasonalFractionElapsed([0, 0, 0, 0]);
+    const uniform = seasonalFractionElapsed([0.25, 0.25, 0.25, 0.25]);
+    expect(result).toBeCloseTo(uniform, 6);
+  });
+
+  it("treats negative entries as zero (uniform fallback when all invalid)", () => {
+    const result = seasonalFractionElapsed([-1, -1, -1, -1]);
+    const uniform = seasonalFractionElapsed([0.25, 0.25, 0.25, 0.25]);
+    expect(result).toBeCloseTo(uniform, 6);
+  });
+
+  it("treats NaN entries as zero and normalizes remaining", () => {
+    // Only valid weight is Q1 → behaves as [1, 0, 0, 0]
+    const result = seasonalFractionElapsed([NaN, NaN, NaN, NaN]);
+    const uniform = seasonalFractionElapsed([0.25, 0.25, 0.25, 0.25]);
+    expect(result).toBeCloseTo(uniform, 6);
+  });
+});
+
+// ── normalizeSeasonalWeights ─────────────────────────────────────────────────
+
+describe("normalizeSeasonalWeights", () => {
+  it("leaves valid fractions essentially unchanged", () => {
+    const out = normalizeSeasonalWeights([0.25, 0.25, 0.25, 0.25]);
+    expect(out).toEqual([0.25, 0.25, 0.25, 0.25]);
+  });
+
+  it("converts percentages to fractions", () => {
+    const out = normalizeSeasonalWeights([25, 25, 25, 25]);
+    out.forEach((v) => expect(v).toBeCloseTo(0.25, 6));
+  });
+
+  it("converts uneven percentages to matching fractions", () => {
+    const out = normalizeSeasonalWeights([20, 30, 25, 25]);
+    expect(out[0]).toBeCloseTo(0.20, 6);
+    expect(out[1]).toBeCloseTo(0.30, 6);
+    expect(out[2]).toBeCloseTo(0.25, 6);
+    expect(out[3]).toBeCloseTo(0.25, 6);
+  });
+
+  it("returns uniform for null / undefined", () => {
+    expect(normalizeSeasonalWeights(null)).toEqual([0.25, 0.25, 0.25, 0.25]);
+    expect(normalizeSeasonalWeights(undefined)).toEqual([0.25, 0.25, 0.25, 0.25]);
+  });
+
+  it("returns uniform for wrong length", () => {
+    expect(normalizeSeasonalWeights([0.5, 0.5])).toEqual([0.25, 0.25, 0.25, 0.25]);
+    expect(normalizeSeasonalWeights([0.1, 0.2, 0.3, 0.2, 0.2])).toEqual([0.25, 0.25, 0.25, 0.25]);
+  });
+
+  it("returns uniform when sum is zero", () => {
+    expect(normalizeSeasonalWeights([0, 0, 0, 0])).toEqual([0.25, 0.25, 0.25, 0.25]);
+  });
+
+  it("returns uniform for all-negative input", () => {
+    expect(normalizeSeasonalWeights([-1, -2, -3, -4])).toEqual([0.25, 0.25, 0.25, 0.25]);
+  });
+
+  it("returns uniform for NaN entries", () => {
+    expect(normalizeSeasonalWeights([NaN, NaN, NaN, NaN])).toEqual([0.25, 0.25, 0.25, 0.25]);
+  });
+
+  it("always sums to ~1 on valid input", () => {
+    const cases = [
+      [25, 25, 25, 25],
+      [20, 30, 25, 25],
+      [40, 30, 20, 10],
+      [0.25, 0.25, 0.25, 0.25],
+      [0.20, 0.32, 0.27, 0.21],
+      [1, 2, 3, 4],
+    ];
+    for (const c of cases) {
+      const out = normalizeSeasonalWeights(c);
+      const sum = out.reduce((a, b) => a + b, 0);
+      expect(sum).toBeCloseTo(1, 6);
+    }
   });
 });
 

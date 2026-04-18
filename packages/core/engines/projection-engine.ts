@@ -52,8 +52,35 @@ export function todayDescription(date: Date = new Date()): string {
 // ── Seasonality-Weighted Projections ────────────────────────────────────────
 
 /**
+ * Coerce quarter weights into normalized fractions (sum ≈ 1).
+ *
+ * The DB column `settings.national_quarter_pcts` is stored as percentages
+ * (default `[25,25,25,25]`, sum=100) while agent-derived weights are
+ * stored as fractions (sum≈1). Engine math expects fractions. Every
+ * consumer that indexes `seasonalWeights[q]` or passes them to
+ * `seasonalFractionElapsed` should normalize first — calling through
+ * this helper keeps the rule in one place.
+ *
+ * Returns `[0.25,0.25,0.25,0.25]` when the input is missing, wrong length,
+ * non-finite, non-positive sum, or otherwise unusable — so callers never
+ * have to guard their own fallback.
+ */
+export function normalizeSeasonalWeights(weights: number[] | null | undefined): number[] {
+  const uniform = [0.25, 0.25, 0.25, 0.25];
+  if (!weights || weights.length !== 4) return uniform;
+  const cleaned = weights.map((v) => (Number.isFinite(v) && v > 0 ? v : 0));
+  const sum = cleaned.reduce((a, b) => a + b, 0);
+  if (sum <= 0) return uniform;
+  return cleaned.map((v) => v / sum);
+}
+
+/**
  * Fraction of year elapsed, weighted by quarterly seasonality.
- * Uses quarter weights (summing to 1.0) to distribute the year unevenly.
+ * Accepts weights stored as fractions (sum≈1) OR percentages (sum≈100) —
+ * they are normalized internally via `normalizeSeasonalWeights` so every
+ * call site (dashboard, reports, altimeter, forecast, overhead, scenarios,
+ * crons, chat, diagnostics) produces the same fraction regardless of how
+ * the row was seeded.
  *
  * UTC-ANCHORED: quarter boundaries (qStart/qEnd) and the current quarter
  * index are derived in UTC so server-rendered surfaces (chat route, cron
@@ -69,6 +96,7 @@ export function seasonalFractionElapsed(
   date: Date = new Date(),
 ): number {
   if (!weights || weights.length !== 4) return yearFractionElapsed(date);
+  const w = normalizeSeasonalWeights(weights);
 
   const year = date.getUTCFullYear();
   const qIndex = Math.floor(date.getUTCMonth() / 3);
@@ -88,12 +116,12 @@ export function seasonalFractionElapsed(
   );
   const withinQ = qElapsedDays / qTotalDays;
 
-  // Sum of completed quarters
+  // Sum of completed quarters (using normalized weights)
   let fraction = 0;
   for (let i = 0; i < qIndex; i++) {
-    fraction += weights[i];
+    fraction += w[i];
   }
-  fraction += weights[qIndex] * withinQ;
+  fraction += w[qIndex] * withinQ;
 
   return Math.min(0.999, Math.max(0.01, fraction));
 }
@@ -247,12 +275,14 @@ export function monthlyProjections(
 
   const monthlyActuals = monthlyGCITotals(transactions);
 
-  // Monthly weights derived from quarterly weights
+  // Monthly weights derived from quarterly weights.
+  // Normalize first so callers can pass either percentages or fractions.
   let monthWeights: number[];
   if (seasonalWeights.length === 4) {
+    const qW = normalizeSeasonalWeights(seasonalWeights);
     monthWeights = [];
     for (let q = 0; q < 4; q++) {
-      const share = seasonalWeights[q] / 3;
+      const share = qW[q] / 3;
       monthWeights.push(share, share, share);
     }
   } else {
