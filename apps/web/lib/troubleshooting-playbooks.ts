@@ -876,13 +876,27 @@ Example: $500/month + 3% per deal, capped at $20,000/year. After cap → 0% per 
   // ═══════════════════════════════════════════════════════════════════════════
   survival: `## TROUBLESHOOTING: SURVIVAL RUNWAY
 
-### Survival Calculation (from survival-engine.ts)
+### Survival Calculation (from survival-engine.ts + cash-position-engine.ts)
 
-**Formula**: Runway Months = Cash Reserve ÷ Net Monthly Burn
+**Formula**: Runway Months = Effective Cash ÷ Net Monthly Burn
 
-**Net Monthly Burn** = Monthly Expenses − Monthly Income
-- Monthly Expenses = (YTD Expenses ÷ months elapsed) + monthly recurring expenses
-- Monthly Income = YTD Agent Net ÷ months elapsed
+**Monthly Burn** = monthly_brokerage_fee (Settings) + monthly recurring expenses
+- monthly_brokerage_fee: the fixed desk fee entered in Settings
+- monthlyRecurring: sum of all active recurring expense amounts (monthly + prorated quarterly/annual)
+- NOTE: This does NOT use YTD expenses ÷ months elapsed — it uses the configured recurring amounts only
+
+**Income Offset** = Pipeline Weighted GCI × 50% ÷ 12
+- This is the pipeline monthly estimate used to offset burn
+- NOT YTD Agent Net ÷ months elapsed — it is forward-looking (pipeline-based)
+
+**Net Burn** = Monthly Burn − Income Offset
+
+**Effective Cash** (from cash-position-engine.ts):
+- If agent has closed deals this year: max(0, Implied Cash + Manual Cash Reserve)
+  - Implied Cash = YTD Agent Net − YTD Expenses − YTD Tax Set-Aside − YTD HST Owing
+  - HST Owing = $0 if brokerage withholds HST; otherwise HST collected − ITCs on expenses
+  - This is what should be in the account if the agent has been disciplined
+- If no closed deals yet: Manual Cash Reserve only (from Settings)
 
 **Risk Levels**:
 | Months | Level | Color |
@@ -896,25 +910,11 @@ Example: $500/month + 3% per deal, capped at $20,000/year. After cap → 0% per 
 **Cap**: Runway is capped at 24 months maximum (to avoid infinity when burn ≤ 0).
 
 **Special Cases**:
-- Net burn ≤ 0 (income exceeds expenses): runway = 24 months (strong), regardless of cash reserve amount. The engine short-circuits on netBurn ≤ 0 before touching cash reserve.
-- Cash reserve $0 AND no expenses (burn = 0): Returns -1 (sentinel) → displayed as "Not Configured". This is the only zero-cash case that yields "Not Configured".
-- Cash reserve $0 with positive burn: Runway = 0 (critical — no savings to cover costs).
-- Division by zero protection: If burn is exactly 0, returns cap (24 months)
-
-### Implied Cash Position (from cash-position-engine.ts)
-
-Once an agent has closed at least one deal, the system computes an **implied cash position** in addition to the manual cash reserve:
-
-**Formula**: Implied Cash = YTD Agent Net − YTD Expenses − YTD Tax Set-Aside − YTD HST Owing
-
-- If brokerage withholds HST from commission cheques → HST Owing = $0 (they handle it)
-- Otherwise → HST Owing = HST collected on GCI − HST ITCs on expenses
-
-**Effective Cash** = max(0, Implied Cash + Manual Cash Reserve)
-
-This is used as the cash figure for survival calculations when the agent has transaction data. With no closed deals yet, only the manual cash reserve is used.
-
-*Note: This is an estimate of what should be in the account if the agent has been disciplined — not an actual bank balance.*
+- Net burn < 0 (income offset exceeds burn): runway = 24 months (strong), short-circuits before dividing.
+- Net burn = 0 AND cash > 0: runway = 24 months.
+- Net burn = 0 AND cash = 0: runway = 0.
+- No burn configured AND no cash reserve: Returns -1 (sentinel) → "Not Configured".
+- Cash reserve $0 with positive net burn: Runway = 0 (critical).
 
 ### Survival Impact on Other Metrics
 1. **Runway Score**: Survival is 15% of composite score
@@ -931,10 +931,10 @@ This is used as the cash figure for survival calculations when the agent has tra
 → Yes, if monthly income exceeds monthly expenses (net burn ≤ 0), runway caps at 24 months. This means you're cash-flow positive.
 
 **"Survival seems too low"**
-1. Check cash reserve amount — is it current?
-2. Check if large one-time expenses inflated monthly burn
-3. Check if income is seasonal — early year with few deals = low monthly income average
-4. Monthly burn = annualized expenses ÷ 12, not just recurring
+1. Check cash reserve amount in Settings — is it current?
+2. Monthly burn = monthly_brokerage_fee + monthly recurring expenses (NOT one-time receipts). One-time expenses do NOT affect survival burn.
+3. Check if pipeline is thin — the income offset is pipeline weighted GCI × 50% ÷ 12. Empty pipeline = $0 income offset.
+4. Large pipeline deals increase the income offset and reduce net burn, improving survival.
 
 **"How do I improve survival?"**
 1. Increase cash reserve (Settings)
