@@ -54,6 +54,15 @@ export function todayDescription(date: Date = new Date()): string {
 /**
  * Fraction of year elapsed, weighted by quarterly seasonality.
  * Uses quarter weights (summing to 1.0) to distribute the year unevenly.
+ *
+ * UTC-ANCHORED: quarter boundaries (qStart/qEnd) and the current quarter
+ * index are derived in UTC so server-rendered surfaces (chat route, cron
+ * jobs) and client-rendered surfaces (dashboard, reports, forecast, etc.)
+ * produce the same fraction for the same instant. Prior behaviour used
+ * `new Date(year, month, 1)`, which resolves to LOCAL midnight and drifts
+ * by the runtime's TZ offset — that shifted paceScore by 1 point between
+ * the Captain (server, UTC) and the dashboard (client, local), which
+ * propagated to a 1-point Runway Score divergence.
  */
 export function seasonalFractionElapsed(
   weights: number[],
@@ -61,13 +70,13 @@ export function seasonalFractionElapsed(
 ): number {
   if (!weights || weights.length !== 4) return yearFractionElapsed(date);
 
-  const qIndex = currentQuarter(date);
-  const year = date.getFullYear();
+  const year = date.getUTCFullYear();
+  const qIndex = Math.floor(date.getUTCMonth() / 3);
 
-  // Quarter start and end dates
+  // Quarter start and end dates — UTC so all runtimes agree.
   const qStartMonth = qIndex * 3;
-  const qStart = new Date(year, qStartMonth, 1);
-  const qEnd = new Date(year, qStartMonth + 3, 1);
+  const qStart = new Date(Date.UTC(year, qStartMonth, 1));
+  const qEnd = new Date(Date.UTC(year, qStartMonth + 3, 1));
 
   const qTotalDays = Math.max(
     1,
