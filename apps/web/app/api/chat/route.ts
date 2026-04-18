@@ -10,7 +10,7 @@ import { buildPersonaPrefix } from "@/lib/flight-crew/system-prompts";
 import { DEFAULT_PERSONA, type Persona } from "@/lib/flight-crew/personas";
 import { AGENT_RUNWAY_VOICE } from "@/lib/outreach-prompts";
 import { requirePro } from "@/lib/require-pro";
-import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
+import { computeGCI, computeWeightedGCI, computeAgentGross, computeTxFees } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
 import {
   seasonalFractionElapsed,
@@ -24,6 +24,7 @@ import {
   currentQuarter as getCurrentQuarter,
 } from "@agent-runway/core/engines/projection-engine";
 import { survivalResult, type SurvivalResult } from "@agent-runway/core/engines/survival-engine";
+import { computeCashPosition, type CashPositionResult } from "@agent-runway/core/engines/cash-position-engine";
 import { compute as computeRunwayScore, type RunwayScoreResult } from "@agent-runway/core/engines/runway-score-engine";
 import { buildHealthReport } from "@agent-runway/core/engines/health-report";
 import { calculate as calculateTax, type CanadianTaxResult, gstHstRate, gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
@@ -456,31 +457,8 @@ export async function POST(req: NextRequest) {
         const naiveFraction = Math.max(dayOfYear() / 365, 0.01);
         const naiveProjection = ytdGCI / naiveFraction;
 
-        // 2. Survival Engine — include pipeline income same as dashboard
-        const pipelineMonthlyEst = engineFraction > 0 ? (pipelineWeighted * 0.5) / 12 : 0;
-        const survival: SurvivalResult = survivalResult(
-          settings.monthly_brokerage_fee ?? 0,
-          monthlyRecurring,
-          settings.cash_reserve ?? 0,
-          pipelineMonthlyEst,
-        );
-
-        // 3. Health Report + Runway Score Engine
-        const healthReport = buildHealthReport(
-          ytdGCI, settings.goal_gci ?? 0, engineFraction, pipelineWeighted, expensesYTD,
-        );
-
-        // 4. Benchmark Engine
-        const benchmark: BenchmarkResult = benchmarkCompare(
-          projGCI, settings.experience_years ?? null,
-        );
-
-        // 5. Runway Score (composite)
-        const runwayScore: RunwayScoreResult = computeRunwayScore(
-          healthReport, benchmark.percentile, survival.months,
-        );
-
-        // 6. Canadian Tax Engine — projected net income after expenses
+        // 2. Canadian Tax Engine — projected net income after expenses.
+        // Moved above survival because cashPosition below needs ytdTaxSetAside.
         const splitMatch2 = settings.split_preset?.match(/p(\d+)_(\d+)/);
         const agentPct = splitMatch2 ? Number(splitMatch2[1]) / 100 : 1;
         const annualizedExpenses = engineFraction > 0 ? expensesYTD / engineFraction : expensesYTD;
@@ -489,6 +467,69 @@ export async function POST(req: NextRequest) {
           projectedNetIncome,
           (settings.province ?? "ontario") as Province,
           projDeals,
+        );
+
+        // 3. Cash Position Engine — implied business cash from YTD activity.
+        // CRITICAL: must mirror dashboard-content.tsx:615-634 exactly so chat
+        // and dashboard never disagree on the Survival/Runway Score inputs.
+        // Prior bug: chat passed settings.cash_reserve (raw manual field) into
+        // survivalResult, while dashboard passed cashPosition.effectiveCash.
+        // That let Survival swing from 95/100 (strong) on the dashboard to
+        // 25/100 (critical) in Captain's answer for the same agent, same
+        // moment — then Captain gave alarmist "build up your buffer" advice
+        // on a wrong number. See feedback_data_consistency_protocol.md.
+        const now = new Date();
+        const hstRateValue = gstHstRate((settings.province ?? "ontario") as Province);
+        const ytdHstCollected = settings.gst_hst_registered ? ytdGCI * hstRateValue : 0;
+        const ytdHstOnExpenses = settings.gst_hst_paid_on_expenses
+          ? expensesYTD * (hstRateValue / (1 + hstRateValue))
+          : 0;
+        const { agentGross: cpAgentGross } = computeAgentGross(
+          ytdGCI,
+          settings.split_preset,
+          settings.post_cap_threshold_gci,
+          settings.post_cap_agent_pct,
+          settings.post_cap_brokerage_pct,
+        );
+        const cpTxFees = computeTxFees(ytdGCI, settings.tx_fee_rate_pct, settings.tx_fee_annual_cap);
+        const cpBrokerageFees = (settings.monthly_brokerage_fee ?? 0) * (now.getMonth() + 1);
+        const cpYtdAgentNet = Math.max(0, cpAgentGross - cpTxFees - cpBrokerageFees);
+        const cashPosition: CashPositionResult = computeCashPosition({
+          ytdGCI,
+          ytdAgentNet: cpYtdAgentNet,
+          ytdExpenses: expensesYTD,
+          ytdTaxSetAside: taxResult.totalBurden * Math.min(engineFraction, 1),
+          ytdHstCollected,
+          ytdHstOnExpenses,
+          brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
+          manualCashReserve: settings.cash_reserve ?? 0,
+          fractionElapsed: engineFraction,
+        });
+
+        // 4. Survival Engine — uses implied cash (cashPosition.effectiveCash),
+        // NOT the raw cash_reserve field. Matches dashboard-content.tsx:637-642.
+        const pipelineMonthlyEst = engineFraction > 0 ? (pipelineWeighted * 0.5) / 12 : 0;
+        const survival: SurvivalResult = survivalResult(
+          settings.monthly_brokerage_fee ?? 0,
+          monthlyRecurring,
+          cashPosition.effectiveCash,
+          pipelineMonthlyEst,
+        );
+
+        // 5. Health Report + Runway Score Engine
+        const healthReport = buildHealthReport(
+          ytdGCI, settings.goal_gci ?? 0, engineFraction, pipelineWeighted, expensesYTD,
+        );
+
+        // 6. Benchmark Engine
+        const benchmark: BenchmarkResult = benchmarkCompare(
+          projGCI, settings.experience_years ?? null,
+        );
+
+        // 7. Runway Score (composite) — now built from the same Survival input
+        // the dashboard used, so the two surfaces return identical scores.
+        const runwayScore: RunwayScoreResult = computeRunwayScore(
+          healthReport, benchmark.percentile, survival.months,
         );
 
         // 7. Probabilistic Forecast Engine
