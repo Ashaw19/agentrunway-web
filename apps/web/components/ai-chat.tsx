@@ -1110,6 +1110,10 @@ export function AiChat({ financialContext }: Props) {
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
+      // If a @mention autocomplete is showing (input ends with @<letters>),
+      // let the MentionAutocomplete document listener handle Enter to select
+      // the persona — don't submit the partial mention text as a message.
+      if (/(?:^|\s)@[a-zA-Z]*$/.test(input)) return;
       handleSend();
     }
   }
