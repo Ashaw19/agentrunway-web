@@ -86,6 +86,7 @@ import {
   ArrowDownRight,
   Minus,
   Compass,
+  Anchor,
 } from "lucide-react";
 import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
@@ -1039,6 +1040,85 @@ export function DashboardContent({
   const startHereItem = briefingItems[0] ?? null;
 
   const dateLabel = new Date().toLocaleDateString("en-CA", { weekday: "long", month: "long", day: "numeric" });
+
+  // ── Captain's Morning Brief ─────────────────────────────────────────────────
+  cardRenders["morning_brief"] = (() => {
+    const staleItems = briefingItems.filter(i => i.type === "in_flight_stale");
+    const pctOfGoal = goalGCI > 0 ? Math.round((ytdGCI / goalGCI) * 100) : null;
+    const pctOfYear = Math.round(fraction * 100);
+    return (
+      <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50/60 to-white px-4 py-3 space-y-2.5">
+        <div className="flex items-center gap-2 mb-0.5">
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600/10">
+            <Anchor className="h-3.5 w-3.5 text-blue-600" />
+          </div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-blue-600">Captain&apos;s Morning Brief</p>
+          <span className="ml-auto text-[10px] text-slate-400">{dateLabel}</span>
+        </div>
+
+        {/* Income */}
+        <div className="flex gap-2.5 items-start">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 shrink-0 w-16 pt-0.5">Income</span>
+          <p className="text-xs text-slate-700 leading-snug">
+            {goalGCI > 0 && pctOfGoal !== null ? (
+              <>
+                <span className={cn("font-semibold", paceStatus === "ahead" ? "text-emerald-600" : paceStatus === "behind" ? "text-amber-700" : "text-slate-800")}>
+                  {fmtCurrency(ytdGCI)}
+                </span>
+                {" of "}{fmtCurrency(goalGCI)} goal — {pctOfGoal}% earned, {pctOfYear}% through the year
+                {paceStatus !== "no-goal" && paceGapAmount !== 0 && (
+                  <span className={cn("ml-1 font-medium", paceStatus === "ahead" ? "text-emerald-600" : "text-amber-700")}>
+                    ({paceStatus === "ahead" ? "↑" : "↓"}{fmtCurrency(Math.abs(paceGapAmount))} vs pace)
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="font-semibold text-slate-800">{fmtCurrency(ytdGCI)} GCI this year</span>
+            )}
+          </p>
+        </div>
+
+        {/* Pipeline */}
+        <div className="flex gap-2.5 items-start">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 shrink-0 w-16 pt-0.5">Pipeline</span>
+          <p className="text-xs text-slate-700 leading-snug">
+            {pipelineCount > 0 ? (
+              <>
+                <span className="font-semibold text-slate-800">{pipelineCount} deal{pipelineCount !== 1 ? "s" : ""}</span>
+                {" — "}{fmtCurrency(pipelineWeightedGCI)} weighted GCI in motion
+              </>
+            ) : (
+              <span className="text-slate-500">No active pipeline — add deals in CRM</span>
+            )}
+          </p>
+        </div>
+
+        {/* Watch — stale active clients */}
+        {staleItems.length > 0 && (
+          <div className="flex gap-2.5 items-start">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600 shrink-0 w-16 pt-0.5">Watch</span>
+            <p className="text-xs text-amber-700 leading-snug">
+              {staleItems.length === 1 ? (
+                <><span className="font-semibold">{staleItems[0].clientName}</span> — {staleItems[0].daysValue}d since last contact</>
+              ) : (
+                <><span className="font-semibold">{staleItems[0].clientName}</span> and {staleItems.length - 1} other{staleItems.length > 2 ? "s" : ""} — {staleItems[0].daysValue}+ days since contact</>
+              )}
+            </p>
+          </div>
+        )}
+
+        {/* Runway */}
+        {survival.monthlyBurn > 0 && (
+          <div className="flex gap-2.5 items-start">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 shrink-0 w-16 pt-0.5">Runway</span>
+            <p className={cn("text-xs leading-snug", survival.months < 3 ? "text-red-700 font-semibold" : survival.months < 5 ? "text-amber-700" : "text-slate-700")}>
+              {survival.months < 1 ? "Less than 1 month" : `${survival.months.toFixed(1)} months`} of operating runway
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  })();
 
   cardRenders["client_briefing"] = (smartAlerts.length > 0 || briefingItems.length > 0 || upcomingConditions.length > 0) ? (
     <div className="space-y-2">
