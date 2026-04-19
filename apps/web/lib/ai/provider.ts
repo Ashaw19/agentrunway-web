@@ -40,8 +40,8 @@ export const models = {
   /** Sonnet 4.6 — $3/$15 per MTok. Conversations, analysis, drafts, CRM lookups. */
   default: anthropic("claude-sonnet-4-6"),
 
-  /** Opus 4.6 — $5/$25 per MTok. Forecasting, scenario modeling, complex advisory. */
-  complex: anthropic("claude-opus-4-6"),
+  /** Opus 4.7 — $5/$25 per MTok. Forecasting, scenario modeling, complex advisory. */
+  complex: anthropic("claude-opus-4-7"),
 
   /** Groq Llama 3.3 70B — $0.59/$0.79 per MTok. Speed fallback. */
   fallback: groq("llama-3.3-70b-versatile"),
