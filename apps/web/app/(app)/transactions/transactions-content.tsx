@@ -234,9 +234,10 @@ export function TransactionsContent({ initialTransactions, initialPipelineDeals,
 
     let failed = false;
     if (editingId) {
+      // Stamp edited_at so a future re-import won't overwrite this manual edit.
       const { data, error } = await supabase
         .from("transactions")
-        .update(payload)
+        .update({ ...payload, edited_at: new Date().toISOString() })
         .eq("id", editingId)
         .eq("user_id", user.id)
         .select()

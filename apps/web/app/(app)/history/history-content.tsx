@@ -43,6 +43,7 @@ import { cn } from "@/lib/utils";
 import type { ImportResult, ExtractedDeal } from "@/app/api/import-history/route";
 import type { ExtractionQuality } from "@/lib/import/types";
 import { applyValidation } from "@/lib/import/validation/validate-transactions";
+import { computeImportExternalId } from "@/lib/import/external-id";
 import dynamic from "next/dynamic";
 import type { YoYDataPoint } from "@/components/year-over-year-chart";
 
@@ -866,9 +867,15 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
 
     if (!error && data) {
       // ── Save client records for this year ─────────────────────────────────
-      // Delete existing client_records for this year then re-insert
-      await supabase.from("client_records").delete()
-        .eq("user_id", user.id).eq("year", importData.year);
+      // MERGE strategy (not delete-then-insert):
+      //   • Each imported row gets a stable `import_external_id` fingerprint.
+      //   • If a row with that ID already exists AND has `edited_at` set,
+      //     SKIP it — the user manually edited it post-import and we don't
+      //     want to stomp their correction.
+      //   • Otherwise UPSERT on (user_id, import_external_id) so re-uploads
+      //     of the same document overwrite in place; new rows from a second
+      //     file for the same year get appended instead of wiping the first
+      //     upload. Fixes Bug A (multi-file same year) + Bug B (manual edits).
 
       // ── Upsert client identities, then attach client_id to each record ────
       // splitClientNames() splits "Tom & Nancy Doyle" → ["Tom Doyle", "Nancy Doyle"]
@@ -893,11 +900,22 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
         : { data: [] as { id: string; name_search: string }[] };
       const clientIdMap = new Map((clientRows ?? []).map((c) => [c.name_search, c.id]));
 
+      // Build the (one row per split client name) payloads, tagged with the
+      // deal-level external ID + a per-client suffix so split couples get
+      // distinct but still stable IDs.
       const clientInserts = resolvedDeals
         .flatMap((deal, i) => {
           const sideSelected = agentSides[i] ?? deal.agent_side;
           const raw = ((sideSelected === 1 ? deal.party_b : deal.party_a) ?? "").trim();
           if (!raw) return [];
+          const dealExtId = computeImportExternalId({
+            year:    importData.year,
+            date:    deal.date,
+            address: deal.address,
+            party_a: deal.party_a,
+            party_b: deal.party_b,
+            gci:     deal.gci,
+          });
           return splitClientNames(raw).map((clientName) => ({
             user_id: user.id,
             name: clientName,
@@ -908,16 +926,44 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             close_date: deal.date || null,
             year: importData.year,
             gci: deal.gci,
+            // Stable key: deal fingerprint + normalized split-client name
+            import_external_id: `${dealExtId}|c:${clientName.trim().toLowerCase()}`,
           }));
-        })
-        .filter(Boolean);
+        });
 
-      if (clientInserts.length > 0) {
-        await supabase.from("client_records").insert(clientInserts);
+      // Look up which of these IDs are already present AND have been
+      // manually edited — those we skip entirely.
+      const crExtIds = clientInserts.map((r) => r.import_external_id);
+      const { data: crExisting } = crExtIds.length > 0
+        ? await supabase.from("client_records")
+            .select("import_external_id, edited_at")
+            .eq("user_id", user.id)
+            .in("import_external_id", crExtIds)
+        : { data: [] as { import_external_id: string | null; edited_at: string | null }[] };
+      const editedCrIds = new Set(
+        (crExisting ?? [])
+          .filter((r) => r.edited_at !== null)
+          .map((r) => r.import_external_id as string),
+      );
+      const crToUpsert = clientInserts.filter(
+        (r) => !editedCrIds.has(r.import_external_id),
+      );
+
+      if (crToUpsert.length > 0) {
+        const { error: crErr } = await supabase.from("client_records").upsert(
+          crToUpsert,
+          { onConflict: "user_id,import_external_id" },
+        );
+        if (crErr) {
+          console.error("[import] client_records upsert failed:", crErr);
+          toast.error("Failed to save client records. Please try again.");
+          setImportStatus("preview");
+          return;
+        }
       }
 
       // ── Write imported transactions (for tax engine, reporting, dashboard) ──
-      // Build the inserts first, then delete old rows only if inserts succeed.
+      // Same merge-not-replace strategy. No DELETE. Upsert on external_id.
       const txInserts = resolvedDeals
         .map((deal, originalIdx) => ({ deal, originalIdx }))
         .filter(({ deal }) => deal.date && deal.gci > 0)
@@ -925,6 +971,14 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
           const sideSelected = agentSides[originalIdx] ?? deal.agent_side;
           const clientName = ((sideSelected === 1 ? deal.party_b : deal.party_a) ?? "").trim();
           const txSide: "buyer" | "seller" | "both" = deal.side ?? "buyer";
+          const extId = computeImportExternalId({
+            year:    importData.year,
+            date:    deal.date,
+            address: deal.address,
+            party_a: deal.party_a,
+            party_b: deal.party_b,
+            gci:     deal.gci,
+          });
           return {
             user_id:        user.id,
             date:           deal.date,
@@ -938,25 +992,37 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             notes:          "",
             source:         "imported" as const,
             date_precision: "day" as const,
+            import_external_id: extId,
           };
         });
 
-      // Replace previous imports for this year with new ones.
-      // Delete first, then insert — if insert fails, the user is told clearly.
       if (txInserts.length > 0) {
-        await supabase.from("transactions")
-          .delete()
+        // Check which IDs are already present AND edited → skip those.
+        const txExtIds = txInserts.map((t) => t.import_external_id);
+        const { data: txExisting } = await supabase.from("transactions")
+          .select("import_external_id, edited_at")
           .eq("user_id", user.id)
-          .eq("source", "imported")
-          .gte("date", `${importData.year}-01-01`)
-          .lte("date", `${importData.year}-12-31`);
+          .in("import_external_id", txExtIds);
+        const editedTxIds = new Set(
+          (txExisting ?? [])
+            .filter((r) => r.edited_at !== null)
+            .map((r) => r.import_external_id as string),
+        );
+        const txToUpsert = txInserts.filter(
+          (t) => !editedTxIds.has(t.import_external_id),
+        );
 
-        const { error: txError } = await supabase.from("transactions").insert(txInserts);
-        if (txError) {
-          console.error("[import] transaction insert failed:", txError);
-          toast.error("Failed to save transactions. Please re-import this year.");
-          setImportStatus("preview");
-          return;
+        if (txToUpsert.length > 0) {
+          const { error: txError } = await supabase.from("transactions").upsert(
+            txToUpsert,
+            { onConflict: "user_id,import_external_id" },
+          );
+          if (txError) {
+            console.error("[import] transaction upsert failed:", txError);
+            toast.error("Failed to save transactions. Please re-import this year.");
+            setImportStatus("preview");
+            return;
+          }
         }
       }
 
@@ -1014,7 +1080,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       setImportData(null);
       toast.success(
         existing?.id
-          ? `${importData.year} history replaced · ${clientInserts.length} clients saved ✓`
+          ? `${importData.year} history updated · ${clientInserts.length} clients merged ✓`
           : `${importData.year} imported · ${clientInserts.length} clients saved ✓`,
       );
     } else {
@@ -1083,10 +1149,7 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
         savedYears++;
       }
 
-      // Save client records for this year
-      await supabase.from("client_records").delete()
-        .eq("user_id", user.id).eq("year", yearData.year);
-
+      // Save client records for this year (MERGE — no delete; see handleSaveImport)
       // ── Upsert client identities for this year, then attach client_id ─────
       // Use agent_side to pick the correct party — 1 = agent represented party_b
       const agentClientNames = yearData.deals.map((d) =>
@@ -1109,6 +1172,14 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
         .map((d, i) => {
           const clientName = agentClientNames[i];
           if (!clientName) return null;
+          const dealExtId = computeImportExternalId({
+            year:    yearData.year,
+            date:    d.date,
+            address: d.address,
+            party_a: d.party_a,
+            party_b: d.party_b,
+            gci:     d.gci,
+          });
           return {
             user_id: user.id,
             name: clientName,
@@ -1119,12 +1190,32 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
             close_date: d.date || null,
             year: yearData.year,
             gci: d.gci,
+            import_external_id: `${dealExtId}|c:${clientName.toLowerCase()}`,
           };
         })
-        .filter(Boolean) as object[];
+        .filter((r): r is NonNullable<typeof r> => r !== null);
 
       if (clientInserts.length > 0) {
-        await supabase.from("client_records").insert(clientInserts);
+        const crExtIds = clientInserts.map((r) => r.import_external_id);
+        const { data: crExisting } = await supabase.from("client_records")
+          .select("import_external_id, edited_at")
+          .eq("user_id", user.id)
+          .in("import_external_id", crExtIds);
+        const editedCrIds = new Set(
+          (crExisting ?? [])
+            .filter((r) => r.edited_at !== null)
+            .map((r) => r.import_external_id as string),
+        );
+        const crToUpsert = clientInserts.filter(
+          (r) => !editedCrIds.has(r.import_external_id),
+        );
+        if (crToUpsert.length > 0) {
+          const { error: crErr } = await supabase.from("client_records").upsert(
+            crToUpsert,
+            { onConflict: "user_id,import_external_id" },
+          );
+          if (crErr) throw crErr;
+        }
         totalClients += clientInserts.length;
       }
 
@@ -1132,34 +1223,55 @@ export function HistoryContent({ historyItems: initial, transactions, settingsSp
       // Current year stays manual-only (user tracks live deals themselves).
       const currentYear = new Date().getFullYear();
       if (yearData.year < currentYear && yearData.deals.length > 0) {
-        // Clear any previously-imported transactions for this year before re-importing
-        await supabase.from("transactions")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("source", "imported")
-          .gte("date", `${yearData.year}-01-01`)
-          .lte("date", `${yearData.year}-12-31`);
-
         const txInserts = yearData.deals
           .filter((d) => d.date && d.gci > 0) // skip deals with no date or $0 GCI
-          .map((d) => ({
-            user_id: user.id,
-            date: d.date,
-            address: d.address || "",
-            sale_price: d.sale_price ?? 0,
-            commission_pct: d.commission_percent ?? 0.025,
-            gci_override: d.gci,     // gci = PRE-split gross commission income
-            side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
-            status: "closed" as const,
-            client_name: ((d.agent_side === 1 ? d.party_b : d.party_a) ?? "").trim() || "",
-            notes: (d.agent_side === 1 ? d.party_a : d.party_b)?.trim() ? `Other party: ${(d.agent_side === 1 ? d.party_a : d.party_b)?.trim()}` : "",
-            source: "imported" as const,
-            date_precision: "day" as const,
-          }));
+          .map((d) => {
+            const extId = computeImportExternalId({
+              year:    yearData.year,
+              date:    d.date,
+              address: d.address,
+              party_a: d.party_a,
+              party_b: d.party_b,
+              gci:     d.gci,
+            });
+            return {
+              user_id: user.id,
+              date: d.date,
+              address: d.address || "",
+              sale_price: d.sale_price ?? 0,
+              commission_pct: d.commission_percent ?? 0.025,
+              gci_override: d.gci,     // gci = PRE-split gross commission income
+              side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
+              status: "closed" as const,
+              client_name: ((d.agent_side === 1 ? d.party_b : d.party_a) ?? "").trim() || "",
+              notes: (d.agent_side === 1 ? d.party_a : d.party_b)?.trim() ? `Other party: ${(d.agent_side === 1 ? d.party_a : d.party_b)?.trim()}` : "",
+              source: "imported" as const,
+              date_precision: "day" as const,
+              import_external_id: extId,
+            };
+          });
 
         if (txInserts.length > 0) {
-          const { error: txInsertErr } = await supabase.from("transactions").insert(txInserts);
-          if (txInsertErr) throw txInsertErr;
+          const txExtIds = txInserts.map((t) => t.import_external_id);
+          const { data: txExisting } = await supabase.from("transactions")
+            .select("import_external_id, edited_at")
+            .eq("user_id", user.id)
+            .in("import_external_id", txExtIds);
+          const editedTxIds = new Set(
+            (txExisting ?? [])
+              .filter((r) => r.edited_at !== null)
+              .map((r) => r.import_external_id as string),
+          );
+          const txToUpsert = txInserts.filter(
+            (t) => !editedTxIds.has(t.import_external_id),
+          );
+          if (txToUpsert.length > 0) {
+            const { error: txInsertErr } = await supabase.from("transactions").upsert(
+              txToUpsert,
+              { onConflict: "user_id,import_external_id" },
+            );
+            if (txInsertErr) throw txInsertErr;
+          }
         }
       }
       } catch (err) {

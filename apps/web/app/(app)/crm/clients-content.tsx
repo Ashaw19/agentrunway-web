@@ -1873,7 +1873,12 @@ export function ClientsContent({
       setLocalRecords((prev) =>
         prev.map((r) => (r.id === recordId ? { ...r, [field]: value } : r)),
       );
-      const { error } = await supabase.from("client_records").update({ [field]: value }).eq("id", recordId).eq("user_id", userId);
+      // Stamp edited_at so a future re-import won't overwrite this manual edit.
+      const { error } = await supabase
+        .from("client_records")
+        .update({ [field]: value, edited_at: new Date().toISOString() })
+        .eq("id", recordId)
+        .eq("user_id", userId);
       if (error) {
         // Rollback
         setLocalRecords((prev) =>
@@ -5168,6 +5173,8 @@ export function ClientsContent({
                                     if (Object.keys(updates).length > 0) {
                                       // Save listing URL too
                                       updates.listing_url = listingUrl;
+                                      // Stamp edited_at so reimport won't stomp this
+                                      updates.edited_at = new Date().toISOString();
                                       const { error } = await supabase
                                         .from("client_records")
                                         .update(updates)

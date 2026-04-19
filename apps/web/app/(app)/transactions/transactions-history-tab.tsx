@@ -41,6 +41,7 @@ import { fmtCurrency } from "@/lib/formatters";
 import { computeGCI, type HistoryItem, type Transaction, type UserSettings } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 import type { ImportResult } from "@/app/api/import-history/route";
+import { computeImportExternalId } from "@/lib/import/external-id";
 import dynamic from "next/dynamic";
 import type { YoYDataPoint } from "@/components/year-over-year-chart";
 
@@ -732,9 +733,15 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
 
     if (!error && data) {
       // ── Save client records for this year ─────────────────────────────────
-      // Delete existing client_records for this year then re-insert
-      await supabase.from("client_records").delete()
-        .eq("user_id", user.id).eq("year", importData.year);
+      // MERGE strategy (not delete-then-insert):
+      //   • Each imported row gets a stable `import_external_id` fingerprint.
+      //   • If a row with that ID already exists AND has `edited_at` set,
+      //     SKIP it — the user edited it manually post-import and we don't
+      //     want to stomp their correction.
+      //   • Otherwise UPSERT on (user_id, import_external_id) so re-uploads
+      //     of the same document overwrite in place; a second CSV for the
+      //     same year appends alongside instead of wiping the first upload.
+      //   Fixes Bug A (multi-file same year) + Bug B (manual edits lost).
 
       // ── Upsert client identities, then attach client_id to each record ────
       const dealNames = importData.deals
@@ -762,6 +769,14 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
           const sideSelected = agentSides[i] ?? deal.agent_side;
           const clientName = ((sideSelected === 1 ? deal.party_b : deal.party_a) ?? "").trim();
           if (!clientName) return null;
+          const dealExtId = computeImportExternalId({
+            year:    importData.year,
+            date:    deal.date,
+            address: deal.address,
+            party_a: deal.party_a,
+            party_b: deal.party_b,
+            gci:     deal.gci,
+          });
           return {
             user_id: user.id,
             name: clientName,
@@ -772,29 +787,56 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
             close_date: deal.date || null,
             year: importData.year,
             gci: deal.gci,
+            import_external_id: `${dealExtId}|c:${clientName.toLowerCase()}`,
           };
         })
-        .filter(Boolean);
+        .filter((r): r is NonNullable<typeof r> => r !== null);
 
       if (clientInserts.length > 0) {
-        await supabase.from("client_records").insert(clientInserts);
+        const crExtIds = clientInserts.map((r) => r.import_external_id);
+        const { data: crExisting } = await supabase.from("client_records")
+          .select("import_external_id, edited_at")
+          .eq("user_id", user.id)
+          .in("import_external_id", crExtIds);
+        const editedCrIds = new Set(
+          (crExisting ?? [])
+            .filter((r) => r.edited_at !== null)
+            .map((r) => r.import_external_id as string),
+        );
+        const crToUpsert = clientInserts.filter(
+          (r) => !editedCrIds.has(r.import_external_id),
+        );
+        if (crToUpsert.length > 0) {
+          const { error: crErr } = await supabase.from("client_records").upsert(
+            crToUpsert,
+            { onConflict: "user_id,import_external_id" },
+          );
+          if (crErr) {
+            console.error("[import] client_records upsert failed:", crErr);
+            toast.error("Failed to save client records. Please try again.");
+            setImportStatus("preview");
+            return;
+          }
+        }
       }
 
       // ── Write imported transactions (for tax engine, reporting, dashboard) ──
+      // Same merge-not-replace strategy. Upsert on external_id; skip edited rows.
       const currentYear = new Date().getFullYear();
       if (importData.year < currentYear && importData.deals.length > 0) {
-        await supabase.from("transactions")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("source", "imported")
-          .gte("date", `${importData.year}-01-01`)
-          .lte("date", `${importData.year}-12-31`);
-
         const txInserts = importData.deals
           .map((d, i) => ({ deal: d, origIdx: i }))
           .filter(({ deal: d }) => d.date && d.gci > 0)
           .map(({ deal: d, origIdx }) => {
             const side = agentSides[origIdx] ?? d.agent_side;
+            const extId = computeImportExternalId({
+              year:    importData.year,
+              date:    d.date,
+              address: d.address,
+              party_a: d.party_a,
+              party_b: d.party_b,
+              gci:     d.gci,
+            });
             return {
               user_id: user.id,
               date: d.date,
@@ -808,16 +850,35 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
               notes: (side === 1 ? d.party_a : d.party_b)?.trim() ? `Other party: ${(side === 1 ? d.party_a : d.party_b)?.trim()}` : "",
               source: "imported" as const,
               date_precision: "day" as const,
+              import_external_id: extId,
             };
           });
 
         if (txInserts.length > 0) {
-          const { error: txInsertErr } = await supabase.from("transactions").insert(txInserts);
-          if (txInsertErr) {
-            console.error("[import] transaction insert failed:", txInsertErr);
-            toast.error("Failed to save transactions. Please re-import this year.");
-            setImportStatus("preview");
-            return;
+          const txExtIds = txInserts.map((t) => t.import_external_id);
+          const { data: txExisting } = await supabase.from("transactions")
+            .select("import_external_id, edited_at")
+            .eq("user_id", user.id)
+            .in("import_external_id", txExtIds);
+          const editedTxIds = new Set(
+            (txExisting ?? [])
+              .filter((r) => r.edited_at !== null)
+              .map((r) => r.import_external_id as string),
+          );
+          const txToUpsert = txInserts.filter(
+            (t) => !editedTxIds.has(t.import_external_id),
+          );
+          if (txToUpsert.length > 0) {
+            const { error: txInsertErr } = await supabase.from("transactions").upsert(
+              txToUpsert,
+              { onConflict: "user_id,import_external_id" },
+            );
+            if (txInsertErr) {
+              console.error("[import] transaction upsert failed:", txInsertErr);
+              toast.error("Failed to save transactions. Please re-import this year.");
+              setImportStatus("preview");
+              return;
+            }
           }
         }
       }
@@ -832,7 +893,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       setImportData(null);
       toast.success(
         existing?.id
-          ? `${importData.year} history replaced · ${clientInserts.length} clients saved ✓`
+          ? `${importData.year} history updated · ${clientInserts.length} clients merged ✓`
           : `${importData.year} imported · ${clientInserts.length} clients saved ✓`,
       );
     } else {
@@ -898,10 +959,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
         savedYears++;
       }
 
-      // Save client records for this year
-      await supabase.from("client_records").delete()
-        .eq("user_id", user.id).eq("year", yearData.year);
-
+      // Save client records for this year — MERGE, not replace (see handleSaveImport)
       // ── Upsert client identities for this year, then attach client_id ─────
       // Use agent_side to pick the correct party — 1 = agent represented party_b
       const agentClientNames = yearData.deals.map((d) =>
@@ -927,6 +985,14 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
         })
         .map((d) => {
           const clientName = ((d.agent_side === 1 ? d.party_b : d.party_a) ?? "").trim();
+          const dealExtId = computeImportExternalId({
+            year:    yearData.year,
+            date:    d.date,
+            address: d.address,
+            party_a: d.party_a,
+            party_b: d.party_b,
+            gci:     d.gci,
+          });
           return {
             user_id: user.id,
             name: clientName,
@@ -937,11 +1003,31 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
             close_date: d.date || null,
             year: yearData.year,
             gci: d.gci,
+            import_external_id: `${dealExtId}|c:${clientName.toLowerCase()}`,
           };
         });
 
       if (clientInserts.length > 0) {
-        await supabase.from("client_records").insert(clientInserts);
+        const crExtIds = clientInserts.map((r) => r.import_external_id);
+        const { data: crExisting } = await supabase.from("client_records")
+          .select("import_external_id, edited_at")
+          .eq("user_id", user.id)
+          .in("import_external_id", crExtIds);
+        const editedCrIds = new Set(
+          (crExisting ?? [])
+            .filter((r) => r.edited_at !== null)
+            .map((r) => r.import_external_id as string),
+        );
+        const crToUpsert = clientInserts.filter(
+          (r) => !editedCrIds.has(r.import_external_id),
+        );
+        if (crToUpsert.length > 0) {
+          const { error: crErr } = await supabase.from("client_records").upsert(
+            crToUpsert,
+            { onConflict: "user_id,import_external_id" },
+          );
+          if (crErr) throw crErr;
+        }
         totalClients += clientInserts.length;
       }
 
@@ -949,34 +1035,55 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       // Current year stays manual-only (user tracks live deals themselves).
       const currentYear = new Date().getFullYear();
       if (yearData.year < currentYear && yearData.deals.length > 0) {
-        // Clear any previously-imported transactions for this year before re-importing
-        await supabase.from("transactions")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("source", "imported")
-          .gte("date", `${yearData.year}-01-01`)
-          .lte("date", `${yearData.year}-12-31`);
-
         const txInserts = yearData.deals
           .filter((d) => d.date && d.gci > 0) // skip deals with no date or $0 GCI
-          .map((d) => ({
-            user_id: user.id,
-            date: d.date,
-            address: d.address || "",
-            sale_price: d.sale_price ?? null,
-            commission_pct: d.commission_percent ?? null,
-            gci_override: d.gci,     // store GCI directly
-            side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
-            status: "closed" as const,
-            client_name: ((d.agent_side === 1 ? d.party_b : d.party_a) ?? "").trim() || "",
-            notes: (d.agent_side === 1 ? d.party_a : d.party_b)?.trim() ? `Other party: ${(d.agent_side === 1 ? d.party_a : d.party_b)?.trim()}` : "",
-            source: "imported" as const,
-            date_precision: "day" as const,
-          }));
+          .map((d) => {
+            const extId = computeImportExternalId({
+              year:    yearData.year,
+              date:    d.date,
+              address: d.address,
+              party_a: d.party_a,
+              party_b: d.party_b,
+              gci:     d.gci,
+            });
+            return {
+              user_id: user.id,
+              date: d.date,
+              address: d.address || "",
+              sale_price: d.sale_price ?? null,
+              commission_pct: d.commission_percent ?? null,
+              gci_override: d.gci,     // store GCI directly
+              side: (d.side ?? "buyer") as "buyer" | "seller" | "both",
+              status: "closed" as const,
+              client_name: ((d.agent_side === 1 ? d.party_b : d.party_a) ?? "").trim() || "",
+              notes: (d.agent_side === 1 ? d.party_a : d.party_b)?.trim() ? `Other party: ${(d.agent_side === 1 ? d.party_a : d.party_b)?.trim()}` : "",
+              source: "imported" as const,
+              date_precision: "day" as const,
+              import_external_id: extId,
+            };
+          });
 
         if (txInserts.length > 0) {
-          const { error: txInsertErr } = await supabase.from("transactions").insert(txInserts);
-          if (txInsertErr) throw txInsertErr;
+          const txExtIds = txInserts.map((t) => t.import_external_id);
+          const { data: txExisting } = await supabase.from("transactions")
+            .select("import_external_id, edited_at")
+            .eq("user_id", user.id)
+            .in("import_external_id", txExtIds);
+          const editedTxIds = new Set(
+            (txExisting ?? [])
+              .filter((r) => r.edited_at !== null)
+              .map((r) => r.import_external_id as string),
+          );
+          const txToUpsert = txInserts.filter(
+            (t) => !editedTxIds.has(t.import_external_id),
+          );
+          if (txToUpsert.length > 0) {
+            const { error: txInsertErr } = await supabase.from("transactions").upsert(
+              txToUpsert,
+              { onConflict: "user_id,import_external_id" },
+            );
+            if (txInsertErr) throw txInsertErr;
+          }
         }
       }
       } catch (err) {

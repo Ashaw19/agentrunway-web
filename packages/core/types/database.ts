@@ -426,6 +426,14 @@ export interface Transaction {
 
   pipeline_deal_id: string | null;  // FK to pipeline_deals for accuracy tracking
 
+  // Import provenance + edit protection (migration 00121)
+  // import_external_id: stable natural-key fingerprint set on imported rows;
+  //                     NULL for manual entries. Used to UPSERT on re-import.
+  // edited_at:          timestamp of the most recent manual edit. NULL = untouched
+  //                     since import. Reimports skip rows with edited_at IS NOT NULL.
+  import_external_id?: string | null;
+  edited_at?: string | null;
+
   created_at: string;
   updated_at: string;
 }
@@ -1073,6 +1081,11 @@ export interface ClientRecord {
   // Condition tracking (migration 00075)
   condition_date:   string | null;  // ISO date
   condition_status: "pending" | "waived" | "firmed" | "collapsed" | null;
+
+  // Import provenance + edit protection (migration 00121)
+  // See Transaction.import_external_id / edited_at for semantics.
+  import_external_id?: string | null;
+  edited_at?: string | null;
 
   created_at: string;
   updated_at: string;
