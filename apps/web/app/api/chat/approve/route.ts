@@ -26,7 +26,12 @@ export async function POST(req: NextRequest) {
   if (!proCheck.allowed) return proCheck.response!;
 
   // ── Parse & validate ────────────────────────────────────────────────────
-  const { toolName, args } = await req.json();
+  let toolName: unknown, args: unknown;
+  try {
+    ({ toolName, args } = await req.json());
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
   if (typeof toolName !== "string" || !toolName) {
     return NextResponse.json({ error: "Missing toolName" }, { status: 400 });

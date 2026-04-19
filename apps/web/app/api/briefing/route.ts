@@ -112,7 +112,7 @@ async function gatherUserMetricsFromSession(
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId)
         .in("status", ["boarding", "in_flight"])
-        .lt("last_contacted_at", fourteenDaysAgo),
+        .lt("last_contact_at", fourteenDaysAgo),
 
       supabase
         .from("pipeline_deals")

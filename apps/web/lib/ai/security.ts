@@ -11,7 +11,7 @@
 // ── Canary Token ────────────────────────────────────────────────────────────
 // A unique string injected into system prompts. If it ever appears in a
 // response, the system prompt has been leaked.
-const CANARY_TOKEN = "CANARY-AR-" + process.env.CANARY_SALT?.slice(0, 8) || "CANARY-AR-DEFAULT";
+const CANARY_TOKEN = "CANARY-AR-" + (process.env.CANARY_SALT?.slice(0, 8) ?? "DEFAULT");
 
 /**
  * Inject a canary token into the system prompt.

@@ -195,7 +195,7 @@ export default async function DashboardPage({
 
   const activeClientCount = activeClientsResult.count ?? 0;
   // Only count recent activities for clients that are actually active (boarding/in_flight).
-  // Without this filter, activities on cruising/landed clients inflate recentlyContactedIds
+  // Without this filter, activities on cruising clients inflate recentlyContactedIds
   // and cause staleLeadCount to undercount (or go negative before Math.max).
   const activeClientIds = new Set(
     (briefingClientsResult.data ?? [])
