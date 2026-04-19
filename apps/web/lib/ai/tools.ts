@@ -1794,8 +1794,8 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       }),
       needsApproval: true,
       execute: async ({ transactionId, transactionDescription, address, salePrice, commissionPct, gciOverride, closeDate, notes }) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         // Stamp edited_at so a future re-import doesn't stomp this approved correction.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const updates: Record<string, any> = {
           updated_at: new Date().toISOString(),
           edited_at:  new Date().toISOString(),
