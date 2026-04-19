@@ -52,7 +52,8 @@ import {
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import type { ListingAppointment } from "@/lib/types/database";
+import type { ListingAppointment, ClientStatus } from "@/lib/types/database";
+import { CLIENT_STATUS_LABELS, CLIENT_STATUS_COLORS } from "@/lib/types/database";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -145,6 +146,7 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
   const [editingListing, setEditingListing] = useState<ListingAppointment | null>(null);
   const [listingSaving, setListingSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [savingStatusId, setSavingStatusId] = useState<string | null>(null);
   const savingListingRef = useRef(false);
 
   const emptyListingForm = {
@@ -256,6 +258,41 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
     }
   }, [listingForm, editingListing, router]);
 
+  // Update a buyer client's CRM status directly from the pipeline row.
+  // Picking Scheduled or Cruising removes the row from the pipeline on refresh;
+  // picking In-Flight keeps it and bumps probability from 10% → 25%.
+  //
+  // NOTE: this write intentionally bypasses Flight Plan automation. Flight Plan
+  // firing lives client-side in crm/clients-content.tsx updateClientField().
+  // Pipeline status changes are reclassification actions ("park this buyer"),
+  // not lifecycle events, so skipping the automation is the correct behaviour.
+  // Long-term fix: move Flight Plan firing into a DB trigger so every status
+  // write path behaves identically (see migration 00105 auto-promote pattern).
+  const handleBuyerStatusChange = useCallback(
+    async (clientId: string, newStatus: ClientStatus) => {
+      setSavingStatusId(clientId);
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("Not authenticated");
+        const { error } = await supabase
+          .from("clients")
+          .update({ status: newStatus, updated_at: new Date().toISOString() })
+          .eq("id", clientId)
+          .eq("user_id", user.id);
+        if (error) throw error;
+        toast.success(`Status changed to ${CLIENT_STATUS_LABELS[newStatus]}.`);
+        router.refresh();
+      } catch (err) {
+        toast.error("Failed to update client status.");
+        console.error(err);
+      } finally {
+        setSavingStatusId(null);
+      }
+    },
+    [router],
+  );
+
   const handleDeleteListing = useCallback(async (id: string) => {
     setDeletingId(id);
     try {
@@ -366,6 +403,12 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
                   onEditListing={item.source === "listing" ? () => openEditListing(item) : undefined}
                   onDeleteListing={item.source === "listing" ? () => handleDeleteListing(item.id) : undefined}
                   deleting={deletingId === item.id}
+                  onBuyerStatusChange={
+                    item.source === "buyer"
+                      ? (s) => handleBuyerStatusChange(item.id, s)
+                      : undefined
+                  }
+                  savingStatus={savingStatusId === item.id}
                 />
               ))}
             </TableBody>
@@ -582,16 +625,25 @@ function PipelineRow({
   onEditListing,
   onDeleteListing,
   deleting,
+  onBuyerStatusChange,
+  savingStatus,
 }: {
   item: UnifiedPipelineItem;
   onEditListing?: () => void;
   onDeleteListing?: () => void;
   deleting?: boolean;
+  onBuyerStatusChange?: (newStatus: ClientStatus) => void;
+  savingStatus?: boolean;
 }) {
   const stageColor =
     STAGE_BADGE_COLORS[item.unifiedStage] ?? STAGE_BADGE_COLORS.pre_qualifying;
   const stageLabel =
     STAGE_LABELS[item.unifiedStage] ?? item.stage;
+
+  // For buyer rows, the stage cell is an inline status dropdown bound directly
+  // to the client's CRM status. item.stage is the raw client status
+  // ("boarding" | "in_flight") set by the forecast engine.
+  const buyerClientStatus = (item.stage as ClientStatus);
 
   return (
     <TableRow className={cn("border-border", onEditListing && "cursor-pointer hover:bg-muted/50")} onClick={onEditListing}>
@@ -611,14 +663,51 @@ function PipelineRow({
         </div>
       </TableCell>
       <TableCell>
-        <span
-          className={cn(
-            "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] font-medium",
-            stageColor,
-          )}
-        >
-          {stageLabel}
-        </span>
+        {onBuyerStatusChange ? (
+          <Select
+            value={buyerClientStatus}
+            onValueChange={(v) => onBuyerStatusChange(v as ClientStatus)}
+            disabled={savingStatus}
+          >
+            <SelectTrigger
+              onClick={(e) => e.stopPropagation()}
+              className={cn(
+                "h-6 w-auto gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium",
+                CLIENT_STATUS_COLORS[buyerClientStatus]?.bg,
+                CLIENT_STATUS_COLORS[buyerClientStatus]?.text,
+                CLIENT_STATUS_COLORS[buyerClientStatus]?.border,
+                savingStatus && "opacity-60",
+              )}
+              aria-label="Change client status"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent onClick={(e) => e.stopPropagation()}>
+              {(Object.keys(CLIENT_STATUS_LABELS) as ClientStatus[]).map((s) => (
+                <SelectItem key={s} value={s}>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      className={cn(
+                        "h-2 w-2 rounded-full",
+                        CLIENT_STATUS_COLORS[s].dot,
+                      )}
+                    />
+                    {CLIENT_STATUS_LABELS[s]}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <span
+            className={cn(
+              "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] font-medium",
+              stageColor,
+            )}
+          >
+            {stageLabel}
+          </span>
+        )}
       </TableCell>
       <TableCell>{sideBadge(item.side)}</TableCell>
       <TableCell className="text-right font-medium text-foreground tabular-nums">
