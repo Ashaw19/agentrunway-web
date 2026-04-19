@@ -49,6 +49,7 @@ import {
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
+  projectedYearEndTransactions,
   paceVsGoalPercent,
   daysRemaining,
 } from "@/lib/engines/projection-engine";
@@ -58,6 +59,7 @@ import { computeMarketMomentum, type LocalMarketData } from "@/lib/crea-board";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { compute as computeRunwayScore } from "@/lib/engines/runway-score-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
+import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
 import { buildHealthReport } from "@/lib/engines/health-report";
 import {
   Tooltip,
@@ -461,12 +463,26 @@ export function AltimeterContent({
   const monthlyRecurring = recurringExpMonthly;
   const expensesYTD = expensesYTDProp;
 
-  const survival = survivalResult(
-    settings?.monthly_brokerage_fee ?? 0,
-    monthlyRecurring,
-    settings?.cash_reserve ?? 0,
-    fraction > 0 ? (pipelineWeightedGCI * 0.5) / 12 : 0,
-  );
+  // Survival cash input MUST be cashPosition.effectiveCash (not raw cash_reserve)
+  // to match dashboard + chat. See memory/feedback_data_consistency_protocol.md.
+  const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);
+  const survival = settings
+    ? survivalResult(
+        settings.monthly_brokerage_fee ?? 0,
+        monthlyRecurring,
+        computeEffectiveCashForSurvival({
+          settings,
+          ytdGCI,
+          expensesYTD,
+          monthlyRecurring,
+          projectedGCI,
+          projectedDealCount,
+          fraction,
+          now,
+        }).cashPosition.effectiveCash,
+        fraction > 0 ? (pipelineWeightedGCI * 0.5) / 12 : 0,
+      )
+    : survivalResult(0, monthlyRecurring, 0, fraction > 0 ? (pipelineWeightedGCI * 0.5) / 12 : 0);
 
   const healthReport = buildHealthReport(
     ytdGCI, goalGCI, fraction, pipelineWeightedGCI, expensesYTD,

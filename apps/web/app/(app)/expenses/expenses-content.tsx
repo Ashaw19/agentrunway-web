@@ -76,7 +76,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { PlaidItem, PlaidTransaction, MileageLog, RecurringExpense } from "@/lib/types/database";
+import type { PlaidItem, PlaidTransaction, MileageLog, RecurringExpense, PipelineDeal, HistoryItem } from "@/lib/types/database";
+import { computeWeightedGCI } from "@/lib/types/database";
+import { seasonalFractionElapsed, projectedYearEndGCI, projectedYearEndTransactions } from "@/lib/engines/projection-engine";
+import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
 import { ExpensesMileageTab }     from "./expenses-mileage-tab";
 import { ExpensesBankImportsTab } from "./expenses-bank-imports-tab";
 import { TaxDisclaimer } from "@/components/tax-disclaimer";
@@ -118,6 +121,12 @@ interface Props {
   plaidExpenseCategories?: ExpenseCategoryForPlaid[];
   plaidConfigured?: boolean;
   isPro?: boolean;
+  /** Pipeline deals — required for Survival metric parity with dashboard */
+  pipelineDeals?: PipelineDeal[];
+  /** Full history items (with quarter_gci) — required for agent-specific seasonality */
+  historyItems?: HistoryItem[];
+  /** Active recurring expenses — server-fetched for SSR parity with dashboard */
+  recurringExpenses?: RecurringExpense[];
 }
 
 // Per-category colour accent (left border + header icon tint)
@@ -145,6 +154,7 @@ export function ExpensesContent({
   mileageLogs = [], plaidItems = [], plaidTransactions = [],
   plaidExpenseItems = [], plaidExpenseCategories = [], plaidConfigured = false,
   isPro: isProProp = false,
+  pipelineDeals = [], historyItems = [], recurringExpenses: recurringExpensesSeed = [],
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const thisYear = currentYear ?? new Date().getFullYear();
@@ -219,7 +229,8 @@ export function ExpensesContent({
   const [viewOpen,     setViewOpen]     = useState(false);
 
   // ── Recurring expenses ──────────────────────────────────────────────────
-  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
+  // Seeded server-side so Survival/Runway metrics render with full data on first paint.
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>(recurringExpensesSeed);
   const [recurringDialogOpen, setRecurringDialogOpen] = useState(false);
   const [editingRecurring, setEditingRecurring] = useState<RecurringExpense | null>(null);
   const [reName, setReName] = useState("");
@@ -841,11 +852,52 @@ export function ExpensesContent({
   const totalDeductible = deductBreakdown.full + deductBreakdown.meals + deductBreakdown.vehicle;
 
   // ── Survival ──────────────────────────────────────────────────────────
-  const survival = survivalResult(
-    settings?.monthly_brokerage_fee ?? 0,
-    monthlyTotal,
-    settings?.cash_reserve ?? 0,
+  // Survival cash input MUST be cashPosition.effectiveCash (not raw cash_reserve)
+  // to match dashboard + chat. See memory/feedback_data_consistency_protocol.md.
+  // Derive the same seasonal fraction + projections the dashboard uses.
+  const expensesSeasonalWeights: number[] = (() => {
+    const withData = historyItems.filter((h) =>
+      (h.quarter_gci as number[] | null | undefined)?.some((v) => (v ?? 0) > 0),
+    );
+    if (withData.length >= 2) {
+      const avgQ = [0, 1, 2, 3].map((q) =>
+        withData.reduce((sum, h) =>
+          sum + (((h.quarter_gci as number[] | null | undefined)?.[q]) ?? 0), 0,
+        ) / withData.length,
+      );
+      const total = avgQ.reduce((a, b) => a + b, 0);
+      if (total > 0) return avgQ.map((v) => v / total);
+    }
+    if (settings?.use_national_seasonality) {
+      return (settings.national_quarter_pcts as number[] | null) ?? [0.25, 0.25, 0.25, 0.25];
+    }
+    return [0.25, 0.25, 0.25, 0.25];
+  })();
+  const expensesFraction = seasonalFractionElapsed(expensesSeasonalWeights);
+  const expensesPipelineWeighted = pipelineDeals.reduce((sum, d) => sum + computeWeightedGCI(d), 0);
+  const expensesProjectedGCI = projectedYearEndGCI(
+    ytdGCI, expensesPipelineWeighted, expensesFraction, settings?.goal_gci ?? 0,
   );
+  const expensesProjectedDeals = projectedYearEndTransactions(
+    transactions.length, pipelineDeals.length, expensesFraction,
+  );
+  const survival = settings
+    ? survivalResult(
+        settings.monthly_brokerage_fee ?? 0,
+        monthlyTotal,
+        computeEffectiveCashForSurvival({
+          settings,
+          ytdGCI,
+          expensesYTD: effectiveTotal,
+          monthlyRecurring: monthlyTotal,
+          projectedGCI: expensesProjectedGCI,
+          projectedDealCount: expensesProjectedDeals,
+          fraction: expensesFraction,
+          now,
+        }).cashPosition.effectiveCash,
+        expensesFraction > 0 ? (expensesPipelineWeighted * 0.5) / 12 : 0,
+      )
+    : survivalResult(0, monthlyTotal, 0, 0);
 
   // ── Donut chart data — per-category effective YTD (receipts + recurring estimates + recurring_expenses table) ──
   const donutData: DonutDataPoint[] = categories

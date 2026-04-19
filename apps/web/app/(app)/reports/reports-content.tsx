@@ -83,6 +83,7 @@ import {
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
+import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
 import {
   compute as computeRunwayScore,
 } from "@/lib/engines/runway-score-engine";
@@ -336,11 +337,23 @@ export function ReportsContent({
   const benchmark = compare(projectedGCI, settings.experience_years);
 
   // ── Survival ──────────────────────────────────────────────────────────────────
+  // Survival cash input MUST be cashPosition.effectiveCash (not raw cash_reserve)
+  // to match dashboard + chat. See memory/feedback_data_consistency_protocol.md.
   const pipelineMonthlyEst = fraction > 0 ? (pipelineWeighted * 0.5) / 12 : 0;
+  const { cashPosition: reportsCashPosition } = computeEffectiveCashForSurvival({
+    settings,
+    ytdGCI,
+    expensesYTD,
+    monthlyRecurring,
+    projectedGCI,
+    projectedDealCount: projectedDeals,
+    fraction,
+    now,
+  });
   const survival = survivalResult(
     settings.monthly_brokerage_fee,
     monthlyRecurring,
-    settings.cash_reserve,
+    reportsCashPosition.effectiveCash,
     pipelineMonthlyEst,
   );
 

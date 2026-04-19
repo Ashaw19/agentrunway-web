@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { ExpensesContent } from "./expenses-content";
 import { computeIsPro } from "@/lib/compute-is-pro";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { PlaidItem, PlaidTransaction } from "@/lib/types/database";
+import type { PlaidItem, PlaidTransaction, PipelineDeal, HistoryItem, RecurringExpense } from "@/lib/types/database";
 
 // ── Default expense categories ───────────────────────────────────────────────
 const DEFAULT_CATEGORIES = [
@@ -172,6 +172,7 @@ export default async function ExpensesPage() {
     receiptTotalsResult, receiptsResult, historyResult,
     mileageResult, plaidItemsResult, plaidTxResult,
     expItemsResult, expCatResult,
+    pipelineResult, fullHistoryResult, recurringExpResult,
   ] = await Promise.all([
     supabase
       .from("expense_categories")
@@ -257,6 +258,26 @@ export default async function ExpensesPage() {
       .eq("user_id", user.id)
       .order("sort_order")
       .limit(10000),
+    // Pipeline deals — required for Survival/Runway Score parity with dashboard
+    supabase
+      .from("pipeline_deals")
+      .select("*")
+      .eq("user_id", user.id)
+      .limit(10000),
+    // Full history (with quarter_gci) — required for agent-specific seasonality parity
+    supabase
+      .from("history_items")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("year", { ascending: false })
+      .limit(100),
+    // Active recurring expenses — required to match dashboard monthly_recurring
+    supabase
+      .from("recurring_expenses")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .limit(10000),
   ]);
 
   // Aggregate receipt totals per sub-category key for the current year
@@ -323,6 +344,9 @@ export default async function ExpensesPage() {
       plaidExpenseItems={expItemsResult.data ?? []}
       plaidExpenseCategories={expCatResult.data ?? []}
       plaidConfigured={plaidConfigured}
+      pipelineDeals={(pipelineResult.data ?? []) as PipelineDeal[]}
+      historyItems={(fullHistoryResult.data ?? []) as HistoryItem[]}
+      recurringExpenses={(recurringExpResult.data ?? []) as RecurringExpense[]}
     />
   );
 }

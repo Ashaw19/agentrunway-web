@@ -17,6 +17,7 @@ import {
   computeWeightedGCI,
   type Transaction,
   type PipelineDeal,
+  type UserSettings,
 } from "@/lib/types/database";
 import { buildUnsubscribeUrl } from "@/lib/email-tokens";
 import { seasonalFractionElapsed, paceVsGoalPercent, projectedYearEndGCI } from "@agent-runway/core/engines/projection-engine";
@@ -24,6 +25,8 @@ import { buildHealthReport } from "@agent-runway/core/engines/health-report";
 import { compute as computeRunwayScore } from "@agent-runway/core/engines/runway-score-engine";
 import { compare as benchmarkCompare } from "@agent-runway/core/engines/benchmark-engine";
 import { survivalResult } from "@agent-runway/core/engines/survival-engine";
+import { computeEffectiveCashForSurvival } from "@agent-runway/core/engines/effective-cash";
+import { projectedYearEndTransactions } from "@agent-runway/core/engines/projection-engine";
 import { generateText } from "ai";
 import { models } from "@/lib/ai/provider";
 
@@ -74,10 +77,11 @@ export async function GET(req: NextRequest) {
   const sevenDaysAgoISO = sevenDaysAgo.toISOString().slice(0, 10);
   const monthStart = `${year}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
 
-  // Find all professional-tier users (active or trialing)
-  // Include seasonal_weights, use_national_seasonality, national_quarter_pcts,
-  // experience_years, monthly_brokerage_fee, and cash_reserve for canonical score.
-  const userSelectCols = "user_id, display_name, goal_gci, province, subscription_tier, subscription_status, seasonal_weights, use_national_seasonality, national_quarter_pcts, experience_years, monthly_brokerage_fee, cash_reserve";
+  // Find all professional-tier users (active or trialing).
+  // Select * so we have every field computeEffectiveCashForSurvival needs
+  // (split_preset, tx fee config, HST flags, is_incorporated, compensation_method, etc.)
+  // — required for Survival/Runway Score parity with dashboard + chat.
+  const userSelectCols = "*";
 
   const { data: tierUsers, error: usersErr } = await admin
     .from("user_settings")
@@ -293,12 +297,29 @@ export async function GET(req: NextRequest) {
       const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, goalGCI);
       const benchmark = benchmarkCompare(projectedGCI, user.experience_years ?? null);
 
-      // Survival months
+      // Survival months — cash input MUST be cashPosition.effectiveCash (not
+      // raw cash_reserve) to match dashboard + chat. The weekly digest emails
+      // the Runway Score to every professional subscriber, so a wrong number
+      // here is the loudest possible version of the 2026-04-17 incident.
+      // See memory/feedback_data_consistency_protocol.md.
       const pipelineMonthlyEst = fraction > 0 ? (pipelineWeightedGCI * 0.5) / 12 : 0;
+      const projectedDealCount = projectedYearEndTransactions(
+        transactions.length, pipeline.length, fraction,
+      );
+      const { cashPosition: digestCashPosition } = computeEffectiveCashForSurvival({
+        settings: user as UserSettings,
+        ytdGCI,
+        expensesYTD,
+        monthlyRecurring,
+        projectedGCI,
+        projectedDealCount,
+        fraction,
+        now,
+      });
       const survival = survivalResult(
         user.monthly_brokerage_fee ?? 0,
         monthlyRecurring,
-        user.cash_reserve ?? 0,
+        digestCashPosition.effectiveCash,
         pipelineMonthlyEst,
       );
 

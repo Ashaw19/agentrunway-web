@@ -40,6 +40,7 @@ import { calculate as calculateTax, gstHstRate, gstHstLabel, marginalRate } from
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { probabilityBands, fiveYearBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
+import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
 import { compare } from "@/lib/engines/benchmark-engine";
 import { generateAdvisory, type AdvisorCard } from "@/lib/engines/advisor-engine";
 import { generateTaxOptimizations, type TaxOptimizationCard } from "@/lib/engines/tax-optimization-engine";
@@ -237,11 +238,23 @@ export function ForecastContent({
   const dailyNeeded = goalGCI > 0 ? dailyPaceRequired(goalGCI, ytdGCI, daysLeft) : 0;
 
   // ── Survival ──────────────────────────────────────────────────────────
+  // Survival cash input MUST be cashPosition.effectiveCash (not raw cash_reserve)
+  // to match dashboard + chat. See memory/feedback_data_consistency_protocol.md.
   const pipelineMonthlyEst = fraction > 0 ? (pipelineWeighted * 0.5) / 12 : 0;
+  const { cashPosition: forecastCashPosition } = computeEffectiveCashForSurvival({
+    settings,
+    ytdGCI,
+    expensesYTD,
+    monthlyRecurring,
+    projectedGCI,
+    projectedDealCount: projectedDeals,
+    fraction,
+    now: _now,
+  });
   const survival = survivalResult(
     settings.monthly_brokerage_fee,
     monthlyRecurring,
-    settings.cash_reserve,
+    forecastCashPosition.effectiveCash,
     pipelineMonthlyEst,
   );
 

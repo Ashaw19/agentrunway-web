@@ -147,7 +147,10 @@ function computeResult(
     expensesYTD,
   );
 
-  // Survival months — uses monthlyRecurring (matches dashboard)
+  // Survival months — cashReserve here is the user-adjusted slider value,
+  // but the baseline comes from cashPosition.effectiveCash (computed in
+  // scenarios/page.tsx) so the "no change" scenario matches dashboard + chat.
+  // See memory/feedback_data_consistency_protocol.md.
   const survival = survivalResult(
     monthlyBrokerageFee,
     monthlyRecurring,

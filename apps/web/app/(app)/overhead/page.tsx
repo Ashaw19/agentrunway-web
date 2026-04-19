@@ -4,7 +4,8 @@ import { OverheadContent } from "./overhead-content";
 import type { HistoryItem, Transaction, PipelineDeal, SplitPreset, RecurringExpense } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
-import { projectedYearEndGCI, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
+import { projectedYearEndGCI, projectedYearEndTransactions, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
+import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
 import type { ScenarioSeedData } from "@/app/(app)/scenarios/page";
 import { computeIsPro } from "@/lib/compute-is-pro";
 
@@ -127,6 +128,24 @@ export default async function OverheadPage() {
   const fraction = seasonalFractionElapsed(qPcts);
   const projectedGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, rawSettings?.goal_gci ?? 0);
 
+  // Baseline cash for Survival MUST be cashPosition.effectiveCash (not raw
+  // cash_reserve) so the "current" scenario matches dashboard + chat. See
+  // memory/feedback_data_consistency_protocol.md.
+  const overheadProjectedDealCount = projectedYearEndTransactions(
+    transactions.length, pipelineDeals.length, fraction,
+  );
+  const overheadBaselineCash = rawSettings
+    ? computeEffectiveCashForSurvival({
+        settings: rawSettings,
+        ytdGCI,
+        expensesYTD,
+        monthlyRecurring,
+        projectedGCI,
+        projectedDealCount: overheadProjectedDealCount,
+        fraction,
+      }).cashPosition.effectiveCash
+    : 0;
+
   const scenarioSeed: ScenarioSeedData = {
     province: rawSettings?.province ?? "ontario",
     goalGCI: rawSettings?.goal_gci ?? 0,
@@ -137,7 +156,7 @@ export default async function OverheadPage() {
     monthlyRecurring,
     expensesYTD,
     monthlyBrokerageFee: rawSettings?.monthly_brokerage_fee ?? 0,
-    cashReserve: rawSettings?.cash_reserve ?? 0,
+    cashReserve: overheadBaselineCash,
     isIncorporated: rawSettings?.is_incorporated ?? false,
     compensationMethod: rawSettings?.compensation_method ?? "salary",
     quarterPcts: qPcts,

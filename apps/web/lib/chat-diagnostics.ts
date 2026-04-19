@@ -25,6 +25,8 @@ import { buildHealthReport } from "@agent-runway/core/engines/health-report";
 import {
   survivalResult as computeSurvivalResult,
 } from "@agent-runway/core/engines/survival-engine";
+import { computeEffectiveCashForSurvival } from "@agent-runway/core/engines/effective-cash";
+import type { UserSettings as CanonicalUserSettings } from "@agent-runway/core/types/database";
 import {
   compare as benchmarkCompare,
   COHORT_LABELS,
@@ -294,7 +296,7 @@ function buildTopicDiagnostic(
  * computeSurvivalResult → computeRunwayScore, then formats results.
  */
 function diagRunwayScore(ctx: DiagContext): string {
-  const { settings: s, ytdGCI, pipelineWeighted, engineFraction, monthlyRecurring, expensesYTD } = ctx;
+  const { settings: s, ytdGCI, pipelineWeighted, engineFraction, monthlyRecurring, expensesYTD, closedTx, pipelineDeals } = ctx;
 
   // 1. Health Report (pace, pipeline, expense sub-scores)
   const healthReport = buildHealthReport(
@@ -309,11 +311,26 @@ function diagRunwayScore(ctx: DiagContext): string {
   // 3. Benchmark (actual CREA percentile, not hardcoded 50)
   const benchmark = benchmarkCompare(projGCI, s.experience_years ?? null);
 
-  // 4. Survival (uses recurring expenses only, not total YTD / months)
+  // 4. Survival — cash input MUST be cashPosition.effectiveCash (not raw
+  //    cash_reserve) to match dashboard + chat. Diagnostic runs through
+  //    the AI; a wrong number here puts Captain back in the 2026-04-17
+  //    failure mode. See memory/feedback_data_consistency_protocol.md.
+  const projDeals = projectedYearEndTransactions(
+    closedTx.length, pipelineDeals.length, engineFraction,
+  );
+  const { cashPosition: diagCashPos } = computeEffectiveCashForSurvival({
+    settings: s as unknown as CanonicalUserSettings,
+    ytdGCI,
+    expensesYTD,
+    monthlyRecurring,
+    projectedGCI: projGCI,
+    projectedDealCount: projDeals,
+    fraction: engineFraction,
+  });
   const survival = computeSurvivalResult(
     s.monthly_brokerage_fee ?? 0,
     monthlyRecurring,
-    s.cash_reserve ?? 0,
+    diagCashPos.effectiveCash,
     0,
   );
 
@@ -646,13 +663,29 @@ CREA Board: ${s.board_code || "NOT SET"}`;
  * Uses recurring expenses only for burn (not total YTD / months).
  */
 function diagSurvival(ctx: DiagContext): string {
-  const { settings: s, monthlyRecurring, ytdGCI } = ctx;
+  const { settings: s, monthlyRecurring, ytdGCI, pipelineWeighted, engineFraction, expensesYTD, closedTx, pipelineDeals } = ctx;
 
-  // Canonical survival engine uses brokerage fee + monthly recurring only
+  // Cash input MUST be cashPosition.effectiveCash (not raw cash_reserve) to
+  // match dashboard + chat. See memory/feedback_data_consistency_protocol.md.
+  const projGCIforSurvival = projectedYearEndGCI(
+    ytdGCI, pipelineWeighted, engineFraction, s.goal_gci ?? 0,
+  );
+  const projDealsForSurvival = projectedYearEndTransactions(
+    closedTx.length, pipelineDeals.length, engineFraction,
+  );
+  const { cashPosition: diagSurvivalCashPos } = computeEffectiveCashForSurvival({
+    settings: s as unknown as CanonicalUserSettings,
+    ytdGCI,
+    expensesYTD,
+    monthlyRecurring,
+    projectedGCI: projGCIforSurvival,
+    projectedDealCount: projDealsForSurvival,
+    fraction: engineFraction,
+  });
   const survival = computeSurvivalResult(
     s.monthly_brokerage_fee ?? 0,
     monthlyRecurring,
-    s.cash_reserve ?? 0,
+    diagSurvivalCashPos.effectiveCash,
     0, // conservative: no pipeline income estimate
   );
 
@@ -660,7 +693,8 @@ function diagSurvival(ctx: DiagContext): string {
   const monthlyAvgIncome = ytdGCI / monthsElapsed;
 
   return `[SURVIVAL DIAGNOSTIC]
-Cash Reserve: ${fmtCurrency(s.cash_reserve ?? 0)}
+Manual Cash Reserve (raw settings field): ${fmtCurrency(s.cash_reserve ?? 0)}
+Effective Cash (implied position — what Survival actually uses): ${fmtCurrency(diagSurvivalCashPos.effectiveCash)}
 Monthly Brokerage Fee: ${fmtCurrency(s.monthly_brokerage_fee ?? 0)}
 Monthly Recurring Expenses: ${fmtCurrency(monthlyRecurring)}
 Total Monthly Burn: ${fmtCurrency(survival.monthlyBurn)}

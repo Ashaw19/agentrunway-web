@@ -4,7 +4,8 @@ import { ScenariosContent } from "./scenarios-content";
 import type { Transaction, PipelineDeal, SplitPreset, RecurringExpense } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
-import { projectedYearEndGCI, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
+import { projectedYearEndGCI, projectedYearEndTransactions, seasonalFractionElapsed } from "@/lib/engines/projection-engine";
+import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
 
 
 /** Data the client component needs — pre-computed server-side. */
@@ -27,7 +28,9 @@ export interface ScenarioSeedData {
   expensesYTD: number;
   /** Monthly brokerage fee from settings */
   monthlyBrokerageFee: number;
-  /** Cash reserve from settings */
+  /** Baseline cash for Survival — cashPosition.effectiveCash (matches dashboard/chat).
+   *  User slider adjusts this value in scenarios-content; the seed value is the
+   *  implied business cash position, not the raw user-entered cash_reserve field. */
   cashReserve: number;
   /** Whether incorporated */
   isIncorporated: boolean;
@@ -136,6 +139,23 @@ export default async function ScenariosPage() {
     const fraction = seasonalFractionElapsed(qPcts);
     const projectedAnnualGCI = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction, settingsRow?.goal_gci ?? 0);
 
+    // Baseline cash input MUST be cashPosition.effectiveCash (not raw cash_reserve)
+    // to match dashboard + chat. The scenarios slider lets the user adjust
+    // this lever — but the starting point has to agree with the dashboard.
+    // See memory/feedback_data_consistency_protocol.md.
+    const projectedDealCount = projectedYearEndTransactions(transactions.length, pipelineDeals.length, fraction);
+    const scenarioBaselineCash = settingsRow
+      ? computeEffectiveCashForSurvival({
+          settings: settingsRow,
+          ytdGCI,
+          expensesYTD,
+          monthlyRecurring,
+          projectedGCI: projectedAnnualGCI,
+          projectedDealCount,
+          fraction,
+        }).cashPosition.effectiveCash
+      : 0;
+
   const seed: ScenarioSeedData = {
     province: settingsRow?.province ?? "ontario",
     goalGCI: settingsRow?.goal_gci ?? 0,
@@ -146,7 +166,7 @@ export default async function ScenariosPage() {
     monthlyRecurring,
     expensesYTD,
     monthlyBrokerageFee: settingsRow?.monthly_brokerage_fee ?? 0,
-    cashReserve: settingsRow?.cash_reserve ?? 0,
+    cashReserve: scenarioBaselineCash,
     isIncorporated: settingsRow?.is_incorporated ?? false,
     compensationMethod: settingsRow?.compensation_method ?? "salary",
     quarterPcts: qPcts,
