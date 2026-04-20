@@ -568,6 +568,26 @@ call, email, text, showing, meeting, note, task
 - Source funnel (where leads come from)
 - Speed to lead distribution
 
+### Engagement Score (engagement-engine.ts)
+
+Each contact has a decayed engagement score based on recent activity history.
+
+| Tier | Score | Meaning |
+|------|-------|---------|
+| Hot | >80 | Highly active, frequent recent contact |
+| Ascending | 50–80 | Engaged and trending well |
+| Cruising | 20–50 | Moderate activity, stable |
+| Cooling | 5–20 | Activity dropping, needs attention |
+| Dormant | <5 | No meaningful recent contact |
+
+**Activity weights** (higher = bigger score contribution):
+- Appointment/Showing: 25 pts | Call: 20 pts | Reply: 15 pts | Link click: 8 pts
+- Email sent/Text/Note: 2–5 pts | Email open: 3 pts
+
+**Time decay**: Scores use a half-life per activity type (14–30 days). A call from 60 days ago contributes much less than one from last week.
+
+**Trend**: Compares current score to score computed 14 days ago — rising/stable/declining.
+
 ### Common Problems & Diagnostics
 
 **"I can't find my client"**

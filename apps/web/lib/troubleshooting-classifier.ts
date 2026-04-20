@@ -54,6 +54,7 @@ export const PAGE_TO_TOPICS: Record<string, TroubleshootingTopic[]> = {
   "/social":       ["social"],
   "/profile":      ["settings"],
   "/flight-control": ["flight-control"],
+  "/inbox":          ["crm", "flight-control"],
 };
 
 /**
@@ -87,6 +88,7 @@ export const TOPIC_ACTION_LINKS: Record<TroubleshootingTopic, { label: string; h
   ],
   crm: [
     { label: "Clients (CRM)", href: "/crm" },
+    { label: "Email Inbox", href: "/inbox" },
     { label: "Flight Control", href: "/crm" },
   ],
   "flight-control": [
@@ -276,8 +278,8 @@ const TOPIC_RULES: TopicRule[] = [
   },
   {
     topic: "crm",
-    primary: ["client", "crm", "contact", "boarding", "scheduled", "in-flight", "in_flight", "cruising", "archive", "hangar"],
-    secondary: ["lead", "relationship", "birthday", "tag", "activity", "phone", "email", "note", "showing", "listing appointment"],
+    primary: ["client", "crm", "contact", "boarding", "scheduled", "in-flight", "in_flight", "cruising", "archive", "hangar", "engagement score"],
+    secondary: ["lead", "relationship", "birthday", "tag", "activity", "phone", "email", "note", "showing", "listing appointment", "dormant"],
     phrases: [
       "add client",
       "client status",
@@ -298,6 +300,11 @@ const TOPIC_RULES: TopicRule[] = [
       "landed status",
       "taxiing",
       "approach stage",
+      "engagement score",
+      "client dormant",
+      "cooling contact",
+      "ascending contact",
+      "hot contact",
     ],
   },
   {
