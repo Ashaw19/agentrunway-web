@@ -53,9 +53,9 @@ import { classifyTopic, classifyTopicMulti, PAGE_TO_TOPICS, TOPIC_ACTION_LINKS, 
 import { getPlaybooks } from "@/lib/troubleshooting-playbooks";
 import { buildDiagnostics } from "@/lib/chat-diagnostics";
 import { logChatAnalytics, countTopicFollowUps } from "@/lib/chat-analytics";
-import { models, heliconeHeaders, anthropic } from "@/lib/ai/provider";
+import { models, heliconeHeaders, anthropic, TASK_BUDGETS_BETA_HEADER } from "@/lib/ai/provider";
 import { selectModelTier } from "@/lib/ai/router";
-import { buildPromptParts, injectCanary } from "@/lib/ai/security";
+import { buildPromptParts, injectCanary, validateNavigatorOutput } from "@/lib/ai/security";
 import { fetchMemories, addMemory } from "@/lib/ai/memory";
 import { createAgentTools, createCoreAgentTools, createPersonaAgentTools, NEEDS_APPROVAL_TOOLS, APPROVAL_DESCRIPTIONS } from "@/lib/ai/tools";
 import type { Province, Transaction as CoreTransaction, ContactActivity } from "@agent-runway/core/types/database";
@@ -1411,6 +1411,23 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
         maxOutputTokens: maxTokens,
         // Opus 4.7 rejects non-default temperature values (throws 400); omit for complex tier.
         ...(tier !== "complex" ? { temperature: 0.7 } : {}),
+        // Task Budgets (public beta) — Opus-only soft-cap of 40K tokens per
+        // agentic turn, with the model self-regulating toward graceful close
+        // as the budget depletes. The task budget itself is injected into
+        // the request body by the Opus provider's fetch passthrough (see
+        // lib/ai/provider.ts). This providerOptions entry ensures the
+        // matching `anthropic-beta` header is sent by the SDK — belt and
+        // suspenders with the fetch-layer header merge.
+        // Paired with `maxOutputTokens` above as the hard ceiling.
+        ...(tier === "complex"
+          ? {
+              providerOptions: {
+                anthropic: {
+                  anthropicBeta: [TASK_BUDGETS_BETA_HEADER],
+                },
+              },
+            }
+          : {}),
         abortSignal: abortController.signal,
         headers: heliconeHeaders({
           userId: user.id,
@@ -1418,10 +1435,45 @@ Be the expert — explain metrics, suggest features, direct to pages. Think abou
           sessionId: requestId,
         }),
         onFinish: ({ text }) => {
+          // ── Navigator post-stream validation (safety net) ────────────────
+          // Persona system prompts are the primary enforcement for the
+          // tax-information-not-advice rule. This is an infrastructure-layer
+          // backstop: if prescriptive-advice language slips through, log it
+          // for tuning; if the canonical disclaimer is missing on a
+          // tax-related response, append it before persisting to Mem0 so
+          // future recalls carry it. Runs only for Navigator — Captain and
+          // Dispatcher have their own rules enforced via prompts.
+          // Non-blocking: the user has already seen the raw stream. This
+          // only affects what gets stored for future context recall.
+          let persistedText = text;
+          if (persona === "navigator") {
+            try {
+              const result = validateNavigatorOutput(text);
+              if (!result.valid) {
+                log.warn(
+                  { requestId, userId: user.id, issues: result.issues },
+                  "[chat] Navigator output validation flagged issues",
+                );
+                // Mirror to console for Vercel runtime logs (Helicone-independent)
+                console.warn(
+                  "[chat] Navigator validation issues:",
+                  result.issues,
+                );
+              }
+              persistedText = result.text;
+            } catch (err) {
+              // Validator must never break chat persistence
+              log.warn(
+                { err, requestId },
+                "[chat] Navigator validator threw — falling back to raw text",
+              );
+            }
+          }
+
           // Store this exchange to Mem0 — fire-and-forget, never blocks the response
           addMemory(user.id, [
             { role: "user", content: String(latestUserMessage) },
-            { role: "assistant", content: text },
+            { role: "assistant", content: persistedText },
           ]).catch(() => {});
         },
       });
