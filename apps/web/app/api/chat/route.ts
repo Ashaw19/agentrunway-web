@@ -8,6 +8,11 @@ import { log } from "@/lib/logger";
 import { KNOWLEDGE_BASE } from "@/lib/knowledge-base";
 import { buildPersonaPrefix } from "@/lib/flight-crew/system-prompts";
 import { DEFAULT_PERSONA, type Persona } from "@/lib/flight-crew/personas";
+import {
+  flightCrewEnabled,
+  navigatorEnabled,
+  dispatcherEnabled,
+} from "@/lib/flags";
 import { AGENT_RUNWAY_VOICE } from "@/lib/outreach-prompts";
 import { requirePro } from "@/lib/require-pro";
 import { computeGCI, computeWeightedGCI, computeAgentGross, computeTxFees } from "@/lib/types/database";
@@ -104,10 +109,46 @@ export async function POST(req: NextRequest) {
 
   // Flight Crew: validate persona, default to Captain for legacy clients
   // that don't send the field.
-  const persona: Persona =
+  const requestedPersona: Persona =
     personaRaw === "captain" || personaRaw === "navigator" || personaRaw === "dispatcher"
       ? personaRaw
       : DEFAULT_PERSONA;
+
+  // ── Flight Crew feature flags: graceful degradation to Captain ──────────
+  // Evaluate the three Flight Crew flags (master + per-persona). Any
+  // persona-gating flag that's false silently downgrades that persona's
+  // request to Captain — no error surfaced to the user. `flightCrewEnabled`
+  // is a master kill-switch: when false, every request becomes Captain.
+  // Flags are evaluated server-side via the Flags SDK; defaults are `true`,
+  // so if the provider is unreachable we fail open (Flight Crew stays on).
+  const [crewOn, navOn, dispatchOn] = await Promise.all([
+    flightCrewEnabled().catch(() => true),
+    navigatorEnabled().catch(() => true),
+    dispatcherEnabled().catch(() => true),
+  ]);
+
+  let persona: Persona = requestedPersona;
+  if (!crewOn) {
+    persona = "captain";
+  } else if (requestedPersona === "navigator" && !navOn) {
+    persona = "captain";
+  } else if (requestedPersona === "dispatcher" && !dispatchOn) {
+    persona = "captain";
+  }
+
+  if (persona !== requestedPersona) {
+    // Sentry/log trail: we want visibility when a flag-driven downgrade fires.
+    log.info(
+      {
+        requestId,
+        userId: user.id,
+        requested: requestedPersona,
+        served: persona,
+        reason: !crewOn ? "flight_crew_disabled" : `${requestedPersona}_disabled`,
+      },
+      "[chat] Flight Crew persona downgraded via feature flag",
+    );
+  }
 
   // Sanitize currentPage to a plain path segment — prevents prompt injection
   const safePage = typeof currentPage === "string"
