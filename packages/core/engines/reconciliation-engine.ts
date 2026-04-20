@@ -159,7 +159,7 @@ function findDiscrepancies(
       field: "GCI",
       imported: imported.gci,
       existing: existingGCI,
-      severity: gciDiff / existingGCI > 0.05 ? "warning" : "info",
+      severity: existingGCI > 0 && gciDiff / existingGCI > 0.05 ? "warning" : "info",
     });
   }
 
