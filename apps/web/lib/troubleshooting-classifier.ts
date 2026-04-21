@@ -305,6 +305,10 @@ const TOPIC_RULES: TopicRule[] = [
       "cooling contact",
       "ascending contact",
       "hot contact",
+      "mortgage renewal",
+      "mortgage renewal alert",
+      "renewal window",
+      "renewal due",
     ],
   },
   {
@@ -332,6 +336,10 @@ const TOPIC_RULES: TopicRule[] = [
       "send time",
       "best time to send",
       "when to send",
+      "mortgage renewal",
+      "mortgage renewal alert",
+      "renewal window",
+      "renewal due",
     ],
   },
   {
