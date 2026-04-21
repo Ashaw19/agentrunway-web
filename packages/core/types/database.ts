@@ -1279,7 +1279,7 @@ export function computeProbability(deal: PipelineDeal): number {
 
 /** Compute estimated GCI for a pipeline deal */
 export function computeEstimatedGCI(deal: PipelineDeal): number {
-  return deal.estimated_price * deal.estimated_commission_pct;
+  return (deal.estimated_price ?? 0) * (deal.estimated_commission_pct ?? 0);
 }
 
 /** Compute weighted GCI for a pipeline deal */

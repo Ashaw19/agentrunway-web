@@ -826,7 +826,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       if (importData.year < currentYear && importData.deals.length > 0) {
         const txInserts = importData.deals
           .map((d, i) => ({ deal: d, origIdx: i }))
-          .filter(({ deal: d }) => d.date && d.gci > 0)
+          .filter(({ deal: d }) => d.date && /^\d{4}-\d{2}-\d{2}$/.test(d.date) && d.gci > 0)
           .map(({ deal: d, origIdx }) => {
             const side = agentSides[origIdx] ?? d.agent_side;
             const extId = computeImportExternalId({
@@ -1036,7 +1036,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       const currentYear = new Date().getFullYear();
       if (yearData.year < currentYear && yearData.deals.length > 0) {
         const txInserts = yearData.deals
-          .filter((d) => d.date && d.gci > 0) // skip deals with no date or $0 GCI
+          .filter((d) => d.date && /^\d{4}-\d{2}-\d{2}$/.test(d.date) && d.gci > 0) // skip deals with no date, invalid date format, or $0 GCI
           .map((d) => {
             const extId = computeImportExternalId({
               year:    yearData.year,

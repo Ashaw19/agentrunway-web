@@ -2,7 +2,6 @@ import { generateText } from "ai";
 import { models, heliconeHeaders } from "@/lib/ai/provider";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-// Import rate limit: 30 per 60 min
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { requirePro } from "@/lib/require-pro";
 import { TEXT_PROMPT } from "@/lib/import-prompt";
@@ -518,7 +517,7 @@ export async function POST(req: NextRequest) {
   const proCheck = await requirePro(supabase, user.id);
   if (!proCheck.allowed) return proCheck.response!;
 
-  // ── Rate limit: 10 document imports per 60-minute window ─────────────────
+  // ── Rate limit: 30 document imports per 60-minute window ─────────────────
   const rl = await checkRateLimit(user.id, "import-history", 30, 60);
   if (!rl.allowed) {
     return NextResponse.json(

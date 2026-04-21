@@ -48,7 +48,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body = await req.json();
+  let body: { url?: unknown };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
   const url = body.url as string | undefined;
 
   if (!url || typeof url !== "string") {

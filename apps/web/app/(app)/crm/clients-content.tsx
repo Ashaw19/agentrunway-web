@@ -1493,10 +1493,6 @@ export function ClientsContent({
     return gci > 0 ? calcRewardBudget(gci, rewardGenerosity) : undefined;
   }, [clientDeals, rewardGenerosity]);
 
-  // Landed celebration removed in migration 00102 — clients transition straight
-  // to Cruising on close. This value is retained as `null` to avoid touching
-  // every downstream render site; the UI banner simply never shows.
-  const landedTransitionDays = useMemo(() => null as number | null, []);
 
   // Showings for the selected client
   const selectedClientShowings = useMemo(
@@ -3929,15 +3925,6 @@ export function ClientsContent({
 
                   {/* Flight Status Strip */}
                   <FlightStatusStrip current={selectedClient.status} />
-                  {/* Auto-transition countdown */}
-                  {landedTransitionDays !== null && (
-                    <div className="mt-2 flex items-center gap-1.5 px-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                      <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
-                        Transitioning to Cruising in {landedTransitionDays} day{landedTransitionDays !== 1 ? "s" : ""}
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
 
