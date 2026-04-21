@@ -1,8 +1,8 @@
 -- ============================================================================
--- PROPOSED Migration 00116: organization_members — add WITH CHECK guards
+-- Migration 00116: organization_members — add WITH CHECK guards
 -- ============================================================================
--- GATED: review before applying. Kept outside migrations/ on purpose so
--- the regular supabase db push won't pick it up.
+-- Applied to production. trg_guard_org_member_self_update confirmed present
+-- in pg_trigger (verified 2026-04-21). Stale GATED comment removed.
 --
 -- Problem
 -- -------

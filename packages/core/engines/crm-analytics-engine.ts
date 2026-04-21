@@ -393,7 +393,13 @@ export function computeSourceFunnel(
   const contactedSet = new Set(activities.map((a) => a.client_id));
 
   const activeStatuses: ClientStatus[] = ["boarding", "scheduled", "in_flight"];
-  const closedStatuses: ClientStatus[] = ["cruising"];
+
+  // A client is "closed" only if they have at least one ClientRecord with a close_date.
+  // Using status === "cruising" was wrong: auto-imported sphere contacts land in Cruising
+  // without ever transacting, inflating close rates per source.
+  const closedClientIds = new Set(
+    records.filter((r) => r.client_id && r.close_date).map((r) => r.client_id as string),
+  );
 
   // GCI by client
   const gciByClient = new Map<string, number>();
@@ -424,7 +430,7 @@ export function computeSourceFunnel(
     d.total++;
     if (contactedSet.has(c.id)) d.contacted++;
     if (activeStatuses.includes(c.status)) d.active++;
-    if (closedStatuses.includes(c.status)) d.closed++;
+    if (closedClientIds.has(c.id)) d.closed++;
     d.gci += gciByClient.get(c.id) ?? 0;
   }
 

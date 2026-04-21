@@ -533,8 +533,9 @@ export async function POST(req: NextRequest) {
   // Reject oversized payloads before parsing (prevent OOM on base64 images).
   // Vercel serverless functions enforce a ~4.5 MB body limit; set ours just
   // below that so we return a helpful error message rather than Vercel's generic 413.
-  const contentLength = parseInt(req.headers.get("content-length") ?? "0", 10);
+  // Pre-parse check uses Content-Length header; post-parse check guards clients that omit it.
   const MAX_BODY_SIZE = 4.5 * 1024 * 1024; // 4.5MB (Vercel serverless limit)
+  const contentLength = parseInt(req.headers.get("content-length") ?? "0", 10);
   if (contentLength > MAX_BODY_SIZE) {
     return NextResponse.json(
       { error: "File too large for direct upload. Try a smaller file or split into multiple uploads." },
@@ -542,7 +543,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body = await req.json() as {
+  let bodyRaw: string;
+  try {
+    bodyRaw = await req.text();
+  } catch {
+    return NextResponse.json({ error: "Could not read request body" }, { status: 400 });
+  }
+  if (bodyRaw.length > MAX_BODY_SIZE) {
+    return NextResponse.json(
+      { error: "File too large for direct upload. Try a smaller file or split into multiple uploads." },
+      { status: 413 },
+    );
+  }
+  let body: {
     imageBase64?: string;
     /** Multi-page images (e.g. scanned PDF pages). Takes precedence over imageBase64. */
     images?: Array<{ base64: string; mimeType: string; page?: number }>;
@@ -550,6 +563,11 @@ export async function POST(req: NextRequest) {
     textContent?: string;     // for Excel/CSV/TXT
     yearHint?: number;        // override year detection (from sheet name client-side)
   };
+  try {
+    body = JSON.parse(bodyRaw);
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
   // Normalise to a single image source list (backward-compat with single imageBase64)
   // Cap at 20 pages to prevent unbounded memory / Groq context usage
@@ -603,7 +621,6 @@ export async function POST(req: NextRequest) {
         ? body.textContent.slice(1)
         : body.textContent;
 
-      console.log("[import] step=text-start len=" + rawText.length);
       // 1. Date normalization (Excel serials, slash-date disambiguation)
       const dateNormalized = normalizeDateFormats(rawText);
 
@@ -617,7 +634,6 @@ export async function POST(req: NextRequest) {
       );
 
       // Primary: Claude Haiku (fast, cheap), fallback to Groq Llama
-      console.log("[import] step=ai-call model=haiku cleaned-len=" + textNormalized.cleaned_content.length);
       try {
         const { text } = await generateText({
           model: models.fast,
@@ -638,7 +654,6 @@ export async function POST(req: NextRequest) {
         });
         raw = text;
       }
-      console.log("[import] step=llm-done raw-len=" + raw.length);
     } else {
       // ── Vision/document path: PDF pages or uploaded image(s) ─────────────
       // Build message content: images/PDFs first, then the prompt text.
@@ -740,7 +755,6 @@ export async function POST(req: NextRequest) {
 
       try {
         parsed = JSON.parse(jsonCandidate) as GroqRawResponse;
-        console.log("[import] step=parsed year=" + parsed.year + " deals=" + parsed.deals?.length);
       } catch {
         // Log the raw response so we can diagnose in Vercel logs
         console.error("[import-history] JSON parse failed. Response length:", raw.length, "First 100 chars:", raw.slice(0, 100));
@@ -821,7 +835,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Single-year path (original behavior)
-    console.log("[import] step=aggregating year=" + effectiveYear);
     const result = computeAggregates(
       parsed.deals,
       effectiveYear,

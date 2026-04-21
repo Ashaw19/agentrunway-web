@@ -5,8 +5,8 @@
  * 6 stages to 4. "Landed" is no longer a status — clients transition straight
  * to Cruising on close, so there is nothing to auto-transition.
  *
- * This endpoint is kept as a no-op so the existing vercel.json cron entry
- * doesn't 404. Remove the vercel.json entry in a future cleanup.
+ * The vercel.json cron entry has been removed. This endpoint is a no-op stub
+ * that can be deleted when convenient.
  *
  * Protected by CRON_SECRET Bearer token.
  */

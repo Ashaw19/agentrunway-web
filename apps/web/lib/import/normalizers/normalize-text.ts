@@ -286,7 +286,13 @@ export function normalizeTextDocument(
 
       // Deduplicate header rows: if a row looks identical to the already-kept
       // header, skip it (some exports repeat headers at page breaks).
-      const sig = cells.map(c => c.trim().toLowerCase()).join("|");
+      // Trim trailing empty cells before comparing so Excel exports with
+      // extra trailing commas still deduplicate correctly.
+      const sig = cells.map(c => c.trim().toLowerCase()).filter((_, i, arr) => {
+        // Keep all cells, but strip trailing empty cells for the signature
+        const lastNonEmpty = arr.reduce((last, v, idx) => v !== "" ? idx : last, -1);
+        return i <= lastNonEmpty;
+      }).join("|");
       if (headerRowIndex !== -1 && sig === headerSignature) continue;
 
       keptRawRows.push(raw);

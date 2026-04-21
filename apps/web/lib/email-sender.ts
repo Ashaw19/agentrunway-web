@@ -49,90 +49,98 @@ export async function sendEmail(
 ): Promise<SendEmailResult> {
 
   // ── 1. Try Gmail ─────────────────────────────────────────────────────────────
-  const { data: googleConn } = await supabase
-    .from("google_connections")
-    .select(
-      "id, email_address, access_token_enc, refresh_token_enc, expires_at, gmail_send_enabled"
-    )
-    .eq("user_id", userId)
-    .maybeSingle();
+  // Gmail integration shelved — CASA audit required before re-enabling.
+  // The DB query and sendGmail call are preserved below but cannot be reached.
+  if (false as boolean) {
+    const { data: googleConn } = await supabase
+      .from("google_connections")
+      .select(
+        "id, email_address, access_token_enc, refresh_token_enc, expires_at, gmail_send_enabled"
+      )
+      .eq("user_id", userId)
+      .maybeSingle();
 
-  if (googleConn?.gmail_send_enabled) {
-    try {
-      const tokenResult = await getValidAccessToken(
-        googleConn as unknown as GoogleConnection
-      );
+    if (googleConn?.gmail_send_enabled) {
+      try {
+        const tokenResult = await getValidAccessToken(
+          googleConn as unknown as GoogleConnection
+        );
 
-      // Persist refreshed token if needed (including rotated refresh token)
-      if (tokenResult.refreshed && tokenResult.newAccessTokenEnc) {
-        const updatePayload: Record<string, string> = {
-          access_token_enc: tokenResult.newAccessTokenEnc,
-          expires_at: tokenResult.newExpiresAt!.toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        if (tokenResult.newRefreshTokenEnc) {
-          updatePayload.refresh_token_enc = tokenResult.newRefreshTokenEnc;
+        // Persist refreshed token if needed (including rotated refresh token)
+        if (tokenResult.refreshed && tokenResult.newAccessTokenEnc) {
+          const updatePayload: Record<string, string> = {
+            access_token_enc: tokenResult.newAccessTokenEnc,
+            expires_at: tokenResult.newExpiresAt!.toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          if (tokenResult.newRefreshTokenEnc) {
+            updatePayload.refresh_token_enc = tokenResult.newRefreshTokenEnc;
+          }
+          await supabase
+            .from("google_connections")
+            .update(updatePayload)
+            .eq("id", googleConn.id);
         }
-        await supabase
-          .from("google_connections")
-          .update(updatePayload)
-          .eq("id", googleConn.id);
+
+        await sendGmail({
+          accessToken: tokenResult.accessToken,
+          to: input.to,
+          fromEmail: googleConn.email_address,
+          subject: input.subject,
+          body: input.body,
+        });
+
+        return { ok: true, provider: "gmail" };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, provider: "gmail", error: `Gmail send failed: ${message}` };
       }
-
-      await sendGmail({
-        accessToken: tokenResult.accessToken,
-        to: input.to,
-        fromEmail: googleConn.email_address,
-        subject: input.subject,
-        body: input.body,
-      });
-
-      return { ok: true, provider: "gmail" };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return { ok: false, provider: "gmail", error: `Gmail send failed: ${message}` };
     }
   }
 
   // ── 2. Try Microsoft / Outlook ───────────────────────────────────────────────
-  const { data: msConn } = await supabase
-    .from("email_connections")
-    .select("id, email_address, access_token_enc, refresh_token_enc, expires_at, provider")
-    .eq("user_id", userId)
-    .eq("provider", "microsoft")
-    .maybeSingle();
+  // Microsoft integration shelved — CASA audit required before re-enabling.
+  // The DB query and Graph API call are preserved below but cannot be reached.
+  if (false as boolean) {
+    const { data: msConn } = await supabase
+      .from("email_connections")
+      .select("id, email_address, access_token_enc, refresh_token_enc, expires_at, provider")
+      .eq("user_id", userId)
+      .eq("provider", "microsoft")
+      .maybeSingle();
 
-  if (msConn?.access_token_enc) {
-    try {
-      const tokenResult = await getValidMicrosoftToken(
-        msConn as unknown as MicrosoftConnection
-      );
+    if (msConn?.access_token_enc) {
+      try {
+        const tokenResult = await getValidMicrosoftToken(
+          msConn as unknown as MicrosoftConnection
+        );
 
-      // Persist refreshed token if needed
-      if (tokenResult.refreshed) {
-        const updatePayload: Record<string, string> = {
-          access_token_enc: tokenResult.newAccessTokenEnc!,
-          expires_at: tokenResult.newExpiresAt!.toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        if (tokenResult.newRefreshTokenEnc) {
-          updatePayload.refresh_token_enc = tokenResult.newRefreshTokenEnc;
+        // Persist refreshed token if needed
+        if (tokenResult.refreshed) {
+          const updatePayload: Record<string, string> = {
+            access_token_enc: tokenResult.newAccessTokenEnc!,
+            expires_at: tokenResult.newExpiresAt!.toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          if (tokenResult.newRefreshTokenEnc) {
+            updatePayload.refresh_token_enc = tokenResult.newRefreshTokenEnc;
+          }
+          await supabase
+            .from("email_connections")
+            .update(updatePayload)
+            .eq("id", msConn.id);
         }
-        await supabase
-          .from("email_connections")
-          .update(updatePayload)
-          .eq("id", msConn.id);
-      }
 
-      const result = await sendMicrosoftEmail(tokenResult.accessToken, {
-        to: input.to,
-        subject: input.subject,
-        body: input.body,
-      });
-      return result;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return { ok: false, provider: "microsoft", error: `Outlook send failed: ${message}` };
+        const result = await sendMicrosoftEmail(tokenResult.accessToken, {
+          to: input.to,
+          subject: input.subject,
+          body: input.body,
+        });
+        return result;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return { ok: false, provider: "microsoft", error: `Outlook send failed: ${message}` };
+      }
     }
   }
 

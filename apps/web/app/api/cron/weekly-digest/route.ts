@@ -27,6 +27,8 @@ import { compare as benchmarkCompare } from "@agent-runway/core/engines/benchmar
 import { survivalResult } from "@agent-runway/core/engines/survival-engine";
 import { computeEffectiveCashForSurvival } from "@agent-runway/core/engines/effective-cash";
 import { projectedYearEndTransactions } from "@agent-runway/core/engines/projection-engine";
+import { totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import type { RecurringExpense } from "@/lib/types/database";
 import { generateText } from "ai";
 import { models } from "@/lib/ai/provider";
 
@@ -286,7 +288,14 @@ export async function GET(req: NextRequest) {
       );
       const expMonthsElapsed = now.getMonth() + (now.getDate() / 30);
       const recurringYTDEstimate = monthlyRecurring * expMonthsElapsed;
-      const expensesYTD = Math.max(receiptYTD, recurringYTDEstimate);
+      // Also include new recurring_expenses table (matches dashboard canonical formula)
+      const { data: recurringExpRows } = await admin
+        .from("recurring_expenses")
+        .select("*")
+        .eq("user_id", user.user_id)
+        .eq("is_active", true);
+      const recurringExpYTD = totalRecurringYTD((recurringExpRows ?? []) as RecurringExpense[]);
+      const expensesYTD = Math.max(receiptYTD, recurringYTDEstimate) + recurringExpYTD;
 
       // Health report (canonical 3 sub-scores: pace, pipeline, expenses)
       const healthReport = buildHealthReport(

@@ -592,11 +592,13 @@ const STATUS_HEADER_GRADIENT: Record<ClientStatus, string> = {
 
 function dominantSide(
   deals: ClientRecord[],
-): "buyer" | "seller" | "both" {
+): "buyer" | "seller" | "both" | null {
   const counts = { buyer: 0, seller: 0, both: 0 };
   deals.forEach((d) => {
     if (d.side) counts[d.side as keyof typeof counts]++;
   });
+  const total = counts.buyer + counts.seller + counts.both;
+  if (total === 0) return null;
   return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0] as
     | "buyer"
     | "seller"
@@ -623,7 +625,7 @@ function sortTableGroups(
         break;
       case "years": cmp = a.years.length - b.years.length; break;
       case "side":
-        cmp = dominantSide(a.deals).localeCompare(dominantSide(b.deals));
+        cmp = (dominantSide(a.deals) ?? "").localeCompare(dominantSide(b.deals) ?? "");
         break;
       default: cmp = 0;
     }
@@ -3463,7 +3465,7 @@ export function ClientsContent({
                         paginatedFiltered.map((group) => {
                           const badges      = computeAchievements(group, firstClassThreshold);
                           const side        = dominantSide(group.deals);
-                          const sideStyle   = SIDE_STYLES[side];
+                          const sideStyle   = side ? SIDE_STYLES[side] : undefined;
                           const hasClientId = group.clientId !== null;
                           const client      = hasClientId ? clientById.get(group.clientId!) : null;
                           const sc          = client ? CLIENT_STATUS_COLORS[client.status] : null;

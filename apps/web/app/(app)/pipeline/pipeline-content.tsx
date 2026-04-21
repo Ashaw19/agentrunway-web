@@ -654,7 +654,14 @@ function PipelineRow({
       </TableCell>
       <TableCell>
         <div className="flex flex-col">
-          <span className="font-medium text-foreground">{item.name}</span>
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-foreground">{item.name}</span>
+            {item.source === "buyer" && !item.estimatedValue && (
+              <span className="inline-flex items-center rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-600">
+                No budget
+              </span>
+            )}
+          </div>
           {item.clientName && item.source !== "buyer" && (
             <span className="text-xs text-muted-foreground">
               {item.clientName}
