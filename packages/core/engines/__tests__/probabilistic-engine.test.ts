@@ -14,6 +14,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { probabilityBands, fiveYearBands } from "../probabilistic-forecast-engine";
 import type { ProbabilityBands } from "../probabilistic-forecast-engine";
+import type { Transaction } from "../../types/database";
 import { TEST_TRANSACTIONS } from "./test-data";
 
 beforeEach(() => {
@@ -63,24 +64,29 @@ describe("probabilityBands — Low Confidence", () => {
 // ── Probability Bands (Medium/High Confidence — ≥ 6 months) ────────────────
 
 describe("probabilityBands — Variance-Based", () => {
-  // Create 8 months of data to trigger variance calculation
-  function makeMonthlyTransactions(monthlyAmounts: number[]) {
+  // Create 8 months of data to trigger variance calculation.
+  // Returns Transaction[] shape — all required fields populated, no casts.
+  function makeMonthlyTransactions(monthlyAmounts: number[]): Transaction[] {
     return monthlyAmounts.map((amount, i) => ({
       id: `var-tx-${i}`,
       user_id: "test",
       date: `2026-${String(i + 1).padStart(2, "0")}-15`,
+      address: "",
       sale_price: amount / 0.025,
       commission_pct: 0.025,
       gci_override: null,
-      side: "buyer" as const,
-      status: "closed" as const,
+      side: "buyer",
+      status: "closed",
+      client_name: `Variance Test ${i}`,
+      notes: "",
+      date_precision: "day",
+      source: "manual",
       team_split_pct: null,
-      notes: null,
+      pipeline_deal_id: null,
+      import_external_id: null,
+      edited_at: null,
       created_at: `2026-${String(i + 1).padStart(2, "0")}-15`,
       updated_at: `2026-${String(i + 1).padStart(2, "0")}-15`,
-      address: null,
-      date_precision: "day" as const,
-      source: "manual" as const,
     }));
   }
 

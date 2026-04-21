@@ -6,6 +6,35 @@
  *
  * All expected values are hand-calculated from the engine source code,
  * using the exact constants and formulas therein. Every number is traceable.
+ *
+ * ──────────────────────────────────────────────────────────────────────────
+ * FIXTURE DISCIPLINE — READ BEFORE EDITING
+ * ──────────────────────────────────────────────────────────────────────────
+ * Every fixture in this file is typed to the canonical Supabase row types in
+ * `packages/core/types/database.ts`. DO NOT add `as UserSettings` /
+ * `as Transaction` / `as PipelineDeal` casts — they silently bypass schema
+ * drift and mean CI can ship green while the engines have already broken.
+ *
+ * If the schema changes:
+ *   1. Update `packages/core/types/database.ts` from the migration.
+ *   2. Run `pnpm --filter @agent-runway/core typecheck` — failures tell you
+ *      exactly which fixtures need new defaults.
+ *   3. Add the new fields with sensible defaults in the factories below.
+ *
+ * Column-name gotchas baked into this fixture:
+ *   • `national_quarter_pcts`     — seasonality; DB stores percentages
+ *                                   [25,25,25,25]; engine normalizes either
+ *                                   form. We seed fractions [0.20, 0.30, 0.30,
+ *                                   0.20] here because early engine expected
+ *                                   outputs were hand-calculated off fractions.
+ *   • `growth_goal_year_pcts`     — 5-year growth; DB stores percentages
+ *                                   [10,10,8,8,5]; real callers divide by 100
+ *                                   before passing to `fiveYearBands`. We seed
+ *                                   decimals [0.10, 0.10, 0.08, 0.08, 0.05]
+ *                                   here so the integration test matches the
+ *                                   hardcoded decimals in
+ *                                   probabilistic-engine.test.ts. Callers of
+ *                                   this fixture DO NOT divide by 100 again.
  */
 
 import type {
@@ -20,38 +49,178 @@ import type {
 export const TEST_YEAR = 2026;
 export const TEST_DATE = new Date(2026, 2, 11); // March 11, 2026
 
-// ── User Settings ────────────────────────────────────────────────────────────
+// ── User Settings factory ────────────────────────────────────────────────────
+// Builds a fully-typed UserSettings row. Every required field on the
+// canonical UserSettings type MUST appear here with a sensible default.
+// Tests override specific fields via the `overrides` argument.
 
-export const TEST_SETTINGS: UserSettings = {
-  user_id: "test-sarah-chen-001",
-  ytd_gci: 0, // computed from transactions
-  ytd_transactions: 0,
-  ytd_volume: 0,
-  monthly_brokerage_fee: 500,
-  split_preset: "p80_20" as SplitPreset,
-  tx_fee_rate_pct: 0.02,
-  tx_fee_annual_cap: 3_000,
-  goal_gci: 150_000,
-  cash_reserve: 15_000,
-  province: "ontario" as const,
-  experience_years: 4,
-  // Post-cap
-  post_cap_threshold_gci: 100_000,
-  post_cap_agent_pct: 0.95,
-  post_cap_brokerage_pct: 0.05,
-  // Seasonality (spring/summer heavy, typical Ontario market)
-  seasonal_weights: [0.20, 0.30, 0.30, 0.20],
-  // Growth goals (5-year)
-  growth_goals: [0.10, 0.10, 0.08, 0.08, 0.05],
-  // Other required fields
-  display_name: "Sarah Chen",
-  avatar_url: null,
-  onboarding_complete: true,
-  updated_at: "2026-01-01T00:00:00Z",
-  monthly_recurring_expenses: 800,
-  // Pipeline
-  pipeline_monthly_estimate: 0,
-} as UserSettings;
+export function createTestSettings(
+  overrides: Partial<UserSettings> = {},
+): UserSettings {
+  const base: UserSettings = {
+    user_id: "test-sarah-chen-001",
+
+    // YTD
+    ytd_gci: 0, // computed from transactions
+    ytd_transactions: 0,
+    ytd_volume: 0,
+    monthly_brokerage_fee: 500,
+
+    // Split
+    split_preset: "p80_20" as SplitPreset,
+
+    // Transaction fees
+    tx_fee_rate_pct: 0.02,
+    tx_fee_annual_cap: 3_000,
+
+    // Commission cap
+    post_cap_threshold_gci: 100_000,
+    post_cap_agent_pct: 0.95,
+    post_cap_brokerage_pct: 0.05,
+
+    // Goals
+    goal_gci: 150_000,
+    goal_transactions: 0,
+    goal_volume: 0,
+    // Stored as DECIMALS for engine direct-consumption (see header note).
+    // Real DB form is percentages; real callers divide by 100 before this shape.
+    growth_goal_year_pcts: [0.10, 0.10, 0.08, 0.08, 0.05],
+
+    // Province
+    province: "ontario",
+
+    // Seasonality — fractions (spring/summer heavy, typical Ontario market)
+    use_national_seasonality: true,
+    national_quarter_pcts: [0.20, 0.30, 0.30, 0.20],
+    national_seasonality_updated: "2026-01-01T00:00:00Z",
+
+    // Market context
+    market_yoy_growth_pct: 0,
+    market_mom_growth_pct: 0,
+    market_sales_change_pct: 0,
+    market_new_listings_change_pct: 0,
+    market_index_source_note: "",
+    apply_market_adjustment: false,
+    market_report_month: "",
+    market_data_is_manual: false,
+    market_last_updated: "2026-01-01T00:00:00Z",
+
+    // Market architecture
+    market_board_name: "",
+    market_metric_focus: "combined",
+
+    // Claiming
+    home_office_business_use_pct: 0,
+    vehicle_business_use_pct: 0,
+
+    // T2125 — Home office
+    home_office_method: "simplified",
+    home_office_sq_footage: null,
+    home_office_rent_monthly: 0,
+    home_office_utilities_monthly: 0,
+    home_office_property_tax_annual: 0,
+    home_office_insurance_monthly: 0,
+    home_office_maintenance_annual: 0,
+    home_office_condo_fees_monthly: 0,
+
+    // T2125 — GST/HST
+    gst_hst_registered: false,
+    gst_hst_remitted_q1: 0,
+    gst_hst_remitted_q2: 0,
+    gst_hst_remitted_q3: 0,
+    gst_hst_remitted_q4: 0,
+    gst_hst_paid_on_expenses: 0,
+
+    // T2125 — Vehicle
+    vehicle_type: "none",
+
+    // T2125 — CRA tax instalments
+    cpp_instalment_paid_ytd: 0,
+    tax_instalment_paid_q1: 0,
+    tax_instalment_paid_q2: 0,
+    tax_instalment_paid_q3: 0,
+    tax_instalment_paid_q4: 0,
+
+    // Defensibility
+    cash_reserve: 15_000,
+    experience_years: 4,
+    estimated_weekly_hours: null,
+    vacation_weeks_per_year: null,
+
+    // Profile display
+    display_name: "Sarah Chen",
+    brokerage_name: "",
+    color_theme: "blue",
+
+    // Profile media
+    avatar_url: "",
+    business_logo_url: "",
+    agent_cutout_url: "",
+
+    // Business identity
+    business_name: "",
+    business_number: "",
+
+    // Social
+    social_instagram: "",
+    social_facebook: "",
+    social_linkedin: "",
+    social_tiktok: "",
+    social_youtube: "",
+
+    // UI preferences
+    dashboard_view: "standard",
+
+    // Subscription
+    subscription_tier: "starter",
+    subscription_status: "free",
+    stripe_customer_id: null,
+    stripe_subscription_id: null,
+    subscription_current_period_end: null,
+
+    // Admin override
+    is_admin: false,
+
+    // CREA board benchmarking
+    board_code: "",
+    board_subregion: "",
+
+    // Business structure
+    is_incorporated: false,
+    corp_type: null,
+    compensation_method: "salary",
+    has_employees: false,
+    num_employees: 0,
+
+    // Tax optimization
+    tax_opt_dismissed: [],
+
+    // Flight Control email signature
+    email_signature: "",
+
+    // AI Voice Guide
+    ai_voice_guide: null,
+
+    // AI Voice Profile
+    communication_profile: null,
+    business_identity: null,
+    agent_goals: null,
+    ai_profile_prompt_dismissed_at: null,
+
+    // Tax filing
+    filing_frequency: "annual",
+    fiscal_year_end_month: 12,
+    brokerage_withholds_hst: false,
+
+    // Timestamps
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+  };
+  return { ...base, ...overrides };
+}
+
+/** Default test settings — Sarah Chen baseline used across the engine tests. */
+export const TEST_SETTINGS: UserSettings = createTestSettings();
 
 // ── Transactions (6 closed deals in current year) ────────────────────────────
 //
@@ -66,22 +235,28 @@ export const TEST_SETTINGS: UserSettings = {
 //   Total YTD GCI = $66,375
 
 function makeTx(overrides: Partial<Transaction> & { id: string; date: string }): Transaction {
-  return {
+  const base: Transaction = {
+    id: overrides.id,
     user_id: "test-sarah-chen-001",
+    date: overrides.date,
+    address: "",
     sale_price: 0,
     commission_pct: 0.025,
     gci_override: null,
     side: "buyer",
     status: "closed",
-    team_split_pct: null,
-    notes: null,
-    created_at: overrides.date,
-    updated_at: overrides.date,
-    address: null,
+    client_name: "Test Client",
+    notes: "",
     date_precision: "day",
     source: "manual",
-    ...overrides,
-  } as Transaction;
+    team_split_pct: null,
+    pipeline_deal_id: null,
+    import_external_id: null,
+    edited_at: null,
+    created_at: overrides.date,
+    updated_at: overrides.date,
+  };
+  return { ...base, ...overrides };
 }
 
 export const TEST_TRANSACTIONS: Transaction[] = [
@@ -91,6 +266,7 @@ export const TEST_TRANSACTIONS: Transaction[] = [
     sale_price: 450_000,
     commission_pct: 0.025,
     side: "buyer",
+    client_name: "Alice Johnson",
   }),
   makeTx({
     id: "tx-002",
@@ -98,6 +274,7 @@ export const TEST_TRANSACTIONS: Transaction[] = [
     sale_price: 380_000,
     commission_pct: 0.025,
     side: "seller",
+    client_name: "Bob Thompson",
   }),
   makeTx({
     id: "tx-003",
@@ -105,6 +282,7 @@ export const TEST_TRANSACTIONS: Transaction[] = [
     sale_price: 525_000,
     commission_pct: 0.025,
     side: "buyer",
+    client_name: "Carol Nguyen",
   }),
   makeTx({
     id: "tx-004",
@@ -113,6 +291,7 @@ export const TEST_TRANSACTIONS: Transaction[] = [
     commission_pct: 0.025,
     side: "seller",
     team_split_pct: 0.5,
+    client_name: "David Patel",
   }),
   makeTx({
     id: "tx-005",
@@ -121,6 +300,7 @@ export const TEST_TRANSACTIONS: Transaction[] = [
     commission_pct: 0.025,
     gci_override: 15_000,
     side: "buyer",
+    client_name: "Evelyn Kim",
   }),
   makeTx({
     id: "tx-006",
@@ -128,6 +308,7 @@ export const TEST_TRANSACTIONS: Transaction[] = [
     sale_price: 400_000,
     commission_pct: 0.025,
     side: "buyer",
+    client_name: "Frank Rossi",
   }),
 ];
 
@@ -163,18 +344,24 @@ export const EXPECTED_MONTHLY_GCI = {
 //   Total weighted GCI = $22,887.50
 
 function makeDeal(overrides: Partial<PipelineDeal> & { id: string }): PipelineDeal {
-  return {
+  const base: PipelineDeal = {
+    id: overrides.id,
     user_id: "test-sarah-chen-001",
+    address: "",
     estimated_price: 0,
     estimated_commission_pct: 0.025,
-    probability_override: null,
+    side: "buyer",
     stage: "lead",
-    notes: null,
+    expected_close_date: null,
+    client_name: "Test Pipeline Client",
+    notes: "",
+    probability_override: null,
+    client_id: null,
+    original_estimated_price: null,
     created_at: "2026-03-01",
     updated_at: "2026-03-01",
-    client_name: null,
-    ...overrides,
-  } as PipelineDeal;
+  };
+  return { ...base, ...overrides };
 }
 
 export const TEST_PIPELINE: PipelineDeal[] = [

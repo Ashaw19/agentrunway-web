@@ -66,13 +66,13 @@ describe("Full Dashboard Pipeline", () => {
 
   // Step 3: Seasonal fraction elapsed
   it("Step 3: Seasonal fraction ≈ 0.156", () => {
-    const fraction = seasonalFractionElapsed(TEST_SETTINGS.seasonal_weights);
+    const fraction = seasonalFractionElapsed(TEST_SETTINGS.national_quarter_pcts);
     expect(fraction).toBeCloseTo(0.155, 1);
   });
 
   // Step 4: Projected year-end GCI
   it("Step 4: Projected GCI from pace + pipeline", () => {
-    const fraction = seasonalFractionElapsed(TEST_SETTINGS.seasonal_weights);
+    const fraction = seasonalFractionElapsed(TEST_SETTINGS.national_quarter_pcts);
     const projected = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction);
     // paceBasedProjection = 66375 / 0.156 ≈ 425481
     // + pipeline × 0.5 = 22887.5 × 0.5 = 11443.75
@@ -160,7 +160,7 @@ describe("Full Dashboard Pipeline", () => {
 
   // Step 11: Probability bands
   it("Step 11: Probability bands (low confidence, 3 months)", () => {
-    const fraction = seasonalFractionElapsed(TEST_SETTINGS.seasonal_weights);
+    const fraction = seasonalFractionElapsed(TEST_SETTINGS.national_quarter_pcts);
     const projected = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction);
     const bands = probabilityBands(TEST_TRANSACTIONS, projected);
     expect(bands.confidence).toBe("low");
@@ -172,7 +172,7 @@ describe("Full Dashboard Pipeline", () => {
 
   // Step 12: Runway Score
   it("Step 12: Runway Score composite", () => {
-    const fraction = seasonalFractionElapsed(TEST_SETTINGS.seasonal_weights);
+    const fraction = seasonalFractionElapsed(TEST_SETTINGS.national_quarter_pcts);
     const pacePercent = paceVsGoalPercent(TEST_SETTINGS.goal_gci, ytdGCI, fraction);
 
     // Build health report (simplified version of dashboard's buildHealthReport)
@@ -218,7 +218,7 @@ describe("Full Dashboard Pipeline", () => {
 describe("Full Forecast Pipeline", () => {
   it("computes projected net after tax for full year", () => {
     // 1. Projected year-end GCI
-    const fraction = seasonalFractionElapsed(TEST_SETTINGS.seasonal_weights);
+    const fraction = seasonalFractionElapsed(TEST_SETTINGS.national_quarter_pcts);
     const pipelineWeightedGCI = TEST_PIPELINE.reduce(
       (sum, d) => sum + computeWeightedGCI(d),
       0,
@@ -282,12 +282,14 @@ describe("Monthly Totals Consistency", () => {
 describe("5-Year Projection Pipeline", () => {
   it("projects 5 years with widening bands", () => {
     const ytdGCI = EXPECTED_GCI.total;
-    const fraction = seasonalFractionElapsed(TEST_SETTINGS.seasonal_weights);
+    const fraction = seasonalFractionElapsed(TEST_SETTINGS.national_quarter_pcts);
     const pipelineWeightedGCI = EXPECTED_PIPELINE.totalWeighted;
     const projected = projectedYearEndGCI(ytdGCI, pipelineWeightedGCI, fraction);
 
     const currentBands = probabilityBands(TEST_TRANSACTIONS, projected);
-    const growthRates = TEST_SETTINGS.growth_goals;
+    // TEST_SETTINGS.growth_goal_year_pcts is seeded as decimals in the fixture
+    // (see test-data.ts header). fiveYearBands expects decimals directly.
+    const growthRates = TEST_SETTINGS.growth_goal_year_pcts;
 
     const fiveYear = fiveYearBands(projected, growthRates, currentBands);
     expect(fiveYear).toHaveLength(5);

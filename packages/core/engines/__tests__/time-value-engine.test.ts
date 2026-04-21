@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeTimeValue, type TimeValueInput } from "@/lib/engines/time-value";
+import { computeTimeValue, type TimeValueInput } from "../time-value-engine";
 
 function makeInput(overrides: Partial<TimeValueInput> = {}): TimeValueInput {
   return {
