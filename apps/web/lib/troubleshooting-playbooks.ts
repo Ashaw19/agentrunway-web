@@ -628,17 +628,28 @@ Each contact has a decayed engagement score based on recent activity history.
 4. Places drafts in Outreach Queue for agent review
 5. Agent reads, optionally edits, then sends or dismisses
 
-### Outreach Opportunity Types (7 briefing item types)
+### Outreach Opportunity Types (11+ briefing item types)
 
 | Type | Trigger | Priority |
 |------|---------|----------|
 | Birthday | Birthday within 7 days | High |
 | Deal Close Follow-Up | Transaction closed within 14 days | High |
 | Stale Lead Check-In | Active client, no contact 30+ days | Medium |
+| Mortgage Renewal Due | 4.5–5.5 years post-close — mortgage renewal imminent | High |
+| Mortgage Renewal Window | 3.0–4.5 years post-close — plant the seed before renewal | Medium |
+| Timeframe Approaching | Active buyer/seller reaching their stated deadline | Medium |
 | Seasonal Market Update | Quarterly (configurable) | Medium |
 | Purchase Anniversary | Anniversary of their home purchase | Low |
+| Listing Appointment Overdue | Listing appointment past expected date with no outcome | Medium |
+| Listing Stale | Active listing on market for extended period | Medium |
 | Interest Rate Relevance | Rate changes affecting buyers | Low |
 | New Listing Match | New listing matching client criteria | Low |
+
+**Mortgage Renewal Alerts** — Two types based on years since a client's last closed purchase:
+- **mortgage_renewal_due** (4.5–5.5 yrs): Renewal is imminent. Draft is high-touch — agent should contact before the bank does. Common trigger for clients who bought 5 years ago.
+- **mortgage_renewal_window** (3.0–4.5 yrs): Renewal planning horizon. Lower urgency — goal is to plant a seed and re-establish the relationship before the renewal window opens. Not a sales pitch.
+
+If a user asks "why is Agent Runway reminding me about mortgage renewals?" — explain that a 5-year fixed mortgage (the most common Canadian term) means clients bought ~5 years ago are likely renewing, and this is a high-conversion touch-point for referrals and repeat business.
 
 ### Smart Suppression
 - Clients contacted within past 14 days are suppressed (no new outreach generated)

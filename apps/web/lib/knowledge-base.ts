@@ -59,7 +59,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 **Agent Net** = GCI x Agent Split %.
 **Weighted GCI** = Pipeline GCI x stage probability (or override).
 **Expense Ratio** = Expenses / GCI. <25% excellent, 25-30% healthy, 30-40% attention, >40% concerning.
-**Survival Runway** = Cash Reserve / Net Monthly Burn. <2mo critical, 2-4 warning, 4-6 healthy, 6+ strong. Cap 24mo. $0 reserve = "Not Configured".
+**Survival Runway** = Cash Reserve / Net Monthly Burn. <2mo critical, 2-4 warning, 4-6 healthy, 6+ strong. Cap 24mo. $0 reserve + $0 burn = "Not Configured" (sentinel -1). $0 reserve + positive burn = 0mo (critical).
 **Pace** = ((Actual YTD GCI - Expected) / Expected) x 100. Expected = Goal x Seasonal Fraction.
 **Seasonal Fraction** = Accounts for uneven quarterly income (default Q1:15% Q2:30% Q3:30% Q4:25%). Custom weights in Settings. Day-level interpolation.
 **Projected Year-End GCI** = (Closed YTD / Seasonal Fraction) + (Pipeline Weighted x 50%). Jan-Feb dampening blends toward goal.
