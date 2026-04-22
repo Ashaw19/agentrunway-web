@@ -1285,11 +1285,17 @@ export function AiChat({ financialContext }: Props) {
           style={{
             border: "1px solid rgba(255,255,255,0.08)",
             background: "oklch(0.13 0.05 265)",
+            // Bound total panel height to viewport so the header + selector
+            // never get pushed off the top edge. The `bottom-[4.5rem]` anchor
+            // (72px) + a small top breathing gap (16px) = 88px reserved; round
+            // to 6rem for Tailwind-friendly math. Panel internals flex/shrink
+            // inside this envelope; only the messages area scrolls.
+            maxHeight: "calc(100vh - 6rem)",
           }}
         >
           {/* Header */}
           <div
-            className="flex items-center justify-between px-4 py-3"
+            className="flex shrink-0 items-center justify-between px-4 py-3"
             style={{
               background: "linear-gradient(135deg, #1e3a8a, #4c1d95)",
               borderBottom: "1px solid rgba(255,255,255,0.08)",
@@ -1314,7 +1320,7 @@ export function AiChat({ financialContext }: Props) {
 
           {/* Flight Crew: persona selector */}
           <div
-            className="flex items-center px-4 py-2"
+            className="flex shrink-0 items-center px-4 py-2"
             style={{
               background: "rgba(255,255,255,0.02)",
               borderBottom: "1px solid rgba(255,255,255,0.06)",
@@ -1328,8 +1334,7 @@ export function AiChat({ financialContext }: Props) {
 
           {/* Messages */}
           <div
-            className="flex flex-1 flex-col gap-3 overflow-y-auto p-4"
-            style={{ maxHeight: "min(520px, calc(100vh - 240px))", minHeight: "200px" }}
+            className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4"
           >
             {messages.map((msg, i) => {
               // Flight Crew: derive persona metadata for assistant messages.
@@ -1551,7 +1556,7 @@ export function AiChat({ financialContext }: Props) {
 
           {/* Suggested questions — only shown when no user messages yet */}
           {messages.filter((m) => m.role === "user").length === 0 && (
-            <div className="px-4 pb-2">
+            <div className="shrink-0 px-4 pb-2">
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-600">
                 Quick questions
               </p>
@@ -1570,13 +1575,13 @@ export function AiChat({ financialContext }: Props) {
           )}
 
           {/* Disclaimer */}
-          <p className="px-4 pb-1 text-[9px] leading-tight text-slate-600">
+          <p className="shrink-0 px-4 pb-1 text-[9px] leading-tight text-slate-600">
             AI estimates only — not tax, legal, or financial advice. Consult a qualified professional.
           </p>
 
           {/* Input */}
           <div
-            className="flex items-end gap-2 p-3"
+            className="flex shrink-0 items-end gap-2 p-3"
             style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
           >
             <div className="relative flex-1">
