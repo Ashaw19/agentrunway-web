@@ -75,15 +75,22 @@ const opusWithTaskBudgetFetch: typeof fetch = async (input, init) => {
     return fetch(input, init);
   }
 
-  // Inject output_config.task_budget.tokens. Do NOT set `remaining` — server
-  // tracks the countdown across a multi-step agentic loop; setting it
-  // manually invalidates the prompt cache prefix.
+  // Inject output_config.task_budget per Anthropic's public-beta shape:
+  //   output_config: { task_budget: { type: "tokens", total: N } }
+  // (docs.anthropic.com "Building with extended thinking" + task-budgets-2026-03-13
+  // release notes). Earlier implementation used `{ tokens: N }` which Anthropic
+  // 400s — the request never produced any stream chunks, so the chat API
+  // surfaced the generic "Something went wrong with the AI" fallback on every
+  // complex-tier (Opus) request. Do NOT set `remaining` — the server tracks
+  // countdown across multi-step agentic loops; setting it manually invalidates
+  // the prompt cache prefix.
   const existingOutputConfig =
     (body.output_config as Record<string, unknown> | undefined) ?? {};
   body.output_config = {
     ...existingOutputConfig,
     task_budget: {
-      tokens: OPUS_TASK_BUDGET_TOKENS,
+      type: "tokens",
+      total: OPUS_TASK_BUDGET_TOKENS,
     },
   };
 
