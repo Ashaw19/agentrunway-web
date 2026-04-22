@@ -15,9 +15,32 @@ export interface ScoreComponent {
 
 // ── Result ──────────────────────────────────────────────────────────────────
 
+/**
+ * Neutral, info-not-advice label for the Runway Score. This is the ONLY
+ * user-facing prose label. Use it in chat answers, email subtitles, insights
+ * prose, and dashboard pills. The academic `grade` letter is retained as a
+ * visual shorthand (badge glyph) in the dashboard letter badge, PDF report,
+ * email badge, and mobile chip — never in prose.
+ *
+ * Bands (matches dashboard scoreBand thresholds verbatim):
+ *   Strong   ≥ 81
+ *   On Track ≥ 61
+ *   Building ≥ 41
+ *   At Risk  < 41
+ */
+export type RunwayStateLabel = "Strong" | "On Track" | "Building" | "At Risk";
+
 export interface RunwayScoreResult {
   score: number; // 0–100 composite
+  /**
+   * @deprecated Use `stateLabel` for any user-facing prose. `grade` is
+   * retained only as a visual shorthand (badge glyph) in the dashboard
+   * letter badge, PDF report hero, weekly-digest email badge, and mobile
+   * home chip. Do not inject it into chat prose, email text blocks, or
+   * insight messages.
+   */
   grade: string; // A+ / A / B / C / D / F
+  stateLabel: RunwayStateLabel;
   components: ScoreComponent[];
   version: string;
   timestamp: Date;
@@ -39,6 +62,11 @@ export interface BusinessHealthReport {
 
 // ── Grade Mapping ───────────────────────────────────────────────────────────
 
+/**
+ * @deprecated Prose surfaces should use `stateLabel()` instead. Retained for
+ * visual-shorthand consumers (PDF hero badge, dashboard letter badge, email
+ * badge glyph, mobile chip) only.
+ */
 function grade(score: number): string {
   if (score >= 92) return "A+";
   if (score >= 85) return "A";
@@ -46,6 +74,21 @@ function grade(score: number): string {
   if (score >= 62) return "C";
   if (score >= 50) return "D";
   return "F";
+}
+
+/**
+ * Canonical neutral label for the Runway Score. Mirrors the dashboard's
+ * historical `scoreBand()` thresholds. This is the single source of truth
+ * for Runway Score prose labels across chat, insights, email text, and any
+ * other surface that renders a human-readable band.
+ *
+ * Boundaries: ≥81 Strong, ≥61 On Track, ≥41 Building, else At Risk.
+ */
+export function stateLabel(score: number): RunwayStateLabel {
+  if (score >= 81) return "Strong";
+  if (score >= 61) return "On Track";
+  if (score >= 41) return "Building";
+  return "At Risk";
 }
 
 // ── Compute ─────────────────────────────────────────────────────────────────
@@ -108,6 +151,7 @@ export function compute(
   return {
     score: scoreValue,
     grade: grade(scoreValue),
+    stateLabel: stateLabel(scoreValue),
     components,
     version: SCORE_VERSION,
     timestamp: new Date(),

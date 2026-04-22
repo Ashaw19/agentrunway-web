@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { compute } from "../runway-score-engine";
+import { compute, stateLabel } from "../runway-score-engine";
 import type { BusinessHealthReport } from "../runway-score-engine";
 
 // ── Helper to make a health report ──────────────────────────────────────────
@@ -193,6 +193,53 @@ describe("Grade Boundaries", () => {
     // All 50 → composite = 50
     expect(result.score).toBe(50);
     expect(result.grade).toBe("D");
+  });
+});
+
+// ── State Label Boundaries ───────────────────────────────────────────────────
+//
+// The `stateLabel` function is the canonical neutral prose label for the
+// Runway Score. It is what chat, insights, email text, the dashboard pill,
+// and any other prose surface renders. The academic grade letter is retained
+// as visual shorthand only. These boundary tests pin the band edges so they
+// can never drift from the dashboard's historical `scoreBand` thresholds.
+
+describe("State Label Boundaries", () => {
+  it("< 41 → At Risk", () => {
+    expect(stateLabel(0)).toBe("At Risk");
+    expect(stateLabel(40)).toBe("At Risk");
+  });
+
+  it("41–60 → Building", () => {
+    expect(stateLabel(41)).toBe("Building");
+    expect(stateLabel(58)).toBe("Building"); // reported bug score
+    expect(stateLabel(60)).toBe("Building");
+  });
+
+  it("61–80 → On Track", () => {
+    expect(stateLabel(61)).toBe("On Track");
+    expect(stateLabel(80)).toBe("On Track");
+  });
+
+  it("≥ 81 → Strong", () => {
+    expect(stateLabel(81)).toBe("Strong");
+    expect(stateLabel(100)).toBe("Strong");
+  });
+
+  it("compute() result exposes stateLabel matching the helper", () => {
+    const report: BusinessHealthReport = {
+      score: 0,
+      grade: "",
+      paceScore: 50,
+      pipelineScore: 50,
+      expenseScore: 50,
+      readinessScore: 0,
+      weakestLabel: "Pipeline",
+      hasEnoughData: true,
+    };
+    const result = compute(report, 50, 2); // composite 50 → Building
+    expect(result.stateLabel).toBe(stateLabel(result.score));
+    expect(result.stateLabel).toBe("Building");
   });
 });
 
