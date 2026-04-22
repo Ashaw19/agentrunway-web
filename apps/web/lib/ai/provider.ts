@@ -188,7 +188,7 @@ export function getModelWithFallback(tier: ModelTier) {
   };
 }
 
-export { anthropic, anthropicOpus, groq };
+export { anthropic, anthropicOpus, groq, opusWithTaskBudgetFetch, OPUS_TASK_BUDGET_TOKENS };
 
 /**
  * Anthropic beta header identifier for Task Budgets (public beta).
