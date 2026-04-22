@@ -354,7 +354,7 @@ function diagRunwayScore(ctx: DiagContext): string {
   );
 
   return `[RUNWAY SCORE BREAKDOWN]
-Score: ${runwayScore.score} (${runwayScore.grade}) — v${runwayScore.version}
+Score: ${runwayScore.score} — ${runwayScore.stateLabel} (grade ${runwayScore.grade}) — v${runwayScore.version}
 ├─ ${runwayScore.components.map((c) => `${c.label} (${c.weight}): ${c.score}/100`).join("\n├─ ")}
 Pace detail: ${pacePercent >= 0 ? "+" : ""}${Math.round(pacePercent)}% vs goal, seasonal fraction: ${(engineFraction * 100).toFixed(1)}%
 Pipeline detail: ${fmtCurrency(pipelineWeighted)} weighted vs ${fmtCurrency(remainingGoal)} remaining goal

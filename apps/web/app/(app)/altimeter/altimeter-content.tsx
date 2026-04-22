@@ -510,6 +510,7 @@ export function AltimeterContent({
         historyItems,
         runwayScore: runwayScore.score,
         runwayGrade: runwayScore.grade,
+        runwayStateLabel: runwayScore.stateLabel,
         runwayWeakestLabel: healthReport.weakestLabel,
       }, 5)
     : [];

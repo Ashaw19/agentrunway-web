@@ -1548,7 +1548,8 @@ The Altimeter is your deep analytics dashboard — performance tracking, insight
 7. **Runway Score Breakdown**
    - Component weights: Pace 35%, Pipeline 30%, Expense Ratio 15%, Survival 15%, Benchmark 5%
    - Each sub-score shown individually so you can see what's pulling your score up or down
-   - Grade: A+ (≥92), A (≥85), B (≥75), C (≥62), D (≥50), F (<50)
+   - State label (prose): Strong (≥81), On Track (≥61), Building (≥41), At Risk (<41)
+   - Letter grade (visual badges only — do not use in prose): A+ (≥92), A (≥85), B (≥75), C (≥62), D (≥50), F (<50)
 
 ### Common Issues
 - **"Personal records are wrong"**: Records only count closed transactions with confirmed GCI. Pending pipeline deals don't count.

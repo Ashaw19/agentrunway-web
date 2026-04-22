@@ -696,6 +696,7 @@ export async function POST(req: NextRequest) {
           historyItems: (historyItems ?? []) as any,
           runwayScore: runwayScore.score,
           runwayGrade: runwayScore.grade,
+          runwayStateLabel: runwayScore.stateLabel,
           runwayWeakestLabel: healthReport.weakestLabel,
         }, 5);
 

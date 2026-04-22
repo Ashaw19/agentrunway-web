@@ -165,10 +165,12 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             type: "text" as const,
             text: JSON.stringify({
               score: snapshot.score,
+              // Canonical prose band — mirrors packages/core/engines/runway-score-engine.ts stateLabel()
+              stateLabel: stateLabelFromScore(snapshot.score),
+              // @deprecated Visual-shorthand letter only; use stateLabel for prose.
               grade: snapshot.grade ?? gradeFromScore(snapshot.score),
               month: snapshot.month ?? null,
               components: snapshot.components ?? null,
-              interpretation: interpretScore(snapshot.score),
             }, null, 2),
           }],
         };
@@ -557,30 +559,30 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+// Deliberate mirror of `grade()` in packages/core/engines/runway-score-engine.ts.
+// KEEP IN SYNC with the canonical engine. Edge function runs in Deno and
+// cannot import the @agent-runway/core package.
+// @deprecated for prose use — retained as fallback for snapshot rows missing
+// the `grade` field so the visual-shorthand letter still resolves.
 function gradeFromScore(score: number): string {
-  if (score >= 95) return "A+";
-  if (score >= 88) return "A";
-  if (score >= 80) return "A-";
-  if (score >= 72) return "B+";
-  if (score >= 65) return "B";
-  if (score >= 58) return "B-";
-  if (score >= 50) return "C+";
-  if (score >= 42) return "C";
-  if (score >= 35) return "D";
+  if (score >= 92) return "A+";
+  if (score >= 85) return "A";
+  if (score >= 75) return "B";
+  if (score >= 62) return "C";
+  if (score >= 50) return "D";
   return "F";
 }
 
-// Tier label for a Runway Score. Returns the engine's classification only —
-// no prescriptive tail ("Maintain current pace", "take corrective action",
-// "Immediate review recommended"). Personas layer context on top per their
-// own voice rules. See memory/feedback_tax_information_not_advice.md and
-// CREW_CONSTITUTION's money-proximate voice guidance.
-function interpretScore(score: number): string {
-  if (score >= 80) return "Strong";
-  if (score >= 65) return "Good";
-  if (score >= 50) return "Fair";
-  if (score >= 35) return "Below average";
-  return "Critical";
+// Deliberate mirror of `stateLabel()` in packages/core/engines/runway-score-engine.ts.
+// KEEP IN SYNC with the canonical engine. This is the ONLY label the MCP tool
+// surfaces for prose — Captain renders it verbatim, no translation needed.
+// See memory/feedback_tax_information_not_advice.md and CREW_CONSTITUTION's
+// money-proximate voice guidance.
+function stateLabelFromScore(score: number): "Strong" | "On Track" | "Building" | "At Risk" {
+  if (score >= 81) return "Strong";
+  if (score >= 61) return "On Track";
+  if (score >= 41) return "Building";
+  return "At Risk";
 }
 
 // ── HST filing-period helper ────────────────────────────────────────────────

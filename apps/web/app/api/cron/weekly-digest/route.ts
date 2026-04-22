@@ -349,7 +349,7 @@ export async function GET(req: NextRequest) {
           model: models.fast,
           system: `You are a concise business coach for a Canadian real estate agent. Write exactly 2 sentences. Be specific with numbers. No fluff. No greetings. No sign-off. Use Canadian spelling.`,
           prompt: `Generate a 2-sentence personalized business insight for ${firstName} based on their weekly data:
-- Runway Score: ${runwayResult.grade} (${runwayResult.score}/100)
+- Runway Score: ${runwayResult.score}/100 — ${runwayResult.stateLabel}
 - YTD GCI: $${Math.round(ytdGCI).toLocaleString()} of $${Math.round(goalGCI).toLocaleString()} goal (${paceStatus})
 - Pipeline: ${pipeline.length} active deals worth $${Math.round(pipelineWeightedGCI).toLocaleString()} weighted
 - Deals closed this week: ${recentDeals.length}
@@ -378,6 +378,7 @@ Focus on the most actionable observation — what should they prioritize or watc
         upcomingTaskCount: upcomingTaskCount ?? 0,
         monthlyExpenses,
         runwayGrade: runwayResult.grade,
+        runwayStateLabel: runwayResult.stateLabel,
         runwayScore: runwayResult.score,
         aiInsight,
         dashboardUrl: "https://agentrunway.ca/dashboard",

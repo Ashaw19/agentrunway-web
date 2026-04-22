@@ -51,7 +51,9 @@ export interface InsightsInput {
   // New fields for ported Swift insights:
   historyItems?: HistoryItem[];              // for deal-size historical comparison
   runwayScore?: number;                      // composite 0–100 from RunwayScoreEngine
+  /** @deprecated Use `runwayStateLabel` for prose. Retained for backward compat / badge-style consumers only. */
   runwayGrade?: string;                      // grade string (A+, A, B, C, D, F)
+  runwayStateLabel?: string;                 // canonical prose band: Strong / On Track / Building / At Risk
   runwayWeakestLabel?: string;               // weakest component label
 }
 
@@ -332,7 +334,7 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
       insights.push({
         id: nextId(), type: "praise", icon: "star",
         title: "Strong Business Health",
-        message: `Health score: ${input.runwayScore}/100 (${input.runwayGrade ?? "A"}). Pace, pipeline, expenses, and survival are all firing well.`,
+        message: `Health score: ${input.runwayScore}/100 (${input.runwayStateLabel ?? "Strong"}). Pace, pipeline, expenses, and survival are all firing well.`,
         priority: 48,
       });
     }

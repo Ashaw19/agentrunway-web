@@ -29,8 +29,10 @@ export interface WeeklyDigestData {
   upcomingTaskCount: number;
   /** Expenses logged this month */
   monthlyExpenses: number;
-  /** Runway Score letter grade (A+ to F) */
+  /** Runway Score letter grade (A+ to F) — visual badge only, not prose */
   runwayGrade: string;
+  /** Runway Score canonical prose band: Strong / On Track / Building / At Risk */
+  runwayStateLabel: string;
   /** Runway Score numeric (0-100) */
   runwayScore: number;
   /** One-line AI insight/tip (optional) */
@@ -241,7 +243,7 @@ export function weeklyDigestEmail(data: WeeklyDigestData): { subject: string; ht
 
   const text = `${greeting}, here's your business snapshot for ${data.weekLabel}.
 
-RUNWAY SCORE: ${data.runwayGrade} (${data.runwayScore}/100)
+RUNWAY SCORE: ${data.runwayScore}/100 — ${data.runwayStateLabel}
 
 ${paceEmoji} YTD GCI: ${fmt(data.ytdGCI)} of ${fmt(data.goalGCI)} goal (${data.paceVsGoalPct}% pace)
 📊 Deals closed this week: ${data.dealsClosedThisWeek} (${data.ytdDealsClosed} YTD)

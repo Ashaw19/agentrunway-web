@@ -848,6 +848,7 @@ export function DashboardContent({
         historyItems,
         runwayScore: runwayScore.score,
         runwayGrade: runwayScore.grade,
+        runwayStateLabel: runwayScore.stateLabel,
         runwayWeakestLabel: healthReport.weakestLabel,
       }, insightsLimit)
     : [];
