@@ -8,6 +8,7 @@ import { log } from "@/lib/logger";
 import { KNOWLEDGE_BASE } from "@/lib/knowledge-base";
 import { buildPersonaPrefix } from "@/lib/flight-crew/system-prompts";
 import { DEFAULT_PERSONA, type Persona } from "@/lib/flight-crew/personas";
+import { CANONICAL_TAX_DISCLAIMER } from "@/lib/flight-crew/constants";
 import {
   flightCrewEnabled,
   navigatorEnabled,
@@ -809,9 +810,9 @@ export async function POST(req: NextRequest) {
           }
           if (missingCats.length > 0) {
             taxIntelLines.push(
-              `[MISSING DEDUCTIONS] Agent has ${ytdTx.length} closed deals but $0 recorded in: ${missingCats.join(", ")}. ` +
-              `These are categories where most active agents have real expenses. Gently note this — don't suggest amounts, ` +
-              `just encourage capturing receipts and recording what they actually spend.`,
+              `[MISSING DEDUCTIONS] Agent has ${ytdTx.length} closed deals YTD with $0 recorded in: ${missingCats.join(", ")}. ` +
+              `CRA T2125 permits deductions in these categories when substantiated by receipts. ` +
+              `State the data neutrally — describe the zero balance, cite T2125 categories, name no amounts.`,
             );
           }
         }
@@ -826,9 +827,9 @@ export async function POST(req: NextRequest) {
           if (quarterlyInstalment > 500) {
             taxIntelLines.push(
               `[INSTALMENT PLANNING] Quarterly instalment estimate: ${fmtCurrency(quarterlyInstalment)}. ` +
-              `Next CRA instalment due ~${nextInstalmentLabel}. ` +
-              `At ${fmtCurrency(perDealSetAside)} per deal, suggest setting aside that amount from each closing to stay ahead. ` +
-              `These are estimates only — recommend consulting their accountant for exact instalment amounts.`,
+              `Next CRA instalment date: ${nextInstalmentLabel}. ` +
+              `Per-deal equivalent at current pace: ${fmtCurrency(perDealSetAside)}. ` +
+              `${CANONICAL_TAX_DISCLAIMER}`,
             );
           }
         }
@@ -870,7 +871,7 @@ export async function POST(req: NextRequest) {
               (receiptCount != null && receiptCount < ytdTx.length * 3
                 ? `Receipt capture rate: ${receiptCount} receipts vs ${ytdTx.length} deals. Every business receipt may support an ITC. `
                 : "") +
-              `These are estimates based on CRA rules for the current tax year. Verify with an accountant before filing.`,
+              `${CANONICAL_TAX_DISCLAIMER}`,
             );
           }
         }
@@ -889,9 +890,10 @@ export async function POST(req: NextRequest) {
               : null;
             if (priorRatio != null && currentRatio > priorRatio + 0.05) {
               taxIntelLines.push(
-                `[EXPENSE TREND] Current expense ratio (${(currentRatio * 100).toFixed(1)}%) is up from ${lastYear.year}'s ${(priorRatio * 100).toFixed(1)}%. ` +
-                `This isn't necessarily bad but worth reviewing which categories grew. ` +
-                `Remind the agent to evaluate whether the increased spending is generating returns.`,
+                `[EXPENSE TREND] Current expense ratio: ${(currentRatio * 100).toFixed(1)}%. ` +
+                `Prior year (${lastYear.year}) expense ratio: ${(priorRatio * 100).toFixed(1)}%. ` +
+                `Year-over-year delta: +${((currentRatio - priorRatio) * 100).toFixed(1)} percentage points. ` +
+                `Describe the numerical change only — draw no qualitative judgment on the trend.`,
               );
             }
           }
@@ -900,9 +902,11 @@ export async function POST(req: NextRequest) {
         // 5. Incorporation Decision Support
         if (projectedNetIncome > 50000 && (settings.business_structure ?? "sole_proprietor") !== "corporation") {
           taxIntelLines.push(
-            `[INCORPORATION SIGNAL] Projected net income ${fmtCurrency(projectedNetIncome)} is above the threshold ` +
-            `where incorporation may offer tax advantages. Do NOT advise them to incorporate — just note that at this ` +
-            `income level, it's worth having a conversation with their accountant about business structure options.`,
+            `[INCORPORATION SIGNAL] Projected net income: ${fmtCurrency(projectedNetIncome)}. ` +
+            `Agent's current structure: ${settings.business_structure ?? "sole proprietor"}. ` +
+            `CRA small-business deduction and corporate tax rates differ from personal marginal rates at this income level. ` +
+            `State the structure comparison as rule and math only — do not characterize incorporation as advisable or appropriate. ` +
+            `${CANONICAL_TAX_DISCLAIMER}`,
           );
         }
 
@@ -921,13 +925,10 @@ export async function POST(req: NextRequest) {
               ? Math.min(100, Math.round((capturedReceipts / Math.max(totalClaimableItems, 1)) * 100))
               : 0;
             taxIntelLines.push(
-              `[DOCUMENTATION] ${capturedReceipts} receipts captured YTD against ${totalClaimableItems} expense items with amounts. ` +
-              (docRate < 60
-                ? `Documentation rate is low. CRA requires supporting documentation for all claimed deductions. ` +
-                  `Encourage capturing receipts — "Record your claims responsibly so you can validate them if challenged by CRA."`
-                : docRate < 90
-                ? `Good start on documentation, but some gaps remain. Encourage complete receipt capture.`
-                : `Strong documentation habits — well-positioned if CRA reviews their return.`),
+              `[DOCUMENTATION] Documentation coverage: ${docRate}%. ` +
+              `${capturedReceipts} receipts captured YTD against ${totalClaimableItems} expense items with amounts. ` +
+              `CRA T2125 guidance requires receipts to substantiate claims. ` +
+              `State the coverage percentage neutrally — apply no qualitative label to the rate.`,
             );
           }
         }
@@ -943,11 +944,15 @@ export async function POST(req: NextRequest) {
               return Math.floor(m / 3) + 1 === currentQ;
             }).length;
             if (qDeals >= 2) {
+              // Estimate Q-specific tax liability at marginal rate against Q's share of projected year-end GCI
+              const qProjectedGCI = projGCI * qFraction;
+              const qEstimatedTaxLiability = qProjectedGCI * taxResult.effectiveRate;
               taxIntelLines.push(
-                `[SEASONAL SET-ASIDE] Q${currentQ} is a peak earning quarter (${(qFraction * 100).toFixed(0)}% of annual weight). ` +
-                `Agent closed ${qDeals} deals this quarter. At marginal rate ${(taxResult.effectiveRate * 100).toFixed(1)}%, ` +
-                `remind them to set aside proportionally more for tax during high-earning months. ` +
-                `Per-deal set-aside: ${fmtCurrency(taxResult.perDealSetAside)}.`,
+                `[SEASONAL COMMISSION PATTERN] Q${currentQ} seasonal weight: ${(qFraction * 100).toFixed(0)}% of annual. ` +
+                `Agent closed ${qDeals} deals in Q${currentQ}. ` +
+                `Estimated tax liability on this quarter's projected GCI at marginal rate ${(taxResult.effectiveRate * 100).toFixed(1)}%: ~${fmtCurrency(qEstimatedTaxLiability)}. ` +
+                `Per-deal equivalent: ${fmtCurrency(taxResult.perDealSetAside)}. ` +
+                `State the math only — describe no action.`,
               );
             }
           }
@@ -965,9 +970,10 @@ export async function POST(req: NextRequest) {
           );
           if (hasEquipmentSpend) {
             taxIntelLines.push(
-              `[CCA OPPORTUNITY] Agent has hardware/equipment expenses over $500. Larger purchases (laptop, camera, signage) ` +
-              `may qualify as depreciable capital assets under CCA rather than current-year expenses. ` +
-              `Suggest asking their accountant whether CCA treatment would be more advantageous.`,
+              `[CCA OPPORTUNITY] Agent has hardware/equipment expenses over $500 YTD. ` +
+              `CRA T2125 treats larger capital purchases (laptop, camera, signage) as depreciable assets under the Capital Cost Allowance regime ` +
+              `(Class 50 for computers/peripherals at 55% declining balance, Class 8 for office equipment at 20%) rather than current-year expenses. ` +
+              `State the rule only — do not characterize CCA treatment as more or less advantageous than expensing.`,
             );
           }
         }
@@ -982,15 +988,15 @@ export async function POST(req: NextRequest) {
               taxIntelLines.push(
                 `[FILING DEADLINE] ${filingFreq.charAt(0).toUpperCase() + filingFreq.slice(1)} GST/HST return ` +
                 `for ${currentPeriod.label} is due ${currentPeriod.deadline} (${deadlineInfo.label}). ` +
-                `Urgency: ${deadlineInfo.urgency}. ` +
-                `Action items: capture any outstanding receipts for this period, review ITC totals, ` +
-                `and prepare filing. The Tax page has a GST34 pre-fill tool.`,
+                `Days remaining: ${deadlineInfo.daysUntil}. ` +
+                `The Tax page includes a GST34 pre-fill tool. State the date and available tool only — use no urgency language.`,
               );
             } else if (deadlineInfo.daysUntil <= 0) {
               taxIntelLines.push(
                 `[OVERDUE FILING] ${filingFreq.charAt(0).toUpperCase() + filingFreq.slice(1)} GST/HST return ` +
-                `for ${currentPeriod.label} was due ${currentPeriod.deadline} — now ${deadlineInfo.label}. ` +
-                `CRA charges interest and penalties on late filings. Urge prompt filing.`,
+                `for ${currentPeriod.label} was due ${currentPeriod.deadline} (${deadlineInfo.label}). ` +
+                `CRA charges interest at the prescribed rate plus a late-filing penalty (1% of balance owing + 0.25% per month, up to 12 months, per ETA s.280) from the day after the due date. ` +
+                `State the rule and the date only.`,
               );
             }
           } catch {
@@ -1051,7 +1057,7 @@ export async function POST(req: NextRequest) {
               `Of the commission the agent receives, ~${(marginalRate * 100).toFixed(0)}% typically covers federal + provincial income tax at their projected marginal rate. ` +
               `Illustrative example: $${exampleGCI.toLocaleString()} gross commission at ${(agentPct * 100).toFixed(0)}% split — agent receives $${exampleAgentGross.toFixed(0)} (${hstLabel} of ~$${exampleHST === 0 ? (exampleGCI * hstRate).toFixed(0) : exampleHST.toFixed(0)} handled by the brokerage). ` +
               `At ~${(marginalRate * 100).toFixed(0)}% marginal rate, income tax portion ~$${exampleTaxReserve.toFixed(0)}; remainder ~$${exampleTakeHomeWithholding.toFixed(0)}. ` +
-              `These are estimates. Verify with an accountant before filing.`
+              `${CANONICAL_TAX_DISCLAIMER}`
             );
           } else {
             allocLines.push(
@@ -1060,17 +1066,16 @@ export async function POST(req: NextRequest) {
               `Illustrative example: $${exampleGCI.toLocaleString()} gross commission at ${(agentPct * 100).toFixed(0)}% split — ${hstLabel} on the full invoiced commission is ~$${exampleHST.toFixed(0)} (belongs to CRA), agent's split portion is $${exampleAgentGross.toFixed(0)}. ` +
               `At ~${(marginalRate * 100).toFixed(0)}% marginal rate, income tax portion of the agent's split ~$${exampleTaxReserve.toFixed(0)}; remainder after income tax ~$${exampleTakeHomeAgentHandled.toFixed(0)}. ` +
               `Note: ${hstLabel} is calculated on the invoiced commission, not on the agent's split — the agent/brokerage split affects who keeps what, not the ${hstLabel} base. ` +
-              `IMPORTANT: The ${hstLabel} portion is NOT the agent's money — it belongs to CRA. ` +
-              `Spending it creates a tax debt that compounds with interest and penalties.`
+              `The ${hstLabel} portion represents trust funds collected on CRA's behalf; under the Excise Tax Act s.222, amounts collected are deemed held in trust for the Crown. ` +
+              `CRA charges interest at the prescribed rate on unremitted amounts from the day after the remittance due date.`
             );
           }
 
           allocLines.push(
-            `[GUIDANCE TONE] When discussing paycheque allocation, be direct and specific with dollar amounts. ` +
-            `Don't lecture — just show the math. If the agent asks about a specific deal they just closed, ` +
-            `calculate the exact allocation using their actual commission amount, split, and province. ` +
-            `Always distinguish between "what you get to keep" and "what you owe." ` +
-            `Never say "consult your accountant" for basic allocation math — that's what this tool is for.`
+            `[GUIDANCE TONE] When discussing paycheque allocation, state specific dollar amounts from the agent's actual commission amount, split, and province. ` +
+            `Distinguish between the portion that belongs to the agent post-tax and the portion earmarked for CRA (income tax + HST trust funds). ` +
+            `For basic allocation math the engine covers, state the math directly. ` +
+            `End tax-emitting responses with the canonical tax disclaimer: ${CANONICAL_TAX_DISCLAIMER}`
           );
           allocLines.push("── END PAYCHEQUE ALLOCATION GUIDANCE ──");
           engineLines.push(...allocLines);
@@ -1305,7 +1310,7 @@ Important: All outputs you generate are estimates for informational purposes onl
 - Cite specific numbers from the business data when relevant — always prefer their actual figures over generic statements
 - Give actionable, specific observations tailored to Canadian real estate agents
 - When users ask about platform features, metrics, or terms, explain them accurately using the knowledge base
-- When discussing taxes, always remind the user that these are estimates only — NOT professional tax advice. Recommend consulting a qualified Canadian accountant or tax professional for tax decisions. Never tell users to claim specific deductions or file specific forms.
+- When discussing taxes, end tax-emitting responses with the canonical tax disclaimer: ${CANONICAL_TAX_DISCLAIMER}. Never tell users to claim specific deductions or file specific forms.
 - TAX COMPLIANCE RULE (MANDATORY): NEVER encourage agents to increase claim percentages for vehicle business-use, home office, or any other deduction. NEVER suggest what percentage they should claim. NEVER compare their percentages to benchmarks or other agents. Treat all user-entered claim percentages as facts — do not comment on whether they seem high or low. The ONLY acceptable guidance is: "Record your claims responsibly so you can validate them if challenged by Canada Revenue Agency." When surfacing tax intelligence, focus on documentation, deadlines, and awareness — never on maximizing claims.
 - Speak in a direct, expert tone — like a knowledgeable business tool, not a chatbot
 - If you don't have enough data to answer precisely, say so and suggest what data to add

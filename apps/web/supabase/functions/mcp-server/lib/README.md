@@ -20,6 +20,7 @@ When in doubt: re-read `/Users/b/.claude/projects/.../memory/feedback_data_consi
 | `canadian-tax-engine.ts` | `packages/core/engines/canadian-tax-engine.ts` | Full engine (brackets, CPP, QPP, provincial). |
 | `effective-cash.ts` | `packages/core/engines/effective-cash.ts` | Added 2026-04-22 (Audit 1 D-1 + D-2). Currently exports `computeProjectedNetForTax` + `computePipelineMonthlyIncome` + the helper types they depend on (`SplitPreset`, `EffectiveCashSettingsSlice`). Mirrors `computeAgentGross` + `computeTxFees` from `packages/core/types/database.ts`. |
 | `hst-engine.ts` | `packages/core/engines/hst-engine.ts` | Added 2026-04-22 (Audit 1 D-4). Exports `computeHSTCollected`, `computeHSTNetOwing`, `HSTCollectedInputs`, `HSTNetOwingInputs`, `HSTThresholdSeverity`. Also mirrors `gstHstRate` + `gstHstLabel` from `canadian-tax-engine.ts` so the MCP tool does not need to import the full tax engine just to resolve a rate. |
+| `constants.ts` | `apps/web/lib/flight-crew/constants.ts` | Added 2026-04-22 (Audit 2). Exports `CANONICAL_TAX_DISCLAIMER` + `CANONICAL_TAX_DISCLAIMER_SHORT`. Any change to the upstream file must be mirrored here in the same commit. |
 
 ## Future work (out of scope for Audit 1)
 

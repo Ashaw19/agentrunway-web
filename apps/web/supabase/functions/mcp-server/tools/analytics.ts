@@ -12,6 +12,7 @@ import {
   gstHstLabel,
   gstHstRate,
 } from "../lib/hst-engine.ts";
+import { CANONICAL_TAX_DISCLAIMER } from "../lib/constants.ts";
 
 // Canonical stage probabilities — mirrors packages/core/types/database.ts PIPELINE_STAGE_DEFAULTS
 const PIPELINE_STAGE_DEFAULTS: Record<string, number> = {
@@ -406,7 +407,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
           content: [{
             type: "text" as const,
             text: JSON.stringify({
-              disclaimer: "ESTIMATE ONLY — not legal or tax advice. Consult a CPA.",
+              disclaimer: CANONICAL_TAX_DISCLAIMER,
               tax_year: taxResult.taxYear,
               province: taxResult.provinceName,
               projected_net_income: netIncome,
