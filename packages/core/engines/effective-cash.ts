@@ -81,10 +81,24 @@ export interface EffectiveCashResult {
 /**
  * Project full-year agent net (gross after split, tx fees, and brokerage fees).
  * Mirrors dashboard-content.tsx:computeProjectedNet exactly.
+ *
+ * Accepts the narrow slice so both `computeEffectiveCashForSurvival` (which
+ * has the full EffectiveCashInputs["settings"] type, a strict superset) and
+ * `computeProjectedNetForTax` (which only needs the split/fee/brokerage
+ * fields) can call it.
  */
 function projectedAgentNet(
   projectedGCI: number,
-  settings: EffectiveCashInputs["settings"],
+  settings: Pick<
+    UserSettings,
+    | "split_preset"
+    | "post_cap_threshold_gci"
+    | "post_cap_agent_pct"
+    | "post_cap_brokerage_pct"
+    | "tx_fee_rate_pct"
+    | "tx_fee_annual_cap"
+    | "monthly_brokerage_fee"
+  >,
 ): number {
   const { agentGross } = computeAgentGross(
     projectedGCI,
@@ -100,6 +114,96 @@ function projectedAgentNet(
   );
   const brokerageFeeAnnual = settings.monthly_brokerage_fee * 12;
   return agentGross - txFees - brokerageFeeAnnual;
+}
+
+// ── Shared helpers exported for use across surfaces ─────────────────────────
+//
+// WHY THESE EXIST (Audit 1, 2026-04-22, D-1 + D-2 fix)
+// -----------------------------------------------------
+// Two metrics were being open-coded on 6+ surfaces with formulas that diverged
+// from the dashboard:
+//   - `pipelineMonthlyEst` (D-1): dashboard uses weighted GCI / remainingMonths.
+//     Six other surfaces used `(pipelineWeighted * 0.5) / 12`. Materially
+//     different mid-year (late-year especially — divisor of 12 vs 3).
+//   - `netForTax` (D-2): dashboard uses `computeProjectedNet - annualExpenses`.
+//     Chat, chat-diagnostics, and MCP used `projGCI * agentPct - annualizedExpenses`
+//     (ignored tx fees + brokerage monthly, double-applied season scaling).
+//
+// Every surface that wants either number MUST call these helpers instead of
+// re-deriving. See memory/feedback_data_consistency_protocol.md.
+
+/**
+ * D-1 canonical: monthly pipeline income estimate used as `monthlyIncome` input
+ * to `survivalResult(...)`.
+ *
+ * Mirrors dashboard-content.tsx:593-594 exactly. The denominator is
+ * `max(1, 12 - floor(fraction * 12))` — months of year still ahead — so that
+ * late-year the weighted pipeline gets divided across the few remaining months
+ * instead of the full 12.
+ *
+ * @param pipelineWeightedGCI Σ(computeWeightedGCI(deal)) across the active pipeline.
+ * @param fraction Seasonal fraction of year elapsed (0..1).
+ * @returns Monthly expected income from the pipeline; 0 if fraction is non-positive.
+ */
+export function computePipelineMonthlyIncome(
+  pipelineWeightedGCI: number,
+  fraction: number,
+): number {
+  if (fraction <= 0) return 0;
+  const remainingMonths = Math.max(1, 12 - Math.floor(fraction * 12));
+  return pipelineWeightedGCI / remainingMonths;
+}
+
+/**
+ * Inputs for {@link computeProjectedNetForTax}. Match the fields the dashboard
+ * reads at dashboard-content.tsx:596-603.
+ */
+export interface ProjectedNetForTaxInputs {
+  /** Projected year-end GCI (from projection-engine). */
+  projectedGCI: number;
+  /** YTD business expenses (receipts + recurring). */
+  expensesYTD: number;
+  /** Monthly recurring expenses (used to project remainder of year). */
+  monthlyRecurring: number;
+  /** UserSettings slice needed to compute agent net (split, fees, brokerage). */
+  settings: Pick<
+    UserSettings,
+    | "split_preset"
+    | "post_cap_threshold_gci"
+    | "post_cap_agent_pct"
+    | "post_cap_brokerage_pct"
+    | "tx_fee_rate_pct"
+    | "tx_fee_annual_cap"
+    | "monthly_brokerage_fee"
+  >;
+  /** Reference date (defaults to now). Used to count remaining months. */
+  now?: Date;
+}
+
+/**
+ * D-2 canonical: projected full-year net-for-tax used as the taxable income
+ * input to `calculateTax(...)` / `calculateCorporateTax(...)`.
+ *
+ * Mirrors dashboard-content.tsx:596-603 exactly:
+ *   projectedNet  = agentGross(projectedGCI) − txFees(projectedGCI) − monthly_brokerage_fee × 12
+ *   annualExpenses = expensesYTD + monthlyRecurring × (12 − (now.getMonth()+1))
+ *   netForTax      = max(0, projectedNet − annualExpenses)
+ *
+ * The floor-at-zero is deliberate: a negative net-for-tax is not a tax refund
+ * in this context — it's an input to the tax engine that expects non-negative
+ * taxable income.
+ *
+ * @returns Projected net self-employment / corporate-income number ready to
+ *          feed the tax engine.
+ */
+export function computeProjectedNetForTax(
+  inputs: ProjectedNetForTaxInputs,
+): number {
+  const { projectedGCI, expensesYTD, monthlyRecurring, settings, now = new Date() } = inputs;
+  const expRemainingMonths = Math.max(0, 12 - (now.getMonth() + 1));
+  const annualExpenses = expensesYTD + monthlyRecurring * expRemainingMonths;
+  const projectedNet = projectedAgentNet(projectedGCI, settings);
+  return Math.max(0, projectedNet - annualExpenses);
 }
 
 /**

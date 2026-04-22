@@ -83,7 +83,7 @@ import {
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
-import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
+import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
 import {
   compute as computeRunwayScore,
 } from "@/lib/engines/runway-score-engine";
@@ -339,7 +339,8 @@ export function ReportsContent({
   // ── Survival ──────────────────────────────────────────────────────────────────
   // Survival cash input MUST be cashPosition.effectiveCash (not raw cash_reserve)
   // to match dashboard + chat. See memory/feedback_data_consistency_protocol.md.
-  const pipelineMonthlyEst = fraction > 0 ? (pipelineWeighted * 0.5) / 12 : 0;
+  // Pipeline monthly income via canonical helper (D-1, Audit 1 2026-04-22).
+  const pipelineMonthlyEst = computePipelineMonthlyIncome(pipelineWeighted, fraction);
   const { cashPosition: reportsCashPosition } = computeEffectiveCashForSurvival({
     settings,
     ytdGCI,

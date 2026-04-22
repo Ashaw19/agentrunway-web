@@ -25,7 +25,7 @@ import { buildHealthReport } from "@agent-runway/core/engines/health-report";
 import { compute as computeRunwayScore } from "@agent-runway/core/engines/runway-score-engine";
 import { compare as benchmarkCompare } from "@agent-runway/core/engines/benchmark-engine";
 import { survivalResult } from "@agent-runway/core/engines/survival-engine";
-import { computeEffectiveCashForSurvival } from "@agent-runway/core/engines/effective-cash";
+import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@agent-runway/core/engines/effective-cash";
 import { projectedYearEndTransactions } from "@agent-runway/core/engines/projection-engine";
 import { totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import type { RecurringExpense } from "@/lib/types/database";
@@ -311,7 +311,8 @@ export async function GET(req: NextRequest) {
       // the Runway Score to every professional subscriber, so a wrong number
       // here is the loudest possible version of the 2026-04-17 incident.
       // See memory/feedback_data_consistency_protocol.md.
-      const pipelineMonthlyEst = fraction > 0 ? (pipelineWeightedGCI * 0.5) / 12 : 0;
+      // Pipeline monthly income via canonical helper (D-1, Audit 1 2026-04-22).
+      const pipelineMonthlyEst = computePipelineMonthlyIncome(pipelineWeightedGCI, fraction);
       const projectedDealCount = projectedYearEndTransactions(
         transactions.length, pipeline.length, fraction,
       );

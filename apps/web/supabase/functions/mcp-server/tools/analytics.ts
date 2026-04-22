@@ -1,6 +1,11 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import type { McpTool } from "./index.ts";
 import { calculate as calculateTax, type Province } from "../lib/canadian-tax-engine.ts";
+import {
+  computeProjectedNetForTax,
+  type EffectiveCashSettingsSlice,
+  type SplitPreset,
+} from "../lib/effective-cash.ts";
 
 // Canonical stage probabilities — mirrors packages/core/types/database.ts PIPELINE_STAGE_DEFAULTS
 const PIPELINE_STAGE_DEFAULTS: Record<string, number> = {
@@ -304,7 +309,11 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         const [settingsRes, txRes, expenseRes] = await Promise.all([
           supabase
             .from("user_settings")
-            .select("goal_gci, province")
+            .select(
+              "goal_gci, province, split_preset, post_cap_threshold_gci, " +
+              "post_cap_agent_pct, post_cap_brokerage_pct, tx_fee_rate_pct, " +
+              "tx_fee_annual_cap, monthly_brokerage_fee",
+            )
             .eq("user_id", userId)
             .maybeSingle(),
           supabase
@@ -316,7 +325,7 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
             .lte("date", today),
           supabase
             .from("expense_items")
-            .select("ytd_amount")
+            .select("ytd_amount, monthly_recurring")
             .eq("user_id", userId),
         ]);
 
@@ -333,6 +342,10 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         }, 0);
 
         const ytdExpenses = expenses.reduce((sum, e) => sum + (e.ytd_amount ?? 0), 0);
+        const monthlyRecurring = expenses.reduce(
+          (sum, e) => sum + (e.monthly_recurring ?? 0),
+          0,
+        );
 
         // Year fraction for projection
         const now = new Date();
@@ -340,16 +353,38 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         const yearDays = (now.getFullYear() % 4 === 0 && (now.getFullYear() % 100 !== 0 || now.getFullYear() % 400 === 0)) ? 366 : 365;
         const yearFraction = yearDay / yearDays;
 
-        // Projected net income
+        // D-2 fix (Audit 1, 2026-04-22): replaced broken inline formula
+        // `projectedGCI - projectedExpenses` (no split, no tx fees, no
+        // brokerage monthly × 12 — ~2× off for split agents) with the
+        // canonical helper that mirrors the dashboard at
+        // packages/core/engines/effective-cash.ts:computeProjectedNetForTax.
+        // The helper here is a deliberate Deno copy per Pattern P-2 — keep
+        // it in sync with the canonical version. See lib/README.md.
         let netIncome: number;
         if (overrideIncome != null) {
           netIncome = overrideIncome;
-        } else if (yearFraction > 0.01) {
+        } else if (yearFraction > 0.01 && settings) {
           const projectedGCI = ytdGCI / yearFraction;
-          const projectedExpenses = ytdExpenses / yearFraction;
-          netIncome = projectedGCI - projectedExpenses;
+          const settingsSlice: EffectiveCashSettingsSlice = {
+            split_preset: (settings.split_preset ?? "p100_0") as SplitPreset,
+            post_cap_threshold_gci: settings.post_cap_threshold_gci ?? 0,
+            post_cap_agent_pct: settings.post_cap_agent_pct ?? 1,
+            post_cap_brokerage_pct: settings.post_cap_brokerage_pct ?? 0,
+            tx_fee_rate_pct: settings.tx_fee_rate_pct ?? 0,
+            tx_fee_annual_cap: settings.tx_fee_annual_cap ?? 0,
+            monthly_brokerage_fee: settings.monthly_brokerage_fee ?? 0,
+          };
+          netIncome = computeProjectedNetForTax({
+            projectedGCI,
+            expensesYTD: ytdExpenses,
+            monthlyRecurring,
+            settings: settingsSlice,
+            now,
+          });
         } else {
-          netIncome = ytdGCI - ytdExpenses;
+          // Very early year or missing settings — fall back to the simple
+          // YTD net. Still lands on the canonical floor (no negatives).
+          netIncome = Math.max(0, ytdGCI - ytdExpenses);
         }
 
         netIncome = Math.max(0, Math.round(netIncome));

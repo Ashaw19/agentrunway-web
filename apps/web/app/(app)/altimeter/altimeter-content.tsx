@@ -59,7 +59,7 @@ import { computeMarketMomentum, type LocalMarketData } from "@/lib/crea-board";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { compute as computeRunwayScore } from "@/lib/engines/runway-score-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
-import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
+import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
 import { buildHealthReport } from "@/lib/engines/health-report";
 import {
   Tooltip,
@@ -480,9 +480,10 @@ export function AltimeterContent({
           fraction,
           now,
         }).cashPosition.effectiveCash,
-        fraction > 0 ? (pipelineWeightedGCI * 0.5) / 12 : 0,
+        // Pipeline monthly income via canonical helper (D-1, Audit 1 2026-04-22).
+        computePipelineMonthlyIncome(pipelineWeightedGCI, fraction),
       )
-    : survivalResult(0, monthlyRecurring, 0, fraction > 0 ? (pipelineWeightedGCI * 0.5) / 12 : 0);
+    : survivalResult(0, monthlyRecurring, 0, computePipelineMonthlyIncome(pipelineWeightedGCI, fraction));
 
   const healthReport = buildHealthReport(
     ytdGCI, goalGCI, fraction, pipelineWeightedGCI, expensesYTD,

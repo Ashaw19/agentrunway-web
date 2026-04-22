@@ -79,7 +79,7 @@ import {
 import type { PlaidItem, PlaidTransaction, MileageLog, RecurringExpense, PipelineDeal, HistoryItem } from "@/lib/types/database";
 import { computeWeightedGCI } from "@/lib/types/database";
 import { seasonalFractionElapsed, projectedYearEndGCI, projectedYearEndTransactions } from "@/lib/engines/projection-engine";
-import { computeEffectiveCashForSurvival } from "@/lib/engines/effective-cash";
+import { computeEffectiveCashForSurvival, computePipelineMonthlyIncome } from "@/lib/engines/effective-cash";
 import { ExpensesMileageTab }     from "./expenses-mileage-tab";
 import { ExpensesBankImportsTab } from "./expenses-bank-imports-tab";
 import { TaxDisclaimer } from "@/components/tax-disclaimer";
@@ -895,7 +895,8 @@ export function ExpensesContent({
           fraction: expensesFraction,
           now,
         }).cashPosition.effectiveCash,
-        expensesFraction > 0 ? (expensesPipelineWeighted * 0.5) / 12 : 0,
+        // Pipeline monthly income via canonical helper (D-1, Audit 1 2026-04-22).
+        computePipelineMonthlyIncome(expensesPipelineWeighted, expensesFraction),
       )
     : survivalResult(0, monthlyTotal, 0, 0);
 

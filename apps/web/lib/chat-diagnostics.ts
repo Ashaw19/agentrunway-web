@@ -25,7 +25,10 @@ import { buildHealthReport } from "@agent-runway/core/engines/health-report";
 import {
   survivalResult as computeSurvivalResult,
 } from "@agent-runway/core/engines/survival-engine";
-import { computeEffectiveCashForSurvival } from "@agent-runway/core/engines/effective-cash";
+import {
+  computeEffectiveCashForSurvival,
+  computeProjectedNetForTax,
+} from "@agent-runway/core/engines/effective-cash";
 import type { UserSettings as CanonicalUserSettings } from "@agent-runway/core/types/database";
 import {
   compare as benchmarkCompare,
@@ -366,7 +369,7 @@ Weakest: ${weakest.label} (${weakest.score}/100, contributing ${(weakest.score *
  * Shows step-by-step values but all final numbers come from the engine.
  */
 function diagTax(ctx: DiagContext): string {
-  const { settings: s, closedTx, ytdGCI, engineFraction, expensesYTD } = ctx;
+  const { settings: s, closedTx, ytdGCI, engineFraction, expensesYTD, monthlyRecurring } = ctx;
 
   const splitMatch = s.split_preset?.match(/p(\d+)_(\d+)/);
   const agentPct = splitMatch ? Number(splitMatch[1]) / 100 : 1;
@@ -374,9 +377,21 @@ function diagTax(ctx: DiagContext): string {
   const projGCI = projectedYearEndGCI(
     ytdGCI, ctx.pipelineWeighted, engineFraction, s.goal_gci ?? 0,
   );
+
+  // D-2 fix (Audit 1 2026-04-22): replaced local inline formula
+  // `projGCI * agentPct - (expensesYTD / engineFraction)` with canonical
+  // helper that matches dashboard-content.tsx:596-603 exactly. The old
+  // formula ignored tx fees + monthly brokerage × 12 and double-applied
+  // season scaling. `projectedAgentNet` is retained below as a display-
+  // only intermediate for the diagnostic line — the *engine input* is
+  // now the canonical netSEIncome.
   const projectedAgentNet = projGCI * agentPct;
-  const annualizedExpenses = engineFraction > 0 ? expensesYTD / engineFraction : expensesYTD;
-  const netSEIncome = Math.max(0, projectedAgentNet - annualizedExpenses);
+  const netSEIncome = computeProjectedNetForTax({
+    projectedGCI: projGCI,
+    expensesYTD,
+    monthlyRecurring,
+    settings: s as unknown as CanonicalUserSettings,
+  });
 
   const projDeals = projectedYearEndTransactions(
     closedTx.length, ctx.pipelineDeals.length, engineFraction,
@@ -394,9 +409,8 @@ Province: ${s.province}
 Business Structure: ${s.business_structure ?? "sole_prop"}
 GST/HST Registered: ${s.gst_registered ? "Yes" : "No"}
 Projected Annual GCI: ${fmtCurrency(projGCI)}
-Agent Split: ${(agentPct * 100).toFixed(0)}% → Projected Agent Net: ${fmtCurrency(projectedAgentNet)}
-Annualized Expenses: ${fmtCurrency(annualizedExpenses)}
-Net Self-Employment Income: ${fmtCurrency(netSEIncome)}
+Agent Split: ${(agentPct * 100).toFixed(0)}% → Projected Agent Net (split only): ${fmtCurrency(projectedAgentNet)}
+Net Self-Employment Income (after tx fees, brokerage fees, and expenses): ${fmtCurrency(netSEIncome)}
 CPP1: ${fmtCurrency(taxResult.cpp1Contribution)}
 CPP2: ${fmtCurrency(taxResult.cpp2Contribution)}
 Total CPP: ${fmtCurrency(taxResult.totalCPP)}

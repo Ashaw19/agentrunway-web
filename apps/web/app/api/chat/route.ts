@@ -30,6 +30,10 @@ import {
 } from "@agent-runway/core/engines/projection-engine";
 import { survivalResult, type SurvivalResult } from "@agent-runway/core/engines/survival-engine";
 import { computeCashPosition, type CashPositionResult } from "@agent-runway/core/engines/cash-position-engine";
+import {
+  computePipelineMonthlyIncome,
+  computeProjectedNetForTax,
+} from "@agent-runway/core/engines/effective-cash";
 import { compute as computeRunwayScore, type RunwayScoreResult } from "@agent-runway/core/engines/runway-score-engine";
 import { buildHealthReport } from "@agent-runway/core/engines/health-report";
 import { calculate as calculateTax, type CanadianTaxResult, gstHstRate, gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
@@ -500,10 +504,20 @@ export async function POST(req: NextRequest) {
 
         // 2. Canadian Tax Engine — projected net income after expenses.
         // Moved above survival because cashPosition below needs ytdTaxSetAside.
+        // agentPct is still used downstream (HST withholding example strings).
         const splitMatch2 = settings.split_preset?.match(/p(\d+)_(\d+)/);
         const agentPct = splitMatch2 ? Number(splitMatch2[1]) / 100 : 1;
-        const annualizedExpenses = engineFraction > 0 ? expensesYTD / engineFraction : expensesYTD;
-        const projectedNetIncome = Math.max(0, projGCI * agentPct - annualizedExpenses);
+        // D-2 fix (Audit 1 2026-04-22): replaced old inline formula
+        // `projGCI * agentPct - (expensesYTD / engineFraction)` with canonical
+        // helper. Old formula ignored tx fees + monthly brokerage × 12, and
+        // double-applied season scaling via `expensesYTD / engineFraction`.
+        // This now matches dashboard-content.tsx:596-603 exactly.
+        const projectedNetIncome = computeProjectedNetForTax({
+          projectedGCI: projGCI,
+          expensesYTD,
+          monthlyRecurring,
+          settings,
+        });
         const taxResult: CanadianTaxResult = calculateTax(
           projectedNetIncome,
           (settings.province ?? "ontario") as Province,
@@ -549,7 +563,10 @@ export async function POST(req: NextRequest) {
 
         // 4. Survival Engine — uses implied cash (cashPosition.effectiveCash),
         // NOT the raw cash_reserve field. Matches dashboard-content.tsx:637-642.
-        const pipelineMonthlyEst = engineFraction > 0 ? (pipelineWeighted * 0.5) / 12 : 0;
+        // Pipeline monthly income via canonical helper (D-1, Audit 1 2026-04-22):
+        // must match dashboard's weighted / remainingMonths formula — not the
+        // pre-fix heuristic (pipelineWeighted * 0.5) / 12.
+        const pipelineMonthlyEst = computePipelineMonthlyIncome(pipelineWeighted, engineFraction);
         const survival: SurvivalResult = survivalResult(
           settings.monthly_brokerage_fee ?? 0,
           monthlyRecurring,
