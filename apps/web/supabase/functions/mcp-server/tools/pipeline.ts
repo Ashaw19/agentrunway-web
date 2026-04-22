@@ -140,11 +140,14 @@ export function getPipelineTools(supabase: SupabaseClient, userId: string): McpT
               total_weighted_gci: totalWeighted,
               goal_gci: goalGCI,
               coverage_ratio: coverageRatio,
+              // State-only coverage descriptor — describes the ratio, not what
+              // to do about it. Personas layer interpretation per their own
+              // voice rules (see CREW_CONSTITUTION money-proximate guidance).
               coverage_interpretation: coverageRatio == null ? null
-                : coverageRatio >= 1.5 ? "Strong — pipeline covers goal with healthy buffer"
-                : coverageRatio >= 1.0 ? "Adequate — pipeline covers goal"
-                : coverageRatio >= 0.6 ? "Low — need more deals in pipeline"
-                : "Critical — pipeline significantly below goal",
+                : coverageRatio >= 1.5 ? "Coverage at or above 1.5× goal"
+                : coverageRatio >= 1.0 ? "Coverage at or above 1.0× goal"
+                : coverageRatio >= 0.6 ? "Coverage between 0.6× and 1.0× goal"
+                : "Coverage below 0.6× goal",
               by_stage: stageSummary,
             }, null, 2),
           }],

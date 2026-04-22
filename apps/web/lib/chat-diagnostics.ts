@@ -498,11 +498,17 @@ function diagExpenses(ctx: DiagContext): string {
     expenseScore = 50; // no GCI yet
   }
 
-  const ratingLabel = ytdGCI === 0 ? "N/A (no GCI)" :
-    ratio > 50 ? "WARNING" :
-    ratio > 35 ? "Concerning" :
-    ratio > 30 ? "Needs attention" :
-    ratio > 25 ? "Healthy" : "Excellent";
+  // Emit the raw ratio bucket as a state-only descriptor — no editorial
+  // labels. Personas layer interpretation per their own voice rules.
+  // Removed 2026-04-22 (Audit 2): "WARNING", "Concerning", "Needs attention"
+  // were editorial judgments on an engine-computed ratio; keeping them
+  // forced downstream personas to either echo them verbatim (violating
+  // info-not-advice) or contradict the diagnostic text.
+  const ratioBucket = ytdGCI === 0 ? "N/A (no GCI)" :
+    ratio > 50 ? "above 50%" :
+    ratio > 35 ? "above 35%" :
+    ratio > 30 ? "above 30%" :
+    ratio > 25 ? "above 25%" : "at or below 25%";
 
   const catLines = categoryTotals
     .sort((a, b) => b.ytd - a.ytd)
@@ -513,7 +519,7 @@ function diagExpenses(ctx: DiagContext): string {
   return `[EXPENSE DIAGNOSTIC]
 YTD Expenses: ${fmtCurrency(expensesYTD)}
 Monthly Recurring: ${fmtCurrency(monthlyRecurring)}
-Expense Ratio: ${ratio.toFixed(1)}% (${ratingLabel})
+Expense Ratio: ${ratio.toFixed(1)}% (ratio bucket: ${ratioBucket})
 Expense Sub-Score: ${expenseScore}/100
 YTD GCI (denominator): ${fmtCurrency(ytdGCI)}
 Top Categories:

@@ -570,12 +570,17 @@ function gradeFromScore(score: number): string {
   return "F";
 }
 
+// Tier label for a Runway Score. Returns the engine's classification only —
+// no prescriptive tail ("Maintain current pace", "take corrective action",
+// "Immediate review recommended"). Personas layer context on top per their
+// own voice rules. See memory/feedback_tax_information_not_advice.md and
+// CREW_CONSTITUTION's money-proximate voice guidance.
 function interpretScore(score: number): string {
-  if (score >= 80) return "Strong — business health is excellent. Maintain current pace.";
-  if (score >= 65) return "Good — on track. Monitor pipeline and expense discipline.";
-  if (score >= 50) return "Fair — some areas need attention. Review pipeline coverage and goal pace.";
-  if (score >= 35) return "Below average — take corrective action. Pipeline or expenses may be off-track.";
-  return "Critical — significant gaps detected. Immediate review recommended.";
+  if (score >= 80) return "Strong";
+  if (score >= 65) return "Good";
+  if (score >= 50) return "Fair";
+  if (score >= 35) return "Below average";
+  return "Critical";
 }
 
 // ── HST filing-period helper ────────────────────────────────────────────────
