@@ -47,7 +47,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **TEAMS** — $149/mo leader + $55/mo member. Invite flow with 30-day tokens. Tier 1 shared: YTD GCI, deal count, pipeline. Never shared: tax, expenses, splits, cash, client details. 5 leader reports. Team comparative engine.
 
-**FLIGHT CONTROL** — AI outreach: daily scan, 7 types (birthday/post-close/stale/seasonal/anniversary/rate/listing match), tone-matched drafts, 14-day suppression (birthday exempt), agent review required. Nurture: Post-Close (6 steps/12mo), Re-Engagement (3 steps/30d). Send optimization: Tue-Thu 9-10am default. Newsletter builder included.
+**FLIGHT CONTROL** — AI outreach: daily scan, 11+ types (birthday/post-close/stale-lead/seasonal/anniversary/rate-relevance/listing-match/mortgage-renewal-due/mortgage-renewal-window/timeframe-approaching/listing-overdue), tone-matched drafts, 14-day suppression (birthday exempt), agent review required. Nurture: Post-Close (6 steps/12mo), Re-Engagement (3 steps/30d). Send optimization: Tue-Thu 9-10am default. Newsletter builder included.
 
 **KEYBOARD SHORTCUTS** — N=New tx, D=Dashboard, T=Transactions, P=Pipeline, F=Forecast, E=Expenses, R=Reports.
 
@@ -64,7 +64,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 **Seasonal Fraction** = Accounts for uneven quarterly income (default Q1:15% Q2:30% Q3:30% Q4:25%). Custom weights in Settings. Day-level interpolation.
 **Projected Year-End GCI** = (Closed YTD / Seasonal Fraction) + (Pipeline Weighted x 50%). Jan-Feb dampening blends toward goal.
 **Runway Score** (v1.2) = Pace(35%) + Pipeline(30%) + Expense(15%) + Survival(15%) + Benchmark(5%). Grades: A+(92+) A(85-91) B(75-84) C(62-74) D(50-61) F(0-49). Missing data penalizes (35 not 50).
-**Benchmark** = CREA 2023 cohorts: Rookie(0-2yr,$42K/4deals), Growth(3-5yr,$78K/7), Established(6-10yr,$96K/8), TopProducer(10+yr,$145K/12). National median $96K/8.
+**Benchmark** = CREA 2023 cohorts: Rookie(0-2yr,$42K/4deals), Growth(3-5yr,$78K/7), Established(6-10yr,$96K/8), TopProducer(>10yr,$145K/12). National median $96K/8.
 **Where You Stand** = Launching(0-10%ile)/Climbing(10-25)/Competitive(25-50)/Advancing(50-75)/Leading(75+). Momentum: gaining/holding/losing.
 **P-Bands** = P10/25/50/75/90 via CV. CV clamped 5-50%.
 **Client Tiers** = Platinum(top10%)/Gold(10-25%)/Silver(25-50%)/Bronze(50%+). Composite: LGV(40%)+Health(20%)+Impact(15%)+Velocity(15%)+Tax(10%).

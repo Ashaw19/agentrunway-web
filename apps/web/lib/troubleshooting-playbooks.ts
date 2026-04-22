@@ -993,7 +993,7 @@ Uses CREA 2023 national statistics. Cohorts based on experience years:
 | Rookie | 0–2 | $42,000 | 4 | $380,000 |
 | Growth | 3–5 | $78,000 | 7 | $400,000 |
 | Established | 6–10 | $96,000 | 8 | $420,000 |
-| Top Producer | 10+ | $145,000 | 12 | $460,000 |
+| Top Producer | >10 | $145,000 | 12 | $460,000 |
 
 **National Median** (all agents): $96,000 GCI, 8 deals
 
