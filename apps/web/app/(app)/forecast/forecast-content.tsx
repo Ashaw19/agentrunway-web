@@ -14,6 +14,7 @@ import { ExplainButton } from "@/components/explain-button";
 import { GuideLink } from "@/components/guide-link";
 import { Separator } from "@/components/ui/separator";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
+import { CANONICAL_TAX_DISCLAIMER_SHORT } from "@/lib/flight-crew/constants";
 import {
   computeGCI,
   computeWeightedGCI,
@@ -739,7 +740,7 @@ export function ForecastContent({
                     ? corpTaxResult.totalCombinedTax / Math.max(projectedDeals, 1)
                     : taxResult.perDealSetAside)}
                 </p>
-                <p className="text-xs text-muted-foreground">Per-deal set-aside</p>
+                <p className="text-xs text-muted-foreground">Per-deal tax portion</p>
               </div>
               <div className="text-center">
                 <p className="text-2xl font-bold">
@@ -755,7 +756,7 @@ export function ForecastContent({
               </div>
             )}
             <p className="mt-3 text-[10px] text-amber-700/70 leading-relaxed">
-              Estimates only · Not tax advice · Consult a qualified accountant
+              {CANONICAL_TAX_DISCLAIMER_SHORT}
             </p>
           </CardContent>
         </Card>
@@ -890,7 +891,7 @@ export function ForecastContent({
             )}
 
             <p className="text-[10px] text-violet-700/60 leading-relaxed">
-              Estimates only · Not tax advice · Salary vs dividend optimization depends on many factors including RRSP room, CPP entitlement, and future income expectations. Consult a qualified accountant.
+              {CANONICAL_TAX_DISCLAIMER_SHORT} Salary vs dividend mix depends on many factors including RRSP room, CPP entitlement, and future income expectations.
             </p>
           </CardContent>
         </Card>

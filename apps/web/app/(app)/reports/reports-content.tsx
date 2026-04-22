@@ -1130,7 +1130,7 @@ export function ReportsContent({
                   ? corpTaxResult.totalCombinedTax / Math.max(projectedDeals, 1)
                   : taxResult.perDealSetAside)}
               </div>
-              <div className="text-xs text-slate-500 mt-0.5">Per-deal set-aside</div>
+              <div className="text-xs text-slate-500 mt-0.5">Per-deal tax portion</div>
             </div>
             {settings.gst_hst_registered && (
               <div className="rounded-xl border border-amber-200 bg-white px-4 py-3 text-center">

@@ -769,7 +769,7 @@ Adding/changing a closed deal triggers recalculation of:
 7. Benchmark percentile
 8. Probability bands (CV recalculates)
 9. Survival runway (if income affects burn rate)
-10. Per-deal set-aside
+10. Per-deal tax portion
 11. Waterfall projection
 12. Client tier recalculation
 

@@ -425,7 +425,7 @@ function CelebrationContent({ address, clientName: _clientName, celebData, quote
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">How to allocate your commission</p>
         <div className="space-y-1.5">
           <AllocRow icon={<Landmark className="h-3.5 w-3.5" />} color="yellow" label={`${salesTaxLabel} to remit`} amount={salesTaxAmt} rate={salesTaxRate} note="Remit to CRA on your next filing" />
-          <AllocRow icon={<Percent className="h-3.5 w-3.5" />} color="red" label="Income tax reserve" amount={taxReserve} rate={estimatedMarginalRate} note={`~${Math.round(estimatedMarginalRate*100)}% marginal rate — set aside now`} />
+          <AllocRow icon={<Percent className="h-3.5 w-3.5" />} color="red" label="Income tax reserve" amount={taxReserve} rate={estimatedMarginalRate} note={`~${Math.round(estimatedMarginalRate*100)}% marginal rate · portion owed to CRA`} />
           <AllocRow icon={<Sparkles className="h-3.5 w-3.5" />} color="purple" label="Fun money (10%)" amount={funMoney} note="You earned it. Seriously." />
           <AllocRow icon={<PiggyBank className="h-3.5 w-3.5" />} color="blue" label="Keep / invest" amount={keepInvest} note="Savings, RRSP, next month's leads" />
         </div>

@@ -91,6 +91,7 @@ import {
 import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
+import { CANONICAL_TAX_DISCLAIMER, CANONICAL_TAX_DISCLAIMER_SHORT } from "@/lib/flight-crew/constants";
 import type { MonthlyDataPoint } from "@/components/monthly-chart";
 import {
   computeGCI,
@@ -602,7 +603,7 @@ export function DashboardContent({
   const projectedNet = computeProjectedNet(projectedGCI, settings);
   // Net self-employment income = gross-of-brokerage minus all business expenses
   const netForTax = Math.max(0, projectedNet - annualExpenses);
-  // Per-deal set-aside is more useful against projected deal count, not just YTD
+  // Per-deal tax portion is more useful against projected deal count, not just YTD
   const projectedDealCount = projectedYearEndTransactions(ytdDealCount, pipelineCount, fraction);
   const taxResult = settings
     ? calculateTax(netForTax, settings.province, Math.max(projectedDealCount, 1))
@@ -1549,7 +1550,7 @@ export function DashboardContent({
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Est. Tax Owed</p>
               <p className="font-bold text-amber-700 mt-0.5">{fmtCurrency(ytdTaxSetAside)}</p>
-              <p className="text-[10px] text-slate-400">set aside now</p>
+              <p className="text-[10px] text-slate-400">based on YTD net</p>
             </div>
             {ytdDealCount > 0 && (
               <div>
@@ -1564,7 +1565,7 @@ export function DashboardContent({
           <span>Split: {settings.split_preset ?? "custom"}</span>
           {settings.monthly_brokerage_fee > 0 && <span>Monthly fee: {fmtCurrency(settings.monthly_brokerage_fee)}/mo × {monthsElapsed}mo</span>}
           {ytdTxFees > 0 && <span>Tx fees: {fmtCurrency(ytdTxFees)}</span>}
-          <span className="italic">Estimate only · Not tax advice</span>
+          <span className="italic">{CANONICAL_TAX_DISCLAIMER_SHORT}</span>
         </div>
       </CardContent>
     </Card>
@@ -1977,11 +1978,11 @@ export function DashboardContent({
               </div>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between items-center rounded-md bg-amber-200/60 px-3 py-1.5">
-                  <span className="text-amber-900 font-medium">Set aside monthly</span>
+                  <span className="text-amber-900 font-medium">Monthly allocation pace</span>
                   <span className="font-bold text-amber-900">{fmtCurrency(recommendedMonthlySave)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Should have saved by now</span>
+                  <span className="text-muted-foreground">YTD allocation pace</span>
                   <span className="font-medium">{fmtCurrency(expectedSavedByNow)}</span>
                 </div>
                 <div className="flex justify-between">
@@ -1989,7 +1990,7 @@ export function DashboardContent({
                   <span>{fmtCurrency(quarterlyInstalment)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Per-deal set-aside</span>
+                  <span className="text-muted-foreground">Per-deal tax portion</span>
                   <span>{fmtCurrency(taxResult.perDealSetAside)}</span>
                 </div>
                 {marginalTaxRate > 0 && (
@@ -2012,7 +2013,7 @@ export function DashboardContent({
                 )}
               </div>
               <p className="mt-3 text-[10px] text-amber-700/70 leading-relaxed">
-                Estimates only · Not tax advice · Consult a qualified accountant
+                {CANONICAL_TAX_DISCLAIMER_SHORT}
               </p>
             </CardContent>
           </Card>
@@ -2108,7 +2109,7 @@ export function DashboardContent({
           </div>
         )}
         <p className="mt-3 text-[10px] text-slate-400 leading-relaxed">
-          Estimates only · Not tax advice · Consult a qualified accountant
+          {CANONICAL_TAX_DISCLAIMER_SHORT}
         </p>
       </CardContent>
     </Card>
@@ -2134,7 +2135,7 @@ export function DashboardContent({
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-[10px] text-slate-400 leading-relaxed italic">
-          For educational purposes only — not tax advice. Consult a qualified accountant.
+          {CANONICAL_TAX_DISCLAIMER_SHORT}
         </p>
         {taxOptResult.cards.map((card: TaxOptimizationCard) => (
           <div key={card.id} className="rounded-lg border border-slate-100 bg-white p-3">
@@ -2769,9 +2770,7 @@ export function DashboardContent({
 
       {/* Disclaimer */}
       <p className="text-center text-xs leading-relaxed text-muted-foreground/60 pb-2">
-        All projections, tax estimates, and suggested actions are approximations
-        for planning purposes only — not financial, tax, or professional advice. Actual
-        results will differ. Always consult a qualified accountant or tax professional.{" "}
+        {CANONICAL_TAX_DISCLAIMER}{" "}
         <a href="/terms" className="underline underline-offset-2 hover:text-muted-foreground">
           Terms of Service
         </a>

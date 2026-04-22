@@ -218,13 +218,13 @@ export function TaxEstimator() {
         </div>
       </div>
 
-      {/* ── Per-deal set-aside ── */}
+      {/* ── Per-deal tax portion ── */}
       {dealCount > 0 && (
         <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4">
           <p className="text-sm text-emerald-900">
-            <strong>Per-deal set-aside:</strong>{" "}
-            On each of {dealCount} closed deals this year, set aside{" "}
-            <strong className="text-emerald-950">{fmt0(result.perDealSetAside)}</strong> for tax.
+            <strong>Per-deal tax portion:</strong>{" "}
+            Across {dealCount} closed deals this year, the tax estimate works out to{" "}
+            <strong className="text-emerald-950">{fmt0(result.perDealSetAside)}</strong> per deal.
           </p>
         </div>
       )}

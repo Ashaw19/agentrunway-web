@@ -329,7 +329,7 @@ export function GuidePdf({ province, businessStructure, splitPreset }: Props) {
           The Forecast page shows your tax estimates card with:
         </Text>
         <Text style={S.bullet}>{"\u2022"} Quarterly instalment amount (total annual tax {"\u00F7"} 4)</Text>
-        <Text style={S.bullet}>{"\u2022"} Per-deal set-aside (total annual tax {"\u00F7"} projected deal count)</Text>
+        <Text style={S.bullet}>{"\u2022"} Per-deal tax portion (total annual tax {"\u00F7"} projected deal count)</Text>
         <Text style={S.bullet}>{"\u2022"} Effective tax rate (total tax burden {"\u00F7"} net self-employment income)</Text>
 
         <Text style={S.sectionSubtitle}>Financial Waterfall</Text>
