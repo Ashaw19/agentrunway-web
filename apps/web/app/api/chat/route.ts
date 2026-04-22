@@ -712,7 +712,7 @@ export async function POST(req: NextRequest) {
           `Trend: ${trend === "up" ? "Up" : trend === "down" ? "Down" : "Flat"}`,
           settings.goal_gci > 0 ? `Daily Pace Needed: ${fmtCurrency(dailyPace)}/day to hit goal (${remaining} days remaining)` : null,
           "",
-          `Runway Score: ${runwayScore.score}/100 (Grade: ${runwayScore.grade})`,
+          `Runway Score: ${runwayScore.score}/100 (${runwayScore.stateLabel})`,
           ...runwayScore.components.map((c) => `  - ${c.label}: ${c.score}/100 (weight: ${c.weight})`),
           "",
           // Expense data completeness context — helps AI judge if expense score is realistic

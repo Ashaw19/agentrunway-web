@@ -126,7 +126,7 @@ import { computeMarketMomentum, type LocalMarketData } from "@/lib/crea-board";
 import type { BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { survivalResult, type SurvivalResult } from "@/lib/engines/survival-engine";
 import { computeCashPosition, type CashPositionResult } from "@/lib/engines/cash-position-engine";
-import { compute as computeRunwayScore, type BusinessHealthReport, type RunwayScoreResult } from "@/lib/engines/runway-score-engine";
+import { compute as computeRunwayScore, type BusinessHealthReport, type RunwayScoreResult, type RunwayStateLabel } from "@/lib/engines/runway-score-engine";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { buildHealthReport } from "@/lib/engines/health-report";
 import {
@@ -251,11 +251,16 @@ const PIPELINE_STAGE_CONFIG: Array<{
   { key: "firm",       label: "Firm",        dotClass: "bg-emerald-500", chipClass: "border-emerald-200 bg-emerald-50 text-emerald-700" },
 ];
 
-function scoreBand(score: number): { label: string; colorClass: string } {
-  if (score >= 81) return { label: "Strong",   colorClass: "text-emerald-400 bg-emerald-500/15 border-emerald-500/30" };
-  if (score >= 61) return { label: "On Track",  colorClass: "text-blue-400 bg-blue-500/15 border-blue-500/30" };
-  if (score >= 41) return { label: "Building",  colorClass: "text-amber-400 bg-amber-500/15 border-amber-500/30" };
-  return                   { label: "At Risk",  colorClass: "text-red-400 bg-red-500/15 border-red-500/30" };
+// Color-only lookup keyed to the engine's `stateLabel`. The label itself
+// comes from `runwayScore.stateLabel` (engine = source of truth); this
+// helper contributes only the dashboard's Tailwind tokens for each band.
+function scoreBandColor(label: RunwayStateLabel): string {
+  switch (label) {
+    case "Strong":   return "text-emerald-400 bg-emerald-500/15 border-emerald-500/30";
+    case "On Track": return "text-blue-400 bg-blue-500/15 border-blue-500/30";
+    case "Building": return "text-amber-400 bg-amber-500/15 border-amber-500/30";
+    case "At Risk":  return "text-red-400 bg-red-500/15 border-red-500/30";
+  }
 }
 
 const INSIGHT_ICONS: Record<string, React.ElementType> = {
@@ -2487,9 +2492,9 @@ export function DashboardContent({
                     </p>
                     <span className={cn(
                       "text-[10px] font-semibold border rounded-full px-2 py-0 leading-5",
-                      scoreBand(runwayScore.score).colorClass,
+                      scoreBandColor(runwayScore.stateLabel),
                     )}>
-                      {scoreBand(runwayScore.score).label}
+                      {runwayScore.stateLabel}
                     </span>
                   </div>
                 ) : (
