@@ -2,6 +2,7 @@
 export * from "./projection-engine";
 export * from "./canadian-tax-engine";
 export * from "./corporate-tax-engine";
+export * from "./hst-engine";
 export * from "./survival-engine";
 export * from "./effective-cash";
 export * from "./benchmark-engine";

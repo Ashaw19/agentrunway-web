@@ -37,6 +37,7 @@ import {
 import { compute as computeRunwayScore, type RunwayScoreResult } from "@agent-runway/core/engines/runway-score-engine";
 import { buildHealthReport } from "@agent-runway/core/engines/health-report";
 import { calculate as calculateTax, type CanadianTaxResult, gstHstRate, gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
+import { computeHSTCollected } from "@agent-runway/core/engines/hst-engine";
 import { compare as benchmarkCompare, COHORT_LABELS, type BenchmarkResult } from "@agent-runway/core/engines/benchmark-engine";
 import { probabilityBands, type ProbabilityBands } from "@agent-runway/core/engines/probabilistic-forecast-engine";
 import { computeWhereYouStand, type WhereYouStandResult } from "@agent-runway/core/engines/where-you-stand-engine";
@@ -535,7 +536,17 @@ export async function POST(req: NextRequest) {
         // on a wrong number. See feedback_data_consistency_protocol.md.
         const now = new Date();
         const hstRateValue = gstHstRate((settings.province ?? "ontario") as Province);
-        const ytdHstCollected = settings.gst_hst_registered ? ytdGCI * hstRateValue : 0;
+        // D-4 fix (Audit 1 2026-04-22): canonical HST helper. Previous inline
+        // formula `ytdGCI * hstRate` missed the `brokerageWithholdsHst` case
+        // (when the brokerage collects and remits, the agent's cash-flow view
+        // is $0 collected). `computeHSTCollected` returns 0 when
+        // !registered OR brokerage withholds. See hst-engine.ts.
+        const ytdHstCollected = computeHSTCollected({
+          ytdGCI,
+          hstRate: hstRateValue,
+          isRegistered: settings.gst_hst_registered ?? false,
+          brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
+        });
         const ytdHstOnExpenses = settings.gst_hst_paid_on_expenses
           ? expensesYTD * (hstRateValue / (1 + hstRateValue))
           : 0;
@@ -824,22 +835,42 @@ export async function POST(req: NextRequest) {
 
         // 3. GST/HST Refund vs. Owing Forecast
         {
+          // D-4 fix (Audit 1 2026-04-22): replaced broken inline formula
+          // `ytdGCI * agentPct * hstRate` with the canonical helper. HST is
+          // charged on the full commission invoiced to the client — the
+          // agent/brokerage split affects who collects, not the HST base.
+          // Using the helper also eliminates the prior self-contradiction
+          // where this block disagreed with the earlier `ytdHstCollected`
+          // computation at ~line 538 in the same response. See hst-engine.ts.
           const filingFreq = (settings.filing_frequency ?? "quarterly") as FilingFrequency;
-          const hstRate = gstHstRate((settings.province ?? "ontario") as Parameters<typeof gstHstRate>[0]);
-          const totalHSTCollected = ytdGCI * agentPct * hstRate;
+          const hstRateLocal = gstHstRate((settings.province ?? "ontario") as Parameters<typeof gstHstRate>[0]);
+          const totalHSTCollected = computeHSTCollected({
+            ytdGCI,
+            hstRate: hstRateLocal,
+            isRegistered: settings.gst_hst_registered ?? false,
+            brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
+          });
           const receiptDetails = (receiptDetailsRows ?? []) as { total_amount?: number | null; tax_amount?: number | null; category_key?: string | null }[];
           const totalITCsClaimed = receiptDetails.reduce((sum, r) => sum + Number(r.tax_amount ?? 0), 0);
           const netHST = totalHSTCollected - totalITCsClaimed;
           if (ytdGCI > 0) {
+            const hstLabelLocal = gstHstLabel((settings.province ?? "ontario") as Parameters<typeof gstHstLabel>[0]);
+            const contextLine = settings.brokerage_withholds_hst
+              ? `Brokerage withholds ${hstLabelLocal} and remits to CRA — agent-side collected view is $0. ` +
+                `The filing view (T2125 / GST34) still reports the collected amount on invoiced GCI — that's a filing matter, not a cash-flow one. `
+              : !settings.gst_hst_registered
+                ? `Agent is not registered for ${hstLabelLocal}. CRA requires registration when taxable supplies exceed $30,000 over four consecutive calendar quarters. `
+                : "";
             taxIntelLines.push(
-              `[GST/HST FORECAST] Estimated ${gstHstLabel((settings.province ?? "ontario") as Parameters<typeof gstHstLabel>[0])} collected YTD: ~${fmtCurrency(totalHSTCollected)}. ` +
-              `ITCs claimed from receipts: ${fmtCurrency(totalITCsClaimed)}. ` +
-              `Estimated net ${netHST >= 0 ? "owing" : "refund"}: ${fmtCurrency(Math.abs(netHST))}. ` +
+              `[GST/HST FORECAST] ${contextLine}` +
+              `Estimated ${hstLabelLocal} collected YTD: ~${fmtCurrency(totalHSTCollected)}. ` +
+              `ITCs estimated from receipts: ${fmtCurrency(totalITCsClaimed)}. ` +
+              `Estimated net ${netHST >= 0 ? "payable" : "refundable"}: ${fmtCurrency(Math.abs(netHST))}. ` +
               `Filing frequency: ${filingFreq}. ` +
               (receiptCount != null && receiptCount < ytdTx.length * 3
-                ? `Receipt capture rate looks low (${receiptCount} receipts vs ${ytdTx.length} deals) — each uncaptured business receipt is a lost ITC. `
+                ? `Receipt capture rate: ${receiptCount} receipts vs ${ytdTx.length} deals. Every business receipt may support an ITC. `
                 : "") +
-              `These are estimates — actual amounts depend on registered status and exact filing.`,
+              `These are estimates based on CRA rules for the current tax year. Verify with an accountant before filing.`,
             );
           }
         }
@@ -988,26 +1019,47 @@ export async function POST(req: NextRequest) {
             `Estimated marginal tax rate: ${(marginalRate * 100).toFixed(0)}%.`
           );
 
+          // D-4 fix (Audit 1 2026-04-22): example math used `(10000 * agentPct) * hstRate`
+          // in the non-withholding case — same base class of bug as the
+          // earlier self-contradiction. HST is charged on the full commission
+          // invoiced to the client, not on the agent's split portion. Examples
+          // now compute HST on the $10,000 invoiced commission. Also softened
+          // "recommend / set aside" wording per
+          // memory/feedback_tax_information_not_advice.md — forbidden verbs.
+          // Math below uses a canonical perDealGCI = $10,000 illustrative.
+          const exampleGCI = 10_000;
+          const exampleHST = computeHSTCollected({
+            ytdGCI: exampleGCI,
+            hstRate,
+            // Force registered=true for illustrative math regardless of
+            // current user state — this is a worked example, not a
+            // statement about the agent.
+            isRegistered: true,
+            brokerageWithholdsHst,
+          });
+          const exampleAgentGross = exampleGCI * agentPct;
+          const exampleTaxReserve = exampleAgentGross * marginalRate;
+          const exampleTakeHomeWithholding = Math.max(0, exampleAgentGross - exampleTaxReserve);
+          const exampleTakeHomeAgentHandled = Math.max(
+            0,
+            exampleAgentGross - exampleTaxReserve,
+          );
           if (brokerageWithholdsHst) {
             allocLines.push(
-              `[ALLOCATION MODEL — HST WITHHELD BY BROKERAGE] When the agent closes a deal, their brokerage holds the ${hstLabel} portion. ` +
-              `The agent receives commission MINUS ${hstLabel}. From what they receive, recommend: ` +
-              `~${(marginalRate * 100).toFixed(0)}% set aside for income tax (federal + provincial), ` +
-              `remainder is actual take-home. ` +
-              `Example: On a $10,000 gross commission at ${(agentPct * 100).toFixed(0)}% split, agent nets $${((10000 * agentPct) * (1 - hstRate)).toFixed(0)} after HST withholding. ` +
-              `Set aside ~$${((10000 * agentPct) * (1 - hstRate) * marginalRate).toFixed(0)} for tax. ` +
-              `Actual take-home: ~$${((10000 * agentPct) * (1 - hstRate) * (1 - marginalRate)).toFixed(0)}.`
+              `[ALLOCATION MODEL — HST WITHHELD BY BROKERAGE] The brokerage collects ${hstLabel} on the invoiced commission and remits to CRA. ` +
+              `The agent receives their split of the pre-${hstLabel} commission. ` +
+              `Of the commission the agent receives, ~${(marginalRate * 100).toFixed(0)}% typically covers federal + provincial income tax at their projected marginal rate. ` +
+              `Illustrative example: $${exampleGCI.toLocaleString()} gross commission at ${(agentPct * 100).toFixed(0)}% split — agent receives $${exampleAgentGross.toFixed(0)} (${hstLabel} of ~$${exampleHST === 0 ? (exampleGCI * hstRate).toFixed(0) : exampleHST.toFixed(0)} handled by the brokerage). ` +
+              `At ~${(marginalRate * 100).toFixed(0)}% marginal rate, income tax portion ~$${exampleTaxReserve.toFixed(0)}; remainder ~$${exampleTakeHomeWithholding.toFixed(0)}. ` +
+              `These are estimates. Verify with an accountant before filing.`
             );
           } else {
             allocLines.push(
-              `[ALLOCATION MODEL — AGENT HANDLES HST] When the agent closes a deal, they receive the full commission INCLUDING ${hstLabel}. ` +
-              `From each cheque, recommend setting aside: ` +
-              `~${(hstRate * 100).toFixed(0)}% for ${hstLabel} remittance to CRA, ` +
-              `~${(marginalRate * 100).toFixed(0)}% of the pre-HST amount for income tax. ` +
-              `Example: On a $10,000 gross commission at ${(agentPct * 100).toFixed(0)}% split, agent receives $${(10000 * agentPct).toFixed(0)}. ` +
-              `Set aside ~$${((10000 * agentPct) * hstRate).toFixed(0)} for ${hstLabel}. ` +
-              `Set aside ~$${((10000 * agentPct) * marginalRate).toFixed(0)} for income tax. ` +
-              `Actual take-home: ~$${((10000 * agentPct) * (1 - hstRate - marginalRate)).toFixed(0)}. ` +
+              `[ALLOCATION MODEL — AGENT HANDLES HST] The agent receives the full commission including ${hstLabel} on their split portion (the ${hstLabel} portion is collected for CRA — it does not belong to the agent). ` +
+              `At the agent's projected marginal rate of ~${(marginalRate * 100).toFixed(0)}%, income tax on the pre-${hstLabel} commission is approximately that percentage of the agent's split. ` +
+              `Illustrative example: $${exampleGCI.toLocaleString()} gross commission at ${(agentPct * 100).toFixed(0)}% split — ${hstLabel} on the full invoiced commission is ~$${exampleHST.toFixed(0)} (belongs to CRA), agent's split portion is $${exampleAgentGross.toFixed(0)}. ` +
+              `At ~${(marginalRate * 100).toFixed(0)}% marginal rate, income tax portion of the agent's split ~$${exampleTaxReserve.toFixed(0)}; remainder after income tax ~$${exampleTakeHomeAgentHandled.toFixed(0)}. ` +
+              `Note: ${hstLabel} is calculated on the invoiced commission, not on the agent's split — the agent/brokerage split affects who keeps what, not the ${hstLabel} base. ` +
               `IMPORTANT: The ${hstLabel} portion is NOT the agent's money — it belongs to CRA. ` +
               `Spending it creates a tax debt that compounds with interest and penalties.`
             );

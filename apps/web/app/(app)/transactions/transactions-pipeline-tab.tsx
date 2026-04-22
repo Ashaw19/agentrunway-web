@@ -446,6 +446,11 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
       dealsThisMonth,
       totalDealsThisYear,
       estimatedMarginalRate: estMarginalRate,
+      // D-4 fix (Audit 1 2026-04-22): forward HST registration + brokerage-
+      // withholds flag so the per-deal celebration row zeros out for
+      // unregistered agents and brokerage-remits flows.
+      isGstHstRegistered: settings?.gst_hst_registered ?? false,
+      brokerageWithholdsHst: settings?.brokerage_withholds_hst ?? false,
     });
 
     setCloseTarget(null);

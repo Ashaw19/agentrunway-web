@@ -6,6 +6,12 @@ import {
   type EffectiveCashSettingsSlice,
   type SplitPreset,
 } from "../lib/effective-cash.ts";
+import {
+  computeHSTCollected,
+  computeHSTNetOwing,
+  gstHstLabel,
+  gstHstRate,
+} from "../lib/hst-engine.ts";
 
 // Canonical stage probabilities — mirrors packages/core/types/database.ts PIPELINE_STAGE_DEFAULTS
 const PIPELINE_STAGE_DEFAULTS: Record<string, number> = {
@@ -421,6 +427,130 @@ export function getAnalyticsTools(supabase: SupabaseClient, userId: string): Mcp
         };
       },
     },
+
+    // ── get_hst_status ──────────────────────────────────────────────────────
+    // D-4 fix (Audit 1, 2026-04-22): closes the MCP coverage gap on HST.
+    // Calls the canonical computeHSTCollected helper (mirrored from
+    // packages/core/engines/hst-engine.ts) so every surface — chat, dashboard,
+    // reports, forecast, MCP — returns the same HST cash-flow number for the
+    // same inputs. Respects both gst_hst_registered and
+    // brokerage_withholds_hst: a registered agent whose brokerage remits HST
+    // has an agent-side collected amount of $0 (the brokerage holds and
+    // remits it to CRA).
+    //
+    // ESTIMATE ONLY — this is a cash-flow view based on invoiced GCI to date,
+    // not a filing return. Verify with an accountant before making any filing
+    // or financial decision.
+    {
+      name: "get_hst_status",
+      description:
+        "Returns the agent's GST/HST status for the current year: registration flag, YTD GCI, collected amount, ITCs paid on expenses, net owing, remittance path (self vs brokerage), filing frequency, and the next filing period deadline. ESTIMATE ONLY — not tax advice.",
+      inputSchema: { type: "object", properties: {}, additionalProperties: false },
+      annotations: {
+        title: "GST/HST Status",
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      handler: async () => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const yearStart = `${year}-01-01`;
+        const today = now.toISOString().split("T")[0];
+
+        const [settingsRes, txRes] = await Promise.all([
+          supabase
+            .from("user_settings")
+            .select(
+              "province, gst_hst_registered, brokerage_withholds_hst, " +
+              "filing_frequency, gst_hst_paid_on_expenses, business_number",
+            )
+            .eq("user_id", userId)
+            .maybeSingle(),
+          supabase
+            .from("transactions")
+            .select("sale_price, commission_pct, gci_override, team_split_pct, date")
+            .eq("user_id", userId)
+            .eq("status", "closed")
+            .gte("date", yearStart)
+            .lte("date", today),
+        ]);
+
+        const settings = settingsRes.data;
+        const transactions = txRes.data ?? [];
+
+        // Mirrors the YTD GCI computation in get_dashboard_kpis and the
+        // dashboard — same columns, same fallback chain.
+        const ytdGCI = transactions.reduce((sum, tx) => {
+          if (tx.gci_override != null) return sum + tx.gci_override;
+          const raw = (tx.sale_price ?? 0) * (tx.commission_pct ?? 0.025);
+          return sum + ((tx.team_split_pct != null && tx.team_split_pct > 0)
+            ? raw * tx.team_split_pct
+            : raw);
+        }, 0);
+
+        const province = settings?.province ?? "ontario";
+        const hstRate = gstHstRate(province);
+        const label = gstHstLabel(province);
+        const isRegistered = settings?.gst_hst_registered ?? false;
+        const brokerageWithholdsHst = settings?.brokerage_withholds_hst ?? false;
+        const filingFrequency = (settings?.filing_frequency ?? "annual") as
+          | "monthly"
+          | "quarterly"
+          | "annual";
+        const itcsPaidOnExpenses = settings?.gst_hst_paid_on_expenses ?? 0;
+
+        // Canonical helper — never reimplement.
+        const collected = computeHSTCollected({
+          ytdGCI,
+          hstRate,
+          isRegistered,
+          brokerageWithholdsHst,
+        });
+        const netOwing = computeHSTNetOwing({
+          hstCollected: collected,
+          hstPaidOnExpenses: itcsPaidOnExpenses,
+        });
+
+        // Inlined mirror of filing-period-engine.ts next-deadline lookup.
+        // Assumes Dec 31 fiscal year-end (standard for most sole-prop
+        // realtors). KEEP IN SYNC with
+        // packages/core/engines/filing-period-engine.ts:getCurrentFilingPeriod.
+        const nextFilingPeriod = getNextFilingDeadline(filingFrequency, now);
+
+        // Remittance path: describes who physically remits — no verbs.
+        const remittancePath = !isRegistered
+          ? "not_registered"
+          : brokerageWithholdsHst
+          ? "brokerage_remits"
+          : "agent_self_remits";
+
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              disclaimer: "ESTIMATE ONLY — based on CRA-published rates and the agent's invoiced GCI to date. Not legal or tax advice. Verify with an accountant before making any filing or financial decision.",
+              as_of: today,
+              year,
+              province,
+              tax_label: label,
+              rate: hstRate,
+              is_registered: isRegistered,
+              business_number: settings?.business_number ?? null,
+              brokerage_withholds_hst: brokerageWithholdsHst,
+              remittance_path: remittancePath,
+              filing_frequency: filingFrequency,
+              ytd_gci: Math.round(ytdGCI),
+              ytd_collected: Math.round(collected),
+              itcs_paid_on_expenses: Math.round(itcsPaidOnExpenses),
+              net_owing: Math.round(netOwing),
+              next_filing_period: nextFilingPeriod,
+              source: "CRA — canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html",
+            }, null, 2),
+          }],
+        };
+      },
+    },
   ];
 }
 
@@ -445,4 +575,67 @@ function interpretScore(score: number): string {
   if (score >= 50) return "Fair — some areas need attention. Review pipeline coverage and goal pace.";
   if (score >= 35) return "Below average — take corrective action. Pipeline or expenses may be off-track.";
   return "Critical — significant gaps detected. Immediate review recommended.";
+}
+
+// ── HST filing-period helper ────────────────────────────────────────────────
+// Deliberate mirror of
+// packages/core/engines/filing-period-engine.ts — KEEP IN SYNC.
+// Assumes Dec 31 fiscal year-end (standard for most sole-prop realtors).
+// Returns the filing period whose end is the next upcoming deadline from
+// `now`; if the last period of the current year has already ended, returns
+// the first period of next year.
+function getNextFilingDeadline(
+  frequency: "monthly" | "quarterly" | "annual",
+  now: Date,
+): { label: string; period_start: string; period_end: string; deadline: string } {
+  const year = now.getFullYear();
+  const todayISO = now.toISOString().split("T")[0];
+
+  const periods = buildFilingPeriods(frequency, year);
+  // First period whose deadline is still in the future.
+  const next = periods.find((p) => p.deadline >= todayISO);
+  if (next) return next;
+
+  // All periods for this year are past — return first period of next year.
+  return buildFilingPeriods(frequency, year + 1)[0];
+}
+
+function buildFilingPeriods(
+  frequency: "monthly" | "quarterly" | "annual",
+  year: number,
+): Array<{ label: string; period_start: string; period_end: string; deadline: string }> {
+  const MONTH_NAMES = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ];
+  const lastDay = (y: number, m: number) => new Date(y, m, 0).getDate();
+  const iso = (y: number, m: number, d: number) =>
+    `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+  switch (frequency) {
+    case "monthly":
+      return Array.from({ length: 12 }, (_, i) => {
+        const m = i + 1;
+        const deadlineMonth = m === 12 ? 1 : m + 1;
+        const deadlineYear = m === 12 ? year + 1 : year;
+        const deadlineDay = lastDay(deadlineYear, deadlineMonth);
+        return {
+          label: `${MONTH_NAMES[i]} ${year}`,
+          period_start: iso(year, m, 1),
+          period_end: iso(year, m, lastDay(year, m)),
+          deadline: iso(deadlineYear, deadlineMonth, deadlineDay),
+        };
+      });
+    case "quarterly":
+      return [
+        { label: `Q1 ${year}`, period_start: iso(year, 1, 1),  period_end: iso(year, 3, 31),  deadline: iso(year,     4,  30) },
+        { label: `Q2 ${year}`, period_start: iso(year, 4, 1),  period_end: iso(year, 6, 30),  deadline: iso(year,     7,  31) },
+        { label: `Q3 ${year}`, period_start: iso(year, 7, 1),  period_end: iso(year, 9, 30),  deadline: iso(year,     10, 31) },
+        { label: `Q4 ${year}`, period_start: iso(year, 10, 1), period_end: iso(year, 12, 31), deadline: iso(year + 1, 3,  31) },
+      ];
+    case "annual":
+      return [
+        { label: `${year}`, period_start: iso(year, 1, 1), period_end: iso(year, 12, 31), deadline: iso(year + 1, 6, 15) },
+      ];
+  }
 }

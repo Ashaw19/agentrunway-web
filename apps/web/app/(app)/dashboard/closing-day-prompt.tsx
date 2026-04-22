@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { fmtCurrency } from "@/lib/formatters";
 import { computeEstimatedGCI } from "@/lib/types/database";
 import { gstHstRate, gstHstLabel, marginalRate } from "@/lib/engines/canadian-tax-engine";
+import { computeHSTCollected } from "@/lib/engines/hst-engine";
 import { useConfetti } from "@/hooks/use-confetti";
 import { CountUp } from "@/components/count-up";
 import { toast } from "sonner";
@@ -92,6 +93,7 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
   const [celebData, setCelebData] = useState<{
     gci: number; ytdGCIBefore: number; goalGCI: number; province: string;
     estimatedMarginalRate: number; dealsThisMonth: number; totalDealsThisYear: number;
+    isGstHstRegistered: boolean; brokerageWithholdsHst: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -169,7 +171,12 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
     const dealsYear  = ytdTransactions.filter(t => t.date?.startsWith(thisYear)).length + 1;
     const estRate    = marginalRate(Math.max(ytdBefore + gci, goalGCI), province);
 
-    setCelebData({ gci, ytdGCIBefore: ytdBefore, goalGCI, province, estimatedMarginalRate: estRate, dealsThisMonth: dealsMonth, totalDealsThisYear: dealsYear });
+    setCelebData({
+      gci, ytdGCIBefore: ytdBefore, goalGCI, province,
+      estimatedMarginalRate: estRate, dealsThisMonth: dealsMonth, totalDealsThisYear: dealsYear,
+      isGstHstRegistered: settings?.gst_hst_registered ?? false,
+      brokerageWithholdsHst: settings?.brokerage_withholds_hst ?? false,
+    });
     savingRef.current = false;
     setSaving(false);
     setMode("celebrate");
@@ -360,14 +367,24 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
 
 function CelebrationContent({ address, clientName: _clientName, celebData, quote, copied, onCopy, onClose }: {
   address: string; clientName: string;
-  celebData: { gci: number; ytdGCIBefore: number; goalGCI: number; province: string; estimatedMarginalRate: number; dealsThisMonth: number; totalDealsThisYear: number };
+  celebData: { gci: number; ytdGCIBefore: number; goalGCI: number; province: string; estimatedMarginalRate: number; dealsThisMonth: number; totalDealsThisYear: number; isGstHstRegistered: boolean; brokerageWithholdsHst: boolean };
   quote: string; copied: boolean; onCopy: () => void; onClose: () => void;
 }) {
-  const { gci, ytdGCIBefore, goalGCI, province, estimatedMarginalRate, dealsThisMonth, totalDealsThisYear } = celebData;
+  const { gci, ytdGCIBefore, goalGCI, province, estimatedMarginalRate, dealsThisMonth, totalDealsThisYear, isGstHstRegistered, brokerageWithholdsHst } = celebData;
 
+  // D-4 fix (Audit 1 2026-04-22): canonical HST helper. Returns 0 when the
+  // agent isn't registered OR the brokerage handles HST remittance — so the
+  // "reserve for sales tax" line correctly drops off in those cases.
   const salesTaxRate   = gstHstRate(province || "ontario");
   const salesTaxLabel  = gstHstLabel(province || "ontario");
-  const salesTaxAmt    = Math.round(gci * salesTaxRate);
+  const salesTaxAmt    = Math.round(
+    computeHSTCollected({
+      ytdGCI: gci,
+      hstRate: salesTaxRate,
+      isRegistered: isGstHstRegistered,
+      brokerageWithholdsHst,
+    }),
+  );
   const taxReserve     = Math.round(gci * estimatedMarginalRate);
   const funMoney       = Math.round(gci * 0.10);
   const keepInvest     = Math.max(0, gci - taxReserve - funMoney);

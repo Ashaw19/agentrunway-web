@@ -37,6 +37,7 @@ import {
   dailyPaceRequired,
 } from "@/lib/engines/projection-engine";
 import { calculate as calculateTax, gstHstRate, gstHstLabel, marginalRate } from "@/lib/engines/canadian-tax-engine";
+import { computeHSTCollected } from "@/lib/engines/hst-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { probabilityBands, fiveYearBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
@@ -208,11 +209,23 @@ export function ForecastContent({
     : null;
 
   // ── GST/HST collected on commissions (only for registered agents) ─────
+  // D-4 fix (Audit 1 2026-04-22): canonical HST helper respects
+  // `brokerageWithholdsHst` (returns 0 when brokerage remits). See hst-engine.ts.
   const isGstRegistered = settings.gst_hst_registered;
   const taxLabel = gstHstLabel(settings.province);
   const taxRate = gstHstRate(settings.province);
-  const gstHstCollectedYTD = isGstRegistered ? ytdGCI * taxRate : 0;
-  const gstHstCollectedProjected = isGstRegistered ? projectedGCI * taxRate : 0;
+  const gstHstCollectedYTD = computeHSTCollected({
+    ytdGCI,
+    hstRate: taxRate,
+    isRegistered: isGstRegistered ?? false,
+    brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
+  });
+  const gstHstCollectedProjected = computeHSTCollected({
+    ytdGCI: projectedGCI,
+    hstRate: taxRate,
+    isRegistered: isGstRegistered ?? false,
+    brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
+  });
 
   // ── CRA remittance calendar ────────────────────────────────────────────
   const today = new Date();

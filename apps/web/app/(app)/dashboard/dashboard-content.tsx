@@ -109,6 +109,7 @@ import {
 } from "@/lib/types/database";
 import { getCurrentFilingPeriod, deadlineUrgency } from "@agent-runway/core/engines/filing-period-engine";
 import { gstHstLabel, gstHstRate } from "@agent-runway/core/engines/canadian-tax-engine";
+import { computeHSTCollected } from "@agent-runway/core/engines/hst-engine";
 import {
   seasonalFractionElapsed,
   projectedYearEndGCI,
@@ -610,8 +611,18 @@ export function DashboardContent({
   // ── Cash Position (implied from YTD data) ─────────────────────────────
   // Computes what *should* be in the agent's business account based on
   // income earned minus expenses, tax set-aside, and HST owing.
+  // D-4 fix (Audit 1 2026-04-22): canonical HST helper respects
+  // `brokerageWithholdsHst`. Prior inline formula treated brokerage-withholding
+  // agents as still having YTD HST collected, which disagreed with the
+  // cash-position engine (which already zeroed owing when brokerage withholds).
+  // The helper aligns dashboard display with chat + MCP. See hst-engine.ts.
   const hstRateValue = settings ? gstHstRate(settings.province) : 0;
-  const ytdHstCollected = settings?.gst_hst_registered ? ytdGCI * hstRateValue : 0;
+  const ytdHstCollected = computeHSTCollected({
+    ytdGCI,
+    hstRate: hstRateValue,
+    isRegistered: settings?.gst_hst_registered ?? false,
+    brokerageWithholdsHst: settings?.brokerage_withholds_hst ?? false,
+  });
   const ytdHstOnExpenses = settings?.gst_hst_paid_on_expenses ? expensesYTD * (hstRateValue / (1 + hstRateValue)) : 0;
   const cashPosition: CashPositionResult = computeCashPosition({
     ytdGCI,

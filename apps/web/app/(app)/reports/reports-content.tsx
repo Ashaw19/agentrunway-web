@@ -80,6 +80,7 @@ import {
   gstHstRate,
   gstHstLabel,
 } from "@/lib/engines/canadian-tax-engine";
+import { computeHSTCollected } from "@/lib/engines/hst-engine";
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import { calculateCorporateTax } from "@/lib/engines/corporate-tax-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
@@ -330,7 +331,14 @@ export function ReportsContent({
   const taxBurden = corpTaxResult ? corpTaxResult.totalCombinedTax : personalTaxResult.totalBurden;
   const taxLabel = gstHstLabel(settings.province);
   const taxRate = gstHstRate(settings.province);
-  const gstHstCollectedYTD = settings.gst_hst_registered ? ytdGCI * taxRate : 0;
+  // D-4 fix (Audit 1 2026-04-22): canonical HST helper respects
+  // `brokerageWithholdsHst` (returns 0 when brokerage remits). See hst-engine.ts.
+  const gstHstCollectedYTD = computeHSTCollected({
+    ytdGCI,
+    hstRate: taxRate,
+    isRegistered: settings.gst_hst_registered ?? false,
+    brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
+  });
   const afterTaxNet = Math.max(0, netForTax - taxBurden);
 
   // ── Benchmark ─────────────────────────────────────────────────────────────────

@@ -31,6 +31,7 @@ import {
 } from "./cash-position-engine";
 import { calculate as calculateCanadianTax, gstHstRate } from "./canadian-tax-engine";
 import { calculateCorporateTax } from "./corporate-tax-engine";
+import { computeHSTCollected } from "./hst-engine";
 import { computeAgentGross, computeTxFees } from "../types/database";
 import type { UserSettings } from "../types/database";
 
@@ -275,8 +276,15 @@ export function computeEffectiveCashForSurvival(
   const ytdAgentNet = Math.max(0, ytdAgentGross - ytdTxFees - ytdBrokerageFees);
 
   // ── HST collected / ITCs on expenses ────────────────────────────────────
+  // D-4 fix (Audit 1 2026-04-22): canonical HST helper. Returns 0 if not
+  // registered OR brokerage withholds. See hst-engine.ts.
   const hstRateValue = gstHstRate(settings.province);
-  const ytdHstCollected = settings.gst_hst_registered ? ytdGCI * hstRateValue : 0;
+  const ytdHstCollected = computeHSTCollected({
+    ytdGCI,
+    hstRate: hstRateValue,
+    isRegistered: settings.gst_hst_registered ?? false,
+    brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
+  });
   // NOTE: dashboard treats `gst_hst_paid_on_expenses` as truthy (a 0 dollar
   // field disables the ITC adjustment). Preserve that behavior exactly.
   const ytdHstOnExpenses = settings.gst_hst_paid_on_expenses

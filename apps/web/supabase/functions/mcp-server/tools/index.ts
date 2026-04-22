@@ -71,6 +71,7 @@ export function buildToolRegistry(
                   "get_server_info",
                   // Analytics (Step 4)
                   "get_dashboard_kpis", "get_runway_score", "get_forecast", "get_tax_estimate",
+                  "get_hst_status",
                   // Transactions (Step 5)
                   "get_transactions", "get_transaction_summary",
                   // Pipeline (Step 6)
@@ -82,7 +83,7 @@ export function buildToolRegistry(
                   // Outreach + Settings (Step 9)
                   "get_flight_control_priorities", "get_user_settings",
                 ],
-                phase: "Phase 1 complete — all 16 tools live",
+                phase: "Phase 1 complete — 17 tools live",
               },
               null,
               2,

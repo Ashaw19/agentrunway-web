@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { CountUp } from "@/components/count-up";
 import { fmtCurrency } from "@/lib/formatters";
 import { gstHstRate, gstHstLabel } from "@/lib/engines/canadian-tax-engine";
+import { computeHSTCollected } from "@/lib/engines/hst-engine";
 import { cn } from "@/lib/utils";
 import {
   PartyPopper,
@@ -35,6 +36,10 @@ export interface CelebrationData {
   dealsThisMonth: number; // including this deal
   totalDealsThisYear: number; // including this deal
   estimatedMarginalRate: number; // 0–1 decimal
+  /** Optional — when omitted, defaults to `true` for backward-compat (legacy behavior was to always show HST). */
+  isGstHstRegistered?: boolean;
+  /** Optional — when omitted, defaults to `false` for backward-compat. */
+  brokerageWithholdsHst?: boolean;
 }
 
 interface Props {
@@ -86,15 +91,26 @@ export function DealCloseCelebration({ open, onClose, data }: Props) {
     dealsThisMonth,
     totalDealsThisYear,
     estimatedMarginalRate,
+    isGstHstRegistered = true,
+    brokerageWithholdsHst = false,
   } = data;
 
   const [quote] = useState(randomQuote);
   const [copied, setCopied] = useState(false);
 
   // Financial allocations
+  // D-4 fix (Audit 1 2026-04-22): canonical HST helper. Returns 0 when the
+  // agent isn't registered OR the brokerage handles HST remittance.
   const salesTaxRate = gstHstRate(province || "ontario");
   const salesTaxLabel = gstHstLabel(province || "ontario");
-  const salesTaxAmount  = Math.round(gci * salesTaxRate);
+  const salesTaxAmount  = Math.round(
+    computeHSTCollected({
+      ytdGCI: gci,
+      hstRate: salesTaxRate,
+      isRegistered: isGstHstRegistered,
+      brokerageWithholdsHst,
+    }),
+  );
   const taxReserve      = Math.round(gci * estimatedMarginalRate);
   const funMoney        = Math.round(gci * 0.10);
   const keepAndInvest   = Math.max(0, gci - taxReserve - funMoney);
