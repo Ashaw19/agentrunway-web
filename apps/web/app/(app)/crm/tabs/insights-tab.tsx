@@ -430,14 +430,14 @@ export function InsightsTab({
                   Repeat Clients
                 </p>
                 {grouped
-                  .filter((g) => g.dealCount > 1)
-                  .sort((a, b) => b.dealCount - a.dealCount)
+                  .filter((g) => closedCount(g) > 1)
+                  .sort((a, b) => closedCount(b) - closedCount(a))
                   .slice(0, 8)
                   .map((g) => (
                     <div key={g.name} className="flex items-center justify-between text-xs">
                       <span className="text-foreground font-medium truncate mr-2">{g.name}</span>
                       <span className="text-muted-foreground shrink-0">
-                        {g.dealCount} deals · {g.years.join(", ")}
+                        {closedCount(g)} deals · {g.years.join(", ")}
                       </span>
                     </div>
                   ))}

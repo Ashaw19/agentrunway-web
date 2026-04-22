@@ -40,6 +40,7 @@ const PROTECTED_PREFIXES = [
   "/tax",
   "/guide",
   "/oauth",
+  "/inbox",
 ];
 
 export async function updateSession(request: NextRequest) {

@@ -11,6 +11,7 @@ const cadFormatter = new Intl.NumberFormat("en-CA", {
 
 /** Format as CAD currency (no cents): CA$125,000 */
 export function fmtCurrency(value: number): string {
+  if (!Number.isFinite(value)) return "—";
   return cadFormatter.format(value);
 }
 
@@ -24,6 +25,7 @@ export function fmtPct(value: number): string {
 
 /** Format as compact currency: $125K, $1.2M */
 export function fmtCompact(value: number): string {
+  if (!Number.isFinite(value)) return "—";
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`;
   return `$${value.toFixed(0)}`;

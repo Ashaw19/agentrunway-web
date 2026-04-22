@@ -577,26 +577,27 @@ export function computeIntelligenceBriefing(
       if (parts.length === 3) {
         const mm = parseInt(parts[1]) - 1;
         const dd = parseInt(parts[2]);
-        if (mm < 0 || mm > 11 || dd < 1 || dd > 31) continue;
-        const thisYearBday = new Date(now.getFullYear(), mm, dd);
-        const nextBday =
-          thisYearBday.getTime() < now.getTime() - 86_400_000
-            ? new Date(now.getFullYear() + 1, mm, dd)
-            : thisYearBday;
-        const daysUntil = Math.floor((nextBday.getTime() - now.getTime()) / 86_400_000);
-        if (daysUntil <= 14) {
-          const label =
-            daysUntil <= 0 ? "today!" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil} days`;
-          items.push({
-            id: `bday_${client.id}_${nextBday.getFullYear()}`,
-            type: daysUntil <= 1 ? "birthday_today" : "birthday_soon",
-            severity: daysUntil <= 1 ? "urgent" : "upcoming",
-            clientId: client.id,
-            clientName: client.name,
-            title: `${client.name} — birthday ${label}`,
-            detail: nextBday.toLocaleDateString("en-CA", { month: "long", day: "numeric" }),
-            daysValue: Math.max(0, daysUntil),
-          });
+        if (!isNaN(mm) && !isNaN(dd) && mm >= 0 && mm <= 11 && dd >= 1 && dd <= 31) {
+          const thisYearBday = new Date(now.getFullYear(), mm, dd);
+          const nextBday =
+            thisYearBday.getTime() < now.getTime() - 86_400_000
+              ? new Date(now.getFullYear() + 1, mm, dd)
+              : thisYearBday;
+          const daysUntil = Math.floor((nextBday.getTime() - now.getTime()) / 86_400_000);
+          if (daysUntil <= 14) {
+            const label =
+              daysUntil <= 0 ? "today!" : daysUntil === 1 ? "tomorrow" : `in ${daysUntil} days`;
+            items.push({
+              id: `bday_${client.id}_${nextBday.getFullYear()}`,
+              type: daysUntil <= 1 ? "birthday_today" : "birthday_soon",
+              severity: daysUntil <= 1 ? "urgent" : "upcoming",
+              clientId: client.id,
+              clientName: client.name,
+              title: `${client.name} — birthday ${label}`,
+              detail: nextBday.toLocaleDateString("en-CA", { month: "long", day: "numeric" }),
+              daysValue: Math.max(0, daysUntil),
+            });
+          }
         }
       }
     }
