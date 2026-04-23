@@ -23,6 +23,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // ── CASA shelf guard ─────────────────────────────────────────────────────
+    return NextResponse.json(
+      { error: "Google integration is temporarily unavailable." },
+      { status: 503 }
+    );
+
     const days = Math.min(
       parseInt(req.nextUrl.searchParams.get("days") ?? "7", 10) || 7,
       90

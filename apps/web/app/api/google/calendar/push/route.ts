@@ -48,6 +48,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // ── CASA shelf guard ─────────────────────────────────────────────────────
+  return NextResponse.json(
+    { error: "Google integration is temporarily unavailable." },
+    { status: 503 }
+  );
+
   const body = (await req.json()) as PushBody;
 
   if (!body.title || !body.start_at || !body.end_at) {

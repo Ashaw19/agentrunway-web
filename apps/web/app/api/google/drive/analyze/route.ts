@@ -58,6 +58,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // ── CASA shelf guard ─────────────────────────────────────────────────────
+  return NextResponse.json(
+    { error: "Google integration is temporarily unavailable." },
+    { status: 503 }
+  );
+
   const proCheck = await requirePro(supabase, user.id);
   if (!proCheck.allowed) return proCheck.response!;
 

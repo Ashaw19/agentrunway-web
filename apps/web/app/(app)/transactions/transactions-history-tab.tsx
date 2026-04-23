@@ -1213,7 +1213,10 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
                     ))}
                   </select>
                 </div>
-                <Button onClick={handleAddYear}>Save &amp; Add Quarterly Data</Button>
+                {addSplitPct === null && (
+                  <p className="text-xs text-destructive">Select a brokerage split before saving.</p>
+                )}
+                <Button onClick={handleAddYear} disabled={addSplitPct === null}>Save &amp; Add Quarterly Data</Button>
               </div>
             </DialogContent>
           </Dialog>
@@ -1351,9 +1354,21 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
                 <Button variant="ghost" size="sm" onClick={handleImportClose} disabled={importStatus === "saving"}>
                   Cancel
                 </Button>
-                <Button onClick={handleBatchSave} disabled={importStatus === "saving"}>
+                <Button
+                  onClick={handleBatchSave}
+                  disabled={
+                    importStatus === "saving" ||
+                    batchImportData.some(
+                      (yr) => (batchSplitPcts[yr.year] ?? yr.split_pct ?? settingsSplit ?? null) === null
+                    )
+                  }
+                >
                   {importStatus === "saving" ? (
                     <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</>
+                  ) : batchImportData.some(
+                      (yr) => (batchSplitPcts[yr.year] ?? yr.split_pct ?? settingsSplit ?? null) === null
+                    ) ? (
+                    "Select split for each year above"
                   ) : (
                     `Import All ${batchImportData.length} Years`
                   )}
@@ -1657,10 +1672,12 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
                 </Button>
                 <Button
                   onClick={handleSaveImport}
-                  disabled={importStatus === "saving"}
+                  disabled={importStatus === "saving" || importSplitPct === null}
                 >
                   {importStatus === "saving" ? (
                     <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</>
+                  ) : importSplitPct === null ? (
+                    "Select brokerage split above"
                   ) : items.some((i) => i.year === importData.year) ? (
                     `Replace ${importData.year} Data`
                   ) : (

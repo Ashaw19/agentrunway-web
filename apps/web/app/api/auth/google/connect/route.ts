@@ -31,6 +31,14 @@ export async function GET() {
     return NextResponse.json({ error: "Sign in required." }, { status: 401 });
   }
 
+  // ── CASA shelf guard ─────────────────────────────────────────────────────
+  // Google integration is shelved pending CASA security audit. Block new
+  // connections unconditionally until the audit is complete.
+  return NextResponse.json(
+    { error: "Google integration is temporarily unavailable." },
+    { status: 503 }
+  );
+
   // ── Check env vars ────────────────────────────────────────────────────────
   const clientId = process.env.GOOGLE_CLIENT_ID;
   if (!clientId) {

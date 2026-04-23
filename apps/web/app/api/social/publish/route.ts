@@ -219,9 +219,17 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[social/publish] Error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Publishing failed" },
-      { status: 500 },
-    );
+    const raw = err instanceof Error ? err.message : "";
+    // Translate known Meta API error shapes; fall back to generic message
+    // so internal endpoint details / auth hints are never exposed to the client.
+    let userMessage = "Publishing failed — please try again.";
+    if (/token|session|expired|auth/i.test(raw)) {
+      userMessage = "Instagram connection expired — reconnect in Settings.";
+    } else if (/rate.?limit|too many/i.test(raw)) {
+      userMessage = "Instagram rate limit reached — please wait a few minutes and try again.";
+    } else if (/permission|scope/i.test(raw)) {
+      userMessage = "Missing Instagram permission — reconnect your account in Settings.";
+    }
+    return NextResponse.json({ error: userMessage }, { status: 500 });
   }
 }

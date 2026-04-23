@@ -39,6 +39,12 @@ export async function POST(): Promise<NextResponse> {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // ── CASA shelf guard ─────────────────────────────────────────────────────
+  return NextResponse.json(
+    { error: "Google integration is temporarily unavailable." },
+    { status: 503 }
+  );
+
   // ── Fetch Google connection ─────────────────────────────────────────────
   const { data: conn, error: connErr } = await supabase
     .from("google_connections")

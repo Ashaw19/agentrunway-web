@@ -21,6 +21,13 @@ export async function GET(req: NextRequest) {
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://agentrunway.ca";
 
+  // ── CASA shelf guard ─────────────────────────────────────────────────────
+  // Google integration is shelved pending CASA security audit.
+  // Redirect to settings with an informational error rather than processing tokens.
+  return NextResponse.redirect(
+    `${siteUrl}/settings?google_error=integration_unavailable`
+  );
+
   // ── User declined or error ──────────────────────────────────────────────
   if (!code || errorMsg) {
     const reason = errorMsg ?? "declined";
