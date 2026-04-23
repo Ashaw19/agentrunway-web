@@ -80,13 +80,17 @@ export async function updateSession(request: NextRequest) {
   );
 
   // ── Step 2: Resolve the current user ────────────────────────────────────
-  // Wrapped in try/catch: if Supabase Auth is temporarily unavailable, we
-  // fail open (treat as unauthenticated) rather than crashing the middleware
-  // and returning a 500 to every visitor.
+  // Wrapped in try/catch with a 1200ms timeout: Vercel edge middleware has a
+  // hard wall-clock limit (~1.5s). If Supabase Auth is slow we fail open
+  // (treat as unauthenticated) so the middleware returns instead of timing out
+  // and serving a 504 to every visitor.
   let user: { id: string } | null = null;
   try {
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
+    const authCall = supabase.auth.getUser().then((r) => r.data.user);
+    const timeout = new Promise<null>((resolve) =>
+      setTimeout(() => resolve(null), 1200),
+    );
+    user = await Promise.race([authCall, timeout]);
   } catch (err) {
     log.error({ err, requestId }, "[middleware] supabase.auth.getUser() threw");
     // user stays null — protected routes will redirect to /login below
