@@ -57,7 +57,8 @@ interface UserSettings {
   use_national_seasonality: boolean;
   national_quarter_pcts: number[] | null;
   business_structure: string;
-  gst_registered: boolean;
+  gst_hst_registered: boolean;
+  business_number: string | null;
   home_office_method: string;
   vehicle_business_pct: number;
   board_code: string | null;
@@ -407,7 +408,7 @@ function diagTax(ctx: DiagContext): string {
   return `[TAX DIAGNOSTIC]
 Province: ${s.province}
 Business Structure: ${s.business_structure ?? "sole_prop"}
-GST/HST Registered: ${s.gst_registered ? "Yes" : "No"}
+GST/HST Registered: ${(s.gst_hst_registered || !!s.business_number) ? "Yes" : "No"}
 Projected Annual GCI: ${fmtCurrency(projGCI)}
 Agent Split: ${(agentPct * 100).toFixed(0)}% → Projected Agent Net (split only): ${fmtCurrency(projectedAgentNet)}
 Net Self-Employment Income (after tx fees, brokerage fees, and expenses): ${fmtCurrency(netSEIncome)}
@@ -671,7 +672,7 @@ Post-Cap Rate: ${((s.post_cap_rate_pct ?? 0) * 100).toFixed(1)}%
 Cash Reserve: ${fmtCurrency(s.cash_reserve ?? 0)}
 Annual GCI Goal: ${s.goal_gci > 0 ? fmtCurrency(s.goal_gci) : "NOT SET"}
 Experience Years: ${s.experience_years ?? "NOT SET"}
-GST/HST Registered: ${s.gst_registered ? "Yes" : "No"}
+GST/HST Registered: ${(s.gst_hst_registered || !!s.business_number) ? "Yes" : "No"}
 Home Office Method: ${s.home_office_method ?? "none"}
 Vehicle Business Use: ${s.vehicle_business_pct ?? 0}%
 Seasonal Weights: ${s.seasonal_weights ? `Custom [${s.seasonal_weights.join(", ")}]` : "National default"}

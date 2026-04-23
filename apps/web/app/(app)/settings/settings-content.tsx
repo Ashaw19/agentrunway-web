@@ -514,12 +514,16 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
 
   async function saveFiling() {
     setSavingFiling(true);
+    const trimmedBN = businessNumber.trim();
     const { error } = await supabase
       .from("user_settings")
       .update({
         filing_frequency: filingFrequency,
-        business_number: businessNumber.trim(),
+        business_number: trimmedBN,
         fiscal_year_end_month: parseInt(fiscalYearEnd) || 12,
+        // Entering a CRA BN is conclusive proof of GST/HST registration.
+        // Only flip to true — never flip back to false from here.
+        ...(trimmedBN ? { gst_hst_registered: true } : {}),
       })
       .eq("user_id", settings.user_id);
     setSavingFiling(false);

@@ -545,7 +545,7 @@ export async function POST(req: NextRequest) {
         const ytdHstCollected = computeHSTCollected({
           ytdGCI,
           hstRate: hstRateValue,
-          isRegistered: settings.gst_hst_registered ?? false,
+          isRegistered: settings.gst_hst_registered || !!settings.business_number,
           brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
         });
         const ytdHstOnExpenses = settings.gst_hst_paid_on_expenses
@@ -849,7 +849,7 @@ export async function POST(req: NextRequest) {
           const totalHSTCollected = computeHSTCollected({
             ytdGCI,
             hstRate: hstRateLocal,
-            isRegistered: settings.gst_hst_registered ?? false,
+            isRegistered: settings.gst_hst_registered || !!settings.business_number,
             brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
           });
           const receiptDetails = (receiptDetailsRows ?? []) as { total_amount?: number | null; tax_amount?: number | null; category_key?: string | null }[];
@@ -860,7 +860,7 @@ export async function POST(req: NextRequest) {
             const contextLine = settings.brokerage_withholds_hst
               ? `Brokerage withholds ${hstLabelLocal} and remits to CRA — agent-side collected view is $0. ` +
                 `The filing view (T2125 / GST34) still reports the collected amount on invoiced GCI — that's a filing matter, not a cash-flow one. `
-              : !settings.gst_hst_registered
+              : !(settings.gst_hst_registered || !!settings.business_number)
                 ? `Agent is not registered for ${hstLabelLocal}. CRA requires registration when taxable supplies exceed $30,000 over four consecutive calendar quarters. `
                 : "";
             taxIntelLines.push(
