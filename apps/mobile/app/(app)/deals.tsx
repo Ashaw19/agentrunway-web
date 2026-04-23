@@ -520,7 +520,7 @@ function PipelineCard({ deal, onPress }: { deal: PipelineDeal; onPress: () => vo
 
   const sc = STAGE_COLORS[deal.stage] ?? c.textDim;
   const defaultProb =
-    { lead: 10, showing: 25, offer: 50, conditional: 75, firm: 90 }[deal.stage] ?? 50;
+    { lead: 10, showing: 25, offer: 50, conditional: 75, firm: 90, closed: 100 }[deal.stage] ?? 50;
   const prob =
     deal.probability_override != null
       ? Math.round(deal.probability_override * 100)
@@ -1005,6 +1005,7 @@ function AddTransactionModal({
       sale_price: salePrice!,
       commission_pct: pct!,
       gci_override: null,
+      team_split_pct: null,
       side,
       status: "closed",
       client_name: null,

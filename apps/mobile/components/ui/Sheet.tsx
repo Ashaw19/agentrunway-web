@@ -22,7 +22,7 @@ interface SheetProps {
   visible: boolean;
   onClose: () => void;
   title?: string;
-  maxHeight?: string;
+  maxHeight?: number | `${number}%`;
   children: React.ReactNode;
 }
 

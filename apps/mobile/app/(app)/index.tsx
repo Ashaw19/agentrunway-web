@@ -702,7 +702,7 @@ export default function DashboardScreen() {
           ]}
         >
           <LinearGradient
-            colors={g.heroCard as string[]}
+            colors={g.heroCard as [string, string, ...string[]]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={{ paddingVertical: Space.xxl, paddingHorizontal: Space.xxl, alignItems: "center" }}
@@ -866,7 +866,7 @@ export default function DashboardScreen() {
             </View>
             <View style={{ height: 8, borderRadius: 4, backgroundColor: "rgba(128,128,128,0.10)", overflow: "hidden" }}>
               <LinearGradient
-                colors={goalPct >= 100 ? (g.successBar as string[]) : (g.progressBar as string[])}
+                colors={goalPct >= 100 ? (g.successBar as [string, string, ...string[]]) : (g.progressBar as [string, string, ...string[]])}
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                 style={{ height: 8, borderRadius: 4, width: `${Math.min(goalPct, 100)}%` as DimensionValue }}
               />
@@ -937,7 +937,7 @@ export default function DashboardScreen() {
               >
                 <View style={{
                   width: 4, height: 32, borderRadius: 2,
-                  backgroundColor: ({ lead: "#6B7280", showing: "#3B82F6", offer: "#F59E0B", conditional: "#8B5CF6", firm: "#10B981" }[deal.stage] ?? c.textDim),
+                  backgroundColor: ({ lead: "#6B7280", showing: "#3B82F6", offer: "#F59E0B", conditional: "#8B5CF6", firm: "#10B981", closed: "#10B981" }[deal.stage] ?? c.textDim),
                 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ ...Type.bodyBold, color: c.text }} numberOfLines={1}>

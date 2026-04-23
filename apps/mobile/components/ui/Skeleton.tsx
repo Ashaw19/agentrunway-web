@@ -8,8 +8,8 @@ import { Animated, type ViewStyle } from "react-native";
 import { useColors, Radius } from "@/lib/theme";
 
 interface SkeletonProps {
-  width: number | string;
-  height: number | string;
+  width: number | `${number}%`;
+  height: number | `${number}%`;
   borderRadius?: number;
   style?: ViewStyle;
 }

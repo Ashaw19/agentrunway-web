@@ -124,7 +124,7 @@ export default function AppLayout() {
                 }}
               >
                 <LinearGradient
-                  colors={g.mic as string[]}
+                  colors={g.mic as [string, string, ...string[]]}
                   style={{
                     width: 56,
                     height: 56,

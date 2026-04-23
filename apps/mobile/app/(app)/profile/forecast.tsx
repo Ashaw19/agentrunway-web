@@ -59,7 +59,7 @@ export default function ForecastScreen() {
     // Pipeline contribution (weighted)
     const pipelineWeighted = store.pipeline.reduce((sum, d) => {
       const prob = d.probability_override ??
-        ({ lead: 0.1, showing: 0.25, offer: 0.5, conditional: 0.75, firm: 0.9 }[d.stage] ?? 0.5);
+        ({ lead: 0.1, showing: 0.25, offer: 0.5, conditional: 0.75, firm: 0.9, closed: 1.0 }[d.stage] ?? 0.5);
       return sum + d.estimated_price * d.estimated_commission_pct * prob;
     }, 0);
 
@@ -110,7 +110,7 @@ export default function ForecastScreen() {
       >
         {/* ── Projection Hero Card ── */}
         <View style={[{ borderRadius: Radius.xl, overflow: "hidden", marginBottom: Space.xxl }, sh.cardLg]}>
-          <LinearGradient colors={g.heroCard as string[]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: Space.xxl }}>
+          <LinearGradient colors={g.heroCard as [string, string, ...string[]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ padding: Space.xxl }}>
             <Text style={{ ...Type.label, color: c.textMuted, marginBottom: Space.sm }}>{t("forecast.projectedYearEndGci")}</Text>
             <Text style={{ fontSize: 36, fontWeight: "800", color: forecast.onTrackGci ? c.success : c.warning, letterSpacing: -1 }}>
               {fmtCurrency(forecast.projectedGci)}
@@ -128,7 +128,7 @@ export default function ForecastScreen() {
                 </View>
                 <View style={{ height: 8, borderRadius: 4, backgroundColor: "rgba(128,128,128,0.15)", overflow: "hidden" }}>
                   <LinearGradient
-                    colors={goalPct >= 100 ? (g.successBar as string[]) : (g.progressBar as string[])}
+                    colors={goalPct >= 100 ? (g.successBar as [string, string, ...string[]]) : (g.progressBar as [string, string, ...string[]])}
                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                     style={{ height: 8, borderRadius: 4, width: `${Math.min(goalPct, 100)}%` as any }}
                   />

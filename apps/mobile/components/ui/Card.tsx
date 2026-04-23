@@ -82,7 +82,7 @@ export function Card({
   const content =
     variant === "gradient" ? (
       <LinearGradient
-        colors={gradients(mode).heroCard as string[]}
+        colors={gradients(mode).heroCard as [string, string, ...string[]]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[baseStyle, variantStyle, style]}

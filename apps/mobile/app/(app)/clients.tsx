@@ -1523,10 +1523,11 @@ function AddClientSheet({
       email: email.trim().slice(0, FIELD_LIMITS.email) || null,
       phone: phone.trim().slice(0, FIELD_LIMITS.phone) || null,
       status: "boarding",
-      tags: [],
+      tags: [] as string[],
       lead_source: null,
       last_contact_at: null,
       notes: null,
+      birthdate: null,
     });
     setSaving(false);
     if (ok) {
