@@ -49,7 +49,7 @@ import {
   deviationPromptFragment,
 } from "@agent-runway/core/engines/deviation-engine";
 import { generateInsights, type Insight } from "@agent-runway/core/engines/insights-engine";
-import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
+import { totalRecurringMonthly, totalRecurringYTD, totalRecurringHSTYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { getCurrentFilingPeriod, deadlineUrgency } from "@agent-runway/core/engines/filing-period-engine";
 
 import type { RecurringExpense, FilingFrequency } from "@/lib/types/database";
@@ -853,7 +853,9 @@ export async function POST(req: NextRequest) {
             brokerageWithholdsHst: settings.brokerage_withholds_hst ?? false,
           });
           const receiptDetails = (receiptDetailsRows ?? []) as { total_amount?: number | null; tax_amount?: number | null; category_key?: string | null }[];
-          const totalITCsClaimed = receiptDetails.reduce((sum, r) => sum + Number(r.tax_amount ?? 0), 0);
+          const receiptITCs = receiptDetails.reduce((sum, r) => sum + Number(r.tax_amount ?? 0), 0);
+          const recurringITCs = totalRecurringHSTYTD(recurringExps);
+          const totalITCsClaimed = receiptITCs + recurringITCs;
           const netHST = totalHSTCollected - totalITCsClaimed;
           if (ytdGCI > 0) {
             const hstLabelLocal = gstHstLabel((settings.province ?? "ontario") as Parameters<typeof gstHstLabel>[0]);

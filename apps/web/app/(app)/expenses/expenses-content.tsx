@@ -89,6 +89,7 @@ import {
   deadlineUrgency,
 } from "@agent-runway/core/engines/filing-period-engine";
 import { computeGST34 } from "@agent-runway/core/engines/gst34-engine";
+import { totalRecurringHSTForPeriod } from "@agent-runway/core/engines/recurring-expense-engine";
 import { gstHstLabel } from "@agent-runway/core/engines/canadian-tax-engine";
 import { reconcileDeals, type ReconciliationResult, type ImportedDeal } from "@agent-runway/core/engines/reconciliation-engine";
 import { selectTaxTips, TIP_CATEGORY_LABELS } from "@agent-runway/core/engines/tax-iq-engine";
@@ -197,6 +198,12 @@ export function ExpensesContent({
     });
   }, [receipts, activePeriod]);
 
+  // ── Recurring expenses ──────────────────────────────────────────────────
+  // Seeded server-side so Survival/Runway metrics render with full data on first paint.
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>(recurringExpensesSeed);
+  const [recurringDialogOpen, setRecurringDialogOpen] = useState(false);
+  const [editingRecurring, setEditingRecurring] = useState<RecurringExpense | null>(null);
+
   // ── GST34 pre-fill computation ─────────────────────────────────────────
   const gst34Result = useMemo(() => {
     if (!activePeriod || !settings) return null;
@@ -205,19 +212,30 @@ export function ExpensesContent({
       const d = tx.date;
       return d >= activePeriod.startDate && d <= activePeriod.endDate;
     });
+    const recurringHST = totalRecurringHSTForPeriod(
+      recurringExpenses,
+      activePeriod.startDate,
+      activePeriod.endDate,
+    );
     return computeGST34({
       province: settings.province,
       period: activePeriod,
       frequency: filingFreq,
       periodTransactions: periodTx.map((tx) => ({ gci: computeGCI(tx) })),
-      periodReceipts: filteredReceipts.map((r) => ({
-        total_amount: r.total_amount,
-        tax_amount: r.tax_amount,
-        category_key: r.category_key,
-      })),
+      periodReceipts: [
+        ...filteredReceipts.map((r) => ({
+          total_amount: r.total_amount,
+          tax_amount: r.tax_amount,
+          category_key: r.category_key,
+        })),
+        // Include HST paid on recurring expenses as ITCs
+        ...(recurringHST > 0
+          ? [{ total_amount: null, tax_amount: recurringHST, category_key: null }]
+          : []),
+      ],
       instalmentsPaid: 0, // User can enter this in Reports tab
     });
-  }, [activePeriod, settings, transactions, filteredReceipts, filingFreq]);
+  }, [activePeriod, settings, transactions, filteredReceipts, filingFreq, recurringExpenses]);
 
   // ── Current period deadline alert ──────────────────────────────────────
   const currentDeadline = useMemo(() => {
@@ -227,12 +245,6 @@ export function ExpensesContent({
   // ── Receipt view / edit ────────────────────────────────────────────────────
   const [viewReceipt,  setViewReceipt]  = useState<ReceiptExpense | null>(null);
   const [viewOpen,     setViewOpen]     = useState(false);
-
-  // ── Recurring expenses ──────────────────────────────────────────────────
-  // Seeded server-side so Survival/Runway metrics render with full data on first paint.
-  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>(recurringExpensesSeed);
-  const [recurringDialogOpen, setRecurringDialogOpen] = useState(false);
-  const [editingRecurring, setEditingRecurring] = useState<RecurringExpense | null>(null);
   const [reName, setReName] = useState("");
   const [reAmount, setReAmount] = useState("");
   const [reCategory, setReCategory] = useState("");
