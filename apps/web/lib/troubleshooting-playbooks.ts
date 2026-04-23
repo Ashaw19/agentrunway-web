@@ -916,9 +916,10 @@ Example: $500/month + 3% per deal, capped at $20,000/year. After cap → 0% per 
 - monthlyRecurring: sum of all active recurring expense amounts (monthly + prorated quarterly/annual)
 - NOTE: This does NOT use YTD expenses ÷ months elapsed — it uses the configured recurring amounts only
 
-**Income Offset** = Pipeline Weighted GCI × 50% ÷ 12
+**Income Offset** = Pipeline Weighted GCI ÷ max(1, 12 − months elapsed)
 - This is the pipeline monthly estimate used to offset burn
 - NOT YTD Agent Net ÷ months elapsed — it is forward-looking (pipeline-based)
+- Divisor is remaining months of the year (minimum 1): late-year pipeline is spread across fewer months, so the monthly offset is larger
 
 **Net Burn** = Monthly Burn − Income Offset
 
@@ -964,7 +965,7 @@ Example: $500/month + 3% per deal, capped at $20,000/year. After cap → 0% per 
 **"Survival seems too low"**
 1. Check cash reserve amount in Settings — is it current?
 2. Monthly burn = monthly_brokerage_fee + monthly recurring expenses (NOT one-time receipts). One-time expenses do NOT affect survival burn.
-3. Check if pipeline is thin — the income offset is pipeline weighted GCI × 50% ÷ 12. Empty pipeline = $0 income offset.
+3. Check if pipeline is thin — the income offset is pipeline weighted GCI ÷ remaining months. Empty pipeline = $0 income offset.
 4. Large pipeline deals increase the income offset and reduce net burn, improving survival.
 
 **"How do I improve survival?"**
