@@ -32,7 +32,7 @@ export default async function FlightControlPage() {
   const now        = new Date();
   const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
 
-  const [sentCountRes, newslettersRes, googleConnRes] = await Promise.all([
+  const [sentCountRes, newslettersRes] = await Promise.all([
     supabase
       .from("outreach_queue")
       .select("id", { count: "exact", head: true })
@@ -46,15 +46,7 @@ export default async function FlightControlPage() {
       .in("status", ["draft", "ready"])
       .order("created_at", { ascending: false })
       .limit(10000),
-    supabase
-      .from("google_connections")
-      .select("id, email_address, gmail_send_enabled")
-      .eq("user_id", user.id)
-      .maybeSingle(),
   ]);
-
-  const gmailConnected = !!(googleConnRes.data?.gmail_send_enabled);
-  const gmailEmail     = googleConnRes.data?.email_address ?? null;
 
   return (
     <FlightControlContent
@@ -63,8 +55,6 @@ export default async function FlightControlPage() {
       initialSignature={(settingsRow?.email_signature as string) ?? ""}
       initialVoiceGuide={(settingsRow?.ai_voice_guide as string | null) ?? ""}
       initialNewsletters={(newslettersRes.data ?? []) as NewsletterQueue[]}
-      gmailConnected={gmailConnected}
-      gmailEmail={gmailEmail}
     />
   );
 }

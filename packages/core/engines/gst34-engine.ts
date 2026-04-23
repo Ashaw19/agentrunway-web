@@ -170,6 +170,15 @@ export function computeGST34(input: GST34Input): GST34Result {
     ? "14.975%"
     : `${(rate * 100).toFixed(0)}%`;
 
+  // Real receipts have total_amount set; the synthetic recurring-HST entry has total_amount: null
+  const eligibleReceiptCount = periodReceipts.filter(
+    (r) => (Number(r.tax_amount) || 0) > 0 && r.total_amount !== null
+  ).length;
+  const hasRecurringHST = periodReceipts.some(
+    (r) => (Number(r.tax_amount) || 0) > 0 && r.total_amount === null
+  );
+  const itcNote = `${label} paid on ${eligibleReceiptCount} eligible expense receipt${eligibleReceiptCount !== 1 ? "s" : ""}${hasRecurringHST ? " + recurring expenses" : ""}`;
+
   const lines: GST34Line[] = [
     {
       line: "101",
@@ -193,7 +202,7 @@ export function computeGST34(input: GST34Input): GST34Result {
       line: "106",
       label: "Input Tax Credits (ITCs)",
       amount: line106,
-      note: `${label} paid on ${periodReceipts.filter((r) => (Number(r.tax_amount) || 0) > 0).length} eligible expense receipt${periodReceipts.filter((r) => (Number(r.tax_amount) || 0) > 0).length !== 1 ? "s" : ""}`,
+      note: itcNote,
     },
     ...(mealITCReduction > 0
       ? [

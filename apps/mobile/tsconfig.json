@@ -3,9 +3,17 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"],
+      "@agent-runway/i18n/mobile/en/*":    ["../../packages/i18n/mobile/en/*"],
+      "@agent-runway/i18n/mobile/fr-CA/*": ["../../packages/i18n/mobile/fr-CA/*"],
+      "@agent-runway/i18n/mobile/zh/*":    ["../../packages/i18n/mobile/zh/*"],
+      "@agent-runway/i18n/mobile/pa/*":    ["../../packages/i18n/mobile/pa/*"],
+      "@agent-runway/i18n/mobile/yue/*":   ["../../packages/i18n/mobile/yue/*"],
+      "@agent-runway/i18n/mobile/es/*":    ["../../packages/i18n/mobile/es/*"],
+      "@agent-runway/i18n/mobile/tl/*":    ["../../packages/i18n/mobile/tl/*"],
+      "@agent-runway/i18n/mobile/ar/*":    ["../../packages/i18n/mobile/ar/*"],
+      "@agent-runway/i18n/mobile/hi/*":    ["../../packages/i18n/mobile/hi/*"],
+      "@agent-runway/i18n/mobile/ur/*":    ["../../packages/i18n/mobile/ur/*"]
     }
   },
   "include": [
