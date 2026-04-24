@@ -81,8 +81,22 @@ The Runway Score is a weighted composite of 5 sub-scores, each 0–100:
 - Direct percentile from CREA comparison
 - 50th percentile → 50, 90th → 90, etc.
 
-### Grade Mapping
+### Runway Score Labels
+
+**Prose label (use in ALL chat responses — the only user-facing text for Runway Score):**
+| Score | State Label |
+|-------|-------------|
+| ≥81   | Strong      |
+| ≥61   | On Track    |
+| ≥41   | Building    |
+| <41   | At Risk     |
+
+Always say "Your score is in the **Strong** range" or "Your score is **On Track**" — never use the letter grade in chat prose.
+
+**Letter grade (visual badge only — dashboard, PDF, email badge, mobile chip — never in prose):**
 A+ ≥92, A ≥85, B ≥75, C ≥62, D ≥50, F <50
+
+If a user says "my grade is B" they mean a score of 75–84. Translate to the state label internally but confirm their score band in prose (e.g., "Your score is in the **On Track** range").
 
 ### Common Problems & Diagnostics
 
