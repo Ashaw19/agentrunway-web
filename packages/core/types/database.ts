@@ -1355,5 +1355,34 @@ export interface NewsletterQueue {
   updated_at:     string;
 }
 
+// ── Policy Acceptances (migration 00124) ────────────────────────────────────
+// Append-only audit log of each user's acceptance of a specific policy
+// version. Drives the in-app PolicyUpdateBanner. See lib/policy-versions.ts
+// for the canonical version list and the accept-policies API route for
+// upsert semantics.
+
+export type PolicyAcceptanceType =
+  | "terms"
+  | "privacy"
+  | "acceptable_use"
+  | "cookie";
+
+export type PolicyAcceptanceContext =
+  | "signup"
+  | "policy_update_banner"
+  | "backfill";
+
+export interface PolicyAcceptance {
+  id:                 string;
+  user_id:            string;
+  policy_type:        PolicyAcceptanceType;
+  version:            string;                       // YYYY-MM-DD
+  accepted_at:        string;                       // ISO timestamp
+  acceptance_context: PolicyAcceptanceContext;
+  ip_address:         string | null;
+  user_agent:         string | null;
+  created_at:         string;
+}
+
 // ── Organization types (re-export from dedicated module) ────────────────────
 export * from "./organizations";

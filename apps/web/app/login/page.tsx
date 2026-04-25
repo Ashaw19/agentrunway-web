@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { Plane, CheckCircle2 } from "lucide-react";
 import { sanitizeRedirect } from "@/lib/security/safe-redirect";
+import { POLICY_VERSIONS } from "@/lib/policy-versions";
 
 type Mode = "signin" | "signup" | "reset" | "reset-sent";
 
@@ -38,6 +39,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // Just-in-time policy acknowledgement (Cox & Palmer review 2026-04-25,
+  // satisfies Alberta PIPA notice-of-collection at the point of sign-up).
+  // The acceptance is captured in auth.users.raw_user_meta_data and backfilled
+  // into the policy_acceptances table by /auth/callback after email confirm.
+  const [policiesAccepted, setPoliciesAccepted] = useState(false);
 
   // Read and sanitize redirect param (e.g. /login?redirect=/invite/TOKEN).
   // sanitizeRedirect() uses new URL() parsing to prevent open-redirect bypass.
@@ -69,16 +75,34 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
+      // Lawyer-required just-in-time consent. The acceptance must be captured
+      // BEFORE personal information is collected — block submission if the box
+      // isn't checked. (Alberta PIPA notice-of-collection requirement.)
+      if (!policiesAccepted) {
+        setError("You must read and agree to the Privacy Policy and Terms of Service to create an account.");
+        setLoading(false);
+        return;
+      }
       // Pass redirect through email confirmation link so the user returns
       // to the right page (e.g. /invite/TOKEN) after confirming their email.
       const origin = window.location.origin;
       const confirmRedirect = safeRedirect !== "/dashboard"
         ? `${origin}/auth/callback?next=${encodeURIComponent(safeRedirect)}`
         : `${origin}/auth/callback`;
+      // Stash the accepted versions in auth metadata so /auth/callback can
+      // backfill the policy_acceptances table once the user confirms their
+      // email and lands in a session. The acceptance moment is the click of
+      // "Create Account", not the email confirmation.
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: confirmRedirect },
+        options: {
+          emailRedirectTo: confirmRedirect,
+          data: {
+            policies_accepted_at: new Date().toISOString(),
+            policies_accepted_versions: POLICY_VERSIONS,
+          },
+        },
       });
       if (error) {
         setError(friendlyAuthError(error.message));
@@ -216,6 +240,42 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
+              )}
+
+              {/* Policy acceptance checkbox (signup only) — Alberta PIPA
+                  notice-of-collection requirement per Cox & Palmer review. */}
+              {mode === "signup" && (
+                <label className="flex items-start gap-2 rounded-md border border-input/60 bg-muted/30 px-3 py-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={policiesAccepted}
+                    onChange={(e) => setPoliciesAccepted(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-input accent-primary cursor-pointer"
+                    aria-required="true"
+                  />
+                  <span className="text-xs leading-snug text-muted-foreground">
+                    I have read and agree to the{" "}
+                    <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 text-primary hover:text-primary/80">
+                      Privacy Policy
+                    </a>
+                    ,{" "}
+                    <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 text-primary hover:text-primary/80">
+                      Terms of Service
+                    </a>
+                    ,{" "}
+                    <a href="/acceptable-use" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 text-primary hover:text-primary/80">
+                      Acceptable Use Policy
+                    </a>
+                    , and{" "}
+                    <a href="/cookie-policy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 text-primary hover:text-primary/80">
+                      Cookie Policy
+                    </a>
+                    . I understand that personal information I enter (mine and
+                    my clients&apos;) will be collected, used, and disclosed as
+                    described in those policies, including processing by
+                    service providers located outside Canada.
+                  </span>
+                </label>
               )}
 
               {error && (

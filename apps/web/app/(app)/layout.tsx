@@ -13,6 +13,12 @@ import { ORG_PUBLIC_COLUMNS } from "@/lib/org-context";
 import { computeGCI, computeWeightedGCI } from "@/lib/types/database";
 import { fmtCurrency } from "@/lib/formatters";
 import type { OrgContext, Organization, OrganizationMember } from "@/lib/types/organizations";
+import { PolicyUpdateBanner } from "@/components/policy-update-banner";
+import {
+  POLICY_TYPES,
+  policiesNeedingAcceptance,
+  type PolicyType,
+} from "@/lib/policy-versions";
 
 const VALID_THEMES = new Set([
   "blue", "violet", "emerald", "orange", "rose",
@@ -33,6 +39,7 @@ export default async function AppLayout({
   let isPro = false;
   let orgContext: OrgContext | null = null;
   let financialContext = "No user data available.";
+  let pendingPolicies: PolicyType[] = [];
 
   if (user) {
     // Attach the authenticated user to Sentry's request scope so server-side
@@ -50,6 +57,7 @@ export default async function AppLayout({
       { data: expenseCategories },
       { data: memberships },
       { count: staleClientCount },
+      { data: policyAcceptances },
     ] = await Promise.all([
       supabase
         .from("user_settings")
@@ -82,12 +90,30 @@ export default async function AppLayout({
         .is("archived_at", null)
         .in("status", ["boarding", "in_flight"])
         .lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+      supabase
+        .from("policy_acceptances")
+        .select("policy_type, version, accepted_at")
+        .eq("user_id", user.id)
+        .order("accepted_at", { ascending: false }),
     ]);
 
     // ── Onboarding guard — redirect if user hasn't completed setup ──────────
     if (!settings || (settings.goal_gci === 0 && settings.display_name === "")) {
       redirect("/onboarding");
     }
+
+    // ── Policy acceptance state (drives PolicyUpdateBanner) ─────────────────
+    // Reduce the audit log to the latest accepted version per policy_type, then
+    // diff against POLICY_VERSIONS. If the user has never accepted a policy at
+    // all (e.g. signup pre-dated the policy_acceptances table) the banner
+    // will list every policy.
+    const latestAcceptedByPolicy: Partial<Record<PolicyType, string>> = {};
+    for (const row of (policyAcceptances ?? []) as Array<{ policy_type: string; version: string; accepted_at: string }>) {
+      if (POLICY_TYPES.includes(row.policy_type as PolicyType) && !(row.policy_type in latestAcceptedByPolicy)) {
+        latestAcceptedByPolicy[row.policy_type as PolicyType] = row.version;
+      }
+    }
+    pendingPolicies = policiesNeedingAcceptance(latestAcceptedByPolicy);
 
     // ── Color theme ──────────────────────────────────────────────────────────
     const rawTheme = settings?.color_theme ?? "blue";
@@ -250,6 +276,7 @@ export default async function AppLayout({
           <div className="flex flex-1 flex-col overflow-hidden">
             <MobileNav isPro={isPro} orgContext={orgContext} />
             <TopBar />
+            <PolicyUpdateBanner pendingPolicies={pendingPolicies} />
             <main className="flex-1 overflow-y-auto overscroll-y-contain bg-[oklch(0.965_0.012_261)] p-4 sm:p-6 lg:p-8">
               <div className="mx-auto max-w-screen-xl page-enter">
                 {children}
