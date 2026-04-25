@@ -2514,6 +2514,9 @@ export function ClientsContent({
       // If UTF-8 produced replacement characters, retry as Windows-1252 (common for older CRM exports)
       if (text.includes("\uFFFD")) {
         const fallbackReader = new FileReader();
+        fallbackReader.onerror = () => {
+          toast.error("Failed to read file. Please try again or use a different file.");
+        };
         fallbackReader.onload = (ev2) => {
           const retryText = ev2.target?.result as string;
           processImportText(retryText);

@@ -54,7 +54,7 @@ interface HealthResult {
 const CRITICAL_TABLES = [
   "user_settings",
   "transactions",
-  "contacts",
+  "clients",
   "outreach_queue",
 ] as const;
 

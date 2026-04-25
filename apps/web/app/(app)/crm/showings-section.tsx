@@ -191,8 +191,9 @@ export function ShowingsSection({ clientId, clientName, showings, onShowingsChan
     setExtracting(true);
     try {
       const reader = new FileReader();
-      const base64 = await new Promise<string>((resolve) => {
+      const base64 = await new Promise<string>((resolve, reject) => {
         reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("Failed to read file"));
         reader.readAsDataURL(file);
       });
 
@@ -258,8 +259,9 @@ export function ShowingsSection({ clientId, clientName, showings, onShowingsChan
     setAnalysisLoading(true);
     try {
       const reader = new FileReader();
-      const base64 = await new Promise<string>((resolve) => {
+      const base64 = await new Promise<string>((resolve, reject) => {
         reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("Failed to read file"));
         reader.readAsDataURL(file);
       });
 
