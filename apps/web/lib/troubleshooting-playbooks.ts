@@ -183,7 +183,7 @@ Required when annual tax owing >$3,000 (>$1,800 in Quebec)
 - Federal SBD: 9% on first $500K active business income
 - Federal General: 15% on income above $500K
 - SBD phase-out: $5 reduction for every $1 of adjusted aggregate investment income (AAII) over $50K
-- Provincial SBD rates: 0% (MB, YT) to 4.5% (NS)
+- Provincial SBD rates: 0% (MB, YT) to 3.2% (ON, QC). NS is 1.5% (reduced from 2.5% Apr 1, 2025); NS provincial SBD limit raised to $700K. PE provincial SBD limit $600K. SK provincial SBD limit $600K.
 - Non-eligible dividend gross-up: 15%
 - Federal DTC (dividend tax credit): 9.0301% of grossed-up amount
 - Compensation methods: Salary (generates RRSP room, CPP-deductible), Dividends (no RRSP room, no CPP), Mixed
