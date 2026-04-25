@@ -12,8 +12,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "April 16, 2026";
-const EFFECTIVE_DATE = "April 16, 2026";
+const LAST_UPDATED = "April 25, 2026";
+const EFFECTIVE_DATE = "April 25, 2026";
 
 export default function PrivacyPage() {
   return (
@@ -125,17 +125,19 @@ export default function PrivacyPage() {
                 </li>
                 <li>
                   <strong className="text-slate-300">Business data</strong>{" "}
-                  — transactions, GCI figures, commission details, pipeline deals,
-                  client records (names, emails, phones, notes, tags), expenses,
-                  receipts, and goals.
+                  — transactions, gross commission income (GCI) figures, commission
+                  details, pipeline deals, client records (names, emails, phones,
+                  notes, tags), expenses, receipts, and goals.
                 </li>
                 <li>
                   <strong className="text-slate-300">Client personal information</strong>{" "}
-                  — when you use Agent Runway&apos;s CRM features, you may enter
-                  personal information about your own real estate clients (names,
-                  emails, phones, notes). You are the data controller for this
-                  client data and are responsible for ensuring you have appropriate
-                  consent and legal basis to store it.
+                  — when you use Agent Runway&apos;s client relationship management
+                  (CRM) features, you may enter personal information about your own
+                  real estate clients (names, emails, phones, notes). You are the data
+                  controller for this client data and are responsible for ensuring
+                  you have appropriate consent from your clients and legal basis to
+                  store and disclose it. Do not enter any more client information
+                  than strictly necessary for your use of the Service.
                 </li>
                 <li>
                   <strong className="text-slate-300">Communications</strong>{" "}
@@ -235,7 +237,7 @@ export default function PrivacyPage() {
                 <li>Sell your personal information or business data to third parties</li>
                 <li>Build advertising profiles or target you with third-party ads</li>
                 <li>Train general-purpose AI or machine-learning models on your data</li>
-                <li>Share your financial data with your brokerage, competitors, or any third party for commercial purposes</li>
+                <li>Share your financial data with your brokerage, competitors, or any third party (we do not share your financial data, except with the limited service providers listed in Section&nbsp;10 strictly to operate the Service)</li>
                 <li>Send unsolicited marketing communications (you may opt in to product updates separately)</li>
               </ul>
             </section>
@@ -280,13 +282,16 @@ export default function PrivacyPage() {
                   </strong>{" "}
                   — in limited circumstances, we may process personal information
                   without consent where permitted by law: to comply with a court
-                  order or subpoena, to investigate a breach of an agreement or
+                  order or subpoena, to comply with a lawful request from a
+                  government institution, to investigate a breach of an agreement or
                   contravention of law, to detect or prevent fraud, or where
                   required to protect the safety of an individual.
                 </li>
               </ul>
               <p className="mt-4 leading-relaxed">
-                You may withdraw consent at any time by disconnecting
+                In this section, &ldquo;process&rdquo; or &ldquo;processing&rdquo;
+                includes the collection, use, or disclosure of information, as
+                applicable. You may withdraw consent at any time by disconnecting
                 integrations, adjusting your settings, or contacting{" "}
                 <a
                   href="mailto:privacy@agentrunway.ca"
@@ -296,14 +301,15 @@ export default function PrivacyPage() {
                 </a>
                 . Withdrawal of consent may affect your ability to use certain
                 features. We will explain the consequences of withdrawal before
-                processing your request.
+                finalizing your request.
               </p>
 
               <h3 className="mb-2 mt-6 text-lg font-semibold text-slate-200">
                 4.1 Meaningful Consent and Just-in-Time Notices
               </h3>
               <p className="leading-relaxed">
-                Consistent with the OPC&apos;s{" "}
+                Consistent with the Office of the Privacy Commissioner of
+                Canada&apos;s (&ldquo;OPC&rdquo;){" "}
                 <em>Guidelines for Obtaining Meaningful Consent</em>, we provide
                 clear, specific information at the point of data collection
                 (&ldquo;just-in-time&rdquo; notices) so you can make informed
@@ -568,14 +574,15 @@ export default function PrivacyPage() {
                   We may retain logs of AI interactions (prompts and outputs) for
                   a limited period for debugging, quality assurance, and abuse
                   prevention purposes. These logs are subject to the same security
-                  measures as other Customer Data.
+                  measures as the other information we outline in Section&nbsp;2.
                 </li>
                 <li>
                   <strong className="text-white">Automated decision-making.</strong>{" "}
                   Agent Runway does not make automated decisions with legal or
                   significant effects on you without human review. AI outputs
                   (insight cards, outreach drafts, insights) are presented as
-                  suggestions for your review, not as automated actions.
+                  suggestions for your review, not as automated actions. It is your
+                  responsibility to review AI outputs thoroughly.
                 </li>
                 <li>
                   <strong className="text-white">AI-assisted development.</strong>{" "}
@@ -1132,8 +1139,13 @@ export default function PrivacyPage() {
               <p className="mt-4 leading-relaxed">
                 We do not use advertising cookies, tracking pixels for ad
                 retargeting, or cross-site tracking technologies. You may
-                configure your browser to refuse optional cookies. Our cookie
-                preferences are stored locally and can be changed at any time.
+                configure your browser to refuse optional analytics cookies. Our
+                cookie preferences are stored locally and can be changed at any
+                time. Refer to our{" "}
+                <a href="/cookie-policy" className="text-blue-400 hover:text-blue-300 underline">
+                  Cookie Policy
+                </a>{" "}
+                for more information.
               </p>
             </section>
 
@@ -1146,7 +1158,7 @@ export default function PrivacyPage() {
                 Some browsers transmit &ldquo;Do Not Track&rdquo; (DNT) signals.
                 As there is no industry-standard technology for recognizing or
                 honoring DNT signals, we do not currently respond to them.
-                However, we limit tracking to essential analytics as described in
+                However, we limit tracking to essential cookies as described in
                 Section&nbsp;19 and do not engage in cross-site tracking.
               </p>
             </section>
@@ -1290,41 +1302,10 @@ export default function PrivacyPage() {
               <h2 className="mb-4 text-xl font-semibold text-white">
                 24. Evolving Canadian Privacy Legislation
               </h2>
-              <p className="mb-4 leading-relaxed">
+              <p className="leading-relaxed">
                 Agent Runway actively monitors developments in Canadian privacy
-                law. Federal Bill&nbsp;C-27 (the{" "}
-                <em>Digital Charter Implementation Act</em>), which includes the
-                proposed{" "}
-                <strong className="text-slate-300">
-                  Consumer Privacy Protection Act (CPPA)
-                </strong>
-                , would introduce significant changes to Canadian privacy
-                obligations if enacted, including:
-              </p>
-              <ul className="list-disc space-y-2 pl-6 text-slate-400">
-                <li>
-                  Administrative monetary penalties for privacy violations
-                </li>
-                <li>
-                  Explicit rules for automated decision-making systems,
-                  including notice requirements, explanation of logic, and rights
-                  to human review
-                </li>
-                <li>
-                  Enhanced data portability rights
-                </li>
-                <li>
-                  A private right of action for individuals affected by privacy
-                  violations
-                </li>
-                <li>
-                  Stricter requirements for meaningful consent and de-identified
-                  data
-                </li>
-              </ul>
-              <p className="mt-4 leading-relaxed">
-                We are committed to adapting our privacy practices as Canadian
-                privacy law evolves. When material changes to our data
+                law. We are committed to adapting our privacy practices as
+                Canadian privacy law evolves. When material changes to our data
                 processing practices are required by new legislation, we will
                 update this policy and notify you in accordance with
                 Section&nbsp;22.

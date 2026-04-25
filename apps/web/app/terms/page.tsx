@@ -12,8 +12,8 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "April 16, 2026";
-const EFFECTIVE_DATE = "April 16, 2026";
+const LAST_UPDATED = "April 25, 2026";
+const EFFECTIVE_DATE = "April 25, 2026";
 
 /* ──────────────────────────────────────────────────────────────────────────── */
 
@@ -170,7 +170,8 @@ export default function TermsPage() {
                 and is optimized for use on mobile devices through your browser.
                 We reserve the right to modify, suspend, add, or
                 discontinue any feature of the Service at any time, with or
-                without notice.
+                without notice. Users may not use the Service for any other
+                purpose without our prior written consent.
               </p>
             </section>
 
@@ -185,8 +186,13 @@ export default function TermsPage() {
                 using the Service, you represent that you are at least 18 years
                 of age and are legally capable of forming a binding contract. The
                 Service is not intended for use by consumers, minors, or
-                individuals under the age of 18. We reserve the right to refuse
-                service, terminate accounts, or cancel subscriptions at our sole
+                individuals under the age of 18. Agent Runway is provided for
+                use only by persons located in Canada, and is not intended for
+                use in any jurisdiction where its use is not permitted. If you
+                access Agent Runway from outside Canada, you do so at your own
+                risk and you are responsible for compliance with the local laws
+                of your jurisdiction. We reserve the right to refuse service,
+                terminate accounts, or cancel subscriptions at our sole
                 discretion if we believe you do not meet these eligibility
                 requirements.
               </p>
@@ -635,8 +641,8 @@ export default function TermsPage() {
                     potential access by US law enforcement authorities under applicable
                     US law. We maintain Data Processing Agreements with both providers.
                     Anthropic commits to zero data retention for API traffic by default
-                    and does not use customer data to train its models; Groq commits to
-                    not retaining or training on customer data after processing. We
+                    and does not use Customer Data to train its models; Groq commits to
+                    not retaining or training on Customer Data after processing. We
                     cannot independently verify third-party provider compliance.
                     Sensitive or confidential information should not be included in AI
                     prompts or interactions. See Section&nbsp;12 for the full
@@ -826,7 +832,10 @@ export default function TermsPage() {
                 consents, and authorizations to provide all Customer Data to
                 Agent Runway, including client personal information, and that
                 your provision of such data does not violate any applicable law,
-                regulation, or third-party right.
+                regulation, or third-party right. You agree to only provide as
+                much information as strictly necessary for your use of the
+                Service. Do not enter sensitive or confidential information
+                beyond what the Service is designed to handle.
               </p>
             </section>
 
@@ -899,6 +908,18 @@ export default function TermsPage() {
                 <li>Use the Service to store, process, or transmit information that infringes the intellectual property rights of any third party</li>
                 <li>Use the Service in a manner that could damage, disable, overburden, or impair it</li>
               </ul>
+              <p className="mt-4 leading-relaxed">
+                You are responsible for detecting and responding appropriately
+                to any security incidents that may interfere with or disrupt
+                the integrity, performance, or security of the Service, and you
+                are solely responsible and liable for the costs of remedying
+                such security incidents and any damages caused therefrom. You
+                are strongly encouraged to purchase insurance to cover data
+                breaches, security incidents, and cyber risks. We may, among
+                other things, limit the functionality of or disconnect your
+                use of the Service for so long as we deem necessary to address
+                a security incident.
+              </p>
             </section>
 
             {/* ────────────────────────────── 19 ───────────────────────────── */}
@@ -989,7 +1010,10 @@ export default function TermsPage() {
                   harmless Agent Runway from any claims, fines, penalties, or
                   damages arising from your communications sent through the
                   Service, including CASL penalties, CAN-SPAM violations, TCPA
-                  claims, and complaints from recipients.
+                  claims, and complaints from recipients. The information we
+                  provide in this Section&nbsp;19 is not legal advice; consult
+                  your legal counsel to confirm you are complying with your
+                  CASL obligations.
                 </p>
               </div>
             </section>
@@ -1008,7 +1032,8 @@ export default function TermsPage() {
                 only a limited, non-exclusive, non-transferable, revocable
                 licence to access and use the Service during your active
                 subscription, subject to these Terms. No other rights are
-                granted to you, whether express or implied.
+                granted to you, whether express or implied. Your right to use
+                the Service ends when your subscription ends.
               </p>
               <p className="leading-relaxed">
                 The Agent Runway name, logo, and all related product and service
@@ -1119,7 +1144,7 @@ export default function TermsPage() {
                 <p>
                   THIS APPLIES REGARDLESS OF THE LEGAL THEORY (CONTRACT, TORT,
                   NEGLIGENCE, STRICT LIABILITY, OR OTHERWISE) AND EVEN IF AGENT
-                  RUNWAY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+                  RUNWAY INC. HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
                 </p>
                 <p>
                   <strong className="text-white">
@@ -1145,18 +1170,11 @@ export default function TermsPage() {
                   <strong className="text-white">
                     gross negligence or wilful misconduct
                   </strong>{" "}
-                  by Agent Runway; (b) damages arising from Agent Runway&apos;s
-                  breach of its confidentiality obligations under Section&nbsp;22;
-                  (c) Agent Runway&apos;s liability for{" "}
-                  <strong className="text-white">
-                    data breaches caused by Agent Runway&apos;s own failure
-                  </strong>{" "}
-                  to implement reasonable security safeguards; or (d) any liability
-                  that cannot be excluded or limited under applicable Canadian law.
-                  In these carve-out circumstances, liability shall be limited to
-                  actual direct damages only and shall not include indirect,
-                  consequential, or punitive damages except to the extent required
-                  by law.
+                  by Agent Runway; or (b) any liability that cannot be excluded
+                  or limited under applicable Canadian law. In these carve-out
+                  circumstances, liability shall be limited to actual direct
+                  damages only and shall not include indirect, consequential, or
+                  punitive damages except to the extent required by law.
                 </p>
                 <p>
                   SOME JURISDICTIONS DO NOT ALLOW THE EXCLUSION OR LIMITATION OF
@@ -1236,9 +1254,11 @@ export default function TermsPage() {
                 <p>
                   <strong className="text-white">Effect of termination.</strong>{" "}
                   Upon termination, your right to use the Service ceases
-                  immediately. Sections of these Terms that by their nature should
-                  survive termination will survive, including but not limited to:
-                  Definitions, Disclaimer of Warranties, Limitation of Liability,
+                  immediately. We will cancel all future payments at the end of
+                  the current billing period following termination. Sections of
+                  these Terms that by their nature should survive termination
+                  will survive, including but not limited to: Definitions,
+                  Disclaimer of Warranties, Limitation of Liability,
                   Indemnification, Governing Law, Class Action Waiver,
                   Confidentiality, and Intellectual Property.
                 </p>
@@ -1308,12 +1328,18 @@ export default function TermsPage() {
                 <p>
                   Any dispute, controversy, or claim arising out of or relating to
                   these Terms or the Service shall first be submitted to good-faith
-                  negotiation for a period of at least 30 days. If the dispute
-                  cannot be resolved through negotiation, it shall be resolved
-                  exclusively in the courts of the Province of New Brunswick,
-                  Canada. You hereby irrevocably consent to the exclusive personal
-                  jurisdiction and venue of those courts and waive any objection
-                  based on inconvenient forum.
+                  negotiation directly between the parties (without a mediator
+                  or other neutral third party) for a period of at least 30 days
+                  from the date written notice of the dispute is sent to{" "}
+                  <a href="mailto:hello@agentrunway.ca" className="text-blue-400 hover:text-blue-300">
+                    hello@agentrunway.ca
+                  </a>
+                  . If the dispute cannot be resolved through direct negotiation
+                  within that period, it shall be resolved exclusively in the
+                  courts of the Province of New Brunswick, Canada. You hereby
+                  irrevocably consent to the exclusive personal jurisdiction and
+                  venue of those courts and waive any objection based on
+                  inconvenient forum.
                 </p>
                 <p>
                   <strong className="text-white">Prevailing party.</strong>{" "}

@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "March 22, 2026";
+const LAST_UPDATED = "April 25, 2026";
 
 /* -------------------------------------------------------------------------- */
 
@@ -110,6 +110,14 @@ export default function AcceptableUsePage() {
                   third parties.
                 </li>
               </ul>
+              <p className="mt-4 leading-relaxed">
+                Agent Runway is provided for use only by persons located in
+                Canada, and is not intended for use in any jurisdiction where
+                its use is not permitted. If you access Agent Runway from
+                outside Canada, you do so at your own risk and you are
+                responsible for compliance with the local laws of your
+                jurisdiction.
+              </p>
             </section>
 
             {/* ──────────────────────── 3 ──────────────────────── */}
@@ -250,12 +258,13 @@ export default function AcceptableUsePage() {
               </h3>
               <ul className="list-disc space-y-2 pl-6 text-slate-400 leading-relaxed">
                 <li>
-                  Storing sensitive personal information that the platform is
-                  not designed to handle, including but not limited to:
-                  protected health information (PHI), medical records, credit
-                  card numbers, full bank account numbers, Social Insurance
-                  Numbers (SIN), Social Security Numbers (SSN), passport
-                  numbers, or government-issued identification numbers.
+                  Storing your (or your client&apos;s) sensitive personal
+                  information that the platform is not designed to handle,
+                  including but not limited to: protected health information
+                  (PHI), medical records, credit card numbers, full bank account
+                  numbers, Social Insurance Numbers (SIN), Social Security
+                  Numbers (SSN), passport numbers, or government-issued
+                  identification numbers.
                 </li>
                 <li>
                   The platform is designed for business data related to real

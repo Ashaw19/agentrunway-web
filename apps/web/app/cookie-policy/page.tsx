@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const LAST_UPDATED = "March 23, 2026";
+const LAST_UPDATED = "April 25, 2026";
 
 /* -------------------------------------------------------------------------- */
 
@@ -34,6 +34,11 @@ export default function CookiePolicyPage() {
               preferences. It should be read alongside our{" "}
               <a href="/privacy" className="text-blue-400 underline hover:text-blue-300">
                 Privacy Policy
+              </a>
+              . Capitalized terms not defined here have the meanings given in
+              the{" "}
+              <a href="/terms" className="text-blue-400 underline hover:text-blue-300">
+                Terms of Service
               </a>
               .
             </p>
