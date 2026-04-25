@@ -3,7 +3,6 @@
 // Barrel file for shared type definitions used across multiple modules.
 // ============================================================================
 
-export * from "./market";
 export * from "./chat";
 export * from "./outreach";
 export * from "./database";

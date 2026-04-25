@@ -589,24 +589,14 @@ export default function PrivacyPage() {
             {/* ─── 9 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                9. Third-Party Market Data (CREA MLS&reg; Statistics)
+                9. Third-Party Market Data
               </h2>
-              <p className="mb-4 leading-relaxed">
-                Agent Runway displays local real estate market data sourced from{" "}
-                <strong className="text-slate-300">
-                  The Canadian Real Estate Association (CREA)
-                </strong>{" "}
-                MLS&reg; Statistics portal. This is publicly available aggregate
-                information — it is{" "}
-                <strong className="text-slate-300">not</strong> personal
-                information about you. No personal information is transmitted to
-                CREA in connection with this feature.
-              </p>
               <p className="leading-relaxed">
-                The trademarks MLS&reg;, Multiple Listing Service&reg; and the
-                associated logos are owned by CREA. &copy;{" "}
-                {new Date().getFullYear()} The Canadian Real Estate Association.
-                All rights reserved.
+                Agent Runway does not currently display third-party real estate
+                market statistics inside the Service. This section is reserved
+                for future market-data integrations and will be updated when
+                applicable. No personal information about you is transmitted to
+                any market-data provider.
               </p>
             </section>
 

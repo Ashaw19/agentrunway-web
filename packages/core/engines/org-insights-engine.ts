@@ -198,7 +198,7 @@ export function generateOrgInsights(
         counter++,
         "info",
         "Average Deal Size",
-        `Org avg deal size is $${Math.round(orgAvgDealSize).toLocaleString()} (${comparison} CREA benchmark of $${Math.round(benchmarkAvgDealSize).toLocaleString()}).`,
+        `Org avg deal size is $${Math.round(orgAvgDealSize).toLocaleString()} (${comparison} industry benchmark of $${Math.round(benchmarkAvgDealSize).toLocaleString()}).`,
         45,
       ),
     );

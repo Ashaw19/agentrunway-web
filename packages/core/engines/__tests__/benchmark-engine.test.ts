@@ -1,7 +1,7 @@
 /**
  * Layer 4: Benchmark Engine
  * ===========================
- * Tests for CREA 2023 cohort benchmarking and percentile ranking.
+ * Tests for industry-cohort benchmarking and percentile ranking.
  *
  * Cohort data (embedded constants):
  *   rookie (≤2yr):      median $42K, p25 $18K, p75 $72K, p90 $110K

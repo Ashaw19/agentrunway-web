@@ -122,7 +122,6 @@ import {
 import { probabilityBands } from "@/lib/engines/probabilistic-forecast-engine";
 import { compare, COHORT_LABELS, cohortFromYears } from "@/lib/engines/benchmark-engine";
 import { computeWhereYouStand, BAND_LABELS, type PerformanceBand } from "@/lib/engines/where-you-stand-engine";
-import { computeMarketMomentum, type LocalMarketData } from "@/lib/crea-board";
 import type { BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { survivalResult, type SurvivalResult } from "@/lib/engines/survival-engine";
 import { computeCashPosition, type CashPositionResult } from "@/lib/engines/cash-position-engine";
@@ -187,8 +186,6 @@ interface Props {
   activeClientCount?: number;
   staleLeadCount?: number;
   hasSeenTour?: boolean;
-  boardMarketData?: LocalMarketData | null;
-  boardSubregion?: string;
   briefingItems?: BriefingItem[];
   upcomingConditions?: Array<{ address: string; condition_date: string; client_name: string; days_until: number }>;
   runwayScoreSnapshot?: { score: number; month: string } | null;
@@ -299,8 +296,6 @@ export function DashboardContent({
   activeClientCount: activeClients = 0,
   staleLeadCount = 0,
   hasSeenTour = true,
-  boardMarketData = null,
-  boardSubregion: _boardSubregion = "",
   briefingItems = [],
   upcomingConditions = [],
   runwayScoreSnapshot = null,
@@ -545,20 +540,9 @@ export function DashboardContent({
   // ── Benchmark ─────────────────────────────────────────────────────────
   const benchmark = compare(projectedGCI, settings?.experience_years ?? null);
 
-  // ── Market Momentum (CREA live data + agent history) ─────────────────
-  const boardCodeSlug  = settings?.board_code ?? "";
-  const marketMomentum = boardMarketData
-    ? computeMarketMomentum(
-        boardCodeSlug,
-        ytdDealCount,
-        ytdGCI,
-        boardMarketData,
-        historyItems,
-        currentYear,
-      )
-    : null;
-
   // ── Where You Stand ──────────────────────────────────────────────────
+  // Market momentum input retired with the licensed market data layer; the
+  // engine handles a null marketMomentum and falls back to internal-only signals.
   const whereYouStand = computeWhereYouStand({
     ytdGCI,
     ytdDealCount,
@@ -567,15 +551,7 @@ export function DashboardContent({
     goalGCI,
     fraction,
     benchmark,
-    marketMomentum: marketMomentum ? {
-      momentumTier: marketMomentum.momentumTier,
-      agentDealGrowthPct: marketMomentum.agentDealGrowthPct,
-      boardSalesYoYPct: marketMomentum.boardSalesYoYPct,
-      gainLossVsMarket: marketMomentum.gainLossVsMarket,
-      avgDealsPerAgentPerYear: marketMomentum.avgDealsPerAgentPerYear,
-      agentAnnualizedDeals: marketMomentum.agentAnnualizedDeals,
-      boardName: marketMomentum.boardName,
-    } : null,
+    marketMomentum: null,
     experienceYears: settings?.experience_years ?? null,
     cohort: cohortFromYears(settings?.experience_years ?? 5),
     hasPriorYearData: historyItems.some(h => h.year === currentYear - 1),
@@ -1044,14 +1020,6 @@ export function DashboardContent({
     activeClients === 0 ? "Empty" : activeClients <= 2 ? "Light" : `${activeClients} active`;
   const dailyBriefingPaceLabel =
     paceStatus === "ahead" ? "Ahead" : paceStatus === "behind" ? "Behind" : goalGCI > 0 ? "On track" : "";
-  const dailyBriefingMarketLabel = (() => {
-    if (!boardMarketData) return null;
-    const cond = boardMarketData.marketCondition;
-    const condLabel = cond === "seller" ? "Seller's" : cond === "buyer" ? "Buyer's" : "Balanced";
-    const yoy = boardMarketData.quarterlyUnitSalesYoY;
-    const yoyStr = yoy != null ? ` · Sales ${yoy >= 0 ? "+" : ""}${yoy.toFixed(0)}% YoY` : "";
-    return `${condLabel} market${yoyStr}`;
-  })();
 
   const _urgentBriefingItems = briefingItems.filter(i => i.severity === "urgent");
   const _attentionBriefingItems = briefingItems.filter(i => i.severity === "attention" || i.severity === "upcoming");
@@ -1199,12 +1167,6 @@ export function DashboardContent({
                 Pace: {dailyBriefingPaceLabel}
               </span>
             )}
-            {dailyBriefingMarketLabel && (
-              <span className="inline-flex items-center gap-1 rounded-full text-[10px] font-semibold px-2 py-0.5 border bg-violet-50 text-violet-700 border-violet-200">
-                <BarChart2 className="h-2.5 w-2.5" />
-                {dailyBriefingMarketLabel}
-              </span>
-            )}
           </div>
         </div>
 
@@ -1302,8 +1264,8 @@ export function DashboardContent({
 
   // ── Where You Stand — competitive position + market diagnosis ─────────
   cardRenders["where_you_stand"] = (() => {
-    // Don't render if user has zero transactions and no market data — nothing to show
-    if (ytdDealCount === 0 && !boardMarketData) return null;
+    // Don't render if user has zero transactions — nothing to show
+    if (ytdDealCount === 0) return null;
 
     const wys = whereYouStand;
     const bands: PerformanceBand[] = ["launching", "climbing", "competitive", "advancing", "leading"];
@@ -1914,7 +1876,7 @@ export function DashboardContent({
             <GuideLink anchor="benchmark" label="Benchmark cohorts explained in Guide" />
           </div>
           <CardDescription>
-            vs. {COHORT_LABELS[benchmark.cohort]} cohort · CREA 2023 data
+            vs. {COHORT_LABELS[benchmark.cohort]} cohort · industry estimate
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -2514,8 +2476,8 @@ export function DashboardContent({
                 )}
               </div>
             </div>
-            {/* Right: survival + pace — aligned two-column mini-grid */}
-            <div className="grid grid-cols-2 gap-px rounded-xl border border-slate-700 bg-slate-700 overflow-hidden shrink-0">
+            {/* Right: survival — single-column mini-grid (Pace card retired with market data layer) */}
+            <div className="grid grid-cols-1 gap-px rounded-xl border border-slate-700 bg-slate-700 overflow-hidden shrink-0">
               {/* Cash Runway */}
               <div className="bg-slate-800/50 px-4 py-3 text-center">
                 <div className="flex items-center justify-center gap-1">
@@ -2539,61 +2501,6 @@ export function DashboardContent({
                     "cash coverage"
                   )}
                 </p>
-              </div>
-              {/* Your Pace — agent vs average agent in board */}
-              <div className="bg-slate-800/50 px-4 py-3 text-center">
-                {marketMomentum && marketMomentum.avgDealsPerAgentPerYear != null && marketMomentum.agentAnnualizedDeals != null ? (() => {
-                  const avg = marketMomentum.avgDealsPerAgentPerYear!;
-                  const agent = marketMomentum.agentAnnualizedDeals!;
-                  const ratio = avg > 0 ? agent / avg : 0;
-                  const _pctVsAvg = avg > 0 ? Math.round(((agent - avg) / avg) * 100) : 0;
-                  const tierColor = ratio >= 1.15 ? "#059669" : ratio <= 0.85 ? "#DC2626" : "#D97706";
-                  const tierLabel = ratio >= 1.15 ? "Above Board Avg" : ratio <= 0.85 ? "Below Board Avg" : "At Board Avg";
-                  return (
-                    <>
-                      <div className="flex items-center justify-center gap-1">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Your Pace</p>
-                        <MetricInfo tip={`You're on pace for ~${agent} deals/yr. The average agent on your board (${marketMomentum.boardName}) closes ~${avg.toFixed(1)} deals/yr based on CREA MLS® data.${marketMomentum.boardSalesYoYPct != null ? ` Board sales are ${marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}${marketMomentum.boardSalesYoYPct.toFixed(0)}% YoY.` : ""}`} />
-                        <GuideLink anchor="market-position" label="Market Momentum explained in Guide" />
-                        {isPro && <ExplainButton question="How does my deal pace compare to the average agent on my board and what does my local market look like?" />}
-                      </div>
-                      <p className="text-2xl font-bold mt-1 leading-none" style={{ color: tierColor }}>
-                        {ratio >= 1 ? `${ratio.toFixed(1)}×` : `${ratio.toFixed(1)}×`}
-                      </p>
-                      <p className="text-[10px] font-semibold mt-1" style={{ color: tierColor }}>
-                        {tierLabel}
-                        {marketMomentum.boardSalesYoYPct != null && (
-                          <span className="text-slate-500 font-normal"> · Mkt {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}%</span>
-                        )}
-                      </p>
-                      <p className="text-[9px] text-slate-500 mt-1 leading-tight">
-                        CREA MLS® · {marketMomentum.reportMonth ?? new Date().getFullYear()}
-                      </p>
-
-                    </>
-                  );
-                })() : marketMomentum ? (
-                  <>
-                    <div className="flex items-center justify-center gap-1">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Your Pace</p>
-                      <MetricInfo tip="We need deal data and your board selection to compare your pace against the market." />
-                    </div>
-                    <p className="text-2xl font-bold mt-1 leading-none text-slate-600">—</p>
-                    <p className="text-[10px] text-slate-500 mt-1">Needs more data</p>
-                  </>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-center gap-1">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Your Pace</p>
-                      <MetricInfo tip="Select your local real estate board in Settings to see how your deal pace compares to the average agent in your market." />
-                      <GuideLink anchor="market-position" label="Board benchmarking explained in Guide" />
-                    </div>
-                    <p className="text-2xl font-bold mt-1 leading-none text-slate-600">—</p>
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      <Link href="/settings" className="underline hover:text-slate-600">Set board</Link> in Settings
-                    </p>
-                  </>
-                )}
               </div>
             </div>
           </div>
@@ -3124,7 +3031,7 @@ const SCORE_COMPONENTS_INFO = [
     label: "Benchmark",
     weight: "10%",
     description:
-      "Your projected annual GCI compared to agents with similar experience (sourced from CREA cohort data). Shows where you rank within your peer group.",
+      "Your projected annual GCI compared to agents with similar experience (industry-cohort estimate). Shows where you rank within your peer group.",
   },
 ] as const;
 
@@ -3224,7 +3131,7 @@ function RunwayScoreInfoDialog() {
           </div>
 
           <p className="text-xs text-muted-foreground border-t pt-3">
-            Benchmark data is sourced from CREA 2023 national agent cohort statistics.
+            Benchmark data reflects industry-cohort estimates aggregated from public industry sources.
             Score version: {/* version shown inline */}1.0.
           </p>
         </div>
@@ -3457,7 +3364,7 @@ function generateBusinessHealthNarrative({
       expenseRatio > 0
         ? `Expense ratio is elevated at ${fmtPct(expenseRatio)} of YTD GCI (score: ${healthReport.expenseScore}/100), above the 25–30% benchmark. Monthly burn of ${fmtCurrency(survival.monthlyBurn)} is compressing net take-home.`
         : `Expense tracking (score: ${healthReport.expenseScore}/100) — configure your costs in Settings to see expense ratio and burn analysis.`,
-    Benchmark: `Projected GCI of ${fmtCurrency(projectedGCI)} ranks at the ${benchmark.percentile}th percentile for your experience cohort, with a median of ${fmtCurrency(benchmark.cohortMedianGCI)} (CREA 2023 data).`,
+    Benchmark: `Projected GCI of ${fmtCurrency(projectedGCI)} ranks at the ${benchmark.percentile}th percentile for your experience cohort, with a median of ${fmtCurrency(benchmark.cohortMedianGCI)} (industry-cohort estimate).`,
     Survival:
       survival.monthlyBurn > 0
         ? `Cash runway is ${formatSurvivalDisplay(survival)} against a ${fmtCurrency(survival.monthlyBurn)}/month burn rate. This is the highest-priority operational risk on the dashboard.`

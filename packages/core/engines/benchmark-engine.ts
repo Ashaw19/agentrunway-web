@@ -1,6 +1,6 @@
 // BenchmarkEngine — ported from Swift
 // Canadian agent benchmarks + percentile ranking.
-// Static CREA 2023 data embedded.
+// Static industry-cohort estimates (aggregated from public industry sources).
 
 // ── Experience Cohort ───────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ export function cohortFromYears(years: number): Cohort {
   return "topProducer";
 }
 
-// ── Benchmark Data (CREA 2023) ──────────────────────────────────────────────
+// ── Benchmark Data (industry-cohort estimates) ──────────────────────────────
 
 interface CohortBenchmark {
   medianGCI: number;

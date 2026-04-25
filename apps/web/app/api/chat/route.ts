@@ -53,7 +53,6 @@ import { totalRecurringMonthly, totalRecurringYTD, totalRecurringHSTYTD } from "
 import { getCurrentFilingPeriod, deadlineUrgency } from "@agent-runway/core/engines/filing-period-engine";
 
 import type { RecurringExpense, FilingFrequency } from "@/lib/types/database";
-import { CREA_BOARDS, fetchBoardData, computeMarketMomentum } from "@/lib/crea-board";
 import { generateTeamComparativeInsights } from "@agent-runway/core/engines";
 import { classifyTopic, classifyTopicMulti, PAGE_TO_TOPICS, TOPIC_ACTION_LINKS, type TroubleshootingTopic } from "@/lib/troubleshooting-classifier";
 import { getPlaybooks } from "@/lib/troubleshooting-playbooks";
@@ -295,40 +294,12 @@ export async function POST(req: NextRequest) {
       // duplicate computation here that used settings.seasonal_weights directly
       // (often null/flat), which could produce a conflicting pace percentage.
 
-      // ── Board comparison (same engine as dashboard "Your Pace" card) ──
-      let boardPaceLabel: string | null = null;
-      const boardCode = settings.board_code ?? "";
-      if (boardCode) {
-        try {
-          const board = CREA_BOARDS.find((b) => b.slug === boardCode);
-          if (board) {
-            const { data: historyRows } = await supabase
-              .from("history_items")
-              .select("year, annual_tx, annual_gci")
-              .eq("user_id", user.id);
-            const boardData = await fetchBoardData(board);
-            if (boardData) {
-              const mm = computeMarketMomentum(boardCode, ytdTx.length, ytdGCI, boardData, historyRows ?? [], currentYear);
-              if (mm.avgDealsPerAgentPerYear != null && mm.agentAnnualizedDeals != null) {
-                const ratio = mm.avgDealsPerAgentPerYear > 0 ? mm.agentAnnualizedDeals / mm.avgDealsPerAgentPerYear : 0;
-                const label = ratio >= 1.15 ? "above" : ratio <= 0.85 ? "below" : "at";
-                boardPaceLabel = `Board Comparison (${mm.boardName}): You're on pace for ~${mm.agentAnnualizedDeals} deals/yr, which is ${ratio.toFixed(1)}× the average agent on your board (~${mm.avgDealsPerAgentPerYear.toFixed(1)} deals/yr). You are ${label} the board average.${mm.boardSalesYoYPct != null ? ` Board market trend: ${mm.boardSalesYoYPct >= 0 ? "+" : ""}${mm.boardSalesYoYPct.toFixed(0)}% YoY.` : ""}`;
-              }
-            }
-          }
-        } catch {
-          // Non-critical — board data may be temporarily unavailable
-        }
-      }
-
       // ── Setup gap detection (post-onboarding) ──
       const setupGaps: string[] = [];
       if (!settings.vehicle_business_use_pct || Number(settings.vehicle_business_use_pct) === 0)
         setupGaps.push("Vehicle business-use % is at 0% — mileage deductions won't calculate");
       if (!settings.home_office_business_use_pct || Number(settings.home_office_business_use_pct) === 0)
         setupGaps.push("Home office % is not set — missing potential deduction");
-      if (!settings.board_code)
-        setupGaps.push("No real estate board selected — benchmarking is unavailable");
       if ((ccaRows ?? []).length === 0)
         setupGaps.push("No CCA assets tracked — business equipment isn't being depreciated");
       if ((recurringExpRows ?? []).length === 0)
@@ -344,7 +315,6 @@ export async function POST(req: NextRequest) {
         `YTD GCI: ${fmtCurrency(ytdGCI)}`,
         `Closed Deals YTD: ${ytdTx.length}`,
         ytdTx.length > 0 ? `Average Deal GCI: ${fmtCurrency(ytdGCI / ytdTx.length)}` : null,
-        boardPaceLabel,
         `Pipeline (Probability-Weighted GCI, deal-stage only): ${fmtCurrency(pipelineWeighted)} across ${pipeline?.length ?? 0} active deals`,
         `Note: Pipeline figure above includes deal-stage pipeline only. Listing appointments and early-stage buyers are tracked separately on the Pipeline page.`,
         `Province: ${settings.province}`,
@@ -607,27 +577,8 @@ export async function POST(req: NextRequest) {
           txForEngines, projGCI, engineFraction,
         );
 
-        // 8. Board / Market Momentum for Where You Stand
-        let marketMomentumForWYS: Parameters<typeof computeWhereYouStand>[0]["marketMomentum"] = null;
-        const boardCode2 = settings.board_code ?? "";
-        if (boardCode2) {
-          try {
-            const board = CREA_BOARDS.find((b) => b.slug === boardCode2);
-            if (board) {
-              const boardData = await fetchBoardData(board);
-              if (boardData) {
-                const mm = computeMarketMomentum(
-                  boardCode2, ytdTx.length, ytdGCI, boardData, historyItems ?? [], currentYear,
-                );
-                marketMomentumForWYS = mm;
-              }
-            }
-          } catch {
-            // Non-critical
-          }
-        }
-
-        // 9. Where You Stand Engine
+        // 8. Where You Stand Engine
+        // (Market-momentum input retired with the licensed market data layer.)
         const cohort = benchmark.cohort;
         const hasPriorYear = (historyItems ?? []).some(
           (h: { year: number; annual_gci: number }) => h.year < currentYear && h.annual_gci > 0,
@@ -640,7 +591,7 @@ export async function POST(req: NextRequest) {
           goalGCI: settings.goal_gci ?? 0,
           fraction: engineFraction,
           benchmark,
-          marketMomentum: marketMomentumForWYS,
+          marketMomentum: null,
           experienceYears: settings.experience_years ?? null,
           cohort,
           hasPriorYearData: hasPriorYear,

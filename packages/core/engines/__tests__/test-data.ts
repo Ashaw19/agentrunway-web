@@ -181,7 +181,7 @@ export function createTestSettings(
     // Admin override
     is_admin: false,
 
-    // CREA board benchmarking
+    // Local market board (reserved — market data layer currently disabled)
     board_code: "",
     board_subregion: "",
 

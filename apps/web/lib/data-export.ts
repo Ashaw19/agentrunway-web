@@ -85,10 +85,9 @@ const EXPORT_TABLES: readonly ExportTable[] = [
   { table: "outreach_queue", filename: "outreach-queue.csv", description: "Pending outreach actions" },
   { table: "social_posts", filename: "social-posts.csv", description: "Drafted and published social posts" },
 
-  // ── Insights, analytics, market data ─────────────────────────────────────
+  // ── Insights, analytics ──────────────────────────────────────────────────
   { table: "precomputed_insights", filename: "precomputed-insights.csv", description: "Cached AI-generated insights" },
   { table: "chat_analytics", filename: "chat-analytics.csv", description: "Flight Crew chat usage analytics" },
-  { table: "market_data_points", filename: "market-data.csv", description: "Custom market data points you've entered" },
 
   // ── Notifications & telemetry ────────────────────────────────────────────
   { table: "milestones", filename: "milestones.csv", description: "Achievement notifications" },

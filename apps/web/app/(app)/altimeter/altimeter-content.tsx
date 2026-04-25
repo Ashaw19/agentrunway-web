@@ -55,7 +55,6 @@ import {
 } from "@/lib/engines/projection-engine";
 import { compare, COHORT_LABELS } from "@/lib/engines/benchmark-engine";
 import { computeWhereYouStand, BAND_LABELS, type PerformanceBand } from "@/lib/engines/where-you-stand-engine";
-import { computeMarketMomentum, type LocalMarketData } from "@/lib/crea-board";
 import { generateInsights, type Insight } from "@/lib/engines/insights-engine";
 import { compute as computeRunwayScore } from "@/lib/engines/runway-score-engine";
 import { survivalResult } from "@/lib/engines/survival-engine";
@@ -284,8 +283,6 @@ interface Props {
   pipelineDeals: PipelineDeal[];
   settings: UserSettings | null;
   historyItems?: HistoryItem[];
-  boardMarketData?: LocalMarketData | null;
-  boardSubregion?: string;
   isPro?: boolean;
   recurringExpMonthly?: number;
   expensesYTD?: number;
@@ -342,7 +339,6 @@ export function AltimeterContent({
   pipelineDeals,
   settings,
   historyItems = [],
-  boardMarketData = null,
   isPro: isPro = false,
   recurringExpMonthly = 0,
   expensesYTD: expensesYTDProp = 0,
@@ -400,19 +396,6 @@ export function AltimeterContent({
   // ── Benchmark ──────────────────────────────────────────────────────────
   const benchmark = compare(projectedGCI, settings?.experience_years ?? null);
 
-  // ── Market Momentum ────────────────────────────────────────────────────
-  const boardCodeSlug = settings?.board_code ?? "";
-  const marketMomentum = boardMarketData
-    ? computeMarketMomentum(
-        boardCodeSlug,
-        ytdDealCount,
-        ytdGCI,
-        boardMarketData,
-        historyItems,
-        currentYear,
-      )
-    : null;
-
   // ── Where You Stand ────────────────────────────────────────────────────
   const avgDealSize = ytdDealCount > 0 ? ytdGCI / ytdDealCount : 0;
   const hasPriorYearData = historyItems.some(
@@ -426,7 +409,7 @@ export function AltimeterContent({
     avgDealGCI: avgDealSize,
     goalGCI,
     benchmark,
-    marketMomentum,
+    marketMomentum: null,
     fraction,
     experienceYears: settings?.experience_years ?? null,
     cohort: benchmark.cohort,
@@ -765,68 +748,8 @@ export function AltimeterContent({
         </div>
       )}
 
-      {/* Market Momentum */}
-      {marketMomentum && marketMomentum.momentumTier !== "no_data" && (
-        <Card className="rounded-xl border-slate-200 bg-white shadow-sm">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-1.5">
-              <CardTitle className="text-base">Your Pace</CardTitle>
-              <MetricInfo tip={
-                marketMomentum.agentDealGrowthPct != null
-                  ? `Your deal count is ${marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}${marketMomentum.agentDealGrowthPct.toFixed(0)}% vs this point last year.${marketMomentum.boardSalesYoYPct != null ? ` Your board (${marketMomentum.boardName}) reported ${marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}${marketMomentum.boardSalesYoYPct.toFixed(0)}% YoY as of ${marketMomentum.reportMonth}.` : ""} Source: CREA MLS® Statistics.`
-                  : `Compares your deal pace against this point last year. Source: CREA MLS® Statistics, ${marketMomentum.reportMonth}.`
-              } />
-              <GuideLink anchor="market-position" label="Market Momentum explained in Guide" />
-            </div>
-            <CardDescription>
-              {marketMomentum.boardName} · {marketMomentum.reportMonth}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {marketMomentum.agentDealGrowthPct != null ? (
-              <div>
-                {/* Agent YoY — primary metric */}
-                <div className="flex items-end gap-4">
-                  <p
-                    className="text-2xl font-bold leading-tight"
-                    style={{
-                      color: marketMomentum.momentumTier === "gaining"  ? "#059669"
-                           : marketMomentum.momentumTier === "trailing" ? "#DC2626"
-                           : "#D97706",
-                    }}
-                  >
-                    {marketMomentum.agentDealGrowthPct >= 0 ? "+" : ""}{marketMomentum.agentDealGrowthPct.toFixed(0)}% YoY
-                  </p>
-                  <p
-                    className="text-sm font-semibold mb-0.5"
-                    style={{
-                      color: marketMomentum.momentumTier === "gaining"  ? "#059669"
-                           : marketMomentum.momentumTier === "trailing" ? "#DC2626"
-                           : "#D97706",
-                    }}
-                  >
-                    {marketMomentum.momentumLabel}
-                  </p>
-                </div>
-                {/* Board context — separate, with reporting period */}
-                {marketMomentum.boardSalesYoYPct != null && (
-                  <p className="text-xs text-slate-500 mt-1.5">
-                    Market {marketMomentum.boardSalesYoYPct >= 0 ? "+" : ""}{marketMomentum.boardSalesYoYPct.toFixed(0)}% YoY · {marketMomentum.reportMonth}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm font-semibold text-slate-600">{marketMomentum.momentumLabel}</p>
-            )}
-            <p className="text-[9px] text-slate-400 mt-2">
-              Source: CREA MLS® Statistics · © {new Date().getFullYear()} CREA
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Where You Stand */}
-      {(ytdDealCount > 0 || !!boardMarketData) && (() => {
+      {(ytdDealCount > 0) && (() => {
         const wys = whereYouStand;
         const bands: PerformanceBand[] = ["launching", "climbing", "competitive", "advancing", "leading"];
         const momentumIcon =
@@ -895,7 +818,7 @@ export function AltimeterContent({
             <GuideLink anchor="benchmark" label="Benchmark cohorts explained in Guide" />
           </div>
           <CardDescription>
-            vs. {COHORT_LABELS[benchmark.cohort]} cohort · CREA 2023 data
+            vs. {COHORT_LABELS[benchmark.cohort]} cohort · industry estimate
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -930,7 +853,7 @@ export function AltimeterContent({
       {/* Disclaimer */}
       <p className="text-center text-xs leading-relaxed text-muted-foreground/60 pb-2">
         All projections and benchmarks are approximations for planning purposes only — not financial or professional advice.
-        Benchmark data sourced from CREA 2023 national agent cohort statistics.
+        Benchmark data reflects industry-cohort estimates aggregated from public industry sources.
       </p>
     </div>
   );

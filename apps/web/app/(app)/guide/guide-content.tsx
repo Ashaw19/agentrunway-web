@@ -16,7 +16,6 @@ import {
   Calculator,
   Layers,
   Rocket,
-  MapPin,
   Gauge,
   BarChart3,
   Send,
@@ -94,11 +93,6 @@ const SECTION_META: Record<string, { icon: LucideIcon; description: string; colo
     description: "The 8-step setup wizard — province, structure, fees, and goals",
     color: "from-fuchsia-500/15 to-fuchsia-600/5 border-fuchsia-500/20",
   },
-  "CREA MLS® STATISTICS": {
-    icon: MapPin,
-    description: "Live local market data — board selection, SNLR, market position",
-    color: "from-teal-500/15 to-teal-600/5 border-teal-500/20",
-  },
   "INSIGHT & ADVISOR ENGINE THRESHOLDS": {
     icon: Lightbulb,
     description: "How AI insights and advisor cards are triggered based on your data",
@@ -139,7 +133,6 @@ const ANCHOR_MAP: Record<string, string> = {
   "expense-ratio":         "key-metrics-computations",
   "tax-estimate":          "tax-reference-2025-cra-rates",
   "financial-waterfall":   "pages-features",
-  "market-position":       "crea-mls-statistics",
   "flight-control":        "flight-control-ai-outreach-automation-system",
   "flight-status":         "client-status-flight-metaphor",
   "pipeline":              "pipeline-stages-probabilities",

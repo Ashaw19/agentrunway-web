@@ -1260,7 +1260,7 @@ export function ReportsContent({
               <GuideLink anchor="benchmark" label="Benchmark cohorts explained in Guide" />
               {isPro && <ExplainButton question="How does my benchmark standing work and what does my percentile rank mean?" />}
             </CardTitle>
-            <CardDescription>vs. {COHORT_LABELS[benchmark.cohort]} cohort · CREA 2023 data</CardDescription>
+            <CardDescription>vs. {COHORT_LABELS[benchmark.cohort]} cohort · industry estimate</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">

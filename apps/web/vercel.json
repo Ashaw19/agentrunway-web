@@ -21,10 +21,6 @@
       "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/cron/market-snapshot",
-      "schedule": "0 10 2 * *"
-    },
-    {
       "path": "/api/cron/ai-knowledge-audit",
       "schedule": "0 5 * * *"
     }

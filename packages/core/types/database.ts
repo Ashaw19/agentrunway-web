@@ -286,8 +286,9 @@ export interface UserSettings {
   // Admin override
   is_admin: boolean; // founder/admin flag — bypasses all subscription checks
 
-  // CREA board benchmarking
-  board_code:          string;       // CREA board slug (e.g. 'nbreb', 'treb') — '' = not set
+  // Local market board (reserved — market data layer currently disabled)
+  board_code:          string;       // board slug (e.g. 'nbreb', 'treb') — '' = not set
+
   board_subregion:     string;       // Optional sub-region within board (e.g. 'Saint John') — '' = board total
 
   // Business structure
@@ -1328,7 +1329,7 @@ export function computeAgentGross(
 // ── Newsletter Queue (migration 00042) ────────────────────────────────────────
 
 /** Which AI template produced the newsletter */
-export type NewsletterTemplateType = "boc_rate_change" | "market_update" | "custom";
+export type NewsletterTemplateType = "boc_rate_change" | "custom";
 
 export type NewsletterStatus = "draft" | "ready" | "sent";
 

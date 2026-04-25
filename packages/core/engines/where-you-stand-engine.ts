@@ -50,7 +50,7 @@ export interface WhereYouStandResult {
   momentumDetail: string | null; // e.g., "Your pace is outrunning the market by 12 points"
 
   // Diagnosis (expanded state)
-  marketChangePct: number | null;    // CREA board sales YoY %
+  marketChangePct: number | null;    // board sales YoY % (reserved — market data layer is currently disabled)
   agentChangePct: number | null;     // agent deal growth YoY %
   diagnosisLine: string;             // one-sentence attribution
 
@@ -82,7 +82,7 @@ export interface WhereYouStandInput {
   // Benchmark (already computed)
   benchmark: BenchmarkResult;
 
-  // Market momentum (already computed, nullable when no CREA data)
+  // Market momentum (always null — market data layer currently disabled)
   marketMomentum: {
     momentumTier: "gaining" | "tracking" | "trailing" | "no_data";
     agentDealGrowthPct: number | null;
@@ -176,10 +176,10 @@ function generateIdentityLine(
     return "It's early in the year — keep building pipeline and check back as deals close.";
   }
 
-  // No market data at all
+  // No market data available
   if (!boardName) {
     if (momentum === "no_data") {
-      return "Set your CREA board in settings to see how you compare to your market.";
+      return "Keep logging deals — your year-over-year trend appears once you have enough history.";
     }
   }
 
@@ -281,7 +281,7 @@ function generateDiagnosis(
     return "You're tracking the market closely. Consistent, but there's room to push ahead.";
   }
 
-  // Only agent history available (no CREA data)
+  // Only agent history available (no market-data signal)
   if (agentChangePct != null) {
     if (agentChangePct > 10) return "Your production is up significantly from last year. Strong trajectory.";
     if (agentChangePct < -10) return "Your production has dropped compared to last year. Worth examining what changed.";
@@ -297,7 +297,7 @@ function generateDiagnosis(
     return "You're roughly on pace for your annual goal.";
   }
 
-  return "Add a GCI goal and CREA board in settings to unlock full market comparison.";
+  return "Add a GCI goal in settings and log a few transactions to unlock the full year-over-year comparison.";
 }
 
 // ── Distance to Next Tier ──────────────────────────────────────────────────────

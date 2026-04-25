@@ -89,7 +89,7 @@ const COMPARISON_ROWS: ComparisonRow[] = [
     agentRunwayNote: "6-component composite score (A+ to F)",
   },
   {
-    feature: "CREA benchmark comparison",
+    feature: "Industry benchmark comparison",
     spreadsheet: "no",
     agentRunway: "yes",
     agentRunwayNote: "National cohort percentile ranking",

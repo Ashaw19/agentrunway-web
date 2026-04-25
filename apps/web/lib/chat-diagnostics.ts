@@ -312,7 +312,7 @@ function diagRunwayScore(ctx: DiagContext): string {
     ytdGCI, pipelineWeighted, engineFraction, s.goal_gci ?? 0,
   );
 
-  // 3. Benchmark (actual CREA percentile, not hardcoded 50)
+  // 3. Benchmark (actual industry-cohort percentile, not hardcoded 50)
   const benchmark = benchmarkCompare(projGCI, s.experience_years ?? null);
 
   // 4. Survival — cash input MUST be cashPosition.effectiveCash (not raw
@@ -675,8 +675,7 @@ Experience Years: ${s.experience_years ?? "NOT SET"}
 GST/HST Registered: ${(s.gst_hst_registered || !!s.business_number) ? "Yes" : "No"}
 Home Office Method: ${s.home_office_method ?? "none"}
 Vehicle Business Use: ${s.vehicle_business_pct ?? 0}%
-Seasonal Weights: ${s.seasonal_weights ? `Custom [${s.seasonal_weights.join(", ")}]` : "National default"}
-CREA Board: ${s.board_code || "NOT SET"}`;
+Seasonal Weights: ${s.seasonal_weights ? `Custom [${s.seasonal_weights.join(", ")}]` : "National default"}`;
 }
 
 /**

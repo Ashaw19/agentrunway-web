@@ -45,7 +45,7 @@ const FAQS = [
   },
   {
     q: "What's included in the Professional plan?",
-    a: "Professional gives you the full platform: GCI tracking, CRM with flight statuses, probability-weighted forecasts, a financial runway score, PDF reports, AI business assistant, tax estimation tools, receipt scanning, mileage tracking, and CREA benchmark data — everything serious agents need to run their business with clarity.",
+    a: "Professional gives you the full platform: GCI tracking, CRM with flight statuses, probability-weighted forecasts, a financial runway score, PDF reports, AI business assistant, tax estimation tools, receipt scanning, mileage tracking, and industry benchmark data — everything serious agents need to run their business with clarity.",
   },
 ];
 

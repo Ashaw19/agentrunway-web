@@ -833,68 +833,23 @@ export default function TermsPage() {
             {/* ────────────────────────────── 16 ───────────────────────────── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                16. Third-Party Data Sources (CREA MLS&reg; Statistics)
+                16. Third-Party Market Data
               </h2>
               <p className="mb-4 leading-relaxed">
-                Agent Runway incorporates data from third-party sources to
-                provide market benchmarking features. Your use of these features
-                is subject to the following:
+                Agent Runway does not currently display third-party market
+                statistics (such as board-level sale prices, Sales-to-New-Listings
+                Ratios, or market condition indicators) inside the Service. This
+                section is reserved for future market-data integrations and will
+                be updated when applicable.
               </p>
-              <div className="space-y-4">
-                <div>
-                  <p className="mb-2 font-semibold text-white">
-                    CREA MLS&reg; Statistics
-                  </p>
-                  <p className="leading-relaxed text-slate-400">
-                    Local market data displayed in Agent Runway (including board
-                    average sale prices, Sales-to-New-Listings Ratios, and market
-                    condition indicators) is sourced from statistics published by{" "}
-                    <strong className="text-slate-300">
-                      The Canadian Real Estate Association (CREA)
-                    </strong>{" "}
-                    via the CREA MLS&reg; Statistics portal. This data is provided
-                    for general informational and benchmarking purposes only and is
-                    updated on a monthly basis as CREA publishes new data.
-                  </p>
-                  <p className="mt-3 leading-relaxed text-slate-400">
-                    The trademarks{" "}
-                    <strong className="text-slate-300">MLS&reg;</strong>,{" "}
-                    <strong className="text-slate-300">
-                      Multiple Listing Service&reg;
-                    </strong>{" "}
-                    and the associated logos are owned by The Canadian Real Estate
-                    Association (CREA) and identify the quality of services
-                    provided by real estate professionals who are members of CREA.
-                    Agent Runway is not affiliated with, endorsed by, or an
-                    official partner of CREA. All CREA data remains the property
-                    of CREA. &copy; {new Date().getFullYear()} The Canadian Real
-                    Estate Association. All rights reserved.
-                  </p>
-                  <p className="mt-3 leading-relaxed text-slate-400">
-                    Agent Runway makes no representations about the accuracy,
-                    completeness, or timeliness of CREA data or any other
-                    third-party data displayed in the Service. Market data should
-                    not be used as the sole basis for any real estate, investment,
-                    or business decision. Always consult a qualified real estate
-                    professional for advice specific to your market.
-                  </p>
-                </div>
-                <div>
-                  <p className="mb-2 font-semibold text-white">
-                    National Benchmark Data
-                  </p>
-                  <p className="leading-relaxed text-slate-400">
-                    The Runway Score benchmarking component uses a national cohort
-                    dataset derived from published CREA statistics and industry
-                    surveys to compare your performance against agents with similar
-                    experience. This data is based on historical aggregated data
-                    and is updated periodically. It is provided for general
-                    comparative purposes only and does not constitute a
-                    professional performance assessment, employment evaluation, or
-                    industry ranking.
-                  </p>
-                </div>
-              </div>
+              <p className="leading-relaxed text-slate-400">
+                The Runway Score benchmarking component uses an internal
+                industry-cohort estimate (aggregated from public industry sources)
+                to compare your performance against agents with similar
+                experience. This data is provided for general comparative purposes
+                only and does not constitute a professional performance
+                assessment, employment evaluation, or industry ranking.
+              </p>
             </section>
 
             {/* ────────────────────────────── 17 ───────────────────────────── */}

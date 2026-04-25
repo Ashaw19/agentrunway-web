@@ -17,18 +17,6 @@
 import { type Tone, TONE_INSTRUCTIONS, AGENT_RUNWAY_VOICE } from "@/lib/outreach-prompts";
 export type { Tone };
 
-// ── Market stats shape (mirrors market_data_points columns) ──────────────────
-
-export interface MarketStats {
-  benchmark_price:     number | null;
-  avg_price:           number | null;
-  sales:               number | null;
-  new_listings:        number | null;
-  months_of_inventory: number | null;
-  yoy_price_pct:       number | null;
-  yoy_sales_pct:       number | null;
-}
-
 // ── BoC Rate Change Newsletter ────────────────────────────────────────────────
 
 export function buildBocRateChangeNewsletterPrompt(
@@ -81,70 +69,6 @@ Write a 3–4 paragraph newsletter-style email (300–380 words) that:
 
 On the very last line of your response, write exactly:
 SUBJECT: [concise, informative subject — references the rate change specifically, not generic "Market Update"]
-
-${AGENT_RUNWAY_VOICE}`;
-}
-
-// ── Market Update Newsletter ───────────────────────────────────────────────────
-
-export function buildMarketUpdateNewsletterPrompt(
-  agentFirst: string,
-  boardName:  string,
-  monthYear:  string,         // e.g. "March 2025"
-  stats:      MarketStats,
-  tone:       Tone = "friendly",
-): string {
-  // Format the stats into a readable block for the prompt
-  const statsLines: string[] = [];
-
-  if (stats.benchmark_price)
-    statsLines.push(`Benchmark price: $${stats.benchmark_price.toLocaleString("en-CA")}`);
-  if (stats.avg_price)
-    statsLines.push(`Average price: $${stats.avg_price.toLocaleString("en-CA")}`);
-  if (stats.sales)
-    statsLines.push(`Homes sold: ${stats.sales.toLocaleString("en-CA")}`);
-  if (stats.new_listings)
-    statsLines.push(`New listings: ${stats.new_listings.toLocaleString("en-CA")}`);
-  if (stats.months_of_inventory != null)
-    statsLines.push(`Months of inventory: ${stats.months_of_inventory.toFixed(1)}`);
-  if (stats.yoy_price_pct != null)
-    statsLines.push(`Year-over-year price change: ${stats.yoy_price_pct >= 0 ? "+" : ""}${stats.yoy_price_pct.toFixed(1)}%`);
-  if (stats.yoy_sales_pct != null)
-    statsLines.push(`Year-over-year sales change: ${stats.yoy_sales_pct >= 0 ? "+" : ""}${stats.yoy_sales_pct.toFixed(1)}%`);
-
-  const marketCondition =
-    stats.months_of_inventory == null ? "market conditions unknown"
-    : stats.months_of_inventory < 2   ? "a strong seller's market (under 2 months inventory)"
-    : stats.months_of_inventory < 4   ? "a balanced-to-seller's market"
-    : stats.months_of_inventory < 6   ? "a balanced market"
-    : "a buyer's market (over 6 months inventory)";
-
-  const statsBlock = statsLines.length > 0
-    ? `\nLatest CREA MLS® data for ${boardName} — ${monthYear}:\n${statsLines.map(l => `  • ${l}`).join("\n")}\n`
-    : `\nMarket: ${boardName}, ${monthYear} (specific stats not available — use general commentary)\n`;
-
-  return `You are ghostwriting a monthly market update newsletter from a Canadian real estate agent named ${agentFirst}.
-This email goes to their entire client list — past buyers, sellers, active clients, and investors.
-${statsBlock}
-Market condition signal: ${marketCondition}
-
-${TONE_INSTRUCTIONS[tone]}
-
-Write a 3–4 paragraph market update email (300–400 words) that:
-- Opens with a compelling observation about the current market — NOT "Here's your monthly market update!"
-- DO NOT start with "Subject:" — write the body first
-- Uses the actual stats to tell a coherent story about the market — don't just list numbers, interpret them
-- Covers what the data means for:
-  (a) Homeowners — what is their equity doing? Is now a good time to list?
-  (b) Buyers — is inventory improving? What's the competition like?
-- Includes at least one concrete, actionable takeaway the reader can act on
-- Ends with a genuine offer: the agent can run a free, no-obligation home value estimate or answer questions
-- Reads like a trusted local expert wrote it — not like a Mailchimp template
-- Sign off with just "${agentFirst}"
-- Vary sentence length. Specific numbers are more credible than vague claims.
-
-On the very last line of your response, write exactly:
-SUBJECT: [concise subject that references the market or month — not just "Market Update"]
 
 ${AGENT_RUNWAY_VOICE}`;
 }

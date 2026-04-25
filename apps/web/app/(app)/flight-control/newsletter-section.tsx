@@ -20,7 +20,7 @@ import { toast }     from "sonner";
 import { cn }        from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import {
-  Newspaper, Landmark, BarChart2, Pen, Plus,
+  Newspaper, Landmark, Pen, Plus,
   Loader2, Copy, CheckCircle2, Mail, ChevronRight,
   Send, Sparkles, Users,
 } from "lucide-react";
@@ -36,14 +36,6 @@ const TEMPLATE_CONFIG = {
     bgCls:   "bg-blue-500/10",
     textCls: "text-blue-400",
     desc:    "Bank of Canada rate announcement",
-  },
-  market_update: {
-    label:   "Market Update",
-    icon:    BarChart2,
-    ringCls: "ring-emerald-500/40",
-    bgCls:   "bg-emerald-500/10",
-    textCls: "text-emerald-400",
-    desc:    "Monthly CREA MLS® stats for your board",
   },
   custom: {
     label:   "Custom Topic",
@@ -105,7 +97,7 @@ function DraftNewsletterDrawer({
     if (templateType === "custom") {
       return topic.trim().length >= 3;
     }
-    return true; // market_update needs no user input
+    return true;
   }, [templateType, oldRate, newRate, topic]);
 
   const handleDraft = useCallback(async () => {
@@ -277,19 +269,6 @@ function DraftNewsletterDrawer({
                   className="h-8 text-sm"
                 />
               </div>
-            </div>
-          )}
-
-          {templateType === "market_update" && (
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-3">
-              <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 mb-1">
-                <BarChart2 className="h-3.5 w-3.5" />
-                Auto-fetches your board data
-              </p>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">
-                AI will use the latest CREA market stats saved for your board. Set your board in
-                Settings → Local Market Board if you haven&apos;t already.
-              </p>
             </div>
           )}
 

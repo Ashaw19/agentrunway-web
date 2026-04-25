@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { AltimeterContent } from "./altimeter-content";
 import type { HistoryItem, Transaction, PipelineDeal, RecurringExpense } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
-import { CREA_BOARDS, fetchBoardData, type LocalMarketData } from "@/lib/crea-board";
 import { computeIsPro } from "@/lib/compute-is-pro";
 
 
@@ -92,28 +91,12 @@ export default async function AltimeterPage() {
   const expMonthsElapsed = new Date().getMonth() + (new Date().getDate() / 30);
   const altExpensesYTD = Math.max(receiptYTD, legacyMonthlyRecurring * expMonthsElapsed) + recurringExpYTD;
 
-  // Fetch live CREA board data if the user has selected a board
-  let boardMarketData: LocalMarketData | null = null;
-  const boardCode = settings?.board_code ?? "";
-  if (boardCode) {
-    const board = CREA_BOARDS.find((b) => b.slug === boardCode);
-    if (board) {
-      try {
-        boardMarketData = await fetchBoardData(board);
-      } catch {
-        // Board data is non-critical — continue without it
-      }
-    }
-  }
-
   return (
     <AltimeterContent
       transactions={transactions}
       pipelineDeals={pipelineDeals}
       settings={settings}
       historyItems={historyItems}
-      boardMarketData={boardMarketData}
-      boardSubregion={settings?.board_subregion ?? ""}
       isPro={await computeIsPro(supabase, user.id, settings)}
       recurringExpMonthly={altMonthlyRecurring}
       expensesYTD={altExpensesYTD}

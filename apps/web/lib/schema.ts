@@ -168,7 +168,7 @@ export const softwareApplicationSchema = {
     "Canadian tax estimation for all 13 provinces and territories",
     "T2125 reconciliation and HST input tax credits",
     "P10-P90 probabilistic year-end forecasting",
-    "CREA board peer benchmarking",
+    "Industry-cohort peer benchmarking",
     "MCP server for Claude, ChatGPT, and Perplexity integration",
     "Voice-first mobile input with intent classification",
     "Mileage tracking with CRA deduction calculation",

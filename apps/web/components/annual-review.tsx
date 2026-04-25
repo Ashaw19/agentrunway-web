@@ -240,7 +240,7 @@ export function AnnualReview({
                 <Award className="h-8 w-8 text-amber-400" />
               </div>
               <p className="text-sm font-semibold uppercase tracking-widest text-amber-400">
-                CREA Cohort Rank
+                Industry Cohort Rank
               </p>
               <p
                 className="mt-4 text-5xl font-black"

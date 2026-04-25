@@ -6,7 +6,6 @@
  *
  * Supported template_type values:
  *   boc_rate_change  — { old_rate: number, new_rate: number, effective_date?: string, notes?: string }
- *   market_update    — {} (auto-fetches latest market_data_points for user's board)
  *   custom           — { topic: string, notes?: string }
  *
  * Response:
@@ -27,10 +26,8 @@ import { createClient }               from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { requirePro } from "@/lib/require-pro";
 import type { NewsletterTemplateType } from "@agent-runway/core/types/database";
-import type { MarketStats }            from "@/lib/newsletter-prompts";
 import {
   buildBocRateChangeNewsletterPrompt,
-  buildMarketUpdateNewsletterPrompt,
   buildCustomNewsletterPrompt,
 } from "@/lib/newsletter-prompts";
 
@@ -39,10 +36,6 @@ import {
 function extractFirstName(displayName: string | null): string {
   if (displayName) return displayName.split(/\s+/)[0] ?? displayName;
   return "your agent";
-}
-
-function currentMonthYear(): string {
-  return new Date().toLocaleDateString("en-CA", { month: "long", year: "numeric" });
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
@@ -86,7 +79,7 @@ export async function POST(req: NextRequest) {
 
   const { template_type } = body;
 
-  const VALID_TYPES: NewsletterTemplateType[] = ["boc_rate_change", "market_update", "custom"];
+  const VALID_TYPES: NewsletterTemplateType[] = ["boc_rate_change", "custom"];
   if (!template_type || !VALID_TYPES.includes(template_type as NewsletterTemplateType)) {
     return NextResponse.json(
       { error: `template_type must be one of: ${VALID_TYPES.join(", ")}` },
@@ -116,31 +109,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Fetch user settings + (for market_update) board data in parallel ──────
+  // ── Fetch user settings ──────────────────────────────────────────────────
 
-  const settingsPromise = supabase
+  const settingsRes = await supabase
     .from("user_settings")
-    .select("display_name, email_signature, board_code, board_subregion")
+    .select("display_name, email_signature")
     .eq("user_id", user.id)
     .single();
 
-  const marketPromise = tmplType === "market_update"
-    ? supabase
-        .from("market_data_points")
-        .select(
-          "benchmark_price, avg_price, sales, new_listings, months_of_inventory, yoy_price_pct, yoy_sales_pct, geo_name, period_label",
-        )
-        .eq("user_id", user.id)
-        .order("retrieved_at", { ascending: false })
-        .limit(1)
-        .maybeSingle()
-    : Promise.resolve({ data: null, error: null });
-
-  const [settingsRes, marketRes] = await Promise.all([settingsPromise, marketPromise]);
-
   const agentFirst     = extractFirstName(settingsRes.data?.display_name ?? null);
   const emailSignature = (settingsRes.data?.email_signature as string) ?? "";
-  const boardCode      = (settingsRes.data?.board_code as string) ?? "";
 
   // ── Build template context + prompt ──────────────────────────────────────
 
@@ -157,26 +135,6 @@ export async function POST(req: NextRequest) {
 
       context = { old_rate: oldRate, new_rate: newRate, effective_date: effectiveDate, notes };
       prompt  = buildBocRateChangeNewsletterPrompt(agentFirst, oldRate, newRate, effectiveDate, notes);
-      break;
-    }
-
-    case "market_update": {
-      const marketData = marketRes.data;
-      const boardName  = marketData?.geo_name ?? boardCode ?? "Your Local Market";
-      const monthYear  = marketData?.period_label ?? currentMonthYear();
-
-      const stats: MarketStats = {
-        benchmark_price:     marketData?.benchmark_price     ?? null,
-        avg_price:           marketData?.avg_price           ?? null,
-        sales:               marketData?.sales               ?? null,
-        new_listings:        marketData?.new_listings        ?? null,
-        months_of_inventory: marketData?.months_of_inventory ?? null,
-        yoy_price_pct:       marketData?.yoy_price_pct       ?? null,
-        yoy_sales_pct:       marketData?.yoy_sales_pct       ?? null,
-      };
-
-      context = { board_name: boardName, board_code: boardCode, month_year: monthYear, ...stats };
-      prompt  = buildMarketUpdateNewsletterPrompt(agentFirst, boardName, monthYear, stats);
       break;
     }
 

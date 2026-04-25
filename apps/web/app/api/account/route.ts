@@ -10,7 +10,7 @@
  * Cascade deletes (via FK ON DELETE CASCADE) handle all other application data:
  * - user_settings, transactions, pipeline_deals, history_items,
  *   expense_categories, expense_items, milestones, agent_profiles,
- *   team_deals, market_data_points, plaid_items, plaid_transactions
+ *   team_deals, plaid_items, plaid_transactions
  *
  * The Plaid revocation MUST happen before step 2, because once the auth record
  * is deleted the access_tokens are gone from our DB (cascade) but may still be

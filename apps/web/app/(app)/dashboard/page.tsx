@@ -2,7 +2,6 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { DashboardContent } from "./dashboard-content";
 import type { HistoryItem, ContactTask, Client, ContactActivity, ClientRecord, ListingAppointment } from "@/lib/types/database";
-import { CREA_BOARDS, fetchBoardData, type LocalMarketData } from "@/lib/crea-board";
 import { computeIntelligenceBriefing, type BriefingItem } from "@/lib/engines/crm-analytics-engine";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import type { RecurringExpense } from "@/lib/types/database";
@@ -209,15 +208,6 @@ export default async function DashboardPage({
   );
   const staleLeadCount = Math.max(0, activeClientCount - recentlyContactedIds.size);
 
-  let boardMarketData: LocalMarketData | null = null;
-  const boardCode = settingsRow?.board_code ?? "";
-  if (boardCode) {
-    const board = CREA_BOARDS.find((b) => b.slug === boardCode);
-    if (board) {
-      try { boardMarketData = await fetchBoardData(board); } catch { /* non-critical */ }
-    }
-  }
-
   // ── Team welcome detection ─────────────────────────────────────────────
   // Show welcome banner if user joined an org in the last 7 days and has no transactions yet
   let teamWelcome: { orgName: string } | null = null;
@@ -260,8 +250,6 @@ export default async function DashboardPage({
       activeClientCount={activeClientCount}
       staleLeadCount={staleLeadCount}
       hasSeenTour={settingsRow?.has_seen_tour ?? true}
-      boardMarketData={boardMarketData}
-      boardSubregion={settingsRow?.board_subregion ?? ""}
       briefingItems={topBriefingItems}
       upcomingConditions={upcomingConditions}
       runwayScoreSnapshot={(settingsRow?.runway_score_snapshot as { score: number; month: string } | null) ?? null}

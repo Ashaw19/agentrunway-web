@@ -543,10 +543,10 @@ export function OrgDashboardContent({
           <div className="rounded-xl border bg-card">
             <div className="px-5 py-4 border-b">
               <h3 className="text-sm font-semibold">
-                Cohort Performance vs CREA Benchmark
+                Cohort Performance vs Industry Benchmark
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Org average YTD GCI by experience level compared to CREA national median
+                Org average YTD GCI by experience level compared to the industry national median
               </p>
             </div>
             <div className="overflow-x-auto">
@@ -556,7 +556,7 @@ export function OrgDashboardContent({
                     <th className="px-5 py-3 text-left font-medium">Cohort</th>
                     <th className="px-5 py-3 text-right font-medium">Agents</th>
                     <th className="px-5 py-3 text-right font-medium">Org Avg GCI</th>
-                    <th className="px-5 py-3 text-right font-medium">CREA Median</th>
+                    <th className="px-5 py-3 text-right font-medium">Industry Median</th>
                     <th className="px-5 py-3 text-right font-medium">Difference</th>
                   </tr>
                 </thead>

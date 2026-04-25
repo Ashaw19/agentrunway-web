@@ -51,7 +51,7 @@ const PRO_FEATURES = [
   "Probabilistic forecasting (P10–P90)",
   "Business health score (A+ to F)",
   "Expense tracking and categorization",
-  "CREA benchmark comparison",
+  "Industry benchmark comparison",
   "Business reports and PDF export",
   "Mileage tracking (CRA-format logs)",
   "Year-to-date dashboard and forecasting",

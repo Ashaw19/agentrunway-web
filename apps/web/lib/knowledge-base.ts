@@ -15,7 +15,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 ### PAGES
 
-**DASHBOARD** — Runway Score (0-100, A+ to F), KPI cards, monthly income chart, P10-P90 bands, benchmark vs CREA peers, tax estimate, smart alerts, AI insights, survival runway. Views: Essentials/Standard/Full. Scenarios: Conservative(-15%)/Base/Optimistic(+15%). Smart alerts use IQR anomaly detection on personal baselines.
+**DASHBOARD** — Runway Score (0-100, A+ to F), KPI cards, monthly income chart, P10-P90 bands, industry-cohort benchmark, tax estimate, smart alerts, AI insights, survival runway. Views: Essentials/Standard/Full. Scenarios: Conservative(-15%)/Base/Optimistic(+15%). Smart alerts use IQR anomaly detection on personal baselines.
 
 **TRANSACTIONS** — Deals (closed: date, address, client, price, commission%, GCI, side, split), Pipeline (Lead 10%/Showing 25%/Offer 50%/Conditional 75%/Firm 90%, weighted GCI, convert-to-closed), History (annual summaries, CSV/PDF import with duplicate detection).
 
@@ -25,11 +25,11 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **FORECAST** — Waterfall (GCI→split→fees→expenses→tax→take-home), tax card, P10-P90 bands, 5-year growth, goal gap analysis.
 
-**REPORTS** — Overview (score, benchmark, waterfall, tables), Benchmark (CREA cohort), Tax/T2125 (CRA lines, CCA, home office, mileage).
+**REPORTS** — Overview (score, benchmark, waterfall, tables), Benchmark (industry cohort), Tax/T2125 (CRA lines, CCA, home office, mileage).
 
 **OVERHEAD** — Tax estimates (federal+provincial+CPP), per-deal set-aside, income tax instalments (Mar15/Jun15/Sep15/Dec15), GST/HST (collected vs ITCs vs net; quarterly filing deadlines: Q1 Apr30, Q2 Jul31, Q3 Oct31, Q4 Mar31-next-year — separate from income tax instalment dates), deduction summary by T2125 line, CCA schedule, home office, paycheque allocation. Time Value card (effective hourly rate/hr, hours per deal, break-even deal count — requires Settings → Weekly Hours).
 
-**ALTIMETER** — Personal records (best year/month/deal), YoY comparison, all insights ranked by $impact, board benchmarking, performance bands (Launching/Climbing/Competitive/Advancing/Leading), deviation detection (>=20% from baseline), Runway Score breakdown (Pace 35%/Pipeline 30%/Expense 15%/Survival 15%/Benchmark 5%).
+**ALTIMETER** — Personal records (best year/month/deal), YoY comparison, all insights ranked by $impact, performance bands (Launching/Climbing/Competitive/Advancing/Leading), deviation detection (>=20% from baseline), Runway Score breakdown (Pace 35%/Pipeline 30%/Expense 15%/Survival 15%/Benchmark 5%).
 
 **SCENARIOS** — What-if modeling: adjust deals, price, commission, expenses, growth. Conservative/Base/Optimistic.
 
@@ -37,7 +37,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **SOCIAL STUDIO** — Instagram month-in-review carousel builder with templates and Canva export.
 
-**SETTINGS** — Province, business structure, split (70/30-100/0), brokerage fees (monthly+per-deal+cap+post-cap), cash reserve, experience years, GCI goal, vehicle %, home office method/sqft, GST/HST registration, filing frequency, brokerage withholds HST toggle, seasonality, bank connections, AI Voice Guide, CREA board, estimated weekly hours + vacation weeks (unlocks Time Value card on Overhead).
+**SETTINGS** — Province, business structure, split (70/30-100/0), brokerage fees (monthly+per-deal+cap+post-cap), cash reserve, experience years, GCI goal, vehicle %, home office method/sqft, GST/HST registration, filing frequency, brokerage withholds HST toggle, seasonality, bank connections, AI Voice Guide, estimated weekly hours + vacation weeks (unlocks Time Value card on Overhead).
 
 **PROFILE** — Name, brokerage, avatar, 15 themes, dark mode, production stats.
 
@@ -64,7 +64,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 **Seasonal Fraction** = Accounts for uneven quarterly income (default Q1:15% Q2:30% Q3:30% Q4:25%). Custom weights in Settings. Day-level interpolation.
 **Projected Year-End GCI** = (Closed YTD / Seasonal Fraction) + (Pipeline Weighted x 50%). Jan-Feb dampening blends toward goal.
 **Runway Score** (v1.2) = Pace(35%) + Pipeline(30%) + Expense(15%) + Survival(15%) + Benchmark(5%). Grades: A+(92+) A(85-91) B(75-84) C(62-74) D(50-61) F(0-49). Missing data penalizes (35 not 50).
-**Benchmark** = CREA 2023 cohorts: Rookie(0-2yr,$42K/4deals), Growth(3-5yr,$78K/7), Established(6-10yr,$96K/8), TopProducer(>10yr,$145K/12). National median $96K/8.
+**Benchmark** = Industry cohort estimates: Rookie(0-2yr,$42K/4deals), Growth(3-5yr,$78K/7), Established(6-10yr,$96K/8), TopProducer(>10yr,$145K/12). National median $96K/8.
 **Where You Stand** = Launching(0-10%ile)/Climbing(10-25)/Competitive(25-50)/Advancing(50-75)/Leading(75+). Momentum: gaining/holding/losing.
 **P-Bands** = P10/25/50/75/90 via CV. CV clamped 5-50%.
 **Client Tiers** = Platinum(top10%)/Gold(10-25%)/Silver(25-50%)/Bronze(50%+). Composite: LGV(40%)+Health(20%)+Impact(15%)+Velocity(15%)+Tax(10%).
@@ -120,7 +120,4 @@ Split: agent keeps X% (70/30 to 100/0). Brokerage fees: monthly desk fee, per-de
 
 ---
 
-### CREA MLS STATISTICS
-
-60 boards supported. Monthly data from stats.crea.ca, cached 24hr. Market Position: Above(+5%)/At(+-5%)/Below(-5%) vs board avg price. SNLR: Seller's(>65%)/Balanced(45-65%)/Buyer's(<45%).
 `;

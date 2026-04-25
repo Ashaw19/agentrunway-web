@@ -42,11 +42,11 @@ The Runway Score is a weighted composite of 5 sub-scores, each 0–100:
 | Pipeline Health | 30% | Pipeline weighted GCI vs remaining goal gap |
 | Expense Ratio | 15% | YTD expenses ÷ YTD GCI |
 | Survival Runway | 15% | Cash reserve ÷ net monthly burn |
-| Benchmark Rank | 5% | CREA 2023 percentile position |
+| Benchmark Rank | 5% | Industry-cohort percentile position |
 
 **Final Score** = (paceScore × 0.35) + (pipelineScore × 0.30) + (expenseScore × 0.15) + (survivalScore × 0.15) + (benchmarkScore × 0.05)
 
-*Note: v1.2 increased Pipeline weight from 25% to 30% and reduced Benchmark from 10% to 5% — pipeline is more actionable than CREA national cohort comparison.*
+*Note: v1.2 increased Pipeline weight from 25% to 30% and reduced Benchmark from 10% to 5% — pipeline is more actionable than national cohort comparison.*
 
 ### Sub-Score Calculations
 
@@ -78,7 +78,7 @@ The Runway Score is a weighted composite of 5 sub-scores, each 0–100:
 - Not configured (no cash reserve set) → 35 (incomplete data penalty — previously 50 in v1.1)
 
 **Benchmark Score** (5%):
-- Direct percentile from CREA comparison
+- Direct percentile from industry-cohort comparison
 - 50th percentile → 50, 90th → 90, etc.
 
 ### Runway Score Labels
@@ -883,11 +883,6 @@ Example: $500/month + 3% per deal, capped at $20,000/year. After cap → 0% per 
 - Feeds into 5-year growth plan on Forecast page
 - Used for long-term probability band projections
 
-### CREA Board Selection
-- Board determines local market comparison data
-- Sub-regions available for some boards (e.g., NBREA → Fredericton Area)
-- Market Position and Market Conditions use board data
-
 ### AI Voice Guide
 - Free-text field describing personal communication style
 - Injected into all AI-generated outreach drafts
@@ -999,9 +994,9 @@ Example: $500/month + 3% per deal, capped at $20,000/year. After cap → 0% per 
   // ═══════════════════════════════════════════════════════════════════════════
   benchmark: `## TROUBLESHOOTING: BENCHMARK & MARKET COMPARISON
 
-### CREA Benchmark Data (from benchmark-engine.ts)
+### Industry Benchmark Data (from benchmark-engine.ts)
 
-Uses CREA 2023 national statistics. Cohorts based on experience years:
+Uses industry-cohort estimates aggregated from public industry sources. Cohorts based on experience years:
 
 | Cohort | Years | Median GCI | Median Deals | Avg Price |
 |--------|-------|-----------|-------------|-----------|
@@ -1040,36 +1035,18 @@ Linear interpolation between breakpoints: p25, median (p50), p75, p90
 - Early career (<3 years): Softens "below market" messaging
 - Too early in year (fraction < 0.16 AND <3 deals): Suppresses projection entirely
 
-### Board Comparison (CREA MLS® Stats)
-- Market Position: Your avg deal size vs local board average price
-  - Above Market: >5% higher
-  - At Market: ±5%
-  - Below Market: >5% lower
-- Market Conditions (SNLR = Sales ÷ New Listings):
-  - Seller's: SNLR >65%
-  - Balanced: 45–65% (national avg: 54.8%)
-  - Buyer's: <45%
-
 ### Common Problems & Diagnostics
 
 **"My benchmark seems wrong"**
 1. Check experience years in Settings — determines which cohort you're compared to
 2. Benchmark uses projected annual GCI (not just YTD)
-3. CREA data is 2023 — may not reflect 2024/2025 market shifts
+3. Cohort estimates are based on aggregated industry data — they may not reflect the most recent market shifts
 
 **"Why am I compared to rookies?"**
 → Experience years is set to 0–2 in Settings. Update to actual years of experience.
 
 **"I'm above median but score is low"**
 → Benchmark is only 5% of Runway Score. Other components (pace 35%, pipeline 30%) have much more impact.
-
-**"Market Position says 'Below Market' but I sell expensive homes"**
-→ Market Position compares your AVERAGE deal size to the local board average. If you do some small deals mixed with large ones, your average may be lower.
-
-**"Board data isn't showing"**
-1. Check if a board is selected in Settings → Local Market Board
-2. CREA data refreshes monthly (first 2 weeks of each month)
-3. Agent Runway caches board data for 24 hours
 
 **Edge Cases:**
 - No history data: Benchmark uses only current year
@@ -1248,7 +1225,6 @@ All settings are editable later in Settings.
 4. **Add clients**: CRM → Add your key contacts
 5. **Set cash reserve**: Settings → Cash Reserve
 6. **Write AI Voice Guide**: Settings → AI Voice Guide (for Flight Control)
-7. **Select CREA board**: Settings → Local Market Board
 
 ### Welcome Tour
 After onboarding, a welcome tour highlights key features:
@@ -1547,8 +1523,8 @@ The Altimeter is your deep analytics dashboard — performance tracking, insight
    - Examples: "Your average deal size increased 12% vs last year" or "Your expense ratio dropped below 30%"
    - Insights pull from transactions, pipeline, expenses, and CRM data
 
-4. **Board Benchmarking**
-   - Compares your performance to CREA national and board-level data
+4. **Industry Benchmarking**
+   - Compares your performance to industry-cohort estimates aggregated from public industry sources
    - Shows your percentile rank among agents
    - Cohort comparison (rookie, growth, established, top producer)
 
@@ -1569,7 +1545,7 @@ The Altimeter is your deep analytics dashboard — performance tracking, insight
 ### Common Issues
 - **"Personal records are wrong"**: Records only count closed transactions with confirmed GCI. Pending pipeline deals don't count.
 - **"Year-over-year is empty"**: You need at least 2 years of transaction data. Import historical transactions at /history.
-- **"Board benchmark says I'm low but I'm doing well"**: Benchmarks use CREA 2023 national data. Local markets vary significantly.
+- **"Industry benchmark says I'm low but I'm doing well"**: Benchmarks use national-cohort estimates. Local markets vary significantly.
 - **"Runway Score dropped suddenly"**: Check which component changed — usually it's pipeline health (deals fell through) or pace (slow month).
 - **"No insights showing"**: The insights engine needs at least a few months of data to generate meaningful observations.
 `,
