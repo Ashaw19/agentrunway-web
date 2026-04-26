@@ -517,15 +517,16 @@ function NewsletterReviewDrawer({
               onClick={() => {
                 const subject = encodeURIComponent(editSubject);
                 const body    = encodeURIComponent(editBody.slice(0, 1800));
-                // Newsletter is sent to your full client list — open Gmail compose with subject/body pre-filled.
-                // The recipient (BCC list) must be added manually in your email client.
+                // Newsletter is sent to your full client list — open the
+                // user's default email client with subject/body pre-filled.
+                // The recipient (BCC list) must be added manually.
                 window.open(`mailto:?subject=${subject}&body=${body}`, "_blank");
                 markAsSent();
               }}
               disabled={saving || isDraft}
             >
               <Mail className="h-4 w-4" />
-              Open in Gmail
+              Open in Email
             </Button>
           </div>
           <Button

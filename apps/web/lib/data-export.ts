@@ -74,9 +74,9 @@ const EXPORT_TABLES: readonly ExportTable[] = [
   { table: "property_showings", filename: "property-showings.csv", description: "Property showings" },
   { table: "property_analyses", filename: "property-analyses.csv", description: "Property valuations and analyses" },
 
-  // ── Calendar, email, drive (integrations & content) ───────────────────────
+  // ── Calendar, email, document sync (integrations & content) ──────────────
   { table: "calendar_events", filename: "calendar-events.csv", description: "Synced calendar events" },
-  { table: "drive_documents", filename: "drive-documents.csv", description: "Documents synced from Google Drive" },
+  { table: "drive_documents", filename: "drive-documents.csv", description: "Synced documents (legacy data; document sync is not currently offered)" },
   { table: "inbound_emails", filename: "inbound-emails.csv", description: "Emails received in your inbox" },
   { table: "email_warmup_status", filename: "email-warmup-status.csv", description: "Email deliverability warmup state" },
 
@@ -105,8 +105,8 @@ const EXPORT_TABLES: readonly ExportTable[] = [
   // ── Connected accounts (sensitive — tokens redacted) ─────────────────────
   {
     table: "google_connections",
-    filename: "google-connections.csv",
-    description: "Connected Google accounts (OAuth tokens redacted)",
+    filename: "connected-accounts-google.csv",
+    description: "Legacy connected-account records (third-party account integrations are not currently offered; OAuth tokens redacted)",
     redactColumns: ["access_token_enc", "refresh_token_enc", "calendar_sync_token"],
   },
   {
@@ -117,11 +117,11 @@ const EXPORT_TABLES: readonly ExportTable[] = [
   },
   {
     table: "plaid_items",
-    filename: "plaid-items.csv",
-    description: "Connected bank accounts via Plaid (access tokens redacted)",
+    filename: "bank-connections.csv",
+    description: "Legacy bank-connection records (bank-account connectivity is a planned future capability; access tokens redacted)",
     redactColumns: ["access_token"],
   },
-  { table: "plaid_transactions", filename: "plaid-transactions.csv", description: "Bank transactions imported from Plaid" },
+  { table: "plaid_transactions", filename: "bank-transactions.csv", description: "Imported bank transactions (legacy data)" },
   {
     table: "social_connections",
     filename: "social-connections.csv",

@@ -164,9 +164,11 @@ export function ExpensesContent({
 
   // ── Tab state ─────────────────────────────────────────────────────────────
   const [tab, setTab] = useState<"receipts" | "mileage" | "imports">("receipts");
-  const pendingImportsCount = plaidTransactions.filter(
+  // Bank Imports tab is hidden; pendingImportsCount kept for code retention.
+  const _pendingImportsCount = plaidTransactions.filter(
     (t) => t.amount > 0 && t.review_status === "pending",
   ).length;
+  void _pendingImportsCount;
 
   // ── Receipt YTD totals (keyed by expense_items.key, refreshed after each save) ──
   const [receiptTotals, setReceiptTotals] = useState<Record<string, number>>(receiptTotalsByKey);
@@ -1337,8 +1339,11 @@ export function ExpensesContent({
       )}
 
       {/* ── Tab bar ──────────────────────────────────────────────────────── */}
+      {/* "Bank Imports" tab is hidden — bank-account connectivity is a planned
+          future capability and is not currently offered. See
+          memory/project_plaid_status.md. */}
       <div className="flex items-center gap-1 border-b border-border/60">
-        {(["receipts", "mileage", "imports"] as const).map((t) => (
+        {(["receipts", "mileage"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -1350,16 +1355,6 @@ export function ExpensesContent({
           >
             {t === "receipts" && "Receipts"}
             {t === "mileage"  && "Mileage"}
-            {t === "imports"  && (
-              <span className="flex items-center gap-1.5">
-                Bank Imports
-                {pendingImportsCount > 0 && (
-                  <span className="inline-flex items-center justify-center h-4 min-w-4 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-400 text-[10px] font-bold px-1">
-                    {pendingImportsCount}
-                  </span>
-                )}
-              </span>
-            )}
           </button>
         ))}
       </div>
@@ -1373,8 +1368,8 @@ export function ExpensesContent({
         />
       )}
 
-      {/* ── Tab: Bank Imports ─────────────────────────────────────────────── */}
-      {tab === "imports" && (
+      {/* ── Tab: Bank Imports — HIDDEN (Plaid not currently offered) ────── */}
+      {false && tab === "imports" && (
         <ExpensesBankImportsTab
           items={plaidItems}
           transactions={plaidTransactions}

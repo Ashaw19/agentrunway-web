@@ -1841,7 +1841,8 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
         </CardContent>
       </Card>
 
-      {/* Card 8 — Bank Connections */}
+      {/* Card 8 — Bank Connections — HIDDEN (Plaid not yet offered; see project_plaid_status.md) */}
+      {false && (
       <Card className="rounded-xl border-l-4 border-l-cyan-400 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -1979,8 +1980,10 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
           )}
         </CardContent>
       </Card>
+      )}
 
-      {/* Card — Google Integrations */}
+      {/* Card — Google Integrations — HIDDEN (CASA-shelved per memory/project_google_integrations.md) */}
+      {false && (
       <Card className="rounded-xl border-l-4 border-l-rose-400 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -2099,8 +2102,10 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
           )}
         </CardContent>
       </Card>
+      )}
 
-      {/* Card — Other Email Providers (Microsoft + SMTP) */}
+      {/* Card — Other Email Providers (Microsoft + SMTP) — HIDDEN (CASA-shelved; outreach sending paused) */}
+      {false && (
       <Card className="rounded-xl border-l-4 border-l-violet-400 shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -2393,6 +2398,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Card 9 — Plan & Billing */}
       <PlanBillingCard settings={settings} isPro={isProProp} />

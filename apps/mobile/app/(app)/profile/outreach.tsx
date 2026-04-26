@@ -149,13 +149,13 @@ export default function OutreachScreen() {
                 });
               } else if (json.code === "NO_CONNECTION") {
                 Alert.alert(
-                  "Gmail Not Connected",
-                  "Connect your Gmail account in Settings on the web app to send emails directly."
+                  "Email Sending Unavailable",
+                  "Direct email sending from the app is not currently available."
                 );
               } else if (json.code === "AUTH_EXPIRED") {
                 Alert.alert(
-                  "Gmail Reconnection Needed",
-                  "Your Gmail connection has expired. Please reconnect in Settings on the web app."
+                  "Email Sending Unavailable",
+                  "Direct email sending from the app is not currently available."
                 );
               } else {
                 throw new Error(json.error ?? "Send failed");

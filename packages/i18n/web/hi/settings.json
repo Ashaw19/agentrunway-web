@@ -14,8 +14,6 @@
     "annualGoal": "Annual Goal",
     "growthPlan": "5-Year Growth Plan",
     "claimingDeductions": "Claiming & Deductions",
-    "bankConnections": "Bank Connections",
-    "googleIntegrations": "Google Integrations",
     "planBilling": "Plan & Billing"
   },
   "fields": {
@@ -34,15 +32,10 @@
   "actions": {
     "save": "Save Changes",
     "saved": "Saved",
-    "addBankAccount": "Add Bank Account",
-    "connectGoogle": "Connect Google",
-    "disconnectGoogle": "Disconnect",
     "deleteAccount": "Delete Account",
     "manageSubscription": "Manage Subscription"
   },
   "messages": {
-    "googleConnected": "Google account connected successfully!",
-    "googleDisconnected": "Google account disconnected.",
     "disconnectError": "Could not disconnect. Please try again.",
     "settingsSaved": "Settings saved."
   },

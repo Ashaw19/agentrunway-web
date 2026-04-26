@@ -14,8 +14,6 @@
     "annualGoal": "Objectif annuel",
     "growthPlan": "Plan de croissance sur 5 ans",
     "claimingDeductions": "Réclamations et déductions",
-    "bankConnections": "Connexions bancaires",
-    "googleIntegrations": "Intégrations Google",
     "planBilling": "Forfait et facturation"
   },
   "fields": {
@@ -34,15 +32,10 @@
   "actions": {
     "save": "Enregistrer les modifications",
     "saved": "Enregistré",
-    "addBankAccount": "Ajouter un compte bancaire",
-    "connectGoogle": "Connecter Google",
-    "disconnectGoogle": "Déconnecter",
     "deleteAccount": "Supprimer le compte",
     "manageSubscription": "Gérer l'abonnement"
   },
   "messages": {
-    "googleConnected": "Compte Google connecté avec succès!",
-    "googleDisconnected": "Compte Google déconnecté.",
     "disconnectError": "Impossible de déconnecter. Veuillez réessayer.",
     "settingsSaved": "Paramètres enregistrés."
   }
