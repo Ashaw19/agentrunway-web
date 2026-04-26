@@ -8,7 +8,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Copy, Mail, Paperclip, Inbox as InboxIcon, Link2, Check } from "lucide-react";
-import type { InboxEmailRow } from "./page";
+
+// Inlined here because page.tsx now redirects to /dashboard (CASA-shelved per
+// memory/project_google_integrations.md) and no longer exports this type.
+// inbox-content.tsx is unreachable in-app today; type is kept locally so the
+// dead-code path still compiles and the file can be revived in one move when
+// Inbox returns.
+export interface InboxEmailRow {
+  id: string;
+  resend_email_id: string;
+  from_address: string;
+  from_name: string | null;
+  to_address: string;
+  subject: string | null;
+  preview: string | null;
+  has_attachments: boolean;
+  attachment_count: number;
+  status: "unresolved" | "linked" | "archived" | "spam";
+  client_id: string | null;
+  matched_outreach_id: string | null;
+  received_at: string;
+  clients: { id: string; name: string } | null;
+}
 
 interface InboxContentProps {
   forwardingAddress: string | null;

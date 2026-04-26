@@ -126,6 +126,15 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
   const msConn = emailConns.find((c) => c.provider === "microsoft") ?? null;
   const smtpConn = emailConns.find((c) => c.provider === "smtp") ?? null;
 
+  // Visibility flags for shelved integrations. Typed as `boolean` (not the
+  // narrower `false` literal) so the dead-code JSX inside the `&&` keeps
+  // type-checking with normal flow narrowing — `{false && <Card>}` collapses
+  // narrowing inside nested ternaries on React 19 / TS 5.x. See
+  // memory/project_google_integrations.md and memory/project_plaid_status.md.
+  const SHOW_BANK_CONNECTIONS_CARD: boolean = false;
+  const SHOW_GOOGLE_INTEGRATIONS_CARD: boolean = false;
+  const SHOW_OTHER_EMAIL_PROVIDERS_CARD: boolean = false;
+
   useEffect(() => {
     if (searchParams.get("google_connected") === "true") {
       toast.success("Google account connected successfully!");
@@ -1842,7 +1851,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       </Card>
 
       {/* Card 8 — Bank Connections — HIDDEN (Plaid not yet offered; see project_plaid_status.md) */}
-      {false && (
+      {SHOW_BANK_CONNECTIONS_CARD && (
       <Card className="rounded-xl border-l-4 border-l-cyan-400 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -1983,7 +1992,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       )}
 
       {/* Card — Google Integrations — HIDDEN (CASA-shelved per memory/project_google_integrations.md) */}
-      {false && (
+      {SHOW_GOOGLE_INTEGRATIONS_CARD && (
       <Card className="rounded-xl border-l-4 border-l-rose-400 shadow-sm">
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -2105,7 +2114,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
       )}
 
       {/* Card — Other Email Providers (Microsoft + SMTP) — HIDDEN (CASA-shelved; outreach sending paused) */}
-      {false && (
+      {SHOW_OTHER_EMAIL_PROVIDERS_CARD && (
       <Card className="rounded-xl border-l-4 border-l-violet-400 shadow-sm">
         <CardHeader>
           <div className="flex items-center gap-2">
