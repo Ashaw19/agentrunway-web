@@ -153,26 +153,16 @@ export default function PrivacyPage() {
               <h3 className="mb-2 mt-6 text-lg font-semibold text-slate-200">
                 2.2 Information Collected Through Integrations
               </h3>
-              <ul className="list-disc space-y-2 pl-6 text-slate-400">
-                <li>
-                  <strong className="text-slate-300">
-                    Bank transaction data (optional, via Plaid)
-                  </strong>{" "}
-                  — if you connect a bank account, we receive from Plaid: account
-                  names, account identifiers (last four digits only), and
-                  transaction details (date, merchant name, amount). We do{" "}
-                  <strong className="text-slate-300">not</strong> receive your
-                  banking login credentials.
-                </li>
-                <li>
-                  <strong className="text-slate-300">
-                    Google Workspace data (optional)
-                  </strong>{" "}
-                  — if you connect Gmail, Google Calendar, or Google Drive, we
-                  access only the data within the OAuth scopes you approve,
-                  limited to what is necessary to provide the integration feature.
-                </li>
-              </ul>
+              <p className="leading-relaxed text-slate-400">
+                Agent Runway does not currently retrieve personal information
+                from third-party integrations. Bank-account connectivity (via
+                Plaid) is a{" "}
+                <strong className="text-slate-300">planned future capability</strong>
+                {" "}and is not currently offered. If and when such integrations
+                are made available, this section will be updated and you will
+                be notified in accordance with Section&nbsp;21 before any new
+                category of personal information is collected.
+              </p>
 
               <h3 className="mb-2 mt-6 text-lg font-semibold text-slate-200">
                 2.3 Information Collected Automatically
@@ -202,7 +192,7 @@ export default function PrivacyPage() {
               </h3>
               <ul className="list-disc space-y-2 pl-6 text-slate-400">
                 <li>Payment card numbers, CVVs, or expiry dates (handled solely by Stripe)</li>
-                <li>Banking login credentials (handled solely by Plaid)</li>
+                <li>Banking login credentials (the Service does not collect, transmit, or store any banking credentials)</li>
                 <li>Social Insurance Numbers (SIN) or government-issued ID numbers</li>
                 <li>Biometric data</li>
                 <li>Health or medical information</li>
@@ -221,8 +211,6 @@ export default function PrivacyPage() {
                 <li>To create and manage your account and authenticate your identity</li>
                 <li>To deliver the features of Agent Runway (dashboards, forecasts, reports, CRM, Flight Crew)</li>
                 <li>To process subscription payments and send billing confirmations</li>
-                <li>To import and categorize bank transactions when you use the optional bank sync feature</li>
-                <li>To provide Google Workspace integration features when you connect your Google account</li>
                 <li>To generate AI-powered insights, outreach drafts, and recommendations using your business data</li>
                 <li>To respond to support requests and communications</li>
                 <li>To improve and develop the product based on aggregated usage patterns</li>
@@ -237,7 +225,7 @@ export default function PrivacyPage() {
                 <li>Sell your personal information or business data to third parties</li>
                 <li>Build advertising profiles or target you with third-party ads</li>
                 <li>Train general-purpose AI or machine-learning models on your data</li>
-                <li>Share your financial data with your brokerage, competitors, or any third party (we do not share your financial data, except with the limited service providers listed in Section&nbsp;10 strictly to operate the Service)</li>
+                <li>Share your financial data with your brokerage, competitors, or any third party (we do not share your financial data, except with the limited service providers listed in Section&nbsp;9 strictly to operate the Service)</li>
                 <li>Send unsolicited marketing communications (you may opt in to product updates separately)</li>
               </ul>
             </section>
@@ -254,13 +242,12 @@ export default function PrivacyPage() {
               <ul className="list-disc space-y-2 pl-6 text-slate-400">
                 <li>
                   <strong className="text-slate-300">Express consent</strong>{" "}
-                  — for sensitive data processing, including: connecting your bank
-                  account via Plaid, transmitting business data to AI providers
-                  (Anthropic and Groq), connecting Google Workspace integrations, and sending
+                  — for sensitive data processing, including transmitting
+                  business data to AI providers (Anthropic and Groq) and sending
                   outreach communications on your behalf. Express consent is
                   obtained through affirmative action (e.g., clicking
-                  &ldquo;Connect&rdquo; or &ldquo;Send&rdquo;) after you have
-                  been informed of what data will be processed and by whom.
+                  &ldquo;Send&rdquo;) after you have been informed of what data
+                  will be processed and by whom.
                 </li>
                 <li>
                   <strong className="text-slate-300">Implied consent</strong>{" "}
@@ -313,9 +300,9 @@ export default function PrivacyPage() {
                 <em>Guidelines for Obtaining Meaningful Consent</em>, we provide
                 clear, specific information at the point of data collection
                 (&ldquo;just-in-time&rdquo; notices) so you can make informed
-                decisions. Before you connect Plaid, use AI features for the
-                first time, connect Google integrations, or send outreach
-                communications, the Service will clearly disclose: what data will
+                decisions. Before you use AI features for the first time or
+                send outreach communications, the Service will clearly
+                disclose: what data will
                 be collected, who will process it, where it will be processed
                 (including if outside Canada), and how to disconnect or withdraw
                 consent. We do not bundle consent for unrelated purposes or use
@@ -334,7 +321,7 @@ export default function PrivacyPage() {
                 provides communication tools but does not verify recipient
                 consent. See our{" "}
                 <a href="/terms" className="text-blue-400 hover:text-blue-300 underline">
-                  Terms of Service (Section&nbsp;19)
+                  Terms of Service (Section&nbsp;18)
                 </a>{" "}
                 for your full CASL obligations.
               </p>
@@ -406,135 +393,27 @@ export default function PrivacyPage() {
             </section>
 
             {/* ─── 6 ─── */}
-            <section className="rounded-xl border border-blue-800/40 bg-blue-950/30 p-6">
+            <section className="rounded-xl border border-slate-700 bg-slate-900/40 p-6">
               <h2 className="mb-4 text-xl font-semibold text-white">
-                6. Bank Account Connectivity (Plaid)
+                6. Bank-Account Connectivity (Planned Feature)
               </h2>
-              <p className="mb-4 leading-relaxed text-blue-100/80">
-                Agent Runway offers an optional bank sync feature powered by{" "}
-                <strong className="text-white">Plaid Technologies, Inc.</strong>{" "}
-                (&ldquo;Plaid&rdquo;). This feature is entirely optional.
+              <p className="leading-relaxed text-slate-400">
+                Bank-account connectivity is a{" "}
+                <strong className="text-slate-200">planned future capability</strong>
+                {" "}of Agent Runway and is{" "}
+                <strong className="text-slate-200">not currently offered</strong>.
+                Agent Runway does not currently retrieve, store, or process any
+                banking information about you. If and when this feature becomes
+                available, this Privacy Policy will be updated and you will be
+                notified in accordance with Section&nbsp;21 (Changes to This
+                Policy) before any banking data is collected.
               </p>
-              <ul className="list-disc space-y-3 pl-6 text-blue-100/80">
-                <li>
-                  <strong className="text-white">No credentials stored.</strong>{" "}
-                  Your banking username, password, and MFA codes are entered
-                  directly with Plaid&apos;s secure interface and are{" "}
-                  <strong className="text-white">
-                    never transmitted to or stored by Agent Runway
-                  </strong>
-                  .
-                </li>
-                <li>
-                  <strong className="text-white">Minimal data scope.</strong>{" "}
-                  We receive only account names, identifiers (last four digits),
-                  and transaction data (date, merchant, amount). We do not receive
-                  identity documents, income verification data, investment data,
-                  or asset information.
-                </li>
-                <li>
-                  <strong className="text-white">Read-only access.</strong>{" "}
-                  We cannot initiate transfers, move funds, or modify your
-                  financial accounts.
-                </li>
-                <li>
-                  <strong className="text-white">Plaid access tokens.</strong>{" "}
-                  Tokens authorizing Plaid to retrieve your data are stored
-                  exclusively in our encrypted database and are never exposed to
-                  client-side code.
-                </li>
-                <li>
-                  <strong className="text-white">Plaid&apos;s privacy policy applies.</strong>{" "}
-                  Your use of Plaid is also governed by{" "}
-                  <a
-                    href="https://plaid.com/legal/#consumers"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-400 hover:text-blue-300 underline"
-                  >
-                    Plaid&apos;s End User Privacy Policy
-                  </a>
-                  .
-                </li>
-                <li>
-                  <strong className="text-white">Disconnect at any time.</strong>{" "}
-                  Disconnecting from{" "}
-                  <strong className="text-white">
-                    Settings &rarr; Bank Connections
-                  </strong>{" "}
-                  immediately revokes Plaid&apos;s access and permanently deletes
-                  your Plaid access tokens. Previously imported and categorized
-                  transactions remain in your expense records until you delete your
-                  account.
-                </li>
-                <li>
-                  <strong className="text-white">Your data is not sold.</strong>{" "}
-                  Bank transaction data is used solely for expense categorization
-                  within Agent Runway. We do not sell, share for commercial
-                  purposes, use for advertising, or use to train AI models.
-                </li>
-              </ul>
             </section>
 
             {/* ─── 7 ─── */}
-            <section className="rounded-xl border border-blue-800/40 bg-blue-950/30 p-6">
-              <h2 className="mb-4 text-xl font-semibold text-white">
-                7. Google Integrations Data
-              </h2>
-              <p className="mb-4 leading-relaxed text-blue-100/80">
-                If you connect Google Workspace integrations (Gmail, Calendar,
-                or Drive), the following applies:
-              </p>
-              <ul className="list-disc space-y-3 pl-6 text-blue-100/80">
-                <li>
-                  <strong className="text-white">Scope-limited access.</strong>{" "}
-                  We access only the data within the OAuth scopes you approve. We
-                  request the minimum permissions necessary for each feature.
-                </li>
-                <li>
-                  <strong className="text-white">Gmail data.</strong>{" "}
-                  If connected, we may read email metadata (subject, sender,
-                  timestamp) for delivery tracking and send emails on your behalf
-                  that you have reviewed and approved. We do not read full email
-                  bodies beyond what is necessary for the specific feature.
-                </li>
-                <li>
-                  <strong className="text-white">Calendar data.</strong>{" "}
-                  If connected, we read events and create new events to support
-                  scheduling features.
-                </li>
-                <li>
-                  <strong className="text-white">Drive data.</strong>{" "}
-                  If connected, we access documents you designate for the purpose
-                  of document management features.
-                </li>
-                <li>
-                  <strong className="text-white">Google API compliance.</strong>{" "}
-                  Our use and transfer of information from Google APIs adheres to
-                  the{" "}
-                  <a
-                    href="https://developers.google.com/terms/api-services-user-data-policy"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-400 hover:text-blue-300 underline"
-                  >
-                    Google API Services User Data Policy
-                  </a>
-                  , including the Limited Use requirements.
-                </li>
-                <li>
-                  <strong className="text-white">Revocation.</strong>{" "}
-                  You may disconnect Google integrations from your account
-                  settings or from your Google Account permissions. OAuth tokens
-                  are revoked immediately upon disconnection.
-                </li>
-              </ul>
-            </section>
-
-            {/* ─── 8 ─── */}
             <section className="rounded-xl border border-purple-800/40 bg-purple-950/20 p-6">
               <h2 className="mb-4 text-xl font-semibold text-white">
-                8. AI and Automated Processing
+                7. AI and Automated Processing
               </h2>
               <p className="mb-4 leading-relaxed text-purple-100/80">
                 Agent Runway uses AI Features powered by third-party large
@@ -596,7 +475,7 @@ export default function PrivacyPage() {
             {/* ─── 9 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                9. Third-Party Market Data
+                8. Third-Party Market Data
               </h2>
               <p className="leading-relaxed">
                 Agent Runway does not currently display third-party real estate
@@ -610,7 +489,7 @@ export default function PrivacyPage() {
             {/* ─── 10 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                10. Sharing Your Information
+                9. Sharing Your Information
               </h2>
               <p className="mb-4 leading-relaxed font-semibold text-white">
                 We do not sell your personal information.
@@ -630,27 +509,6 @@ export default function PrivacyPage() {
                   Runway does not handle payment card data.
                 </li>
                 <li>
-                  <strong className="text-slate-300">
-                    Plaid Technologies, Inc.
-                  </strong>{" "}
-                  — bank account data retrieval (only if you use bank sync).
-                  Governed by{" "}
-                  <a
-                    href="https://plaid.com/legal/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-400 hover:text-blue-300 underline"
-                  >
-                    Plaid&apos;s Privacy Policy
-                  </a>
-                  .
-                </li>
-                <li>
-                  <strong className="text-slate-300">Google LLC</strong> — Google
-                  Workspace integrations (only if you connect Gmail, Calendar, or
-                  Drive).
-                </li>
-                <li>
                   <strong className="text-slate-300">Anthropic, PBC</strong>{" "}
                   — primary AI inference processing for AI Features (United States).
                   When you use AI features, relevant portions of your business data
@@ -658,7 +516,7 @@ export default function PrivacyPage() {
                   large language models. Anthropic operates under a Data Processing
                   Agreement, commits to zero data retention for API traffic by
                   default, and does not use customer data to train its models. See
-                  Section&nbsp;8 and Section&nbsp;11.
+                  Section&nbsp;7 and Section&nbsp;10.
                 </li>
                 <li>
                   <strong className="text-slate-300">Groq, Inc.</strong>{" "}
@@ -666,7 +524,7 @@ export default function PrivacyPage() {
                   Groq is used as a fallback when Anthropic is unavailable, and for
                   speech-to-text on voice features. Groq operates under a Data
                   Processing Agreement and commits to not retaining or training on
-                  customer data. See Section&nbsp;8 and Section&nbsp;11.
+                  customer data. See Section&nbsp;7 and Section&nbsp;10.
                 </li>
                 <li>
                   <strong className="text-slate-300">Vercel, Inc.</strong>{" "}
@@ -720,7 +578,7 @@ export default function PrivacyPage() {
             {/* ─── 11 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                11. International Data Transfers
+                10. International Data Transfers
               </h2>
               <p className="mb-4 leading-relaxed">
                 Your primary data is stored in Canada (AWS ca-central-1). However,
@@ -736,11 +594,6 @@ export default function PrivacyPage() {
                   <strong className="text-slate-300">AI processing</strong>{" "}
                   — third-party AI providers may process AI requests in the United
                   States or other jurisdictions.
-                </li>
-                <li>
-                  <strong className="text-slate-300">Google integrations</strong>{" "}
-                  — Google processes data in accordance with its own data
-                  processing terms.
                 </li>
               </ul>
               <p className="mt-4 leading-relaxed">
@@ -792,7 +645,7 @@ export default function PrivacyPage() {
             {/* ─── 12 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                12. Team Accounts and Data Visibility
+                11. Team Accounts and Data Visibility
               </h2>
               <p className="mb-4 leading-relaxed">
                 If you participate in a Team Account:
@@ -823,7 +676,7 @@ export default function PrivacyPage() {
             {/* ─── 13 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                13. Your Privacy Rights
+                12. Your Privacy Rights
               </h2>
               <p className="mb-4 leading-relaxed">
                 Under PIPEDA and applicable provincial laws, you have the
@@ -846,8 +699,7 @@ export default function PrivacyPage() {
                 </li>
                 <li>
                   <strong className="text-slate-300">Deletion</strong> — request
-                  deletion of your account and associated data (including Plaid
-                  tokens, Google OAuth tokens, and imported data).
+                  deletion of your account and associated data.
                 </li>
                 <li>
                   <strong className="text-slate-300">Data export / portability</strong>{" "}
@@ -894,7 +746,7 @@ export default function PrivacyPage() {
             {/* ─── 14 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                14. Quebec Residents (Law 25)
+                13. Quebec Residents (Law 25)
               </h2>
               <p className="mb-4 leading-relaxed">
                 If you are a resident of Quebec, you have additional rights under{" "}
@@ -964,7 +816,7 @@ export default function PrivacyPage() {
             {/* ─── 15 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                15. California Residents (CCPA/CPRA)
+                14. California Residents (CCPA/CPRA)
               </h2>
               <p className="mb-4 leading-relaxed">
                 If you are a California resident, the California Consumer Privacy
@@ -1016,7 +868,7 @@ export default function PrivacyPage() {
             {/* ─── 16 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                16. European Residents (GDPR)
+                15. European Residents (GDPR)
               </h2>
               <p className="mb-4 leading-relaxed">
                 If you are located in the European Economic Area (EEA), the
@@ -1030,7 +882,7 @@ export default function PrivacyPage() {
               <p className="leading-relaxed">
                 Our legal bases for processing your data are described in
                 Section&nbsp;4. For international data transfers, see
-                Section&nbsp;11. To exercise your GDPR rights, contact{" "}
+                Section&nbsp;10. To exercise your GDPR rights, contact{" "}
                 <a
                   href="mailto:privacy@agentrunway.ca"
                   className="text-blue-400 hover:text-blue-300"
@@ -1044,7 +896,7 @@ export default function PrivacyPage() {
             {/* ─── 17 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                17. Data Retention
+                16. Data Retention
               </h2>
               <p className="mb-4 leading-relaxed">
                 We retain your data according to the following schedule:
@@ -1063,16 +915,6 @@ export default function PrivacyPage() {
                 <li>
                   <strong className="text-slate-300">Billing records</strong> —
                   retained for 7 years per Canadian tax requirements.
-                </li>
-                <li>
-                  <strong className="text-slate-300">Plaid tokens</strong> —
-                  permanently deleted immediately upon bank disconnection or
-                  account deletion.
-                </li>
-                <li>
-                  <strong className="text-slate-300">Google OAuth tokens</strong>{" "}
-                  — revoked and deleted upon integration disconnection or account
-                  deletion.
                 </li>
                 <li>
                   <strong className="text-slate-300">AI interaction logs</strong>{" "}
@@ -1094,7 +936,7 @@ export default function PrivacyPage() {
             {/* ─── 18 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                18. Children&apos;s Privacy
+                17. Children&apos;s Privacy
               </h2>
               <p className="leading-relaxed">
                 The Service is not intended for individuals under the age of 18.
@@ -1116,7 +958,7 @@ export default function PrivacyPage() {
             {/* ─── 19 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                19. Cookies and Tracking Technologies
+                18. Cookies and Tracking Technologies
               </h2>
               <p className="mb-4 leading-relaxed">
                 Agent Runway uses the following types of cookies and tracking
@@ -1152,21 +994,21 @@ export default function PrivacyPage() {
             {/* ─── 20 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                20. Do Not Track Signals
+                19. Do Not Track Signals
               </h2>
               <p className="leading-relaxed">
                 Some browsers transmit &ldquo;Do Not Track&rdquo; (DNT) signals.
                 As there is no industry-standard technology for recognizing or
                 honoring DNT signals, we do not currently respond to them.
                 However, we limit tracking to essential cookies as described in
-                Section&nbsp;19 and do not engage in cross-site tracking.
+                Section&nbsp;18 and do not engage in cross-site tracking.
               </p>
             </section>
 
             {/* ─── 21 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                21. Data Breach Notification and Response
+                20. Data Breach Notification and Response
               </h2>
               <p className="mb-4 leading-relaxed">
                 Under PIPEDA Section&nbsp;10.1, organizations must report
@@ -1261,7 +1103,7 @@ export default function PrivacyPage() {
             {/* ─── 22 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                22. Changes to This Policy
+                21. Changes to This Policy
               </h2>
               <p className="leading-relaxed">
                 We may update this Privacy Policy from time to time. Material
@@ -1279,28 +1121,29 @@ export default function PrivacyPage() {
             {/* ─── 23 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                23. Privacy Impact Assessments
+                22. Privacy Impact Assessments
               </h2>
               <p className="leading-relaxed">
                 Agent Runway conducts Privacy Impact Assessments (PIAs) before
                 introducing new features or integrations that involve the
                 collection or processing of sensitive personal information. This
-                includes our AI-powered features (which transmit business data
-                to third-party providers), our Plaid bank sync integration
-                (which involves financial credentials and transaction data), and
-                our Google Workspace integrations. PIAs evaluate: the necessity
-                and proportionality of the data collection, the risks to
-                individuals, the safeguards in place to mitigate those risks,
-                and whether alternatives exist that are less privacy-intrusive.
-                We review and update our PIAs when material changes are made to
-                data processing activities.
+                currently includes our AI-powered features (which transmit
+                business data to third-party providers). PIAs evaluate: the
+                necessity and proportionality of the data collection, the risks
+                to individuals, the safeguards in place to mitigate those
+                risks, and whether alternatives exist that are less
+                privacy-intrusive. A PIA will be completed for any future
+                integration (such as planned bank-account connectivity) before
+                that integration is offered to users. We review and update our
+                PIAs when material changes are made to data processing
+                activities.
               </p>
             </section>
 
             {/* ─── 24 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                24. Evolving Canadian Privacy Legislation
+                23. Evolving Canadian Privacy Legislation
               </h2>
               <p className="leading-relaxed">
                 Agent Runway actively monitors developments in Canadian privacy
@@ -1308,14 +1151,14 @@ export default function PrivacyPage() {
                 Canadian privacy law evolves. When material changes to our data
                 processing practices are required by new legislation, we will
                 update this policy and notify you in accordance with
-                Section&nbsp;22.
+                Section&nbsp;21.
               </p>
             </section>
 
             {/* ─── 25 ─── */}
             <section>
               <h2 className="mb-4 text-xl font-semibold text-white">
-                25. Contact Us
+                24. Contact Us
               </h2>
               <p className="leading-relaxed">
                 For questions about this policy, to exercise your privacy rights,

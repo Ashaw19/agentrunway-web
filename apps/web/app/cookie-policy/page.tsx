@@ -365,22 +365,6 @@ export default function CookiePolicyPage() {
                 networks, social media platforms, or other third-party tracking
                 services.
               </p>
-              <p className="leading-relaxed">
-                If you connect Google integrations (Gmail, Google Calendar, or
-                Google Drive) through Agent Runway, Google may set its own
-                cookies and storage entries as part of the OAuth authentication
-                flow and Google&apos;s own services. Those cookies are governed
-                by{" "}
-                <a
-                  href="https://policies.google.com/technologies/cookies"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 underline hover:text-blue-300"
-                >
-                  Google&apos;s Cookie Policy
-                </a>
-                , not this policy.
-              </p>
             </section>
 
             {/* ─── 6 ─── */}

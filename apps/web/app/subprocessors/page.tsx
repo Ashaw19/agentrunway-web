@@ -41,13 +41,6 @@ const SUB_PROCESSORS = [
     security: "DPA in place, no data retention",
   },
   {
-    provider: "Plaid",
-    purpose: "Bank Account Sync (coming soon)",
-    data: "Bank credentials (held by Plaid), transaction data",
-    location: "United States",
-    security: "SOC 2 Type II, ISO 27001",
-  },
-  {
     provider: "Vercel",
     purpose: "Hosting & Analytics",
     data: "Application code, page view analytics, performance metrics",
@@ -68,12 +61,17 @@ const SUB_PROCESSORS = [
     location: "United States",
     security: "N/A",
   },
+] as const;
+
+/* -------------------------------------------------------------------------- */
+
+const PLANNED_SUB_PROCESSORS = [
   {
-    provider: "Google",
-    purpose: "Integrations (Gmail, Calendar, Drive)",
-    data: "Email, calendar events, documents (accessed via OAuth)",
-    location: "United States / Global",
-    security: "Google API User Data Policy",
+    provider: "Plaid",
+    purpose: "Bank Account Connectivity (planned — not currently active)",
+    data: "Will be updated when this feature is offered to users.",
+    location: "Pending",
+    security: "Pending",
   },
 ] as const;
 
@@ -146,6 +144,61 @@ export default function SubProcessorsPage() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Planned sub-processors */}
+          <div className="mt-8">
+            <h2 className="mb-3 text-lg font-semibold text-white">
+              Planned Sub-Processors
+            </h2>
+            <p className="mb-4 text-sm leading-relaxed text-slate-400">
+              The following providers are anticipated for future capabilities
+              that are <strong className="text-slate-300">not currently
+              active</strong>. They are listed here for transparency. None of
+              these providers receive personal information from Agent Runway at
+              this time. This page will be updated, and notice will be given
+              under our{" "}
+              <a href="/privacy" className="text-blue-400 hover:text-blue-300 underline">
+                Privacy Policy
+              </a>
+              , before any planned sub-processor begins processing data.
+            </p>
+            <div className="overflow-x-auto rounded-lg border border-slate-800">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-800 bg-slate-900/60">
+                    <th className="px-4 py-3 text-left font-semibold text-slate-200">
+                      Provider
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-200">
+                      Purpose
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-200">
+                      Data Processed
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-200">
+                      Location
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-slate-200">
+                      Security
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 text-slate-400">
+                  {PLANNED_SUB_PROCESSORS.map((sp) => (
+                    <tr key={sp.provider}>
+                      <td className="px-4 py-3 font-medium text-slate-300">
+                        {sp.provider}
+                      </td>
+                      <td className="px-4 py-3">{sp.purpose}</td>
+                      <td className="px-4 py-3">{sp.data}</td>
+                      <td className="px-4 py-3">{sp.location}</td>
+                      <td className="px-4 py-3">{sp.security}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Important notice */}

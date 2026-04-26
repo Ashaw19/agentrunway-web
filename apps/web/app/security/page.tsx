@@ -17,7 +17,7 @@ const securityWebPage = webPageSchema({
   name:
     "Agent Runway Security — Encryption, Bank Security, Payment Security",
   description:
-    "How Agent Runway protects your financial data: TLS 1.3, AES-256, row-level security, Canadian data residency, Plaid-mediated bank access, Stripe PCI DSS Level 1 payments, PIPEDA and Law 25 compliance, and responsible disclosure.",
+    "How Agent Runway protects your financial data: TLS 1.3, AES-256, row-level security, Canadian data residency, Stripe PCI DSS Level 1 payments, PIPEDA and Law 25 compliance, and responsible disclosure.",
   url: "/security",
   lastReviewed: "2026-04-16",
 });
@@ -86,8 +86,8 @@ export default function SecurityPage() {
               </h1>
             </div>
             <p className="mt-3 text-base leading-relaxed text-slate-400">
-              Agent Runway handles sensitive financial data — your income, expenses,
-              and optionally your bank transactions. Here is exactly how we protect it.
+              Agent Runway handles sensitive financial data — your income and
+              expenses. Here is exactly how we protect it.
             </p>
           </div>
 
@@ -104,8 +104,7 @@ export default function SecurityPage() {
                 <strong className="text-slate-300">All data at rest</strong> is
                 encrypted using <Pill label="AES-256" /> via Supabase&apos;s
                 managed encryption layer. This applies to all tables — your
-                transactions, expenses, pipeline deals, settings, and any
-                imported bank transaction data.
+                transactions, expenses, pipeline deals, and settings.
               </p>
               <p>
                 <strong className="text-slate-300">Row-level security (RLS)</strong>{" "}
@@ -115,52 +114,25 @@ export default function SecurityPage() {
               </p>
             </Section>
 
-            {/* Bank account */}
-            <Section icon={<Building2 className="h-5 w-5" />} title="Bank Account Security (Plaid)">
+            {/* Bank-account connectivity (planned) */}
+            <Section icon={<Building2 className="h-5 w-5" />} title="Bank-Account Connectivity (Planned)">
               <p>
-                Agent Runway offers an optional bank sync feature powered by{" "}
-                <strong className="text-slate-300">Plaid Technologies, Inc.</strong>,
-                a regulated financial data aggregator used by thousands of financial
-                applications. This feature is entirely optional — Agent Runway works
-                fully without it.
+                Bank-account connectivity is a{" "}
+                <strong className="text-slate-300">planned future capability</strong>{" "}
+                of Agent Runway. It is{" "}
+                <strong className="text-slate-300">not currently offered</strong>.
+                Agent Runway does not currently retrieve, store, or process any
+                banking information about you.
               </p>
               <p>
-                <strong className="text-slate-300">
-                  Your banking credentials (username, password, MFA codes) are never
-                  seen by Agent Runway.
-                </strong>{" "}
-                They are entered directly into Plaid&apos;s encrypted interface and
-                never transmitted to our servers.
-              </p>
-              <p>
-                Agent Runway receives <strong className="text-slate-300">read-only</strong>{" "}
-                access to your transaction history only. We cannot initiate transfers,
-                move funds, modify your account, or access balances beyond what is
-                needed for expense categorization.
-              </p>
-              <p>
-                <strong className="text-slate-300">Plaid access tokens</strong> are
-                stored exclusively in our secured, encrypted database. They are never
-                exposed to client-side code or browser environments.
-              </p>
-              <p>
-                You can <strong className="text-slate-300">disconnect your bank account at any time</strong>{" "}
-                from Settings &rarr; Bank Connections. Disconnecting immediately
-                revokes Plaid&apos;s access to your financial institution and
-                permanently deletes your access tokens from our systems.
-              </p>
-              <p className="text-sm text-slate-500">
-                Plaid holds <strong className="text-slate-400">SOC 2 Type II</strong> and{" "}
-                <strong className="text-slate-400">ISO 27001/27701</strong> certifications.
-                Their security posture is independently audited.{" "}
-                <a
-                  href="https://plaid.com/safety/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:text-blue-300 underline"
-                >
-                  Plaid Security &rarr;
-                </a>
+                When this capability is introduced, it will be optional, the
+                core Service will continue to work without it, and we will
+                update this Security page and notify users in accordance with
+                our{" "}
+                <a href="/privacy" className="text-blue-400 hover:text-blue-300 underline">
+                  Privacy Policy
+                </a>{" "}
+                before any banking data is collected.
               </p>
             </Section>
 
@@ -242,9 +214,9 @@ export default function SecurityPage() {
               </p>
               <p>
                 <strong className="text-slate-300">We do not sell your data.</strong>{" "}
-                Your business data, transaction history, and bank transaction data are
-                not used for advertising, sold to third parties, or used to train
-                AI or machine-learning models.
+                Your business data and transaction history are not used for
+                advertising, sold to third parties, or used to train AI or
+                machine-learning models.
               </p>
               <p>
                 You can request a copy of your data, correction of inaccuracies, or
