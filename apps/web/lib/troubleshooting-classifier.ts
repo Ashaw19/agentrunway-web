@@ -163,6 +163,10 @@ export const TOPIC_ACTION_LINKS: Record<TroubleshootingTopic, { label: string; h
     { label: "Expenses → Receipts (manual entry)", href: "/expenses" },
     { label: "Expenses → Mileage", href: "/expenses" },
   ],
+  "email-integration": [
+    { label: "Flight Control (draft, then send from your own email)", href: "/flight-control" },
+    { label: "CRM (log sent activity)", href: "/crm" },
+  ],
   general: [],
 };
 
@@ -673,6 +677,37 @@ const TOPIC_RULES: TopicRule[] = [
       "review transaction",
       "bank feed",
       "connect my bank",
+    ],
+  },
+  {
+    topic: "email-integration",
+    primary: [
+      "gmail",
+      "google calendar",
+      "google drive",
+      "google workspace",
+      "outlook",
+      "microsoft 365",
+      "email integration",
+      "connect email",
+      "connect gmail",
+      "connect google",
+      "connect outlook",
+      "smtp",
+    ],
+    secondary: ["email account", "email connect", "send email from", "calendar sync", "drive analyze"],
+    phrases: [
+      "can i connect my gmail",
+      "can i connect my email",
+      "connect my google account",
+      "connect my outlook",
+      "send emails from agent runway",
+      "sync my calendar",
+      "analyze my drive",
+      "email forwarding setup",
+      "outreach sending",
+      "send outreach automatically",
+      "auto send email",
     ],
   },
 ];

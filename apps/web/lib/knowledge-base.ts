@@ -47,7 +47,9 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **TEAMS** — $149/mo leader + $55/mo member. Invite flow with 30-day tokens. Tier 1 shared: YTD GCI, deal count, pipeline. Never shared: tax, expenses, splits, cash, client details. 5 leader reports. Team comparative engine.
 
-**FLIGHT CONTROL** — AI outreach: daily scan, 11+ types (birthday/post-close/stale-lead/seasonal/anniversary/rate-relevance/listing-match/mortgage-renewal-due/mortgage-renewal-window/timeframe-approaching/listing-overdue), tone-matched drafts, 14-day suppression (birthday exempt), agent review required. Nurture: Post-Close (6 steps/12mo), Re-Engagement (3 steps/30d). Send optimization: Tue-Thu 9-10am default. Newsletter builder included.
+**FLIGHT CONTROL** — AI outreach DRAFTS (not sends): daily scan, 11+ types (birthday/post-close/stale-lead/seasonal/anniversary/rate-relevance/listing-match/mortgage-renewal-due/mortgage-renewal-window/timeframe-approaching/listing-overdue), tone-matched drafts, 14-day suppression (birthday exempt). Workflow: agent reviews each draft, copies into their own email client (Gmail / Outlook / Apple Mail / etc.) to send, then logs the activity in CRM. Agent Runway does NOT integrate with any email account and does NOT send on the user's behalf. Nurture: Post-Close (6 steps/12mo), Re-Engagement (3 steps/30d) — all draft-only. Newsletter builder is also draft-only.
+
+**EMAIL INTEGRATION** — Not offered. Agent Runway does not connect to Gmail, Google Calendar, Google Drive, Outlook, Microsoft 365, or custom SMTP. Do NOT frame as "planned future capability" or "coming soon" (that framing is reserved for bank-sync only). Use neutral present-tense: "Agent Runway does not integrate with email accounts." Direct users to the Flight Control draft-then-copy workflow.
 
 **KEYBOARD SHORTCUTS** — N=New tx, D=Dashboard, T=Transactions, P=Pipeline, F=Forecast, E=Expenses, R=Reports.
 

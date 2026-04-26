@@ -27,4 +27,5 @@ export type TroubleshootingTopic =
   | "mileage"
   | "recurring-expenses"
   | "bank-sync"
+  | "email-integration"
   | "general";

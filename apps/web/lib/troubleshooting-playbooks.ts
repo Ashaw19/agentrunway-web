@@ -1693,6 +1693,51 @@ flow in the app today.
   third-party service.
 - Do not promise a launch date.
 - Do not refer the user to an external bank-sync product.
+- **Do not bundle bank with email.** Bank connectivity is "planned future
+  capability" framing. Email connectivity is **not** — it has its own
+  playbook below. Never write "bank and email connectivity are planned
+  future capabilities" or any sentence that groups them.
+`,
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EMAIL INTEGRATION — Not offered, not framed as planned, not coming soon
+  // ═══════════════════════════════════════════════════════════════════════════
+  "email-integration": `## TROUBLESHOOTING: EMAIL / GMAIL / OUTLOOK / OUTREACH SENDING
+
+### Status
+Agent Runway does **not** integrate with Gmail, Google Calendar, Google
+Drive, Outlook, Microsoft 365, or any custom SMTP email provider. The
+platform does not send emails on the user's behalf. There is no current
+connect flow and no in-product surface for connecting an email account.
+
+### What to tell the user
+- They cannot connect Gmail, Outlook, or any email account to Agent
+  Runway today.
+- Outreach in the product is **draft-only**: Flight Control drafts the
+  message in the user's voice, the user reviews it, and the user
+  copies it into their own email client (Gmail, Outlook, Apple Mail,
+  whatever they normally use) to send.
+- After sending, log the activity in the CRM so the timeline stays
+  accurate. Flight Plans (post-close, re-engagement) work the same way:
+  draft in-product, send from the user's own email client, log.
+
+### What NOT to do — STRICT
+- **Do not say "planned future capability."** Email integration is not
+  publicly framed as planned, scheduled, or coming soon. Use neutral
+  present-tense: "Agent Runway does not integrate with email accounts."
+- **Do not say "coming soon," "in the works," "we're working on,"
+  "future feature," "later this year," or any forward-looking phrase**
+  about Gmail, email connectivity, calendar sync, or Drive analysis.
+  No timeline. No commitment. No teaser.
+- Do not suggest the user wait for it. Direct them to the
+  draft-then-copy workflow today.
+- Do not refer the user to a third-party automation (Zapier, Make,
+  IFTTT) or to set up email forwarding into a connector.
+- Do not bundle email with bank-sync (bank uses different framing —
+  see playbook above).
+- Do not mention CASL, CASA, regulatory blockers, or the historical
+  reasons email is unavailable. The framing is product-state, not
+  legal. "Not offered" is the answer.
 `,
 
   general: `## GENERAL TROUBLESHOOTING
