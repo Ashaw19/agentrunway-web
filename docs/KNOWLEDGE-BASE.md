@@ -3,6 +3,17 @@
 > Compiled April 2026 from 32 parallel research agents covering ~800 topics.
 > This is the permanent reference plateau for all implementation decisions.
 
+> **STATUS NOTE (April 2026):** Sections 11 (Google Integrations) and 14
+> (Plaid & Fintech Integration) describe research and proposed
+> architecture only. Google integrations (Gmail / Calendar / Drive) are
+> currently **shelved** under the CASA review — see
+> `memory/project_google_integrations.md`. Plaid bank-account
+> connectivity is a **planned future capability** and is **not currently
+> offered**. Do not surface this content to end users. Captain and other
+> in-product surfaces must answer Google/Plaid questions per the
+> playbooks in `apps/web/lib/troubleshooting-playbooks.ts`, not this
+> document.
+
 ---
 
 ## Table of Contents

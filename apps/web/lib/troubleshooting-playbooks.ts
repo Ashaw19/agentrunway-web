@@ -414,7 +414,6 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 
 **Edge Cases:**
 - Zero GCI: Expense ratio is undefined (shown as N/A or 0%)
-- Bank import categorization: Plaid imports auto-categorize but user should review
 - Recurring vs one-time: Recurring expenses project forward; one-time don't
 `,
 
@@ -1671,44 +1670,29 @@ Set up templates for expenses that repeat on a schedule (monthly, quarterly, or 
 `,
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // BANK SYNC
+  // BANK SYNC — Planned future capability, not currently offered
   // ═══════════════════════════════════════════════════════════════════════════
-  "bank-sync": `## TROUBLESHOOTING: BANK SYNC (PLAID)
+  "bank-sync": `## TROUBLESHOOTING: BANK-ACCOUNT CONNECTIVITY
 
-### How Bank Sync Works
-Connect your business bank account via Plaid to automatically import transactions for expense tracking.
+### Status
+Bank-account connectivity is a **planned future capability** of Agent
+Runway and is **not currently offered**. There is no active bank-sync
+flow in the app today.
 
-**Setup Flow:**
-1. Go to Settings → Bank Sync
-2. Click "Connect Bank Account"
-3. Select your bank from the Plaid interface
-4. Log in with your banking credentials (handled securely by Plaid — Agent Runway never sees your password)
-5. Select the account to sync
+### What to tell the user
+- They cannot connect a bank account at this time.
+- All expense entry today is via Receipts (manual or OCR photo entry) or
+  Mileage on the Expenses page. Recurring expenses can also be set up to
+  auto-generate monthly / quarterly / annual entries.
+- If and when bank-account connectivity becomes available, it will be
+  an optional feature, the Service will continue to work without it,
+  and an in-app notice plus updated Privacy Policy will land first.
 
-**After Connection:**
-- Transactions are imported automatically (typically daily)
-- Each transaction gets auto-categorized using AI
-- You review and confirm categorized expenses
-- Confirmed transactions become regular expense entries
-
-### Auto-Categorization
-- AI analyzes vendor name, amount, and transaction description
-- Assigns a T2125 expense category (advertising, meals, vehicle, etc.)
-- You can override the category during review
-- The system learns from your corrections over time
-
-### Common Issues
-- **"Bank not connecting"**: Some banks have intermittent issues with Plaid. Try again in a few hours. If persistent, check if your bank requires MFA — complete it in the Plaid window.
-- **"Transactions not syncing"**: Sync happens daily. If transactions from today aren't showing, wait until tomorrow. You can also manually trigger a sync from Settings.
-- **"Wrong category assigned"**: Override the category during review. The AI will learn from your corrections for future transactions.
-- **"Personal transactions showing"**: If you're using a personal account, you'll see personal transactions too. Skip or delete personal items during review. Consider a dedicated business account.
-- **"How do I disconnect?"**: Settings → Bank Sync → Disconnect. Past imported expenses remain; future imports stop.
-
-### Privacy & Security
-- Plaid handles all banking authentication — Agent Runway never stores banking credentials
-- Only transaction data (date, amount, vendor, description) is imported
-- No access to account balances, transfers, or other banking features
-- You can disconnect at any time
+### What NOT to do
+- Do not suggest a workaround that imports bank data through any other
+  third-party service.
+- Do not promise a launch date.
+- Do not refer the user to an external bank-sync product.
 `,
 
   general: `## GENERAL TROUBLESHOOTING

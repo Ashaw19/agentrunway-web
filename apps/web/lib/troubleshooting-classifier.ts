@@ -160,8 +160,8 @@ export const TOPIC_ACTION_LINKS: Record<TroubleshootingTopic, { label: string; h
     { label: "Expenses → Recurring Tab", href: "/expenses" },
   ],
   "bank-sync": [
-    { label: "Settings → Bank Sync", href: "/settings" },
-    { label: "Expenses", href: "/expenses" },
+    { label: "Expenses → Receipts (manual entry)", href: "/expenses" },
+    { label: "Expenses → Mileage", href: "/expenses" },
   ],
   general: [],
 };

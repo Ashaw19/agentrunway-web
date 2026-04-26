@@ -21,7 +21,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **CRM** — Clients (name, email, phone, city/province, birthday, lead source, tags, budget, timeframe, property interest, tone pref, notes, relationships, activity log, status Boarding/Scheduled/In-Flight/Cruising, tier Platinum/Gold/Silver/Bronze). CRM Dashboard (engagement analytics). Insights (stale leads, referrals). Flight Plans (automated follow-up sequences). Property Showings (buyer: address, date, rating 1-10). Listing Appointments (seller: address, date, outcome). Contact Tasks (title, due date, priority, completion). Tags (custom labels). Hangar (archived clients, restorable).
 
-**EXPENSES** — Receipts (manual/OCR, by category), Mileage (CRA rates), Recurring (monthly/quarterly/annual auto-generated entries), Bank Imports (Plaid sync), CCA Assets (Class 8=20%, Class 10=30%, Class 12=100%, Class 50=55%, half-year rule). Tax IQ: amber-bordered contextual CRA education tips on the Expenses page, filtered by province/quarter/categories, dismissible (localStorage), purely educational.
+**EXPENSES** — Receipts (manual/OCR, by category), Mileage (CRA rates), Recurring (monthly/quarterly/annual auto-generated entries), CCA Assets (Class 8=20%, Class 10=30%, Class 12=100%, Class 50=55%, half-year rule). Tax IQ: amber-bordered contextual CRA education tips on the Expenses page, filtered by province/quarter/categories, dismissible (localStorage), purely educational. Bank-account connectivity is a planned future capability and is not currently offered.
 
 **FORECAST** — Waterfall (GCI→split→fees→expenses→tax→take-home), tax card, P10-P90 bands, 5-year growth, goal gap analysis.
 
@@ -37,7 +37,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **SOCIAL STUDIO** — Instagram month-in-review carousel builder with templates and Canva export.
 
-**SETTINGS** — Province, business structure, split (70/30-100/0), brokerage fees (monthly+per-deal+cap+post-cap), cash reserve, experience years, GCI goal, vehicle %, home office method/sqft, GST/HST registration, filing frequency, brokerage withholds HST toggle, seasonality, bank connections, AI Voice Guide, estimated weekly hours + vacation weeks (unlocks Time Value card on Overhead).
+**SETTINGS** — Province, business structure, split (70/30-100/0), brokerage fees (monthly+per-deal+cap+post-cap), cash reserve, experience years, GCI goal, vehicle %, home office method/sqft, GST/HST registration, filing frequency, brokerage withholds HST toggle, seasonality, AI Voice Guide, estimated weekly hours + vacation weeks (unlocks Time Value card on Overhead).
 
 **PROFILE** — Name, brokerage, avatar, 15 themes, dark mode, production stats.
 
