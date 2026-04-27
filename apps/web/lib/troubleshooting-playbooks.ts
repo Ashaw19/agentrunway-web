@@ -863,9 +863,11 @@ Example: $500/month + 3% per deal, capped at $20,000/year. After cap → 0% per 
 - Resort/cottage markets might be Q2-heavy
 
 ### Home Office Settings
-- Method: Simplified ($5/sqft, max 300 sqft = $1,500) or Detailed (actual costs × %)
-- Square footage of office and total home
-- Business-use percentage
+- CRA actual-cost method only — Canada has no IRS-style simplified $5/sqft method. The home_office_method column in user_settings is unused by the t2125-engine; deduction is always computed from actual costs.
+- Inputs (T2125 line 9945): monthly rent or mortgage interest, monthly utilities, annual property tax, monthly insurance, annual maintenance, monthly condo fees
+- Business-use % = office area ÷ total home area
+- Deduction = (sum of annualized actual costs) × business-use %
+- Eligibility: principal place of business OR used exclusively and regularly to meet clients
 
 ### GST/HST Registration
 - Toggle: registered or not

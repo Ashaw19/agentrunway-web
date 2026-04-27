@@ -104,7 +104,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 **RRSP:** 18% prior year income, max $32,490. Dividend-only = $0 room.
 **Mileage:** ${KB_MILEAGE_FIRST_5K} first 5K km, ${KB_MILEAGE_AFTER_5K} after.
-**Home office:** Simplified $5/sqft max $1,500. Detailed: actual costs x (office sqft / total sqft) x business-use%.
+**Home office:** CRA actual-cost method only — Canada has no IRS-style simplified $5/sqft method. Deduction = actual costs (rent or mortgage interest, utilities, property tax, insurance, maintenance, condo fees) x business-use% (office area / total home area). Must be principal place of business or used exclusively and regularly to meet clients.
 **Instalments:** Annual tax / 4. Required if >$3K owing ($1.8K QC). Interest ~6%.
 **Effective rate:** (Federal + provincial + CPP) / net self-employment income.
 
