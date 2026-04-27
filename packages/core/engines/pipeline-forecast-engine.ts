@@ -45,6 +45,14 @@ export interface UnifiedPipelineItem {
   expectedCloseDate: string | null;
   clientName: string | null;
   daysInStage: number | null;
+  /**
+   * True when the row's probability is set by a manual override on the
+   * source record (only meaningful for source = "deal"). The UI uses
+   * this to flag rows where the agent has bypassed stage-default
+   * probabilities — important context when a 0% or 100% override
+   * silently zeros or maxes a row in the weighted total.
+   */
+  manualOverride: boolean;
 }
 
 export interface AccuracyMetric {
@@ -206,6 +214,7 @@ export function computePipelineForecast(
       expectedCloseDate: deal.expected_close_date,
       clientName: deal.client_name || null,
       daysInStage: daysBetween(deal.updated_at, now),
+      manualOverride: deal.probability_override != null,
     });
   }
 
@@ -234,6 +243,7 @@ export function computePipelineForecast(
       expectedCloseDate: listing.expected_close_date ?? null,
       clientName: null,
       daysInStage: daysBetween(listing.updated_at, now),
+      manualOverride: false,
     });
   }
 
@@ -256,6 +266,7 @@ export function computePipelineForecast(
       expectedCloseDate: buyer.targetCloseDate,
       clientName: buyer.name,
       daysInStage: daysBetween(buyer.statusChangedAt, now),
+      manualOverride: false,
     });
   }
 

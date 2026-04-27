@@ -162,6 +162,8 @@ import type { VoiceDraft } from "@/lib/voice/types";
 import { toast } from "sonner";
 import { markMemoryStaleClient } from "@/lib/ai/mark-memory-stale";
 import { validateClient, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
+import { parseMoneyLoose } from "@/lib/import/normalizers/normalize-money";
+import { normalizeDateFormats } from "@/lib/import/normalizers/normalize-dates";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -703,17 +705,35 @@ function parseTags(raw: string): string[] {
   return raw.split(",").map((t) => t.trim()).filter(Boolean);
 }
 
-/** Parse a price/budget string like "$450,000" into a number. */
+/**
+ * Parse a price/budget string like "$450,000", "CAD 450,000", or
+ * "ca$450 000" into a number. Uses the shared loose money parser so
+ * brokerage CSV exports that prefix CAD / use NBSPs don't silently
+ * parse to null and undercount the pre-transactional pipeline.
+ */
 function parsePrice(raw: string): number | null {
-  const cleaned = raw.replace(/[$,\s]/g, "");
-  const num = parseFloat(cleaned);
+  const num = parseMoneyLoose(raw);
   return isNaN(num) || num <= 0 ? null : num;
 }
 
-/** Parse a date string from a CRM export into ISO timestamp. */
+/**
+ * Parse a date string from a CRM export into ISO timestamp.
+ *
+ * Document-level slash-date disambiguation runs in normalizeDateFormats
+ * BEFORE this is reached (see processImportText). For a "YYYY-MM-DD"
+ * input we anchor at LOCAL noon rather than letting V8 resolve to UTC
+ * midnight — otherwise toISOString() can shift the day by ±1 in the
+ * agent's timezone, silently mangling created/last-activity dates.
+ */
 function parseImportDate(raw: string): string | null {
-  if (!raw.trim()) return null;
-  const d = new Date(raw.trim());
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.exec(trimmed);
+  if (dateOnly) {
+    const [y, m, d] = trimmed.split("-").map(Number);
+    return new Date(y, m - 1, d, 12, 0, 0, 0).toISOString();
+  }
+  const d = new Date(trimmed);
   if (isNaN(d.getTime())) return null;
   return d.toISOString();
 }
@@ -1176,6 +1196,11 @@ export function ClientsContent({
   const [mapLastActivity, setMapLastActivity] = useState("__none__");
   const [mapPrice, setMapPrice] = useState("__none__");
   const [importExtraFieldsWarning, setImportExtraFieldsWarning] = useState<string | null>(null);
+  // Sticky banner for the row-cap truncation warning. Toast warning fades
+  // in 5s; agents importing a 6K-row export can walk away from the toast
+  // and never realise 1K contacts were dropped. The banner stays visible
+  // through the entire mapping flow.
+  const [importTruncationWarning, setImportTruncationWarning] = useState<string | null>(null);
   const [detectedCommHistory, setDetectedCommHistory] = useState<{
     noteHeaders: string[];   // e.g. ["Note 1", "Note 2", ...]
     callHeaders: string[];   // e.g. ["Call 1", "Call 2", ...]
@@ -2531,13 +2556,23 @@ export function ClientsContent({
     };
 
     function processImportText(text: string) {
-      const { headers, rows, truncated } = parseCsv(text);
+      // Run the document-level date heuristic BEFORE per-row parsing so
+      // slash dates (DD/MM/YYYY vs MM/DD/YYYY) are disambiguated using
+      // the full set of values rather than a single cell. Without this,
+      // "03/04/2024" cells silently parse as March 4 in V8 even when
+      // the rest of the column proves the file is DD/MM.
+      const normalizedText = normalizeDateFormats(text);
+      const { headers, rows, truncated } = parseCsv(normalizedText);
       if (headers.length === 0 || rows.length === 0) {
         toast.error("No data found. Make sure the first row contains column headers and there's at least one data row.");
         return;
       }
       if (truncated) {
-        toast.warning(`File capped at ${CSV_ROW_CAP.toLocaleString()} rows — only the first ${CSV_ROW_CAP.toLocaleString()} contacts will be imported`);
+        const msg = `File capped at ${CSV_ROW_CAP.toLocaleString()} rows — only the first ${CSV_ROW_CAP.toLocaleString()} contacts will be imported. Split the file and upload again to import the remainder.`;
+        toast.warning(msg);
+        setImportTruncationWarning(msg);
+      } else {
+        setImportTruncationWarning(null);
       }
 
       // Auto-detect first_name + last_name columns and concatenate them
@@ -3223,6 +3258,7 @@ export function ClientsContent({
     setMapLastActivity("__none__");
     setMapPrice("__none__");
     setImportExtraFieldsWarning(null);
+    setImportTruncationWarning(null);
     setDetectedCommHistory(null);
     setImportCommHistory(true);
     setImportResult(null);
@@ -5984,6 +6020,13 @@ export function ClientsContent({
                   </Select>
                 </div>
               </div>
+
+              {/* ── Sticky truncation warning ───────────────────────────── */}
+              {importTruncationWarning && (
+                <div className="rounded-lg border border-rose-300/70 bg-rose-50/70 px-3.5 py-2.5 text-xs text-rose-900 dark:border-rose-800/50 dark:bg-rose-950/30 dark:text-rose-200">
+                  <span className="font-semibold">Data truncated:</span> {importTruncationWarning}
+                </div>
+              )}
 
               {/* ── Data-loss warning for extra email/phone columns ──────── */}
               {importExtraFieldsWarning && (

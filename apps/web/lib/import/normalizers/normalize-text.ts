@@ -165,6 +165,16 @@ export function splitCsvRow(row: string): string[] {
   const result: string[] = [];
   let current = "";
   let inQuote = false;
+  // RFC 4180: whitespace inside quoted fields is significant. We track
+  // whether the cell was quoted so we only trim un-quoted cells; cells
+  // that were quoted preserve their internal whitespace verbatim.
+  let cellWasQuoted = false;
+
+  const finishCell = () => {
+    result.push(cellWasQuoted ? current : current.trim());
+    current = "";
+    cellWasQuoted = false;
+  };
 
   for (let i = 0; i < row.length; i++) {
     const ch = row[i];
@@ -185,15 +195,15 @@ export function splitCsvRow(row: string): string[] {
         i++;
       } else {
         inQuote = !inQuote;
+        cellWasQuoted = true;
       }
     } else if (ch === "," && !inQuote) {
-      result.push(current.trim());
-      current = "";
+      finishCell();
     } else {
       current += ch;
     }
   }
-  result.push(current.trim());
+  finishCell();
   return result;
 }
 

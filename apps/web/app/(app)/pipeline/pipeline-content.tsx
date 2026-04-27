@@ -327,6 +327,16 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
         </Button>
       </div>
 
+      {/* ── Stale-deal caveat ───────────────────────────────────────── */}
+      {result.staleDealCount > 0 ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 dark:bg-amber-950/30 dark:border-amber-800/40 dark:text-amber-200">
+          {result.staleDealCount} {result.staleDealCount === 1 ? "deal contributes" : "deals contribute"}{" "}
+          {fmtCurrency(result.staleWeightedGCI)} to the weighted total but{" "}
+          {result.staleDealCount === 1 ? "has" : "have"} no expected close date or {" "}
+          a date more than 180 days in the past — review before relying on the headline figure.
+        </div>
+      ) : null}
+
       {/* ── Summary Strip ───────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <SummaryCard
@@ -724,7 +734,18 @@ function PipelineRow({
         {fmtCurrency(item.weightedGCI)}
       </TableCell>
       <TableCell className="text-right text-muted-foreground tabular-nums">
-        {fmtPct(item.probability)}
+        <span className="inline-flex items-center gap-1.5">
+          {fmtPct(item.probability)}
+          {item.manualOverride ? (
+            <span
+              title="Probability is manually overridden on this deal — bypasses stage default."
+              aria-label="Manual probability override"
+              className="rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold px-1.5 py-0.5 dark:bg-amber-950/40 dark:text-amber-300"
+            >
+              MANUAL
+            </span>
+          ) : null}
+        </span>
       </TableCell>
       <TableCell className="text-right text-muted-foreground tabular-nums">
         <div className="flex items-center justify-end gap-2">

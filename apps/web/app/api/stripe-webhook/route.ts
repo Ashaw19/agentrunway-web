@@ -113,6 +113,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Database unavailable, retry later" }, { status: 503 });
   }
 
+  // ── Dispatch with rollback ─────────────────────────────────────────────
+  // Wrap the switch in a try/catch. If any inner update fails after the
+  // idempotency row was committed, DELETE the row so Stripe's retry
+  // re-processes from a clean slate instead of short-circuiting on the
+  // 23505 branch and leaving subscription_tier drifting silently.
+  try {
   switch (event.type) {
 
     // ── New subscription activated via Checkout ─────────────────────────────
@@ -758,6 +764,25 @@ export async function POST(request: Request) {
 
     default:
       console.log("[stripe] unhandled event:", event.type);
+  }
+  } catch (dispatchError) {
+    const message = dispatchError instanceof Error ? dispatchError.message : String(dispatchError);
+    console.error("[stripe] dispatch failed for event", event.id, event.type, "—", message);
+    // Roll back the idempotency row so Stripe's retry reprocesses cleanly.
+    // Best-effort: if the rollback itself fails, log and proceed; the next
+    // retry will hit the duplicate branch but at least we surfaced the
+    // original failure in the logs.
+    const { error: rollbackError } = await db
+      .from("stripe_events")
+      .delete()
+      .eq("event_id", event.id);
+    if (rollbackError) {
+      console.error("[stripe] idempotency rollback failed for", event.id, "—", rollbackError.message);
+    }
+    return NextResponse.json(
+      { error: "Webhook dispatch failed; will be retried." },
+      { status: 503 },
+    );
   }
 
   return NextResponse.json({ received: true });
