@@ -282,7 +282,7 @@ export function ExpensesContent({
 
       let payload: Record<string, unknown>;
       if (isTextFile) {
-        const textContent = (await file.text()).replace(/^\uFEFF/, "");
+        const textContent = (await file.text()).replace(/\uFEFF/g, "");
         payload = { textContent };
       } else if (/\.xlsx?$/i.test(file.name)) {
         const XLSX = await import("xlsx");

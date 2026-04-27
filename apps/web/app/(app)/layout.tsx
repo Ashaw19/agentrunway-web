@@ -34,6 +34,13 @@ export default async function AppLayout({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Defense-in-depth: if a request slips past the middleware (edge cold-start
+  // glitch, future PROTECTED_PREFIXES omission), redirect to /login here too —
+  // mirrors the per-page guards in forecast/, pipeline/, org/.
+  if (!user) {
+    redirect("/login");
+  }
+
   // Defaults used when unauthenticated (middleware handles redirect, but be safe)
   let colorTheme = "blue";
   let isPro = false;

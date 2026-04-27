@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
     // Rate-limit by IP (unauthenticated endpoint) — use forwarded IP or fallback
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anonymous";
-    const rl = await checkRateLimit(ip, "testimonials_submit", 5, 3600); // 5 per hour
+    const rl = await checkRateLimit(ip, "testimonials_submit", 5, 60); // 5 per hour
     if (!rl.allowed) {
       return new Response("Too many submissions. Please try again later.", {
         status: 429,

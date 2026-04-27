@@ -68,6 +68,9 @@ export interface BusinessHealthReport {
  * badge glyph, mobile chip) only.
  */
 function grade(score: number): string {
+  // Defensive: NaN/Infinity slips past every comparison and falls to "F",
+  // which silently mislabels broken inputs as a graded score.
+  if (!isFinite(score)) return "—";
   if (score >= 92) return "A+";
   if (score >= 85) return "A";
   if (score >= 75) return "B";
@@ -125,12 +128,14 @@ export function compute(
   // Convert survival months to 0–100 score
   // -1 means "not configured" — score at 35 to penalize missing data
   // (previously 50, which rewarded not entering a cash reserve)
+  // Non-finite (NaN from a broken cash-position chain) is treated as missing.
+  const safeSurvivalMonths = isFinite(survivalMonths) ? survivalMonths : -1;
   let survivalScore: number;
-  if (survivalMonths < 0) survivalScore = 35;
-  else if (survivalMonths >= 6) survivalScore = 95;
-  else if (survivalMonths >= 4) survivalScore = 75;
-  else if (survivalMonths >= 2) survivalScore = 50;
-  else if (survivalMonths >= 1) survivalScore = 25;
+  if (safeSurvivalMonths < 0) survivalScore = 35;
+  else if (safeSurvivalMonths >= 6) survivalScore = 95;
+  else if (safeSurvivalMonths >= 4) survivalScore = 75;
+  else if (safeSurvivalMonths >= 2) survivalScore = 50;
+  else if (safeSurvivalMonths >= 1) survivalScore = 25;
   else survivalScore = 10;
 
   const components: ScoreComponent[] = [

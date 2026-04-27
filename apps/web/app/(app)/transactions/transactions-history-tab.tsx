@@ -623,7 +623,7 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
 
       } else if (fileType === "csv") {
         // ── CSV: read as plain text ──────────────────────────────────────────
-        textContent = (await file.text()).replace(/^\uFEFF/, ""); // strip UTF-8 BOM
+        textContent = (await file.text()).replace(/\uFEFF/g, ""); // strip UTF-8 BOM
       }
 
       setImportStatus("extracting");

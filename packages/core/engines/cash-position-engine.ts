@@ -65,16 +65,19 @@ export interface CashPositionResult {
  * Falls back to manual cash_reserve when there's no transaction data.
  */
 export function computeCashPosition(inputs: CashPositionInputs): CashPositionResult {
-  const {
-    ytdGCI,
-    ytdAgentNet,
-    ytdExpenses,
-    ytdTaxSetAside,
-    ytdHstCollected,
-    ytdHstOnExpenses,
-    brokerageWithholdsHst,
-    manualCashReserve,
-  } = inputs;
+  // Defensive: any NaN/Infinity input (e.g. tax engine fed an empty province
+  // row) propagates through every subtraction and silently lands in
+  // runway-score's survival branch as 10 points without explanation. Coerce
+  // non-finite numerics to 0 at the boundary.
+  const safeNum = (n: number) => (Number.isFinite(n) ? n : 0);
+  const ytdGCI            = safeNum(inputs.ytdGCI);
+  const ytdAgentNet       = safeNum(inputs.ytdAgentNet);
+  const ytdExpenses       = safeNum(inputs.ytdExpenses);
+  const ytdTaxSetAside    = safeNum(inputs.ytdTaxSetAside);
+  const ytdHstCollected   = safeNum(inputs.ytdHstCollected);
+  const ytdHstOnExpenses  = safeNum(inputs.ytdHstOnExpenses);
+  const manualCashReserve = safeNum(inputs.manualCashReserve);
+  const { brokerageWithholdsHst } = inputs;
 
   // HST owing: if brokerage withholds, the agent doesn't need to set aside HST
   const ytdHstOwing = brokerageWithholdsHst

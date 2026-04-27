@@ -784,8 +784,10 @@ function guessStatusFromValue(
 }
 
 function parseCsv(text: string): { headers: string[]; rows: CsvRow[]; truncated: boolean } {
-  // Strip UTF-8 BOM if present (common in Excel-exported CSVs)
-  const clean = text.startsWith("\uFEFF") ? text.slice(1) : text;
+  // Strip every UTF-8 BOM (Excel "combine sheets" exports embed one at every
+  // sheet boundary — only stripping at index 0 leaves U+FEFF in subsequent
+  // header cells, breaking auto-mapping).
+  const clean = text.replace(/\uFEFF/g, "");
 
   // Parse CSV properly handling quoted fields that contain embedded newlines.
   // We can't just split by \n because "John\nSmith" is a single field.

@@ -45,9 +45,10 @@ export async function GET() {
     clearTimeout(timer);
 
     if (pingError) {
+      console.error("[health] Database ping failed:", pingError.message);
       checks.database = "error";
       checks.tables = "skipped";
-      return respond("unhealthy", checks, start, timestamp, pingError.message);
+      return respond("unhealthy", checks, start, timestamp, "database_unavailable");
     }
 
     checks.database = "ok";
@@ -59,10 +60,7 @@ export async function GET() {
     checks.database = "error";
     checks.tables = "skipped";
 
-    const message =
-      err instanceof Error ? err.message : "Unknown error";
-
-    return respond("unhealthy", checks, start, timestamp, message);
+    return respond("unhealthy", checks, start, timestamp, "internal_error");
   }
 }
 

@@ -343,8 +343,10 @@ function generateDistanceLine(
 
   const nextLabel = BAND_LABELS[next];
 
-  // Express in deals when possible
-  if (avgDealGCI > 0) {
+  // Express in deals when possible. `isFinite` guards against Infinity from
+  // an upstream `ytdGCI / 0` divide — Math.ceil(gciGap / Infinity) silently
+  // returns 0, producing prose like "0 more closings by end of Q2".
+  if (avgDealGCI > 0 && isFinite(avgDealGCI)) {
     const dealsNeeded = Math.ceil(gciGap / avgDealGCI);
     const qLabel = `Q${currentQuarter + 1}`;
 

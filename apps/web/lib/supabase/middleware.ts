@@ -81,9 +81,11 @@ export async function updateSession(request: NextRequest) {
 
   // ── Step 2: Resolve the current user ────────────────────────────────────
   // Wrapped in try/catch with a 1200ms timeout: Vercel edge middleware has a
-  // hard wall-clock limit (~1.5s). If Supabase Auth is slow we fail open
-  // (treat as unauthenticated) so the middleware returns instead of timing out
-  // and serving a 504 to every visitor.
+  // hard wall-clock limit (~1.5s). If Supabase Auth is slow we treat the
+  // request as unauthenticated so the middleware returns instead of timing
+  // out and serving a 504 to every visitor. For protected routes this is
+  // fail-CLOSED (user stays null → redirect to /login below); for public
+  // routes it just means the request continues without an auth context.
   let user: { id: string } | null = null;
   try {
     const authCall = supabase.auth.getUser().then((r) => r.data.user);

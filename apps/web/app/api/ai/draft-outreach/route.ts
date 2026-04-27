@@ -577,7 +577,15 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const clientName = client.name;
+    // Schema enforces clients.name NOT NULL, but a whitespace-only or
+    // pre-CSV-cleanup row would render greetings like "Hi ,". Fall back
+    // through trim → first/last → "there".
+    const trimmedName = client.name?.trim();
+    const composedName = [client.first_name, client.last_name]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    const clientName = trimmedName || composedName || "there";
     const tone       = (client.communication_tone as Tone) ?? "friendly";
     const address    = latestRecord?.address ?? client.city ?? null;
     const province   = client.province_region ?? null;

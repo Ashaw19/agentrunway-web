@@ -1008,6 +1008,9 @@ export async function detectAndDraftForUser(
   const clientDealDates = new Map<string, string[]>();
   for (const rec of records) {
     if (!rec.client_id || !rec.close_date) continue;
+    // Collapsed deals are not real closings — exclude from milestone math
+    // (mirrors clients-content.tsx:1248 and insights-tab.tsx:96).
+    if ((rec as Record<string, unknown>).condition_status === "collapsed") continue;
     const arr = clientDealDates.get(rec.client_id) ?? [];
     arr.push(rec.close_date);
     clientDealDates.set(rec.client_id, arr);
@@ -2245,9 +2248,12 @@ export async function getTopOpportunities(
   }
 
   // Multi-deal milestone
+  // The repeat-rate metric below also reads from clientDealDates, so the
+  // collapsed-deal filter here is load-bearing for feedback_repeat_clients_metric.md.
   const clientDealDates = new Map<string, string[]>();
   for (const rec of records) {
     if (!rec.client_id || !rec.close_date) continue;
+    if ((rec as Record<string, unknown>).condition_status === "collapsed") continue;
     const arr = clientDealDates.get(rec.client_id) ?? [];
     arr.push(rec.close_date);
     clientDealDates.set(rec.client_id, arr);
