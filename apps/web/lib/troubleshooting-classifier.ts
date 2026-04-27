@@ -54,7 +54,6 @@ export const PAGE_TO_TOPICS: Record<string, TroubleshootingTopic[]> = {
   "/social":       ["social"],
   "/profile":      ["settings"],
   "/flight-control": ["flight-control"],
-  "/inbox":          ["crm", "flight-control"],
 };
 
 /**
@@ -88,7 +87,6 @@ export const TOPIC_ACTION_LINKS: Record<TroubleshootingTopic, { label: string; h
   ],
   crm: [
     { label: "Clients (CRM)", href: "/crm" },
-    { label: "Email Inbox", href: "/inbox" },
     { label: "Flight Control", href: "/crm" },
   ],
   "flight-control": [

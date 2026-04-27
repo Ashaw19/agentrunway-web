@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { checkPublicRateLimit, ipKey, rateLimitHeaders } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
@@ -66,8 +66,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate-limit by IP — use public_rate_limits because /api/recruit is an
+    // unauthenticated endpoint (auth-keyed rate_limits has a UUID FK that
+    // rejects IP strings, silently failing open).
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-    const rl = await checkRateLimit(ip, "recruit_apply", 5, 60);
+    const rl = await checkPublicRateLimit(await ipKey(ip), "recruit_apply", 5, 60);
     if (!rl.allowed) {
       return new Response("Too many requests. Please wait before sending more messages.", {
         status: 429,

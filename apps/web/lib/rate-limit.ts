@@ -108,6 +108,96 @@ export async function checkRateLimit(
 }
 
 /**
+ * Check and increment a rate limit for an unauthenticated identifier
+ * (e.g. hashed IP). Stored in `public_rate_limits` (key TEXT primary key)
+ * because the auth-keyed `rate_limits` table has a UUID FK to auth.users
+ * that cannot accept arbitrary IP strings.
+ *
+ * @param key           - Stable string identifier (hash of IP)
+ * @param endpoint      - Stable identifier for the route
+ * @param maxRequests   - Maximum requests allowed per window
+ * @param windowMinutes - Window length in minutes (default: 60)
+ */
+export async function checkPublicRateLimit(
+  key: string,
+  endpoint: string,
+  maxRequests: number,
+  windowMinutes = 60,
+): Promise<RateLimitResult> {
+  const admin = createAdminClient();
+
+  const now = Date.now();
+  const windowMs = windowMinutes * 60 * 1000;
+  const windowStart = new Date(Math.floor(now / windowMs) * windowMs);
+  const resetAt = new Date(windowStart.getTime() + windowMs);
+
+  const { data: existing, error: selectError } = await admin
+    .from("public_rate_limits")
+    .select("window_start, request_count")
+    .eq("key", key)
+    .eq("endpoint", endpoint)
+    .maybeSingle();
+
+  if (selectError) {
+    console.error("[rate-limit:public] select error:", selectError.message);
+    return { allowed: true, remaining: maxRequests, resetAt };
+  }
+
+  const isNewWindow =
+    !existing || new Date(existing.window_start) < windowStart;
+
+  if (isNewWindow) {
+    const { error: upsertError } = await admin.from("public_rate_limits").upsert(
+      {
+        key,
+        endpoint,
+        window_start: windowStart.toISOString(),
+        request_count: 1,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "key,endpoint" },
+    );
+    if (upsertError) {
+      console.error("[rate-limit:public] upsert error:", upsertError.message);
+    }
+    return { allowed: true, remaining: maxRequests - 1, resetAt };
+  }
+
+  const newCount = existing.request_count + 1;
+
+  if (newCount > maxRequests) {
+    return { allowed: false, remaining: 0, resetAt };
+  }
+
+  const { error: updateError } = await admin
+    .from("public_rate_limits")
+    .update({ request_count: newCount, updated_at: new Date().toISOString() })
+    .eq("key", key)
+    .eq("endpoint", endpoint);
+
+  if (updateError) {
+    console.error("[rate-limit:public] update error:", updateError.message);
+  }
+
+  return { allowed: true, remaining: maxRequests - newCount, resetAt };
+}
+
+/**
+ * Hash a request IP into a short opaque key for use with
+ * checkPublicRateLimit. SHA-256 is overkill but cheap; we slice to 16
+ * hex chars (64 bits) to keep rows small without meaningfully reducing
+ * collision resistance for limiter purposes.
+ */
+export async function ipKey(ip: string): Promise<string> {
+  const data = new TextEncoder().encode(ip);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash))
+    .slice(0, 8)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
  * Build standard rate-limit response headers for 429 responses.
  * Helps clients (and the browser) know when to retry.
  */

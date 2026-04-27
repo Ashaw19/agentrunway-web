@@ -775,6 +775,31 @@ export const CLIENT_STATUS_COLORS: Record<ClientStatus, { bg: string; text: stri
   cruising:  { bg: "bg-blue-50",   text: "text-blue-700",   border: "border-blue-200",   dot: "bg-blue-400"   },
 };
 
+// Defensive fallback styling for any status that slipped past the 4-stage
+// CHECK constraint (legacy row in a self-hosted env, future stage added).
+const UNKNOWN_STATUS_COLORS = {
+  bg: "bg-zinc-50", text: "text-zinc-600", border: "border-zinc-200", dot: "bg-zinc-400",
+} as const;
+
+/**
+ * Render a client status as a human label. Unknown values fall back to
+ * "Unknown" rather than rendering blank — the DB CHECK constraint should
+ * prevent this in production, but old/migrated/imported rows can drift.
+ */
+export function getClientStatusLabel(status: string | null | undefined): string {
+  if (!status) return "Unknown";
+  return CLIENT_STATUS_LABELS[status as ClientStatus] ?? "Unknown";
+}
+
+/**
+ * Render-safe client status colours. Same fallback contract as the label
+ * helper — never returns undefined.
+ */
+export function getClientStatusColors(status: string | null | undefined) {
+  if (!status) return UNKNOWN_STATUS_COLORS;
+  return CLIENT_STATUS_COLORS[status as ClientStatus] ?? UNKNOWN_STATUS_COLORS;
+}
+
 // ── Listing Appointment Status (migration 00048) ─────────────────────────────
 export type ListingStatus = "scheduled" | "active" | "sold" | "expired" | "withdrawn" | "lost";
 

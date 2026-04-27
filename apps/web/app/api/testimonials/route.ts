@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { checkPublicRateLimit, ipKey, rateLimitHeaders } from "@/lib/rate-limit";
 
 /**
  * GET /api/testimonials — Fetch approved testimonials (public)
@@ -34,9 +34,11 @@ export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
 
-    // Rate-limit by IP (unauthenticated endpoint) — use forwarded IP or fallback
+    // Rate-limit by IP (unauthenticated endpoint) — use forwarded IP or fallback.
+    // Hashed and stored in public_rate_limits (auth-keyed rate_limits has a
+    // UUID FK to auth.users that rejects raw IP strings — silent fail-open).
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anonymous";
-    const rl = await checkRateLimit(ip, "testimonials_submit", 5, 60); // 5 per hour
+    const rl = await checkPublicRateLimit(await ipKey(ip), "testimonials_submit", 5, 60); // 5 per hour
     if (!rl.allowed) {
       return new Response("Too many submissions. Please try again later.", {
         status: 429,

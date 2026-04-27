@@ -24,8 +24,13 @@ export default async function SettingsPage() {
     .from("user_settings")
     .upsert({ user_id: user.id }, { onConflict: "user_id", ignoreDuplicates: true });
 
-  // Now read settings and other data in parallel
-  const [{ data: settingsRaw }, { data: plaidItems }, { data: googleConnection }, { data: emailConnections }] = await Promise.all([
+  // Now read settings and other data in parallel.
+  // google_connections is intentionally NOT fetched: the Google Integrations
+  // card is gated off (SHOW_GOOGLE_INTEGRATIONS_CARD=false) per CASA shelf
+  // (memory/project_google_integrations.md). Loading the row would waste a
+  // round-trip and serialise OAuth scope flags into the client bundle on
+  // every Settings load.
+  const [{ data: settingsRaw }, { data: plaidItems }, { data: emailConnections }] = await Promise.all([
     supabase
       .from("user_settings")
       .select("*")
@@ -37,11 +42,6 @@ export default async function SettingsPage() {
       .select("id, user_id, plaid_item_id, institution_id, institution_name, sync_cursor, last_synced_at, created_at, updated_at, error_code, error_message")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false }),
-    supabase
-      .from("google_connections")
-      .select("id, email_address, display_name, gmail_send_enabled, calendar_sync_enabled, drive_read_enabled, connected_at")
-      .eq("user_id", user.id)
-      .maybeSingle(),
     supabase
       .from("email_connections")
       .select("id, provider, email_address, display_name, connection_name, smtp_host, smtp_port, calendar_sync_enabled, connected_at")
@@ -60,7 +60,7 @@ export default async function SettingsPage() {
         settings={settings as UserSettings}
         plaidItems={(plaidItems ?? []) as PlaidItem[]}
         plaidConfigured={plaidConfigured}
-        googleConnection={googleConnection ?? null}
+        googleConnection={null}
         emailConnections={emailConnections ?? []}
         isPro={isPro}
       />
