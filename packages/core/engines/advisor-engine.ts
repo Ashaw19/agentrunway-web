@@ -14,6 +14,7 @@ import {
   paceVsGoalPercent,
   dailyPaceRequired,
   daysRemaining,
+  parseTxDate,
 } from "./projection-engine";
 import { NATIONAL_MEDIAN_GCI, NATIONAL_MEDIAN_TRANSACTIONS } from "./benchmark-engine";
 
@@ -89,7 +90,7 @@ export function generateAdvisory(input: AdvisorInput, limit: number = 5): Adviso
 
   const currentYear = new Date().getFullYear();
   const closedTx = input.transactions.filter(
-    (tx) => tx.status === "closed" && new Date(tx.date).getFullYear() === currentYear,
+    (tx) => tx.status === "closed" && parseTxDate(tx.date).getFullYear() === currentYear,
   );
   const ytdGCI = closedTx.reduce((sum, tx) => sum + computeGCI(tx), 0);
   const fraction = seasonalFractionElapsed(input.seasonalWeights);

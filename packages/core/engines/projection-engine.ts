@@ -5,6 +5,28 @@ import { computeGCI, type Transaction } from "../types/database";
 
 // ── Calendar Awareness ──────────────────────────────────────────────────────
 
+/**
+ * Parse a transaction-style date string ("YYYY-MM-DD" or full ISO
+ * timestamp) into a Date that anchors at local noon on the intended
+ * civil date.
+ *
+ * `new Date("2026-01-01")` resolves to UTC midnight, which on negative
+ * UTC offsets (e.g. Atlantic time UTC-04) becomes Dec 31 2025 local —
+ * causing dashboard YTD (local) to disagree with Captain YTD (UTC) on
+ * Jan 1–2 every year. Anchoring the date-only form at noon eliminates
+ * that drift while preserving full timestamps untouched.
+ */
+export function parseTxDate(value: string | Date | null | undefined): Date {
+  if (value instanceof Date) return value;
+  if (!value) return new Date(NaN);
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.exec(value);
+  if (dateOnly) {
+    const [y, m, d] = value.split("-").map(Number);
+    return new Date(y, m - 1, d, 12, 0, 0, 0);
+  }
+  return new Date(value);
+}
+
 /** Current day of the year (1–365/366). */
 export function dayOfYear(date: Date = new Date()): number {
   const start = new Date(date.getFullYear(), 0, 0);
@@ -240,12 +262,12 @@ export function monthlyGCITotals(transactions: Transaction[]): number[] {
   const yearTx = transactions.filter(
     (tx) =>
       tx.status === "closed" &&
-      new Date(tx.date).getFullYear() === currentYear,
+      parseTxDate(tx.date).getFullYear() === currentYear,
   );
 
   const monthlyTotals = new Array(12).fill(0);
   for (const tx of yearTx) {
-    const month = new Date(tx.date).getMonth();
+    const month = parseTxDate(tx.date).getMonth();
     if (month >= 0 && month < 12) {
       monthlyTotals[month] += computeGCI(tx);
     }

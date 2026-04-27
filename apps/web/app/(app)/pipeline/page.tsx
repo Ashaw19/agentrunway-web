@@ -49,7 +49,10 @@ export default async function PipelinePage() {
         .from("clients")
         .select("*")
         .eq("user_id", user.id)
-        .in("status", ["boarding", "in_flight"])
+        // Include "scheduled" buyers (future-intent stage from the 4-stage
+        // redesign) — they're forecasted at a low probability so the
+        // pipeline reflects pre-transactional capture too.
+        .in("status", ["boarding", "scheduled", "in_flight"])
         .limit(10000),
       supabase
         .from("transactions")

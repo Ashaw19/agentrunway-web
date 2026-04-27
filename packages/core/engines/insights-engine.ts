@@ -18,6 +18,7 @@ import {
   dayOfYear,
   trendDirection,
   normalizeSeasonalWeights,
+  parseTxDate,
 } from "./projection-engine";
 
 // ── Insight Model ───────────────────────────────────────────────────────────
@@ -70,7 +71,7 @@ export function generateInsights(input: InsightsInput, limit: number = 5): Insig
 
   const currentYear = new Date().getFullYear();
   const closedTx = input.transactions.filter(
-    (tx) => tx.status === "closed" && new Date(tx.date).getFullYear() === currentYear,
+    (tx) => tx.status === "closed" && parseTxDate(tx.date).getFullYear() === currentYear,
   );
   const hasTransactions = closedTx.length > 0;
   const ytdGCI = closedTx.reduce((sum, tx) => sum + computeGCI(tx), 0);

@@ -83,6 +83,10 @@ export interface PipelineForecastResult {
   dealCount: number;
   listingCount: number;
   buyerCount: number;
+  /** Deals with no expectedCloseDate or with a date >180 days in the past. */
+  staleDealCount: number;
+  /** WeightedGCI contribution of stale deals — flag for the UI to caveat the total. */
+  staleWeightedGCI: number;
   accuracy: ForecastAccuracyResult;
   funnel: ConversionFunnelResult;
 }
@@ -136,6 +140,7 @@ const LISTING_STATUS_TO_UNIFIED: Record<string, UnifiedStage> = {
 
 const BUYER_STATUS_TO_UNIFIED: Record<string, UnifiedStage> = {
   boarding:  "pre_qualifying",
+  scheduled: "pre_qualifying", // future-intent buyer (4-stage redesign)
   in_flight: "active",
 };
 
@@ -146,6 +151,7 @@ const LISTING_PROBABILITIES: Record<string, number> = {
 
 const BUYER_PROBABILITIES: Record<string, number> = {
   boarding:  0.10,
+  scheduled: 0.05, // deferred intent — lower conversion probability than Boarding
   in_flight: 0.25,
 };
 
@@ -268,6 +274,19 @@ export function computePipelineForecast(
   const listingWeightedGCI = listingItems.reduce((s, i) => s + i.weightedGCI, 0);
   const buyerWeightedGCI = buyerItems.reduce((s, i) => s + i.weightedGCI, 0);
 
+  // Stale deals: deals with no expectedCloseDate or with a date >180 days
+  // in the past (the "parked indefinitely" signal). Without this flag the
+  // forecast aggregates these at full weight even though they may never
+  // close — the UI can warn that part of the total is suspect.
+  const STALE_DAYS = 180;
+  const cutoff = now.getTime() - STALE_DAYS * 86_400_000;
+  const staleItems = dealItems.filter((i) => {
+    if (!i.expectedCloseDate) return true;
+    const t = new Date(i.expectedCloseDate).getTime();
+    return Number.isFinite(t) && t < cutoff;
+  });
+  const staleWeightedGCI = staleItems.reduce((s, i) => s + i.weightedGCI, 0);
+
   return {
     items,
     totalWeightedGCI: dealWeightedGCI + listingWeightedGCI + buyerWeightedGCI,
@@ -277,6 +296,8 @@ export function computePipelineForecast(
     dealCount: dealItems.length,
     listingCount: listingItems.length,
     buyerCount: buyerItems.length,
+    staleDealCount: staleItems.length,
+    staleWeightedGCI,
     accuracy,
     funnel,
   };

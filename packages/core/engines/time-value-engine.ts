@@ -76,8 +76,15 @@ export function computeTimeValue(input: TimeValueInput): TimeValueResult {
   const grossHourlyRate = annualHours > 0 ? projectedAnnualGCI / annualHours : 0;
 
   // Per-deal metrics
+  // Early-year confidence ramp mirrors projectedYearEndTransactions
+  // (projection-engine.ts): below 10% elapsed, blend the raw annualization
+  // toward the actual deal count. Without this, 1 deal on Jan 5 implies
+  // ~77 deals/year and inflates revenuePerDeal / breakEvenDealCount.
+  const rawAnnualized = yearFractionElapsed > 0 ? dealCount / yearFractionElapsed : dealCount;
   const annualizedDealCount =
-    yearFractionElapsed > 0 ? dealCount / yearFractionElapsed : dealCount;
+    yearFractionElapsed > 0 && yearFractionElapsed < 0.10
+      ? dealCount * (1 - yearFractionElapsed / 0.10) + rawAnnualized * (yearFractionElapsed / 0.10)
+      : rawAnnualized;
   const revenuePerDeal = annualizedDealCount > 0 ? projectedAnnualGCI / annualizedDealCount : 0;
   const hoursPerDeal = annualizedDealCount > 0 ? annualHours / annualizedDealCount : 0;
   const netPerDeal = annualizedDealCount > 0 ? projectedAnnualNet / annualizedDealCount : 0;
