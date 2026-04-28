@@ -60,10 +60,10 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 **GCI** = Sale Price x Commission %. Override takes precedence.
 **Agent Net** = GCI x Agent Split %.
 **Weighted GCI** = Pipeline GCI x stage probability (or override).
-**Expense Ratio** = Expenses / GCI. <25% excellent, 25-30% healthy, 30-40% attention, >40% concerning.
+**Expense Ratio** = Expenses / GCI. <25% excellent, 25-35% healthy, 35-50% attention, >50% concerning. (Bands match health-report.ts + insights-engine.ts; advisor-engine flags an action card at >30% with a 25-30% reference benchmark.)
 **Survival Runway** = Cash Reserve / Net Monthly Burn. <2mo critical, 2-4 warning, 4-6 healthy, 6+ strong. Cap 24mo. $0 reserve + $0 burn = "Not Configured" (sentinel -1). $0 reserve + positive burn = 0mo (critical).
 **Pace** = ((Actual YTD GCI - Expected) / Expected) x 100. Expected = Goal x Seasonal Fraction.
-**Seasonal Fraction** = Accounts for uneven quarterly income (default Q1:15% Q2:30% Q3:30% Q4:25%). Custom weights in Settings. Day-level interpolation.
+**Seasonal Fraction** = Accounts for uneven quarterly income. Default = uniform Q1:25% Q2:25% Q3:25% Q4:25% (DB stores [25,25,25,25], normalized to fractions). Cascade: agent-derived from history_items.quarter_gci (need 2+ years) → settings.national_quarter_pcts → uniform. Day-level interpolation within quarters.
 **Projected Year-End GCI** = (Closed YTD / Seasonal Fraction) + (Pipeline Weighted x 50%). Jan-Feb dampening blends toward goal.
 **Runway Score** (v1.2) = Pace(35%) + Pipeline(30%) + Expense(15%) + Survival(15%) + Benchmark(5%). Grades: A+(92+) A(85-91) B(75-84) C(62-74) D(50-61) F(0-49). Missing data penalizes (35 not 50).
 **Benchmark** = Industry cohort estimates: Rookie(0-2yr,$42K/4deals), Growth(3-5yr,$78K/7), Established(6-10yr,$96K/8), TopProducer(>10yr,$145K/12). National median $96K/8.

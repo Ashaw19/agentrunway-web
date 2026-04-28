@@ -319,12 +319,13 @@ Conversion rate = count at stage N ÷ count at stage N−1. Null for the first s
 ### Expense Ratio Calculation
 Expense Ratio = Total YTD Expenses ÷ YTD GCI
 
-**Benchmarks** (from advisor-engine.ts):
-- <25%: Excellent
-- 25–30%: Healthy
-- 30–40%: Needs attention (advisor engine flags at >30%)
-- >40%: Concerning
-- >50%: Warning (insights engine flags)
+**Benchmarks** (canonical from health-report.ts; insights-engine.ts uses the same boundaries):
+- <25%: Excellent (Runway sub-score 90)
+- 25–35%: Healthy (Runway sub-score 75; insights-engine "industry average is 25-35%")
+- 35–50%: Needs attention (Runway sub-score 55; insights-engine flags as a tip at >35%)
+- >50%: Concerning (Runway sub-score 30; insights-engine flags as a warning at >50%)
+
+Secondary signal: advisor-engine.ts shows a "Trim Expenses to Benchmark" action card when the projected ratio exceeds 30%, with a 25-30% reference benchmark. The Runway Score sub-score is the canonical band.
 
 ### Expense Categories — CRA T2125 Mapping
 
@@ -427,9 +428,10 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 **Base Formula**: Projected GCI = (YTD Closed GCI ÷ Seasonal Fraction) + (Pipeline Weighted GCI × 50%)
 
 **Seasonal Fraction**: Accounts for uneven income distribution across the year.
-- Default (national): Q1=15%, Q2=30%, Q3=30%, Q4=25% (cumulative fractions used)
+- Default: uniform Q1=25%, Q2=25%, Q3=25%, Q4=25% (DB column settings.national_quarter_pcts stored as [25,25,25,25], normalized to fractions in normalizeSeasonalWeights)
+- Cascade: agent-derived from history_items.quarter_gci (needs 2+ years) → settings.national_quarter_pcts → uniform
 - Custom: Users set their own quarterly weights in Settings
-- Day-of-year precision: Interpolates within quarters for smooth progression
+- Day-of-year precision: Interpolates within quarters for smooth progression (UTC-anchored)
 
 **Early-Year Dampening** (fraction < 10% of year, roughly Jan 1–Feb 7):
 - Raw extrapolation is unreliable with little data
@@ -856,7 +858,8 @@ Format: p{agent}_{brokerage} (e.g., "p80_20")
 Example: $500/month + 3% per deal, capped at $20,000/year. After cap → 0% per deal.
 
 ### Seasonal Weights
-- National default: Q1=15%, Q2=30%, Q3=30%, Q4=25%
+- Default: uniform Q1=25%, Q2=25%, Q3=25%, Q4=25% (engine normalizes via normalizeSeasonalWeights)
+- Cascade: agent-derived (history_items.quarter_gci, 2+ years) → settings.national_quarter_pcts → uniform
 - Custom: User sets their own (must total 100%)
 - Affects: Pace calculation, projected GCI, seasonal fraction
 - Winter markets (e.g., ski resorts) might be Q4-heavy
