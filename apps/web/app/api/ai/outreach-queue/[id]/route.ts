@@ -52,48 +52,55 @@ export async function PATCH(
     return NextResponse.json({ error: "No updatable fields provided" }, { status: 400 });
   }
 
-  // ── Optimistic locking ──────────────────────────────────────────────────
-  // If the client sends expected_updated_at, verify the row hasn't changed.
-  if (body.expected_updated_at) {
-    const { data: current } = await supabase
-      .from("outreach_queue")
-      .select("updated_at")
-      .eq("id", id)
-      .eq("user_id", userId)
-      .single();
-
-    if (current && current.updated_at !== body.expected_updated_at) {
-      return NextResponse.json(
-        {
-          error: "Conflict — this draft was edited elsewhere. Please refresh and try again.",
-          code: "CONFLICT",
-          server_updated_at: current.updated_at,
-        },
-        { status: 409 },
-      );
-    }
-  }
-
-  // Belt-and-suspenders: .eq("user_id", userId) below is the app-level ownership
-  // guard. If the row does not belong to this user, .single() returns an error
-  // (no rows matched) and we return 404 — avoiding enumeration of other users' IDs.
-  const { data, error } = await supabase
+  // ── Optimistic locking + ownership ──────────────────────────────────────
+  // .eq("user_id", userId) is the app-level ownership guard. If
+  // expected_updated_at is provided, .eq("updated_at", expected_updated_at)
+  // makes the lock atomic with the write — two concurrent edits with the
+  // same expected_updated_at can't both win because PostgREST evaluates the
+  // filter inside the same UPDATE statement. (A prior implementation did a
+  // separate SELECT then UPDATE, which was a TOCTOU race — both writers
+  // could pass the check and both writes would land.)
+  let updateQuery = supabase
     .from("outreach_queue")
     .update(allowed)
     .eq("id", id)
-    .eq("user_id", userId)
+    .eq("user_id", userId);
+  if (body.expected_updated_at) {
+    updateQuery = updateQuery.eq("updated_at", body.expected_updated_at);
+  }
+  const { data, error } = await updateQuery
     .select("updated_at")
-    .single();
+    .maybeSingle();
 
   if (error) {
-    // PGRST116 = no rows found → item doesn't exist or doesn't belong to this user
-    const isNotFound = (error as { code?: string }).code === "PGRST116";
-    if (isNotFound) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
     console.error("[outreach-queue] PATCH error:", error);
     return NextResponse.json({ error: "Failed to update draft" }, { status: 500 });
   }
+  if (!data) {
+    // No row matched. Two cases:
+    //   (a) the row doesn't exist or doesn't belong to this user → 404
+    //   (b) optimistic-lock filter rejected the write (row was edited elsewhere) → 409
+    // Disambiguate by re-reading the row's owned state.
+    if (body.expected_updated_at) {
+      const { data: current } = await supabase
+        .from("outreach_queue")
+        .select("updated_at")
+        .eq("id", id)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (current) {
+        return NextResponse.json(
+          {
+            error: "Conflict — this draft was edited elsewhere. Please refresh and try again.",
+            code: "CONFLICT",
+            server_updated_at: current.updated_at,
+          },
+          { status: 409 },
+        );
+      }
+    }
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
-  return NextResponse.json({ ok: true, updated_at: data?.updated_at });
+  return NextResponse.json({ ok: true, updated_at: data.updated_at });
 }
