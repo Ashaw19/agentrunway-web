@@ -6,7 +6,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 import { Check, Sparkles, ArrowRight } from "lucide-react";
 import { charterSlotsRemaining } from "@/lib/stripe";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getCharterPaidCount } from "@/lib/marketing/cached-queries";
 
 export const metadata: Metadata = {
   title: "Charter Member Access | Agent Runway",
@@ -322,14 +322,18 @@ function PillarVisual({ visual }: { visual: string }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function WaitlistPage() {
-  // Fetch charter spots from the database (same source as /api/pricing-tier)
-  const admin = createAdminClient();
-  const { count: paidCount } = await admin
-    .from("user_settings")
-    .select("user_id", { count: "exact", head: true })
-    .eq("subscription_tier", "professional");
+  // Fetch charter spots from the database (same source as /api/pricing-tier).
+  // Cached for 5 minutes via lib/marketing/cached-queries.ts — Stripe webhook
+  // handlers should call revalidateTag(CHARTER_COUNT_CACHE_TAG) after a paid
+  // signup. Falls back to 0 (i.e. "all 50 spots remaining") if the read fails.
+  let paidCount = 0;
+  try {
+    paidCount = await getCharterPaidCount();
+  } catch (err) {
+    console.error("[waitlist] charter count fetch failed (rendering 0):", err);
+  }
 
-  const CHARTER_SPOTS_LEFT = charterSlotsRemaining(paidCount ?? 0);
+  const CHARTER_SPOTS_LEFT = charterSlotsRemaining(paidCount);
   const CHARTER_SPOTS_CLAIMED = CHARTER_SPOTS_TOTAL - CHARTER_SPOTS_LEFT;
   const CHARTER_PCT = Math.round((CHARTER_SPOTS_CLAIMED / CHARTER_SPOTS_TOTAL) * 100);
 

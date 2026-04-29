@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { getApprovedTestimonials } from "@/lib/marketing/cached-queries";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -290,14 +291,17 @@ export default async function Home() {
     displayName = settings?.display_name || user.email?.split("@")[0] || undefined;
   }
 
-  // Fetch approved testimonials for the homepage
-  const { data: testimonials } = await supabase
-    .from("testimonials")
-    .select("id, name, title, quote, rating")
-    .eq("approved", true)
-    .order("featured", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(6);
+  // Fetch approved testimonials for the homepage.
+  // Cached for 1h via lib/marketing/cached-queries.ts — see that file for the
+  // 2026-04-29 outage post-mortem on why this MUST stay cached.
+  // We swallow errors here and render the section empty rather than crash the
+  // homepage, since testimonials are decorative.
+  let testimonials: Awaited<ReturnType<typeof getApprovedTestimonials>> = [];
+  try {
+    testimonials = await getApprovedTestimonials();
+  } catch (err) {
+    console.error("[home] testimonials fetch failed (rendering empty):", err);
+  }
 
   const AVATAR_COLORS = ["blue", "emerald", "violet", "teal"] as const;
 
