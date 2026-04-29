@@ -8,6 +8,15 @@ import { Check, Sparkles, ArrowRight } from "lucide-react";
 import { charterSlotsRemaining } from "@/lib/stripe";
 import { getCharterPaidCount } from "@/lib/marketing/cached-queries";
 
+// Render dynamically per request (still cheap thanks to the 5-minute
+// `unstable_cache` window on `getCharterPaidCount`). We intentionally do NOT
+// statically prerender at build time: the previous attempt blocked the build
+// for >180s when Supabase was sick (2026-04-29 deploy), because the build
+// worker waited on a live PostgREST fetch that was timing out. Dynamic
+// rendering means a sick gateway fails the page render (handled with a
+// fallback in the page body), not the entire deploy.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Charter Member Access | Agent Runway",
   description:
