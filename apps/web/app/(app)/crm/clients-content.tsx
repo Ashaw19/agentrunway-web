@@ -803,37 +803,96 @@ function guessStatusFromValue(
   return "skip";
 }
 
-function parseCsv(text: string): { headers: string[]; rows: CsvRow[]; truncated: boolean } {
+// Sniff the most likely delimiter by counting unquoted occurrences in the first
+// non-empty line. fr-CA / fr-FR / de Excel exports use ";", Google Contacts
+// .tsv uses "\t", everything else is ",".
+function sniffDelimiter(input: string): "," | ";" | "\t" {
+  let inQuotes = false;
+  const counts: { ",": number; ";": number; "\t": number } = { ",": 0, ";": 0, "\t": 0 };
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i];
+    if (ch === '"') {
+      if (inQuotes && input[i + 1] === '"') i++;
+      else inQuotes = !inQuotes;
+    } else if (!inQuotes && (ch === "\r" || ch === "\n")) {
+      if (counts[","] + counts[";"] + counts["\t"] > 0) break;
+    } else if (!inQuotes && (ch === "," || ch === ";" || ch === "\t")) {
+      counts[ch] += 1;
+    }
+  }
+  if (counts[";"] > counts[","] && counts[";"] >= counts["\t"]) return ";";
+  if (counts["\t"] > counts[","] && counts["\t"] > counts[";"]) return "\t";
+  return ",";
+}
+
+// Dedupe duplicate header columns by suffixing (Email, Email_2, Email_3 ...).
+// Without this, `row[h] = vals[idx]` silently overwrites the earlier column,
+// losing data for users who export merged CSVs from multiple CRMs.
+function dedupeHeaders(headers: string[]): { headers: string[]; renamed: string[] } {
+  const seen = new Map<string, number>();
+  const out: string[] = [];
+  const renamed: string[] = [];
+  for (const raw of headers) {
+    const key = raw.trim();
+    const count = seen.get(key) ?? 0;
+    if (count === 0) {
+      out.push(raw);
+      seen.set(key, 1);
+    } else {
+      const next = `${raw}_${count + 1}`;
+      out.push(next);
+      seen.set(key, count + 1);
+      renamed.push(`"${raw}" → "${next}"`);
+    }
+  }
+  return { headers: out, renamed };
+}
+
+function parseCsv(text: string): {
+  headers: string[];
+  rows: CsvRow[];
+  truncated: boolean;
+  renamedHeaders: string[];
+} {
   // Strip every UTF-8 BOM (Excel "combine sheets" exports embed one at every
   // sheet boundary — only stripping at index 0 leaves U+FEFF in subsequent
   // header cells, breaking auto-mapping).
   const clean = text.replace(/\uFEFF/g, "");
+  const delimiter = sniffDelimiter(clean);
 
-  // Parse CSV properly handling quoted fields that contain embedded newlines.
+  // Parse properly handling quoted fields that contain embedded newlines.
   // We can't just split by \n because "John\nSmith" is a single field.
   function parseAllRows(input: string): string[][] {
     const rows: string[][] = [];
     let current = "";
     let inQuotes = false;
+    let fieldHadQuotes = false;
     const fields: string[] = [];
+
+    const finalizeField = () => {
+      // Only trim unquoted fields \u2014 preserves intentional whitespace in
+      // note/history columns from CRM exports like FUB.
+      fields.push(fieldHadQuotes ? current : current.trim());
+      current = "";
+      fieldHadQuotes = false;
+    };
 
     for (let i = 0; i < input.length; i++) {
       const ch = input[i];
       if (ch === '"') {
+        fieldHadQuotes = true;
         if (inQuotes && input[i + 1] === '"') {
           current += '"';
           i++;
         } else {
           inQuotes = !inQuotes;
         }
-      } else if (ch === "," && !inQuotes) {
-        fields.push(current.trim());
-        current = "";
+      } else if (ch === delimiter && !inQuotes) {
+        finalizeField();
       } else if ((ch === "\r" || ch === "\n") && !inQuotes) {
         // End of row (skip \n after \r)
         if (ch === "\r" && input[i + 1] === "\n") i++;
-        fields.push(current.trim());
-        current = "";
+        finalizeField();
         if (fields.some((f) => f.length > 0)) {
           rows.push([...fields]);
         }
@@ -843,7 +902,7 @@ function parseCsv(text: string): { headers: string[]; rows: CsvRow[]; truncated:
       }
     }
     // Last row (no trailing newline)
-    fields.push(current.trim());
+    finalizeField();
     if (fields.some((f) => f.length > 0)) {
       rows.push([...fields]);
     }
@@ -851,9 +910,9 @@ function parseCsv(text: string): { headers: string[]; rows: CsvRow[]; truncated:
   }
 
   const allRows = parseAllRows(clean);
-  if (allRows.length < 2) return { headers: [], rows: [], truncated: false };
+  if (allRows.length < 2) return { headers: [], rows: [], truncated: false, renamedHeaders: [] };
 
-  const headers = allRows[0];
+  const { headers, renamed } = dedupeHeaders(allRows[0]);
   const dataRows = allRows.slice(1);
   const truncated = dataRows.length > CSV_ROW_CAP;
   const rows: CsvRow[] = [];
@@ -865,7 +924,7 @@ function parseCsv(text: string): { headers: string[]; rows: CsvRow[]; truncated:
     });
     rows.push(row);
   }
-  return { headers, rows, truncated };
+  return { headers, rows, truncated, renamedHeaders: renamed };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2508,6 +2567,16 @@ export function ClientsContent({
 
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
     const isExcel = ext === "xlsx" || ext === "xls";
+    // Accept .csv, .tsv, .txt, and extension-less exports as text. parseCsv
+    // sniffs the delimiter (comma / semicolon / tab) so all three route
+    // through the same path.
+    const isText = ext === "csv" || ext === "tsv" || ext === "txt" || ext === "";
+    if (!isExcel && !isText) {
+      toast.error(
+        `Unsupported file type ".${ext}". Supported: .csv, .tsv, .txt, .xlsx, .xls.`,
+      );
+      return;
+    }
 
     if (isExcel) {
       // Parse Excel with SheetJS
@@ -2522,7 +2591,8 @@ export function ClientsContent({
           if (!sheetName) { toast.error("Spreadsheet has no sheets."); return; }
           const csvText = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]);
           processImportText(csvText);
-        } catch {
+        } catch (err) {
+          console.warn("[csv import] Excel parse failed:", err);
           toast.error("Could not parse spreadsheet. Make sure it's a valid .xlsx or .xls file.");
         }
       };
@@ -2530,7 +2600,7 @@ export function ClientsContent({
       return;
     }
 
-    // CSV path
+    // CSV / TSV / TXT path
     const reader = new FileReader();
     reader.onerror = () => {
       toast.error("Failed to read file. Please try again or use a different file.");
@@ -2562,10 +2632,15 @@ export function ClientsContent({
       // "03/04/2024" cells silently parse as March 4 in V8 even when
       // the rest of the column proves the file is DD/MM.
       const normalizedText = normalizeDateFormats(text);
-      const { headers, rows, truncated } = parseCsv(normalizedText);
+      const { headers, rows, truncated, renamedHeaders } = parseCsv(normalizedText);
       if (headers.length === 0 || rows.length === 0) {
         toast.error("No data found. Make sure the first row contains column headers and there's at least one data row.");
         return;
+      }
+      if (renamedHeaders.length > 0) {
+        toast.warning(
+          `Renamed ${renamedHeaders.length} duplicate column header${renamedHeaders.length === 1 ? "" : "s"} to preserve all data: ${renamedHeaders.slice(0, 3).join(", ")}${renamedHeaders.length > 3 ? "…" : ""}`,
+        );
       }
       if (truncated) {
         const msg = `File capped at ${CSV_ROW_CAP.toLocaleString()} rows — only the first ${CSV_ROW_CAP.toLocaleString()} contacts will be imported. Split the file and upload again to import the remainder.`;
@@ -3905,6 +3980,63 @@ export function ClientsContent({
                     </DropdownMenu>
                   </div>
                 </div>
+
+                {/* Scheduled-stage future-intent inputs — surface a date picker
+                    + free-text phrase only when the client is in the Scheduled
+                    stage. Without these, scheduled_for / scheduled_phrase are
+                    write-only data with no engine to surface them. */}
+                {selectedClient.status === "scheduled" && (
+                  <div className="rounded-lg border border-cyan-200 bg-cyan-50/40 p-3 mt-3 space-y-2">
+                    <p className="text-[11px] font-medium text-cyan-900">
+                      When are they planning to act?
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-muted-foreground" htmlFor="scheduled-for-input">
+                          Target date
+                        </label>
+                        <input
+                          id="scheduled-for-input"
+                          type="date"
+                          value={selectedClient.scheduled_for ?? ""}
+                          onChange={(e) =>
+                            updateClientField(
+                              selectedClient.id,
+                              "scheduled_for",
+                              e.target.value || null,
+                            )
+                          }
+                          className="h-7 w-full text-xs rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-muted-foreground" htmlFor="scheduled-phrase-input">
+                          Or timing phrase
+                        </label>
+                        <input
+                          id="scheduled-phrase-input"
+                          type="text"
+                          placeholder="e.g. spring 2026"
+                          defaultValue={selectedClient.scheduled_phrase ?? ""}
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            if (v !== (selectedClient.scheduled_phrase ?? "")) {
+                              updateClientField(
+                                selectedClient.id,
+                                "scheduled_phrase",
+                                v || null,
+                              );
+                            }
+                          }}
+                          className="h-7 w-full text-xs rounded-md border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Setting one of these surfaces them in Flight Control as the date approaches.
+                    </p>
+                  </div>
+                )}
 
                 {/* Name + save */}
                 <div className="px-5 pt-3 pb-4 border-b border-border/60 space-y-3">
@@ -5786,12 +5918,12 @@ export function ClientsContent({
                   Click to upload contacts
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  .csv or .xlsx files
+                  .csv, .tsv, .txt, .xlsx, or .xls files
                 </p>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                  accept=".csv,.tsv,.txt,.xlsx,.xls,text/csv,text/tab-separated-values,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
                   className="hidden"
                   onChange={handleFileChange}
                 />
@@ -6994,39 +7126,31 @@ function MetricPill({
 }
 
 // ── Flight Status Strip ──────────────────────────────────────────────────────
+// Rendered as un-ordered chips, NOT a linear progress bar — Scheduled is a
+// future-intent parking slot that often comes before Boarding, and Cruising
+// is a post-close state. Treating these as a left-to-right sequence misled
+// users about what "Scheduled" means.
 
 const FLIGHT_STAGES: ClientStatus[] = ["boarding", "scheduled", "in_flight", "cruising"];
 
 function FlightStatusStrip({ current }: { current: ClientStatus }) {
-  const currentIdx = FLIGHT_STAGES.indexOf(current);
   return (
-    <div className="flex items-center gap-0 mt-4">
-      {FLIGHT_STAGES.map((stage, i) => {
+    <div className="flex items-center gap-1.5 mt-4 flex-wrap">
+      {FLIGHT_STAGES.map((stage) => {
         const colors = CLIENT_STATUS_COLORS[stage];
-        const isActive = i === currentIdx;
-        const isPast = i < currentIdx;
+        const isActive = stage === current;
         return (
-          <div key={stage} className="flex items-center flex-1">
-            <div className="flex flex-col items-center flex-1">
-              <div
-                className={cn(
-                  "h-2 w-full rounded-full transition-colors",
-                  isActive ? colors.dot : isPast ? "bg-primary/30" : "bg-muted",
-                )}
-              />
-              <span
-                className={cn(
-                  "text-[9px] mt-1 font-medium transition-colors",
-                  isActive ? colors.text : isPast ? "text-muted-foreground" : "text-muted-foreground/50",
-                )}
-              >
-                {CLIENT_STATUS_LABELS[stage]}
-              </span>
-            </div>
-            {i < FLIGHT_STAGES.length - 1 && (
-              <div className={cn("h-0.5 w-2 shrink-0", isPast ? "bg-primary/30" : "bg-muted")} />
+          <span
+            key={stage}
+            className={cn(
+              "text-[10px] font-medium px-2 py-1 rounded-full border transition-colors",
+              isActive
+                ? cn(colors.bg, colors.text, colors.border)
+                : "bg-muted/30 text-muted-foreground/60 border-transparent",
             )}
-          </div>
+          >
+            {CLIENT_STATUS_LABELS[stage]}
+          </span>
         );
       })}
     </div>

@@ -59,6 +59,7 @@ const OPTYPE_ICON: Record<OutreachOpportunityType, React.ElementType> = {
   mortgage_renewal_finance: RefreshCw,
   educational_value_inactive: Lightbulb,
   condition_firming:      CheckCircle2,
+  scheduled_date_approaching: Timer,
 };
 
 function getScoreColor(score: number): { bg: string; text: string; ring: string } {

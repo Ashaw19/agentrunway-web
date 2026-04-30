@@ -500,18 +500,35 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
 
     // ── UPDATE CLIENT STATUS (FLIGHT STATUS) ─────────────────────────────────
     updateClientStatus: tool({
-      description: "Update a client's flight status. Valid statuses: boarding (active lead, not yet under contract), scheduled (future intent — plans to act later), in_flight (under contract / transaction in progress), cruising (past client or long-term nurture).",
+      description: "Update a client's flight status. Valid statuses: boarding (active lead, not yet under contract), scheduled (future intent — plans to act later, REQUIRES scheduledFor or scheduledPhrase), in_flight (under contract / transaction in progress), cruising (past client or long-term nurture).",
       inputSchema: z.object({
         clientId: z.string().uuid().describe("The client UUID from searchClients"),
         clientName: z.string().describe("Client name for confirmation message"),
         status: z.enum(CLIENT_STATUSES).describe("New flight status"),
+        scheduledFor: z.string().optional().describe("REQUIRED when status='scheduled': ISO date (YYYY-MM-DD) the client plans to act. Set this OR scheduledPhrase."),
+        scheduledPhrase: z.string().optional().describe("Vague timing phrase like 'after the holidays' or 'spring 2026'. Use when an exact date isn't known. Required (with scheduledFor as alternative) when status='scheduled'."),
       }),
       needsApproval: true,
-      execute: async ({ clientId, clientName, status }) => {
+      execute: async ({ clientId, clientName, status, scheduledFor, scheduledPhrase }) => {
         try {
+          // Scheduled stage requires future-intent context; otherwise it becomes a data-dead end
+          // (no detection engine has anything to surface).
+          if (status === "scheduled" && !scheduledFor && !scheduledPhrase) {
+            return "Cannot move to Scheduled without a target date. Please provide either scheduledFor (YYYY-MM-DD) or scheduledPhrase (e.g. 'spring 2026').";
+          }
+
+          const updates: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
+          if (scheduledFor !== undefined) updates.scheduled_for = scheduledFor;
+          if (scheduledPhrase !== undefined) updates.scheduled_phrase = scheduledPhrase;
+          // Moving OUT of Scheduled — clear the future-intent fields so they don't linger as stale data.
+          if (status !== "scheduled") {
+            updates.scheduled_for = null;
+            updates.scheduled_phrase = null;
+          }
+
           const { error } = await supabase
             .from("clients")
-            .update({ status, updated_at: new Date().toISOString() })
+            .update(updates)
             .eq("id", clientId)
             .eq("user_id", userId);
 
@@ -524,7 +541,12 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
             cruising: "Cruising (past client / nurture)",
           };
 
-          return `✓ ${clientName}'s status updated to ${statusLabels[status] ?? status}.`;
+          const timingNote =
+            status === "scheduled" && (scheduledFor || scheduledPhrase)
+              ? ` (target: ${scheduledFor ?? scheduledPhrase})`
+              : "";
+
+          return `✓ ${clientName}'s status updated to ${statusLabels[status] ?? status}${timingNote}.`;
         } catch {
           return "Failed to update client status. Please try again.";
         }

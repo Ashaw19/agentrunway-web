@@ -122,6 +122,7 @@ const STRONG_TIMING_TYPES = new Set([
   "birthday", "closing_anniversary", "post_close_3", "post_close_14",
   "post_close_90", "mortgage_renewal_due", "timeframe_approaching",
   "property_value_milestone", "new_client_welcome", "condition_firming",
+  "scheduled_date_approaching",
 ]);
 
 /** Types that are relationship-maintenance (weaker signal, need support from data). */
@@ -205,6 +206,7 @@ function buildOutreachReason(
     case "mortgage_renewal_due": parts.push("Mortgage renewal approaching"); break;
     case "mortgage_renewal_window": parts.push("In mortgage renewal window"); break;
     case "timeframe_approaching": parts.push("Stated timeframe arriving"); break;
+    case "scheduled_date_approaching": parts.push(`Scheduled target ~${ctx.days_until ?? "soon"} days out`); break;
     case "property_value_milestone": parts.push(`${ctx.milestone_year ?? 1}-year property milestone`); break;
     case "idle_client": parts.push(`No contact in ${ctx.months_idle ?? "18+"} months`); break;
     case "past_client_check_in": parts.push(`${ctx.months_idle ?? "6+"} months since last deal`); break;
@@ -588,6 +590,18 @@ async function draftItem(
         tone,
       );
       break;
+    case "scheduled_date_approaching":
+      // Reuse the timeframe-approaching prompt shape — same intent (a stated
+      // future date is now near). Use scheduled_phrase as the human-readable
+      // label when present, else fall back to the literal date.
+      prompt = buildTimeframeApproachingPrompt(
+        agentFirst, clientName,
+        (ctx.scheduled_phrase as string) ?? (ctx.scheduled_for as string) ?? "the date you set",
+        Number(ctx.days_until ?? 0),
+        null,
+        tone,
+      );
+      break;
     case "property_value_milestone":
       prompt = buildPropertyValueMilestonePrompt(
         agentFirst, clientName,
@@ -802,7 +816,7 @@ export async function detectAndDraftForUser(
       .single(),
     supabase
       .from("clients")
-      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes, status")
+      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes, status, scheduled_for, scheduled_phrase")
       .eq("user_id", userId)
       .is("archived_at", null),
     supabase
@@ -1423,6 +1437,8 @@ function suggestAngle(
       return "Casual check-in — share something useful about their area";
     case "timeframe_approaching":
       return "Their stated timeline is arriving — are they still on track";
+    case "scheduled_date_approaching":
+      return "Their Scheduled stage target date is approaching — confirm they're still planning to act";
     case "property_value_milestone":
       return "Property anniversary + offer equity snapshot";
     case "buyer_inventory_match":
@@ -1496,6 +1512,9 @@ function buildTopLabel(
       break;
     case "timeframe_approaching":
       parts.push(`Stated timeline arriving · ${ctx.days_remaining ?? "?"}d`);
+      break;
+    case "scheduled_date_approaching":
+      parts.push(`Scheduled target · ${ctx.days_until ?? "?"}d`);
       break;
     case "property_value_milestone":
       parts.push(`${ctx.milestone_year ?? 1}-year property anniversary`);
@@ -1651,6 +1670,8 @@ function buildWhyNow(
       return `${ctx.months_idle ?? "6+"} months since last deal with no recent contact.`;
     case "timeframe_approaching":
       return `Their stated timeline of "${ctx.timeframe_label ?? "move date"}" is ~${ctx.days_remaining ?? "?"}d away.`;
+    case "scheduled_date_approaching":
+      return `Their Scheduled stage target date${ctx.scheduled_phrase ? ` (${ctx.scheduled_phrase})` : ""} is ~${ctx.days_until ?? "?"}d away — confirm intent before the date passes.`;
     case "property_value_milestone":
       return `${ctx.milestone_year ?? 1}-year property anniversary — natural moment to discuss equity.`;
     case "pain_point_inactive":
@@ -2076,7 +2097,7 @@ export async function getTopOpportunities(
   const [clientsRes, recordsRes, memoryRes] = await Promise.all([
     supabase
       .from("clients")
-      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes, status")
+      .select("id, name, city, province_region, birthdate, communication_tone, first_contacted_at, last_contact_at, tags, notes, status, scheduled_for, scheduled_phrase")
       .eq("user_id", userId)
       .is("archived_at", null),
     supabase
@@ -2223,6 +2244,29 @@ export async function getTopOpportunities(
       inserts.push({
         user_id: userId, client_id: client.id, opportunity_type: "new_client_welcome",
         trigger_date: toISODate(welcomeDate), context: { first_contacted_at: client.first_contacted_at },
+      });
+    }
+  }
+
+  // Scheduled-date approaching — surfaces clients in the Scheduled stage when
+  // their stated future-intent date is within ~30 days. Without this, the
+  // `scheduled_for` column is data-write-only with no engine consumer.
+  for (const client of clients) {
+    if (client.status !== "scheduled") continue;
+    const c = client as Record<string, unknown>;
+    const scheduledFor = (c.scheduled_for as string | null) ?? null;
+    if (!scheduledFor) continue;
+    if (recentlyContactedIds.has(client.id)) continue;
+    const d = daysUntil(new Date(scheduledFor + "T12:00:00"));
+    if (d >= -3 && d <= 30) {
+      inserts.push({
+        user_id: userId, client_id: client.id, opportunity_type: "scheduled_date_approaching",
+        trigger_date: scheduledFor,
+        context: {
+          scheduled_for: scheduledFor,
+          scheduled_phrase: (c.scheduled_phrase as string | null) ?? null,
+          days_until: d,
+        },
       });
     }
   }
@@ -2720,6 +2764,14 @@ function buildRiskIfIgnored(
       return "Their stated deadline is here — if you're not in the conversation now, you've likely lost the deal.";
     }
     return "Clients with approaching timelines who don't hear from you assume you forgot — and start looking for someone who didn't.";
+  }
+
+  // ── Scheduled date approaching ────────────────────────────────────────────
+  if (opportunityType === "scheduled_date_approaching") {
+    if (isImminent || isOverdue) {
+      return "The future date they parked at is here. Either they're ready to move and looking for an agent, or life has shifted — the only way to know is to ask now.";
+    }
+    return "They told you to circle back at a specific time. Following through on that earns trust; missing it sends them shopping for a more attentive agent.";
   }
 
   // ── Pain point / educational ──────────────────────────────────────────────

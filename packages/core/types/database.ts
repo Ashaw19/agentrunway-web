@@ -621,7 +621,8 @@ export type OutreachOpportunityType =
   | "seller_timing_hesitation"  // Seller with timing objection — gentle nudge
   | "mortgage_renewal_finance"  // Mortgage context surfaced in memory + finance-relevant timing
   | "educational_value_inactive"// Idle client + known topic of interest — value-add touchpoint
-  | "condition_firming";        // Pipeline deal moving from conditional to firm
+  | "condition_firming"         // Pipeline deal moving from conditional to firm
+  | "scheduled_date_approaching"; // Client in Scheduled stage, future-intent date approaching (within 30d)
 export type OutreachStatus          = "draft" | "ready" | "sent" | "skipped";
 
 export interface OutreachQueueItem {
