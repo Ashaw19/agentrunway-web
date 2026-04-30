@@ -329,17 +329,27 @@ Secondary signal: advisor-engine.ts shows a "Trim Expenses to Benchmark" action 
 
 ### Expense Categories — CRA T2125 Mapping
 
+Source of truth: packages/core/engines/t2125-engine.ts (CATEGORY_MAPPINGS). Mirrors the CRA T2125 form / T4002 publication.
+
 | CRA Line | Category | Notes |
 |----------|----------|-------|
-| 8210 | Advertising & Marketing | Photography, print, online ads |
-| 8211 | Vehicle Lease | Lease payments |
-| 8212 | Vehicle Insurance/Repairs | Insurance, maintenance |
-| 8213 | Fuel & Oil | Gas, oil changes |
-| 8215 | Office & Technology | Supplies, software, internet |
-| 8216 | Meals & Entertainment | 50% deductible per CRA |
-| 8220 | Professional Fees | Licensing, phone, education |
-| 8226 | Client Gifts | ~$25/person/year, must document |
-| 8228 | Other | Catch-all for misc expenses |
+| 8521 | Advertising | Photography, video, print, signage, online ads |
+| 9281 | Motor Vehicle Expenses | Fuel, insurance, lease/payments, repairs/maintenance — combined and multiplied by vehicle business-use % |
+| 8811 | Office Supplies & Stationery | Supplies, software subscriptions, hardware/equipment |
+| 9220 | Utilities (Phone & Internet) | Business phone and internet line |
+| 8523 | Meals & Entertainment | 50% deductible per CRA — engine tracks gross and 50%-deductible amounts |
+| 8760 | Licences, Memberships & Dues | Board / MLS dues, licensing & renewals |
+| 8690 | Insurance | E&O insurance, business liability premiums |
+| 8860 | Professional Fees | Accounting, legal, advisory |
+| 9270 | Other Expenses | Business gifts, courses & coaching, conferences, books & materials, misc catch-all |
+| 9281 → CCA Class 10/10.1 | Vehicle CCA | Tracked separately on the CCA schedule, not in 9281 above |
+| 9936 | Total CCA | Sum of all CCA classes |
+| 9945 | Business-Use-of-Home | Actual-cost method only (Canada has no IRS-style $5/sqft) |
+| 8200 | Gross Commission Income | Reported revenue line |
+| 9369 | Total Expenses | Sum of expense lines (engine variable: line9369_totalExpenses) |
+| 8270 | Net Business Income | 8200 − 9369 − 9936 − 9945 |
+
+Common "wrong line number" question: legacy notes/screenshots may cite 8210/8211/8212/8213/8215/8216/8220/8226/8228 — those are NOT used by the engine or the CRA T2125 today. If a user references one, point them to the canonical line above.
 
 ### Mileage Calculation (CRA 2025 rates)
 - First 5,000 km: $0.72/km
@@ -408,7 +418,7 @@ If a user asks "what are these tips?" or "why is Agent Runway showing me this?" 
 → YTD = actual amounts entered/imported this year. Monthly recurring = fixed amounts that repeat (auto-annualized in projections).
 
 **"Meals & Entertainment — why only 50%?"**
-→ CRA rule: Only 50% of meals & entertainment costs are deductible. The system tracks the full amount but only claims 50% on T2125 line 8216.
+→ CRA rule: Only 50% of meals & entertainment costs are deductible. The system tracks the full amount but only claims 50% on T2125 line 8523.
 
 **"Why does Agent Runway show me tax tips?"** / **"What is Tax IQ?"**
 → Tax IQ is a contextual education feature on the Expenses page. It selects relevant CRA-referenced tips based on the agent's expense categories, filing situation, province, and current quarter. Tips can be dismissed and are stored in browser localStorage. They do not affect calculations — they are educational only.

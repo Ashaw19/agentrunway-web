@@ -112,7 +112,7 @@ Platform for Canadian real estate agents: income, expenses, pipeline, clients, t
 
 ### T2125 EXPENSE MAPPING
 
-Industry: 531210. Lines: 8210(advertising), 8211(vehicle lease), 8212(vehicle insurance/repairs), 8213(fuel), 8215(office/software/internet), 8216(meals 50% deductible), 8220(professional/licensing/phone/education), 8226(client gifts ~$25/person), 8228(other). Key: 8200=gross income, 9369=total expenses, 9936=CCA, 9945=home office, 8270=net business income.
+Industry: 531210. Lines (canonical per t2125-engine.ts, mirrors CRA T4002): 8521(advertising/photography/print/signage), 9281(motor vehicle — fuel, insurance, lease, repairs combined), 8811(office supplies/software/hardware), 9220(phone & internet/utilities), 8523(meals & entertainment — 50% deductible), 8760(licences, board/MLS dues, memberships), 8690(insurance — E&O, liability), 8860(professional fees — accounting, legal), 9270(other expenses — gifts, courses/conferences/books, misc). Key: 8200=gross commission income, 9369=total expenses, 9936=CCA, 9945=business-use-of-home, 8270=net business income.
 
 ---
 
