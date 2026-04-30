@@ -39,47 +39,51 @@ function buildPlaidClient() {
 }
 
 export async function DELETE() {
-  // ── 1. Authenticate ────────────────────────────────────────────────────────
-  const auth = await authenticateRequest();
-  if (auth.error) return auth.error;
-  const { supabase, userId } = auth;
+  try {
+    // ── 1. Authenticate ──────────────────────────────────────────────────────
+    const auth = await authenticateRequest();
+    if (auth.error) return auth.error;
+    const { supabase, userId } = auth;
 
-  const admin = createAdminClient();
+    const admin = createAdminClient();
 
-  // ── 2. Load all Plaid items for this user ──────────────────────────────────
-  // Use admin client so we can read access_token (blocked for authenticated role)
-  const { data: items } = await admin
-    .from("plaid_items")
-    .select("id, plaid_item_id, access_token")
-    .eq("user_id", userId);
+    // ── 2. Load all Plaid items for this user ────────────────────────────────
+    // Use admin client so we can read access_token (blocked for authenticated role)
+    const { data: items } = await admin
+      .from("plaid_items")
+      .select("id, plaid_item_id, access_token")
+      .eq("user_id", userId);
 
-  // ── 3. Revoke ALL Plaid access tokens before deleting the user ────────────
-  if (items && items.length > 0 && process.env.PLAID_CLIENT_ID &&
-      process.env.PLAID_CLIENT_ID !== "your_plaid_client_id_here") {
-    const plaid = buildPlaidClient();
-    const revokeResults = await Promise.allSettled(
-      items.map((item) =>
-        plaid.itemRemove({ access_token: item.access_token }).catch((err) => {
-          // Log but don't abort — token may already be expired/revoked
-          console.warn(`[account/delete] itemRemove failed for ${item.plaid_item_id}:`, err);
-        }),
-      ),
-    );
-    const failed = revokeResults.filter((r) => r.status === "rejected").length;
-    if (failed > 0) {
-      console.warn(`[account/delete] ${failed}/${items.length} Plaid revocations failed (continuing)`);
+    // ── 3. Revoke ALL Plaid access tokens before deleting the user ──────────
+    if (items && items.length > 0 && process.env.PLAID_CLIENT_ID &&
+        process.env.PLAID_CLIENT_ID !== "your_plaid_client_id_here") {
+      const plaid = buildPlaidClient();
+      const revokeResults = await Promise.allSettled(
+        items.map((item) =>
+          plaid.itemRemove({ access_token: item.access_token }).catch((err) => {
+            console.warn(`[account/delete] itemRemove failed for ${item.plaid_item_id}:`, err);
+          }),
+        ),
+      );
+      const failed = revokeResults.filter((r) => r.status === "rejected").length;
+      if (failed > 0) {
+        console.warn(`[account/delete] ${failed}/${items.length} Plaid revocations failed (continuing)`);
+      }
     }
-  }
 
-  // ── 4. Delete the user (cascades to all application data) ─────────────────
-  const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
-  if (deleteError) {
-    console.error("[account/delete] Failed to delete user:", deleteError.message);
+    // ── 4. Delete the user (cascades to all application data) ───────────────
+    const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
+    if (deleteError) {
+      console.error("[account/delete] Failed to delete user:", deleteError.message);
+      return NextResponse.json({ error: "Failed to delete account" }, { status: 500 });
+    }
+
+    // ── 5. Sign out the now-deleted session ──────────────────────────────────
+    await supabase.auth.signOut();
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("[account/delete] Unhandled error:", err);
     return NextResponse.json({ error: "Failed to delete account" }, { status: 500 });
   }
-
-  // ── 5. Sign out the now-deleted session ────────────────────────────────────
-  await supabase.auth.signOut();
-
-  return NextResponse.json({ ok: true });
 }

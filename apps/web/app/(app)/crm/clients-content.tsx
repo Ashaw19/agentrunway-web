@@ -1367,7 +1367,7 @@ export function ClientsContent({
         const q = toNameSearch(search);
         if (
           !toNameSearch(g.name).includes(q) &&
-          !g.deals.some((d) => d.address?.toLowerCase().includes(search.trim().toLowerCase()))
+          !g.deals.some((d) => d.address && toNameSearch(d.address).includes(q))
         )
           return false;
       }

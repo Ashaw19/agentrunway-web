@@ -2364,9 +2364,9 @@ export async function getTopOpportunities(
     ? Math.round((repeatClients / clientDealDates.size) * 100)
     : 0;
 
-  // Pipeline depth
+  // Pipeline depth — include scheduled (4-stage canonical: boarding/scheduled/in_flight)
   const activeClients = clients.filter((c) =>
-    c.status === "boarding" || c.status === "in_flight",
+    c.status === "boarding" || c.status === "scheduled" || c.status === "in_flight",
   ).length;
   const pipelineLight = activeClients < 3;
 

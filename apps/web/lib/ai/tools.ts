@@ -1358,7 +1358,7 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
           const [tasksRes, outreachRes, staleRes] = await Promise.all([
             supabase.from("contact_tasks").select("title, due_date, priority, client_id").eq("user_id", userId).is("completed_at", null).order("due_date", { ascending: true }).limit(10),
             supabase.from("outreach_queue").select("client_id, opportunity_type, status, ai_subject, trigger_date").eq("user_id", userId).in("status", ["draft", "ready"]).order("trigger_date", { ascending: true }).limit(10),
-            supabase.from("clients").select("name, status, last_contact_at").eq("user_id", userId).is("archived_at", null).in("status", ["boarding", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()).limit(10),
+            supabase.from("clients").select("name, status, last_contact_at").eq("user_id", userId).is("archived_at", null).in("status", ["boarding", "scheduled", "in_flight"]).lt("last_contact_at", new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()).limit(10),
           ]);
 
           const parts: string[] = ["── Your Agenda ──"];

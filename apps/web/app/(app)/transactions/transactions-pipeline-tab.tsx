@@ -363,13 +363,9 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
     const commPct   = closeValidation.parsed.commission_pct;
     const gci       = salePrice * commPct;
 
-    // Preserve original estimate for accuracy tracking
-    if (!closeTarget.original_estimated_price) {
-      await supabase.from("pipeline_deals")
-        .update({ original_estimated_price: closeTarget.estimated_price })
-        .eq("id", closeTarget.id)
-        .eq("user_id", user.id);
-    }
+    // Preserve original estimate for accuracy tracking — single write below avoids TOCTOU.
+    const preservedOriginalEstimate =
+      closeTarget.original_estimated_price ?? closeTarget.estimated_price;
 
     const { data: txData, error: txErr } = await supabase.from("transactions").insert({
       user_id: user.id,
@@ -394,7 +390,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
       .from("pipeline_deals")
       .update({
         stage: "closed",
-        original_estimated_price: closeTarget.original_estimated_price || closeTarget.estimated_price,
+        original_estimated_price: preservedOriginalEstimate,
       })
       .eq("id", closeTarget.id)
       .eq("user_id", user.id);

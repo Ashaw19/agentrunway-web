@@ -2830,7 +2830,7 @@ function PersonalRecordsCard({
   type RecordEntry = { label: string; value: string; sub: string };
   const records: RecordEntry[] = [];
   if (bestYear) records.push({ label: "Best Year", value: fmtCurrency(bestYear.gci), sub: String(bestYear.year) });
-  if (bestMonthGCI && bestMonthName) records.push({ label: "Best Month", value: fmtCurrency(bestMonthGCI), sub: bestMonthName });
+  if (bestMonthGCI && bestMonthName) records.push({ label: "Best Month", value: fmtCurrency(bestMonthGCI), sub: `${bestMonthName} ${currentYear}` });
   if (bestDeal) records.push({ label: "Best Single Deal", value: fmtCurrency(bestDeal), sub: "single commission" });
 
   if (records.length === 0) return null;

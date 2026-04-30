@@ -1,9 +1,8 @@
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import type { McpTool } from "./index.ts";
+import { PIPELINE_STAGE_DEFAULTS } from "../../_shared/core/types/database.ts";
 
-const STAGE_DEFAULTS: Record<string, number> = {
-  lead: 0.1, showing: 0.25, offer: 0.5, conditional: 0.75, firm: 0.9, closed: 1.0,
-};
+const STAGE_DEFAULTS: Record<string, number> = PIPELINE_STAGE_DEFAULTS;
 
 export function getPipelineTools(supabase: SupabaseClient, userId: string): McpTool[] {
   return [

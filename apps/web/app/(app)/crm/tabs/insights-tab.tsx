@@ -107,8 +107,12 @@ export function InsightsTab({
       (a) => a.estimated_list_price != null && a.actual_sale_price != null && a.actual_sale_price > 0,
     );
     if (!complete.length) return null;
+    // Clamp at 0 so a wildly-off estimate (>2× actual) doesn't render as a negative %.
     const accuracies = complete.map((a) =>
-      (1 - Math.abs(a.estimated_list_price! - a.actual_sale_price!) / a.actual_sale_price!) * 100,
+      Math.max(
+        0,
+        (1 - Math.abs(a.estimated_list_price! - a.actual_sale_price!) / a.actual_sale_price!) * 100,
+      ),
     );
     const avg = Math.round(accuracies.reduce((s, v) => s + v, 0) / accuracies.length);
     const best  = Math.round(Math.max(...accuracies));
