@@ -34,7 +34,7 @@ const JSON_LD_ARTICLE = articleSchema({
 const TOC = [
   { href: "#self-employed-tax-basics", label: "The self-employed tax reality for real estate agents" },
   { href: "#quarterly-instalments", label: "Quarterly tax instalments: what they are and how to calculate them" },
-  { href: "#deductible-expenses", label: "Tax deductions every Canadian real estate agent should know" },
+  { href: "#deductible-expenses", label: "Tax deductions Canadian real estate agents commonly claim" },
   { href: "#tax-planning-tools", label: "Using Agent Runway for tax planning" },
 ];
 
@@ -134,10 +134,10 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                 A salaried employee has income tax, CPP contributions, and EI premiums
                 deducted directly from each paycheque before it arrives. A self-employed
                 agent receives commission payments with no deductions applied at source.
-                The full gross amount lands in your account, and it is entirely your
-                responsibility to calculate what you owe and set it aside. Every commission
-                cheque that comes in contains a portion that belongs to the CRA — whether
-                or not you mentally account for it at the time.
+                The full gross amount lands in your account, and the calculation of what
+                is owed and held tax-side falls on the agent. Every commission cheque
+                that comes in contains a portion estimated for the CRA — whether or not
+                that portion is mentally accounted for at the time.
               </p>
 
               <h3>The double CPP burden</h3>
@@ -264,21 +264,21 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                 calculates automatically.
               </p>
 
-              <h3>The 30–35% set-aside rule</h3>
+              <h3>The 30–35% tax-portion estimate</h3>
 
               <p>
-                A practical rule of thumb for Canadian real estate agents: set aside
-                30–35% of every commission payment into a dedicated tax account the
-                moment it arrives. This rate accounts for combined federal and provincial
-                income tax, CPP contributions, and a margin for the variable nature of
-                the exact obligation. Agents who maintain this discipline consistently
-                find that their instalment payments come naturally from accumulated
-                reserves rather than requiring emergency savings.
+                A common reference point for Canadian real estate agents: roughly
+                30–35% of every commission payment is estimated as the tax portion,
+                covering combined federal and provincial income tax, CPP contributions,
+                and a margin for the variable nature of the exact obligation. Agents
+                who track this proportion consistently tend to find that their
+                instalment payments come from accumulated reserves rather than from
+                emergency savings.
               </p>
 
               <p>
                 For agents in higher-tax provinces or with higher income levels, the
-                appropriate set-aside rate may be closer to 38–40%. The right number
+                estimated tax-portion rate may be closer to 38–40%. The exact number
                 depends on your province, your projected annual income, and your
                 applicable deductions — all factors that Agent Runway tracks and
                 calculates for you in real time.
@@ -286,7 +286,7 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
 
               {/* ── Section 3: Deductible Expenses ── */}
               <h2 id="deductible-expenses">
-                Tax Deductions Every Canadian Real Estate Agent Should Know
+                Tax Deductions Canadian Real Estate Agents Commonly Claim
               </h2>
 
               <p>
@@ -377,10 +377,10 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               <p>
                 Personal expenses, even those loosely related to your work, are not
                 deductible. Meals and entertainment have a 50% deductibility cap and
-                must be directly connected to business activity. Capital expenditures
-                — equipment, laptops, vehicles purchased outright — are typically
-                handled through Capital Cost Allowance (CCA) depreciation schedules
-                rather than immediate deduction.
+                are required by the CRA to be directly connected to business activity.
+                Capital expenditures — equipment, laptops, vehicles purchased outright
+                — are typically handled through Capital Cost Allowance (CCA) depreciation
+                schedules rather than immediate deduction.
               </p>
 
               {/* ── Disclaimer callout ── */}
@@ -442,22 +442,21 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                 Because Agent Runway tracks your GCI, applies your brokerage split and
                 expenses, and projects your year-end income using seasonality-aware
                 forecasting, it always has a current estimate of your annual net business
-                income. From that estimate, the platform calculates your recommended
-                quarterly instalment amount — updated automatically as new deals close and
-                new expenses are logged. You never have to manually calculate what to send
-                the CRA each quarter; the number is always visible on your dashboard.
+                income. From that estimate, the platform calculates an estimated
+                quarterly instalment amount — updated automatically as new deals close
+                and new expenses are logged. The figure stays visible on your dashboard
+                rather than being reconstructed manually each quarter.
               </p>
 
-              <h3>Per-deal tax set-aside</h3>
+              <h3>Per-deal tax portion (estimate)</h3>
 
               <p>
-                For agents who find it easier to think deal-by-deal rather than
-                annually, Agent Runway displays a per-deal tax set-aside amount: the
-                dollar figure to consider moving into your tax reserve account each time
-                a commission payment arrives, given your current income trajectory.
-                This translates the abstract quarterly instalment into an immediate,
-                actionable step that fits naturally into how commission income actually
-                arrives.
+                For agents who think deal-by-deal rather than annually, Agent Runway
+                displays a per-deal tax-portion estimate: the dollar figure the engine
+                estimates as the tax-side share of each commission payment, given the
+                current income trajectory. This translates the abstract quarterly
+                instalment into an immediate, per-deal figure that fits naturally into
+                how commission income actually arrives.
               </p>
 
               <h3>Full projected tax breakdown</h3>
@@ -509,8 +508,8 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-400">
               Agent Runway estimates your projected federal tax, provincial tax, and CPP
-              obligations automatically — and tells you exactly how much to set aside
-              from every deal. Built for Canadian real estate agents.
+              obligations automatically — and surfaces the estimated tax portion of
+              every deal. Built for Canadian real estate agents.
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link

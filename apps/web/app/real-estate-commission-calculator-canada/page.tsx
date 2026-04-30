@@ -59,7 +59,7 @@ const JSON_LD_FAQ = {
       name: "Do I have to pay HST on my commission?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "If your gross revenue exceeds $30,000 over four consecutive calendar quarters, you must register for and collect HST/GST. In Ontario that's 13%, in the Maritimes 15%, and in GST-only provinces like Alberta it's 5%. Most active agents exceed this threshold quickly.",
+        text: "If your gross revenue exceeds $30,000 over four consecutive calendar quarters, the CRA requires HST/GST registration and collection. In Ontario that's 13%, in the Maritimes 15%, and in GST-only provinces like Alberta it's 5%. Most active agents exceed this threshold quickly.",
       },
     },
     {
@@ -195,9 +195,9 @@ export default function CommissionCalculatorPage() {
                 </li>
                 <li>
                   <strong className="text-slate-900">4. HST/GST</strong>{" "}
-                  — You must collect and remit HST/GST once your gross revenue
-                  exceeds $30,000. In Ontario that&apos;s 13%; in the Maritimes,
-                  15%; in Alberta, 5%.
+                  — The CRA requires HST/GST collection and remittance once your
+                  gross revenue exceeds $30,000. In Ontario that&apos;s 13%; in the
+                  Maritimes, 15%; in Alberta, 5%.
                 </li>
                 <li>
                   <strong className="text-slate-900">5. Income tax</strong>{" "}
@@ -238,10 +238,10 @@ export default function CommissionCalculatorPage() {
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
                     If your gross revenue exceeds $30,000 over four consecutive
-                    calendar quarters, you must register for and collect HST/GST.
-                    In Ontario that&apos;s 13%, in the Maritimes 15%, and in
-                    GST-only provinces like Alberta it&apos;s 5%. Most active
-                    agents exceed this threshold quickly.
+                    calendar quarters, the CRA requires HST/GST registration and
+                    collection. In Ontario that&apos;s 13%, in the Maritimes 15%,
+                    and in GST-only provinces like Alberta it&apos;s 5%. Most
+                    active agents exceed this threshold quickly.
                   </p>
                 </div>
                 <div>
@@ -355,7 +355,7 @@ export default function CommissionCalculatorPage() {
           <div className="mx-auto max-w-2xl">
             <EmailCapture
               heading="Want to track every deal automatically?"
-              subheading="Agent Runway logs each commission, calculates your split, and estimates what you may need to set aside."
+              subheading="Agent Runway logs each commission, calculates your split, and estimates the tax portion."
               ctaLabel="Get Early Access"
               source="commission_calculator"
               variant="dark"
@@ -389,7 +389,7 @@ export default function CommissionCalculatorPage() {
             </h2>
             <p className="mt-5 text-lg text-slate-400">
               Agent Runway tracks every deal, calculates your split
-              automatically, and estimates what you may need to set aside for taxes.
+              automatically, and estimates the tax portion of each commission.
               No spreadsheets. No surprises.
             </p>
             <div className="mt-8">

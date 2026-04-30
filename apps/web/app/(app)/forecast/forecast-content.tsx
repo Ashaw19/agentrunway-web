@@ -505,7 +505,7 @@ export function ForecastContent({
             <Card className="rounded-xl border-slate-200 shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Break-Even Analysis</CardTitle>
-                <CardDescription>How many deals you need to cover all costs</CardDescription>
+                <CardDescription>Deals required to cover all costs</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-end gap-2">
@@ -693,7 +693,7 @@ export function ForecastContent({
             <CardTitle className="text-base flex items-center gap-1.5">
               Tax Estimates
               <GuideLink anchor="tax-estimate" label="Tax estimate methodology explained in Guide" />
-              {isPro && <ExplainButton question="How are my tax estimates calculated and how much should I set aside per deal?" />}
+              {isPro && <ExplainButton question="How are my tax estimates calculated, and what's the per-deal tax portion?" />}
             </CardTitle>
             <CardDescription>
               {taxResult.taxYear} estimates &middot; {PROVINCE_LABELS[settings.province]}
@@ -707,7 +707,7 @@ export function ForecastContent({
                   <div>
                     <p className="text-sm font-medium">{taxLabel} Collected YTD</p>
                     <p className="text-xs text-muted-foreground">
-                      On {fmtCurrency(ytdGCI)} GCI &middot; {(taxRate * 100).toFixed(taxRate === 0.14975 ? 3 : 0)}% rate &middot; set aside for remittance
+                      On {fmtCurrency(ytdGCI)} GCI &middot; {(taxRate * 100).toFixed(taxRate === 0.14975 ? 3 : 0)}% rate &middot; tax portion estimated for remittance
                     </p>
                   </div>
                   <p className="text-lg font-bold tabular-nums">{fmtCurrency(gstHstCollectedYTD)}</p>
@@ -863,16 +863,16 @@ export function ForecastContent({
               </div>
             </div>
 
-            {/* Optimizer recommendation */}
+            {/* Optimizer comparison */}
             {corpTaxResult.optimalSaving > 500 &&
               corpTaxResult.optimalMethod !== settings.compensation_method && (
               <div className="rounded-lg border border-violet-200 bg-violet-100 p-3">
                 <p className="text-sm font-medium text-violet-900">
-                  💡 Switch to {corpTaxResult.optimalMethod === "salary" ? "salary" : "dividends"} and save ~{fmtCurrency(corpTaxResult.optimalSaving)}/yr
+                  💡 The engine estimates an all-{corpTaxResult.optimalMethod === "salary" ? "salary" : "dividends"} mix would model ~{fmtCurrency(corpTaxResult.optimalSaving)}/yr lower combined tax
                 </p>
                 <p className="text-xs text-violet-700/80 mt-1">
-                  At {fmtCurrency(netForTax)} corporate income in {PROVINCE_LABELS[settings.province]}, {corpTaxResult.optimalMethod === "salary" ? "salary avoids non-eligible dividend tax drag" : "dividends avoids CPP above the YMPE threshold"}.
-                  Talk to your accountant before changing compensation structure.
+                  At {fmtCurrency(netForTax)} corporate income in {PROVINCE_LABELS[settings.province]}, {corpTaxResult.optimalMethod === "salary" ? "salary avoids non-eligible dividend tax drag" : "dividends avoids CPP above the YMPE threshold"} in this model.
+                  This is an estimate based on rules published by the CRA. Verify with your accountant before making any filing or financial decision.
                 </p>
               </div>
             )}
@@ -1074,7 +1074,7 @@ export function ForecastContent({
             <CardHeader>
               <CardTitle className="text-base">Advisor</CardTitle>
               <CardDescription>
-                Data-driven recommendations sorted by potential impact
+                Data-driven insights sorted by potential impact
               </CardDescription>
             </CardHeader>
             <CardContent>

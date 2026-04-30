@@ -66,9 +66,9 @@ const FAQS = [
       "Net income equals your gross commission income minus deductible business expenses. Deductible expenses include brokerage desk fees, MLS dues, vehicle expenses (using CCA and mileage), marketing, home office, phone, software subscriptions, professional development, and licence fees. Report everything on CRA form T2125 (Statement of Business or Professional Activities).",
   },
   {
-    question: "Do I need to register for HST or GST as a realtor?",
+    question: "When does HST or GST registration apply for a realtor?",
     answer:
-      "Yes, once your gross revenue exceeds $30,000 over four consecutive calendar quarters, you must register for HST (in HST-harmonized provinces) or GST (in the remaining provinces). Most active agents hit this threshold within their first couple of deals. You charge HST/GST on your commission and can claim input tax credits on business expenses.",
+      "Once your gross revenue exceeds $30,000 over four consecutive calendar quarters, the CRA requires HST registration (in HST-harmonized provinces) or GST registration (in the remaining provinces). Most active agents reach this threshold within their first couple of deals. Registered agents charge HST/GST on commission and may claim input tax credits on business expenses. This is an estimate based on rules published by the CRA. Verify with your accountant before making any filing or financial decision.",
   },
   {
     question: "What CPP do I pay as a self-employed realtor?",
@@ -76,9 +76,9 @@ const FAQS = [
       "Self-employed agents pay both the employee and employer portions of CPP — 11.90% on earnings between $3,500 and $71,300 in 2025 (Tier 1), plus 8.00% on earnings between $71,300 and $81,200 (Tier 2). In Quebec you pay QPP instead, at slightly higher rates (12.80% Tier 1, 8.00% Tier 2). Half of Tier 1 and all of Tier 2 are tax-deductible.",
   },
   {
-    question: "Should I incorporate as a PREC?",
+    question: "When does incorporating as a PREC become tax-relevant?",
     answer:
-      "Incorporating as a Personal Real Estate Corporation (PREC) can be tax-advantageous once your net income consistently exceeds the small business deduction threshold (roughly $150,000 to $200,000 net), because corporate small-business rates are much lower than personal marginal rates. PRECs are permitted in Ontario, British Columbia, Alberta, Saskatchewan, Manitoba, Nova Scotia, and increasingly others. Talk to a CPA familiar with real estate before incorporating.",
+      "Incorporating as a Personal Real Estate Corporation (PREC) may become tax-relevant once net income consistently exceeds the small business deduction threshold (roughly $150,000 to $200,000 net), because corporate small-business rates are lower than personal marginal rates at those levels. PRECs are permitted in Ontario, British Columbia, Alberta, Saskatchewan, Manitoba, Nova Scotia, and increasingly others. This is general information based on rules published by the CRA — verify with a CPA familiar with real estate before making any incorporation decision.",
   },
   {
     question: "Is this calculator accurate?",
@@ -272,7 +272,7 @@ export default function RealtorTaxEstimatorPage() {
                 income. Typical agents deduct 20% to 35% of gross commission as expenses.
               </p>
               <p className="mt-4">
-                Vehicle expenses are the most commonly audited — you must keep a detailed mileage log
+                Vehicle expenses are the most commonly audited — the CRA requires a detailed mileage log
                 distinguishing business kilometres from personal. Home office is deductible based on
                 the business-use percentage of your home (square footage) applied to utilities, property
                 taxes, insurance, and mortgage interest (not principal). CCA (capital cost allowance)
@@ -374,8 +374,8 @@ export default function RealtorTaxEstimatorPage() {
                 },
                 {
                   href: "/how-much-should-real-estate-agents-save-for-taxes-canada",
-                  title: "How much to set aside for tax",
-                  blurb: "Per-deal tax savings percentage by province and GCI bracket.",
+                  title: "How much of each deal is estimated for tax",
+                  blurb: "Per-deal tax portion percentage by province and GCI bracket.",
                 },
                 {
                   href: "/real-estate-agent-business-expenses-canada",

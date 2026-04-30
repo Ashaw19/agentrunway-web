@@ -249,7 +249,7 @@ export function DealCloseCelebration({ open, onClose, data }: Props) {
                 label="Income tax reserve"
                 amount={taxReserve}
                 rate={estimatedMarginalRate}
-                note={`Estimated at your ~${Math.round(estimatedMarginalRate * 100)}% marginal rate — set aside before you spend it`}
+                note={`Estimated at your ~${Math.round(estimatedMarginalRate * 100)}% marginal rate — the tax portion before the rest is yours`}
               />
 
               {/* Fun money */}
