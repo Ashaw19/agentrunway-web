@@ -474,7 +474,7 @@ function computeListingFunnel(listings: ListingAppointment[]): FunnelStep[] {
 }
 
 function computeBuyerFunnel(buyers: BuyerClient[]): FunnelStep[] {
-  const stages = ["boarding", "in_flight"];
+  const stages = ["scheduled", "boarding", "in_flight"];
   const counts = new Map<string, number>();
   for (const s of stages) counts.set(s, 0);
   for (const buyer of buyers) {

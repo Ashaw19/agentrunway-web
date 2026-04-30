@@ -452,7 +452,7 @@ export function InsightsTab({
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* Listing Price Accuracy                                             */}
+      {/* List-to-Sale Accuracy                                              */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {listingAccuracy && (
         <Card
@@ -466,7 +466,7 @@ export function InsightsTab({
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Target className={cn("h-4 w-4", listingAccuracy.avg >= 95 ? "text-orange-500" : "text-muted-foreground")} />
-              Listing Price Accuracy
+              List-to-Sale Accuracy
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0 space-y-3">
@@ -474,6 +474,9 @@ export function InsightsTab({
               <p className="text-4xl font-bold tabular-nums text-foreground">{listingAccuracy.avg}%</p>
               <p className="text-sm text-muted-foreground pb-1">avg across {listingAccuracy.count} tracked listing{listingAccuracy.count !== 1 ? "s" : ""}</p>
             </div>
+            <p className="text-[11px] text-muted-foreground -mt-1">
+              How close your CMA estimate landed vs the actual sale price.
+            </p>
             <div className="h-2 rounded-full bg-muted overflow-hidden">
               <div
                 className={cn(
