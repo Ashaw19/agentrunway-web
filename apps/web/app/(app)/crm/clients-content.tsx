@@ -155,7 +155,7 @@ import { describeSupabaseError } from "@/lib/supabase-errors";
 import { CrmDashboardTab } from "./tabs/crm-dashboard-tab";
 import { InsightsTab } from "./tabs/insights-tab";
 import { FlightPlansTab } from "./tabs/flight-plans-tab";
-import { TagPicker, getCountryLabels } from "./shared";
+import { TagPicker, getCountryLabels, FlightStatusStrip } from "./shared";
 import { PipelineTab } from "./tabs/pipeline-tab";
 import { useVoiceDraft } from "@/lib/voice/voice-draft-context";
 import type { VoiceDraft } from "@/lib/voice/types";
@@ -7122,38 +7122,6 @@ function MetricPill({
       <span className="opacity-70">{label}</span>
       <span className="font-bold tabular-nums">{value}</span>
     </span>
-  );
-}
-
-// ── Flight Status Strip ──────────────────────────────────────────────────────
-// Rendered as un-ordered chips, NOT a linear progress bar — Scheduled is a
-// future-intent parking slot that often comes before Boarding, and Cruising
-// is a post-close state. Treating these as a left-to-right sequence misled
-// users about what "Scheduled" means.
-
-const FLIGHT_STAGES: ClientStatus[] = ["boarding", "scheduled", "in_flight", "cruising"];
-
-function FlightStatusStrip({ current }: { current: ClientStatus }) {
-  return (
-    <div className="flex items-center gap-1.5 mt-4 flex-wrap">
-      {FLIGHT_STAGES.map((stage) => {
-        const colors = CLIENT_STATUS_COLORS[stage];
-        const isActive = stage === current;
-        return (
-          <span
-            key={stage}
-            className={cn(
-              "text-[10px] font-medium px-2 py-1 rounded-full border transition-colors",
-              isActive
-                ? cn(colors.bg, colors.text, colors.border)
-                : "bg-muted/30 text-muted-foreground/60 border-transparent",
-            )}
-          >
-            {CLIENT_STATUS_LABELS[stage]}
-          </span>
-        );
-      })}
-    </div>
   );
 }
 
