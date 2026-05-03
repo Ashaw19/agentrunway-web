@@ -46,7 +46,14 @@ test.describe("Smoke tests", () => {
       }
     });
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
+    // `load` not `networkidle` — production has Sentry replay, Vercel Speed
+    // Insights, and other telemetry keeping connections warm; the page never
+    // reaches a true network-idle state, so the previous version timed out
+    // at 30s and emailed every 6 hours. `load` fires when all sync subresources
+    // have loaded — what "page loaded" actually means. We add a 2s settle so
+    // late-binding scripts (analytics SDKs, hydration) get caught too.
+    await page.waitForLoadState("load");
+    await page.waitForTimeout(2000);
     const criticalErrors = filterBenignErrors(errors);
     expect(criticalErrors).toHaveLength(0);
   });
@@ -59,7 +66,10 @@ test.describe("Smoke tests", () => {
       }
     });
     await page.goto("/login");
-    await page.waitForLoadState("networkidle");
+    // See landing-page note above — kept consistent so future telemetry
+    // additions don't surprise us by failing /login the same way.
+    await page.waitForLoadState("load");
+    await page.waitForTimeout(2000);
     const criticalErrors = filterBenignErrors(errors);
     expect(criticalErrors).toHaveLength(0);
   });
