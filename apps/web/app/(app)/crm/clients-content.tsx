@@ -4014,6 +4014,12 @@ export function ClientsContent({
                           Or timing phrase
                         </label>
                         <input
+                          // key forces remount when switching between clients so
+                          // defaultValue picks up the newly-selected client's value.
+                          // Without it, switching from Client A→B (both Scheduled)
+                          // leaves Client A's typed phrase in the input, and the
+                          // next blur saves A's value onto B.
+                          key={selectedClient.id}
                           id="scheduled-phrase-input"
                           type="text"
                           placeholder="e.g. spring 2026"
