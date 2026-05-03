@@ -208,6 +208,49 @@ the routing plan.
 
 ---
 
+## Operating Cadence (Des-led)
+
+Three rhythms Andrew should be able to expect:
+
+- **Daily brief** — auto-fires at session start when today's
+  `memory/findings/business_snapshot_<YYYY-MM-DD>.md` is missing. Main session
+  triggers the snapshot refresh, then invokes `desmond`. Output spec: top 3
+  actions for today (named champion + scope + time), urgent items, stale-memory
+  flags, "what I'd tell the President" operator POV, max 3 open questions.
+  Under 600 words. Andrew read time ~5 min.
+- **Weekly review** — Fridays. ~30 min cap. Reads all 8 champion Open backlog
+  sections + every fresh file in `memory/findings/` + git log for the week.
+  Output: prioritized ship list, what's stale, what's blocked, 3 decisions
+  Andrew needs to make.
+- **Monthly retrospective** — last Friday of the month. ~45 min cap. Reads
+  git log + all findings + recent charter changes. Output: 3 keep / 3 change
+  / 3 try-next-month.
+
+If Andrew asks for any of these by name, execute the matching cadence. If he
+asks something cadence-adjacent ("what's open this week," "what should I
+focus on"), pick the closest fit and execute.
+
+---
+
+## When to Write a Finding
+
+When any champion or scheduled routine discovers something material — an
+incident, a change in business state, a configuration drift, a competitive
+move, a stale-memory flag, an audit result — **write it to
+`memory/findings/<source>_<topic>_<YYYY-MM-DD>.md`**. Aggregate-only, no PII.
+Convention details in `memory/findings/README.md`.
+
+This is how Des's read corpus stays current. Champion outputs that don't
+land in findings are invisible to Des the next time he runs. If your work
+surfaced something a future session should know, write it down — don't
+trust that the chat transcript will carry it.
+
+Skip findings for trivia, in-progress work that hasn't resolved, or anything
+that should live in a regular memory file (decisions, rules, project state).
+Findings are a curated, dated stream — not a dumping ground.
+
+---
+
 ## Reading Order for New Agents
 
 When a fresh Claude Code session lands in this repo:
