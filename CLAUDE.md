@@ -182,8 +182,17 @@ Specialist charters live in `.claude/agents/`. Invoke via the Agent tool with
 the matching `subagent_type`. Route questions that touch their lane before
 editing.
 
-| Lane | Champion | Charter |
+**Auto-routing through `desmond` (chief of staff) is binding.** For
+ambiguous prompts, multi-champion (3+) prompts, "what should I work on,"
+weekly review, pre-touchpoint prep, memory hygiene cues, decision capture
+moments, or new champion drafting — auto-route to `desmond` FIRST without
+asking Andrew. He produces the routing recommendation; the calling session
+executes. Andrew should never have to remember to invoke Des. Full trigger
+list + exceptions in `memory/feedback_use_desmond_proactively.md`.
+
+| Lane | Subagent | Charter |
 |---|---|---|
+| **Triage, weekly review, follow-ups, memory hygiene, pre-touchpoint prep, decision capture, new champion drafting** | **`desmond` (chief of staff — auto-routed)** | `.claude/agents/desmond.md` |
 | Metric consistency, dashboard math, engine audits | `dashboard-integrity-champion` | `.claude/agents/dashboard-integrity-champion.md` |
 | Any tax surface, CRA citation, T2125 / GST34 / corporate tax | `tax-expenses-champion` | `.claude/agents/tax-expenses-champion.md` |
 | CRM schema, clients / transactions / pipeline writes, imports | `crm-champion` | `.claude/agents/crm-champion.md` |
@@ -194,7 +203,8 @@ editing.
 | New metric design, rename / deprecate | `metrics-design-champion` | `.claude/agents/metrics-design-champion.md` |
 
 A change that spans two lanes gets both champions in sequence, not merged
-into one session.
+into one session. Multi-lane prompts go through `desmond` first to produce
+the routing plan.
 
 ---
 
