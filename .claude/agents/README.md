@@ -1,8 +1,16 @@
 # Champion Subagent System
 
-Eight specialist agent charters for Agent Runway work. Each champion owns one domain end-to-end, inherits the same UNIVERSAL RULES and CODING STANDARDS, and routes work that falls outside its scope to the correct sibling.
+Eight specialist agent charters for Agent Runway work, plus one chief-of-staff meta-role (`desmond`) that orchestrates them. Each champion owns one domain end-to-end, inherits the same UNIVERSAL RULES and CODING STANDARDS, and routes work that falls outside its scope to the correct sibling. Desmond sits above the eight as orchestrator — modeled after Dan Martell's Kai (chief of staff over APEX's specialist agents), adapted to Andrew's solo-founder context.
 
-## The roster
+## Chief of staff (meta-role)
+
+| Role | Owns | Use when |
+|---|---|---|
+| [`desmond`](./desmond.md) | Triage, weekly review cadence, follow-up tracking, memory hygiene (index-level), pre-touchpoint prep, decision capture, strategic prioritization, drafting new champion charters | Ambiguous or multi-champion (3+) prompts, "where does this go?", "what should I work on next?", weekly review across all 8 lanes, pre-Ellis-call/lawyer/grant-deadline brief, memory feels stale, new champion needs drafting |
+
+Desmond never implements code, never makes domain decisions, and never substitutes for a champion's domain judgment. He produces a routing recommendation; the calling session executes it.
+
+## The eight specialist champions
 
 | Champion | Owns | Use when |
 |---|---|---|
@@ -33,12 +41,14 @@ Every charter is built from the same skeleton — change it in one, change it in
 
 ## Routing rules
 
-- **If a prompt matches one champion's description cleanly, use that one.**
+- **If a prompt matches one champion's description cleanly, use that one.** Don't route through Desmond for clean single-domain prompts — adds latency, no value.
+- **If a prompt is ambiguous, spans 3+ champions, or asks "what should I work on next?" — route to `desmond` first.** He produces the triage plan; the calling session executes it.
 - **If it spans two, the primary champion takes it and routes the secondary piece** via the Cross-champion coordination section (never silently answers for the other lane).
-- **Flight Crew questions are `ai-flight-crew-champion`-only.** Every other champion defers. That champion reads `memory/project_flight_crew_resume_here.md` FIRST every session.
+- **Flight Crew questions are `ai-flight-crew-champion`-only.** Every other champion defers, including Desmond. That champion reads `memory/project_flight_crew_resume_here.md` FIRST every session.
 - **Tax questions go through `tax-expenses-champion` even when they look like general finance.** Information-not-advice is a legal-liability rule; the Navigator persona drift to advice was a real incident.
 - **Metric inconsistencies go to `dashboard-integrity-champion`, not the champion that surfaces the metric.** The Runway Score 53/61 incident taught this: the fix wasn't in chat, it was in the consistency contract.
 - **New metrics are designed by `metrics-design-champion` and implemented by `dashboard-integrity-champion`.** Never design-and-implement in one pass.
+- **New champion charters are drafted by `desmond` once Andrew greenlights one** (Marcus for tax/compliance, Nora for content are pre-greenlit). Andrew always approves the draft before it lands.
 
 ## The UNIVERSAL RULES, at a glance
 
@@ -63,6 +73,6 @@ Full text lives in each charter's UNIVERSAL RULES section (identical across all 
 - New rule for all champions: edit UNIVERSAL RULES in all 8 in the same commit (the block is verbatim-identical by design).
 - Rule change that bit production: add to the relevant champion's Anti-patterns list with the one-line reason; this is how the charters compound over time.
 
-## Adding a ninth champion
+## Adding a new champion
 
-A new champion is warranted when a class of work consistently doesn't fit any existing charter *and* spans enough surface area that routing to one of the existing eight would distort their scope. Draft the charter using the same 11-section skeleton, update this README's roster table, and update every existing charter's Forbidden-scope section to route into the new champion where relevant.
+A new champion is warranted when a class of work consistently doesn't fit any existing charter *and* spans enough surface area that routing to one of the existing eight would distort their scope. Pre-greenlit additions: **Marcus** (tax/compliance specialist) and **Nora** (content/SEO specialist). When Andrew greenlights one, `desmond` drafts the charter using the same 11-section skeleton, updates this README's roster table, and updates every existing charter's Forbidden-scope section to route into the new champion where relevant. Andrew always approves the draft before it lands.
