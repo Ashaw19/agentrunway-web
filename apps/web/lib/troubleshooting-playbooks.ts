@@ -257,8 +257,10 @@ When a deal closes: Pipeline deal → Closed transaction
 ### Listing & Buyer Sub-Stages (pipeline-forecast-engine.ts)
 
 Listings: scheduled (15%), active (40%)
-Buyers: boarding (10%), in_flight (25%)
+Buyers: boarding (10%), scheduled (5%), in_flight (25%)
 These are unified into the 5 main pipeline stages for the Transactions page.
+
+Buyer "scheduled" is the deferred-intent state from the 4-stage CRM redesign — a buyer client who has flagged a future date for action. Conversion probability is intentionally lower than Boarding because the lead is parked, not actively shopping.
 
 ### Forecast Accuracy Tracking (pipeline-forecast-engine.ts)
 The pipeline tracks how accurate past price estimates were once deals close:
