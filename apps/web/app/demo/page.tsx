@@ -12,7 +12,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 
 export const metadata: Metadata = {
-  title: "Agent Runway Demo | Real Estate Business Analytics Platform",
+  title: "Demo — Real Estate Business Analytics Platform",
   description:
     "See how Agent Runway helps real estate agents track GCI, forecast income, and understand business performance.",
   openGraph: {

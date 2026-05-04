@@ -3,7 +3,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy | Agent Runway",
+  title: "Privacy Policy",
   description:
     "How Agent Runway collects, uses, and protects your personal information under Canadian privacy law (PIPEDA).",
   alternates: {

@@ -6,7 +6,7 @@ interface PageProps {
 }
 
 export const metadata = {
-  title: "Authorize Access — Agent Runway",
+  title: "Authorize Access",
 };
 
 export default async function OAuthConsentPage({ searchParams }: PageProps) {

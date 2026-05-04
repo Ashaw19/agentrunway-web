@@ -3,7 +3,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 
 export const metadata: Metadata = {
-  title: "Cookie Policy | Agent Runway",
+  title: "Cookie Policy",
   description:
     "How Agent Runway uses cookies and similar technologies, and how you can manage your preferences.",
   robots: { index: false, follow: false },

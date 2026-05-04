@@ -16,7 +16,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { articleSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "Real Estate Business Analytics Software | Agent Runway",
+  title: "Real Estate Business Analytics Software",
   description:
     "Agent Runway gives real estate agents a better way to track GCI, forecast income, measure financial runway, and understand business performance.",
   openGraph: {

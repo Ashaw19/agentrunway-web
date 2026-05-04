@@ -3,7 +3,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 
 export const metadata: Metadata = {
-  title: "Terms of Service | Agent Runway",
+  title: "Terms of Service",
   description:
     "Terms governing your use of Agent Runway, business analytics software for real estate agents.",
   alternates: {

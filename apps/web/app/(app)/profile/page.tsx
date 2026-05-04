@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { ProfileContent } from "./profile-content";
 import { computeGCI, type HistoryItem, type Transaction } from "@/lib/types/database";
 
-export const metadata = { title: "Profile — Agent Runway" };
+export const metadata = { title: "Profile" };
 
 export default async function ProfilePage() {
   const supabase = await createClient();

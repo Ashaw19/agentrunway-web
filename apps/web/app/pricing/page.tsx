@@ -8,7 +8,7 @@ import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
 import { breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "Agent Runway Pricing | Real Estate Analytics Software",
+  title: "Pricing — Real Estate Analytics Software",
   description:
     "View pricing for Agent Runway, business analytics software for real estate agents with forecasting, runway tracking, and AI insights.",
   openGraph: {

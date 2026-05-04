@@ -8,7 +8,7 @@ import { EmailCapture } from "@/components/email-capture";
 import { articleSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "Real Estate Agent Business Expenses You Can Deduct in Canada | Agent Runway",
+  title: "Real Estate Agent Business Expenses You Can Deduct in Canada",
   description:
     "A practical guide to every deduction available to self-employed Canadian real estate agents — organized by CRA category, with T2125 line references.",
   openGraph: {

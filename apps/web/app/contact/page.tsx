@@ -6,7 +6,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "Contact Agent Runway | Real Estate Analytics Software",
+  title: "Contact Us — Real Estate Analytics Software",
   description:
     "Get in touch with the Agent Runway team. We're here to help Canadian real estate agents get the most out of their analytics dashboard.",
   openGraph: {

@@ -16,7 +16,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { webPageSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "MCP Server | Agent Runway — Connect AI to Your Real Estate Data",
+  title: "MCP Server — Connect AI to Your Real Estate Data",
   description:
     "Connect Claude, Cursor, or any MCP-compatible AI assistant to your Agent Runway business data. 16 tools for transactions, pipeline, CRM, expenses, forecasts, and Canadian tax estimates.",
   openGraph: {

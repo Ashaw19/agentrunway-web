@@ -6,7 +6,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { definedTermSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "Gross Commission Income (GCI) Explained | Agent Runway",
+  title: "Gross Commission Income (GCI) Explained",
   description:
     "Learn what gross commission income (GCI) means for real estate agents, how to calculate it, and why it's the most important metric in your business.",
   openGraph: {

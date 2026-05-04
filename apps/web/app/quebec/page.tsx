@@ -4,7 +4,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 
 export const metadata: Metadata = {
-  title: "Not Yet Available in Quebec | Agent Runway",
+  title: "Not Yet Available in Quebec",
   robots: { index: false, follow: false },
 };
 

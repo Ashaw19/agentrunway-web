@@ -8,7 +8,7 @@ import { EmailCapture } from "@/components/email-capture";
 import { articleSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "How Much Should Real Estate Agents Save for Taxes in Canada? | Agent Runway",
+  title: "How Much Should Real Estate Agents Save for Taxes in Canada?",
   description:
     "A practical guide for Canadian real estate agents on how much to set aside for federal tax, provincial tax, CPP, and HST/GST — with a free 2025 tax estimator tool.",
   openGraph: {

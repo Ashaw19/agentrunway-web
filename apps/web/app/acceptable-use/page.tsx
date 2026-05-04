@@ -3,7 +3,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 
 export const metadata: Metadata = {
-  title: "Acceptable Use Policy | Agent Runway",
+  title: "Acceptable Use Policy",
   description: "Rules governing acceptable use of the Agent Runway platform.",
   alternates: { canonical: "https://agentrunway.ca/acceptable-use" },
   robots: { index: false, follow: false },

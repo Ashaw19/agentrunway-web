@@ -8,7 +8,7 @@ import { CommissionCalculator } from "./commission-calculator";
 import { EmailCapture } from "@/components/email-capture";
 
 export const metadata: Metadata = {
-  title: "Real Estate Commission Calculator Canada — What You Actually Keep | Agent Runway",
+  title: "Real Estate Commission Calculator Canada — What You Actually Keep",
   description:
     "Free per-deal commission calculator for Canadian real estate agents. See what you take home after brokerage split, transaction fees, HST/GST, and estimated income tax.",
   openGraph: {

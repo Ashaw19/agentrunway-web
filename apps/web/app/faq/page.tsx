@@ -13,7 +13,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "FAQ | Agent Runway",
+  title: "FAQ",
   description:
     "Answers to common questions about Agent Runway — pricing, features, data privacy, and the accuracy of tax estimates and income projections.",
   openGraph: {

@@ -8,7 +8,7 @@ import { EmailCapture } from "@/components/email-capture";
 import { articleSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "How to Fill Out T2125 as a Real Estate Agent in Canada | Agent Runway",
+  title: "How to Fill Out T2125 as a Real Estate Agent in Canada",
   description:
     "Line-by-line guide to filing CRA Form T2125 (Statement of Business or Professional Activities) for self-employed real estate agents in Canada. Industry code, expenses, and common mistakes.",
   openGraph: {

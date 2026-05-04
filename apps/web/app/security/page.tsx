@@ -5,7 +5,7 @@ import { Shield, Lock, CreditCard, Building2, Eye, Bell, Mail } from "lucide-rea
 import { webPageSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "Security | Agent Runway",
+  title: "Security",
   description:
     "How Agent Runway protects your financial data — encryption, bank security, payment security, and responsible disclosure.",
   alternates: {

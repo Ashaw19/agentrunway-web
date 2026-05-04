@@ -21,7 +21,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { articleSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "How Real Estate Agents Track GCI | Agent Runway",
+  title: "How Real Estate Agents Track GCI",
   description:
     "Learn how top real estate agents track gross commission income (GCI), forecast annual income, and measure business performance.",
   openGraph: {

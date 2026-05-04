@@ -9,7 +9,7 @@ import { breadcrumbSchema, faqSchema } from "@/lib/schema";
 const URL = "https://agentrunway.ca/tools";
 
 export const metadata: Metadata = {
-  title: "Free Tools for Canadian Real Estate Agents | Agent Runway",
+  title: "Free Tools for Canadian Real Estate Agents",
   description:
     "Free calculators and tools for Canadian real estate agents — tax estimator, commission calculator, and more. Built for 2025 rates across all 13 provinces and territories.",
   openGraph: {

@@ -4,7 +4,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { ReviewContent } from "./review-content";
 
 export const metadata: Metadata = {
-  title: "Leave a Review | Agent Runway",
+  title: "Leave a Review",
   description: "Share your experience with Agent Runway",
   openGraph: {
     url: "https://agentrunway.ca/review",

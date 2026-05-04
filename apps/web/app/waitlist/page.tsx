@@ -18,7 +18,7 @@ import { getCharterPaidCount } from "@/lib/marketing/cached-queries";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Charter Member Access | Agent Runway",
+  title: "Charter Member Access",
   description:
     "First 50 agents get 3 months free, lifetime price lock, and a referral bonus. Charter Member spots are limited — offer closes September 30, 2026.",
   openGraph: {

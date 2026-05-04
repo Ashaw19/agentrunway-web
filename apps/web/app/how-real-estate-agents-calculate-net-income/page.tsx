@@ -6,7 +6,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { articleSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "How Real Estate Agents Calculate Net Income | Agent Runway",
+  title: "How Real Estate Agents Calculate Net Income",
   description:
     "Learn how to calculate net income as a real estate agent — from GCI through commission splits, brokerage fees, expenses, and tax obligations.",
   openGraph: {

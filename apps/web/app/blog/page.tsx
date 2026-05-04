@@ -9,7 +9,7 @@ import { breadcrumbSchema } from "@/lib/schema";
 // ── Metadata ──────────────────────────────────────────────────────────────────
 
 export const metadata: Metadata = {
-  title: "Blog | Agent Runway",
+  title: "Blog",
   description:
     "Practical insights for Canadian real estate agents — GCI tracking, income forecasting, tax planning, and business analytics tips.",
   openGraph: {

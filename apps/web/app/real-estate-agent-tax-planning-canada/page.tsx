@@ -6,7 +6,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { articleSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "Real Estate Agent Tax Planning in Canada | Agent Runway",
+  title: "Real Estate Agent Tax Planning in Canada",
   description:
     "A practical guide to tax planning for Canadian real estate agents — quarterly instalments, deductible expenses, CPP contributions, and HST/GST.",
   openGraph: {

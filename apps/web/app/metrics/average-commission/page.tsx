@@ -6,7 +6,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { definedTermSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "Average Commission Per Deal Explained | Agent Runway",
+  title: "Average Commission Per Deal Explained",
   description:
     "Learn how to calculate your average commission per deal and why it's a critical input for income forecasting and goal setting as a real estate agent.",
   openGraph: {

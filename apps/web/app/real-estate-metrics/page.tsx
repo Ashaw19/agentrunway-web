@@ -14,7 +14,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { collectionPageSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "Real Estate Business Metrics | Agent Runway",
+  title: "Real Estate Business Metrics",
   description:
     "Learn the key metrics real estate agents use to track GCI, conversion rate, expenses, and financial performance.",
   openGraph: {

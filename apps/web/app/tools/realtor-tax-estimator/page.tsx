@@ -15,7 +15,7 @@ import { articleSchema, faqSchema, breadcrumbSchema, howToSchema } from "@/lib/s
 const URL = "https://agentrunway.ca/tools/realtor-tax-estimator";
 
 export const metadata: Metadata = {
-  title: "Canadian Realtor Tax Estimator — 2025 Self-Employed Calculator | Agent Runway",
+  title: "Canadian Realtor Tax Estimator — 2025 Self-Employed Calculator",
   description:
     "Free tax estimator for Canadian real estate agents. Calculate your 2025 federal + provincial income tax, CPP/QPP, and quarterly instalments — all 13 provinces and territories.",
   keywords: [

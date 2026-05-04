@@ -16,7 +16,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { definedTermSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "Real Estate Expense Ratio Explained | Agent Runway",
+  title: "Real Estate Expense Ratio Explained",
   description:
     "Learn what expense ratio means for real estate agents, how to calculate it, and what the industry benchmark is for a healthy business.",
   openGraph: {

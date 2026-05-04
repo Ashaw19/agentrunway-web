@@ -24,7 +24,7 @@ import { softwareApplicationSchema } from "@/lib/schema";
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 
 export const metadata: Metadata = {
-  title: "Agent Runway | Know Where Your Business Stands",
+  title: "Know Where Your Business Stands",
   description:
     "Agent Runway connects your income, taxes, expenses, clients, and pipeline into one system — so you always know where you stand and what to do next. Built for Canadian real estate agents.",
   openGraph: {

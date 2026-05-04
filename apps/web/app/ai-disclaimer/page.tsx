@@ -3,7 +3,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 
 export const metadata: Metadata = {
-  title: "AI Features Disclaimer | Agent Runway",
+  title: "AI Features Disclaimer",
   description:
     "Important information about how Agent Runway's AI features work, what they do not provide, and your responsibilities when using them.",
   robots: { index: false, follow: false },

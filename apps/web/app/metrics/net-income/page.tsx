@@ -6,7 +6,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { definedTermSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "Net Income for Real Estate Agents Explained | Agent Runway",
+  title: "Net Income for Real Estate Agents Explained",
   description:
     "Understand net income for real estate agents — what it is, how to calculate it from GCI, and why it matters more than gross commissions.",
   openGraph: {

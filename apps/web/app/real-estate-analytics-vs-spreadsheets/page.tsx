@@ -16,7 +16,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { articleSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "Real Estate Analytics Software vs. Spreadsheets | Agent Runway",
+  title: "Real Estate Analytics Software vs. Spreadsheets",
   description:
     "Comparing spreadsheets vs dedicated analytics software for real estate agents — and why purpose-built tools give serious agents a real edge.",
   openGraph: {

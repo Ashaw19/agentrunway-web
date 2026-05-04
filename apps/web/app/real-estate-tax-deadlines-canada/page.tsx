@@ -17,7 +17,7 @@ import { articleSchema, breadcrumbSchema, faqSchema } from "@/lib/schema";
 const URL = "https://agentrunway.ca/real-estate-tax-deadlines-canada";
 
 export const metadata: Metadata = {
-  title: "Canadian Real Estate Agent Tax Deadlines 2026 | Agent Runway",
+  title: "Canadian Real Estate Agent Tax Deadlines 2026",
   description:
     "Every tax deadline Canadian real estate agents need to know for 2026 — quarterly instalments, T1 filing, HST/GST, T4A, RRSP. Built for self-employed realtors.",
   openGraph: {

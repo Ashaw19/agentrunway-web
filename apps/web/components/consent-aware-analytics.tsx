@@ -7,8 +7,7 @@
 // This component gates:
 // - Vercel Analytics
 // - Vercel Speed Insights
-// - Google Analytics (if GA_ID env var is set)
-// - Plausible Analytics (if PLAUSIBLE_DOMAIN env var is set)
+// - Google Analytics (if NEXT_PUBLIC_GA_MEASUREMENT_ID env var is set)
 
 import { useState, useEffect } from "react";
 import Script from "next/script";
@@ -38,7 +37,6 @@ export function ConsentAwareAnalytics() {
   if (!consented) return null;
 
   const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
-  const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN;
 
   return (
     <>
@@ -61,16 +59,6 @@ export function ConsentAwareAnalytics() {
             `}
           </Script>
         </>
-      )}
-
-      {/* Plausible Analytics — only when consented and env var is set */}
-      {plausibleDomain && (
-        <Script
-          defer
-          data-domain={plausibleDomain}
-          src="https://plausible.io/js/script.js"
-          strategy="afterInteractive"
-        />
       )}
     </>
   );

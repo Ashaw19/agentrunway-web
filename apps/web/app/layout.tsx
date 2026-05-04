@@ -110,7 +110,7 @@ export default async function RootLayout({
           </ThemeProvider>
         </NextIntlClientProvider>
 
-        {/* All analytics (Vercel, GA, Plausible) are consent-gated */}
+        {/* All analytics (Vercel, GA) are consent-gated */}
         <ConsentAwareAnalytics />
       </body>
     </html>

@@ -6,7 +6,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { definedTermSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "Financial Runway for Real Estate Agents Explained | Agent Runway",
+  title: "Financial Runway for Real Estate Agents Explained",
   description:
     "Learn what financial runway means for real estate agents, how to calculate it, and why it's the most important resilience metric for a commission-based business.",
   openGraph: {

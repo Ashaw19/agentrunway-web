@@ -6,7 +6,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { definedTermSchema, breadcrumbSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
-  title: "Real Estate Conversion Rate Explained | Agent Runway",
+  title: "Real Estate Conversion Rate Explained",
   description:
     "Understand conversion rate for real estate agents — from lead to client, and client to closed deal. Learn how to calculate and improve yours.",
   openGraph: {

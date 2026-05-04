@@ -5,7 +5,7 @@ import { MarketingFooter } from "@/components/marketing-footer";
 import { POLICY_VERSIONS, POLICY_LABELS, POLICY_PATHS, POLICY_TYPES } from "@/lib/policy-versions";
 
 export const metadata: Metadata = {
-  title: "Policy Archive | Agent Runway",
+  title: "Policy Archive",
   description: "Historical versions of Agent Runway's published policies, maintained for transparency and regulator-evidence purposes.",
   alternates: { canonical: "https://agentrunway.ca/legal/archive" },
   robots: { index: false, follow: false },

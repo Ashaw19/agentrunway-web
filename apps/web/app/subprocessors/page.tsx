@@ -3,7 +3,7 @@ import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 
 export const metadata: Metadata = {
-  title: "Sub-Processors | Agent Runway",
+  title: "Sub-Processors",
   description:
     "A list of third-party service providers (sub-processors) that Agent Runway uses to operate the platform.",
   robots: { index: false, follow: false },
