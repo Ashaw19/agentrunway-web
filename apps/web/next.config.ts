@@ -30,14 +30,17 @@ const withNextIntl = createNextIntlPlugin("./i18n/request.ts");
 //   - *.supabase.co      — Supabase REST, Auth, Realtime, and Storage
 //   - api.groq.com       — server-side only, listed for future client-side streaming
 //   - staticimgly.com    — @imgly model + ORT WASM files (~45 MB, fetched on demand)
+//   - googletagmanager   — gtag.js loader for Google Analytics 4 (consent-gated)
+//   - *.google-analytics — GA4 event collection endpoints (incl. region1.* in EU/regional)
+//   - *.analytics.google — GA4 region-specific collection endpoints
 //   - frame-src          — Stripe Checkout iframe + Plaid Link iframe
 //   - frame-ancestors    — 'none' = X-Frame-Options: DENY (belt+suspenders)
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://cdn.plaid.com https://js.stripe.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://cdn.plaid.com https://js.stripe.com https://www.googletagmanager.com",
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://*.supabase.co https://graph.facebook.com https://*.cdninstagram.com https://*.fbcdn.net",
-  "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://*.plaid.com https://api.stripe.com https://api.groq.com https://staticimgly.com",
+  "img-src 'self' data: blob: https://*.supabase.co https://graph.facebook.com https://*.cdninstagram.com https://*.fbcdn.net https://*.google-analytics.com https://*.googletagmanager.com",
+  "connect-src 'self' blob: https://*.supabase.co wss://*.supabase.co https://*.plaid.com https://api.stripe.com https://api.groq.com https://staticimgly.com https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com",
   "worker-src blob: 'self'",
   "child-src blob: 'self'",
   "frame-src https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://cdn.plaid.com",
