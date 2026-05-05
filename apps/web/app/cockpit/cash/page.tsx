@@ -6,6 +6,7 @@ export default function CashPage() {
     <PlaceholderPage
       title="Cash"
       icon={Wallet}
+      accent="income"
       blurb="Corporate operating cash, by account. Trend over 30 / 90 / 365 days. Inflow vs. outflow split. Runway projection at current burn."
       upcoming={[
         "Operating cash by account (corporate only — never co-mingled with Andrew personally)",

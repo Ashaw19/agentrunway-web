@@ -6,6 +6,7 @@ export default function ExpensesPage() {
     <PlaceholderPage
       title="Expenses"
       icon={Banknote}
+      accent="expenses"
       blurb="Every corporate expense, categorized. SR&ED-eligible flag. Personal-card-paid items flagged for shareholder-loan reimbursement."
       upcoming={[
         "QuickBooks-synced expenses by category (CRA T2125 alignment)",

@@ -6,6 +6,7 @@ export default function HstPage() {
     <PlaceholderPage
       title="HST"
       icon={Receipt}
+      accent="tax"
       blurb="Corporate HST registrant view (separate from Andrew's personal HST). Quarterly draft GST34 values. ITCs running total. Net owing or refundable per quarter."
       upcoming={[
         "Quarterly draft GST34 lines (101 / 105 / 108 / 109) — for accountant review only",

@@ -6,6 +6,7 @@ export default function SredPage() {
     <PlaceholderPage
       title="SR&ED"
       icon={Sparkles}
+      accent="rd"
       blurb="Year-to-date SR&ED-eligible labor estimate. Marcus daily-log rollup. T661 narrative drafts ready for accountant review."
       upcoming={[
         "Marcus daily-logger rollup (commits per day, eligible-likely vs. possibly)",

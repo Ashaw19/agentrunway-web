@@ -6,6 +6,7 @@ export default function DeadlinesPage() {
     <PlaceholderPage
       title="Deadlines"
       icon={Calendar}
+      accent="health"
       blurb="Every corporate filing window, retainer, insurance renewal, and grant milestone in one timeline."
       upcoming={[
         "HST quarterly filings (Quinn-driven, calendar quarters by default)",

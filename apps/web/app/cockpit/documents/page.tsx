@@ -6,6 +6,7 @@ export default function DocumentsPage() {
     <PlaceholderPage
       title="Documents"
       icon={FileWarning}
+      accent="warn"
       blurb="Every corporate-finance finding (Hugo / Vera / Quinn / Tessa / Marcus). Recent anomalies. Accountant-ready exports."
       upcoming={[
         "Latest fresh findings from /memory/findings/ (corporate-finance scoped)",
