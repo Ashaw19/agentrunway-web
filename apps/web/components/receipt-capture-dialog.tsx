@@ -166,10 +166,10 @@ async function safeJson<T>(res: Response): Promise<T | null> {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function ReceiptCaptureDialog({ open, onClose, onSaved, context = "realtor" }: Props) {
-  // Tenant routing for the save step.  Deliverable 4 wires the corporate
-  // branch to /api/receipts/save-corporate.  For Deliverable 1 the prop is
-  // accepted but unused — realtor flow remains the only active save path.
-  void context;
+  // Tenant routing.  context='corporate' (cockpit) POSTs to
+  // /api/receipts/save-corporate (vendor regex match + corp_transactions
+  // insert).  context='realtor' (default) writes receipt_expenses directly
+  // via the supabase client — bit-identical to the pre-Phase-0 behavior.
   const [state,      setState]      = useState<FlowState>("idle");
   const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
   const [draft,      setDraft]      = useState<ReceiptDraft | null>(null);
@@ -455,26 +455,69 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved, context = "realto
     const taxAmt    = draft.tax_amount   !== "" ? parseFloat(draft.tax_amount)   : null;
     const subAmt    = draft.subtotal     !== "" ? parseFloat(draft.subtotal)     : null;
 
-    const { error } = await supabase.from("receipt_expenses").insert({
-      user_id:        user.id,
-      vendor:         draft.vendor       || null,
-      expense_date:   draft.expense_date || null,
-      total_amount:   isNaN(totalAmt!)   ? null : totalAmt,
-      tax_amount:     isNaN(taxAmt!)     ? null : taxAmt,
-      subtotal:       isNaN(subAmt!)     ? null : subAmt,
-      currency:       draft.currency,
-      category_key:   draft.category_key || null,
-      notes:          draft.notes        || null,
-      receipt_path:   draft.receipt_path,
-      ocr_confidence: draft.ocr_confidence,
-      ocr_raw:        draft.ocr_raw,
-    });
+    // Tenant routing: corporate flow (Director Cockpit) writes a `corp_transactions`
+    // row via the server-side regex-matching endpoint; realtor flow writes
+    // `receipt_expenses` directly via the supabase client.  The two table
+    // schemas don't share columns — schema isolation is the whole point of
+    // the corp_* tables (no engine leak, no realtor metric contamination).
+    if (context === "corporate") {
+      try {
+        const res = await fetch("/api/receipts/save-corporate", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({
+            vendor:         draft.vendor || null,
+            expense_date:   draft.expense_date || null,
+            total_amount:   isNaN(totalAmt!) ? null : totalAmt,
+            tax_amount:     isNaN(taxAmt!) ? null : taxAmt,
+            subtotal:       isNaN(subAmt!) ? null : subAmt,
+            currency:       draft.currency,
+            notes:          draft.notes || null,
+            receipt_path:   draft.receipt_path,
+            // `category_key` is a realtor concept — corporate side ignores it
+            // in favour of vendor regex → account_code.
+          }),
+        });
+        const data = await safeJson<{ ok: boolean; error?: string; needs_review?: boolean }>(res);
+        if (!data || !data.ok) {
+          const msg = data?.error ?? `Server returned ${res.status}`;
+          console.error("[ReceiptCaptureDialog] Corporate save error:", msg);
+          toast.error("Failed to save receipt. Please try again.");
+          setState("review");
+          return;
+        }
+        if (data.needs_review) {
+          toast.info("Saved — flagged for review (no vendor match).");
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Network error";
+        console.error("[ReceiptCaptureDialog] Corporate save failed:", msg);
+        toast.error("Failed to save receipt. Please try again.");
+        setState("review");
+        return;
+      }
+    } else {
+      const { error } = await supabase.from("receipt_expenses").insert({
+        user_id:        user.id,
+        vendor:         draft.vendor       || null,
+        expense_date:   draft.expense_date || null,
+        total_amount:   isNaN(totalAmt!)   ? null : totalAmt,
+        tax_amount:     isNaN(taxAmt!)     ? null : taxAmt,
+        subtotal:       isNaN(subAmt!)     ? null : subAmt,
+        currency:       draft.currency,
+        category_key:   draft.category_key || null,
+        notes:          draft.notes        || null,
+        receipt_path:   draft.receipt_path,
+        ocr_confidence: draft.ocr_confidence,
+        ocr_raw:        draft.ocr_raw,
+      });
 
-    if (error) {
-      console.error("[ReceiptCaptureDialog] Save error:", error.message);
-      toast.error("Failed to save receipt. Please try again.");
-      setState("review");
-      return;
+      if (error) {
+        console.error("[ReceiptCaptureDialog] Save error:", error.message);
+        toast.error("Failed to save receipt. Please try again.");
+        setState("review");
+        return;
+      }
     }
 
     setState("done");
@@ -500,7 +543,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved, context = "realto
       reset();
       onClose();
     }, 1200);
-  }, [draft, reset, onClose, onSaved, batchQueue, batchIndex, handleFile]);
+  }, [draft, reset, onClose, onSaved, batchQueue, batchIndex, handleFile, context]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
