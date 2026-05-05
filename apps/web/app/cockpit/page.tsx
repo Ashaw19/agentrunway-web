@@ -8,19 +8,21 @@ import {
   Sparkles,
   Wallet,
 } from "lucide-react";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 
-// PHASE 1: every number on this page is hardcoded. The visible "fake" pill on
-// each card is intentional — Eleanor Konik's rule: never show fake numbers
-// without flagging them, or you'll make wrong decisions. Real wiring lands in
-// Phase 2 once Hugo / Vera / Quinn / Tessa have produced findings to read.
+// Phase 1 v0: HST, SR&ED, Deadlines, Expenses cards now read live data from
+// the views in migration 00133 + corp_transactions. Cash + Anomalies stay
+// pinned to the "fake" placeholder until their data sources exist (cash =
+// future bank-feed sync; anomalies = scheduled-routine findings).
+//
+// Eleanor Konik's rule preserved: never show a fake number without flagging
+// it. Real cards drop the "fake" pill; placeholder cards keep it.
 //
 // Typography rule for this surface: mono is reserved for tabular numerical
 // data only (currency, percentages, day counts, T-Nd values). Everything
-// else — labels, prose, headings, anomaly bodies, navigation — uses the
-// default sans (Geist Sans). Mono everywhere makes the page feel like a
-// terminal log; restricting it to numbers makes it feel like a financial
-// dashboard.
+// else — labels, prose, headings — uses default sans (Geist Sans).
 
 type Accent = "income" | "tax" | "rd" | "health" | "expenses" | "warn";
 
@@ -36,17 +38,111 @@ const ACCENT: Record<
   warn:     { ring: "ring-rose-500/15",    bar: "bg-rose-400",     text: "text-rose-300",     glow: "shadow-rose-500/10",     sparkStart: "rgb(251 113 133 / 0.55)", sparkStop: "rgb(251 113 133 / 0.00)" },
 };
 
-export default function SnapshotPage() {
+const fmtCAD = (n: number) =>
+  n.toLocaleString("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 });
+
+const fmtSigned = (n: number) =>
+  (n >= 0 ? "" : "−") + fmtCAD(Math.abs(n));
+
+type HstSummary = {
+  quarter_start: string;
+  quarter_end: string;
+  hst_collected: number;
+  hst_itc: number;
+  net_remittance: number;
+  txn_count: number;
+};
+
+type SredRow = {
+  fiscal_year: number;
+  sred_category: string | null;
+  txn_count: number;
+  total_corp_portion: number;
+};
+
+type ExpenseRow = {
+  vendor_name_raw: string | null;
+  amount_total: number | null;
+  date: string;
+};
+
+export default async function SnapshotPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login?next=/cockpit");
+
+  const today = new Date();
+  const ymd = (d: Date) => d.toISOString().slice(0, 10);
+  const startOfMonth = ymd(new Date(today.getFullYear(), today.getMonth(), 1));
+  const startOfFY = ymd(new Date(today.getFullYear(), 0, 1));
+
+  const [hstRes, sredRes, monthExpRes, ytdRes] = await Promise.all([
+    supabase
+      .from("v_corp_gst_hst_summary")
+      .select("quarter_start, quarter_end, hst_collected, hst_itc, net_remittance, txn_count")
+      .eq("user_id", user.id)
+      .order("quarter_start", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("v_corp_sred_eligible_totals")
+      .select("fiscal_year, sred_category, txn_count, total_corp_portion")
+      .eq("user_id", user.id)
+      .eq("fiscal_year", today.getFullYear()),
+    supabase
+      .from("corp_transactions")
+      .select("vendor_name_raw, amount_total, date")
+      .eq("user_id", user.id)
+      .gte("date", startOfMonth)
+      .order("amount_total", { ascending: false })
+      .limit(5),
+    supabase
+      .from("v_corp_pl_by_account")
+      .select("account_type, total_corp_portion")
+      .eq("user_id", user.id)
+      .eq("fiscal_year", today.getFullYear()),
+  ]);
+
+  const hst = (hstRes.data ?? null) as HstSummary | null;
+  const sredRows = (sredRes.data ?? []) as SredRow[];
+  const monthTopExpenses = (monthExpRes.data ?? []) as ExpenseRow[];
+  const ytdRows = (ytdRes.data ?? []) as { account_type: string; total_corp_portion: number }[];
+
+  const sredTotal = sredRows.reduce((s, r) => s + Number(r.total_corp_portion ?? 0), 0);
+  const sredRefundEstimate = sredTotal * 0.5; // CCPC NB refundable rate
+  const ytdRevenue = ytdRows
+    .filter((r) => r.account_type === "revenue")
+    .reduce((s, r) => s + Number(r.total_corp_portion ?? 0), 0);
+  const ytdExpenses = ytdRows
+    .filter((r) => r.account_type === "cogs" || r.account_type === "opex")
+    .reduce((s, r) => s + Number(r.total_corp_portion ?? 0), 0);
+  const ytdNet = ytdRevenue - ytdExpenses;
+
+  const deadlines = computeDeadlines(today);
+
+  // Fiscal year progress (calendar Dec 31 year-end per Andrew 2026-05-05).
+  const startOfFYDate = new Date(today.getFullYear(), 0, 1);
+  const endOfFYDate = new Date(today.getFullYear(), 11, 31);
+  const fyTotalDays = Math.round(
+    (endOfFYDate.getTime() - startOfFYDate.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  const fyElapsedDays = Math.round(
+    (today.getTime() - startOfFYDate.getTime()) / (1000 * 60 * 60 * 24),
+  );
+  const fyPct = Math.max(0, Math.min(100, Math.round((fyElapsedDays / fyTotalDays) * 100)));
+
   return (
     <div className="space-y-8">
       <PageHeader />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <CashCard />
-        <HstCard />
-        <SredCard />
-        <DeadlinesCard />
-        <ExpensesCard />
+        <YtdNetCard ytdNet={ytdNet} ytdRevenue={ytdRevenue} ytdExpenses={ytdExpenses} />
+        <HstCard hst={hst} />
+        <SredCard refundEstimate={sredRefundEstimate} totalCorpPortion={sredTotal} fyPct={fyPct} />
+        <DeadlinesCard items={deadlines} />
+        <ExpensesCard rows={monthTopExpenses} />
         <AnomaliesCard />
       </div>
 
@@ -80,7 +176,7 @@ function Card({
   href,
   icon: Icon,
   accent,
-  fake = true,
+  fake = false,
   children,
 }: {
   label: string;
@@ -144,132 +240,136 @@ function Card({
   );
 }
 
-function Sparkline({
-  values,
-  accent,
-  height = 44,
+function YtdNetCard({
+  ytdNet,
+  ytdRevenue,
+  ytdExpenses,
 }: {
-  values: number[];
-  accent: Accent;
-  height?: number;
+  ytdNet: number;
+  ytdRevenue: number;
+  ytdExpenses: number;
 }) {
-  const a = ACCENT[accent];
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const range = max - min || 1;
-  const w = 100;
-  const h = height;
-  const step = w / (values.length - 1);
-  const pts = values.map((v, i) => ({
-    x: i * step,
-    y: h - ((v - min) / range) * (h - 4) - 2,
-  }));
-  const linePoints = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
-  const areaPoints = `0,${h} ${linePoints} ${w},${h}`;
-  const last = pts[pts.length - 1]!;
-  const gradId = `spark-${accent}`;
+  const positive = ytdNet >= 0;
   return (
-    <svg
-      viewBox={`0 0 ${w} ${h}`}
-      preserveAspectRatio="none"
-      className="h-11 w-full"
-      aria-hidden
-    >
-      <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={a.sparkStart} />
-          <stop offset="100%" stopColor={a.sparkStop} />
-        </linearGradient>
-      </defs>
-      <polygon points={areaPoints} fill={`url(#${gradId})`} />
-      <polyline
-        points={linePoints}
-        fill="none"
-        stroke={a.sparkStart.replace(" / 0.55", " / 0.95")}
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle
-        cx={last.x}
-        cy={last.y}
-        r="1.8"
-        fill={a.sparkStart.replace(" / 0.55", " / 1")}
-      />
-    </svg>
-  );
-}
-
-function CashCard() {
-  return (
-    <Card label="Cash" href="/cockpit/cash" icon={Wallet} accent="income">
+    <Card label="YTD net · corp portion" href="/cockpit/expenses" icon={Wallet} accent="income">
       <div className="space-y-4">
         <div>
           <p className="text-foreground font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
-            $24,180
+            {fmtSigned(ytdNet)}
           </p>
           <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
-            Corporate operating · CAD
+            Revenue − cogs − opex · YTD
           </p>
         </div>
-        <Sparkline values={[18, 19, 22, 21, 23, 22, 24, 24]} accent="income" />
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <p className="text-muted-foreground/70 text-[10px] tracking-[0.08em] uppercase">Revenue</p>
+            <p className="text-foreground font-mono mt-0.5 tabular-nums">{fmtCAD(ytdRevenue)}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground/70 text-[10px] tracking-[0.08em] uppercase">Expenses</p>
+            <p className="text-foreground font-mono mt-0.5 tabular-nums">{fmtCAD(ytdExpenses)}</p>
+          </div>
+        </div>
         <p className="inline-flex items-center gap-1 text-xs">
-          <ArrowUpRight className="text-emerald-300 h-3 w-3" aria-hidden />
-          <span className="text-emerald-300 font-mono tabular-nums">+$2,340</span>
-          <span className="text-muted-foreground/70">last 30 days</span>
+          {positive ? (
+            <ArrowUpRight className="text-emerald-300 h-3 w-3" aria-hidden />
+          ) : (
+            <ArrowDownRight className="text-rose-300 h-3 w-3" aria-hidden />
+          )}
+          <span className="text-muted-foreground/70">
+            Cash position lands once a bank feed connects.
+          </span>
         </p>
       </div>
     </Card>
   );
 }
 
-function HstCard() {
+function HstCard({ hst }: { hst: HstSummary | null }) {
+  if (!hst) {
+    return (
+      <Card label="HST · current quarter" href="/cockpit/hst" icon={Receipt} accent="tax">
+        <div className="space-y-4">
+          <div>
+            <p className="text-foreground font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
+              $0
+            </p>
+            <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
+              No transactions in the current quarter
+            </p>
+          </div>
+          <p className="text-muted-foreground/70 text-xs">
+            Add revenue or expense rows to see collected, ITC, and net remittance.
+          </p>
+        </div>
+      </Card>
+    );
+  }
+  const refund = hst.net_remittance < 0;
+  const qLabel = `Q${Math.floor(new Date(hst.quarter_start).getMonth() / 3) + 1}`;
   return (
-    <Card label="HST · Q2" href="/cockpit/hst" icon={Receipt} accent="tax">
+    <Card label={`HST · ${qLabel}`} href="/cockpit/hst" icon={Receipt} accent="tax">
       <div className="space-y-4">
         <div>
           <p className="text-foreground font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
-            −$1,142
+            {fmtSigned(hst.net_remittance)}
           </p>
           <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
-            Refundable to AR Inc. · ITCs &gt; collected
+            {refund ? "Refundable to AR Inc. · ITCs > collected" : "Owing to CRA · collected > ITCs"}
           </p>
         </div>
-        <Sparkline values={[6, 8, 10, 12, 11, 13, 14, 15]} accent="tax" />
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <p className="text-muted-foreground/70 text-[10px] tracking-[0.08em] uppercase">Collected</p>
+            <p className="text-foreground font-mono mt-0.5 tabular-nums">{fmtCAD(hst.hst_collected)}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground/70 text-[10px] tracking-[0.08em] uppercase">ITC</p>
+            <p className="text-foreground font-mono mt-0.5 tabular-nums">{fmtCAD(hst.hst_itc)}</p>
+          </div>
+        </div>
         <p className="text-muted-foreground/80 text-xs">
-          Quarter ends in{" "}
-          <span className="text-foreground font-mono tabular-nums">47 days</span>
+          Quarter ends{" "}
+          <span className="text-foreground font-mono tabular-nums">{hst.quarter_end}</span>
         </p>
       </div>
     </Card>
   );
 }
 
-function SredCard() {
-  const pct = 34;
+function SredCard({
+  refundEstimate,
+  totalCorpPortion,
+  fyPct,
+}: {
+  refundEstimate: number;
+  totalCorpPortion: number;
+  fyPct: number;
+}) {
   return (
     <Card label="SR&ED · YTD" href="/cockpit/sred" icon={Sparkles} accent="rd">
       <div className="space-y-4">
         <div>
           <p className="text-foreground font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
-            $26,440
+            {fmtCAD(refundEstimate)}
           </p>
           <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
-            Refundable estimate · 50% rate
+            Refundable estimate · 50% rate (CCPC NB)
           </p>
         </div>
         <div className="space-y-1.5">
           <div className="bg-white/[0.05] h-1.5 w-full overflow-hidden rounded-full ring-1 ring-inset ring-white/5">
             <div
               className="h-full rounded-full bg-gradient-to-r from-violet-500 to-violet-300"
-              style={{ width: `${pct}%` }}
+              style={{ width: `${fyPct}%` }}
             />
           </div>
           <div className="flex items-center justify-between text-[11px]">
             <span className="text-muted-foreground/80">
-              <span className="font-mono tabular-nums">~417</span> eligible-likely hours
+              <span className="font-mono tabular-nums">{fmtCAD(totalCorpPortion)}</span> eligible spend
             </span>
-            <span className="text-violet-300 font-mono tabular-nums">{pct}% of FY</span>
+            <span className="text-violet-300 font-mono tabular-nums">{fyPct}% of FY</span>
           </div>
         </div>
       </div>
@@ -277,12 +377,56 @@ function SredCard() {
   );
 }
 
-function DeadlinesCard() {
-  const items = [
-    { label: "HST Q2 filing",         days: 47,  severity: "soon" as const },
-    { label: "Cox & Palmer retainer", days: 27,  severity: "soon" as const },
-    { label: "T2 prep window opens",  days: 184, severity: "far"  as const },
+type Deadline = {
+  label: string;
+  days: number;
+  severity: "soon" | "far";
+  date: string;
+};
+
+function computeDeadlines(today: Date): Deadline[] {
+  const yyyy = today.getFullYear();
+  const dayMs = 1000 * 60 * 60 * 24;
+  const daysUntil = (target: Date) => Math.max(0, Math.ceil((target.getTime() - today.getTime()) / dayMs));
+  const ymd = (d: Date) => d.toISOString().slice(0, 10);
+
+  // Calendar fiscal year (Dec 31). T2 due 6 months after FY end.
+  const t2Due = new Date(yyyy + 1, 5, 30); // June 30 of FY+1
+
+  // SR&ED claim window = 18 months after FY end → 18 mo after Dec 31 = June 30 of FY+2.
+  // (Strict CRA rule: must claim within 18 months of fiscal year-end.)
+  const sredClaimWindowEnd = new Date(yyyy + 1, 5, 30);
+
+  // HST quarterly remittance — for active GST/HST registrants on quarterly cadence:
+  // Q1 (Jan-Mar) due Apr 30; Q2 (Apr-Jun) due Jul 31; Q3 (Jul-Sep) due Oct 31; Q4 (Oct-Dec) due Jan 31.
+  const hstDeadlines: { date: Date; quarter: string }[] = [
+    { date: new Date(yyyy, 3, 30), quarter: "Q1" }, // Apr 30
+    { date: new Date(yyyy, 6, 31), quarter: "Q2" }, // Jul 31
+    { date: new Date(yyyy, 9, 31), quarter: "Q3" }, // Oct 31
+    { date: new Date(yyyy + 1, 0, 31), quarter: "Q4" }, // Jan 31 of FY+1
   ];
+  const nextHst = hstDeadlines.find((d) => d.date.getTime() > today.getTime()) ?? hstDeadlines[0]!;
+
+  // Annual return (Corporations Canada) due within 60 days of incorporation anniversary.
+  // AR Inc. incorporated 2026-04-16. Next anniversary + 60d.
+  const incorpDate = new Date(2026, 3, 16);
+  const nextAnniv = new Date(yyyy, incorpDate.getMonth(), incorpDate.getDate());
+  if (nextAnniv.getTime() < today.getTime()) {
+    nextAnniv.setFullYear(yyyy + 1);
+  }
+  const annualReturnDue = new Date(nextAnniv.getTime() + 60 * dayMs);
+
+  const items: Deadline[] = [
+    { label: `HST ${nextHst.quarter} filing`, days: daysUntil(nextHst.date), severity: "soon", date: ymd(nextHst.date) },
+    { label: "T2 filing due", days: daysUntil(t2Due), severity: daysUntil(t2Due) < 90 ? "soon" : "far", date: ymd(t2Due) },
+    { label: "Annual return (federal)", days: daysUntil(annualReturnDue), severity: daysUntil(annualReturnDue) < 60 ? "soon" : "far", date: ymd(annualReturnDue) },
+    { label: "SR&ED claim window closes", days: daysUntil(sredClaimWindowEnd), severity: "far", date: ymd(sredClaimWindowEnd) },
+  ];
+
+  return items.sort((a, b) => a.days - b.days);
+}
+
+function DeadlinesCard({ items }: { items: Deadline[] }) {
   return (
     <Card label="Deadlines" href="/cockpit/deadlines" icon={Calendar} accent="health">
       <ul className="space-y-2.5">
@@ -316,26 +460,25 @@ function DeadlinesCard() {
   );
 }
 
-function ExpensesCard() {
-  const rows = [
-    { vendor: "Cox & Palmer", amount: 550 },
-    { vendor: "Anthropic",    amount: 200 },
-    { vendor: "Vercel",       amount: 84 },
-    { vendor: "Mem0",         amount: 49 },
-    { vendor: "Supabase",     amount: 25 },
-  ];
-  const total = rows.reduce((s, r) => s + r.amount, 0);
+function ExpensesCard({ rows }: { rows: ExpenseRow[] }) {
+  if (!rows.length) {
+    return (
+      <Card label="This month · top expenses" href="/cockpit/expenses" icon={Banknote} accent="expenses">
+        <p className="text-muted-foreground/70 py-2 text-sm">
+          No transactions yet this month. Add a manual entry or upload a receipt to populate.
+        </p>
+      </Card>
+    );
+  }
+  const total = rows.reduce((s, r) => s + Number(r.amount_total ?? 0), 0);
   return (
     <Card label="This month · top expenses" href="/cockpit/expenses" icon={Banknote} accent="expenses">
       <ul className="space-y-1">
-        {rows.map((row) => (
-          <li
-            key={row.vendor}
-            className="flex items-center justify-between text-[13px]"
-          >
-            <span className="text-foreground/85">{row.vendor}</span>
+        {rows.map((row, i) => (
+          <li key={i} className="flex items-center justify-between text-[13px]">
+            <span className="text-foreground/85 truncate">{row.vendor_name_raw ?? "—"}</span>
             <span className="text-foreground font-mono tabular-nums">
-              ${row.amount.toLocaleString()}
+              {fmtCAD(Number(row.amount_total ?? 0))}
             </span>
           </li>
         ))}
@@ -345,9 +488,7 @@ function ExpensesCard() {
           <ArrowDownRight className="h-3 w-3" aria-hidden />
           MTD
         </span>
-        <span className="text-amber-300 font-mono tabular-nums">
-          ${total.toLocaleString()}
-        </span>
+        <span className="text-amber-300 font-mono tabular-nums">{fmtCAD(total)}</span>
       </div>
     </Card>
   );
@@ -363,16 +504,17 @@ const PERSON_ACCENT: Record<string, { chip: string; dot: string }> = {
 
 function AnomaliesCard() {
   const items = [
-    { source: "Hugo",   body: "3 personal-card corp expenses await reimbursement", severity: "warn"  as const },
-    { source: "Marcus", body: "Zero-commit day on 2026-05-02 — confirm rest day?", severity: "warn"  as const },
-    { source: "Vera",   body: "Will fire 1 Jun (first monthly briefing)",           severity: "muted" as const },
+    { source: "Hugo",   body: "Hugo not deployed yet — fires once findings/ has a daily snapshot",  severity: "muted" as const },
+    { source: "Marcus", body: "Daily SR&ED logger lands at 10:30 AM AT each weekday",               severity: "muted" as const },
+    { source: "Vera",   body: "Weekly briefing — proposed, not yet deployed",                       severity: "muted" as const },
   ];
   return (
     <Card
-      label="Anomalies · 3 fresh"
+      label="Anomalies · routine queue"
       href="/cockpit/documents"
       icon={FileWarning}
       accent="warn"
+      fake
     >
       <ul className="space-y-2.5">
         {items.map((item, i) => {
@@ -383,7 +525,7 @@ function AnomaliesCard() {
                 aria-hidden
                 className={cn(
                   "mt-1.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full",
-                  item.severity === "warn" ? tone.dot : "bg-muted-foreground/30",
+                  item.severity === "muted" ? "bg-muted-foreground/30" : tone.dot,
                 )}
               />
               <div className="flex-1 leading-snug">
