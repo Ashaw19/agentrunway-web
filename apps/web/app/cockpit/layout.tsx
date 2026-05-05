@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#131e36",
+  themeColor: "#1d2a45",
 };
 
 const ALLOWED_EMAILS = new Set(["andrew@andrewdshaw.ca"]);

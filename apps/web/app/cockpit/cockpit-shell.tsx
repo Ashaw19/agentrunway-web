@@ -28,29 +28,29 @@ export function CockpitShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="dark text-foreground relative flex min-h-svh flex-col bg-[oklch(0.17_0.045_265)] font-sans antialiased">
+    <div className="dark text-foreground relative flex min-h-svh flex-col bg-[oklch(0.235_0.055_262)] font-sans antialiased">
       {/* Layered background: dotted micro-grid + soft top-of-page aurora glow.
           The aurora gives the page a subtle sense of "sky" without competing
           with content — pure decoration. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-20 opacity-[0.26]"
+        className="pointer-events-none fixed inset-0 -z-20 opacity-[0.30]"
         style={{
           backgroundImage:
-            "radial-gradient(circle at 1px 1px, rgb(255 255 255 / 0.42) 1px, transparent 0)",
+            "radial-gradient(circle at 1px 1px, rgb(255 255 255 / 0.55) 1px, transparent 0)",
           backgroundSize: "24px 24px",
         }}
       />
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-[480px]"
+        className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-[520px]"
         style={{
           background:
-            "radial-gradient(ellipse 60% 80% at 50% 0%, rgb(129 140 248 / 0.22), transparent 72%)",
+            "radial-gradient(ellipse 60% 80% at 50% 0%, rgb(129 140 248 / 0.32), transparent 75%)",
         }}
       />
 
-      <header className="border-border/50 sticky top-0 z-20 border-b bg-[oklch(0.17_0.045_265/0.85)] backdrop-blur-md supports-[backdrop-filter]:bg-[oklch(0.17_0.045_265/0.65)]">
+      <header className="border-border/50 sticky top-0 z-20 border-b bg-[oklch(0.235_0.055_262/0.85)] backdrop-blur-md supports-[backdrop-filter]:bg-[oklch(0.235_0.055_262/0.65)]">
         <div className="mx-auto flex max-w-7xl items-center gap-6 px-4 pt-4 pb-2 sm:px-6 lg:px-8">
           <Link
             href="/cockpit"
