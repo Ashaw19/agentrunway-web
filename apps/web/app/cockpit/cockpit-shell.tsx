@@ -66,9 +66,12 @@ export function CockpitShell({ children }: { children: React.ReactNode }) {
             <span className="text-muted-foreground/60 text-xs font-normal">· Agent Runway Inc.</span>
           </Link>
           <div className="ml-auto inline-flex items-center gap-3 text-xs">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/[0.06] px-2.5 py-1 text-[11px] tracking-wide text-amber-300/90">
+            <span
+              title="Most cards are live; cards still on placeholder data show their own 'fake' badge."
+              className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/[0.06] px-2.5 py-1 text-[11px] tracking-wide text-amber-300/90"
+            >
               <span className="bg-amber-400 inline-block h-1.5 w-1.5 rounded-full" aria-hidden />
-              Phase 1 · fake data
+              Phase 1 · partial wiring
             </span>
           </div>
         </div>
