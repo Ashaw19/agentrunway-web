@@ -97,11 +97,18 @@ export default async function AppLayout({
         .is("archived_at", null)
         .in("status", ["boarding", "in_flight"])
         .lt("last_contact_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+      // The loop below only consumes the latest acceptance per policy_type,
+      // so we cap at 50 rows. Per-user lifetime acceptance count is bounded
+      // by POLICY_TYPES.length × policy version history (~5 types × ≤5
+      // versions ≈ 25 rows in realistic data). 50 is generous headroom and
+      // bounds this hot-path read instead of pulling unbounded history on
+      // every authenticated nav.
       supabase
         .from("policy_acceptances")
         .select("policy_type, version, accepted_at")
         .eq("user_id", user.id)
-        .order("accepted_at", { ascending: false }),
+        .order("accepted_at", { ascending: false })
+        .limit(50),
     ]);
 
     // ── Onboarding guard — redirect if user hasn't completed setup ──────────

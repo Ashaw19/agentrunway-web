@@ -14,11 +14,16 @@ import { cn } from "@/lib/utils";
 // each card is intentional — Eleanor Konik's rule: never show fake numbers
 // without flagging them, or you'll make wrong decisions. Real wiring lands in
 // Phase 2 once Hugo / Vera / Quinn / Tessa have produced findings to read.
+//
+// Typography rule for this surface: mono is reserved for tabular numerical
+// data only (currency, percentages, day counts, T-Nd values). Everything
+// else — labels, prose, headings, anomaly bodies, navigation — uses the
+// default sans (Geist Sans). Mono everywhere makes the page feel like a
+// terminal log; restricting it to numbers makes it feel like a financial
+// dashboard.
 
 type Accent = "income" | "tax" | "rd" | "health" | "expenses" | "warn";
 
-// Per-accent token map. Tailwind-arbitrary classes so the palette stays in one
-// place. Tuned for the dark Cockpit shell — every shade is 400/500 territory.
 const ACCENT: Record<
   Accent,
   { ring: string; bar: string; text: string; glow: string; sparkStart: string; sparkStop: string }
@@ -36,8 +41,6 @@ export default function SnapshotPage() {
     <div className="space-y-8">
       <PageHeader />
 
-      {/* Hierarchy: Cash spans 2 cols (hero), then a 3-up tactical row, then
-          full-width Anomalies. Single column on mobile, scales up cleanly. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <CashCard />
         <HstCard />
@@ -56,12 +59,12 @@ function PageHeader() {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-foreground font-mono text-2xl tracking-tight">Snapshot</h1>
-        <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
+        <h1 className="text-foreground text-2xl font-semibold tracking-tight">Snapshot</h1>
+        <p className="text-muted-foreground mt-1.5 max-w-2xl text-sm leading-relaxed">
           Agent Runway Inc.&rsquo;s current state at a glance. Click any card to drill in.
         </p>
       </div>
-      <div className="flex items-center gap-3 font-mono text-[11px]">
+      <div className="flex items-center gap-2 text-xs">
         <span className="text-muted-foreground/80 inline-flex items-center gap-1.5 rounded-full border border-white/5 bg-white/[0.02] px-2.5 py-1">
           <span className="bg-emerald-400 inline-block h-1.5 w-1.5 animate-pulse rounded-full" />
           Live
@@ -77,7 +80,6 @@ function Card({
   href,
   icon: Icon,
   accent,
-  span,
   fake = true,
   children,
 }: {
@@ -85,7 +87,6 @@ function Card({
   href?: string;
   icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   accent: Accent;
-  span?: "hero" | "wide";
   fake?: boolean;
   children: React.ReactNode;
 }) {
@@ -99,7 +100,6 @@ function Card({
         a.glow,
       )}
     >
-      {/* Tinted accent bar on the left edge — the card's category signature. */}
       <span
         aria-hidden
         className={cn(
@@ -107,7 +107,6 @@ function Card({
           a.bar,
         )}
       />
-      {/* Soft radial glow on hover, anchored to the icon corner. */}
       <span
         aria-hidden
         className={cn(
@@ -117,14 +116,14 @@ function Card({
       />
 
       <header className="flex items-center justify-between gap-2 pb-4">
-        <div className="text-muted-foreground/90 inline-flex items-center gap-2 font-mono text-[11px] tracking-wider uppercase">
+        <div className="text-muted-foreground/90 inline-flex items-center gap-2 text-[11px] font-medium tracking-[0.08em] uppercase">
           <Icon className={cn("h-3.5 w-3.5", a.text)} aria-hidden />
           <span>{label}</span>
         </div>
         {fake ? (
           <span
             title="Phase 1 placeholder — wired in Phase 2"
-            className="inline-flex items-center gap-1 font-mono text-[9px] tracking-wider uppercase text-muted-foreground/50"
+            className="text-muted-foreground/50 inline-flex items-center gap-1 text-[10px] tracking-wider uppercase"
           >
             <span className="bg-muted-foreground/40 inline-block h-1 w-1 rounded-full" aria-hidden />
             fake
@@ -134,19 +133,11 @@ function Card({
       <div className="flex-1">{children}</div>
     </article>
   );
-  const wrap = span === "hero"
-    ? "sm:col-span-2 lg:col-span-2"
-    : span === "wide"
-      ? "sm:col-span-2 lg:col-span-3"
-      : "";
-  if (!href) return <div className={wrap}>{inner}</div>;
+  if (!href) return inner;
   return (
     <a
       href={href}
-      className={cn(
-        "focus-visible:ring-ring focus-visible:ring-offset-background rounded-xl focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none",
-        wrap,
-      )}
+      className="focus-visible:ring-ring focus-visible:ring-offset-background rounded-xl focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
     >
       {inner}
     </a>
@@ -171,7 +162,7 @@ function Sparkline({
   const step = w / (values.length - 1);
   const pts = values.map((v, i) => ({
     x: i * step,
-    y: h - ((v - min) / range) * (h - 4) - 2, // 2px padding top/bottom
+    y: h - ((v - min) / range) * (h - 4) - 2,
   }));
   const linePoints = pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ");
   const areaPoints = `0,${h} ${linePoints} ${w},${h}`;
@@ -213,19 +204,19 @@ function CashCard() {
   return (
     <Card label="Cash" href="/cockpit/cash" icon={Wallet} accent="income">
       <div className="space-y-4">
-        <div className="font-mono">
-          <p className="text-foreground text-[2.25rem] leading-none tracking-tight tabular-nums">
+        <div>
+          <p className="text-foreground font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
             $24,180
           </p>
-          <p className="text-muted-foreground/80 mt-1.5 text-[11px] uppercase tracking-wider">
+          <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
             Corporate operating · CAD
           </p>
         </div>
         <Sparkline values={[18, 19, 22, 21, 23, 22, 24, 24]} accent="income" />
-        <p className="text-emerald-300 inline-flex items-center gap-1 font-mono text-xs tabular-nums">
-          <ArrowUpRight className="h-3 w-3" aria-hidden />
-          +$2,340
-          <span className="text-muted-foreground/70 ml-1">last 30 days</span>
+        <p className="inline-flex items-center gap-1 text-xs">
+          <ArrowUpRight className="text-emerald-300 h-3 w-3" aria-hidden />
+          <span className="text-emerald-300 font-mono tabular-nums">+$2,340</span>
+          <span className="text-muted-foreground/70">last 30 days</span>
         </p>
       </div>
     </Card>
@@ -236,17 +227,18 @@ function HstCard() {
   return (
     <Card label="HST · Q2" href="/cockpit/hst" icon={Receipt} accent="tax">
       <div className="space-y-4">
-        <div className="font-mono">
-          <p className="text-foreground text-[2.25rem] leading-none tracking-tight tabular-nums">
+        <div>
+          <p className="text-foreground font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
             −$1,142
           </p>
-          <p className="text-muted-foreground/80 mt-1.5 text-[11px] uppercase tracking-wider">
+          <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
             Refundable to AR Inc. · ITCs &gt; collected
           </p>
         </div>
         <Sparkline values={[6, 8, 10, 12, 11, 13, 14, 15]} accent="tax" />
-        <p className="text-muted-foreground/80 font-mono text-xs">
-          Quarter ends in <span className="text-foreground tabular-nums">47 days</span>
+        <p className="text-muted-foreground/80 text-xs">
+          Quarter ends in{" "}
+          <span className="text-foreground font-mono tabular-nums">47 days</span>
         </p>
       </div>
     </Card>
@@ -258,11 +250,11 @@ function SredCard() {
   return (
     <Card label="SR&ED · YTD" href="/cockpit/sred" icon={Sparkles} accent="rd">
       <div className="space-y-4">
-        <div className="font-mono">
-          <p className="text-foreground text-[2.25rem] leading-none tracking-tight tabular-nums">
+        <div>
+          <p className="text-foreground font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
             $26,440
           </p>
-          <p className="text-muted-foreground/80 mt-1.5 text-[11px] uppercase tracking-wider">
+          <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
             Refundable estimate · 50% rate
           </p>
         </div>
@@ -273,9 +265,11 @@ function SredCard() {
               style={{ width: `${pct}%` }}
             />
           </div>
-          <div className="flex items-center justify-between font-mono text-[11px] tabular-nums">
-            <span className="text-muted-foreground/80">~417 eligible-likely hours</span>
-            <span className="text-violet-300">{pct}% of FY</span>
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-muted-foreground/80">
+              <span className="font-mono tabular-nums">~417</span> eligible-likely hours
+            </span>
+            <span className="text-violet-300 font-mono tabular-nums">{pct}% of FY</span>
           </div>
         </div>
       </div>
@@ -337,32 +331,33 @@ function ExpensesCard() {
         {rows.map((row) => (
           <li
             key={row.vendor}
-            className="flex items-center justify-between font-mono text-[13px]"
+            className="flex items-center justify-between text-[13px]"
           >
             <span className="text-foreground/85">{row.vendor}</span>
-            <span className="text-foreground tabular-nums">${row.amount.toLocaleString()}</span>
+            <span className="text-foreground font-mono tabular-nums">
+              ${row.amount.toLocaleString()}
+            </span>
           </li>
         ))}
       </ul>
-      <div className="mt-3 flex items-center justify-between border-t border-white/[0.06] pt-2.5 font-mono text-[11px]">
+      <div className="mt-3 flex items-center justify-between border-t border-white/[0.06] pt-2.5 text-[11px]">
         <span className="text-muted-foreground/80 inline-flex items-center gap-1">
           <ArrowDownRight className="h-3 w-3" aria-hidden />
           MTD
         </span>
-        <span className="text-amber-300 tabular-nums">${total.toLocaleString()}</span>
+        <span className="text-amber-300 font-mono tabular-nums">
+          ${total.toLocaleString()}
+        </span>
       </div>
     </Card>
   );
 }
 
-// Per-person accent — each scheduled routine gets a category color so its
-// signature is recognizable at a glance. Maps to corporate-finance-champion's
-// proposed routine roster (project_scheduled_routines_v2.md).
 const PERSON_ACCENT: Record<string, { chip: string; dot: string }> = {
-  Hugo:   { chip: "bg-amber-500/10  text-amber-300  ring-amber-500/15",  dot: "bg-amber-400" },
-  Marcus: { chip: "bg-violet-500/10 text-violet-300 ring-violet-500/15", dot: "bg-violet-400" },
-  Vera:   { chip: "bg-teal-500/10   text-teal-300   ring-teal-500/15",   dot: "bg-teal-400" },
-  Quinn:  { chip: "bg-rose-500/10   text-rose-300   ring-rose-500/15",   dot: "bg-rose-400" },
+  Hugo:   { chip: "bg-amber-500/10  text-amber-300  ring-amber-500/15",   dot: "bg-amber-400" },
+  Marcus: { chip: "bg-violet-500/10 text-violet-300 ring-violet-500/15",  dot: "bg-violet-400" },
+  Vera:   { chip: "bg-teal-500/10   text-teal-300   ring-teal-500/15",    dot: "bg-teal-400" },
+  Quinn:  { chip: "bg-rose-500/10   text-rose-300   ring-rose-500/15",    dot: "bg-rose-400" },
   Tessa:  { chip: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/15", dot: "bg-emerald-400" },
 };
 
@@ -394,7 +389,7 @@ function AnomaliesCard() {
               <div className="flex-1 leading-snug">
                 <span
                   className={cn(
-                    "mr-2 inline-flex items-center rounded-md px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase ring-1 ring-inset",
+                    "mr-2 inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium tracking-[0.08em] uppercase ring-1 ring-inset",
                     tone.chip,
                   )}
                 >
@@ -421,16 +416,16 @@ function ChatPanel() {
         className="pointer-events-none absolute -top-16 -right-12 h-40 w-40 rounded-full bg-violet-500/10 blur-3xl"
       />
       <div className="relative flex items-center justify-between pb-3">
-        <h2 className="text-muted-foreground/90 inline-flex items-center gap-2 font-mono text-[11px] tracking-wider uppercase">
+        <h2 className="text-muted-foreground/90 inline-flex items-center gap-2 text-[11px] font-medium tracking-[0.08em] uppercase">
           <Sparkles className="h-3.5 w-3.5 text-violet-300" aria-hidden />
           Ask Claude · corporate-finance-champion
         </h2>
-        <span className="inline-flex items-center gap-1 rounded-md bg-white/[0.04] px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/70 ring-1 ring-inset ring-white/[0.06]">
+        <span className="text-muted-foreground/70 inline-flex items-center gap-1 rounded-md bg-white/[0.04] px-1.5 py-0.5 text-[10px] tracking-wider uppercase ring-1 ring-inset ring-white/[0.06]">
           Phase 2
         </span>
       </div>
-      <div className="relative rounded-lg border border-white/[0.05] bg-black/30 p-3.5 font-mono text-sm">
-        <span className="text-violet-300">&gt;_ </span>
+      <div className="relative rounded-lg border border-white/[0.05] bg-black/30 p-3.5 text-sm">
+        <span className="text-violet-300 font-mono">&gt;_ </span>
         <span className="text-muted-foreground/70">
           Embedded chat lands in Phase 2. For now, ask the corporate-finance-champion in your
           Claude Code session.

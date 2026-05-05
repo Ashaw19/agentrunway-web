@@ -54,7 +54,7 @@ export function CockpitShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex max-w-7xl items-center gap-6 px-4 pt-4 pb-2 sm:px-6 lg:px-8">
           <Link
             href="/cockpit"
-            className="text-foreground inline-flex items-center gap-2.5 font-mono text-sm font-medium tracking-tight"
+            className="text-foreground inline-flex items-center gap-2.5 text-sm font-semibold tracking-tight"
           >
             <span
               aria-hidden
@@ -63,10 +63,10 @@ export function CockpitShell({ children }: { children: React.ReactNode }) {
               <Anchor className="text-blue-300 h-3.5 w-3.5" aria-hidden />
             </span>
             <span>Cockpit</span>
-            <span className="text-muted-foreground/60 text-xs">· Agent Runway Inc.</span>
+            <span className="text-muted-foreground/60 text-xs font-normal">· Agent Runway Inc.</span>
           </Link>
           <div className="ml-auto inline-flex items-center gap-3 text-xs">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/[0.06] px-2.5 py-1 font-mono text-amber-300/90">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/[0.06] px-2.5 py-1 text-[11px] tracking-wide text-amber-300/90">
               <span className="bg-amber-400 inline-block h-1.5 w-1.5 rounded-full" aria-hidden />
               Phase 1 · fake data
             </span>
@@ -82,7 +82,7 @@ export function CockpitShell({ children }: { children: React.ReactNode }) {
                     href={tab.href}
                     aria-current={isActive ? "page" : undefined}
                     className={cn(
-                      "relative inline-flex items-center px-3 py-2.5 font-mono text-xs whitespace-nowrap transition-colors",
+                      "relative inline-flex items-center px-3 py-2.5 text-[13px] font-medium whitespace-nowrap transition-colors",
                       isActive
                         ? "text-foreground"
                         : "text-muted-foreground/80 hover:text-foreground",
@@ -109,7 +109,7 @@ export function CockpitShell({ children }: { children: React.ReactNode }) {
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">{children}</main>
 
       <footer className="border-border/40 mt-auto border-t">
-        <div className="text-muted-foreground/70 mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-4 font-mono text-[11px] sm:px-6 lg:px-8">
+        <div className="text-muted-foreground/70 mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-4 text-[11px] sm:px-6 lg:px-8">
           <span className="inline-flex items-center gap-1.5">
             <span className="bg-muted-foreground/40 inline-block h-1 w-1 rounded-full" aria-hidden />
             Cockpit · v0.1 · for Andrew Shaw only

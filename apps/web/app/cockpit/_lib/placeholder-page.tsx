@@ -43,7 +43,7 @@ export function PlaceholderPage({
           <Icon className={cn("h-5 w-5", a.text)} aria-hidden />
         </span>
         <div className="flex-1 min-w-0">
-          <h1 className="text-foreground font-mono text-2xl tracking-tight">{title}</h1>
+          <h1 className="text-foreground text-2xl font-semibold tracking-tight">{title}</h1>
           <p className="text-muted-foreground mt-1.5 max-w-2xl text-sm leading-relaxed">{blurb}</p>
         </div>
       </header>
@@ -74,14 +74,14 @@ export function PlaceholderPage({
           <div className="flex items-center gap-2">
             <span
               className={cn(
-                "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider ring-1 ring-inset",
+                "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.08em] ring-1 ring-inset",
                 a.chip,
               )}
             >
               <span className={cn("inline-block h-1 w-1 rounded-full", a.bar)} aria-hidden />
               Phase 2
             </span>
-            <span className="text-muted-foreground/70 font-mono text-[11px] uppercase tracking-wider">
+            <span className="text-muted-foreground/70 text-[11px] uppercase tracking-[0.08em]">
               planned content
             </span>
           </div>
@@ -99,7 +99,7 @@ export function PlaceholderPage({
               </li>
             ))}
           </ul>
-          <p className="text-muted-foreground/70 mt-6 font-mono text-[11px] leading-relaxed">
+          <p className="text-muted-foreground/70 mt-6 text-[11px] leading-relaxed">
             Wired once Hugo / Vera / Quinn / Tessa start producing findings (after QuickBooks MCP
             authenticates).
           </p>
