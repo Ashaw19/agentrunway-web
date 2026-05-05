@@ -278,6 +278,16 @@ The system flags when your pipeline is too thin to cover your remaining annual g
 - **Alert**: Coverage < 1.0x remaining goal (pipeline can't cover target even at 100%)
 - No alert if remaining goal ≤ 0 (goal already met, or no goal set)
 
+### Stale Deal Flags (pipeline-forecast-engine.ts)
+The engine flags pipeline deals that may be inflating the headline Total Weighted GCI:
+- **staleDealCount**: deals with no expectedCloseDate, OR with an expectedCloseDate >180 days in the past
+- **staleWeightedGCI**: the weighted-GCI contribution of those flagged deals
+- The Pipeline page renders a caveat banner above the Summary Strip when staleDealCount > 0, showing the count plus the dollar contribution
+- These deals are NOT removed from the total — they are surfaced so the agent can decide to update the close date or move them to fallen/closed
+
+### Manual Probability Override Pill
+When a deal's probability_override is set, the unified pipeline item carries manualOverride = true. The Pipeline table renders a "MANUAL" pill next to the % column with a tooltip noting that the override bypasses the stage default. A 0% or 100% override no longer silently zeros or maxes a row in the weighted total without a visual signal.
+
 Note: Activity decay alerts also exist — clients whose days-since-last-contact exceed 2–3× their personal average contact rhythm get flagged as going cold (separate from the fixed 14/30-day stale thresholds).
 
 ### Conversion Funnel (pipeline-forecast-engine.ts)
@@ -1277,7 +1287,7 @@ After onboarding, a welcome tour highlights key features:
 
 ### Overview
 Agent Runway Teams allows brokerages and team leaders to manage agents under one organization.
-Pricing: $149/mo team leader + $55/mo per member seat. The Ellis Realty beta has lifetime free access.
+Pricing: $149/mo team leader + $55/mo per member seat. The Ellis Realty beta has the team price locked for the duration of their active subscription.
 
 ### Architecture
 - **Organization** = top-level container (name, logo, type, seat limit)
@@ -1499,6 +1509,12 @@ The Overhead page includes a **Time Value** card that appears when the agent has
 - **Cost Per Hour**: Annual expenses ÷ annual working hours
 
 **Formula**: Annual hours = (52 − vacation weeks) × weekly hours
+
+**Early-Year Dampening** (yearFractionElapsed < 10%, roughly Jan 1–Feb 7):
+- Annualized deal count blends toward the actual YTD deal count to prevent a single early-year deal from implying ~77 deals/year
+- Below 10% elapsed: annualizedDealCount = dealCount × (1 − ramp) + rawAnnualized × ramp, where ramp = yearFractionElapsed / 0.10
+- This dampening cascades into revenuePerDeal, hoursPerDeal, breakEvenDealCount, and netPerDeal
+- Mirrors the same confidence ramp in projection-engine.projectedYearEndTransactions, so dashboard projections and Time Value figures stay consistent in early January
 
 If the card doesn't show: the agent hasn't set 'estimated_weekly_hours' in Settings.
 
