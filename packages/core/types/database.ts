@@ -1,1414 +1,4519 @@
-// ============================================================================
-// Agent Runway — Database Types
-// TypeScript types mirroring the Supabase Postgres schema
-// ============================================================================
-
-// ── Enums ───────────────────────────────────────────────────────────────────
-
-export type TransactionSide = "buyer" | "seller" | "both";
-
-export type TransactionStatus = "closed" | "pending" | "fallen";
-
-// Phase 1 — Unified Ledger
-export type TxDatePrecision = "day" | "month" | "quarter" | "year";
-export type TxSource = "manual" | "imported";
-
-export type PipelineStage = "lead" | "showing" | "offer" | "conditional" | "firm" | "closed";
-
-export const PIPELINE_STAGE_DEFAULTS: Record<PipelineStage, number> = {
-  lead: 0.1,
-  showing: 0.25,
-  offer: 0.5,
-  conditional: 0.75,
-  firm: 0.9,
-  closed: 1.0,
-};
-
-export type MilestoneType =
-  | "gciThreshold"
-  | "dealCount"
-  | "firstDealOfMonth"
-  | "firstDealOfQuarter"
-  | "bestMonth"
-  | "bestQuarter"
-  | "paceAhead"
-  | "streakWeek";
-
-export type SplitPreset =
-  | "p70_30"
-  | "p75_25"
-  | "p80_20"
-  | "p85_15"
-  | "p90_10"
-  | "p95_5"
-  | "p100_0";
-
-export const SPLIT_PRESET_AGENT_PCT: Record<SplitPreset, number> = {
-  p70_30: 0.7,
-  p75_25: 0.75,
-  p80_20: 0.8,
-  p85_15: 0.85,
-  p90_10: 0.9,
-  p95_5: 0.95,
-  p100_0: 1.0,
-};
-
-export type Province =
-  | "alberta"
-  | "britishColumbia"
-  | "manitoba"
-  | "newBrunswick"
-  | "newfoundland"
-  | "northwestTerritories"
-  | "novaScotia"
-  | "nunavut"
-  | "ontario"
-  | "princeEdwardIsland"
-  | "quebec"
-  | "saskatchewan"
-  | "yukon";
-
-export const PROVINCE_LABELS: Record<Province, string> = {
-  alberta: "Alberta",
-  britishColumbia: "British Columbia",
-  manitoba: "Manitoba",
-  newBrunswick: "New Brunswick",
-  newfoundland: "Newfoundland & Labrador",
-  northwestTerritories: "Northwest Territories",
-  novaScotia: "Nova Scotia",
-  nunavut: "Nunavut",
-  ontario: "Ontario",
-  princeEdwardIsland: "Prince Edward Island",
-  quebec: "Quebec",
-  saskatchewan: "Saskatchewan",
-  yukon: "Yukon",
-};
-
-export const PROVINCE_ISO_CODES: Record<Province, string> = {
-  alberta: "AB",
-  britishColumbia: "BC",
-  manitoba: "MB",
-  newBrunswick: "NB",
-  newfoundland: "NL",
-  northwestTerritories: "NT",
-  novaScotia: "NS",
-  nunavut: "NU",
-  ontario: "ON",
-  princeEdwardIsland: "PE",
-  quebec: "QC",
-  saskatchewan: "SK",
-  yukon: "YT",
-};
-
-/**
- * Consumer rates including PST — NOT for real estate commission tax calculations.
- * Use gstHstRate() from canadian-tax-engine.ts for commissions.
- */
-export const PROVINCE_CONSUMER_TAX_RATES: Record<Province, number> = {
-  alberta: 0.05,
-  britishColumbia: 0.12,
-  manitoba: 0.12,
-  newBrunswick: 0.15,
-  newfoundland: 0.15,
-  northwestTerritories: 0.05,
-  novaScotia: 0.14, // reduced from 15% Apr 1, 2025 (CRA Notice 342)
-  nunavut: 0.05,
-  ontario: 0.13,
-  princeEdwardIsland: 0.15,
-  quebec: 0.14975,
-  saskatchewan: 0.11,
-  yukon: 0.05,
-};
-
-export type MarketGeographyType = "national" | "province" | "board" | "city";
-
-export type MarketMetricFocus = "sales" | "price" | "combined";
-
-export type MarketDataReadiness = "manualOnly" | "stubData" | "liveFeed";
-
-// ── AI Voice Profile Types ───────────────────────────────────────────────────
-
-export interface CommunicationProfile {
-  completed: boolean;
-  answers: Record<string, string[]>; // q1: ["A","C"], q2: ["B","E"], etc.
-  derived: {
-    voice_traits: string[];
-    humor_level: "none" | "light" | "moderate" | "frequent";
-    directness: "low" | "medium" | "high";
-    verbosity: "concise" | "balanced" | "thorough";
-    archetype: string[];
-    sign_off_style: string;
-    avoids: string[];
-  };
-  ai_voice_summary: string; // human-readable summary sent to Groq
-}
-
-export interface BusinessIdentity {
-  completed: boolean;
-  specialty: string[]; // "buyer", "listing", "both"
-  market_type: string[]; // "urban_condo", "suburban", "rural", "luxury", "new_construction"
-  business_model: string; // "solo_agent", "team_lead", "team_member"
-  lead_sources: string[]; // "referrals", "sphere", "cold_outreach", "social", "farming"
-  years_experience: string; // "0_2", "3_5", "5_10", "10_plus"
-  avg_price_range: string; // "under_300k", "300_500k", "500_800k", "800k_1m", "over_1m"
-}
-
-export interface AgentGoals {
-  completed: boolean;
-  primary_goal: string; // "grow_volume", "grow_margins", "build_referral_base", "work_less", "build_team"
-  secondary_goals: string[];
-  signature_phrases: string; // free text
-  hard_nogos: string; // free text
-  suppressed_topics: string[]; // "tax_advice", "pricing", "crm_health", "business_growth"
-}
-
-// ── Row Types ───────────────────────────────────────────────────────────────
-
-export interface UserSettings {
-  user_id: string;
-
-  // YTD
-  ytd_gci: number;
-  ytd_transactions: number;
-  ytd_volume: number;
-  monthly_brokerage_fee: number;
-
-  // Split
-  split_preset: SplitPreset;
-
-  // Transaction fees
-  tx_fee_rate_pct: number;
-  tx_fee_annual_cap: number;
-
-  // Commission cap
-  post_cap_threshold_gci: number;
-  post_cap_agent_pct: number;
-  post_cap_brokerage_pct: number;
-
-  // Goals
-  goal_gci: number;
-  goal_transactions: number;
-  goal_volume: number;
-  growth_goal_year_pcts: number[]; // 5 elements
-
-  // Province
-  province: Province;
-
-  // Seasonality
-  use_national_seasonality: boolean;
-  national_quarter_pcts: number[]; // 4 elements
-  national_seasonality_updated: string;
-
-  // Market context
-  market_yoy_growth_pct: number;
-  market_mom_growth_pct: number;
-  market_sales_change_pct: number;
-  market_new_listings_change_pct: number;
-  market_index_source_note: string;
-  apply_market_adjustment: boolean;
-  market_report_month: string;
-  market_data_is_manual: boolean;
-  market_last_updated: string;
-
-  // Market architecture
-  market_board_name: string;
-  market_metric_focus: MarketMetricFocus;
-
-  // Claiming
-  home_office_business_use_pct: number;
-  vehicle_business_use_pct: number;
-
-  // T2125 — Home office
-  home_office_method: string;            // 'simplified' | 'detailed'
-  home_office_sq_footage: number | null; // for simplified method ($5/sq ft)
-  home_office_rent_monthly: number;
-  home_office_utilities_monthly: number;
-  home_office_property_tax_annual: number;
-  home_office_insurance_monthly: number;
-  home_office_maintenance_annual: number;
-  home_office_condo_fees_monthly: number;
-
-  // T2125 — GST/HST remittance tracking
-  gst_hst_registered: boolean;
-  gst_hst_remitted_q1: number;
-  gst_hst_remitted_q2: number;
-  gst_hst_remitted_q3: number;
-  gst_hst_remitted_q4: number;
-  gst_hst_paid_on_expenses: number;     // ITCs claimable
-
-  // T2125 — Vehicle
-  vehicle_type: string;                  // 'own' | 'lease' | 'none'
-
-  // T2125 — CRA tax instalments actually paid
-  cpp_instalment_paid_ytd: number;
-  tax_instalment_paid_q1: number;
-  tax_instalment_paid_q2: number;
-  tax_instalment_paid_q3: number;
-  tax_instalment_paid_q4: number;
-
-  // Defensibility
-  cash_reserve: number;
-  experience_years: number | null;
-  estimated_weekly_hours: number | null;
-  vacation_weeks_per_year: number | null;
-
-  // Profile display
-  display_name: string;
-  brokerage_name: string;
-  color_theme: string; // 'blue' | 'violet' | 'emerald' | 'orange' | 'rose'
-
-  // Profile media (Supabase Storage — profile-media bucket)
-  avatar_url: string;        // public URL of the agent profile photo
-  business_logo_url: string; // public URL of the business / brokerage logo
-  agent_cutout_url: string;  // public URL of transparent PNG cutout for social slides
-
-  // Business identity
-  business_name: string;   // trade name or team name (e.g. "The Smith Group")
-  business_number: string; // GST/HST registration number for CRA claiming
-
-  // Social media profile URLs (synced from iOS ProfileView)
-  social_instagram: string;
-  social_facebook:  string;
-  social_linkedin:  string;
-  social_tiktok:    string;
-  social_youtube:   string;
-
-  // UI preferences
-  dashboard_view: string; // 'essentials' | 'standard' | 'full'
-
-  // Subscription (Stripe)
-  subscription_tier: string;              // 'starter' | 'professional' | 'team'
-  subscription_status: string;            // 'free' | 'trialing' | 'active' | 'past_due' | 'canceled' | 'unpaid'
-  stripe_customer_id: string | null;      // cus_...
-  stripe_subscription_id: string | null;  // sub_...
-  subscription_current_period_end: string | null; // ISO timestamp
-
-  // Admin override
-  is_admin: boolean; // founder/admin flag — bypasses all subscription checks
-
-  // Local market board (reserved — market data layer currently disabled)
-  board_code:          string;       // board slug (e.g. 'nbreb', 'treb') — '' = not set
-
-  board_subregion:     string;       // Optional sub-region within board (e.g. 'Saint John') — '' = board total
-
-  // Business structure
-  is_incorporated:     boolean;      // true = PREC or general corp
-  corp_type:           string | null; // 'prec' | 'general' | null
-  compensation_method: string;        // 'salary' | 'dividends' | 'mixed'
-  has_employees:       boolean;       // unlocks Payroll & HR expense category
-  num_employees:       number;        // approximate headcount
-
-  // Tax optimization
-  tax_opt_dismissed: string[];       // IDs of dismissed/acted-on tax optimization cards
-
-  // Flight Control email signature (migration 00039)
-  email_signature: string;           // free-form multi-line signature block
-
-  // AI Voice Guide (migration 00046) — personal writing style for AI outreach drafts
-  ai_voice_guide: string | null;
-
-  // AI Voice Profile (migration 00052)
-  communication_profile: CommunicationProfile | null;
-  business_identity: BusinessIdentity | null;
-  agent_goals: AgentGoals | null;
-  ai_profile_prompt_dismissed_at: string | null;
-
-  // Tax filing
-  filing_frequency: 'monthly' | 'quarterly' | 'annual';
-  fiscal_year_end_month: number; // 1-12
-  brokerage_withholds_hst: boolean; // brokerage holds HST and remits to CRA
-
-  // Timestamps
-  created_at: string;
-  updated_at: string;
-}
-
-// ── Recurring Expense ──────────────────────────────────────────────────────
-
-export type RecurringFrequency = 'monthly' | 'quarterly' | 'annual';
-
-export interface RecurringExpense {
-  id: string;
-  user_id: string;
-  name: string;
-  amount: number;
-  category_key: string;
-  frequency: RecurringFrequency;
-  day_of_month: number;       // 1-28
-  month_of_year: number | null; // 1-12 for annual; starting quarter month for quarterly
-  hst_included: boolean;
-  hst_amount: number;
-  vehicle_pct_applicable: boolean;
-  notes: string;
-  start_date: string;
-  end_date: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface RecurringExpenseEntry {
-  id: string;
-  recurring_expense_id: string;
-  user_id: string;
-  receipt_expense_id: string | null;
-  entry_date: string;
-  amount: number;
-  status: 'generated' | 'confirmed' | 'skipped';
-  created_at: string;
-}
-
-// ── Filing Period Helpers ──────────────────────────────────────────────────
-
-export type FilingFrequency = 'monthly' | 'quarterly' | 'annual';
-
-export interface FilingPeriod {
-  label: string;         // e.g. "Q1 2026", "Jan 2026", "2026"
-  startDate: string;     // ISO date
-  endDate: string;       // ISO date
-  deadline: string;      // ISO date — CRA filing deadline
-}
-
-// ── CCA Asset (T2125 Capital Cost Allowance tracking) ────────────────────────
-
-export interface CcaAsset {
-  id: string;
-  user_id: string;
-  cca_class: number;                // 8, 10, 12, 50, etc.
-  class_rate: number;               // 0.20 = 20%
-  class_half_year: boolean;         // half-year rule
-  description: string;
-  acquisition_date: string;
-  original_cost: number;
-  business_use_pct: number;         // 0.0–1.0
-  opening_ucc: number;
-  additions_this_year: number;
-  disposals_this_year: number;
-  cca_claimed_prior: number;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-// Common CCA class definitions for the UI picker
-export const CCA_CLASSES: { class: number; rate: number; halfYear: boolean; label: string }[] = [
-  { class: 8,   rate: 0.20, halfYear: true,  label: "Class 8 — Office furniture & equipment (20%)" },
-  { class: 10,  rate: 0.30, halfYear: true,  label: "Class 10 — Motor vehicles (30%)" },
-  { class: 10.1, rate: 0.30, halfYear: true, label: "Class 10.1 — Passenger vehicles > $37,000 (30%)" },
-  { class: 12,  rate: 1.00, halfYear: true,  label: "Class 12 — Computer software & tools < $500 (100%)" },
-  { class: 50,  rate: 0.55, halfYear: true,  label: "Class 50 — Computers & data handling (55%)" },
-  { class: 14,  rate: 0,    halfYear: false, label: "Class 14 — Franchise or patent (straight-line)" },
-  { class: 43,  rate: 0.30, halfYear: true,  label: "Class 43 — Manufacturing & processing equipment (30%)" },
-];
-
-export interface Transaction {
-  id: string;
-  user_id: string;
-
-  date: string; // ISO date
-  address: string;
-  sale_price: number;
-  commission_pct: number;
-  gci_override: number | null;
-  side: TransactionSide;
-  status: TransactionStatus;
-  client_name: string;
-  notes: string;
-
-  // Phase 1 — Unified Ledger (optional until migration 00011 is applied)
-  date_precision?: TxDatePrecision;  // 'day' for manual entries; coarser for imports
-  source?: TxSource;                 // 'manual' | 'imported'
-
-  // Per-deal team / referral split (migration 00012)
-  // Agent's share of the commission BEFORE the brokerage split is applied.
-  // NULL = no team split (agent keeps 100% before brokerage cut).
-  // Waterfall: sale_price × commission_pct × team_split_pct × brokerage_split = net
-  team_split_pct?: number | null;
-
-  pipeline_deal_id: string | null;  // FK to pipeline_deals for accuracy tracking
-
-  // Import provenance + edit protection (migration 00121)
-  // import_external_id: stable natural-key fingerprint set on imported rows;
-  //                     NULL for manual entries. Used to UPSERT on re-import.
-  // edited_at:          timestamp of the most recent manual edit. NULL = untouched
-  //                     since import. Reimports skip rows with edited_at IS NOT NULL.
-  import_external_id?: string | null;
-  edited_at?: string | null;
-
-  created_at: string;
-  updated_at: string;
-}
-
-export interface PipelineDeal {
-  id: string;
-  user_id: string;
-
-  address: string;
-  estimated_price: number;
-  estimated_commission_pct: number;
-  side: TransactionSide;
-  stage: PipelineStage;
-  expected_close_date: string | null;
-  client_name: string;
-  notes: string;
-  probability_override: number | null;
-  client_id: string | null;                // FK to clients table
-  original_estimated_price: number | null;  // snapshot at creation for accuracy tracking
-
-  created_at: string;
-  updated_at: string;
-}
-
-export interface HistoryItem {
-  id: string;
-  user_id: string;
-
-  year: number;
-  annual_gci: number;
-  annual_tx: number;
-  quarter_gci: number[]; // [Q1, Q2, Q3, Q4]
-  quarter_tx: number[];
-  is_locked: boolean;
-  split_pct: number | null; // agent's brokerage split this year (e.g. 0.75 = 75/25)
-
-  // Expense + mileage history (migration 00017)
-  annual_expenses:       number;  // total annual business expenses
-  annual_mileage_km:     number;  // total business km driven
-  annual_mileage_deduct: number;  // total mileage deduction claimed
-
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ExpenseCategory {
-  id: string;
-  user_id: string;
-
-  key: string;
-  title: string;
-  sort_order: number;
-
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ExpenseItem {
-  id: string;
-  user_id: string;
-  category_id: string;
-
-  key: string;
-  title: string;
-  ytd_amount: number;
-  monthly_recurring: number;
-  sort_order: number;
-
-  created_at: string;
-  updated_at: string;
-}
-
-/** ExpenseCategory with its items joined */
-export interface ExpenseCategoryWithItems extends ExpenseCategory {
-  items: ExpenseItem[];
-}
-
-// ── Activity / CRM types (migration 00018) ───────────────────────────────────
-export type ActivityType = "call" | "email" | "text" | "showing" | "meeting" | "offer" | "note";
-export type TaskPriority  = "low" | "normal" | "high";
-export type LeadSource =
-  // Personal network
-  | "SOI"
-  | "Referral — Past Client"
-  | "Referral — Agent"
-  | "Referral — General"
-  // Portals
-  | "Realtor.ca"
-  | "Zillow"
-  | "Zolo"
-  | "HouseSigma"
-  | "Point2 Homes"
-  // Brokerages
-  | "Royal LePage"
-  | "RE/MAX"
-  | "EXIT Realty"
-  | "Century 21"
-  | "REAL Broker"
-  | "eXp Realty"
-  | "Keller Williams"
-  | "Brokerage Website"
-  // Events & outreach
-  | "Open House"
-  | "Door Knocking"
-  | "Direct Mail"
-  | "Sphere Event"
-  // Digital
-  | "Social Media"
-  | "Google Ads"
-  | "Facebook Ads"
-  | "YouTube"
-  | "TikTok"
-  | "Podcast / Media"
-  | "Cold Call"
-  | "Other";
-
-// ── Client Flight Status (aviation-themed pipeline stages, migration 00102) ──
-// Collapsed from 6 stages to 4 in migration 00102.
-// taxiing/approach/landed removed — "landed" is now a celebration moment, not a
-// status (post-close → cruising immediately). "scheduled" added for future-intent
-// clients with a target date or vague phrase like "after the holidays".
-export type ClientStatus = "boarding" | "scheduled" | "in_flight" | "cruising";
-
-// ── Client Archive Reason (migration 00037) ───────────────────────────────────
-export type ArchiveReason = "deceased" | "moved_away" | "do_not_contact" | "other";
-
-// ── Property Use (migration 00043) ────────────────────────────────────────────
-export type PropertyUse = "primary_residence" | "investment" | "commercial" | "pre_construction";
-
-export const PROPERTY_USE_LABELS: Record<PropertyUse, string> = {
-  primary_residence: "Primary Residence",
-  investment:        "Investment / Rental",
-  commercial:        "Commercial",
-  pre_construction:  "Pre-Construction",
-};
-
-// ── Client Communication Tone (migration 00041) ─────────────────────────────
-export type CommunicationTone = "casual" | "friendly" | "professional" | "formal";
-
-export const COMMUNICATION_TONE_LABELS: Record<CommunicationTone, string> = {
-  casual:       "Casual",
-  friendly:     "Friendly",
-  professional: "Professional",
-  formal:       "Formal",
-};
-
-export const COMMUNICATION_TONE_DESCRIPTIONS: Record<CommunicationTone, string> = {
-  casual:       "Close friend — first names, slang okay",
-  friendly:     "Warm & personal — default tone",
-  professional: "Business-appropriate — polished",
-  formal:       "Investor/VIP — respectful & precise",
-};
-
-// ── AI Flight Control — outreach queue (migration 00038) ──────────────────────
-export type OutreachOpportunityType =
-  // Phase A (live)
-  | "closing_anniversary"
-  | "idle_client"
-  | "birthday"
-  // Batch 1: Post-Close Nurture
-  | "post_close_3"
-  | "post_close_14"
-  | "post_close_90"
-  | "review_request"
-  | "referral_ask"
-  // Batch 2: Relationship Milestones
-  | "new_client_welcome"
-  | "contact_anniversary"
-  | "multi_deal_milestone"
-  // Batch 3: Seasonal
-  | "seasonal_spring"
-  | "seasonal_fall"
-  | "seasonal_yearend"
-  | "seasonal_tax"
-  // Batch 4: Intelligent Outreach (briefing-triggered, one-click from Today's Briefing)
-  | "mortgage_renewal_due"      // 5-yr term expiring within ~6 months — contact before the bank does
-  | "mortgage_renewal_window"   // 3–4.5 yrs post-close — plant the seed for upcoming renewal
-  | "past_client_check_in"      // landed/cruising client, 180+ days no contact
-  | "timeframe_approaching"     // active buyer/seller reaching their stated deadline
-  | "property_value_milestone"  // notable round-year anniversary (1,3,5,10yr) — offer CMA
-  // Batch 5: Memory-Powered Triggers (driven by client_memory_profiles)
-  | "pain_point_inactive"       // Known concern + idle — re-open with empathy
-  | "buyer_inventory_match"     // Active buyer matching new listings in target area
-  | "seller_timing_hesitation"  // Seller with timing objection — gentle nudge
-  | "mortgage_renewal_finance"  // Mortgage context surfaced in memory + finance-relevant timing
-  | "educational_value_inactive"// Idle client + known topic of interest — value-add touchpoint
-  | "condition_firming"         // Pipeline deal moving from conditional to firm
-  | "scheduled_date_approaching"; // Client in Scheduled stage, future-intent date approaching (within 30d)
-export type OutreachStatus          = "draft" | "ready" | "sent" | "skipped";
-
-export interface OutreachQueueItem {
-  id:               string;
-  user_id:          string;
-  client_id:        string | null;
-  client_record_id: string | null;
-  opportunity_type: OutreachOpportunityType;
-  trigger_date:     string;                  // ISO date
-  context:          Record<string, unknown>;
-  status:           OutreachStatus;
-  ai_subject:       string | null;
-  ai_body:          string | null;
-  final_subject:    string | null;
-  final_body:       string | null;
-  sent_at:          string | null;
-  created_at:       string;
-  updated_at:       string;
-}
-
-/** Top Opportunities — structured insight card for the Business Brain. */
-export interface AgentState {
-  pipeline_status: "empty" | "light" | "healthy";
-  pace_status:     "behind" | "on_track" | "ahead";
-  urgency_level:   "critical" | "high" | "moderate" | "low";
-}
-
-export interface TopOpportunity {
-  client_id:         string;
-  client_name:       string;
-  client_city:       string | null;
-  opportunity_type:  OutreachOpportunityType;
-  trigger_date:      string;
-  score:             number;
-  label:             string;           // e.g. "High-value past client · no contact in 14 months"
-  why_this_matters:  string;           // human explanation of relationship value
-  why_now:           string;           // timing justification
-  suggested_angle:   string;           // practical approach recommendation
-  context_level:     "sensitive" | "sparse" | "rich";
-  client_record_id:  string | null;
-  context:           Record<string, unknown>; // pass-through for optional drafting
-  financial_impact:  string;                  // 1-2 sentence business impact explanation
-  is_primary:        boolean;                 // true for exactly ONE opportunity — "start here"
-  primary_reason:    string | null;           // why this is the best use of time right now (primary only)
-  risk_if_ignored:   string | null;           // consequence of inaction (required for primary, optional for secondary)
-  agent_state?:      AgentState;              // runtime-computed snapshot of where the agent stands right now
-}
-
-export interface EmailConnection {
-  id:            string;
-  user_id:       string;
-  provider:      "gmail" | "outlook";
-  email_address: string;
-  display_name:  string | null;
-  connected_at:  string;
-}
-
-// AI Property Showings Ledger — migration 00040
-export type PropertyType = "detached" | "semi" | "townhouse" | "condo" | "other";
-export type AnalysisSourceType = "mls_cutsheet" | "screenshot" | "manual";
-
-export interface PropertyShowing {
-  id:                string;
-  user_id:           string;
-  client_id:         string;
-  property_address:  string;
-  city:              string | null;
-  province_region:   string | null;
-  postal_code:       string | null;
-  mls_number:        string | null;
-  listing_price:     number | null;
-  property_type:     PropertyType | null;
-  bedrooms:          number | null;
-  bathrooms:         number | null;
-  square_feet:       number | null;
-  lot_size:          string | null;
-  year_built:        number | null;
-  showing_date:      string;
-  client_rating:     number | null; // 1–5
-  notes:             string | null;
-  realtor_ca_url:    string | null;
-  screenshot_url:    string | null;
-  extracted_data:    Record<string, unknown>;
-  created_at:        string;
-  updated_at:        string;
-}
-
-export interface PropertyAnalysis {
-  id:             string;
-  user_id:        string;
-  client_id:      string | null;
-  showing_id:     string | null;
-  source_type:    AnalysisSourceType;
-  source_url:     string | null;
-  property_data:  Record<string, unknown>;
-  ai_analysis: {
-    pricing_assessment?: string;
-    offer_strategy?:     string;
-    leverage_tips?:      string[];
-    market_comparison?:  string;
-    risk_factors?:       string[];
-    summary?:            string;
-  };
-  created_at:     string;
-}
-
-export interface BuyerDNA {
-  preferred_type:      string;       // most common property type
-  avg_price:           number;
-  price_range:         [number, number];
-  avg_bedrooms:        number;
-  avg_bathrooms:       number;
-  avg_sqft:            number;
-  preferred_areas:     string[];     // most common cities/neighbourhoods
-  budget_drift:        "stable" | "increasing" | "decreasing";
-  viewing_velocity:    number;       // showings per week
-  top_rated_features:  string[];     // from notes + ratings
-  total_showings:      number;
-  date_range:          [string, string]; // first → most recent showing
-  ai_summary:          string;       // Groq-generated narrative
-}
-
-export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
-  boarding:  "Boarding",
-  scheduled: "Scheduled",
-  in_flight: "In-Flight",
-  cruising:  "Cruising",
-};
-
-export const CLIENT_STATUS_DESCRIPTIONS: Record<ClientStatus, string> = {
-  boarding:  "New or active lead — not yet under contract",
-  scheduled: "Plans to act later — target date or phrase captured",
-  in_flight: "Under contract — offer made, conditional, or firm",
-  cruising:  "Past client / long-term nurture — seasonal check-ins",
-};
-
-// ── Flight status colour arc ───────────────────────────────────────────────
-// Stages (4-stage model, migration 00102):
-//   boarding → scheduled → in_flight → cruising
-// Colour logic:
-//   sky (active prospect) → slate (parked/future) → violet (under contract) → blue (settled)
-//
-// Constraints (from colour system rules):
-//   • Amber is globally reserved for WARNING signals — never used for lifecycle stages
-//   • Orange is globally reserved for URGENCY/CRITICAL alerts — never used for stages
-//   • Violet signals "in the air" — mid-transaction commitment
-export const CLIENT_STATUS_COLORS: Record<ClientStatus, { bg: string; text: string; border: string; dot: string }> = {
-  boarding:  { bg: "bg-sky-50",    text: "text-sky-700",    border: "border-sky-200",    dot: "bg-sky-400"    },
-  scheduled: { bg: "bg-slate-100", text: "text-slate-600",  border: "border-slate-200",  dot: "bg-slate-400"  },
-  in_flight: { bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-200", dot: "bg-violet-400" },
-  cruising:  { bg: "bg-blue-50",   text: "text-blue-700",   border: "border-blue-200",   dot: "bg-blue-400"   },
-};
-
-// Defensive fallback styling for any status that slipped past the 4-stage
-// CHECK constraint (legacy row in a self-hosted env, future stage added).
-const UNKNOWN_STATUS_COLORS = {
-  bg: "bg-zinc-50", text: "text-zinc-600", border: "border-zinc-200", dot: "bg-zinc-400",
-} as const;
-
-/**
- * Render a client status as a human label. Unknown values fall back to
- * "Unknown" rather than rendering blank — the DB CHECK constraint should
- * prevent this in production, but old/migrated/imported rows can drift.
- */
-export function getClientStatusLabel(status: string | null | undefined): string {
-  if (!status) return "Unknown";
-  return CLIENT_STATUS_LABELS[status as ClientStatus] ?? "Unknown";
-}
-
-/**
- * Render-safe client status colours. Same fallback contract as the label
- * helper — never returns undefined.
- */
-export function getClientStatusColors(status: string | null | undefined) {
-  if (!status) return UNKNOWN_STATUS_COLORS;
-  return CLIENT_STATUS_COLORS[status as ClientStatus] ?? UNKNOWN_STATUS_COLORS;
-}
-
-// ── Listing Appointment Status (migration 00048) ─────────────────────────────
-export type ListingStatus = "scheduled" | "active" | "sold" | "expired" | "withdrawn" | "lost";
-
-export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
-  scheduled: "Scheduled",
-  active:    "Active Listing",
-  sold:      "Sold",
-  expired:   "Expired",
-  withdrawn: "Withdrawn",
-  lost:      "Lost Listing",
-};
-
-export interface ListingAppointment {
-  id:                   string;
-  user_id:              string;
-  client_id:            string | null;
-  appointment_date:     string;        // ISO date "YYYY-MM-DD"
-  property_address:     string | null;
-  estimated_list_price: number | null; // agent's estimate at appointment time
-  actual_list_price:    number | null; // what it listed for
-  actual_sale_price:    number | null; // what it sold for
-  status:               string;        // ListingStatus value
-  estimated_commission_pct: number | null; // agent's expected commission rate
-  expected_close_date:      string | null; // when the agent expects the listing to sell
-  listing_agreement_date:   string | null; // when the listing agreement was signed
-  notes:                string | null;
-  created_at:           string;
-  updated_at:           string;
-}
-
-// ── Buyer Financing Type (migration 00049) ───────────────────────────────────
-export type BuyerFinancingType = "mortgage" | "cash" | "bridge" | "unknown";
-
-export const BUYER_FINANCING_LABELS: Record<BuyerFinancingType, string> = {
-  mortgage: "Mortgage",
-  cash:     "Cash",
-  bridge:   "Bridge",
-  unknown:  "TBD",
-};
-
-// ── Phone Type ───────────────────────────────────────────────────────────────
-export type PhoneType = "mobile" | "home" | "work" | "other";
-
-export const PHONE_TYPE_LABELS: Record<PhoneType, string> = {
-  mobile: "Mobile",
-  home:   "Home",
-  work:   "Work",
-  other:  "Other",
-};
-
-// ── Preferred Contact Method ─────────────────────────────────────────────────
-export type PreferredContact = "phone" | "email" | "text";
-
-export const PREFERRED_CONTACT_LABELS: Record<PreferredContact, string> = {
-  phone: "Phone",
-  email: "Email",
-  text:  "Text",
-};
-
-// ── Property Interest Type ───────────────────────────────────────────────────
-export type PropertyInterestType = "budget" | "listing";
-
-export const PROPERTY_INTEREST_TYPE_LABELS: Record<PropertyInterestType, string> = {
-  budget:  "Buyer Budget",
-  listing: "Listing Price",
-};
-
-// ── Client Timeframe ─────────────────────────────────────────────────────────
-export type ClientTimeframe = "asap" | "1_3_months" | "3_6_months" | "6_12_months" | "12_plus" | "unknown";
-
-export const CLIENT_TIMEFRAME_LABELS: Record<ClientTimeframe, string> = {
-  asap:         "ASAP",
-  "1_3_months": "1–3 Months",
-  "3_6_months": "3–6 Months",
-  "6_12_months":"6–12 Months",
-  "12_plus":    "12+ Months",
-  unknown:      "Unknown",
-};
-
-// ── Relationship Type ────────────────────────────────────────────────────────
-export type RelationshipType = "spouse" | "partner" | "parent" | "child" | "referrer" | "referred";
-
-export const RELATIONSHIP_TYPE_LABELS: Record<RelationshipType, string> = {
-  spouse:   "Spouse",
-  partner:  "Partner",
-  parent:   "Parent",
-  child:    "Child",
-  referrer: "They Referred Someone",
-  referred: "Referred By",
-};
-
-export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
-  call:    "Phone Call",
-  email:   "Email",
-  text:    "Text",
-  showing: "Showing",
-  meeting: "Meeting",
-  offer:   "Offer",
-  note:    "Note",
-};
-
-export const ACTIVITY_TYPE_ICONS: Record<ActivityType, string> = {
-  call:    "📞",
-  email:   "✉️",
-  text:    "💬",
-  showing: "🏠",
-  meeting: "🤝",
-  offer:   "📋",
-  note:    "📝",
-};
-
-export interface ContactActivity {
-  id:            string;
-  user_id:       string;
-  client_id:     string;
-  type:          ActivityType;
-  description:   string;
-  activity_date: string;   // ISO timestamptz
-  created_at:    string;
-}
-
-export interface ContactTask {
-  id:           string;
-  user_id:      string;
-  client_id:    string | null;
-  title:        string;
-  due_date:     string;   // ISO date
-  priority:     TaskPriority;
-  notes:        string | null;
-  completed_at: string | null;  // null = pending
-  created_at:   string;
-  updated_at:   string;
-}
-
-export interface ClientNote {
-  id:         string;
-  user_id:    string;
-  client_id:  string;
-  content:    string;
-  created_at: string;
-}
-
-// ── Client identity (master record, one per unique client per agent) ──────────
-export interface Client {
-  id: string;
-  user_id: string;
-
-  name: string;
-  name_search: string;   // lower(trim(name)) — for dedup matching
-  first_name: string | null;
-  last_name:  string | null;
-
-  // Contact info
-  email:    string | null;
-  phone:    string | null;
-
-  // CRM fields (migration 00018)
-  birthdate:       string | null;  // ISO date — for anniversary alerts
-  tags:            string[];       // e.g. ["VIP", "Investor", "First-time buyer"]
-  lead_source:     string | null;  // LeadSource enum value
-  last_contact_at: string | null;  // auto-updated when activity logged
-  notes:           string | null;
-
-  // Profile expansion (migration 00027)
-  status:                 ClientStatus;
-  city:                   string | null;
-  province_region:        string | null;
-  // Full address (migration 00029)
-  street_address:         string | null;
-  unit_number:            string | null;
-  postal_code:            string | null;
-  country:                string;          // defaults to "Canada"
-  phone_type:             PhoneType;
-  secondary_email:        string | null;
-  secondary_phone:        string | null;
-  secondary_phone_type:   PhoneType;
-  property_interest:      number | null;
-  property_interest_type: PropertyInterestType;
-  timeframe:              string | null;   // ClientTimeframe value
-  preferred_contact:      PreferredContact;
-
-  // Speed to Lead (migration 00028)
-  first_contacted_at: string | null;
-
-  // Archive (migration 00037)
-  archived_at:    string | null;   // TIMESTAMPTZ — null = active
-  archive_reason: ArchiveReason | null;
-
-  // Communication tone for AI Flight Control (migration 00041)
-  communication_tone: CommunicationTone;
-
-  // Buyer profile (migration 00049)
-  buyer_pre_approved:        boolean | null;
-  buyer_pre_approval_amount: number | null;
-  buyer_financing_type:      string | null;  // BuyerFinancingType value
-  buyer_target_close_date:   string | null;  // ISO date
-  buyer_target_area:         string | null;  // Where buyer is looking (city/neighbourhood)
-
-  // CSV import tracking (migration 00054)
-  imported_at: string | null;  // set when created via bulk CSV import; null = manually added
-
-  // Scheduled stage (migration 00102)
-  scheduled_for:    string | null;  // ISO date — future date client plans to act
-  scheduled_phrase: string | null;  // vague phrase ("after the holidays", "next spring")
-
-  created_at: string;
-  updated_at: string;
-}
-
-// ── Client Relationships (migration 00027) ───────────────────────────────────
-export interface ClientRelationship {
-  id: string;
-  user_id: string;
-  client_id_a: string;
-  client_id_b: string;
-  relationship_type: RelationshipType;
-  created_at: string;
-}
-
-// ── Flight Plans stub (migration 00027 — future automated contact sequences) ─
-export interface FlightPlan {
-  id: string;
-  user_id: string;
-  name: string;
-  description: string | null;
-  trigger_status: ClientStatus | null;
-  trigger_tag:    string | null;   // only fire if client has this tag (migration 00044)
-  is_active: boolean;
-  is_system:  boolean;             // true = pre-loaded default (migration 00044)
-  system_key: string | null;       // stable key for idempotent seeding (migration 00044)
-  created_at: string;
-  updated_at: string;
-}
-
-export interface FlightPlanStep {
-  id: string;
-  flight_plan_id: string;
-  step_order: number;
-  delay_days: number;
-  action_type: "task" | "email" | "text";
-  template: string | null;
-  created_at: string;
-}
-
-// ── Tag System ───────────────────────────────────────────────────────────────
-
-export interface TagCategory {
-  category: string;
-  tags: string[];
-}
-
-export const PREDEFINED_TAGS: TagCategory[] = [
-  {
-    category: "Lead Type / Motivation",
-    tags: ["Buyer", "Seller", "Investor", "First-Time Buyer", "Relocation", "Renter", "Cash Buyer", "Luxury"],
-  },
-  {
-    category: "Property Interest",
-    tags: ["Pool", "Waterfront", "Fixer-Upper", "New Construction"],
-  },
-  {
-    category: "Lead Source & Marketing",
-    tags: ["Open House", "Sign Call", "Referral", "Facebook Lead", "Podcast Listener"],
-  },
-  {
-    category: "Status & Priority",
-    tags: ["VIP", "High Value", "Nurture", `Closed ${new Date().getFullYear()}`, "Out of Area"],
-  },
-  {
-    category: "Action / Restriction",
-    tags: ["Do Not Call", "Do Not Text", "Attorney", "Lender"],
-  },
-];
-
-export interface ClientRecord {
-  id: string;
-  user_id: string;
-
-  // FK to clients.id — null for pre-migration records or unmatched imports
-  client_id: string | null;
-
-  name: string;
-  side: "buyer" | "seller" | "both" | null; // agent's role in the deal
-  source: string | null;   // SOI, Agent Referral, Realtor.ca, etc.
-  address: string | null;
-  close_date: string | null; // ISO date
-  year: number | null;
-  gci: number;
-  notes: string | null;
-
-  // Property use for AI post-close context (migration 00043)
-  property_use: PropertyUse | null;
-
-  // Property specs (migration 00075)
-  bedrooms:     number | null;
-  bathrooms:    number | null;
-  garage:       boolean | null;
-  lot_acres:    number | null;
-  waterfront:   boolean | null;
-  square_feet:  number | null;
-
-  // MLS / listing URL (migration 00075)
-  listing_url:  string | null;
-
-  // Condition tracking (migration 00075)
-  condition_date:   string | null;  // ISO date
-  condition_status: "pending" | "waived" | "firmed" | "collapsed" | null;
-
-  // Import provenance + edit protection (migration 00121)
-  // See Transaction.import_external_id / edited_at for semantics.
-  import_external_id?: string | null;
-  edited_at?: string | null;
-
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Milestone {
-  id: string;
-  user_id: string;
-
-  type: MilestoneType;
-  title: string;
-  message: string;
-  triggered_at: string;
-  acknowledged: boolean;
-
-  created_at: string;
-}
-
-export interface AgentProfile {
-  id: string;
-  user_id: string;
-
-  name: string;
-  role: string;
-  agent_split_pct: number;
-  monthly_desk_fee: number;
-  target_gci: number;
-  color_index: number;
-  notes: string;
-  is_active: boolean;
-
-  created_at: string;
-  updated_at: string;
-}
-
-export interface TeamDeal {
-  id: string;
-  user_id: string;
-  agent_profile_id: string;
-
-  date: string;
-  address: string;
-  gci: number;
-  side: TransactionSide;
-  client_name: string;
-
-  created_at: string;
-  updated_at: string;
-}
-
-/** AgentProfile with deals joined */
-export interface AgentProfileWithDeals extends AgentProfile {
-  deals: TeamDeal[];
-}
-
-export interface MarketDataPoint {
-  id: string;
-  user_id: string;
-
-  period_label: string;
-  period_start: string | null;
-  period_end: string | null;
-
-  geo_type: MarketGeographyType;
-  geo_name: string;
-  geo_province_code: string;
-  geo_board_code: string | null;
-
-  sales: number | null;
-  new_listings: number | null;
-  active_listings: number | null;
-  benchmark_price: number | null;
-  avg_price: number | null;
-  months_of_inventory: number | null;
-  dom_median: number | null;
-
-  yoy_sales_pct: number | null;
-  yoy_price_pct: number | null;
-  mom_sales_pct: number | null;
-  mom_price_pct: number | null;
-
-  source_name: string;
-  source_url: string | null;
-  retrieved_at: string;
-  notes: string | null;
-
-  created_at: string;
-}
-
-// ── Plaid bank sync (migration 00019) ─────────────────────────────────────────
-
-/** One connected bank/card account per row */
-export interface PlaidItem {
-  id:               string;
-  user_id:          string;
-  plaid_item_id:    string;
-  // NOTE: access_token is intentionally absent from this client-facing type.
-  // It is stored server-side only and accessed exclusively via the service-role
-  // admin client in API routes (/api/plaid/sync, /api/plaid/disconnect).
-  // A Postgres REVOKE SELECT (access_token) prevents the authenticated role
-  // from reading it via the Supabase REST/PostgREST API.
-  institution_id:   string | null;
-  institution_name: string | null;
-  sync_cursor:      string | null;
-  last_synced_at:   string | null;
-  error_code:       string | null;
-  error_message:    string | null;
-  created_at:       string;
-  updated_at:       string;
-}
-
-export type PlaidReviewStatus = "pending" | "approved" | "ignored";
-
-/** One imported bank/card transaction per row */
-export interface PlaidTransaction {
-  id:                    string;
-  user_id:               string;
-  plaid_item_id:         string;  // FK → plaid_items.id
-  plaid_transaction_id:  string;
-  plaid_account_id:      string | null;
-  transaction_date:      string;  // ISO date
-  merchant_name:         string | null;
-  description:           string;
-  amount:                number;  // positive = expense (debit)
-  category_key:          string | null;  // maps to expense_items.key
-  review_status:         PlaidReviewStatus;
-  suggested_category:    string | null;
-  suggestion_confidence: number | null;  // 0.0–1.0
-  created_at:            string;
-  updated_at:            string;
-}
-
-// ── Mileage Log ───────────────────────────────────────────────────────────────
-
-/** CRA automobile allowance rates for 2025 */
-export const CRA_MILEAGE_RATES = {
-  /** $/km for first 5,000 km of business travel */
-  first5000:   0.72,
-  /** $/km beyond 5,000 km */
-  beyond5000:  0.66,
-  /** Annual km threshold separating the two rates */
-  threshold:   5000,
-} as const;
-
-export interface MileageLog {
-  id:              string;
-  user_id:         string;
-  trip_date:       string;       // ISO date YYYY-MM-DD
-  description:     string;
-  from_location:   string | null;
-  to_location:     string | null;
-  km:              number;
-  cra_rate_per_km: number;
-  deduction:       number;       // generated column: km × cra_rate_per_km
-  purpose:         string | null;
-  notes:           string | null;
-  created_at:      string;
-  updated_at:      string;
-}
-
-// ── Computed Helpers (mirror iOS computed properties) ────────────────────────
-
-/** Compute GCI for a transaction (mirrors iOS Transaction.gci)
- *
- * Waterfall:
- *   1. gci_override set → use directly (user entered their exact net GCI).
- *   2. Otherwise: sale_price × commission_pct × team_split_pct (if set)
- *
- * The brokerage split is NOT applied here — it is applied downstream in
- * computeAgentGross() when computing net income or tax projections.
- *
- * Note: gci_override bypasses the team split intentionally — if a user
- * types in their GCI directly they already know their share of the deal.
- */
-export function computeGCI(tx: Transaction): number {
-  if (tx.gci_override != null) return tx.gci_override;
-  const raw = tx.sale_price * tx.commission_pct;
-  return (tx.team_split_pct != null && tx.team_split_pct > 0)
-    ? raw * tx.team_split_pct
-    : raw;
-}
-
-/** Compute pipeline deal probability (mirrors iOS PipelineDeal.probability) */
-export function computeProbability(deal: PipelineDeal): number {
-  if (deal.probability_override != null) {
-    return Math.max(0, Math.min(1, deal.probability_override));
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.4"
   }
-  // Guard against unknown stage values from DB (would otherwise return undefined → NaN in weightedGCI)
-  return PIPELINE_STAGE_DEFAULTS[deal.stage] ?? PIPELINE_STAGE_DEFAULTS.lead;
-}
-
-/** Compute estimated GCI for a pipeline deal */
-export function computeEstimatedGCI(deal: PipelineDeal): number {
-  return (deal.estimated_price ?? 0) * (deal.estimated_commission_pct ?? 0);
-}
-
-/** Compute weighted GCI for a pipeline deal */
-export function computeWeightedGCI(deal: PipelineDeal): number {
-  return computeEstimatedGCI(deal) * computeProbability(deal);
-}
-
-/** Get agent percentage from split preset */
-export function getAgentPct(preset: SplitPreset): number {
-  return SPLIT_PRESET_AGENT_PCT[preset];
-}
-
-/** Get brokerage percentage from split preset */
-export function getBrokeragePct(preset: SplitPreset): number {
-  return 1 - SPLIT_PRESET_AGENT_PCT[preset];
-}
-
-/** Compute transaction fees capped at annual max (mirrors iOS txFees) */
-export function computeTxFees(totalGCI: number, rateDecimal: number, annualCap: number): number {
-  const raw = totalGCI * rateDecimal;
-  return annualCap > 0 ? Math.min(raw, annualCap) : raw;
-}
-
-/** Compute agent gross from splits with cap logic (mirrors iOS agentGrossFromSplits) */
-export function computeAgentGross(
-  totalGCI: number,
-  preset: SplitPreset,
-  postCapThreshold: number,
-  postCapAgentPct: number,
-  _postCapBrokeragePct?: number,
-): { agentGross: number; brokerageTake: number } {
-  const agentPct = getAgentPct(preset);
-  const brokeragePct = getBrokeragePct(preset);
-
-  if (postCapThreshold > 0 && totalGCI > postCapThreshold) {
-    const preCap = postCapThreshold * agentPct;
-    const postCap = (totalGCI - postCapThreshold) * postCapAgentPct;
-    const agentGross = preCap + postCap;
-    return { agentGross, brokerageTake: totalGCI - agentGross };
+  public: {
+    Tables: {
+      accountant_shares: {
+        Row: {
+          access_count: number
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          label: string
+          last_accessed_at: string | null
+          share_expenses: boolean
+          share_mileage: boolean
+          share_t2125: boolean
+          share_transactions: boolean
+          token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_count?: number
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string
+          last_accessed_at?: string | null
+          share_expenses?: boolean
+          share_mileage?: boolean
+          share_t2125?: boolean
+          share_transactions?: boolean
+          token?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_count?: number
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string
+          last_accessed_at?: string | null
+          share_expenses?: boolean
+          share_mileage?: boolean
+          share_t2125?: boolean
+          share_transactions?: boolean
+          token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      agent_profiles: {
+        Row: {
+          agent_split_pct: number
+          color_index: number
+          created_at: string
+          id: string
+          is_active: boolean
+          monthly_desk_fee: number
+          name: string
+          notes: string
+          role: string
+          target_gci: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agent_split_pct?: number
+          color_index?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          monthly_desk_fee?: number
+          name?: string
+          notes?: string
+          role?: string
+          target_gci?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agent_split_pct?: number
+          color_index?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          monthly_desk_fee?: number
+          name?: string
+          notes?: string
+          role?: string
+          target_gci?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_knowledge_audit_log: {
+        Row: {
+          audit_date: string
+          classifier_coverage: number
+          classifier_gaps: Json | null
+          created_at: string
+          diagnostic_coverage: number
+          id: string
+          resolution_rate: number
+          topic_quality: Json | null
+          total_interactions: number
+          trending_topics: Json | null
+          unresolved_previews: Json | null
+        }
+        Insert: {
+          audit_date: string
+          classifier_coverage?: number
+          classifier_gaps?: Json | null
+          created_at?: string
+          diagnostic_coverage?: number
+          id?: string
+          resolution_rate?: number
+          topic_quality?: Json | null
+          total_interactions?: number
+          trending_topics?: Json | null
+          unresolved_previews?: Json | null
+        }
+        Update: {
+          audit_date?: string
+          classifier_coverage?: number
+          classifier_gaps?: Json | null
+          created_at?: string
+          diagnostic_coverage?: number
+          id?: string
+          resolution_rate?: number
+          topic_quality?: Json | null
+          total_interactions?: number
+          trending_topics?: Json | null
+          unresolved_previews?: Json | null
+        }
+        Relationships: []
+      }
+      business_settings: {
+        Row: {
+          created_at: string
+          currency: string | null
+          id: string
+          notes: string | null
+          province: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string | null
+          id?: string
+          notes?: string | null
+          province?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string | null
+          id?: string
+          notes?: string | null
+          province?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      calendar_events: {
+        Row: {
+          all_day: boolean
+          created_at: string
+          description: string | null
+          end_at: string
+          google_event_id: string | null
+          google_updated: string | null
+          id: string
+          location: string | null
+          outlook_event_id: string | null
+          source: string
+          source_id: string | null
+          source_type: string | null
+          start_at: string
+          sync_status: string
+          synced_at: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          all_day?: boolean
+          created_at?: string
+          description?: string | null
+          end_at: string
+          google_event_id?: string | null
+          google_updated?: string | null
+          id?: string
+          location?: string | null
+          outlook_event_id?: string | null
+          source: string
+          source_id?: string | null
+          source_type?: string | null
+          start_at: string
+          sync_status?: string
+          synced_at?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          all_day?: boolean
+          created_at?: string
+          description?: string | null
+          end_at?: string
+          google_event_id?: string | null
+          google_updated?: string | null
+          id?: string
+          location?: string | null
+          outlook_event_id?: string | null
+          source?: string
+          source_id?: string | null
+          source_type?: string | null
+          start_at?: string
+          sync_status?: string
+          synced_at?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      chat_analytics: {
+        Row: {
+          classifier_score: number
+          created_at: string
+          current_page: string | null
+          feedback: string | null
+          follow_up_count: number
+          had_diagnostics: boolean
+          had_playbook: boolean
+          id: string
+          message_preview: string
+          primary_topic: string
+          secondary_topic: string | null
+          session_message_count: number
+          user_id: string
+          was_escalation: boolean | null
+        }
+        Insert: {
+          classifier_score?: number
+          created_at?: string
+          current_page?: string | null
+          feedback?: string | null
+          follow_up_count?: number
+          had_diagnostics?: boolean
+          had_playbook?: boolean
+          id?: string
+          message_preview: string
+          primary_topic?: string
+          secondary_topic?: string | null
+          session_message_count?: number
+          user_id: string
+          was_escalation?: boolean | null
+        }
+        Update: {
+          classifier_score?: number
+          created_at?: string
+          current_page?: string | null
+          feedback?: string | null
+          follow_up_count?: number
+          had_diagnostics?: boolean
+          had_playbook?: boolean
+          id?: string
+          message_preview?: string
+          primary_topic?: string
+          secondary_topic?: string | null
+          session_message_count?: number
+          user_id?: string
+          was_escalation?: boolean | null
+        }
+        Relationships: []
+      }
+      client_memory_profiles: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          last_computed_at: string | null
+          memory_summary: string | null
+          stale: boolean
+          structured_facts: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          last_computed_at?: string | null
+          memory_summary?: string | null
+          stale?: boolean
+          structured_facts?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          last_computed_at?: string | null
+          memory_summary?: string | null
+          stale?: boolean
+          structured_facts?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_memory_profiles_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_notes: {
+        Row: {
+          client_id: string
+          content: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          content: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_notes_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_records: {
+        Row: {
+          address: string | null
+          bathrooms: number | null
+          bedrooms: number | null
+          client_id: string | null
+          close_date: string | null
+          condition_date: string | null
+          condition_status: string | null
+          created_at: string
+          edited_at: string | null
+          garage: boolean | null
+          gci: number | null
+          id: string
+          import_external_id: string | null
+          listing_url: string | null
+          lot_acres: number | null
+          name: string
+          notes: string | null
+          property_use: string | null
+          side: string | null
+          source: string | null
+          square_feet: number | null
+          updated_at: string
+          user_id: string
+          waterfront: boolean | null
+          year: number | null
+        }
+        Insert: {
+          address?: string | null
+          bathrooms?: number | null
+          bedrooms?: number | null
+          client_id?: string | null
+          close_date?: string | null
+          condition_date?: string | null
+          condition_status?: string | null
+          created_at?: string
+          edited_at?: string | null
+          garage?: boolean | null
+          gci?: number | null
+          id?: string
+          import_external_id?: string | null
+          listing_url?: string | null
+          lot_acres?: number | null
+          name: string
+          notes?: string | null
+          property_use?: string | null
+          side?: string | null
+          source?: string | null
+          square_feet?: number | null
+          updated_at?: string
+          user_id: string
+          waterfront?: boolean | null
+          year?: number | null
+        }
+        Update: {
+          address?: string | null
+          bathrooms?: number | null
+          bedrooms?: number | null
+          client_id?: string | null
+          close_date?: string | null
+          condition_date?: string | null
+          condition_status?: string | null
+          created_at?: string
+          edited_at?: string | null
+          garage?: boolean | null
+          gci?: number | null
+          id?: string
+          import_external_id?: string | null
+          listing_url?: string | null
+          lot_acres?: number | null
+          name?: string
+          notes?: string | null
+          property_use?: string | null
+          side?: string | null
+          source?: string | null
+          square_feet?: number | null
+          updated_at?: string
+          user_id?: string
+          waterfront?: boolean | null
+          year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_records_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_relationships: {
+        Row: {
+          client_id_a: string
+          client_id_b: string
+          created_at: string
+          id: string
+          relationship_type: string
+          user_id: string
+        }
+        Insert: {
+          client_id_a: string
+          client_id_b: string
+          created_at?: string
+          id?: string
+          relationship_type?: string
+          user_id: string
+        }
+        Update: {
+          client_id_a?: string
+          client_id_b?: string
+          created_at?: string
+          id?: string
+          relationship_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_relationships_client_id_a_fkey"
+            columns: ["client_id_a"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_relationships_client_id_b_fkey"
+            columns: ["client_id_b"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          archive_reason: string | null
+          archived_at: string | null
+          birthdate: string | null
+          buyer_financing_type: string | null
+          buyer_pre_approval_amount: number | null
+          buyer_pre_approved: boolean | null
+          buyer_target_area: string | null
+          buyer_target_close_date: string | null
+          city: string | null
+          communication_tone: string
+          country: string
+          created_at: string
+          email: string | null
+          engagement_score: number | null
+          engagement_updated_at: string | null
+          first_contacted_at: string | null
+          first_name: string | null
+          id: string
+          imported_at: string | null
+          last_contact_at: string | null
+          last_name: string | null
+          lead_source: string | null
+          name: string
+          name_search: string
+          notes: string | null
+          phone: string | null
+          phone_type: string
+          postal_code: string | null
+          preferred_contact: string
+          property_interest: number | null
+          property_interest_type: string
+          province_region: string | null
+          scheduled_for: string | null
+          scheduled_phrase: string | null
+          secondary_email: string | null
+          secondary_phone: string | null
+          secondary_phone_type: string
+          status: string
+          street_address: string | null
+          tags: string[]
+          timeframe: string | null
+          unit_number: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archive_reason?: string | null
+          archived_at?: string | null
+          birthdate?: string | null
+          buyer_financing_type?: string | null
+          buyer_pre_approval_amount?: number | null
+          buyer_pre_approved?: boolean | null
+          buyer_target_area?: string | null
+          buyer_target_close_date?: string | null
+          city?: string | null
+          communication_tone?: string
+          country?: string
+          created_at?: string
+          email?: string | null
+          engagement_score?: number | null
+          engagement_updated_at?: string | null
+          first_contacted_at?: string | null
+          first_name?: string | null
+          id?: string
+          imported_at?: string | null
+          last_contact_at?: string | null
+          last_name?: string | null
+          lead_source?: string | null
+          name: string
+          name_search: string
+          notes?: string | null
+          phone?: string | null
+          phone_type?: string
+          postal_code?: string | null
+          preferred_contact?: string
+          property_interest?: number | null
+          property_interest_type?: string
+          province_region?: string | null
+          scheduled_for?: string | null
+          scheduled_phrase?: string | null
+          secondary_email?: string | null
+          secondary_phone?: string | null
+          secondary_phone_type?: string
+          status?: string
+          street_address?: string | null
+          tags?: string[]
+          timeframe?: string | null
+          unit_number?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archive_reason?: string | null
+          archived_at?: string | null
+          birthdate?: string | null
+          buyer_financing_type?: string | null
+          buyer_pre_approval_amount?: number | null
+          buyer_pre_approved?: boolean | null
+          buyer_target_area?: string | null
+          buyer_target_close_date?: string | null
+          city?: string | null
+          communication_tone?: string
+          country?: string
+          created_at?: string
+          email?: string | null
+          engagement_score?: number | null
+          engagement_updated_at?: string | null
+          first_contacted_at?: string | null
+          first_name?: string | null
+          id?: string
+          imported_at?: string | null
+          last_contact_at?: string | null
+          last_name?: string | null
+          lead_source?: string | null
+          name?: string
+          name_search?: string
+          notes?: string | null
+          phone?: string | null
+          phone_type?: string
+          postal_code?: string | null
+          preferred_contact?: string
+          property_interest?: number | null
+          property_interest_type?: string
+          province_region?: string | null
+          scheduled_for?: string | null
+          scheduled_phrase?: string | null
+          secondary_email?: string | null
+          secondary_phone?: string | null
+          secondary_phone_type?: string
+          status?: string
+          street_address?: string | null
+          tags?: string[]
+          timeframe?: string | null
+          unit_number?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      consent_records: {
+        Row: {
+          client_id: string
+          consent_type: string
+          created_at: string
+          expires_at: string | null
+          granted_at: string
+          id: string
+          notes: string | null
+          source: string | null
+          updated_at: string
+          user_id: string
+          withdrawn_at: string | null
+        }
+        Insert: {
+          client_id: string
+          consent_type: string
+          created_at?: string
+          expires_at?: string | null
+          granted_at?: string
+          id?: string
+          notes?: string | null
+          source?: string | null
+          updated_at?: string
+          user_id: string
+          withdrawn_at?: string | null
+        }
+        Update: {
+          client_id?: string
+          consent_type?: string
+          created_at?: string
+          expires_at?: string | null
+          granted_at?: string
+          id?: string
+          notes?: string | null
+          source?: string | null
+          updated_at?: string
+          user_id?: string
+          withdrawn_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consent_records_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_activities: {
+        Row: {
+          activity_date: string
+          client_id: string
+          created_at: string
+          description: string
+          id: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          activity_date?: string
+          client_id: string
+          created_at?: string
+          description?: string
+          id?: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          activity_date?: string
+          client_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_activities_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_tasks: {
+        Row: {
+          client_id: string | null
+          completed_at: string | null
+          created_at: string
+          due_date: string
+          id: string
+          notes: string | null
+          priority: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          due_date: string
+          id?: string
+          notes?: string | null
+          priority?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          due_date?: string
+          id?: string
+          notes?: string | null
+          priority?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_tasks_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      corp_chart_of_accounts: {
+        Row: {
+          account_code: string
+          created_at: string
+          name: string
+          notes: string | null
+          type: string
+        }
+        Insert: {
+          account_code: string
+          created_at?: string
+          name: string
+          notes?: string | null
+          type: string
+        }
+        Update: {
+          account_code?: string
+          created_at?: string
+          name?: string
+          notes?: string | null
+          type?: string
+        }
+        Relationships: []
+      }
+      corp_transactions: {
+        Row: {
+          account_code: string | null
+          account_type: string | null
+          amount_pretax: number
+          amount_total: number
+          corp_pct: number
+          created_at: string
+          currency: string
+          date: string
+          description: string | null
+          fx_rate: number | null
+          gst_hst: number
+          id: string
+          incurred_date: string | null
+          ingested_at: string
+          ingested_by_user_id: string | null
+          needs_review: boolean
+          notes: string | null
+          parent_transaction_id: string | null
+          posted_at: string | null
+          pre_incorp_flag: boolean
+          receipt_storage_path: string | null
+          review_reason: string | null
+          source_channel: string
+          source_ref: string | null
+          sred_category: string | null
+          sred_eligible: boolean
+          updated_at: string
+          user_id: string
+          vendor_id: string | null
+          vendor_name_raw: string | null
+        }
+        Insert: {
+          account_code?: string | null
+          account_type?: string | null
+          amount_pretax: number
+          amount_total: number
+          corp_pct?: number
+          created_at?: string
+          currency?: string
+          date: string
+          description?: string | null
+          fx_rate?: number | null
+          gst_hst?: number
+          id?: string
+          incurred_date?: string | null
+          ingested_at?: string
+          ingested_by_user_id?: string | null
+          needs_review?: boolean
+          notes?: string | null
+          parent_transaction_id?: string | null
+          posted_at?: string | null
+          pre_incorp_flag?: boolean
+          receipt_storage_path?: string | null
+          review_reason?: string | null
+          source_channel: string
+          source_ref?: string | null
+          sred_category?: string | null
+          sred_eligible?: boolean
+          updated_at?: string
+          user_id: string
+          vendor_id?: string | null
+          vendor_name_raw?: string | null
+        }
+        Update: {
+          account_code?: string | null
+          account_type?: string | null
+          amount_pretax?: number
+          amount_total?: number
+          corp_pct?: number
+          created_at?: string
+          currency?: string
+          date?: string
+          description?: string | null
+          fx_rate?: number | null
+          gst_hst?: number
+          id?: string
+          incurred_date?: string | null
+          ingested_at?: string
+          ingested_by_user_id?: string | null
+          needs_review?: boolean
+          notes?: string | null
+          parent_transaction_id?: string | null
+          posted_at?: string | null
+          pre_incorp_flag?: boolean
+          receipt_storage_path?: string | null
+          review_reason?: string | null
+          source_channel?: string
+          source_ref?: string | null
+          sred_category?: string | null
+          sred_eligible?: boolean
+          updated_at?: string
+          user_id?: string
+          vendor_id?: string | null
+          vendor_name_raw?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corp_transactions_account_code_fkey"
+            columns: ["account_code"]
+            isOneToOne: false
+            referencedRelation: "corp_chart_of_accounts"
+            referencedColumns: ["account_code"]
+          },
+          {
+            foreignKeyName: "corp_transactions_parent_transaction_id_fkey"
+            columns: ["parent_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "corp_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "corp_transactions_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "corp_vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      corp_vendor_allocations: {
+        Row: {
+          corp_pct: number
+          created_at: string
+          effective_from: string | null
+          id: string
+          personal_pct: number
+          rationale_text: string | null
+          set_by: string | null
+          updated_at: string
+          user_id: string
+          vendor_id: string
+        }
+        Insert: {
+          corp_pct: number
+          created_at?: string
+          effective_from?: string | null
+          id?: string
+          personal_pct: number
+          rationale_text?: string | null
+          set_by?: string | null
+          updated_at?: string
+          user_id: string
+          vendor_id: string
+        }
+        Update: {
+          corp_pct?: number
+          created_at?: string
+          effective_from?: string | null
+          id?: string
+          personal_pct?: number
+          rationale_text?: string | null
+          set_by?: string | null
+          updated_at?: string
+          user_id?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corp_vendor_allocations_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "corp_vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      corp_vendors: {
+        Row: {
+          corp_pct: number
+          created_at: string
+          default_account_code: string | null
+          id: string
+          name: string
+          notes: string | null
+          regex_pattern: string
+          sred_category: string | null
+          sred_eligible: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          corp_pct?: number
+          created_at?: string
+          default_account_code?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          regex_pattern: string
+          sred_category?: string | null
+          sred_eligible?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          corp_pct?: number
+          created_at?: string
+          default_account_code?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          regex_pattern?: string
+          sred_category?: string | null
+          sred_eligible?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corp_vendors_default_account_code_fkey"
+            columns: ["default_account_code"]
+            isOneToOne: false
+            referencedRelation: "corp_chart_of_accounts"
+            referencedColumns: ["account_code"]
+          },
+        ]
+      }
+      drive_documents: {
+        Row: {
+          created_at: string
+          extracted_data: Json | null
+          google_file_id: string
+          id: string
+          indexed_at: string | null
+          last_modified: string | null
+          mime_type: string
+          name: string
+          size_bytes: number | null
+          summary: string | null
+          tags: string[]
+          updated_at: string
+          user_id: string
+          web_view_link: string | null
+        }
+        Insert: {
+          created_at?: string
+          extracted_data?: Json | null
+          google_file_id: string
+          id?: string
+          indexed_at?: string | null
+          last_modified?: string | null
+          mime_type: string
+          name: string
+          size_bytes?: number | null
+          summary?: string | null
+          tags?: string[]
+          updated_at?: string
+          user_id: string
+          web_view_link?: string | null
+        }
+        Update: {
+          created_at?: string
+          extracted_data?: Json | null
+          google_file_id?: string
+          id?: string
+          indexed_at?: string | null
+          last_modified?: string | null
+          mime_type?: string
+          name?: string
+          size_bytes?: number | null
+          summary?: string | null
+          tags?: string[]
+          updated_at?: string
+          user_id?: string
+          web_view_link?: string | null
+        }
+        Relationships: []
+      }
+      email_connections: {
+        Row: {
+          access_token_enc: string | null
+          calendar_sync_enabled: boolean
+          calendar_sync_token: string | null
+          connected_at: string
+          connection_name: string | null
+          display_name: string | null
+          email_address: string
+          expires_at: string | null
+          id: string
+          last_calendar_sync: string | null
+          provider: string
+          refresh_token_enc: string | null
+          smtp_host: string | null
+          smtp_password_enc: string | null
+          smtp_port: number | null
+          smtp_username: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          access_token_enc?: string | null
+          calendar_sync_enabled?: boolean
+          calendar_sync_token?: string | null
+          connected_at?: string
+          connection_name?: string | null
+          display_name?: string | null
+          email_address: string
+          expires_at?: string | null
+          id?: string
+          last_calendar_sync?: string | null
+          provider: string
+          refresh_token_enc?: string | null
+          smtp_host?: string | null
+          smtp_password_enc?: string | null
+          smtp_port?: number | null
+          smtp_username?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          access_token_enc?: string | null
+          calendar_sync_enabled?: boolean
+          calendar_sync_token?: string | null
+          connected_at?: string
+          connection_name?: string | null
+          display_name?: string | null
+          email_address?: string
+          expires_at?: string | null
+          id?: string
+          last_calendar_sync?: string | null
+          provider?: string
+          refresh_token_enc?: string | null
+          smtp_host?: string | null
+          smtp_password_enc?: string | null
+          smtp_port?: number | null
+          smtp_username?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      email_signups: {
+        Row: {
+          brokerage: string | null
+          created_at: string
+          email: string
+          id: string
+          name: string | null
+          source: string
+        }
+        Insert: {
+          brokerage?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          name?: string | null
+          source?: string
+        }
+        Update: {
+          brokerage?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string | null
+          source?: string
+        }
+        Relationships: []
+      }
+      email_warmup_status: {
+        Row: {
+          bounce_count: number
+          complaint_count: number
+          daily_limit: number
+          daily_sends_today: number
+          id: string
+          last_send_at: string | null
+          pause_reason: string | null
+          paused: boolean
+          provider: string
+          total_sends: number
+          updated_at: string
+          user_id: string
+          warmup_start_date: string
+        }
+        Insert: {
+          bounce_count?: number
+          complaint_count?: number
+          daily_limit?: number
+          daily_sends_today?: number
+          id?: string
+          last_send_at?: string | null
+          pause_reason?: string | null
+          paused?: boolean
+          provider?: string
+          total_sends?: number
+          updated_at?: string
+          user_id: string
+          warmup_start_date?: string
+        }
+        Update: {
+          bounce_count?: number
+          complaint_count?: number
+          daily_limit?: number
+          daily_sends_today?: number
+          id?: string
+          last_send_at?: string | null
+          pause_reason?: string | null
+          paused?: boolean
+          provider?: string
+          total_sends?: number
+          updated_at?: string
+          user_id?: string
+          warmup_start_date?: string
+        }
+        Relationships: []
+      }
+      expense_categories: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          sort_order: number
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          sort_order?: number
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      expense_items: {
+        Row: {
+          category_id: string
+          created_at: string
+          id: string
+          key: string
+          monthly_recurring: number
+          sort_order: number
+          title: string
+          updated_at: string
+          user_id: string
+          ytd_amount: number
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          id?: string
+          key: string
+          monthly_recurring?: number
+          sort_order?: number
+          title: string
+          updated_at?: string
+          user_id: string
+          ytd_amount?: number
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          id?: string
+          key?: string
+          monthly_recurring?: number
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          user_id?: string
+          ytd_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_items_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "expense_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feature_flags: {
+        Row: {
+          description: string | null
+          enabled: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          description?: string | null
+          enabled?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          description?: string | null
+          enabled?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      flight_plan_steps: {
+        Row: {
+          action_type: string
+          created_at: string
+          delay_days: number
+          flight_plan_id: string
+          id: string
+          step_order: number
+          template: string | null
+        }
+        Insert: {
+          action_type?: string
+          created_at?: string
+          delay_days?: number
+          flight_plan_id: string
+          id?: string
+          step_order?: number
+          template?: string | null
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          delay_days?: number
+          flight_plan_id?: string
+          id?: string
+          step_order?: number
+          template?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flight_plan_steps_flight_plan_id_fkey"
+            columns: ["flight_plan_id"]
+            isOneToOne: false
+            referencedRelation: "flight_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      flight_plans: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          is_system: boolean
+          name: string
+          system_key: string | null
+          trigger_status: string | null
+          trigger_tag: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          name: string
+          system_key?: string | null
+          trigger_status?: string | null
+          trigger_tag?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          name?: string
+          system_key?: string | null
+          trigger_status?: string | null
+          trigger_tag?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      google_connections: {
+        Row: {
+          access_token_enc: string
+          calendar_sync_enabled: boolean
+          calendar_sync_token: string | null
+          connected_at: string
+          display_name: string | null
+          drive_read_enabled: boolean
+          email_address: string
+          expires_at: string
+          gmail_send_enabled: boolean
+          granted_scopes: string[]
+          id: string
+          last_calendar_sync: string | null
+          refresh_token_enc: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token_enc: string
+          calendar_sync_enabled?: boolean
+          calendar_sync_token?: string | null
+          connected_at?: string
+          display_name?: string | null
+          drive_read_enabled?: boolean
+          email_address: string
+          expires_at: string
+          gmail_send_enabled?: boolean
+          granted_scopes?: string[]
+          id?: string
+          last_calendar_sync?: string | null
+          refresh_token_enc: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token_enc?: string
+          calendar_sync_enabled?: boolean
+          calendar_sync_token?: string | null
+          connected_at?: string
+          display_name?: string | null
+          drive_read_enabled?: boolean
+          email_address?: string
+          expires_at?: string
+          gmail_send_enabled?: boolean
+          granted_scopes?: string[]
+          id?: string
+          last_calendar_sync?: string | null
+          refresh_token_enc?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      history_items: {
+        Row: {
+          annual_expenses: number
+          annual_gci: number
+          annual_mileage_deduct: number
+          annual_mileage_km: number
+          annual_tx: number
+          created_at: string
+          id: string
+          is_locked: boolean
+          quarter_gci: Json
+          quarter_tx: Json
+          split_pct: number | null
+          updated_at: string
+          user_id: string
+          year: number
+        }
+        Insert: {
+          annual_expenses?: number
+          annual_gci?: number
+          annual_mileage_deduct?: number
+          annual_mileage_km?: number
+          annual_tx?: number
+          created_at?: string
+          id?: string
+          is_locked?: boolean
+          quarter_gci?: Json
+          quarter_tx?: Json
+          split_pct?: number | null
+          updated_at?: string
+          user_id: string
+          year: number
+        }
+        Update: {
+          annual_expenses?: number
+          annual_gci?: number
+          annual_mileage_deduct?: number
+          annual_mileage_km?: number
+          annual_tx?: number
+          created_at?: string
+          id?: string
+          is_locked?: boolean
+          quarter_gci?: Json
+          quarter_tx?: Json
+          split_pct?: number | null
+          updated_at?: string
+          user_id?: string
+          year?: number
+        }
+        Relationships: []
+      }
+      import_telemetry: {
+        Row: {
+          brokerage_confirmation_checked: boolean
+          brokerage_confirmation_shown: boolean
+          created_at: string
+          deal_count: number | null
+          document_subtype: string | null
+          edited_field_counts: Json | null
+          edited_field_names: string[] | null
+          error_category: string | null
+          event_type: string
+          extraction_quality: string | null
+          file_type: string | null
+          id: string
+          import_source: string | null
+          is_replace: boolean
+          issue_count_total: number | null
+          low_confidence_gci_count: number | null
+          rows_kept: number | null
+          rows_total: number | null
+          time_on_review_ms: number | null
+          total_fields_edited: number
+          truncation_occurred: boolean
+          user_id: string
+        }
+        Insert: {
+          brokerage_confirmation_checked?: boolean
+          brokerage_confirmation_shown?: boolean
+          created_at?: string
+          deal_count?: number | null
+          document_subtype?: string | null
+          edited_field_counts?: Json | null
+          edited_field_names?: string[] | null
+          error_category?: string | null
+          event_type?: string
+          extraction_quality?: string | null
+          file_type?: string | null
+          id?: string
+          import_source?: string | null
+          is_replace?: boolean
+          issue_count_total?: number | null
+          low_confidence_gci_count?: number | null
+          rows_kept?: number | null
+          rows_total?: number | null
+          time_on_review_ms?: number | null
+          total_fields_edited?: number
+          truncation_occurred?: boolean
+          user_id: string
+        }
+        Update: {
+          brokerage_confirmation_checked?: boolean
+          brokerage_confirmation_shown?: boolean
+          created_at?: string
+          deal_count?: number | null
+          document_subtype?: string | null
+          edited_field_counts?: Json | null
+          edited_field_names?: string[] | null
+          error_category?: string | null
+          event_type?: string
+          extraction_quality?: string | null
+          file_type?: string | null
+          id?: string
+          import_source?: string | null
+          is_replace?: boolean
+          issue_count_total?: number | null
+          low_confidence_gci_count?: number | null
+          rows_kept?: number | null
+          rows_total?: number | null
+          time_on_review_ms?: number | null
+          total_fields_edited?: number
+          truncation_occurred?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
+      inbound_emails: {
+        Row: {
+          attachment_count: number
+          attachment_summary: Json
+          cc_addresses: string[]
+          client_id: string | null
+          created_at: string
+          email_references: string[] | null
+          from_address: string
+          from_name: string | null
+          has_attachments: boolean
+          id: string
+          in_reply_to: string | null
+          matched_outreach_id: string | null
+          message_id: string | null
+          preview: string | null
+          raw_webhook: Json
+          received_at: string
+          resend_email_id: string
+          status: string
+          subject: string | null
+          to_address: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          attachment_count?: number
+          attachment_summary?: Json
+          cc_addresses?: string[]
+          client_id?: string | null
+          created_at?: string
+          email_references?: string[] | null
+          from_address: string
+          from_name?: string | null
+          has_attachments?: boolean
+          id?: string
+          in_reply_to?: string | null
+          matched_outreach_id?: string | null
+          message_id?: string | null
+          preview?: string | null
+          raw_webhook?: Json
+          received_at: string
+          resend_email_id: string
+          status?: string
+          subject?: string | null
+          to_address: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          attachment_count?: number
+          attachment_summary?: Json
+          cc_addresses?: string[]
+          client_id?: string | null
+          created_at?: string
+          email_references?: string[] | null
+          from_address?: string
+          from_name?: string | null
+          has_attachments?: boolean
+          id?: string
+          in_reply_to?: string | null
+          matched_outreach_id?: string | null
+          message_id?: string | null
+          preview?: string | null
+          raw_webhook?: Json
+          received_at?: string
+          resend_email_id?: string
+          status?: string
+          subject?: string | null
+          to_address?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inbound_emails_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inbound_emails_matched_outreach_id_fkey"
+            columns: ["matched_outreach_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_queue"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      listing_appointments: {
+        Row: {
+          actual_list_price: number | null
+          actual_sale_price: number | null
+          appointment_date: string
+          client_id: string | null
+          created_at: string
+          estimated_commission_pct: number | null
+          estimated_list_price: number | null
+          expected_close_date: string | null
+          id: string
+          listing_agreement_date: string | null
+          notes: string | null
+          property_address: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          actual_list_price?: number | null
+          actual_sale_price?: number | null
+          appointment_date: string
+          client_id?: string | null
+          created_at?: string
+          estimated_commission_pct?: number | null
+          estimated_list_price?: number | null
+          expected_close_date?: string | null
+          id?: string
+          listing_agreement_date?: string | null
+          notes?: string | null
+          property_address?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          actual_list_price?: number | null
+          actual_sale_price?: number | null
+          appointment_date?: string
+          client_id?: string | null
+          created_at?: string
+          estimated_commission_pct?: number | null
+          estimated_list_price?: number | null
+          expected_close_date?: string | null
+          id?: string
+          listing_agreement_date?: string | null
+          notes?: string | null
+          property_address?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listing_appointments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_data_points: {
+        Row: {
+          active_listings: number | null
+          avg_price: number | null
+          benchmark_price: number | null
+          created_at: string
+          dom_median: number | null
+          geo_board_code: string | null
+          geo_name: string
+          geo_province_code: string
+          geo_type: Database["public"]["Enums"]["market_geography_type"]
+          id: string
+          mom_price_pct: number | null
+          mom_sales_pct: number | null
+          months_of_inventory: number | null
+          new_listings: number | null
+          notes: string | null
+          period_end: string | null
+          period_label: string
+          period_start: string | null
+          retrieved_at: string
+          sales: number | null
+          source_name: string
+          source_url: string | null
+          user_id: string
+          yoy_price_pct: number | null
+          yoy_sales_pct: number | null
+        }
+        Insert: {
+          active_listings?: number | null
+          avg_price?: number | null
+          benchmark_price?: number | null
+          created_at?: string
+          dom_median?: number | null
+          geo_board_code?: string | null
+          geo_name?: string
+          geo_province_code?: string
+          geo_type?: Database["public"]["Enums"]["market_geography_type"]
+          id?: string
+          mom_price_pct?: number | null
+          mom_sales_pct?: number | null
+          months_of_inventory?: number | null
+          new_listings?: number | null
+          notes?: string | null
+          period_end?: string | null
+          period_label: string
+          period_start?: string | null
+          retrieved_at?: string
+          sales?: number | null
+          source_name?: string
+          source_url?: string | null
+          user_id: string
+          yoy_price_pct?: number | null
+          yoy_sales_pct?: number | null
+        }
+        Update: {
+          active_listings?: number | null
+          avg_price?: number | null
+          benchmark_price?: number | null
+          created_at?: string
+          dom_median?: number | null
+          geo_board_code?: string | null
+          geo_name?: string
+          geo_province_code?: string
+          geo_type?: Database["public"]["Enums"]["market_geography_type"]
+          id?: string
+          mom_price_pct?: number | null
+          mom_sales_pct?: number | null
+          months_of_inventory?: number | null
+          new_listings?: number | null
+          notes?: string | null
+          period_end?: string | null
+          period_label?: string
+          period_start?: string | null
+          retrieved_at?: string
+          sales?: number | null
+          source_name?: string
+          source_url?: string | null
+          user_id?: string
+          yoy_price_pct?: number | null
+          yoy_sales_pct?: number | null
+        }
+        Relationships: []
+      }
+      market_data_snapshots: {
+        Row: {
+          average_price: number | null
+          avg_price_yoy_pct: number | null
+          board_name: string
+          board_slug: string
+          created_at: string
+          dollar_volume_yoy_pct: number | null
+          historical_comparisons: Json | null
+          id: string
+          market_condition: string | null
+          median_sale_price: number | null
+          median_sale_price_yoy: number | null
+          new_listings_yoy_pct: number | null
+          quarterly_unit_sales: number | null
+          quarterly_unit_sales_yoy: number | null
+          raw_payload: Json | null
+          report_month: string
+          sales_to_new_listings_ratio: number | null
+          sales_yoy_pct: number | null
+          snapshot_date: string
+          sub_regions: Json | null
+          total_dollar_volume: number | null
+          total_new_listings: number | null
+          total_sales: number | null
+          ytd_avg_price: number | null
+          ytd_avg_price_yoy_pct: number | null
+          ytd_dollar_volume: number | null
+          ytd_sales: number | null
+          ytd_sales_yoy_pct: number | null
+        }
+        Insert: {
+          average_price?: number | null
+          avg_price_yoy_pct?: number | null
+          board_name: string
+          board_slug: string
+          created_at?: string
+          dollar_volume_yoy_pct?: number | null
+          historical_comparisons?: Json | null
+          id?: string
+          market_condition?: string | null
+          median_sale_price?: number | null
+          median_sale_price_yoy?: number | null
+          new_listings_yoy_pct?: number | null
+          quarterly_unit_sales?: number | null
+          quarterly_unit_sales_yoy?: number | null
+          raw_payload?: Json | null
+          report_month: string
+          sales_to_new_listings_ratio?: number | null
+          sales_yoy_pct?: number | null
+          snapshot_date?: string
+          sub_regions?: Json | null
+          total_dollar_volume?: number | null
+          total_new_listings?: number | null
+          total_sales?: number | null
+          ytd_avg_price?: number | null
+          ytd_avg_price_yoy_pct?: number | null
+          ytd_dollar_volume?: number | null
+          ytd_sales?: number | null
+          ytd_sales_yoy_pct?: number | null
+        }
+        Update: {
+          average_price?: number | null
+          avg_price_yoy_pct?: number | null
+          board_name?: string
+          board_slug?: string
+          created_at?: string
+          dollar_volume_yoy_pct?: number | null
+          historical_comparisons?: Json | null
+          id?: string
+          market_condition?: string | null
+          median_sale_price?: number | null
+          median_sale_price_yoy?: number | null
+          new_listings_yoy_pct?: number | null
+          quarterly_unit_sales?: number | null
+          quarterly_unit_sales_yoy?: number | null
+          raw_payload?: Json | null
+          report_month?: string
+          sales_to_new_listings_ratio?: number | null
+          sales_yoy_pct?: number | null
+          snapshot_date?: string
+          sub_regions?: Json | null
+          total_dollar_volume?: number | null
+          total_new_listings?: number | null
+          total_sales?: number | null
+          ytd_avg_price?: number | null
+          ytd_avg_price_yoy_pct?: number | null
+          ytd_dollar_volume?: number | null
+          ytd_sales?: number | null
+          ytd_sales_yoy_pct?: number | null
+        }
+        Relationships: []
+      }
+      mcp_events: {
+        Row: {
+          created_at: string
+          id: string
+          is_error: boolean | null
+          latency_ms: number | null
+          tool_name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_error?: boolean | null
+          latency_ms?: number | null
+          tool_name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_error?: boolean | null
+          latency_ms?: number | null
+          tool_name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      mileage_logs: {
+        Row: {
+          cra_rate_per_km: number
+          created_at: string
+          deduction: number | null
+          description: string
+          from_location: string | null
+          id: string
+          km: number
+          notes: string | null
+          purpose: string | null
+          to_location: string | null
+          trip_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cra_rate_per_km?: number
+          created_at?: string
+          deduction?: number | null
+          description?: string
+          from_location?: string | null
+          id?: string
+          km?: number
+          notes?: string | null
+          purpose?: string | null
+          to_location?: string | null
+          trip_date?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cra_rate_per_km?: number
+          created_at?: string
+          deduction?: number | null
+          description?: string
+          from_location?: string | null
+          id?: string
+          km?: number
+          notes?: string | null
+          purpose?: string | null
+          to_location?: string | null
+          trip_date?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      milestones: {
+        Row: {
+          acknowledged: boolean
+          created_at: string
+          id: string
+          message: string
+          title: string
+          triggered_at: string
+          type: Database["public"]["Enums"]["milestone_type"]
+          user_id: string
+        }
+        Insert: {
+          acknowledged?: boolean
+          created_at?: string
+          id?: string
+          message?: string
+          title: string
+          triggered_at?: string
+          type: Database["public"]["Enums"]["milestone_type"]
+          user_id: string
+        }
+        Update: {
+          acknowledged?: boolean
+          created_at?: string
+          id?: string
+          message?: string
+          title?: string
+          triggered_at?: string
+          type?: Database["public"]["Enums"]["milestone_type"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notification_log: {
+        Row: {
+          body: string | null
+          data: Json | null
+          expo_ticket_id: string | null
+          id: string
+          notification_type: string
+          sent_at: string
+          status: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          data?: Json | null
+          expo_ticket_id?: string | null
+          id?: string
+          notification_type: string
+          sent_at?: string
+          status?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          data?: Json | null
+          expo_ticket_id?: string | null
+          id?: string
+          notification_type?: string
+          sent_at?: string
+          status?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notification_preferences: {
+        Row: {
+          afternoon_recap: boolean
+          created_at: string
+          deal_milestone: boolean
+          follow_up_due: boolean
+          hot_lead_alert: boolean
+          morning_briefing: boolean
+          quiet_hours_end: string
+          quiet_hours_start: string
+          updated_at: string
+          user_id: string
+          weekly_digest_enabled: boolean
+        }
+        Insert: {
+          afternoon_recap?: boolean
+          created_at?: string
+          deal_milestone?: boolean
+          follow_up_due?: boolean
+          hot_lead_alert?: boolean
+          morning_briefing?: boolean
+          quiet_hours_end?: string
+          quiet_hours_start?: string
+          updated_at?: string
+          user_id: string
+          weekly_digest_enabled?: boolean
+        }
+        Update: {
+          afternoon_recap?: boolean
+          created_at?: string
+          deal_milestone?: boolean
+          follow_up_due?: boolean
+          hot_lead_alert?: boolean
+          morning_briefing?: boolean
+          quiet_hours_end?: string
+          quiet_hours_start?: string
+          updated_at?: string
+          user_id?: string
+          weekly_digest_enabled?: boolean
+        }
+        Relationships: []
+      }
+      nurture_sequences: {
+        Row: {
+          client_id: string
+          completed_at: string | null
+          created_at: string
+          current_step: number
+          id: string
+          metadata: Json | null
+          next_send_at: string | null
+          paused_at: string | null
+          sequence_type: string
+          status: string
+          transaction_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          completed_at?: string | null
+          created_at?: string
+          current_step?: number
+          id?: string
+          metadata?: Json | null
+          next_send_at?: string | null
+          paused_at?: string | null
+          sequence_type?: string
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          completed_at?: string | null
+          created_at?: string
+          current_step?: number
+          id?: string
+          metadata?: Json | null
+          next_send_at?: string | null
+          paused_at?: string | null
+          sequence_type?: string
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nurture_sequences_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nurture_sequences_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string
+          org_id: string
+          role: Database["public"]["Enums"]["org_member_role"]
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          expires_at?: string
+          id?: string
+          invited_by: string
+          org_id: string
+          role?: Database["public"]["Enums"]["org_member_role"]
+          token?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string
+          org_id?: string
+          role?: Database["public"]["Enums"]["org_member_role"]
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_invitations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_invitations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations_billing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_invitations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_members: {
+        Row: {
+          consent_granted_at: string | null
+          consent_version: number | null
+          created_at: string
+          data_sharing_tier: Database["public"]["Enums"]["data_sharing_tier"]
+          id: string
+          joined_at: string | null
+          org_id: string
+          role: Database["public"]["Enums"]["org_member_role"]
+          status: Database["public"]["Enums"]["org_member_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          consent_granted_at?: string | null
+          consent_version?: number | null
+          created_at?: string
+          data_sharing_tier?: Database["public"]["Enums"]["data_sharing_tier"]
+          id?: string
+          joined_at?: string | null
+          org_id: string
+          role?: Database["public"]["Enums"]["org_member_role"]
+          status?: Database["public"]["Enums"]["org_member_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          consent_granted_at?: string | null
+          consent_version?: number | null
+          created_at?: string
+          data_sharing_tier?: Database["public"]["Enums"]["data_sharing_tier"]
+          id?: string
+          joined_at?: string | null
+          org_id?: string
+          role?: Database["public"]["Enums"]["org_member_role"]
+          status?: Database["public"]["Enums"]["org_member_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_members_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations_billing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_members_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          anonymize_agents: boolean
+          billing_email: string | null
+          created_at: string
+          id: string
+          is_beta: boolean
+          logo_url: string | null
+          max_seats: number
+          name: string
+          org_goal_gci: number | null
+          owner_id: string | null
+          slug: string
+          stripe_customer_id: string | null
+          stripe_price_id: string | null
+          stripe_subscription_id: string | null
+          subscription_status: string
+          type: Database["public"]["Enums"]["org_type"]
+          updated_at: string
+        }
+        Insert: {
+          anonymize_agents?: boolean
+          billing_email?: string | null
+          created_at?: string
+          id?: string
+          is_beta?: boolean
+          logo_url?: string | null
+          max_seats?: number
+          name: string
+          org_goal_gci?: number | null
+          owner_id?: string | null
+          slug: string
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_status?: string
+          type: Database["public"]["Enums"]["org_type"]
+          updated_at?: string
+        }
+        Update: {
+          anonymize_agents?: boolean
+          billing_email?: string | null
+          created_at?: string
+          id?: string
+          is_beta?: boolean
+          logo_url?: string | null
+          max_seats?: number
+          name?: string
+          org_goal_gci?: number | null
+          owner_id?: string | null
+          slug?: string
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_status?: string
+          type?: Database["public"]["Enums"]["org_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      outreach_queue: {
+        Row: {
+          ai_body: string | null
+          ai_subject: string | null
+          client_id: string | null
+          client_record_id: string | null
+          context: Json
+          created_at: string
+          final_body: string | null
+          final_subject: string | null
+          id: string
+          opportunity_type: string
+          sent_at: string | null
+          status: string
+          trigger_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_body?: string | null
+          ai_subject?: string | null
+          client_id?: string | null
+          client_record_id?: string | null
+          context?: Json
+          created_at?: string
+          final_body?: string | null
+          final_subject?: string | null
+          id?: string
+          opportunity_type: string
+          sent_at?: string | null
+          status?: string
+          trigger_date: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_body?: string | null
+          ai_subject?: string | null
+          client_id?: string | null
+          client_record_id?: string | null
+          context?: Json
+          created_at?: string
+          final_body?: string | null
+          final_subject?: string | null
+          id?: string
+          opportunity_type?: string
+          sent_at?: string | null
+          status?: string
+          trigger_date?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_queue_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_queue_client_record_id_fkey"
+            columns: ["client_record_id"]
+            isOneToOne: false
+            referencedRelation: "client_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipeline_deals: {
+        Row: {
+          address: string
+          client_id: string | null
+          client_name: string
+          created_at: string
+          estimated_commission_pct: number
+          estimated_price: number
+          expected_close_date: string | null
+          id: string
+          notes: string
+          original_estimated_price: number | null
+          probability_override: number | null
+          side: Database["public"]["Enums"]["transaction_side"]
+          stage: Database["public"]["Enums"]["pipeline_stage"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string
+          client_id?: string | null
+          client_name?: string
+          created_at?: string
+          estimated_commission_pct?: number
+          estimated_price?: number
+          expected_close_date?: string | null
+          id?: string
+          notes?: string
+          original_estimated_price?: number | null
+          probability_override?: number | null
+          side?: Database["public"]["Enums"]["transaction_side"]
+          stage?: Database["public"]["Enums"]["pipeline_stage"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string
+          client_id?: string | null
+          client_name?: string
+          created_at?: string
+          estimated_commission_pct?: number
+          estimated_price?: number
+          expected_close_date?: string | null
+          id?: string
+          notes?: string
+          original_estimated_price?: number | null
+          probability_override?: number | null
+          side?: Database["public"]["Enums"]["transaction_side"]
+          stage?: Database["public"]["Enums"]["pipeline_stage"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_deals_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plaid_items: {
+        Row: {
+          access_token: string
+          created_at: string
+          error_code: string | null
+          error_message: string | null
+          id: string
+          institution_id: string | null
+          institution_name: string | null
+          last_synced_at: string | null
+          plaid_item_id: string
+          sync_cursor: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          institution_id?: string | null
+          institution_name?: string | null
+          last_synced_at?: string | null
+          plaid_item_id: string
+          sync_cursor?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          institution_id?: string | null
+          institution_name?: string | null
+          last_synced_at?: string | null
+          plaid_item_id?: string
+          sync_cursor?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      plaid_transactions: {
+        Row: {
+          amount: number
+          category_key: string | null
+          created_at: string
+          description: string
+          id: string
+          merchant_name: string | null
+          plaid_account_id: string | null
+          plaid_item_id: string
+          plaid_transaction_id: string
+          review_status: string
+          suggested_category: string | null
+          suggestion_confidence: number | null
+          transaction_date: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          category_key?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          merchant_name?: string | null
+          plaid_account_id?: string | null
+          plaid_item_id: string
+          plaid_transaction_id: string
+          review_status?: string
+          suggested_category?: string | null
+          suggestion_confidence?: number | null
+          transaction_date: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category_key?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          merchant_name?: string | null
+          plaid_account_id?: string | null
+          plaid_item_id?: string
+          plaid_transaction_id?: string
+          review_status?: string
+          suggested_category?: string | null
+          suggestion_confidence?: number | null
+          transaction_date?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plaid_transactions_plaid_item_id_fkey"
+            columns: ["plaid_item_id"]
+            isOneToOne: false
+            referencedRelation: "plaid_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      policy_acceptances: {
+        Row: {
+          acceptance_context: string
+          accepted_at: string
+          created_at: string
+          id: string
+          ip_address: unknown
+          policy_type: string
+          user_agent: string | null
+          user_id: string
+          version: string
+        }
+        Insert: {
+          acceptance_context: string
+          accepted_at?: string
+          created_at?: string
+          id?: string
+          ip_address?: unknown
+          policy_type: string
+          user_agent?: string | null
+          user_id: string
+          version: string
+        }
+        Update: {
+          acceptance_context?: string
+          accepted_at?: string
+          created_at?: string
+          id?: string
+          ip_address?: unknown
+          policy_type?: string
+          user_agent?: string | null
+          user_id?: string
+          version?: string
+        }
+        Relationships: []
+      }
+      precomputed_insights: {
+        Row: {
+          content: Json
+          expires_at: string
+          generated_at: string
+          id: string
+          insight_type: string
+          user_id: string
+        }
+        Insert: {
+          content?: Json
+          expires_at: string
+          generated_at?: string
+          id?: string
+          insight_type: string
+          user_id: string
+        }
+        Update: {
+          content?: Json
+          expires_at?: string
+          generated_at?: string
+          id?: string
+          insight_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
+      property_analyses: {
+        Row: {
+          ai_analysis: Json
+          client_id: string | null
+          created_at: string
+          id: string
+          property_data: Json
+          showing_id: string | null
+          source_type: string
+          source_url: string | null
+          user_id: string
+        }
+        Insert: {
+          ai_analysis?: Json
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          property_data?: Json
+          showing_id?: string | null
+          source_type: string
+          source_url?: string | null
+          user_id: string
+        }
+        Update: {
+          ai_analysis?: Json
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          property_data?: Json
+          showing_id?: string | null
+          source_type?: string
+          source_url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_analyses_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "property_analyses_showing_id_fkey"
+            columns: ["showing_id"]
+            isOneToOne: false
+            referencedRelation: "property_showings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      property_showings: {
+        Row: {
+          bathrooms: number | null
+          bedrooms: number | null
+          city: string | null
+          client_id: string
+          client_rating: number | null
+          created_at: string
+          extracted_data: Json
+          id: string
+          listing_price: number | null
+          lot_size: string | null
+          mls_number: string | null
+          notes: string | null
+          postal_code: string | null
+          property_address: string
+          property_type: string | null
+          province_region: string | null
+          realtor_ca_url: string | null
+          screenshot_url: string | null
+          showing_date: string
+          square_feet: number | null
+          updated_at: string
+          user_id: string
+          year_built: number | null
+        }
+        Insert: {
+          bathrooms?: number | null
+          bedrooms?: number | null
+          city?: string | null
+          client_id: string
+          client_rating?: number | null
+          created_at?: string
+          extracted_data?: Json
+          id?: string
+          listing_price?: number | null
+          lot_size?: string | null
+          mls_number?: string | null
+          notes?: string | null
+          postal_code?: string | null
+          property_address: string
+          property_type?: string | null
+          province_region?: string | null
+          realtor_ca_url?: string | null
+          screenshot_url?: string | null
+          showing_date?: string
+          square_feet?: number | null
+          updated_at?: string
+          user_id: string
+          year_built?: number | null
+        }
+        Update: {
+          bathrooms?: number | null
+          bedrooms?: number | null
+          city?: string | null
+          client_id?: string
+          client_rating?: number | null
+          created_at?: string
+          extracted_data?: Json
+          id?: string
+          listing_price?: number | null
+          lot_size?: string | null
+          mls_number?: string | null
+          notes?: string | null
+          postal_code?: string | null
+          property_address?: string
+          property_type?: string | null
+          province_region?: string | null
+          realtor_ca_url?: string | null
+          screenshot_url?: string | null
+          showing_date?: string
+          square_feet?: number | null
+          updated_at?: string
+          user_id?: string
+          year_built?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "property_showings_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_rate_limits: {
+        Row: {
+          endpoint: string
+          key: string
+          request_count: number
+          updated_at: string
+          window_start: string
+        }
+        Insert: {
+          endpoint: string
+          key: string
+          request_count?: number
+          updated_at?: string
+          window_start: string
+        }
+        Update: {
+          endpoint?: string
+          key?: string
+          request_count?: number
+          updated_at?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      push_tokens: {
+        Row: {
+          created_at: string
+          device_name: string | null
+          expo_push_token: string
+          id: string
+          platform: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_name?: string | null
+          expo_push_token: string
+          id?: string
+          platform?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_name?: string | null
+          expo_push_token?: string
+          id?: string
+          platform?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      rate_limits: {
+        Row: {
+          endpoint: string
+          request_count: number
+          user_id: string
+          window_start: string
+        }
+        Insert: {
+          endpoint: string
+          request_count?: number
+          user_id: string
+          window_start?: string
+        }
+        Update: {
+          endpoint?: string
+          request_count?: number
+          user_id?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      receipt_expenses: {
+        Row: {
+          category_key: string | null
+          created_at: string
+          currency: string
+          expense_date: string | null
+          id: string
+          notes: string | null
+          ocr_confidence: number | null
+          ocr_raw: Json | null
+          receipt_path: string | null
+          subtotal: number | null
+          tax_amount: number | null
+          total_amount: number | null
+          updated_at: string
+          user_id: string
+          vendor: string | null
+        }
+        Insert: {
+          category_key?: string | null
+          created_at?: string
+          currency?: string
+          expense_date?: string | null
+          id?: string
+          notes?: string | null
+          ocr_confidence?: number | null
+          ocr_raw?: Json | null
+          receipt_path?: string | null
+          subtotal?: number | null
+          tax_amount?: number | null
+          total_amount?: number | null
+          updated_at?: string
+          user_id: string
+          vendor?: string | null
+        }
+        Update: {
+          category_key?: string | null
+          created_at?: string
+          currency?: string
+          expense_date?: string | null
+          id?: string
+          notes?: string | null
+          ocr_confidence?: number | null
+          ocr_raw?: Json | null
+          receipt_path?: string | null
+          subtotal?: number | null
+          tax_amount?: number | null
+          total_amount?: number | null
+          updated_at?: string
+          user_id?: string
+          vendor?: string | null
+        }
+        Relationships: []
+      }
+      receipt_upload_tokens: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          expires_at: string
+          extraction_result: Json | null
+          id: string
+          receipt_path: string | null
+          status: string
+          token: string
+          used: boolean
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          expires_at?: string
+          extraction_result?: Json | null
+          id?: string
+          receipt_path?: string | null
+          status?: string
+          token: string
+          used?: boolean
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          expires_at?: string
+          extraction_result?: Json | null
+          id?: string
+          receipt_path?: string | null
+          status?: string
+          token?: string
+          used?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
+      recruitment_applications: {
+        Row: {
+          applicant_email: string
+          applicant_name: string
+          applicant_phone: string | null
+          created_at: string
+          current_brokerage: string | null
+          id: string
+          message: string | null
+          recruitment_page_id: string
+          resume_url: string | null
+          status: string
+          years_experience: number | null
+        }
+        Insert: {
+          applicant_email: string
+          applicant_name: string
+          applicant_phone?: string | null
+          created_at?: string
+          current_brokerage?: string | null
+          id?: string
+          message?: string | null
+          recruitment_page_id: string
+          resume_url?: string | null
+          status?: string
+          years_experience?: number | null
+        }
+        Update: {
+          applicant_email?: string
+          applicant_name?: string
+          applicant_phone?: string | null
+          created_at?: string
+          current_brokerage?: string | null
+          id?: string
+          message?: string | null
+          recruitment_page_id?: string
+          resume_url?: string | null
+          status?: string
+          years_experience?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_applications_recruitment_page_id_fkey"
+            columns: ["recruitment_page_id"]
+            isOneToOne: false
+            referencedRelation: "recruitment_pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruitment_pages: {
+        Row: {
+          application_count: number
+          application_email: string | null
+          created_at: string
+          created_by: string
+          custom_values: Json | null
+          description: string
+          headline: string
+          id: string
+          is_active: boolean
+          last_viewed_at: string | null
+          org_id: string
+          require_resume: boolean | null
+          show_team_stats: boolean
+          show_testimonials: boolean
+          show_value_props: boolean
+          team_photo_url: string | null
+          token: string
+          updated_at: string
+          view_count: number
+        }
+        Insert: {
+          application_count?: number
+          application_email?: string | null
+          created_at?: string
+          created_by: string
+          custom_values?: Json | null
+          description?: string
+          headline?: string
+          id?: string
+          is_active?: boolean
+          last_viewed_at?: string | null
+          org_id: string
+          require_resume?: boolean | null
+          show_team_stats?: boolean
+          show_testimonials?: boolean
+          show_value_props?: boolean
+          team_photo_url?: string | null
+          token?: string
+          updated_at?: string
+          view_count?: number
+        }
+        Update: {
+          application_count?: number
+          application_email?: string | null
+          created_at?: string
+          created_by?: string
+          custom_values?: Json | null
+          description?: string
+          headline?: string
+          id?: string
+          is_active?: boolean
+          last_viewed_at?: string | null
+          org_id?: string
+          require_resume?: boolean | null
+          show_team_stats?: boolean
+          show_testimonials?: boolean
+          show_value_props?: boolean
+          team_photo_url?: string | null
+          token?: string
+          updated_at?: string
+          view_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruitment_pages_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruitment_pages_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations_billing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruitment_pages_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recurring_expense_entries: {
+        Row: {
+          amount: number
+          created_at: string
+          entry_date: string
+          id: string
+          receipt_expense_id: string | null
+          recurring_expense_id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          entry_date: string
+          id?: string
+          receipt_expense_id?: string | null
+          recurring_expense_id: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          entry_date?: string
+          id?: string
+          receipt_expense_id?: string | null
+          recurring_expense_id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_expense_entries_receipt_expense_id_fkey"
+            columns: ["receipt_expense_id"]
+            isOneToOne: false
+            referencedRelation: "receipt_expenses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_expense_entries_recurring_expense_id_fkey"
+            columns: ["recurring_expense_id"]
+            isOneToOne: false
+            referencedRelation: "recurring_expenses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recurring_expenses: {
+        Row: {
+          amount: number
+          category_key: string
+          created_at: string
+          day_of_month: number
+          end_date: string | null
+          frequency: string
+          hst_amount: number | null
+          hst_included: boolean
+          id: string
+          is_active: boolean
+          month_of_year: number | null
+          name: string
+          notes: string | null
+          start_date: string
+          updated_at: string
+          user_id: string
+          vehicle_pct_applicable: boolean
+        }
+        Insert: {
+          amount: number
+          category_key: string
+          created_at?: string
+          day_of_month: number
+          end_date?: string | null
+          frequency?: string
+          hst_amount?: number | null
+          hst_included?: boolean
+          id?: string
+          is_active?: boolean
+          month_of_year?: number | null
+          name: string
+          notes?: string | null
+          start_date?: string
+          updated_at?: string
+          user_id: string
+          vehicle_pct_applicable?: boolean
+        }
+        Update: {
+          amount?: number
+          category_key?: string
+          created_at?: string
+          day_of_month?: number
+          end_date?: string | null
+          frequency?: string
+          hst_amount?: number | null
+          hst_included?: boolean
+          id?: string
+          is_active?: boolean
+          month_of_year?: number | null
+          name?: string
+          notes?: string | null
+          start_date?: string
+          updated_at?: string
+          user_id?: string
+          vehicle_pct_applicable?: boolean
+        }
+        Relationships: []
+      }
+      referrals: {
+        Row: {
+          actual_fee_paid: number | null
+          client_email: string | null
+          client_name: string
+          client_phone: string | null
+          created_at: string
+          direction: string
+          estimated_value: number | null
+          fee_paid_date: string | null
+          id: string
+          notes: string | null
+          partner_brokerage: string | null
+          partner_email: string | null
+          partner_name: string
+          partner_phone: string | null
+          property_address: string | null
+          referral_date: string
+          referral_fee_pct: number | null
+          status: string
+          transaction_id: string | null
+          transaction_type: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          actual_fee_paid?: number | null
+          client_email?: string | null
+          client_name: string
+          client_phone?: string | null
+          created_at?: string
+          direction: string
+          estimated_value?: number | null
+          fee_paid_date?: string | null
+          id?: string
+          notes?: string | null
+          partner_brokerage?: string | null
+          partner_email?: string | null
+          partner_name: string
+          partner_phone?: string | null
+          property_address?: string | null
+          referral_date?: string
+          referral_fee_pct?: number | null
+          status?: string
+          transaction_id?: string | null
+          transaction_type?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          actual_fee_paid?: number | null
+          client_email?: string | null
+          client_name?: string
+          client_phone?: string | null
+          created_at?: string
+          direction?: string
+          estimated_value?: number | null
+          fee_paid_date?: string | null
+          id?: string
+          notes?: string | null
+          partner_brokerage?: string | null
+          partner_email?: string | null
+          partner_name?: string
+          partner_phone?: string | null
+          property_address?: string | null
+          referral_date?: string
+          referral_fee_pct?: number | null
+          status?: string
+          transaction_id?: string | null
+          transaction_type?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seat_update_locks: {
+        Row: {
+          acquired_at: string
+          expires_at: string
+          org_id: string
+        }
+        Insert: {
+          acquired_at?: string
+          expires_at: string
+          org_id: string
+        }
+        Update: {
+          acquired_at?: string
+          expires_at?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seat_update_locks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seat_update_locks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations_billing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seat_update_locks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      security_audit_log: {
+        Row: {
+          action: Database["public"]["Enums"]["audit_action"]
+          actor_id: string
+          created_at: string
+          id: string
+          ip_address: unknown
+          metadata: Json | null
+          org_id: string
+          target_user_id: string | null
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["audit_action"]
+          actor_id: string
+          created_at?: string
+          id?: string
+          ip_address?: unknown
+          metadata?: Json | null
+          org_id: string
+          target_user_id?: string | null
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["audit_action"]
+          actor_id?: string
+          created_at?: string
+          id?: string
+          ip_address?: unknown
+          metadata?: Json | null
+          org_id?: string
+          target_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "security_audit_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "security_audit_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations_billing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "security_audit_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      social_connections: {
+        Row: {
+          access_token: string | null
+          account_id: string | null
+          account_name: string | null
+          created_at: string
+          id: string
+          instagram_business_account_id: string | null
+          page_access_token: string | null
+          page_id: string | null
+          platform: string
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          account_id?: string | null
+          account_name?: string | null
+          created_at?: string
+          id?: string
+          instagram_business_account_id?: string | null
+          page_access_token?: string | null
+          page_id?: string | null
+          platform: string
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          account_id?: string | null
+          account_name?: string | null
+          created_at?: string
+          id?: string
+          instagram_business_account_id?: string | null
+          page_access_token?: string | null
+          page_id?: string | null
+          platform?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      social_posts: {
+        Row: {
+          caption: string | null
+          created_at: string
+          id: string
+          month: number | null
+          platform: string
+          published_at: string | null
+          status: string
+          template_style: string
+          title: string | null
+          transaction_ids: string[] | null
+          updated_at: string
+          user_id: string
+          year: number | null
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          month?: number | null
+          platform?: string
+          published_at?: string | null
+          status?: string
+          template_style?: string
+          title?: string | null
+          transaction_ids?: string[] | null
+          updated_at?: string
+          user_id: string
+          year?: number | null
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          id?: string
+          month?: number | null
+          platform?: string
+          published_at?: string | null
+          status?: string
+          template_style?: string
+          title?: string | null
+          transaction_ids?: string[] | null
+          updated_at?: string
+          user_id?: string
+          year?: number | null
+        }
+        Relationships: []
+      }
+      stripe_events: {
+        Row: {
+          event_id: string
+          processed_at: string
+        }
+        Insert: {
+          event_id: string
+          processed_at?: string
+        }
+        Update: {
+          event_id?: string
+          processed_at?: string
+        }
+        Relationships: []
+      }
+      t2125_cca_assets: {
+        Row: {
+          acquisition_date: string
+          additions_this_year: number
+          business_use_pct: number
+          cca_claimed_prior: number
+          cca_class: number
+          class_half_year: boolean
+          class_rate: number
+          created_at: string
+          description: string
+          disposals_this_year: number
+          id: string
+          notes: string | null
+          opening_ucc: number
+          original_cost: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          acquisition_date: string
+          additions_this_year?: number
+          business_use_pct?: number
+          cca_claimed_prior?: number
+          cca_class: number
+          class_half_year?: boolean
+          class_rate: number
+          created_at?: string
+          description: string
+          disposals_this_year?: number
+          id?: string
+          notes?: string | null
+          opening_ucc?: number
+          original_cost: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          acquisition_date?: string
+          additions_this_year?: number
+          business_use_pct?: number
+          cca_claimed_prior?: number
+          cca_class?: number
+          class_half_year?: boolean
+          class_rate?: number
+          created_at?: string
+          description?: string
+          disposals_this_year?: number
+          id?: string
+          notes?: string | null
+          opening_ucc?: number
+          original_cost?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      team_deals: {
+        Row: {
+          address: string
+          agent_profile_id: string
+          client_name: string
+          created_at: string
+          date: string
+          gci: number
+          id: string
+          side: Database["public"]["Enums"]["transaction_side"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string
+          agent_profile_id: string
+          client_name?: string
+          created_at?: string
+          date: string
+          gci?: number
+          id?: string
+          side?: Database["public"]["Enums"]["transaction_side"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string
+          agent_profile_id?: string
+          client_name?: string
+          created_at?: string
+          date?: string
+          gci?: number
+          id?: string
+          side?: Database["public"]["Enums"]["transaction_side"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_deals_agent_profile_id_fkey"
+            columns: ["agent_profile_id"]
+            isOneToOne: false
+            referencedRelation: "agent_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      testimonials: {
+        Row: {
+          approved: boolean | null
+          created_at: string | null
+          featured: boolean | null
+          id: string
+          name: string
+          quote: string
+          rating: number | null
+          source: string | null
+          title: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          approved?: boolean | null
+          created_at?: string | null
+          featured?: boolean | null
+          id?: string
+          name: string
+          quote: string
+          rating?: number | null
+          source?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          approved?: boolean | null
+          created_at?: string | null
+          featured?: boolean | null
+          id?: string
+          name?: string
+          quote?: string
+          rating?: number | null
+          source?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          address: string
+          client_name: string
+          commission_pct: number
+          created_at: string
+          date: string
+          date_precision: Database["public"]["Enums"]["tx_date_precision"]
+          edited_at: string | null
+          gci_override: number | null
+          id: string
+          import_external_id: string | null
+          notes: string
+          pipeline_deal_id: string | null
+          sale_price: number
+          side: Database["public"]["Enums"]["transaction_side"]
+          source: Database["public"]["Enums"]["tx_source"]
+          status: Database["public"]["Enums"]["transaction_status"]
+          team_split_pct: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string
+          client_name?: string
+          commission_pct?: number
+          created_at?: string
+          date: string
+          date_precision?: Database["public"]["Enums"]["tx_date_precision"]
+          edited_at?: string | null
+          gci_override?: number | null
+          id?: string
+          import_external_id?: string | null
+          notes?: string
+          pipeline_deal_id?: string | null
+          sale_price?: number
+          side?: Database["public"]["Enums"]["transaction_side"]
+          source?: Database["public"]["Enums"]["tx_source"]
+          status?: Database["public"]["Enums"]["transaction_status"]
+          team_split_pct?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string
+          client_name?: string
+          commission_pct?: number
+          created_at?: string
+          date?: string
+          date_precision?: Database["public"]["Enums"]["tx_date_precision"]
+          edited_at?: string | null
+          gci_override?: number | null
+          id?: string
+          import_external_id?: string | null
+          notes?: string
+          pipeline_deal_id?: string | null
+          sale_price?: number
+          side?: Database["public"]["Enums"]["transaction_side"]
+          source?: Database["public"]["Enums"]["tx_source"]
+          status?: Database["public"]["Enums"]["transaction_status"]
+          team_split_pct?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_pipeline_deal_id_fkey"
+            columns: ["pipeline_deal_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_deals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_security_events: {
+        Row: {
+          actor_user_id: string | null
+          created_at: string
+          event_category: string
+          event_type: string
+          id: number
+          ip_address_hash: string | null
+          metadata: Json | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          actor_user_id?: string | null
+          created_at?: string
+          event_category: string
+          event_type: string
+          id?: number
+          ip_address_hash?: string | null
+          metadata?: Json | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          actor_user_id?: string | null
+          created_at?: string
+          event_category?: string
+          event_type?: string
+          id?: number
+          ip_address_hash?: string | null
+          metadata?: Json | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          agent_goals: Json | null
+          ai_profile_prompt_dismissed_at: string | null
+          ai_voice_guide: string | null
+          apply_market_adjustment: boolean
+          auto_categorize_enabled: boolean
+          avatar_url: string
+          board_code: string
+          board_subregion: string
+          brokerage_name: string
+          brokerage_withholds_hst: boolean
+          business_identity: Json | null
+          business_logo_url: string
+          business_name: string
+          business_number: string
+          cash_reserve: number
+          color_theme: string
+          communication_profile: Json | null
+          compensation_method: string
+          corp_type: string | null
+          cpp_instalment_paid_ytd: number
+          created_at: string
+          dashboard_view: string
+          display_name: string
+          email_signature: string
+          estimated_weekly_hours: number | null
+          experience_years: number | null
+          filing_frequency: string
+          fiscal_year_end_month: number
+          goal_gci: number
+          goal_transactions: number
+          goal_volume: number
+          growth_goal_year_pcts: Json
+          gst_hst_paid_on_expenses: number
+          gst_hst_registered: boolean
+          gst_hst_remitted_q1: number
+          gst_hst_remitted_q2: number
+          gst_hst_remitted_q3: number
+          gst_hst_remitted_q4: number
+          has_employees: boolean
+          home_office_business_use_pct: number
+          home_office_condo_fees_monthly: number
+          home_office_insurance_monthly: number
+          home_office_maintenance_annual: number
+          home_office_method: string
+          home_office_property_tax_annual: number
+          home_office_rent_monthly: number
+          home_office_sq_footage: number | null
+          home_office_utilities_monthly: number
+          inbound_alias: string
+          is_admin: boolean
+          is_incorporated: boolean
+          market_board_name: string
+          market_data_is_manual: boolean
+          market_index_source_note: string
+          market_last_updated: string
+          market_metric_focus: Database["public"]["Enums"]["market_metric_focus"]
+          market_mom_growth_pct: number
+          market_new_listings_change_pct: number
+          market_report_month: string
+          market_sales_change_pct: number
+          market_yoy_growth_pct: number
+          monthly_brokerage_fee: number
+          national_quarter_pcts: Json
+          national_seasonality_updated: string
+          num_employees: number
+          post_cap_agent_pct: number
+          post_cap_brokerage_pct: number
+          post_cap_threshold_gci: number
+          province: Database["public"]["Enums"]["province"]
+          runway_score_snapshot: Json | null
+          social_facebook: string
+          social_instagram: string
+          social_linkedin: string
+          social_tiktok: string
+          social_youtube: string
+          split_preset: Database["public"]["Enums"]["split_preset"]
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          subscription_current_period_end: string | null
+          subscription_status: string
+          subscription_tier: string
+          tax_instalment_paid_q1: number
+          tax_instalment_paid_q2: number
+          tax_instalment_paid_q3: number
+          tax_instalment_paid_q4: number
+          tax_opt_dismissed: Json
+          tx_fee_annual_cap: number
+          tx_fee_rate_pct: number
+          updated_at: string
+          use_national_seasonality: boolean
+          user_id: string
+          vacation_weeks_per_year: number | null
+          vehicle_business_use_pct: number
+          vehicle_type: string
+          ytd_gci: number
+          ytd_transactions: number
+          ytd_volume: number
+        }
+        Insert: {
+          agent_goals?: Json | null
+          ai_profile_prompt_dismissed_at?: string | null
+          ai_voice_guide?: string | null
+          apply_market_adjustment?: boolean
+          auto_categorize_enabled?: boolean
+          avatar_url?: string
+          board_code?: string
+          board_subregion?: string
+          brokerage_name?: string
+          brokerage_withholds_hst?: boolean
+          business_identity?: Json | null
+          business_logo_url?: string
+          business_name?: string
+          business_number?: string
+          cash_reserve?: number
+          color_theme?: string
+          communication_profile?: Json | null
+          compensation_method?: string
+          corp_type?: string | null
+          cpp_instalment_paid_ytd?: number
+          created_at?: string
+          dashboard_view?: string
+          display_name?: string
+          email_signature?: string
+          estimated_weekly_hours?: number | null
+          experience_years?: number | null
+          filing_frequency?: string
+          fiscal_year_end_month?: number
+          goal_gci?: number
+          goal_transactions?: number
+          goal_volume?: number
+          growth_goal_year_pcts?: Json
+          gst_hst_paid_on_expenses?: number
+          gst_hst_registered?: boolean
+          gst_hst_remitted_q1?: number
+          gst_hst_remitted_q2?: number
+          gst_hst_remitted_q3?: number
+          gst_hst_remitted_q4?: number
+          has_employees?: boolean
+          home_office_business_use_pct?: number
+          home_office_condo_fees_monthly?: number
+          home_office_insurance_monthly?: number
+          home_office_maintenance_annual?: number
+          home_office_method?: string
+          home_office_property_tax_annual?: number
+          home_office_rent_monthly?: number
+          home_office_sq_footage?: number | null
+          home_office_utilities_monthly?: number
+          inbound_alias: string
+          is_admin?: boolean
+          is_incorporated?: boolean
+          market_board_name?: string
+          market_data_is_manual?: boolean
+          market_index_source_note?: string
+          market_last_updated?: string
+          market_metric_focus?: Database["public"]["Enums"]["market_metric_focus"]
+          market_mom_growth_pct?: number
+          market_new_listings_change_pct?: number
+          market_report_month?: string
+          market_sales_change_pct?: number
+          market_yoy_growth_pct?: number
+          monthly_brokerage_fee?: number
+          national_quarter_pcts?: Json
+          national_seasonality_updated?: string
+          num_employees?: number
+          post_cap_agent_pct?: number
+          post_cap_brokerage_pct?: number
+          post_cap_threshold_gci?: number
+          province?: Database["public"]["Enums"]["province"]
+          runway_score_snapshot?: Json | null
+          social_facebook?: string
+          social_instagram?: string
+          social_linkedin?: string
+          social_tiktok?: string
+          social_youtube?: string
+          split_preset?: Database["public"]["Enums"]["split_preset"]
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_current_period_end?: string | null
+          subscription_status?: string
+          subscription_tier?: string
+          tax_instalment_paid_q1?: number
+          tax_instalment_paid_q2?: number
+          tax_instalment_paid_q3?: number
+          tax_instalment_paid_q4?: number
+          tax_opt_dismissed?: Json
+          tx_fee_annual_cap?: number
+          tx_fee_rate_pct?: number
+          updated_at?: string
+          use_national_seasonality?: boolean
+          user_id: string
+          vacation_weeks_per_year?: number | null
+          vehicle_business_use_pct?: number
+          vehicle_type?: string
+          ytd_gci?: number
+          ytd_transactions?: number
+          ytd_volume?: number
+        }
+        Update: {
+          agent_goals?: Json | null
+          ai_profile_prompt_dismissed_at?: string | null
+          ai_voice_guide?: string | null
+          apply_market_adjustment?: boolean
+          auto_categorize_enabled?: boolean
+          avatar_url?: string
+          board_code?: string
+          board_subregion?: string
+          brokerage_name?: string
+          brokerage_withholds_hst?: boolean
+          business_identity?: Json | null
+          business_logo_url?: string
+          business_name?: string
+          business_number?: string
+          cash_reserve?: number
+          color_theme?: string
+          communication_profile?: Json | null
+          compensation_method?: string
+          corp_type?: string | null
+          cpp_instalment_paid_ytd?: number
+          created_at?: string
+          dashboard_view?: string
+          display_name?: string
+          email_signature?: string
+          estimated_weekly_hours?: number | null
+          experience_years?: number | null
+          filing_frequency?: string
+          fiscal_year_end_month?: number
+          goal_gci?: number
+          goal_transactions?: number
+          goal_volume?: number
+          growth_goal_year_pcts?: Json
+          gst_hst_paid_on_expenses?: number
+          gst_hst_registered?: boolean
+          gst_hst_remitted_q1?: number
+          gst_hst_remitted_q2?: number
+          gst_hst_remitted_q3?: number
+          gst_hst_remitted_q4?: number
+          has_employees?: boolean
+          home_office_business_use_pct?: number
+          home_office_condo_fees_monthly?: number
+          home_office_insurance_monthly?: number
+          home_office_maintenance_annual?: number
+          home_office_method?: string
+          home_office_property_tax_annual?: number
+          home_office_rent_monthly?: number
+          home_office_sq_footage?: number | null
+          home_office_utilities_monthly?: number
+          inbound_alias?: string
+          is_admin?: boolean
+          is_incorporated?: boolean
+          market_board_name?: string
+          market_data_is_manual?: boolean
+          market_index_source_note?: string
+          market_last_updated?: string
+          market_metric_focus?: Database["public"]["Enums"]["market_metric_focus"]
+          market_mom_growth_pct?: number
+          market_new_listings_change_pct?: number
+          market_report_month?: string
+          market_sales_change_pct?: number
+          market_yoy_growth_pct?: number
+          monthly_brokerage_fee?: number
+          national_quarter_pcts?: Json
+          national_seasonality_updated?: string
+          num_employees?: number
+          post_cap_agent_pct?: number
+          post_cap_brokerage_pct?: number
+          post_cap_threshold_gci?: number
+          province?: Database["public"]["Enums"]["province"]
+          runway_score_snapshot?: Json | null
+          social_facebook?: string
+          social_instagram?: string
+          social_linkedin?: string
+          social_tiktok?: string
+          social_youtube?: string
+          split_preset?: Database["public"]["Enums"]["split_preset"]
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_current_period_end?: string | null
+          subscription_status?: string
+          subscription_tier?: string
+          tax_instalment_paid_q1?: number
+          tax_instalment_paid_q2?: number
+          tax_instalment_paid_q3?: number
+          tax_instalment_paid_q4?: number
+          tax_opt_dismissed?: Json
+          tx_fee_annual_cap?: number
+          tx_fee_rate_pct?: number
+          updated_at?: string
+          use_national_seasonality?: boolean
+          user_id?: string
+          vacation_weeks_per_year?: number | null
+          vehicle_business_use_pct?: number
+          vehicle_type?: string
+          ytd_gci?: number
+          ytd_transactions?: number
+          ytd_volume?: number
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      chat_analytics_daily_summary: {
+        Row: {
+          day: string | null
+          diagnostic_hits: number | null
+          escalation_count: number | null
+          high_followup_sessions: number | null
+          playbook_hits: number | null
+          positive_feedback_rate: number | null
+          thumbs_down: number | null
+          thumbs_up: number | null
+          total_messages: number | null
+          unique_users: number | null
+        }
+        Relationships: []
+      }
+      org_agent_performance: {
+        Row: {
+          agent_name: string | null
+          avatar_url: string | null
+          data_sharing_tier:
+            | Database["public"]["Enums"]["data_sharing_tier"]
+            | null
+          deal_count: number | null
+          experience_years: number | null
+          goal_gci: number | null
+          monthly_gci: Json | null
+          org_id: string | null
+          pipeline_count: number | null
+          pipeline_value: number | null
+          role: Database["public"]["Enums"]["org_member_role"] | null
+          status: Database["public"]["Enums"]["org_member_status"] | null
+          user_id: string | null
+          ytd_gci: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_members_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations_billing"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_members_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations_billing: {
+        Row: {
+          anonymize_agents: boolean | null
+          billing_email: string | null
+          created_at: string | null
+          id: string | null
+          is_beta: boolean | null
+          logo_url: string | null
+          max_seats: number | null
+          name: string | null
+          org_goal_gci: number | null
+          owner_id: string | null
+          slug: string | null
+          stripe_customer_id: string | null
+          stripe_price_id: string | null
+          stripe_subscription_id: string | null
+          subscription_status: string | null
+          type: Database["public"]["Enums"]["org_type"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          anonymize_agents?: boolean | null
+          billing_email?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_beta?: boolean | null
+          logo_url?: string | null
+          max_seats?: number | null
+          name?: string | null
+          org_goal_gci?: number | null
+          owner_id?: string | null
+          slug?: string | null
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_status?: string | null
+          type?: Database["public"]["Enums"]["org_type"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          anonymize_agents?: boolean | null
+          billing_email?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_beta?: boolean | null
+          logo_url?: string | null
+          max_seats?: number | null
+          name?: string | null
+          org_goal_gci?: number | null
+          owner_id?: string | null
+          slug?: string | null
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_status?: string | null
+          type?: Database["public"]["Enums"]["org_type"] | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      organizations_public: {
+        Row: {
+          anonymize_agents: boolean | null
+          created_at: string | null
+          id: string | null
+          is_beta: boolean | null
+          logo_url: string | null
+          max_seats: number | null
+          name: string | null
+          org_goal_gci: number | null
+          owner_id: string | null
+          slug: string | null
+          subscription_status: string | null
+          type: Database["public"]["Enums"]["org_type"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          anonymize_agents?: boolean | null
+          created_at?: string | null
+          id?: string | null
+          is_beta?: boolean | null
+          logo_url?: string | null
+          max_seats?: number | null
+          name?: string | null
+          org_goal_gci?: number | null
+          owner_id?: string | null
+          slug?: string | null
+          subscription_status?: string | null
+          type?: Database["public"]["Enums"]["org_type"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          anonymize_agents?: boolean | null
+          created_at?: string | null
+          id?: string | null
+          is_beta?: boolean | null
+          logo_url?: string | null
+          max_seats?: number | null
+          name?: string | null
+          org_goal_gci?: number | null
+          owner_id?: string | null
+          slug?: string | null
+          subscription_status?: string | null
+          type?: Database["public"]["Enums"]["org_type"] | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+    }
+    Functions: {
+      fn_org_crm_activity_summary: {
+        Args: { p_org_id: string }
+        Returns: {
+          active_clients: number
+          agent_name: string
+          calls: number
+          emails: number
+          last_activity_at: string
+          meetings: number
+          showings: number
+          texts: number
+          total_activities: number
+          user_id: string
+        }[]
+      }
+      fn_org_expense_filing_status: {
+        Args: { p_org_id: string }
+        Returns: {
+          agent_name: string
+          expense_category_count: number
+          has_expenses_this_quarter: boolean
+          has_receipt_uploads: boolean
+          user_id: string
+        }[]
+      }
+      fn_org_pending_deals_summary: {
+        Args: { p_org_id: string }
+        Returns: {
+          agent_name: string
+          avg_probability: number
+          nearest_close: string
+          pending_count: number
+          pending_value: number
+          user_id: string
+        }[]
+      }
+      new_role_is_not_owner: {
+        Args: { r: Database["public"]["Enums"]["org_member_role"] }
+        Returns: boolean
+      }
+      release_seat_lock: { Args: { p_org_id: string }; Returns: undefined }
+      resolve_inbound_alias: { Args: { alias_token: string }; Returns: string }
+      seed_default_expenses: { Args: { p_user_id: string }; Returns: undefined }
+      try_acquire_seat_lock: {
+        Args: { p_org_id: string; p_ttl_seconds?: number }
+        Returns: boolean
+      }
+    }
+    Enums: {
+      audit_action:
+        | "member_invited"
+        | "member_joined"
+        | "member_removed"
+        | "member_departed"
+        | "member_role_changed"
+        | "consent_granted"
+        | "consent_revoked"
+        | "settings_changed"
+        | "performance_viewed"
+        | "export_requested"
+      data_sharing_tier: "tier1" | "tier2"
+      market_data_readiness: "manualOnly" | "stubData" | "liveFeed"
+      market_geography_type: "national" | "province" | "board" | "city"
+      market_metric_focus: "sales" | "price" | "combined"
+      milestone_type:
+        | "gciThreshold"
+        | "dealCount"
+        | "firstDealOfMonth"
+        | "firstDealOfQuarter"
+        | "bestMonth"
+        | "bestQuarter"
+        | "paceAhead"
+        | "streakWeek"
+      org_member_role: "owner" | "admin" | "team_leader" | "agent"
+      org_member_status: "active" | "pending" | "suspended" | "departed"
+      org_type: "brokerage" | "team"
+      pipeline_stage:
+        | "lead"
+        | "showing"
+        | "offer"
+        | "conditional"
+        | "firm"
+        | "closed"
+      province:
+        | "alberta"
+        | "britishColumbia"
+        | "manitoba"
+        | "newBrunswick"
+        | "newfoundland"
+        | "northwestTerritories"
+        | "novaScotia"
+        | "nunavut"
+        | "ontario"
+        | "princeEdwardIsland"
+        | "quebec"
+        | "saskatchewan"
+        | "yukon"
+      split_preset:
+        | "p70_30"
+        | "p75_25"
+        | "p80_20"
+        | "p85_15"
+        | "p90_10"
+        | "p95_5"
+        | "p100_0"
+      transaction_side: "buyer" | "seller" | "both"
+      transaction_status: "closed" | "pending" | "fallen"
+      tx_date_precision: "day" | "month" | "quarter" | "year"
+      tx_source: "manual" | "imported"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
-
-  const agentGross = totalGCI * agentPct;
-  return { agentGross, brokerageTake: totalGCI * brokeragePct };
 }
 
-// ── Newsletter Queue (migration 00042) ────────────────────────────────────────
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-/** Which AI template produced the newsletter */
-export type NewsletterTemplateType = "boc_rate_change" | "custom";
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
-export type NewsletterStatus = "draft" | "ready" | "sent";
-
-export interface NewsletterQueue {
-  id:             string;
-  user_id:        string;
-
-  template_type:  NewsletterTemplateType;
-  context:        Record<string, unknown>;   // template-specific data (rates, stats, topic…)
-
-  status:         NewsletterStatus;
-
-  ai_subject:     string | null;
-  ai_body:        string | null;
-  final_subject:  string | null;
-  final_body:     string | null;
-
-  /** empty array = all active clients; otherwise filter by tag value */
-  recipient_tags: string[];
-
-  sent_at:        string | null;
-  created_at:     string;
-  updated_at:     string;
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
 }
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
 
-// ── Policy Acceptances (migration 00124) ────────────────────────────────────
-// Append-only audit log of each user's acceptance of a specific policy
-// version. Drives the in-app PolicyUpdateBanner. See lib/policy-versions.ts
-// for the canonical version list and the accept-policies API route for
-// upsert semantics.
-
-export type PolicyAcceptanceType =
-  | "terms"
-  | "privacy"
-  | "acceptable_use"
-  | "cookie";
-
-export type PolicyAcceptanceContext =
-  | "signup"
-  | "policy_update_banner"
-  | "backfill";
-
-export interface PolicyAcceptance {
-  id:                 string;
-  user_id:            string;
-  policy_type:        PolicyAcceptanceType;
-  version:            string;                       // YYYY-MM-DD
-  accepted_at:        string;                       // ISO timestamp
-  acceptance_context: PolicyAcceptanceContext;
-  ip_address:         string | null;
-  user_agent:         string | null;
-  created_at:         string;
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
 }
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
 
-// ── Organization types (re-export from dedicated module) ────────────────────
-export * from "./organizations";
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      audit_action: [
+        "member_invited",
+        "member_joined",
+        "member_removed",
+        "member_departed",
+        "member_role_changed",
+        "consent_granted",
+        "consent_revoked",
+        "settings_changed",
+        "performance_viewed",
+        "export_requested",
+      ],
+      data_sharing_tier: ["tier1", "tier2"],
+      market_data_readiness: ["manualOnly", "stubData", "liveFeed"],
+      market_geography_type: ["national", "province", "board", "city"],
+      market_metric_focus: ["sales", "price", "combined"],
+      milestone_type: [
+        "gciThreshold",
+        "dealCount",
+        "firstDealOfMonth",
+        "firstDealOfQuarter",
+        "bestMonth",
+        "bestQuarter",
+        "paceAhead",
+        "streakWeek",
+      ],
+      org_member_role: ["owner", "admin", "team_leader", "agent"],
+      org_member_status: ["active", "pending", "suspended", "departed"],
+      org_type: ["brokerage", "team"],
+      pipeline_stage: [
+        "lead",
+        "showing",
+        "offer",
+        "conditional",
+        "firm",
+        "closed",
+      ],
+      province: [
+        "alberta",
+        "britishColumbia",
+        "manitoba",
+        "newBrunswick",
+        "newfoundland",
+        "northwestTerritories",
+        "novaScotia",
+        "nunavut",
+        "ontario",
+        "princeEdwardIsland",
+        "quebec",
+        "saskatchewan",
+        "yukon",
+      ],
+      split_preset: [
+        "p70_30",
+        "p75_25",
+        "p80_20",
+        "p85_15",
+        "p90_10",
+        "p95_5",
+        "p100_0",
+      ],
+      transaction_side: ["buyer", "seller", "both"],
+      transaction_status: ["closed", "pending", "fallen"],
+      tx_date_precision: ["day", "month", "quarter", "year"],
+      tx_source: ["manual", "imported"],
+    },
+  },
+} as const
