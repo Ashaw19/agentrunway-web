@@ -1410,5 +1410,119 @@ export interface PolicyAcceptance {
   created_at:         string;
 }
 
+// ── Director Cockpit (corp_* tables, migration 00132) ──────────────────────
+// Internal-only operator surface for AR Inc. Distinct from realtor expense
+// data — schema isolation prevents corporate rows leaking into realtor
+// metric engines. See:
+//   apps/web/supabase/migrations/00132_corp_director_cockpit.sql
+//   memory/findings/spec_corp_director_cockpit_phase0_artifacts_2026-05-05.md
+
+export type CorpAccountType =
+  | "revenue"
+  | "cogs"
+  | "opex"
+  | "equity"
+  | "liability"
+  | "tax"
+  | "asset";
+
+export type CorpSourceChannel =
+  | "receipt_upload"
+  | "mobile_photo"
+  | "email_inbound"
+  | "qbo"
+  | "manual"
+  | "stripe"
+  | "bank_csv";
+
+export type CorpSredCategory =
+  | "overhead"
+  | "direct_labour"
+  | "materials"
+  | "contractor";
+
+export interface CorpChartOfAccount {
+  account_code: string;        // text PK (e.g. "4000", "5010")
+  name:         string;
+  type:         CorpAccountType;
+  notes:        string | null;
+  created_at:   string;
+}
+
+export interface CorpVendor {
+  id:                   string;
+  user_id:              string;
+
+  name:                 string;
+  regex_pattern:        string;
+  default_account_code: string | null;
+  sred_eligible:        boolean;
+  sred_category:        CorpSredCategory | null;
+  corp_pct:             number;
+  notes:                string | null;
+
+  created_at:           string;
+  updated_at:           string;
+}
+
+export interface CorpVendorAllocation {
+  id:              string;
+  user_id:         string;
+  vendor_id:       string;
+
+  corp_pct:        number;
+  personal_pct:    number;
+  rationale_text:  string | null;
+  set_by:          string | null;
+  effective_from:  string | null;  // ISO date
+
+  created_at:      string;
+  updated_at:      string;
+}
+
+export interface CorpTransaction {
+  id:                    string;
+  user_id:               string;
+
+  date:                  string;                   // ISO date
+  amount_pretax:         number;
+  gst_hst:               number;
+  amount_total:          number;
+  currency:              string;                   // 'CAD' default
+  fx_rate:               number | null;
+
+  vendor_id:             string | null;
+  vendor_name_raw:       string | null;
+
+  account_code:          string | null;
+  account_type:          CorpAccountType | null;
+
+  description:           string | null;
+  source_channel:        CorpSourceChannel;
+  source_ref:            string | null;
+  receipt_storage_path:  string | null;
+
+  corp_pct:              number;
+  sred_eligible:         boolean;
+  sred_category:         CorpSredCategory | null;
+
+  pre_incorp_flag:       boolean;
+  incurred_date:         string | null;            // ISO date
+
+  parent_transaction_id: string | null;
+  needs_review:          boolean;
+  review_reason:         string | null;
+
+  ingested_by_user_id:   string | null;
+  ingested_at:           string;                   // ISO timestamp
+  posted_at:             string | null;            // ISO timestamp
+
+  notes:                 string | null;
+
+  created_at:            string;
+  updated_at:            string;
+}
+
+
 // ── Organization types (re-export from dedicated module) ────────────────────
 export * from "./organizations";

@@ -65,6 +65,14 @@ interface Props {
   onClose:  () => void;
   /** Called after a receipt is saved so the parent can refresh its list. */
   onSaved?: () => void;
+  /**
+   * Tenant routing.  Realtor flow ('realtor', default) writes to
+   * `receipt_expenses` directly via the supabase client.  Corporate flow
+   * ('corporate') POSTs to /api/receipts/save-corporate which performs the
+   * vendor regex match + writes `corp_transactions`.  See
+   * memory/findings/decision_director_cockpit_greenlight_2026-05-05.md.
+   */
+  context?: "realtor" | "corporate";
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -157,7 +165,11 @@ async function safeJson<T>(res: Response): Promise<T | null> {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
+export function ReceiptCaptureDialog({ open, onClose, onSaved, context = "realtor" }: Props) {
+  // Tenant routing.  context='corporate' (cockpit) POSTs to
+  // /api/receipts/save-corporate (vendor regex match + corp_transactions
+  // insert).  context='realtor' (default) writes receipt_expenses directly
+  // via the supabase client — bit-identical to the pre-Phase-0 behavior.
   const [state,      setState]      = useState<FlowState>("idle");
   const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
   const [draft,      setDraft]      = useState<ReceiptDraft | null>(null);
@@ -171,6 +183,19 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
   // Device detection — starts false (SSR-safe), updates after mount
   // `pointer: coarse` is true on touchscreen phones & tablets
   const [isMobile,   setIsMobile]   = useState(false);
+
+  // Drag-and-drop visual feedback
+  const [dragActive, setDragActive] = useState(false);
+
+  // Batch upload state — when the user picks/drops multiple files, we store
+  // the rest of the queue and the current 1-based position; OCR runs
+  // sequentially (one file at a time), the user reviews each one, and on
+  // save we auto-advance to the next.  Sequential is intentional: the OCR
+  // endpoint is rate-limited (20/min) and parallelizing it both burns the
+  // budget and clobbers the single review form state.
+  const [batchQueue, setBatchQueue] = useState<File[]>([]);
+  const [batchIndex, setBatchIndex] = useState<number>(0);  // 0-based position of CURRENT file
+  const [batchTotal, setBatchTotal] = useState<number>(0);
 
   // Refs
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -194,6 +219,10 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
     setQrUrl(null);
     setTokenId(null);
     setCountdown(300);
+    setDragActive(false);
+    setBatchQueue([]);
+    setBatchIndex(0);
+    setBatchTotal(0);
     if (cameraInputRef.current) cameraInputRef.current.value = "";
     if (fileInputRef.current)   fileInputRef.current.value   = "";
   }, [stopPolling]);
@@ -277,6 +306,44 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
       setState("idle");
     }
   }, []);
+
+  // ── Batch entry: accept 1+ files, queue the rest, start file 0 ─────────
+  // Caller passes the full array (FileList → Array).  We sort PDFs and
+  // images in arrival order — sequential processing avoids OCR rate-limit
+  // burst and keeps the single review-form invariant intact.
+  const handleFiles = useCallback(async (files: File[]) => {
+    const list = files.filter(Boolean);
+    if (list.length === 0) return;
+    const [first, ...rest] = list;
+    if (!first) return;
+    setBatchQueue(rest);
+    setBatchIndex(0);
+    setBatchTotal(list.length);
+    await handleFile(first);
+  }, [handleFile]);
+
+  // ── Drag-and-drop handlers ──────────────────────────────────────────────
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (state !== "idle") return;
+    setDragActive(true);
+  }, [state]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (state !== "idle") return;
+    const files = Array.from(e.dataTransfer.files ?? []);
+    if (files.length > 0) await handleFiles(files);
+  }, [state, handleFiles]);
 
   // ── QR handoff mode ─────────────────────────────────────────────────────
 
@@ -388,37 +455,95 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
     const taxAmt    = draft.tax_amount   !== "" ? parseFloat(draft.tax_amount)   : null;
     const subAmt    = draft.subtotal     !== "" ? parseFloat(draft.subtotal)     : null;
 
-    const { error } = await supabase.from("receipt_expenses").insert({
-      user_id:        user.id,
-      vendor:         draft.vendor       || null,
-      expense_date:   draft.expense_date || null,
-      total_amount:   isNaN(totalAmt!)   ? null : totalAmt,
-      tax_amount:     isNaN(taxAmt!)     ? null : taxAmt,
-      subtotal:       isNaN(subAmt!)     ? null : subAmt,
-      currency:       draft.currency,
-      category_key:   draft.category_key || null,
-      notes:          draft.notes        || null,
-      receipt_path:   draft.receipt_path,
-      ocr_confidence: draft.ocr_confidence,
-      ocr_raw:        draft.ocr_raw,
-    });
+    // Tenant routing: corporate flow (Director Cockpit) writes a `corp_transactions`
+    // row via the server-side regex-matching endpoint; realtor flow writes
+    // `receipt_expenses` directly via the supabase client.  The two table
+    // schemas don't share columns — schema isolation is the whole point of
+    // the corp_* tables (no engine leak, no realtor metric contamination).
+    if (context === "corporate") {
+      try {
+        const res = await fetch("/api/receipts/save-corporate", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({
+            vendor:         draft.vendor || null,
+            expense_date:   draft.expense_date || null,
+            total_amount:   isNaN(totalAmt!) ? null : totalAmt,
+            tax_amount:     isNaN(taxAmt!) ? null : taxAmt,
+            subtotal:       isNaN(subAmt!) ? null : subAmt,
+            currency:       draft.currency,
+            notes:          draft.notes || null,
+            receipt_path:   draft.receipt_path,
+            // `category_key` is a realtor concept — corporate side ignores it
+            // in favour of vendor regex → account_code.
+          }),
+        });
+        const data = await safeJson<{ ok: boolean; error?: string; needs_review?: boolean }>(res);
+        if (!data || !data.ok) {
+          const msg = data?.error ?? `Server returned ${res.status}`;
+          console.error("[ReceiptCaptureDialog] Corporate save error:", msg);
+          toast.error("Failed to save receipt. Please try again.");
+          setState("review");
+          return;
+        }
+        if (data.needs_review) {
+          toast.info("Saved — flagged for review (no vendor match).");
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Network error";
+        console.error("[ReceiptCaptureDialog] Corporate save failed:", msg);
+        toast.error("Failed to save receipt. Please try again.");
+        setState("review");
+        return;
+      }
+    } else {
+      const { error } = await supabase.from("receipt_expenses").insert({
+        user_id:        user.id,
+        vendor:         draft.vendor       || null,
+        expense_date:   draft.expense_date || null,
+        total_amount:   isNaN(totalAmt!)   ? null : totalAmt,
+        tax_amount:     isNaN(taxAmt!)     ? null : taxAmt,
+        subtotal:       isNaN(subAmt!)     ? null : subAmt,
+        currency:       draft.currency,
+        category_key:   draft.category_key || null,
+        notes:          draft.notes        || null,
+        receipt_path:   draft.receipt_path,
+        ocr_confidence: draft.ocr_confidence,
+        ocr_raw:        draft.ocr_raw,
+      });
 
-    if (error) {
-      console.error("[ReceiptCaptureDialog] Save error:", error.message);
-      toast.error("Failed to save receipt. Please try again.");
-      setState("review");
-      return;
+      if (error) {
+        console.error("[ReceiptCaptureDialog] Save error:", error.message);
+        toast.error("Failed to save receipt. Please try again.");
+        setState("review");
+        return;
+      }
     }
 
     setState("done");
     toast.success("Receipt saved!");
     onSaved?.();
 
+    // Batch advance: if more files remain in the queue, advance to the next
+    // one and trigger its OCR; otherwise close the dialog as before.
+    if (batchQueue.length > 0) {
+      const [next, ...rest] = batchQueue;
+      const newIndex = batchIndex + 1;
+      setTimeout(() => {
+        setDraft(null);
+        setPreview(null);
+        setBatchQueue(rest);
+        setBatchIndex(newIndex);
+        if (next) void handleFile(next);
+      }, 800);
+      return;
+    }
+
     setTimeout(() => {
       reset();
       onClose();
     }, 1200);
-  }, [draft, reset, onClose, onSaved]);
+  }, [draft, reset, onClose, onSaved, batchQueue, batchIndex, handleFile, context]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -439,7 +564,27 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
 
         {/* ── IDLE ──────────────────────────────────────────────────────── */}
         {state === "idle" && (
-          <div className="space-y-4 py-2">
+          <div
+            className={cn(
+              "relative space-y-4 py-2 rounded-xl transition-colors",
+              dragActive && "ring-2 ring-primary/60 ring-offset-2 ring-offset-background",
+            )}
+            onDragOver={handleDragOver}
+            onDragEnter={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            {/* Drop overlay — appears only while a drag is hovering. */}
+            {dragActive && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-primary/10">
+                <div className="flex flex-col items-center gap-2 rounded-lg bg-background/90 px-5 py-3 shadow-lg ring-1 ring-primary/40">
+                  <Upload className="h-5 w-5 text-primary" aria-hidden />
+                  <span className="text-sm font-medium text-foreground">Drop to upload</span>
+                  <span className="text-[11px] text-muted-foreground">One or more files — they&apos;ll process in order.</span>
+                </div>
+              </div>
+            )}
+
             {errorMsg && (
               <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -450,7 +595,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
             <p className="text-sm text-muted-foreground">
               {isMobile
                 ? "Take a photo of your receipt or choose an image or PDF from your gallery."
-                : "Upload a receipt image or PDF, or send a QR link to your phone to capture it there."}
+                : "Drag receipts here, or pick a file. Multi-select works — they'll process one at a time."}
             </p>
 
             {/*
@@ -519,9 +664,14 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
             <input
               ref={fileInputRef}
               type="file"
+              multiple
               accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf"
               className="hidden"
-              onChange={(e) => handleFile(e.target.files?.[0])}
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []);
+                if (files.length > 1) void handleFiles(files);
+                else if (files.length === 1) void handleFile(files[0]);
+              }}
             />
           </div>
         )}
@@ -583,6 +733,11 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
         {/* ── PROCESSING ─────────────────────────────────────────────────── */}
         {state === "processing" && (
           <div className="flex flex-col items-center gap-5 py-10">
+            {batchTotal > 1 && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary">
+                File <span className="font-mono tabular-nums">{batchIndex + 1}</span> of <span className="font-mono tabular-nums">{batchTotal}</span>
+              </span>
+            )}
             {preview && (
               <div className="relative h-32 w-32 overflow-hidden rounded-xl border border-border shadow-sm">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -603,6 +758,18 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
         {/* ── REVIEW ─────────────────────────────────────────────────────── */}
         {(state === "review" || state === "saving") && draft && (
           <div className="space-y-5 py-1">
+            {batchTotal > 1 && (
+              <div className="flex items-center justify-between gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-1.5">
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary">
+                  Reviewing file <span className="font-mono tabular-nums">{batchIndex + 1}</span> of <span className="font-mono tabular-nums">{batchTotal}</span>
+                </span>
+                {batchQueue.length > 0 && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {batchQueue.length} more after this
+                  </span>
+                )}
+              </div>
+            )}
             {/* Receipt image + confidence */}
             <div className="flex items-start gap-3">
               {preview && (
