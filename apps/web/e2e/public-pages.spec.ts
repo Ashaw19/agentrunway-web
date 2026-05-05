@@ -3,12 +3,23 @@ import { test, expect } from "@playwright/test";
 test.describe("Public pages", () => {
   test("landing page loads with Agent Runway branding", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle(/agent runway/i);
+    // The HTML <title> is set per-page for SEO/CTR (currently "Know Where
+    // Your Business Stands" — a value-prop headline). It deliberately does
+    // not contain "Agent Runway", so this test must NOT assert on title
+    // content. Brand verification uses two signals that are stable across
+    // marketing copy iterations:
+    //   1. body text contains "agent runway" (rendered branding, headers,
+    //      footer, copy)
+    //   2. og:description contains the brand name (set in app/layout.tsx
+    //      and inherited or re-stated on every page — survives title rewrites)
     const body = page.locator("body");
     await expect(body).toBeVisible();
-    // Check for branding or CTA content
     const pageText = await page.textContent("body");
     expect(pageText?.toLowerCase()).toContain("agent runway");
+    await expect(page.locator('meta[property="og:description"]')).toHaveAttribute(
+      "content",
+      /agent runway/i,
+    );
   });
 
   test("landing page has CTA buttons", async ({ page }) => {

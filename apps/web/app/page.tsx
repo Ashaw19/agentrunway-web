@@ -28,6 +28,11 @@ export const metadata: Metadata = {
   description:
     "Agent Runway connects your income, taxes, expenses, clients, and pipeline into one system — so you always know where you stand and what to do next. Built for Canadian real estate agents.",
   openGraph: {
+    // Next.js metadata: a page-level `openGraph` REPLACES the parent layout's,
+    // it does not merge. Without re-declaring siteName here, the landing page
+    // ships without an og:site_name tag — bad for social sharing previews and
+    // for any test/scraper that looks for the canonical brand identifier.
+    siteName: "Agent Runway",
     url: "https://agentrunway.ca",
     images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
