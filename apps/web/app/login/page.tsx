@@ -24,12 +24,39 @@ type Mode = "signin" | "signup" | "reset" | "reset-sent";
 const MIN_PASSWORD_LENGTH = 10;
 
 function friendlyAuthError(msg: string): string {
-  if (msg.includes("Invalid login credentials")) return "Incorrect email or password.";
-  if (msg.includes("User already registered")) return "An account with this email already exists.";
-  if (msg.includes("Email not confirmed")) return "Please check your email to confirm your account.";
-  if (msg.includes("rate limit")) return "Too many attempts. Please wait a moment and try again.";
-  if (msg.includes("at least") && msg.includes("characters")) return msg;
-  return "Something went wrong. Please try again.";
+  const m = msg.toLowerCase();
+  // Supabase has shipped multiple variants of these over the years; keep all.
+  if (
+    m.includes("invalid login credentials") ||
+    m.includes("invalid_credentials") ||
+    m.includes("invalid email or password")
+  ) {
+    return "Incorrect email or password.";
+  }
+  if (m.includes("user already registered") || m.includes("user_already_exists")) {
+    return "An account with this email already exists.";
+  }
+  if (m.includes("email not confirmed") || m.includes("email_not_confirmed")) {
+    return "Please check your email to confirm your account.";
+  }
+  if (
+    m.includes("rate limit") ||
+    m.includes("too many requests") ||
+    m.includes("over_request_rate_limit") ||
+    m.includes("over_email_send_rate_limit")
+  ) {
+    return "Too many attempts. Please wait a moment and try again.";
+  }
+  if (m.includes("at least") && m.includes("characters")) return msg;
+  if (m.includes("network") || m.includes("failed to fetch")) {
+    return "Connection issue — check your internet and try again.";
+  }
+  // Unmatched: surface the actual Supabase message so the user / Andrew /
+  // Sentry can diagnose. Strip any auth tokens before display.
+  const sanitized = msg
+    .replace(/[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/g, "[token]")
+    .slice(0, 200);
+  return `Sign-in failed: ${sanitized}`;
 }
 
 export default function LoginPage() {
@@ -105,6 +132,9 @@ export default function LoginPage() {
         },
       });
       if (error) {
+        // Log the full error to console so dev tools can show the raw shape
+        // when friendlyAuthError falls through to the surfaced-message branch.
+        console.error("[auth]", error);
         setError(friendlyAuthError(error.message));
       } else {
         switchMode("signin");
@@ -121,6 +151,9 @@ export default function LoginPage() {
         redirectTo: `${origin}/auth/callback?next=/auth/update-password`,
       });
       if (error) {
+        // Log the full error to console so dev tools can show the raw shape
+        // when friendlyAuthError falls through to the surfaced-message branch.
+        console.error("[auth]", error);
         setError(friendlyAuthError(error.message));
       } else {
         switchMode("reset-sent");
@@ -131,6 +164,9 @@ export default function LoginPage() {
         password,
       });
       if (error) {
+        // Log the full error to console so dev tools can show the raw shape
+        // when friendlyAuthError falls through to the surfaced-message branch.
+        console.error("[auth]", error);
         setError(friendlyAuthError(error.message));
       } else {
         router.push(safeRedirect);

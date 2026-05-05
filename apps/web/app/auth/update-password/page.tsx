@@ -20,10 +20,27 @@ import { Plane } from "lucide-react";
 const MIN_PASSWORD_LENGTH = 10;
 
 function friendlyPasswordError(msg: string): string {
-  if (msg.includes("at least") && msg.includes("characters")) return msg;
-  if (msg.includes("same as")) return "New password must be different from your current password.";
-  if (msg.includes("rate limit")) return "Too many attempts. Please wait a moment and try again.";
-  return "Something went wrong. Please try again.";
+  const m = msg.toLowerCase();
+  if (m.includes("at least") && m.includes("characters")) return msg;
+  if (m.includes("same as") || m.includes("same_password")) {
+    return "New password must be different from your current password.";
+  }
+  if (
+    m.includes("rate limit") ||
+    m.includes("too many requests") ||
+    m.includes("over_request_rate_limit")
+  ) {
+    return "Too many attempts. Please wait a moment and try again.";
+  }
+  if (m.includes("network") || m.includes("failed to fetch")) {
+    return "Connection issue — check your internet and try again.";
+  }
+  // Surface unmatched Supabase messages instead of a dead-end fallback so the
+  // user / Sentry can diagnose. Strip any auth tokens before display.
+  const sanitized = msg
+    .replace(/[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/g, "[token]")
+    .slice(0, 200);
+  return `Password update failed: ${sanitized}`;
 }
 
 export default function UpdatePasswordPage() {
