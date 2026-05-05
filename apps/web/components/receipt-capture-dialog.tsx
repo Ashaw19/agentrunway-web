@@ -65,6 +65,14 @@ interface Props {
   onClose:  () => void;
   /** Called after a receipt is saved so the parent can refresh its list. */
   onSaved?: () => void;
+  /**
+   * Tenant routing.  Realtor flow ('realtor', default) writes to
+   * `receipt_expenses` directly via the supabase client.  Corporate flow
+   * ('corporate') POSTs to /api/receipts/save-corporate which performs the
+   * vendor regex match + writes `corp_transactions`.  See
+   * memory/findings/decision_director_cockpit_greenlight_2026-05-05.md.
+   */
+  context?: "realtor" | "corporate";
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -157,7 +165,11 @@ async function safeJson<T>(res: Response): Promise<T | null> {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function ReceiptCaptureDialog({ open, onClose, onSaved }: Props) {
+export function ReceiptCaptureDialog({ open, onClose, onSaved, context = "realtor" }: Props) {
+  // Tenant routing for the save step.  Deliverable 4 wires the corporate
+  // branch to /api/receipts/save-corporate.  For Deliverable 1 the prop is
+  // accepted but unused — realtor flow remains the only active save path.
+  void context;
   const [state,      setState]      = useState<FlowState>("idle");
   const [errorMsg,   setErrorMsg]   = useState<string | null>(null);
   const [draft,      setDraft]      = useState<ReceiptDraft | null>(null);
