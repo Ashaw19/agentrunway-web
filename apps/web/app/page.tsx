@@ -433,7 +433,7 @@ export default async function Home() {
                 <p className="mt-4 text-center text-sm text-slate-500 lg:text-left">
                   Just want to kick the tires?{" "}
                   <Link
-                    href="/tools"
+                    href="/tools/realtor-tax-estimator"
                     className="font-semibold text-blue-400 underline underline-offset-2 hover:text-blue-300"
                   >
                     Try the free Canadian realtor tax estimator →
