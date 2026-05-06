@@ -159,7 +159,17 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                 ceilings. The practical result is that a successful agent with $80,000 or
                 more in net business income can expect CPP contributions alone to account
                 for a meaningful share of their overall tax bill — often $6,000–$8,000 —
-                before federal or provincial income tax is considered.
+                before federal or provincial income tax is considered. The full 2025
+                CPP1 and CPP2 numbers, worked examples at $80K, $120K, and $200K, and
+                the half-deduction-half-credit mechanic that offsets a portion of the
+                gross figure are all covered in the dedicated{" "}
+                <Link
+                  href="/self-employed-cpp-real-estate-agents-canada"
+                  className="font-semibold text-blue-600 underline underline-offset-2"
+                >
+                  self-employed CPP guide for Canadian real estate agents
+                </Link>
+                .
               </p>
 
               <h3>Federal and provincial income tax stacks on top</h3>
