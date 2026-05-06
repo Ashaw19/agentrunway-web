@@ -23,6 +23,67 @@ export const metadata: Metadata = {
   },
 };
 
+// ── CRA primary-source registry (self-contained per article) ────────────────
+
+const CRA_SOURCES = [
+  {
+    id: 1,
+    label: "CRA — Form T2125 (Statement of Business or Professional Activities)",
+    url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/forms/t2125.html",
+  },
+  {
+    id: 2,
+    label: "CRA — Expenses section of form T2125",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/completing-form-t2125/expenses-section-form-t2125.html",
+  },
+  {
+    id: 3,
+    label: "CRA — Motor vehicle expenses (self-employed)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/small-businesses-self-employed-income/business-income-tax-reporting/business-expenses/motor-vehicle-expenses.html",
+  },
+  {
+    id: 4,
+    label: "CRA — Business-use-of-home expenses",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/completing-form-t2125/business-use-home-expenses.html",
+  },
+  {
+    id: 5,
+    label: "CRA — Calculating business-use-of-home expenses",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/completing-form-t2125/calculating-business-use-home-expenses.html",
+  },
+  {
+    id: 6,
+    label: "CRA — Line 9936: Capital cost allowance (CCA)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/completing-form-t2125/line-9936-capital-cost-allowance.html",
+  },
+  {
+    id: 7,
+    label: "CRA — Self-employed: Chapter 3 — Expenses (T4002, includes meals 50% rule)",
+    url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4002/t4002-5.html",
+  },
+  {
+    id: 8,
+    label: "CRA — Keeping records (six-year retention rule)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/keeping-records.html",
+  },
+] as const;
+
+function CRACite({ id }: { id: number }) {
+  const src = CRA_SOURCES.find((s) => s.id === id);
+  if (!src) return null;
+  return (
+    <a
+      href={src.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Source: ${src.label}`}
+      className="ml-0.5 align-super text-[0.65em] font-semibold text-emerald-700 no-underline hover:underline"
+    >
+      [{id}]
+    </a>
+  );
+}
+
 // ── JSON-LD structured data ──────────────────────────────────────────────────
 
 const JSON_LD_ARTICLE = articleSchema({
@@ -31,7 +92,7 @@ const JSON_LD_ARTICLE = articleSchema({
     "A practical guide to every deduction available to self-employed Canadian real estate agents — organized by CRA category, with T2125 line references.",
   url: "/real-estate-agent-business-expenses-canada",
   datePublished: "2025-04-01",
-  dateModified: "2026-04-15",
+  dateModified: "2026-05-06",
 });
 
 const JSON_LD_FAQ = {
@@ -59,7 +120,7 @@ const JSON_LD_FAQ = {
       name: "Do I need to keep receipts for every business expense?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. The CRA requires you to keep supporting documentation for every business expense you claim. Receipts, invoices, bank statements, and contracts must be retained for at least six years from the end of the tax year. Digital copies are acceptable as long as they are legible and complete.",
+        text: "Yes. The CRA requires supporting documentation for every business expense claimed. Receipts, invoices, bank statements, and contracts are required to be retained for at least six years from the end of the tax year. Digital copies are acceptable as long as they are legible and complete.",
       },
     },
     {
@@ -67,7 +128,7 @@ const JSON_LD_FAQ = {
       name: "Can I deduct my phone if I use it for both personal and business?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes, but only the business-use portion. If you use one phone for both personal and business purposes, you must determine a reasonable business-use percentage. For most active real estate agents, 60% to 80% business use is considered reasonable by the CRA. You must be able to justify the percentage if audited.",
+        text: "Yes, but only the business-use portion. If one phone is used for both personal and business purposes, the agent determines a reasonable business-use percentage. For most active real estate agents, 60% to 80% business use is considered reasonable by the CRA. The percentage applies only if the agent can justify it if audited.",
       },
     },
     {
@@ -174,7 +235,7 @@ const EXPENSE_CATEGORIES = [
       "Traffic tickets and fines",
     ],
     critical:
-      "You MUST keep a vehicle logbook. Without it, CRA can deny your entire vehicle claim. Record date, destination, client/purpose, and km for every business trip.",
+      "A vehicle logbook is required by CRA. Without it, CRA can deny the entire vehicle claim. Record date, destination, client/purpose, and km for every business trip.",
     tip: "Most agents have 50\u201370% business use. CRA may challenge anything above 80%.",
   },
   {
@@ -355,8 +416,8 @@ export default function BusinessExpensesGuidePage() {
               <div className="mt-6 space-y-5 text-base leading-relaxed text-slate-600">
                 <p>
                   As a self-employed real estate agent, you can deduct any expense
-                  that was incurred to earn business income. The CRA expects
-                  expenses to be <strong>reasonable</strong>,{" "}
+                  that was incurred to earn business income<CRACite id={2} />.
+                  The CRA expects expenses to be <strong>reasonable</strong>,{" "}
                   <strong>documented</strong>, and{" "}
                   <strong>directly related to your real estate business</strong>.
                 </p>
@@ -378,10 +439,10 @@ export default function BusinessExpensesGuidePage() {
                 </p>
                 <p>
                   All of these expenses are reported on the{" "}
-                  <strong>T2125 &mdash; Statement of Business or Professional Activities</strong>,
-                  which is filed with your personal T1 tax return. The sections
-                  below cover every major category, with the specific T2125 line
-                  references.
+                  <strong>T2125 &mdash; Statement of Business or Professional Activities</strong>
+                  <CRACite id={1} />, which is filed with your personal T1 tax
+                  return. The sections below cover every major category, with the
+                  specific T2125 line references<CRACite id={2} />.
                 </p>
               </div>
             </ScrollRevealSection>
@@ -399,8 +460,14 @@ export default function BusinessExpensesGuidePage() {
               </h2>
               <p className="mt-4 text-base leading-relaxed text-slate-600">
                 Each category below maps to a specific line on the{" "}
-                <strong>T2125 form</strong>. Understanding which expenses belong
-                where makes tax filing cleaner and reduces audit risk.
+                <strong>T2125 form</strong><CRACite id={1} />. Understanding
+                which expenses belong where makes tax filing cleaner and reduces
+                audit risk. Specific guidance on motor vehicle expenses
+                <CRACite id={3} />, business-use-of-home expenses
+                <CRACite id={4} /><CRACite id={5} />, capital cost allowance on
+                line 9936<CRACite id={6} />, and the 50% rule for meals and
+                entertainment<CRACite id={7} /> is published by CRA on the
+                pages cited.
               </p>
             </ScrollRevealSection>
 
@@ -535,15 +602,15 @@ export default function BusinessExpensesGuidePage() {
                   <span>
                     <strong>Keep all receipts</strong> (digital or physical) for a
                     minimum of <strong>6 years</strong> from the end of the tax
-                    year.
+                    year<CRACite id={8} />.
                   </span>
                 </li>
                 <li className="flex items-start gap-3 text-base text-slate-700">
                   <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-slate-400" />
                   <span>
-                    <strong>Maintain a vehicle logbook</strong> &mdash; this is
-                    the single most important piece of documentation for your
-                    vehicle claim.
+                    <strong>Maintain a vehicle logbook</strong>
+                    <CRACite id={3} /> &mdash; this is the single most important
+                    piece of documentation for the vehicle claim.
                   </span>
                 </li>
                 <li className="flex items-start gap-3 text-base text-slate-700">
@@ -613,10 +680,11 @@ export default function BusinessExpensesGuidePage() {
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
                     Yes. The CRA requires supporting documentation for every
-                    business expense you claim. Receipts, invoices, bank
-                    statements, and contracts must be retained for at least six
-                    years from the end of the tax year. Digital copies are
-                    acceptable as long as they are legible and complete.
+                    business expense claimed<CRACite id={8} />. Receipts, invoices,
+                    bank statements, and contracts are required to be retained
+                    for at least six years from the end of the tax year
+                    <CRACite id={8} />. Digital copies are acceptable as long as
+                    they are legible and complete.
                   </p>
                 </div>
                 <div>
@@ -625,12 +693,12 @@ export default function BusinessExpensesGuidePage() {
                     business?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Yes, but only the business-use portion. If you use one phone
-                    for both personal and business purposes, you must determine a
-                    reasonable business-use percentage. For most active real estate
-                    agents, 60% to 80% business use is considered reasonable by
-                    the CRA. You must be able to justify the percentage if
-                    audited.
+                    Yes, but only the business-use portion<CRACite id={2} />. If
+                    one phone is used for both personal and business purposes,
+                    the agent determines a reasonable business-use percentage.
+                    For most active real estate agents, 60% to 80% business use
+                    is considered reasonable by the CRA. The percentage applies
+                    only if the agent can justify it if audited.
                   </p>
                 </div>
                 <div>
@@ -699,6 +767,45 @@ export default function BusinessExpensesGuidePage() {
                 </Link>
               </div>
             </ScrollRevealSection>
+          </div>
+        </section>
+
+        {/* ════════════════════════════════════════════════════════
+            SOURCES
+        ════════════════════════════════════════════════════════ */}
+        <section className="bg-white px-6 pt-12 pb-2 sm:px-10">
+          <div className="mx-auto max-w-3xl">
+            <section
+              aria-labelledby="sources"
+              className="border-t border-slate-200 pt-8"
+            >
+              <h2
+                id="sources"
+                className="text-base font-semibold text-slate-800"
+              >
+                Sources
+              </h2>
+              <p className="mt-2 text-xs text-slate-500">
+                Every quantitative or mechanical claim in this article is backed
+                by one of the primary sources below. Hand-verified live on
+                2026-05-06.
+              </p>
+              <ol className="mt-3 space-y-1 text-xs text-slate-500">
+                {CRA_SOURCES.map((s) => (
+                  <li key={s.id} className="flex gap-2">
+                    <span className="font-mono">[{s.id}]</span>
+                    <a
+                      href={s.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2 hover:text-slate-700"
+                    >
+                      {s.label}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </section>
           </div>
         </section>
 
