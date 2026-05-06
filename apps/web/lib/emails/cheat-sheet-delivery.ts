@@ -97,7 +97,7 @@ export function cheatSheetDeliveryEmail({
               <!-- ── Hero ── -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td style="background:linear-gradient(150deg,#071428 0%,#0d1f44 60%,#142d5e 100%);padding:44px 40px 0;text-align:center;">
+                  <td bgcolor="#0d1f44" style="background:linear-gradient(150deg,#071428 0%,#0d1f44 60%,#142d5e 100%);padding:44px 40px 0;text-align:center;">
 
                     <!-- Amber accent bar above badge -->
                     <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin-bottom:18px;">
@@ -275,9 +275,9 @@ export function cheatSheetDeliveryEmail({
               <table width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td style="padding:28px 40px 36px;">
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:linear-gradient(145deg,#071428 0%,#0d1f44 100%);border-radius:12px;">
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-radius:12px;">
                       <tr>
-                        <td style="padding:24px 26px 22px;">
+                        <td bgcolor="#071428" style="background:linear-gradient(145deg,#071428 0%,#0d1f44 100%);border-radius:12px;padding:24px 26px 22px;">
 
                           <!-- Logo + label row -->
                           <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:12px;">
