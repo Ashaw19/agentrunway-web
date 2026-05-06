@@ -414,11 +414,26 @@ function computeDeadlines(today: Date): Deadline[] {
   // Calendar fiscal year (Dec 31). T2 due 6 months after FY end.
   const t2Due = new Date(yyyy + 1, 5, 30); // June 30 of FY+1
 
-  // SR&ED claim window = 18 months after FY end → 18 mo after Dec 31 = June 30 of FY+2.
-  // (Strict CRA rule: must claim within 18 months of fiscal year-end.)
-  const sredClaimWindowEnd = new Date(yyyy + 1, 5, 30);
+  // SR&ED claim window = 18 months after FY end. AR Inc. uses calendar FY, so
+  // the deadline for the FY currently in progress (FY = yyyy) is Jun 30 of
+  // yyyy+2. Show the SOONEST upcoming claim deadline so we don't bury an
+  // open prior-FY window if today falls in Jan–Jun (window for FY yyyy-1
+  // closes Jun 30 of yyyy+1; window for FY yyyy closes Jun 30 of yyyy+2).
+  const sredCandidates = [
+    new Date(yyyy + 1, 5, 30), // FY yyyy-1 — only relevant if not yet expired
+    new Date(yyyy + 2, 5, 30), // FY yyyy — current in-progress fiscal year
+  ];
+  const sredClaimWindowEnd =
+    sredCandidates.find((d) => d.getTime() > today.getTime())
+    ?? sredCandidates[sredCandidates.length - 1]!;
 
-  // HST quarterly remittance — for active GST/HST registrants on quarterly cadence:
+  // HST quarterly remittance — quarterly filers must remit "no later than one
+  // month after the end of the reporting period" (Excise Tax Act s.245). We
+  // adopt the conservative "last day of the month following the reporting
+  // period" reading used by CRA's published filing calendar, so Q2 (ends
+  // Jun 30) is due Jul 31 and Q3 (ends Sep 30) is due Oct 31. Strict
+  // calendar-arithmetic readers would land Jul 30 / Oct 30 — the day-late
+  // CRA-calendar reading is the safer of the two for cash-flow planning.
   // Q1 (Jan-Mar) due Apr 30; Q2 (Apr-Jun) due Jul 31; Q3 (Jul-Sep) due Oct 31; Q4 (Oct-Dec) due Jan 31.
   const hstDeadlines: { date: Date; quarter: string }[] = [
     { date: new Date(yyyy, 3, 30), quarter: "Q1" }, // Apr 30
