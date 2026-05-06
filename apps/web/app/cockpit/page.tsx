@@ -174,7 +174,9 @@ function PageHeader() {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-foreground text-2xl font-semibold tracking-tight">Snapshot</h1>
+        <h1 className="text-foreground font-[var(--font-cockpit-display)] text-4xl font-normal leading-none tracking-tight">
+          Snapshot
+        </h1>
         <p className="text-muted-foreground mt-1.5 max-w-2xl text-sm leading-relaxed">
           Agent Runway Inc.&rsquo;s current state at a glance. Click any card to drill in.
         </p>
