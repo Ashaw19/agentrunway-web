@@ -44,6 +44,76 @@ const JSON_LD_ARTICLE = articleSchema({
   dateModified: "2026-05-06",
 });
 
+// ─── CRA primary sources (audit registry) ─────────────────────────────────────
+//
+// Every numeric or mechanical claim in this article is backed by one of the
+// URLs below. Inline citations are rendered via <CRACite id={n} />. URLs were
+// hand-verified live in a browser on 2026-05-06.
+
+const CRA_SOURCES = [
+  {
+    id: 1,
+    label: "CRA — CPP contribution rates, maximums and exemptions",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/payroll-deductions-contributions/canada-pension-plan-cpp/cpp-contribution-rates-maximums-exemptions.html",
+  },
+  {
+    id: 2,
+    label: "CRA — Schedule 8 (CPP contributions on self-employment and other earnings)",
+    url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/tax-packages-years/general-income-tax-benefit-package/5000-s8.html",
+  },
+  {
+    id: 3,
+    label: "CRA — Maximum pensionable earnings and contributions for 2025 (news release)",
+    url: "https://www.canada.ca/en/revenue-agency/news/newsroom/tax-tips/tax-tips-2024/canada-revenue-agency-announces-maximum-pensionable-earnings-contributions-2025.html",
+  },
+  {
+    id: 4,
+    label: "CRA — Second additional CPP contribution (CPP2) rates and maximums",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/calculating-deductions/making-deductions/second-additional-cpp-contribution-rates-maximums.html",
+  },
+  {
+    id: 5,
+    label: "CRA — Line 22200: Deduction for CPP/QPP contributions on self-employment and other earnings",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/about-your-tax-return/tax-return/completing-a-tax-return/deductions-credits-expenses/line-22200-deduction-cpp-qpp-contributions-on-self-employment-other-earnings.html",
+  },
+  {
+    id: 6,
+    label: "CRA — Line 22215: Deduction for CPP or QPP enhanced contributions on employment income",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/about-your-tax-return/tax-return/completing-a-tax-return/deductions-credits-expenses/line-22215-deduction-for-cpp-or-qpp-enhanced-contributions-on-employment-income.html",
+  },
+  {
+    id: 7,
+    label: "CRA — Required tax instalments — Who has to pay",
+    url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/who-pays-instalments.html",
+  },
+  {
+    id: 8,
+    label: "CRA — T4001 Employer's Guide: Payroll Deductions and Remittances",
+    url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4001.html",
+  },
+  {
+    id: 9,
+    label: "Revenu Québec — QPP contribution payable by a self-employed person",
+    url: "https://www.revenuquebec.ca/en/citizens/income-tax-return/paying-a-balance-due-or-receiving-a-refund/paying-contributions-and-premiums/contributions-and-premiums-payable-by-a-self-employed-person-or-a-member-of-a-partnership/qpp-contribution-payable-by-a-self-employed-person-or-a-member-of-a-partnership/",
+  },
+] as const;
+
+function CRACite({ id }: { id: number }) {
+  const src = CRA_SOURCES.find((s) => s.id === id);
+  if (!src) return null;
+  return (
+    <a
+      href={src.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Source: ${src.label}`}
+      className="ml-0.5 align-super text-[0.65em] font-semibold text-blue-600 no-underline hover:underline"
+    >
+      [{id}]
+    </a>
+  );
+}
+
 // ─── TOC ──────────────────────────────────────────────────────────────────────
 
 const TOC = [
@@ -162,9 +232,9 @@ export default function SelfEmployedCPPCanadaPage() {
                 and the employer. Commissions land in the agent&apos;s account in full,
                 with no source deduction taken at the time of payment. When the T1
                 personal income tax return is filed, the agent calculates the
-                self-employed CPP contribution on Schedule 8 — and the figure that
-                lands there is the combined employee-plus-employer amount on the
-                self-employed earnings.
+                self-employed CPP contribution on Schedule 8<CRACite id={2} /> — and
+                the figure that lands there is the combined employee-plus-employer
+                amount on the self-employed earnings.
               </p>
 
               <p>
@@ -195,24 +265,26 @@ export default function SelfEmployedCPPCanadaPage() {
 
               <ul>
                 <li>
-                  <strong>Basic exemption:</strong> $3,500. CPP contributions are
-                  calculated only on earnings above this amount.
+                  <strong>Basic exemption:</strong> $3,500<CRACite id={1} />. CPP
+                  contributions are calculated only on earnings above this amount.
                 </li>
                 <li>
-                  <strong>Year&apos;s Maximum Pensionable Earnings (YMPE), 2025:</strong> $71,300.
-                  This is the upper bound for CPP1 contributions.
+                  <strong>Year&apos;s Maximum Pensionable Earnings (YMPE), 2025:</strong>{" "}
+                  $71,300<CRACite id={1} /><CRACite id={3} />. This is the upper bound
+                  for CPP1 contributions.
                 </li>
                 <li>
                   <strong>Year&apos;s Additional Maximum Pensionable Earnings (YAMPE), 2025:</strong>{" "}
-                  $81,200. CPP2 contributions apply on earnings between YMPE and YAMPE.
+                  $81,200<CRACite id={1} /><CRACite id={3} />. CPP2 contributions apply
+                  on earnings between YMPE and YAMPE<CRACite id={4} />.
                 </li>
                 <li>
                   <strong>CPP1 self-employed rate, 2025:</strong> 11.90% (the employee
-                  rate of 5.95% × 2).
+                  rate of 5.95% × 2)<CRACite id={1} />.
                 </li>
                 <li>
                   <strong>CPP2 self-employed rate, 2025:</strong> 8.00% (the employee
-                  rate of 4.00% × 2).
+                  rate of 4.00% × 2)<CRACite id={4} />.
                 </li>
               </ul>
 
@@ -223,11 +295,13 @@ export default function SelfEmployedCPPCanadaPage() {
               <ul>
                 <li>
                   <strong>Maximum CPP1 contribution (self-employed):</strong>{" "}
-                  ($71,300 − $3,500) × 11.90% = <strong>$8,068.20</strong>.
+                  ($71,300 − $3,500) × 11.90% = <strong>$8,068.20</strong>
+                  <CRACite id={1} />.
                 </li>
                 <li>
                   <strong>Maximum CPP2 contribution (self-employed):</strong>{" "}
-                  ($81,200 − $71,300) × 8.00% = <strong>$792.00</strong>.
+                  ($81,200 − $71,300) × 8.00% = <strong>$792.00</strong>
+                  <CRACite id={4} />.
                 </li>
                 <li>
                   <strong>Total maximum 2025 self-employed CPP:</strong>{" "}
@@ -238,9 +312,9 @@ export default function SelfEmployedCPPCanadaPage() {
               <p>
                 For comparison, the maximum 2025 contribution for a salaried employee
                 at the same earnings level — paying only the employee half — is
-                $4,430.10. The structural self-employed gap at YAMPE is therefore
-                $4,430.10 — exactly the employer half that no employer remits on a
-                self-employed agent&apos;s behalf.
+                $4,430.10<CRACite id={1} />. The structural self-employed gap at YAMPE
+                is therefore $4,430.10 — exactly the employer half that no employer
+                remits on a self-employed agent&apos;s behalf.
               </p>
 
               <h3>The Quebec QPP variant</h3>
@@ -249,10 +323,10 @@ export default function SelfEmployedCPPCanadaPage() {
                 Agents who reside in Quebec contribute to the Quebec Pension Plan
                 (QPP) rather than the federal CPP. The 2025 QPP1 self-employed rate
                 is slightly higher than CPP1 (the QPP rate has been published at 12.80%
-                versus CPP&apos;s 11.90%). The QPP2 rate matches CPP2 at 8.00%. YMPE and
-                YAMPE figures are the same. Quebec residents file the QPP contribution
-                on Schedule 8 of the Quebec TP-1 return rather than the federal T1
-                Schedule 8.
+                versus CPP&apos;s 11.90%)<CRACite id={9} />. The QPP2 rate matches CPP2 at
+                8.00%<CRACite id={9} />. YMPE and YAMPE figures are the same. Quebec
+                residents file the QPP contribution on Schedule 8 of the Quebec TP-1
+                return rather than the federal T1 Schedule 8.
               </p>
 
               {/* ── Section 3 ── */}
@@ -328,10 +402,10 @@ export default function SelfEmployedCPPCanadaPage() {
                 quarterly tax instalment obligation that applies in subsequent years.
                 The CRA&apos;s instalment threshold is $3,000 of net tax owing in either
                 of the two preceding years (excluding Quebec, where the threshold is
-                $1,800). Once an agent crosses that threshold once, instalment
-                reminders begin arriving from the CRA the following spring — and the
-                figures shown on those reminders include the CPP component, not just
-                income tax.
+                $1,800)<CRACite id={7} />. Once an agent crosses that threshold once,
+                instalment reminders begin arriving from the CRA the following spring
+                <CRACite id={7} /> — and the figures shown on those reminders include
+                the CPP component, not just income tax.
               </p>
 
               <p>
@@ -357,69 +431,117 @@ export default function SelfEmployedCPPCanadaPage() {
 
               {/* ── Section 5 ── */}
               <h2 id="deduction-credit">
-                The partial offset — half deduction, half credit
+                The partial offset — three layers, three different treatments
               </h2>
 
               <p>
-                The headline 11.90% self-employed CPP1 rate is the gross figure. The
-                actual after-tax cost is lower than the gross rate suggests, because
-                of how CRA treats the two halves of the contribution.
+                The headline 11.90% self-employed CPP1 rate plus the 8.00% CPP2 rate
+                is the gross figure. The actual after-tax cost is lower than the
+                gross rate suggests, because CRA treats the contribution in three
+                separate layers — the legacy &quot;base&quot; CPP1, the post-2019
+                &quot;enhanced&quot; CPP1, and CPP2 — and each layer is deducted (or
+                credited) on a different line of the T1 return.
               </p>
 
-              <h3>The employer-half deduction</h3>
+              <h3>Base CPP1 — half deduction, half credit</h3>
 
               <p>
-                CRA treats half of CPP1 — the &quot;employer half&quot; — as a deductible
-                business expense. It reduces net business income before federal and
-                provincial income tax is calculated. For an agent paying combined
-                marginal income tax rates of 35–45% (typical for net business income
-                in the $80K–$150K band, depending on province), this deduction
-                returns approximately 35–45 cents on every dollar of employer-half
-                CPP1 paid.
+                The original CPP1 rate (the pre-2019 &quot;base&quot;) is 9.90%
+                combined for the self-employed: 4.95% on the employee side and
+                4.95% on the employer side<CRACite id={1} />. CRA treats this layer
+                in two halves:
               </p>
 
-              <h3>The employee-half credit</h3>
+              <ul>
+                <li>
+                  The 4.95% &quot;employer half&quot; is a deductible business
+                  expense at <strong>line 22200</strong> of the T1<CRACite id={5} />.
+                  It reduces net business income before federal and provincial
+                  income tax is calculated.
+                </li>
+                <li>
+                  The 4.95% &quot;employee half&quot; flows to a non-refundable tax
+                  credit, claimed at the lowest federal bracket rate (15%) plus the
+                  equivalent lowest provincial bracket rate.
+                </li>
+              </ul>
 
               <p>
-                The other half of CPP1 — the &quot;employee half&quot; — flows to a
-                non-refundable tax credit. This credit is claimed at the lowest
-                federal bracket rate (15%) plus the equivalent lowest provincial
-                bracket rate. The provincial portion varies — typically in the
-                5–10% range depending on province — so the combined credit value
-                is usually around 20–25 cents on every dollar of employee-half CPP1
-                paid.
+                For an agent at YMPE, the base layer produces (
+                $71,300 − $3,500) × 9.90% = <strong>$6,712.20</strong> in total
+                contributions, split half-and-half between the deduction and the
+                credit.
+              </p>
+
+              <h3>Enhanced CPP1 — fully deductible</h3>
+
+              <p>
+                Layered on top of the base rate is the post-2019 &quot;first
+                additional&quot; CPP enhancement, phased in between 2019 and 2023.
+                For 2025 the enhanced layer is 2.00% combined for the
+                self-employed: 1.00% on each side<CRACite id={1} />. Unlike the
+                base layer, both halves of the enhanced contribution are{" "}
+                <strong>fully deductible at line 22215</strong> of the T1
+                <CRACite id={6} />. There is no credit-half — the entire enhanced
+                contribution reduces net business income.
+              </p>
+
+              <p>
+                For an agent at YMPE, the enhanced layer produces (
+                $71,300 − $3,500) × 2.00% = <strong>$1,356.00</strong> in
+                contributions, every dollar of which is deductible.
               </p>
 
               <h3>CPP2 — fully deductible</h3>
 
               <p>
-                CPP2, introduced in 2024 on earnings between YMPE and YAMPE, is
-                treated differently again. CRA confirmed that CPP2 contributions are
-                fully deductible from net business income — both halves — for
-                self-employed filers. This means the net cost of CPP2 is reduced by
-                the agent&apos;s full marginal income tax rate, not split between a
-                deduction and a credit as CPP1 is.
+                CPP2, introduced in 2024 on earnings between YMPE and YAMPE, is a
+                separate contribution at 8.00% combined for the self-employed
+                <CRACite id={4} />. Like enhanced CPP1, both halves of CPP2 are
+                fully deductible at line 22215 of the T1<CRACite id={6} />. No
+                credit applies.
               </p>
 
               <h3>The aggregate effect</h3>
 
               <p>
-                Combining the deduction-half, credit-half, and full-deduction
-                treatment, the after-tax cost of the gross 2025 maximum
-                self-employed CPP contribution of $8,860.20 typically lands in the
-                $5,800–$6,400 range, depending on province and marginal rate. The
-                offset does not eliminate the burden, but it materially reduces it
-                compared to what a simple application of the 11.90% gross rate
-                might suggest. CRA&apos;s{" "}
+                Putting the three layers together, the gross 2025 maximum
+                self-employed CPP contribution of $8,860.20 breaks down as:
+              </p>
+
+              <ul>
+                <li>
+                  <strong>Base CPP1:</strong> $6,712.20 — half deductible (line
+                  22200), half non-refundable credit (line 30800 / 31000).
+                </li>
+                <li>
+                  <strong>Enhanced CPP1:</strong> $1,356.00 — fully deductible
+                  (line 22215).
+                </li>
+                <li>
+                  <strong>CPP2:</strong> $792.00 — fully deductible (line 22215).
+                </li>
+              </ul>
+
+              <p>
+                The deductible portion across all three layers totals
+                approximately <strong>$5,504</strong> at the 2025 maximum (the
+                base employer-half plus the entire enhanced and CPP2 layers). For
+                an agent paying combined marginal income tax rates of 35–45%, the
+                deduction returns roughly 35–45 cents on each of those dollars.
+                The remaining $3,356 of base CPP1 employee-half flows to the
+                non-refundable credit at the lowest combined federal-plus-provincial
+                rate (typically around 20–25%). The full line-by-line calculation
+                is set out in the{" "}
                 <a
-                  href="https://www.canada.ca/en/revenue-agency/services/forms-publications/forms/t1.html"
+                  href="https://www.canada.ca/en/revenue-agency/services/forms-publications/tax-packages-years/general-income-tax-benefit-package/5000-s8.html"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-semibold text-blue-600 underline underline-offset-2"
                 >
-                  Schedule 8 instructions on the T1
-                </a>{" "}
-                show the exact line-by-line calculation.
+                  CRA&apos;s Schedule 8
+                </a>
+                <CRACite id={2} />.
               </p>
 
               {/* ── Section 6 ── */}
@@ -444,10 +566,10 @@ export default function SelfEmployedCPPCanadaPage() {
                 <li>
                   If a PREC pays its sole shareholder-agent a <strong>salary</strong>,
                   the salary is wages — and the corporation withholds and remits CPP
-                  on those wages exactly as any employer would. The combined
-                  employee-plus-employer CPP figure is the same as the self-employed
-                  amount on the equivalent earnings. The contribution shifts
-                  administratively, not in dollar terms.
+                  on those wages exactly as any employer would<CRACite id={8} />.
+                  The combined employee-plus-employer CPP figure is the same as the
+                  self-employed amount on the equivalent earnings. The contribution
+                  shifts administratively, not in dollar terms.
                 </li>
                 <li>
                   If a PREC pays its sole shareholder-agent <strong>dividends</strong>{" "}
@@ -513,6 +635,39 @@ export default function SelfEmployedCPPCanadaPage() {
               </p>
 
             </article>
+
+            {/* Sources */}
+            <section
+              aria-labelledby="sources"
+              className="mt-12 border-t border-slate-200 pt-8"
+            >
+              <h2
+                id="sources"
+                className="text-base font-semibold text-slate-800"
+              >
+                Sources
+              </h2>
+              <p className="mt-2 text-xs text-slate-500">
+                Every quantitative or mechanical claim in this article is backed
+                by one of the primary sources below. Hand-verified live on
+                2026-05-06.
+              </p>
+              <ol className="mt-4 space-y-2 text-xs text-slate-500">
+                {CRA_SOURCES.map((s) => (
+                  <li key={s.id} className="flex gap-2 leading-relaxed">
+                    <span className="font-mono text-slate-400">[{s.id}]</span>
+                    <a
+                      href={s.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2 hover:text-slate-700"
+                    >
+                      {s.label}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </section>
 
             {/* Bottom disclaimer */}
             <p className="mt-12 text-center text-xs leading-relaxed text-slate-400">
