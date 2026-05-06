@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, BookOpen } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
+import { EmailCapture } from "@/components/email-capture";
 import { articleSchema } from "@/lib/schema";
 
 export const metadata: Metadata = {
@@ -543,6 +544,17 @@ export default function SelfEmployedCPPCanadaPage() {
                 </a>
                 <CRACite id={2} />.
               </p>
+
+              {/* ── Cheat sheet inline CTA ── */}
+              <div className="not-prose my-8">
+                <EmailCapture
+                  heading="Get the Canadian Realtor Tax Cheat Sheet"
+                  subheading="Every 2025 bracket, CPP rate, GST/HST threshold, and deadline on one printable page — CRA-cited. We'll email it to you."
+                  ctaLabel="Email me the cheat sheet"
+                  source="cheat_sheet_inline_self-employed-cpp-real-estate-agents-canada"
+                  variant="light"
+                />
+              </div>
 
               {/* ── Section 6 ── */}
               <h2 id="incorporation-question">
