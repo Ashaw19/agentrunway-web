@@ -45,6 +45,10 @@ export function EmailCapture({
 
   const isDark = variant === "dark";
 
+  // CASL: clear disclosure + affirmative submit = express consent for marketing-purposed inline forms.
+  const consentLanguage =
+    "By subscribing, I agree to receive marketing emails from Agent Runway Inc. I can unsubscribe at any time.";
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setState("loading");
@@ -54,7 +58,13 @@ export function EmailCapture({
       const res = await fetch("/api/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), source }),
+        body: JSON.stringify({
+          email: email.trim(),
+          source,
+          consent: true,
+          consent_language: consentLanguage,
+          form_url: typeof window !== "undefined" ? window.location.pathname : "/",
+        }),
       });
 
       if (!res.ok) {
@@ -167,6 +177,15 @@ export function EmailCapture({
       {state === "error" && errorMsg && (
         <p className="mt-2 text-xs text-red-400">{errorMsg}</p>
       )}
+
+      {/* CASL: express consent disclosure — submission is the affirmative action */}
+      <p
+        className={`mt-3 text-[11px] leading-relaxed ${
+          isDark ? "text-slate-500" : "text-slate-400"
+        }`}
+      >
+        {consentLanguage}
+      </p>
     </div>
   );
 }
