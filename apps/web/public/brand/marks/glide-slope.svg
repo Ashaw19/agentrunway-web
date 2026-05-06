@@ -1,0 +1,12 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" fill="none" stroke="#2563EB" stroke-width="2" stroke-linecap="round">
+  <!-- Main glide slope line (descending left-to-right at ~3°) -->
+  <line x1="20" y1="30" x2="140" y2="95"/>
+  <!-- Perpendicular tick marks along the slope (evenly spaced) -->
+  <line x1="43"  y1="18"  x2="35"  y2="30"/>
+  <line x1="68"  y1="31"  x2="60"  y2="43"/>
+  <line x1="93"  y1="44"  x2="85"  y2="56"/>
+  <line x1="118" y1="57"  x2="110" y2="69"/>
+  <!-- Arrowhead at upper-left (origin / threshold) -->
+  <polyline points="30,22 20,30 32,34" fill="none"/>
+</svg>
