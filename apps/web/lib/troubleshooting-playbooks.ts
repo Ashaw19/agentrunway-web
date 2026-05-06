@@ -294,7 +294,7 @@ Note: Activity decay alerts also exist — clients whose days-since-last-contact
 Shows stage-by-stage conversion rates for each pipeline source:
 - **Deal funnel**: lead → showing → offer → conditional → firm → closed
 - **Listing funnel**: scheduled → active → sold
-- **Buyer funnel**: boarding → in_flight
+- **Buyer funnel**: scheduled → boarding → in_flight (Scheduled = deferred-intent, surfaced in the funnel as of the 2026-04-30 engine update; previously dropped)
 Conversion rate = count at stage N ÷ count at stage N−1. Null for the first stage (no prior stage to compare).
 
 ### Common Problems & Diagnostics
