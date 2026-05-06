@@ -34,7 +34,7 @@ const JSON_LD_ARTICLE = {
   author: { "@type": "Person", name: "Andrew Shaw" },
   publisher: { "@type": "Organization", name: "Agent Runway", url: "https://agentrunway.ca" },
   datePublished: "2025-04-01",
-  dateModified: "2025-04-01",
+  dateModified: "2026-05-06",
   url: "https://agentrunway.ca/real-estate-commission-calculator-canada",
   mainEntityOfPage: {
     "@type": "WebPage",
@@ -80,6 +80,47 @@ const JSON_LD_FAQ = {
     },
   ],
 };
+
+// ── CRA primary sources (audit registry) ─────────────────────────────────────
+//
+// Every CRA-mechanical claim in this article (HST $30K threshold, provincial
+// HST/GST rates, GST/HST filing) maps to one of the URLs below. Inline
+// citations are rendered via <CRACite id={n} />. URLs were hand-verified live
+// on 2026-05-06.
+
+const CRA_SOURCES = [
+  {
+    id: 1,
+    label: "CRA — When to register for and start charging the GST/HST",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/when-register-charge.html",
+  },
+  {
+    id: 2,
+    label: "CRA — Charge and collect the tax: Which rate to charge",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html",
+  },
+  {
+    id: 3,
+    label: "CRA — File a GST/HST return",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/file-gst-hst-return.html",
+  },
+] as const;
+
+function CRACite({ id }: { id: number }) {
+  const src = CRA_SOURCES.find((s) => s.id === id);
+  if (!src) return null;
+  return (
+    <a
+      href={src.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Source: ${src.label}`}
+      className="ml-0.5 align-super text-[0.65em] font-semibold text-blue-600 no-underline hover:underline"
+    >
+      [{id}]
+    </a>
+  );
+}
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
@@ -151,8 +192,8 @@ export default function CommissionCalculatorPage() {
                   it, the brokerage takes their split — anywhere from 5% to 50%
                   depending on your agreement. Then come per-deal transaction
                   fees, desk fees, and E&amp;O insurance. After that, the CRA
-                  wants their share: HST/GST on the commission itself, plus
-                  income tax on what&apos;s left.
+                  wants their share: HST/GST on the commission itself
+                  <CRACite id={2} />, plus income tax on what&apos;s left.
                 </p>
                 <p>
                   The result? A $500,000 sale at 2.5% commission sounds like
@@ -196,8 +237,11 @@ export default function CommissionCalculatorPage() {
                 <li>
                   <strong className="text-slate-900">4. HST/GST</strong>{" "}
                   — The CRA requires HST/GST collection and remittance once your
-                  gross revenue exceeds $30,000. In Ontario that&apos;s 13%; in the
-                  Maritimes, 15%; in Alberta, 5%.
+                  gross revenue exceeds $30,000 over four consecutive calendar
+                  quarters<CRACite id={1} />. In Ontario that&apos;s 13%; in the
+                  Maritimes, 15%; in Alberta, 5%<CRACite id={2} />. Returns are
+                  filed with CRA on a monthly, quarterly, or annual basis
+                  depending on revenue<CRACite id={3} />.
                 </li>
                 <li>
                   <strong className="text-slate-900">5. Income tax</strong>{" "}
@@ -239,9 +283,10 @@ export default function CommissionCalculatorPage() {
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
                     If your gross revenue exceeds $30,000 over four consecutive
                     calendar quarters, the CRA requires HST/GST registration and
-                    collection. In Ontario that&apos;s 13%, in the Maritimes 15%,
-                    and in GST-only provinces like Alberta it&apos;s 5%. Most
-                    active agents exceed this threshold quickly.
+                    collection<CRACite id={1} />. In Ontario that&apos;s 13%, in
+                    the Maritimes 15%, and in GST-only provinces like Alberta
+                    it&apos;s 5%<CRACite id={2} />. Most active agents exceed
+                    this threshold quickly.
                   </p>
                 </div>
                 <div>
@@ -322,6 +367,46 @@ export default function CommissionCalculatorPage() {
                 </Link>
               </div>
             </ScrollRevealSection>
+          </div>
+        </section>
+
+        {/* ════════════════════════════════════════════════════════
+            SOURCES
+        ════════════════════════════════════════════════════════ */}
+        <section className="bg-white px-6 pt-10 sm:px-10">
+          <div className="mx-auto max-w-3xl">
+            <div
+              aria-labelledby="sources"
+              className="border-t border-slate-200 pt-8"
+            >
+              <h2
+                id="sources"
+                className="text-base font-semibold text-slate-800"
+              >
+                Sources
+              </h2>
+              <p className="mt-2 text-xs text-slate-500">
+                Every CRA-mechanical claim in this article (HST registration
+                threshold, provincial HST/GST rates, GST/HST filing) is backed
+                by one of the primary sources below. Hand-verified live on
+                2026-05-06.
+              </p>
+              <ol className="mt-4 space-y-2 text-xs text-slate-500">
+                {CRA_SOURCES.map((s) => (
+                  <li key={s.id} className="flex gap-2 leading-relaxed">
+                    <span className="font-mono text-slate-400">[{s.id}]</span>
+                    <a
+                      href={s.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2 hover:text-slate-700"
+                    >
+                      {s.label}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </div>
           </div>
         </section>
 
