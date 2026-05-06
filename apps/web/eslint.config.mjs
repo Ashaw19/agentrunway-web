@@ -22,6 +22,19 @@ const eslintConfig = [
           caughtErrorsIgnorePattern: "^_",
         },
       ],
+      // Allow @ts-nocheck and @ts-expect-error when accompanied by a
+      // description (>= 20 chars). Used in @react-pdf/renderer files
+      // where class-based components fail @types/react 19.2 strict JSX.
+      "@typescript-eslint/ban-ts-comment": [
+        "error",
+        {
+          "ts-expect-error": "allow-with-description",
+          "ts-ignore": true,
+          "ts-nocheck": "allow-with-description",
+          "ts-check": false,
+          minimumDescriptionLength: 20,
+        },
+      ],
     },
   },
 ];
