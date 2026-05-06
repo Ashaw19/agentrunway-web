@@ -360,6 +360,30 @@ export default function RealtorTaxEstimatorPage() {
         </section>
 
         {/* ═══════════════════════════════════════════════════════════════════
+            CHEAT SHEET CROSSLINK
+        ═══════════════════════════════════════════════════════════════════ */}
+        <section className="bg-white px-6 py-8 sm:px-10">
+          <div className="mx-auto max-w-4xl">
+            <div className="flex flex-col gap-4 rounded-xl border border-emerald-200 bg-emerald-50 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Free download</p>
+                <h2 className="mt-1 text-base font-bold text-slate-900">Want the figures on a printable card?</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  The Canadian Realtor Tax Cheat Sheet puts every 2025 bracket, CPP rate, GST/HST
+                  threshold, and deadline on a single page — CRA-cited.
+                </p>
+              </div>
+              <Link
+                href="/tools/canadian-realtor-tax-cheat-sheet"
+                className="shrink-0 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700"
+              >
+                Get the cheat sheet <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════════════════════════════
             RELATED RESOURCES
         ═══════════════════════════════════════════════════════════════════ */}
         <section className="bg-slate-50 px-6 py-16 sm:px-10">
