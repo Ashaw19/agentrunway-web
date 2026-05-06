@@ -89,20 +89,30 @@ export function getIndividualPriceId(
   return STRIPE_PRICES[key] || "";
 }
 
-/** Resolve team leader price ID for a given tier + billing period */
+/**
+ * Resolve team leader price ID for a given tier + billing period.
+ *
+ * Tier-specific env vars (`STRIPE_PRICE_CHARTER_LEADER_*` etc.) are the
+ * primary path; if those are not configured, fall back to the flat legacy
+ * `STRIPE_PRICE_TEAM_LEADER_*` so team checkouts keep working during the
+ * Ellis-beta / pre-tiered-rollout window. Update-seats uses the same
+ * dual-key model (see apps/web/app/api/team-billing/update-seats/route.ts).
+ */
 export function getLeaderPriceId(
   tier: PricingTier,
   billing: "monthly" | "annual"
 ): string {
-  const key = `${tier}_leader_${billing}` as keyof typeof STRIPE_PRICES;
-  return STRIPE_PRICES[key] || "";
+  const tieredKey   = `${tier}_leader_${billing}` as keyof typeof STRIPE_PRICES;
+  const fallbackKey = `team_leader_${billing}`    as keyof typeof STRIPE_PRICES;
+  return STRIPE_PRICES[tieredKey] || STRIPE_PRICES[fallbackKey] || "";
 }
 
-/** Resolve team member price ID for a given tier + billing period */
+/** Resolve team member price ID for a given tier + billing period (same fallback). */
 export function getMemberPriceId(
   tier: PricingTier,
   billing: "monthly" | "annual"
 ): string {
-  const key = `${tier}_member_${billing}` as keyof typeof STRIPE_PRICES;
-  return STRIPE_PRICES[key] || "";
+  const tieredKey   = `${tier}_member_${billing}` as keyof typeof STRIPE_PRICES;
+  const fallbackKey = `team_member_${billing}`    as keyof typeof STRIPE_PRICES;
+  return STRIPE_PRICES[tieredKey] || STRIPE_PRICES[fallbackKey] || "";
 }
