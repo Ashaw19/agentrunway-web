@@ -3,6 +3,8 @@ import {
   ArrowUpRight,
   Banknote,
   Calendar,
+  Flame,
+  Gauge,
   ListTodo,
   Receipt,
   Sparkles,
@@ -16,6 +18,12 @@ import { cn } from "@/lib/utils";
 // the views in migration 00133 + corp_transactions. Cash + Anomalies stay
 // pinned to the "fake" placeholder until their data sources exist (cash =
 // future bank-feed sync; anomalies = scheduled-routine findings).
+//
+// Phase 1 (2026-05-06): operating health row added at the top — Cash,
+// Monthly Burn, SaaS Runway. Cash reads the latest manual snapshot from
+// corp_cash_snapshots (migration 00135) and is flagged "manual"; Burn is
+// the trailing-90-day cogs+opex (corp portion) divided by 3; Runway is
+// Cash ÷ Burn in months.
 //
 // Eleanor Konik's rule preserved: never show a fake number without flagging
 // it. Real cards drop the "fake" pill; placeholder cards keep it.
@@ -66,6 +74,20 @@ type ExpenseRow = {
   date: string;
 };
 
+type CashSnapshotRow = {
+  as_of_date: string;
+  amount_cad: number;
+  source_label: string | null;
+};
+
+// Trailing-90 burn input. corp_pct applied in JS to match the
+// total_corp_portion convention used by v_corp_pl_by_account.
+type BurnRow = {
+  amount_total: number | null;
+  corp_pct: number | null;
+  account_type: string | null;
+};
+
 export default async function SnapshotPage() {
   const supabase = await createClient();
   const {
@@ -78,7 +100,20 @@ export default async function SnapshotPage() {
   const startOfMonth = ymd(new Date(today.getFullYear(), today.getMonth(), 1));
   const startOfFY = ymd(new Date(today.getFullYear(), 0, 1));
 
-  const [hstRes, sredRes, monthExpRes, ytdRes, lastReviewRes] = await Promise.all([
+  // Trailing 90 days for burn calc. Inclusive of today.
+  const burnWindowStart = ymd(
+    new Date(today.getFullYear(), today.getMonth(), today.getDate() - 89),
+  );
+
+  const [
+    hstRes,
+    sredRes,
+    monthExpRes,
+    ytdRes,
+    lastReviewRes,
+    cashSnapshotRes,
+    burnRowsRes,
+  ] = await Promise.all([
     supabase
       .from("v_corp_gst_hst_summary")
       .select("quarter_start, quarter_end, hst_collected, hst_itc, net_remittance, txn_count")
@@ -110,12 +145,32 @@ export default async function SnapshotPage() {
       .order("ingested_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // Cash position: latest manual snapshot. corp_cash_snapshots from
+    // migration 00135 — no bank-feed integration in Phase 1.
+    supabase
+      .from("corp_cash_snapshots")
+      .select("as_of_date, amount_cad, source_label")
+      .eq("user_id", user.id)
+      .order("as_of_date", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    // Trailing-90 burn: cogs + opex rows in window. corp_pct applied below
+    // to match v_corp_pl_by_account total_corp_portion convention.
+    supabase
+      .from("corp_transactions")
+      .select("amount_total, corp_pct, account_type")
+      .eq("user_id", user.id)
+      .gte("date", burnWindowStart)
+      .lte("date", ymd(today))
+      .in("account_type", ["cogs", "opex"]),
   ]);
 
   const hst = (hstRes.data ?? null) as HstSummary | null;
   const sredRows = (sredRes.data ?? []) as SredRow[];
   const monthTopExpenses = (monthExpRes.data ?? []) as ExpenseRow[];
   const ytdRows = (ytdRes.data ?? []) as { account_type: string; total_corp_portion: number }[];
+  const cashSnapshot = (cashSnapshotRes.data ?? null) as CashSnapshotRow | null;
+  const burnRows = (burnRowsRes.data ?? []) as BurnRow[];
   const lastReview = lastReviewRes.data?.ingested_at
     ? {
         ingestedAt: lastReviewRes.data.ingested_at as string,
@@ -128,6 +183,35 @@ export default async function SnapshotPage() {
         ),
       }
     : null;
+
+  // Operating health row computations
+  const cashAmount = cashSnapshot ? Number(cashSnapshot.amount_cad ?? 0) : null;
+  const cashAsOf = cashSnapshot?.as_of_date ?? null;
+  const cashSource = cashSnapshot?.source_label ?? null;
+  const cashStaleDays = cashAsOf
+    ? Math.max(
+        0,
+        Math.floor(
+          (today.getTime() - new Date(cashAsOf).getTime()) / (1000 * 60 * 60 * 24),
+        ),
+      )
+    : null;
+
+  // Trailing-90 burn = sum(amount_total * corp_pct/100) for cogs+opex ÷ 3.
+  // Matches the total_corp_portion convention used by v_corp_pl_by_account so
+  // burn aligns with YTD expenses. Negative burn is implausible (would mean
+  // refunds > spend) — treat <=0 as "no signal" and let runway show "--".
+  const burn90Total = burnRows.reduce((sum, r) => {
+    const amount = Number(r.amount_total ?? 0);
+    const pct = Number(r.corp_pct ?? 100);
+    return sum + (amount * pct) / 100;
+  }, 0);
+  const monthlyBurn = burn90Total > 0 ? burn90Total / 3 : null;
+
+  const runwayMonths =
+    cashAmount !== null && cashAmount > 0 && monthlyBurn !== null && monthlyBurn > 0
+      ? cashAmount / monthlyBurn
+      : null;
 
   const sredTotal = sredRows.reduce((s, r) => s + Number(r.total_corp_portion ?? 0), 0);
   const sredRefundEstimate = sredTotal * 0.5; // CCPC NB refundable rate
@@ -155,6 +239,29 @@ export default async function SnapshotPage() {
   return (
     <div className="space-y-8">
       <PageHeader />
+
+      {/* Operating health row — Cash, Burn, Runway. Top of page so the
+          first thing on screen is the question "are we still solvent?" */}
+      <section aria-label="Operating health" className="space-y-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-foreground/90 font-[var(--font-cockpit-display)] text-xl font-normal tracking-tight">
+            Operating health
+          </h2>
+          <span className="text-muted-foreground/60 hidden text-[11px] tracking-[0.08em] uppercase sm:inline">
+            Cash · Burn · Runway
+          </span>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <CashPositionCard
+            amount={cashAmount}
+            asOf={cashAsOf}
+            staleDays={cashStaleDays}
+            sourceLabel={cashSource}
+          />
+          <MonthlyBurnCard monthlyBurn={monthlyBurn} txnCount={burnRows.length} />
+          <RunwayCard runwayMonths={runwayMonths} hasCash={cashAmount !== null} hasBurn={monthlyBurn !== null} />
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <WeeklyReviewCard lastReview={lastReview} obligations={RECURRING_OBLIGATIONS} />
@@ -198,6 +305,7 @@ function Card({
   icon: Icon,
   accent,
   fake = false,
+  pill,
   children,
 }: {
   label: string;
@@ -205,9 +313,13 @@ function Card({
   icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   accent: Accent;
   fake?: boolean;
+  // Optional provenance/state pill in the card header. `fake` is kept as a
+  // shorthand that resolves to a "fake" pill so existing call sites stay put.
+  pill?: { label: string; tooltip?: string };
   children: React.ReactNode;
 }) {
   const a = ACCENT[accent];
+  const headerPill = pill ?? (fake ? { label: "fake", tooltip: "Phase 1 placeholder — wired in Phase 2" } : null);
   const inner = (
     <article
       className={cn(
@@ -237,13 +349,13 @@ function Card({
           <Icon className={cn("h-3.5 w-3.5", a.text)} aria-hidden />
           <span>{label}</span>
         </div>
-        {fake ? (
+        {headerPill ? (
           <span
-            title="Phase 1 placeholder — wired in Phase 2"
+            title={headerPill.tooltip}
             className="text-muted-foreground/50 inline-flex items-center gap-1 text-[10px] tracking-wider uppercase"
           >
             <span className="bg-muted-foreground/40 inline-block h-1 w-1 rounded-full" aria-hidden />
-            fake
+            {headerPill.label}
           </span>
         ) : null}
       </header>
@@ -258,6 +370,222 @@ function Card({
     >
       {inner}
     </a>
+  );
+}
+
+// ── Operating health row ────────────────────────────────────────────────────
+//
+// Rules of the road (re-stated from feedback_tax_information_not_advice.md):
+// these cards surface the numbers and the engine-derived runway estimate.
+// They never tell Andrew what to DO with the numbers. No "should set aside",
+// no "critical zone", no "top up". Severity coloring is informational —
+// short / medium / long runway — not directive.
+
+function CashPositionCard({
+  amount,
+  asOf,
+  staleDays,
+  sourceLabel,
+}: {
+  amount: number | null;
+  asOf: string | null;
+  staleDays: number | null;
+  sourceLabel: string | null;
+}) {
+  // No snapshot ever → CTA into the cash route to log the first observation.
+  if (amount === null || asOf === null) {
+    return (
+      <Card label="Cash position" href="/cockpit/cash" icon={Wallet} accent="income" pill={{ label: "manual", tooltip: "Manual snapshot — no bank-feed integration in Phase 1" }}>
+        <div className="space-y-3">
+          <div>
+            <p className="text-foreground/80 font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
+              —
+            </p>
+            <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
+              No snapshot logged yet
+            </p>
+          </div>
+          <p className="text-muted-foreground/70 text-xs">
+            AR Inc. has no bank feed connected. Log a balance snapshot to anchor cash
+            position and runway.
+          </p>
+          <p className="text-emerald-300 inline-flex items-center gap-1 text-xs font-medium">
+            Log balance
+            <ArrowUpRight className="h-3 w-3" aria-hidden />
+          </p>
+        </div>
+      </Card>
+    );
+  }
+  const stalePill =
+    staleDays !== null && staleDays >= 14
+      ? { label: `manual · ${staleDays}d old`, tooltip: `Last snapshot is ${staleDays} days old. Click to log a fresh balance.` }
+      : { label: "manual", tooltip: "Manual snapshot — no bank-feed integration in Phase 1" };
+  return (
+    <Card label="Cash position" href="/cockpit/cash" icon={Wallet} accent="income" pill={stalePill}>
+      <div className="space-y-3">
+        <div>
+          <p className="text-foreground font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
+            {fmtCAD(amount)}
+          </p>
+          <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
+            As of <span className="font-mono tabular-nums">{asOf}</span>
+            {staleDays !== null && staleDays > 0 ? (
+              <>
+                {" "}
+                · <span className="font-mono tabular-nums">{staleDays}d</span> ago
+              </>
+            ) : null}
+          </p>
+        </div>
+        {sourceLabel ? (
+          <p className="text-muted-foreground/70 truncate text-xs">{sourceLabel}</p>
+        ) : null}
+        <p className="text-muted-foreground/60 text-[11px]">
+          Click to log a fresh snapshot or update the source.
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+function MonthlyBurnCard({
+  monthlyBurn,
+  txnCount,
+}: {
+  monthlyBurn: number | null;
+  txnCount: number;
+}) {
+  if (monthlyBurn === null) {
+    return (
+      <Card label="Monthly burn" href="/cockpit/expenses" icon={Flame} accent="expenses">
+        <div className="space-y-3">
+          <div>
+            <p className="text-foreground/80 font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
+              —
+            </p>
+            <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
+              No spend in trailing 90 days
+            </p>
+          </div>
+          <p className="text-muted-foreground/70 text-xs">
+            Add cogs / opex transactions to populate. Burn excludes revenue, equity,
+            tax, and shareholder-loan rows.
+          </p>
+        </div>
+      </Card>
+    );
+  }
+  return (
+    <Card label="Monthly burn" href="/cockpit/expenses" icon={Flame} accent="expenses">
+      <div className="space-y-3">
+        <div>
+          <p className="text-foreground font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
+            {fmtCAD(monthlyBurn)}
+          </p>
+          <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
+            Trailing 90 days · ÷ 3 · corp portion
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <p className="text-muted-foreground/70 text-[10px] tracking-[0.08em] uppercase">90-day total</p>
+            <p className="text-foreground font-mono mt-0.5 tabular-nums">{fmtCAD(monthlyBurn * 3)}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground/70 text-[10px] tracking-[0.08em] uppercase">Txns</p>
+            <p className="text-foreground font-mono mt-0.5 tabular-nums">{txnCount}</p>
+          </div>
+        </div>
+        <p className="text-muted-foreground/70 inline-flex items-center gap-1 text-xs">
+          <ArrowDownRight className="h-3 w-3" aria-hidden />
+          cogs + opex only
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+function RunwayCard({
+  runwayMonths,
+  hasCash,
+  hasBurn,
+}: {
+  runwayMonths: number | null;
+  hasCash: boolean;
+  hasBurn: boolean;
+}) {
+  // Missing-input copy spells out which side is unwired so the operator
+  // knows where to act. No "should" / "must" — this is just signposting.
+  if (runwayMonths === null) {
+    const reason = !hasCash && !hasBurn
+      ? "Needs cash snapshot + spend history."
+      : !hasCash
+        ? "Needs a cash-balance snapshot to compute."
+        : "Needs trailing-90 cogs/opex to compute.";
+    return (
+      <Card label="SaaS runway" href="/cockpit/cash" icon={Gauge} accent="health">
+        <div className="space-y-3">
+          <div>
+            <p className="text-foreground/80 font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
+              —
+            </p>
+            <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
+              Insufficient inputs
+            </p>
+          </div>
+          <p className="text-muted-foreground/70 text-xs">{reason}</p>
+        </div>
+      </Card>
+    );
+  }
+  // Severity coloring: visual indicator only. Not advice.
+  // <6 mo → rose; 6–12 mo → amber; >12 mo → teal.
+  const severity: Accent = runwayMonths < 6 ? "warn" : runwayMonths < 12 ? "expenses" : "health";
+  // Cap the visual gauge at 24 months so the bar stays meaningful.
+  const gaugePctRaw = Math.min(runwayMonths, 24) / 24;
+  const gaugePct = Math.max(0, Math.min(100, Math.round(gaugePctRaw * 100)));
+  const monthsLabel =
+    runwayMonths >= 100 ? `${runwayMonths.toFixed(0)}` : runwayMonths.toFixed(1);
+  const severityCopy =
+    runwayMonths < 6
+      ? "Short horizon"
+      : runwayMonths < 12
+        ? "Medium horizon"
+        : "Long horizon";
+  return (
+    <Card label="SaaS runway" href="/cockpit/cash" icon={Gauge} accent={severity}>
+      <div className="space-y-4">
+        <div>
+          <p className="text-foreground font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
+            {monthsLabel}
+            <span className="text-muted-foreground/70 ml-2 text-base">months</span>
+          </p>
+          <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
+            Cash ÷ monthly burn
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <div className="bg-white/[0.05] h-1.5 w-full overflow-hidden rounded-full ring-1 ring-inset ring-white/5">
+            <div
+              className={cn(
+                "h-full rounded-full bg-gradient-to-r",
+                severity === "warn" && "from-rose-500 to-rose-300",
+                severity === "expenses" && "from-amber-500 to-amber-300",
+                severity === "health" && "from-teal-500 to-teal-300",
+              )}
+              style={{ width: `${gaugePct}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-muted-foreground/80">{severityCopy}</span>
+            <span className={cn("font-mono tabular-nums", ACCENT[severity].text)}>
+              {gaugePct}% of 24mo
+            </span>
+          </div>
+        </div>
+      </div>
+    </Card>
   );
 }
 
