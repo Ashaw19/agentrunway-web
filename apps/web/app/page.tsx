@@ -355,7 +355,7 @@ export default async function Home() {
           />
 
           <div className="relative mx-auto max-w-6xl">
-            <div className="grid items-center gap-14 lg:grid-cols-[1fr_1.1fr]">
+            <div className="grid items-start gap-14 lg:grid-cols-[1fr_1.1fr]">
 
               {/* ── Left: copy ── */}
               <div className="text-center lg:text-left">
@@ -379,10 +379,6 @@ export default async function Home() {
                 <p className="mt-4 text-2xl font-semibold text-white sm:text-3xl">
                   The financial side of your business,<br />
                   finally on your side.
-                </p>
-
-                <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-slate-400 sm:text-lg lg:mx-0">
-                  I&apos;m Andrew — a Saint John agent who spent years guessing what CRA was going to take, what my real take-home was after splits, and whether my pipeline could actually carry me through a slow quarter. I built Agent Runway because no Canadian tool answered those questions honestly. Today it&apos;s running with a New Brunswick brokerage team, and it&apos;s the only system I&apos;d trust with my own numbers.
                 </p>
 
                 <ul className="mx-auto mt-6 max-w-lg space-y-3 text-left text-sm leading-relaxed text-slate-400 sm:text-base lg:mx-0">
@@ -685,7 +681,7 @@ export default async function Home() {
                     href="/about"
                     className="text-sm font-medium text-slate-400 underline underline-offset-4 hover:text-white transition-colors"
                   >
-                    Read why I built Agent Runway →
+                    Learn more →
                   </Link>
                 </div>
               </ScrollRevealSection>
