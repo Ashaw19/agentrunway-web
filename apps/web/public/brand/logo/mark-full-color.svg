@@ -1,0 +1,13 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" fill="none">
+  <defs>
+    <linearGradient id="ar-mark-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2563EB"></stop>
+      <stop offset="100%" stop-color="#60A5FA"></stop>
+    </linearGradient>
+  </defs>
+  
+  <path d="M 18 18 L 50 18 L 42 70 L 10 70 Z" fill="url(#ar-mark-grad)"></path>
+  
+  <path d="M 70 6 L 110 6 L 100 70 L 60 70 Z" fill="url(#ar-mark-grad)"></path>
+</svg>

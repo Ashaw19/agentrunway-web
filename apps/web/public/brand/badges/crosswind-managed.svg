@@ -1,0 +1,11 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" font-family="Inter, sans-serif">
+  <rect x="0" y="0" width="200" height="200" rx="32" fill="#0B1220"></rect>
+  <rect x="1" y="1" width="198" height="198" rx="31" stroke="#1E293B"></rect>
+  <g transform="translate(60 50)" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <circle cx="40" cy="40" r="36"></circle>
+    <path d="M 24 42 L 36 54 L 58 28"></path>
+  </g>
+  <text x="100" y="158" fill="#FFFFFF" font-size="13" font-weight="700" letter-spacing="2" text-anchor="middle">CROSSWIND</text>
+  <text x="100" y="176" fill="#FFFFFF" font-size="13" font-weight="700" letter-spacing="2" text-anchor="middle">MANAGED</text>
+</svg>

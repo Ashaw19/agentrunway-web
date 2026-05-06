@@ -1,0 +1,17 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 80" fill="none" font-family="Inter, sans-serif">
+  <defs>
+    <linearGradient id="ar-tagline-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2563EB"></stop>
+      <stop offset="100%" stop-color="#60A5FA"></stop>
+    </linearGradient>
+  </defs>
+  
+  <path d="M 18 18 L 50 18 L 42 70 L 10 70 Z" fill="url(#ar-tagline-grad)"></path>
+  <path d="M 70 6 L 110 6 L 100 70 L 60 70 Z" fill="url(#ar-tagline-grad)"></path>
+  
+  <line x1="140" y1="14" x2="140" y2="66" stroke="#60A5FA" stroke-width="1.5"></line>
+  
+  <text x="160" y="34" fill="#2563EB" font-size="14" font-weight="600" letter-spacing="2">FINANCIAL INTELLIGENCE.</text>
+  <text x="160" y="58" fill="#2563EB" font-size="14" font-weight="600" letter-spacing="2">CLEAR FOR TAKEOFF.</text>
+</svg>

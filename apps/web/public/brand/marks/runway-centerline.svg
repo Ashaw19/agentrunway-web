@@ -1,0 +1,19 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160" fill="none" stroke="#2563EB" stroke-width="2.5" stroke-linecap="round">
+  
+  <path d="M 30 150 L 90 20 L 110 20 L 170 150"></path>
+  
+  <line x1="100" y1="32" x2="100" y2="42"></line>
+  <line x1="100" y1="56" x2="100" y2="70"></line>
+  <line x1="100" y1="84" x2="100" y2="100"></line>
+  <line x1="100" y1="114" x2="100" y2="134"></line>
+  
+  <line x1="84" y1="55" x2="78" y2="55"></line>
+  <line x1="80" y1="80" x2="72" y2="80"></line>
+  <line x1="74" y1="110" x2="64" y2="110"></line>
+  <line x1="68" y1="140" x2="56" y2="140"></line>
+  <line x1="116" y1="55" x2="122" y2="55"></line>
+  <line x1="120" y1="80" x2="128" y2="80"></line>
+  <line x1="126" y1="110" x2="136" y2="110"></line>
+  <line x1="132" y1="140" x2="144" y2="140"></line>
+</svg>

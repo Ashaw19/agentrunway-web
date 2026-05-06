@@ -1,0 +1,24 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" font-family="Inter, sans-serif">
+  <defs>
+    <linearGradient id="b6-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7C2D12"></stop>
+      <stop offset="100%" stop-color="#0B1220"></stop>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="200" height="200" rx="32" fill="url(#b6-grad)"></rect>
+  <rect x="1" y="1" width="198" height="198" rx="31" stroke="#F59E0B" stroke-opacity="0.7"></rect>
+  
+  <g stroke="#F59E0B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M 100 36 L 100 64"></path>
+    <path d="M 78 52 L 122 52"></path>
+    <path d="M 92 64 L 108 64"></path>
+    <path d="M 96 36 L 100 28 L 104 36 Z" fill="#F59E0B"></path>
+  </g>
+  
+  <path d="M 80 132 L 96 88 L 104 88 L 120 132 Z" stroke="#F59E0B" stroke-width="1.5"></path>
+  <line x1="100" y1="98" x2="100" y2="106" stroke="#F59E0B" stroke-width="1.5"></line>
+  <line x1="100" y1="116" x2="100" y2="124" stroke="#F59E0B" stroke-width="1.5"></line>
+  <text x="100" y="158" fill="#F59E0B" font-size="11" font-weight="700" letter-spacing="2" text-anchor="middle">SHORT RUNWAY</text>
+  <text x="100" y="174" fill="#F59E0B" font-size="11" font-weight="700" letter-spacing="2" text-anchor="middle">EXTEND CASH</text>
+</svg>
