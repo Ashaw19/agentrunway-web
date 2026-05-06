@@ -3904,7 +3904,7 @@ export function ClientsContent({
       {/* ══════════════════════════════════════════════════════════════════ */}
       {/* CLIENT DETAIL SHEET                                                */}
       {/* ══════════════════════════════════════════════════════════════════ */}
-      <Sheet open={detailPanelOpen} onOpenChange={(open) => {
+      <Sheet open={detailPanelOpen} onOpenChange={(open: boolean) => {
         setDetailPanelOpen(open);
         if (!open) {
           setEditingField(null);
@@ -5547,7 +5547,7 @@ export function ClientsContent({
       {/* ══════════════════════════════════════════════════════════════════ */}
       {/* ADD CLIENT DIALOG                                                   */}
       {/* ══════════════════════════════════════════════════════════════════ */}
-      <Dialog open={addClientOpen} onOpenChange={(open) => {
+      <Dialog open={addClientOpen} onOpenChange={(open: boolean) => {
         setAddClientOpen(open);
         if (!open) {
           setVoiceBanner(false);
@@ -5842,7 +5842,7 @@ export function ClientsContent({
       {/* ══════════════════════════════════════════════════════════════════ */}
       {/* CSV IMPORT DIALOG                                                  */}
       {/* ══════════════════════════════════════════════════════════════════ */}
-      <Dialog open={importOpen} onOpenChange={(open) => {
+      <Dialog open={importOpen} onOpenChange={(open: boolean) => {
         setImportOpen(open);
         if (!open) {
           setImportStep("upload");

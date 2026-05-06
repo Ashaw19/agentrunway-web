@@ -411,7 +411,7 @@ function NewsletterReviewDrawer({
   const isDraft = item.status === "draft";
 
   return (
-    <Sheet open={!!item} onOpenChange={(open) => !open && onClose()}>
+    <Sheet open={!!item} onOpenChange={(open: boolean) => !open && onClose()}>
       <SheetContent className="w-full sm:max-w-lg flex flex-col gap-0 p-0 overflow-hidden">
         {/* Header */}
         <SheetHeader className="relative px-6 pt-6 pb-4 shrink-0 overflow-hidden">

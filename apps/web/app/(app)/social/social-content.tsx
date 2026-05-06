@@ -1202,7 +1202,7 @@ export function SocialContent({ settings, transactions, connections }: Props) {
       {/* Crop modal */}
       <PhotoCropDialog
         open={cropOpen}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           setCropOpen(open);
           if (!open) { setCropFile(null); setCropTxId(null); }
         }}
