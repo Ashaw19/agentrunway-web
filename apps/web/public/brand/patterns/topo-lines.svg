@@ -1,0 +1,12 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160" preserveAspectRatio="xMidYMid slice">
+  <rect width="200" height="160" fill="#0B1220"></rect>
+  <g stroke="#60A5FA" stroke-opacity="0.4" fill="none" stroke-width="0.8">
+    <path d="M 0 30 Q 50 10 100 30 T 200 30"></path>
+    <path d="M 0 50 Q 50 30 100 50 T 200 50"></path>
+    <path d="M 0 70 Q 50 50 100 70 T 200 70"></path>
+    <path d="M 0 90 Q 50 70 100 90 T 200 90"></path>
+    <path d="M 0 110 Q 50 90 100 110 T 200 110"></path>
+    <path d="M 0 130 Q 50 110 100 130 T 200 130"></path>
+  </g>
+</svg>

@@ -1,0 +1,23 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 160" fill="none">
+  <defs>
+    <linearGradient id="motion-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2563EB"></stop>
+      <stop offset="100%" stop-color="#60A5FA"></stop>
+    </linearGradient>
+  </defs>
+  
+  <g transform="translate(0 40)">
+    <path d="M 18 18 L 50 18 L 42 70 L 10 70 Z" fill="url(#motion-grad)"></path>
+    <path d="M 70 6 L 110 6 L 100 70 L 60 70 Z" fill="url(#motion-grad)"></path>
+  </g>
+  
+  <g stroke="#2563EB" stroke-width="2.5" stroke-linecap="round">
+    <line x1="140" y1="80" x2="200" y2="62"></line>
+    <path d="M 192 56 L 202 60 L 198 70" stroke-linejoin="round" fill="none"></path>
+    <line x1="220" y1="68" x2="290" y2="42" stroke-opacity="0.7" stroke-dasharray="4 4"></line>
+    <path d="M 282 36 L 292 40 L 288 50" stroke-linejoin="round" fill="none" stroke-opacity="0.7"></path>
+    <line x1="310" y1="48" x2="400" y2="14" stroke-opacity="0.4" stroke-dasharray="2 5"></line>
+    <path d="M 392 8 L 402 12 L 398 22" stroke-linejoin="round" fill="none" stroke-opacity="0.4"></path>
+  </g>
+</svg>
