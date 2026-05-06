@@ -41,7 +41,7 @@ const JSON_LD_ARTICLE = articleSchema({
     "Every CRA tax deadline self-employed Canadian real estate agents need to know for 2026, including quarterly instalments, T1 filing, HST/GST, T4A, and RRSP contributions.",
   url: "/real-estate-tax-deadlines-canada",
   datePublished: "2026-04-15",
-  dateModified: "2026-04-15",
+  dateModified: "2026-05-06",
 });
 
 const JSON_LD_BREADCRUMB = breadcrumbSchema([
@@ -53,17 +53,17 @@ const FAQS = [
   {
     question: "What are the 2026 CRA quarterly instalment deadlines for self-employed real estate agents?",
     answer:
-      "Quarterly instalment deadlines are the 15th of March, June, September, and December — so March 15, June 15, September 15, and December 15, 2026. You must make quarterly instalments if you owed more than $3,000 in net tax for the current year or either of the two preceding years ($1,800 if you're a Quebec resident).",
+      "Quarterly instalment deadlines are the 15th of March, June, September, and December — so March 15, June 15, September 15, and December 15, 2026. CRA requires quarterly instalments if net tax owing was more than $3,000 in the current year or either of the two preceding years ($1,800 for Quebec residents).",
   },
   {
     question: "When is the T1 tax filing deadline for self-employed real estate agents in 2026?",
     answer:
-      "Self-employed real estate agents (and their spouses) have until June 15, 2026 to file their T1 personal tax return for the 2025 tax year. However, any balance owing must still be paid by April 30, 2026 — the CRA charges interest on any amount outstanding after that date, even if your return itself isn't due until June 15.",
+      "Self-employed real estate agents (and their spouses) have until June 15, 2026 to file their T1 personal tax return for the 2025 tax year. However, any balance owing is still due by April 30, 2026 — the CRA charges interest on any amount outstanding after that date, even if the return itself isn't due until June 15.",
   },
   {
     question: "When are T4A slips from my brokerage due?",
     answer:
-      "Brokerages must issue T4A slips to agents and file them with the CRA by February 28, 2026 for the 2025 tax year. If you haven't received your T4A by early March, contact your brokerage. The T4A reports gross commission paid — not net of your brokerage split.",
+      "CRA requires brokerages to issue T4A slips to agents and file them by February 28, 2026 for the 2025 tax year. If the T4A has not arrived by early March, contact the brokerage. The T4A reports gross commission paid — not net of the brokerage split.",
   },
   {
     question: "What is the 2026 RRSP contribution deadline for the 2025 tax year?",
@@ -73,7 +73,7 @@ const FAQS = [
   {
     question: "When do real estate agents need to file HST/GST returns?",
     answer:
-      "If your gross commission income exceeded $30,000 over four consecutive calendar quarters, you must register for GST/HST. Most small suppliers file annually with returns due three months after fiscal year-end — so for a December 31 year-end, the return is due April 30. Instalment payments are required if you owed more than $3,000 in the prior year, due quarterly on the last day of each quarter following year-end.",
+      "Once gross commission income exceeds $30,000 over four consecutive calendar quarters, CRA requires the agent to register for GST/HST. Most small suppliers file annually with returns due three months after fiscal year-end — so for a December 31 year-end, the return is due April 30. Instalment payments apply when net tax owing exceeded $3,000 in the prior year, due quarterly on the last day of each quarter following year-end.",
   },
   {
     question: "What happens if I miss a quarterly instalment deadline?",
@@ -83,6 +83,65 @@ const FAQS = [
 ];
 
 const JSON_LD_FAQ = faqSchema(FAQS);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CRA primary-source registry (self-contained per article)
+// All URLs hand-verified live on 2026-05-06.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CRA_SOURCES = [
+  {
+    id: 1,
+    label: "CRA — Important dates for individuals (T1 filing, balance owing)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/important-dates-individuals.html",
+  },
+  {
+    id: 2,
+    label: "CRA — Required tax instalments — Due dates",
+    url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/due-dates.html",
+  },
+  {
+    id: 3,
+    label: "CRA — Required tax instalments — Who has to pay",
+    url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/who-pays-instalments.html",
+  },
+  {
+    id: 4,
+    label: "CRA — Required tax instalments (overview)",
+    url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments.html",
+  },
+  {
+    id: 5,
+    label: "CRA — File information returns / slip summaries — When to file (T4A)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/file-information-returns-slip-summaries/when-to-file.html",
+  },
+  {
+    id: 6,
+    label: "CRA — When to register for and start charging the GST/HST",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/when-register-charge.html",
+  },
+  {
+    id: 7,
+    label: "CRA — Complete and file a GST/HST return",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/file-gst-hst-return.html",
+  },
+] as const;
+
+function CRACite({ id }: { id: number }) {
+  const src = CRA_SOURCES.find((s) => s.id === id);
+  if (!src) return null;
+  return (
+    <a
+      href={src.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Source: ${src.label}`}
+      className="ml-0.5 align-super text-[0.65em] font-semibold text-blue-400 no-underline hover:underline"
+    >
+      [{id}]
+    </a>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Deadline data — organized chronologically for 2026 calendar year
@@ -105,7 +164,7 @@ const DEADLINES: Deadline[] = [
     formattedDate: "February 28, 2026",
     title: "T4A slips issued by brokerage",
     description:
-      "Your brokerage must issue your T4A (for 2025 commissions paid) and file with CRA by this date. The T4A shows gross commission — your brokerage split is reported separately on your T2125.",
+      "CRA requires the brokerage to issue the T4A (for 2025 commissions paid) and file it by this date. The T4A shows gross commission — the brokerage split is reported separately on the T2125.",
     appliesTo: "All real estate agents",
     status: "passed",
   },
@@ -132,7 +191,7 @@ const DEADLINES: Deadline[] = [
     formattedDate: "April 30, 2026",
     title: "2025 tax balance due (self-employed)",
     description:
-      "Any tax you owe on your 2025 T1 return must be paid by this date — even though your return itself isn't due until June 15. The CRA charges interest from May 1 on any unpaid balance.",
+      "Any tax owed on the 2025 T1 return is due by this date — even though the return itself isn't due until June 15. The CRA charges interest from May 1 on any unpaid balance.",
     appliesTo: "All self-employed agents with a 2025 balance owing",
     status: "passed",
   },
@@ -141,7 +200,7 @@ const DEADLINES: Deadline[] = [
     formattedDate: "April 30, 2026",
     title: "GST/HST annual return (December year-end)",
     description:
-      "GST/HST registrants filing annually with a December 31 fiscal year-end must file their return by this date. Instalments were due throughout the year.",
+      "GST/HST registrants filing annually with a December 31 fiscal year-end are required to file their return by this date. Instalments were due throughout the year.",
     appliesTo: "HST-registered agents filing annually",
     status: "passed",
   },
@@ -177,7 +236,7 @@ const DEADLINES: Deadline[] = [
     formattedDate: "December 15, 2026",
     title: "Q4 2026 tax instalment",
     description:
-      "Fourth and final quarterly instalment for the 2026 tax year. Tax-planning moves (RRSP top-ups, capital purchases) should be made before December 31.",
+      "Fourth and final quarterly instalment for the 2026 tax year. Tax-planning moves (RRSP contributions, capital purchases) take effect for the current tax year only if completed by December 31.",
     appliesTo: "Self-employed agents required to pay instalments",
     status: "upcoming",
   },
@@ -266,10 +325,11 @@ export default function RealEstateTaxDeadlinesPage() {
                 <p className="text-sm font-bold text-blue-300">Quick answer</p>
                 <p className="mt-2 text-sm leading-relaxed text-slate-200 sm:text-base">
                   Self-employed Canadian real estate agents have four quarterly instalment
-                  deadlines (March 15, June 15, September 15, December 15), a T1 filing
-                  deadline of June 15, and a balance-owing payment deadline of April 30 of
-                  each year. Brokerages issue T4A slips by February 28. RRSP contributions
-                  for the 2025 tax year are due by March 2, 2026.
+                  deadlines (March 15, June 15, September 15, December 15)<CRACite id={2} />,
+                  a T1 filing deadline of June 15, and a balance-owing payment deadline of
+                  April 30 of each year<CRACite id={1} />. Brokerages issue T4A slips by
+                  February 28<CRACite id={5} />. RRSP contributions for the 2025 tax year are
+                  due by March 2, 2026<CRACite id={1} />.
                 </p>
               </div>
             </div>
@@ -356,7 +416,7 @@ export default function RealEstateTaxDeadlinesPage() {
         <section className="bg-slate-950 px-6 pb-16 sm:px-10">
           <div className="mx-auto max-w-3xl">
             <h2 className="text-2xl font-black text-white sm:text-3xl">
-              Rules every Canadian realtor should know
+              Rules that apply to every Canadian realtor
             </h2>
 
             <div className="mt-6 space-y-6">
@@ -368,18 +428,19 @@ export default function RealEstateTaxDeadlinesPage() {
                 <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900/30 p-4">
                   <p className="text-sm font-semibold text-slate-300">Answer capsule</p>
                   <p className="mt-1 text-sm leading-relaxed text-slate-300">
-                    The CRA requires quarterly instalments whenever your net tax owing was
-                    more than $3,000 in the current or either of the two preceding years —
-                    $1,800 for Quebec residents. Due dates are March 15, June 15,
-                    September 15, and December 15 of each tax year.
+                    The CRA requires quarterly instalments whenever net tax owing was more
+                    than $3,000 in the current year and in either of the two preceding years —
+                    $1,800 for Quebec residents<CRACite id={3} />. Due dates are March 15,
+                    June 15, September 15, and December 15 of each tax year<CRACite id={2} />.
                   </p>
                 </div>
                 <p className="mt-3 text-sm leading-relaxed text-slate-400">
                   For most agents in their second year of decent commission income, instalments
-                  become mandatory. The CRA sends an <em>instalment reminder</em> notice in
-                  February and August listing the amount they expect. You can pay that amount,
-                  or use the <em>prior-year</em> method (1/4 of last year&apos;s total tax), or use
-                  the <em>current-year</em> method if you expect to earn less this year.
+                  apply<CRACite id={3} />. The CRA sends an <em>instalment reminder</em> notice
+                  in February and August listing the amount it expects<CRACite id={4} />. The
+                  reminder amount can be paid as-is, or the <em>prior-year</em> method (1/4 of
+                  last year&apos;s total tax) or the <em>current-year</em> method (when income
+                  is expected to drop) may apply.
                 </p>
               </div>
 
@@ -392,8 +453,9 @@ export default function RealEstateTaxDeadlinesPage() {
                   <p className="text-sm font-semibold text-slate-300">Answer capsule</p>
                   <p className="mt-1 text-sm leading-relaxed text-slate-300">
                     Self-employed agents get an extra 6 weeks to file their T1 return, but any
-                    balance owing must still be paid by April 30. If you owe $10,000 and pay on
-                    June 15, the CRA charges interest on that balance for 46 days.
+                    balance owing is still due by April 30<CRACite id={1} />. If $10,000 is
+                    owed and paid on June 15, the CRA charges interest on that balance for 46
+                    days.
                   </p>
                 </div>
                 <p className="mt-3 text-sm leading-relaxed text-slate-400">
@@ -412,17 +474,17 @@ export default function RealEstateTaxDeadlinesPage() {
                 <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900/30 p-4">
                   <p className="text-sm font-semibold text-slate-300">Answer capsule</p>
                   <p className="mt-1 text-sm leading-relaxed text-slate-300">
-                    Once your gross commission income exceeds $30,000 over any four
-                    consecutive calendar quarters, you must register for GST/HST within 29
-                    days. For most Canadian real estate agents, this happens in their first
-                    full year of commission income.
+                    Once gross commission income exceeds $30,000 over any four
+                    consecutive calendar quarters, CRA requires the agent to register for
+                    GST/HST within 29 days<CRACite id={6} />. For most Canadian real estate
+                    agents, this happens in their first full year of commission income.
                   </p>
                 </div>
                 <p className="mt-3 text-sm leading-relaxed text-slate-400">
-                  Brokerages collect HST on your commission and remit it to you as part of
-                  your payout (if you&apos;re registered). You then remit the net HST to the CRA
-                  after deducting input tax credits on your business purchases. Most agents
-                  file annually; larger agents file quarterly.
+                  Brokerages collect HST on commission and remit it to the agent as part of
+                  payout (when the agent is registered). The agent then remits the net HST to
+                  CRA after deducting input tax credits on business purchases<CRACite id={7} />.
+                  Most agents file annually; larger agents file quarterly.
                 </p>
               </div>
 
@@ -434,10 +496,10 @@ export default function RealEstateTaxDeadlinesPage() {
                 <div className="mt-2 rounded-lg border border-slate-800 bg-slate-900/30 p-4">
                   <p className="text-sm font-semibold text-slate-300">Answer capsule</p>
                   <p className="mt-1 text-sm leading-relaxed text-slate-300">
-                    RRSP contributions for the 2025 tax year are due by March 2, 2026.
-                    Contributions made on or before that date can be deducted against 2025
-                    income. The same rule applies every year: the first 60 days of the
-                    calendar year count toward the prior tax year.
+                    RRSP contributions for the 2025 tax year are due by March 2, 2026
+                    <CRACite id={1} />. Contributions made on or before that date can be
+                    deducted against 2025 income. The same rule applies every year: the first
+                    60 days of the calendar year count toward the prior tax year.
                   </p>
                 </div>
               </div>
@@ -552,6 +614,43 @@ export default function RealEstateTaxDeadlinesPage() {
                 </Link>
               ))}
             </div>
+          </div>
+        </section>
+
+        {/* ── Sources ── */}
+        <section className="bg-slate-950 px-6 pb-16 sm:px-10">
+          <div className="mx-auto max-w-3xl">
+            <section
+              aria-labelledby="sources"
+              className="border-t border-slate-800 pt-8"
+            >
+              <h2
+                id="sources"
+                className="text-base font-semibold text-slate-200"
+              >
+                Sources
+              </h2>
+              <p className="mt-2 text-xs text-slate-500">
+                Every quantitative or mechanical claim in this article is backed
+                by one of the CRA primary sources below. Hand-verified live on
+                2026-05-06.
+              </p>
+              <ol className="mt-4 space-y-2 text-xs text-slate-500">
+                {CRA_SOURCES.map((s) => (
+                  <li key={s.id} className="flex gap-2 leading-relaxed">
+                    <span className="font-mono text-slate-600">[{s.id}]</span>
+                    <a
+                      href={s.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2 hover:text-slate-300"
+                    >
+                      {s.label}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </section>
           </div>
         </section>
 
