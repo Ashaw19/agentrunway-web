@@ -32,12 +32,19 @@ export async function POST(request: NextRequest) {
   let source = "website";
   let name: string | undefined;
   let brokerage: string | undefined;
+  let consent = false;
+  let consentLanguage: string | undefined;
+  let formUrl: string | undefined;
   try {
     const body = await request.json();
     email = body.email;
     source = body.source ?? "website";
     name = body.name;
     brokerage = body.brokerage;
+    consent = body.consent === true;
+    consentLanguage =
+      typeof body.consent_language === "string" ? body.consent_language : undefined;
+    formUrl = typeof body.form_url === "string" ? body.form_url : undefined;
   } catch {
     console.error("[subscribe] ✗ invalid request body");
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
@@ -47,6 +54,17 @@ export async function POST(request: NextRequest) {
   if (!email || !EMAIL_RE.test(email)) {
     return NextResponse.json(
       { error: "A valid email address is required." },
+      { status: 400 }
+    );
+  }
+
+  // CASL: every subscribe path must arrive with consent=true and a consent_language
+  // string. The waitlist form requires a checkbox; the inline email-capture component
+  // sends consent=true based on the disclosure-near-submit pattern. Anything missing
+  // these fields is a misconfigured caller and we reject rather than silently subscribing.
+  if (!consent || !consentLanguage) {
+    return NextResponse.json(
+      { error: "Consent is required to subscribe." },
       { status: 400 }
     );
   }
@@ -75,6 +93,22 @@ export async function POST(request: NextRequest) {
       { error: "Could not save your email. Please try again." },
       { status: 500 }
     );
+  }
+
+  // CASL audit trail — write to consents on every successful subscribe.
+  // Stores the exact consent language string (not just a boolean), IP, timestamp,
+  // form URL, and form type. 3-year retention per CASL.
+  const { error: consentError } = await supabase.from("consents").insert({
+    email: email.toLowerCase().trim(),
+    form_type: source,
+    ip_address: ip,
+    consent_language: consentLanguage,
+    form_url: formUrl ?? null,
+  });
+
+  if (consentError) {
+    // Non-fatal: log so the audit gap is visible but don't block the user.
+    console.error("[subscribe] ✗ consent insert error:", consentError.message);
   }
 
 

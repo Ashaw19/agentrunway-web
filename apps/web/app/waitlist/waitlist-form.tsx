@@ -129,10 +129,14 @@ function SuccessState({ name }: { name: string }) {
 
 // ── Main form ─────────────────────────────────────────────────────────────────
 
+const CONSENT_LANGUAGE =
+  "I agree to receive marketing communications from Agent Runway Inc. I can unsubscribe at any time.";
+
 export function WaitlistForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [brokerage, setBrokerage] = useState("");
+  const [consent, setConsent] = useState(false);
   const [state, setState] = useState<"idle" | "loading" | "success" | "error">(
     "idle"
   );
@@ -140,6 +144,13 @@ export function WaitlistForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (!consent) {
+      setState("error");
+      setErrorMsg("Please check the consent box to continue.");
+      return;
+    }
+
     setState("loading");
     setErrorMsg("");
 
@@ -152,6 +163,9 @@ export function WaitlistForm() {
           name: name.trim() || undefined,
           brokerage: brokerage.trim() || undefined,
           source: "waitlist_event",
+          consent: true,
+          consent_language: CONSENT_LANGUAGE,
+          form_url: "/waitlist",
         }),
       });
 
@@ -204,6 +218,34 @@ export function WaitlistForm() {
         placeholder="RE/MAX, Royal LePage, Century 21…"
         autoComplete="organization"
       />
+
+      {/* CASL express consent — unchecked by default, company-named, separate from terms */}
+      <label className="flex cursor-pointer items-start gap-3">
+        <div className="relative mt-0.5 shrink-0">
+          <input
+            type="checkbox"
+            className="peer sr-only"
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+          />
+          <div
+            className="flex h-5 w-5 items-center justify-center rounded border transition-all duration-150 peer-focus-visible:ring-2 peer-focus-visible:ring-amber-400/50"
+            style={{
+              background: consent ? "linear-gradient(135deg, #F0A800, #D97706)" : "rgba(255,255,255,0.04)",
+              borderColor: consent ? "#F0A800" : "rgba(255,255,255,0.15)",
+            }}
+          >
+            {consent && (
+              <svg className="h-3 w-3 text-black" fill="none" viewBox="0 0 12 12" stroke="currentColor" strokeWidth={2.5}>
+                <path d="M2 6l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </div>
+        </div>
+        <span className="text-xs leading-relaxed text-slate-400">
+          {CONSENT_LANGUAGE}
+        </span>
+      </label>
 
       {/* Error message */}
       {state === "error" && errorMsg && (
