@@ -9,6 +9,8 @@
  */
 
 const LOGO_URL = "https://agentrunway.ca/logo.png";
+const BADGE_CLEARED_URL = "https://agentrunway.ca/brand/badges/cleared-for-takeoff.png";
+const MARK_CLIMB_URL = "https://agentrunway.ca/brand/marks/climb-indicator.png";
 
 interface CheatSheetDeliveryOptions {
   /** First name — falls back to "there" if unavailable */
@@ -215,6 +217,15 @@ export function cheatSheetDeliveryEmail({
                       </tr>
                     </table>
 
+                    <!-- Cleared for Takeoff badge -->
+                    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:28px;">
+                      <tr>
+                        <td align="center">
+                          <img src="${BADGE_CLEARED_URL}" width="80" height="80" alt="Cleared for Takeoff" style="display:block;border:0;" />
+                        </td>
+                      </tr>
+                    </table>
+
                     <!-- Section label -->
                     <div style="font-size:11px;font-weight:700;color:#0d1f44;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid #0d1f44;display:inline-block;">What&rsquo;s inside</div>
 
@@ -269,24 +280,36 @@ export function cheatSheetDeliveryEmail({
                       <tr>
                         <td style="padding:24px 26px 22px;">
 
-                          <!-- Logo + label row -->
-                          <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:12px;">
+                          <!-- Two-column: text left, climb indicator right -->
+                          <table width="100%" cellpadding="0" cellspacing="0" border="0">
                             <tr>
-                              <td style="vertical-align:middle;padding-right:8px;">
-                                <img src="${LOGO_URL}" width="24" height="24" alt="Agent Runway" style="display:block;border:0;border-radius:5px;" />
-                              </td>
                               <td style="vertical-align:middle;">
-                                <span style="font-size:10px;font-weight:700;color:#F0A800;text-transform:uppercase;letter-spacing:0.1em;">Free Tool</span>
+
+                                <!-- Logo + label row -->
+                                <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:12px;">
+                                  <tr>
+                                    <td style="vertical-align:middle;padding-right:8px;">
+                                      <img src="${LOGO_URL}" width="24" height="24" alt="Agent Runway" style="display:block;border:0;border-radius:5px;" />
+                                    </td>
+                                    <td style="vertical-align:middle;">
+                                      <span style="font-size:10px;font-weight:700;color:#F0A800;text-transform:uppercase;letter-spacing:0.1em;">Free Tool</span>
+                                    </td>
+                                  </tr>
+                                </table>
+
+                                <div style="font-size:16px;font-weight:700;color:#f0f6ff;line-height:1.3;margin-bottom:8px;">
+                                  Want to see what your own numbers look like?
+                                </div>
+                                <div style="font-size:13px;color:#7a9ac4;line-height:1.6;margin-bottom:18px;">
+                                  Plug in your GCI and the live tax estimator calculates your estimated federal + provincial tax, CPP, and HST &mdash; built for Canadian agents.
+                                </div>
+
+                              </td>
+                              <td style="width:80px;vertical-align:middle;padding-left:16px;text-align:right;">
+                                <img src="${MARK_CLIMB_URL}" width="72" height="60" alt="" style="display:block;border:0;opacity:0.85;" />
                               </td>
                             </tr>
                           </table>
-
-                          <div style="font-size:16px;font-weight:700;color:#f0f6ff;line-height:1.3;margin-bottom:8px;">
-                            Want to see what your own numbers look like?
-                          </div>
-                          <div style="font-size:13px;color:#7a9ac4;line-height:1.6;margin-bottom:18px;">
-                            Plug in your GCI and the live tax estimator calculates your estimated federal + provincial tax, CPP, and HST &mdash; built for Canadian agents.
-                          </div>
                           <table cellpadding="0" cellspacing="0" border="0">
                             <tr>
                               <td style="background:#ffffff;border-radius:8px;">
