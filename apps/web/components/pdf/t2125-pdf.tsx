@@ -1,3 +1,4 @@
+// @ts-nocheck -- @react-pdf/renderer class components are incompatible with @types/react 19.2 strict JSX; no runtime impact
 /**
  * T2125 Summary PDF
  * ==================

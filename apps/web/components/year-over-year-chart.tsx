@@ -131,7 +131,7 @@ export function YearOverYearChart({ data, height = 260 }: Props) {
         <Tooltip content={<CustomTooltip />} cursor={{ fill: "transparent" }} />
         <Legend
           wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
-          formatter={(value) => (
+          formatter={(value: string) => (
             <span style={{ color: "var(--muted-foreground)" }}>{value}</span>
           )}
         />
