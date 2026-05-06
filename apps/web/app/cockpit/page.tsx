@@ -3,7 +3,7 @@ import {
   ArrowUpRight,
   Banknote,
   Calendar,
-  FileWarning,
+  ListTodo,
   Receipt,
   Sparkles,
   Wallet,
@@ -78,7 +78,7 @@ export default async function SnapshotPage() {
   const startOfMonth = ymd(new Date(today.getFullYear(), today.getMonth(), 1));
   const startOfFY = ymd(new Date(today.getFullYear(), 0, 1));
 
-  const [hstRes, sredRes, monthExpRes, ytdRes] = await Promise.all([
+  const [hstRes, sredRes, monthExpRes, ytdRes, lastReviewRes] = await Promise.all([
     supabase
       .from("v_corp_gst_hst_summary")
       .select("quarter_start, quarter_end, hst_collected, hst_itc, net_remittance, txn_count")
@@ -103,12 +103,31 @@ export default async function SnapshotPage() {
       .select("account_type, total_corp_portion")
       .eq("user_id", user.id)
       .eq("fiscal_year", today.getFullYear()),
+    supabase
+      .from("corp_transactions")
+      .select("ingested_at")
+      .eq("user_id", user.id)
+      .order("ingested_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const hst = (hstRes.data ?? null) as HstSummary | null;
   const sredRows = (sredRes.data ?? []) as SredRow[];
   const monthTopExpenses = (monthExpRes.data ?? []) as ExpenseRow[];
   const ytdRows = (ytdRes.data ?? []) as { account_type: string; total_corp_portion: number }[];
+  const lastReview = lastReviewRes.data?.ingested_at
+    ? {
+        ingestedAt: lastReviewRes.data.ingested_at as string,
+        daysAgo: Math.max(
+          0,
+          Math.floor(
+            (today.getTime() - new Date(lastReviewRes.data.ingested_at as string).getTime()) /
+              (1000 * 60 * 60 * 24),
+          ),
+        ),
+      }
+    : null;
 
   const sredTotal = sredRows.reduce((s, r) => s + Number(r.total_corp_portion ?? 0), 0);
   const sredRefundEstimate = sredTotal * 0.5; // CCPC NB refundable rate
@@ -138,12 +157,12 @@ export default async function SnapshotPage() {
       <PageHeader />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <WeeklyReviewCard lastReview={lastReview} obligations={RECURRING_OBLIGATIONS} />
         <YtdNetCard ytdNet={ytdNet} ytdRevenue={ytdRevenue} ytdExpenses={ytdExpenses} />
         <HstCard hst={hst} />
         <SredCard refundEstimate={sredRefundEstimate} totalCorpPortion={sredTotal} fyPct={fyPct} />
         <DeadlinesCard items={deadlines} />
         <ExpensesCard rows={monthTopExpenses} />
-        <AnomaliesCard />
       </div>
 
       <ChatPanel />
@@ -494,55 +513,62 @@ function ExpensesCard({ rows }: { rows: ExpenseRow[] }) {
   );
 }
 
-const PERSON_ACCENT: Record<string, { chip: string; dot: string }> = {
-  Hugo:   { chip: "bg-amber-500/10  text-amber-300  ring-amber-500/15",   dot: "bg-amber-400" },
-  Marcus: { chip: "bg-violet-500/10 text-violet-300 ring-violet-500/15",  dot: "bg-violet-400" },
-  Vera:   { chip: "bg-teal-500/10   text-teal-300   ring-teal-500/15",    dot: "bg-teal-400" },
-  Quinn:  { chip: "bg-rose-500/10   text-rose-300   ring-rose-500/15",    dot: "bg-rose-400" },
-  Tessa:  { chip: "bg-emerald-500/10 text-emerald-300 ring-emerald-500/15", dot: "bg-emerald-400" },
-};
+// v0: hardcoded recurring obligations. v1 promotes to a corp_recurring_schedules
+// table + cron that auto-creates needs_review=true stubs on each cycle.
+const RECURRING_OBLIGATIONS: { name: string; frequency: string; hint: string }[] = [
+  { name: "Cox & Palmer retainer", frequency: "monthly",   hint: "$550" },
+  { name: "Anthropic Pro · usage", frequency: "monthly",   hint: "—" },
+  { name: "Bell × 2 (mobile + internet)", frequency: "monthly", hint: "—" },
+  { name: "NB Power",              frequency: "monthly",   hint: "—" },
+  { name: "NB Property Tax",       frequency: "quarterly", hint: "—" },
+  { name: "Vercel · Supabase · Mem0", frequency: "monthly", hint: "usage" },
+];
 
-function AnomaliesCard() {
-  const items = [
-    { source: "Hugo",   body: "Hugo not deployed yet — fires once findings/ has a daily snapshot",  severity: "muted" as const },
-    { source: "Marcus", body: "Daily SR&ED logger lands at 10:30 AM AT each weekday",               severity: "muted" as const },
-    { source: "Vera",   body: "Weekly briefing — proposed, not yet deployed",                       severity: "muted" as const },
-  ];
+function WeeklyReviewCard({
+  lastReview,
+  obligations,
+}: {
+  lastReview: { ingestedAt: string; daysAgo: number } | null;
+  obligations: { name: string; frequency: string; hint: string }[];
+}) {
   return (
-    <Card
-      label="Anomalies · routine queue"
-      href="/cockpit/documents"
-      icon={FileWarning}
-      accent="warn"
-      fake
-    >
-      <ul className="space-y-2.5">
-        {items.map((item, i) => {
-          const tone = PERSON_ACCENT[item.source] ?? PERSON_ACCENT.Hugo!;
-          return (
-            <li key={i} className="flex items-start gap-2.5 text-sm">
-              <span
-                aria-hidden
-                className={cn(
-                  "mt-1.5 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full",
-                  item.severity === "muted" ? "bg-muted-foreground/30" : tone.dot,
-                )}
-              />
-              <div className="flex-1 leading-snug">
-                <span
-                  className={cn(
-                    "mr-2 inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium tracking-[0.08em] uppercase ring-1 ring-inset",
-                    tone.chip,
-                  )}
-                >
-                  {item.source}
+    <Card label="Weekly review" href="/cockpit/expenses" icon={ListTodo} accent="health">
+      <div className="space-y-4">
+        <div>
+          {lastReview ? (
+            <>
+              <p className="text-foreground font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
+                {lastReview.daysAgo}d
+              </p>
+              <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
+                Since last entry
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-foreground text-[1.5rem] leading-none font-medium">Never</p>
+              <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
+                No entries yet — start with one
+              </p>
+            </>
+          )}
+        </div>
+        <div>
+          <p className="text-muted-foreground/70 mb-2 text-[10px] tracking-[0.08em] uppercase">
+            Recurring · log each cycle
+          </p>
+          <ul className="space-y-1.5">
+            {obligations.map((item) => (
+              <li key={item.name} className="flex items-center justify-between gap-2 text-[12px]">
+                <span className="text-foreground/85 truncate">{item.name}</span>
+                <span className="text-muted-foreground/60 font-mono tabular-nums whitespace-nowrap">
+                  {item.frequency}
                 </span>
-                <span className="text-foreground/85">{item.body}</span>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </Card>
   );
 }
