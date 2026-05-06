@@ -409,7 +409,7 @@ function ReviewDrawer({
   if (!item) return null;
 
   return (
-    <Sheet open={!!item} onOpenChange={(open) => !open && onClose()}>
+    <Sheet open={!!item} onOpenChange={(open: boolean) => !open && onClose()}>
       <SheetContent className="w-full sm:max-w-lg flex flex-col gap-0 p-0 overflow-hidden">
         <SheetHeader className="relative px-6 pt-6 pb-4 shrink-0 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-violet-600/8 via-indigo-500/5 to-transparent pointer-events-none" />
