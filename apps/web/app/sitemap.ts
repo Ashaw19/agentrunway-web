@@ -79,5 +79,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // ── Tools (hero asset: realtor tax estimator) ──────────────────────
     { url: `${BASE_URL}/tools`,                                       lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/tools/realtor-tax-estimator`,                 lastModified: now, changeFrequency: "monthly", priority: 0.9 },
+    { url: `${BASE_URL}/tools/canadian-realtor-tax-cheat-sheet`,      lastModified: now, changeFrequency: "monthly", priority: 0.85 },
   ];
 }

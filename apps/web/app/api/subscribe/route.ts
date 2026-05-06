@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { resend, FROM_ADDRESS } from "@/lib/resend";
 import { charterWelcomeEmail } from "@/lib/emails/charter-welcome";
+import { cheatSheetDeliveryEmail } from "@/lib/emails/cheat-sheet-delivery";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
     const { subject, html, text } = charterWelcomeEmail({ firstName });
 
     try {
-      const result = await resend.emails.send({
+      await resend.emails.send({
         from: FROM_ADDRESS,
         to: email.toLowerCase().trim(),
         subject,
@@ -130,6 +131,28 @@ export async function POST(request: NextRequest) {
     }
   } else if (source === "waitlist_event" && !resend) {
     console.warn("[subscribe] ⚠ RESEND_API_KEY NOT SET — email skipped");
+  }
+
+  // Send cheat-sheet delivery email for any cheat_sheet_* source.
+  // Sources include cheat_sheet_landing (dedicated /tools landing page) and
+  // cheat_sheet_inline_<article-slug> (inline CTA on tax-domain SEO articles).
+  if (source.startsWith("cheat_sheet_") && resend) {
+    const firstName = name?.trim()?.split(" ")[0] ?? null;
+    const { subject, html, text } = cheatSheetDeliveryEmail({ firstName });
+
+    try {
+      await resend.emails.send({
+        from: FROM_ADDRESS,
+        to: email.toLowerCase().trim(),
+        subject,
+        html,
+        text,
+      });
+    } catch (err) {
+      console.error(`[subscribe] ✗ cheat-sheet email FAILED |`, err instanceof Error ? err.message : err);
+    }
+  } else if (source.startsWith("cheat_sheet_") && !resend) {
+    console.warn("[subscribe] ⚠ RESEND_API_KEY NOT SET — cheat-sheet email skipped");
   }
 
   return NextResponse.json({ success: true });
