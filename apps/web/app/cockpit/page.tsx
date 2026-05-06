@@ -5,6 +5,7 @@ import {
   Calendar,
   Flame,
   Gauge,
+  HandCoins,
   ListTodo,
   Receipt,
   Sparkles,
@@ -113,6 +114,7 @@ export default async function SnapshotPage() {
     lastReviewRes,
     cashSnapshotRes,
     burnRowsRes,
+    shareholderLoanRes,
   ] = await Promise.all([
     supabase
       .from("v_corp_gst_hst_summary")
@@ -163,6 +165,13 @@ export default async function SnapshotPage() {
       .gte("date", burnWindowStart)
       .lte("date", ymd(today))
       .in("account_type", ["cogs", "opex"]),
+    // Shareholder loan balance: all 3010 transactions. Positive = corp owes
+    // Andrew. Negative = repayment exceeded prior loan (should not occur).
+    supabase
+      .from("corp_transactions")
+      .select("amount_total")
+      .eq("user_id", user.id)
+      .eq("account_code", "3010"),
   ]);
 
   const hst = (hstRes.data ?? null) as HstSummary | null;
@@ -171,6 +180,10 @@ export default async function SnapshotPage() {
   const ytdRows = (ytdRes.data ?? []) as { account_type: string; total_corp_portion: number }[];
   const cashSnapshot = (cashSnapshotRes.data ?? null) as CashSnapshotRow | null;
   const burnRows = (burnRowsRes.data ?? []) as BurnRow[];
+  const shareholderLoanBalance = (shareholderLoanRes.data ?? []).reduce(
+    (sum, r) => sum + Number((r as { amount_total: number | null }).amount_total ?? 0),
+    0,
+  );
   const lastReview = lastReviewRes.data?.ingested_at
     ? {
         ingestedAt: lastReviewRes.data.ingested_at as string,
@@ -252,10 +265,10 @@ export default async function SnapshotPage() {
             Operating health
           </h2>
           <span className="text-muted-foreground/60 hidden text-[11px] tracking-[0.08em] uppercase sm:inline">
-            Cash · Burn · Runway
+            Cash · Burn · Runway · Founder Loan
           </span>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <CashPositionCard
             amount={cashAmount}
             asOf={cashAsOf}
@@ -264,6 +277,7 @@ export default async function SnapshotPage() {
           />
           <MonthlyBurnCard monthlyBurn={monthlyBurn} txnCount={burnRows.length} />
           <RunwayCard runwayMonths={runwayMonths} hasCash={cashAmount !== null} hasBurn={monthlyBurn !== null} />
+          <ShareholderLoanCard balance={shareholderLoanBalance} />
         </div>
       </section>
 
@@ -588,6 +602,53 @@ function RunwayCard({
             </span>
           </div>
         </div>
+      </div>
+    </Card>
+  );
+}
+
+function ShareholderLoanCard({ balance }: { balance: number }) {
+  const fmtCAD = (n: number) =>
+    Math.abs(n).toLocaleString("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 });
+
+  // No entries yet — guide the operator to the Cash page
+  if (balance === 0) {
+    return (
+      <Card label="Founder loan" href="/cockpit/cash" icon={HandCoins} accent="rd">
+        <div className="space-y-3">
+          <div>
+            <p className="text-foreground/80 font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
+              —
+            </p>
+            <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
+              No events logged yet
+            </p>
+          </div>
+          <p className="text-muted-foreground/70 text-xs">
+            Record a personal transfer on the Cash page to start tracking what
+            AR Inc. owes you.
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
+  const negative = balance < 0;
+  return (
+    <Card label="Founder loan" href="/cockpit/cash" icon={HandCoins} accent="rd">
+      <div className="space-y-4">
+        <div>
+          <p className="text-foreground font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
+            {fmtCAD(balance)}
+          </p>
+          <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
+            {negative ? "Over-repaid — check entries" : "AR Inc. owes Andrew"}
+          </p>
+        </div>
+        <p className="text-muted-foreground/70 text-xs">
+          Account 3010 · running balance of all signed loan events.
+          Tax-free to repay when cash allows.
+        </p>
       </div>
     </Card>
   );
