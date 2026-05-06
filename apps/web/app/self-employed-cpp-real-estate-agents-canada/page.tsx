@@ -109,7 +109,7 @@ export default function SelfEmployedCPPCanadaPage() {
                   rel="noopener noreferrer"
                   className="underline underline-offset-2 hover:text-amber-900"
                 >
-                  CRA's published CPP contribution rates
+                  CRA&apos;s published CPP contribution rates
                 </a>{" "}
                 and consult a qualified accountant or tax professional for your own
                 situation.{" "}
@@ -146,20 +146,20 @@ export default function SelfEmployedCPPCanadaPage() {
 
               {/* ── Section 1 ── */}
               <h2 id="why-double">
-                Why self-employed CPP is the "double" contribution
+                Why self-employed CPP is the &quot;double&quot; contribution
               </h2>
 
               <p>
                 A salaried employee in Canada has CPP deducted from each paycheque at
                 the employee rate. The employer matches that amount and remits both
-                halves to the CRA on the employee's behalf. The employee never sees
+                halves to the CRA on the employee&apos;s behalf. The employee never sees
                 the employer-side contribution — it is paid directly by the employer
-                out of their own funds, not from the employee's wage.
+                out of their own funds, not from the employee&apos;s wage.
               </p>
 
               <p>
-                A self-employed real estate agent is, in CRA's view, both the employee
-                and the employer. Commissions land in the agent's account in full,
+                A self-employed real estate agent is, in CRA&apos;s view, both the employee
+                and the employer. Commissions land in the agent&apos;s account in full,
                 with no source deduction taken at the time of payment. When the T1
                 personal income tax return is filed, the agent calculates the
                 self-employed CPP contribution on Schedule 8 — and the figure that
@@ -169,9 +169,9 @@ export default function SelfEmployedCPPCanadaPage() {
 
               <p>
                 The practical consequence: at the same level of net earnings, a
-                self-employed agent's CPP figure is approximately twice an employee's.
-                That doubled figure is the single largest source of the "first-year
-                tax shock" that working agents commonly describe — it is structural,
+                self-employed agent&apos;s CPP figure is approximately twice an employee&apos;s.
+                That doubled figure is the single largest source of the &quot;first-year
+                tax shock&quot; that working agents commonly describe — it is structural,
                 published, and inescapable for agents earning income on a self-employed
                 basis.
               </p>
@@ -180,7 +180,7 @@ export default function SelfEmployedCPPCanadaPage() {
                 The brokerage payroll structure most Canadian agents work under does
                 not change this. Whether the brokerage pays the agent on a 1099-style
                 commission split, through a brokerage trust account, or via direct
-                deposit on closing, the agent's earnings flow as self-employed business
+                deposit on closing, the agent&apos;s earnings flow as self-employed business
                 income — and the self-employed CPP rules apply.
               </p>
 
@@ -189,7 +189,7 @@ export default function SelfEmployedCPPCanadaPage() {
 
               <p>
                 The Canada Revenue Agency publishes CPP contribution rates and earnings
-                ceilings annually. The 2025 figures, drawn from the CRA's official
+                ceilings annually. The 2025 figures, drawn from the CRA&apos;s official
                 contribution-rates table, are:
               </p>
 
@@ -199,11 +199,11 @@ export default function SelfEmployedCPPCanadaPage() {
                   calculated only on earnings above this amount.
                 </li>
                 <li>
-                  <strong>Year's Maximum Pensionable Earnings (YMPE), 2025:</strong> $71,300.
+                  <strong>Year&apos;s Maximum Pensionable Earnings (YMPE), 2025:</strong> $71,300.
                   This is the upper bound for CPP1 contributions.
                 </li>
                 <li>
-                  <strong>Year's Additional Maximum Pensionable Earnings (YAMPE), 2025:</strong>{" "}
+                  <strong>Year&apos;s Additional Maximum Pensionable Earnings (YAMPE), 2025:</strong>{" "}
                   $81,200. CPP2 contributions apply on earnings between YMPE and YAMPE.
                 </li>
                 <li>
@@ -240,7 +240,7 @@ export default function SelfEmployedCPPCanadaPage() {
                 at the same earnings level — paying only the employee half — is
                 $4,430.10. The structural self-employed gap at YAMPE is therefore
                 $4,430.10 — exactly the employer half that no employer remits on a
-                self-employed agent's behalf.
+                self-employed agent&apos;s behalf.
               </p>
 
               <h3>The Quebec QPP variant</h3>
@@ -249,7 +249,7 @@ export default function SelfEmployedCPPCanadaPage() {
                 Agents who reside in Quebec contribute to the Quebec Pension Plan
                 (QPP) rather than the federal CPP. The 2025 QPP1 self-employed rate
                 is slightly higher than CPP1 (the QPP rate has been published at 12.80%
-                versus CPP's 11.90%). The QPP2 rate matches CPP2 at 8.00%. YMPE and
+                versus CPP&apos;s 11.90%). The QPP2 rate matches CPP2 at 8.00%. YMPE and
                 YAMPE figures are the same. Quebec residents file the QPP contribution
                 on Schedule 8 of the Quebec TP-1 return rather than the federal T1
                 Schedule 8.
@@ -319,14 +319,14 @@ export default function SelfEmployedCPPCanadaPage() {
               <p>
                 Self-employed CPP is calculated and remitted with the T1 personal
                 income tax return — not throughout the year as it would be for a
-                salaried employee. The full year's contribution arrives as a single
+                salaried employee. The full year&apos;s contribution arrives as a single
                 figure on the return and forms part of the balance owing at filing.
               </p>
 
               <p>
                 For most active agents, this means the CPP figure is rolled into the
                 quarterly tax instalment obligation that applies in subsequent years.
-                The CRA's instalment threshold is $3,000 of net tax owing in either
+                The CRA&apos;s instalment threshold is $3,000 of net tax owing in either
                 of the two preceding years (excluding Quebec, where the threshold is
                 $1,800). Once an agent crosses that threshold once, instalment
                 reminders begin arriving from the CRA the following spring — and the
@@ -345,7 +345,7 @@ export default function SelfEmployedCPPCanadaPage() {
                   Canadian real estate agent tax deadline calendar
                 </Link>
                 . The mechanics of how instalment amounts are calculated under each
-                of CRA's three published methods are covered in the{" "}
+                of CRA&apos;s three published methods are covered in the{" "}
                 <Link
                   href="/real-estate-agent-tax-planning-canada"
                   className="font-semibold text-blue-600 underline underline-offset-2"
@@ -369,7 +369,7 @@ export default function SelfEmployedCPPCanadaPage() {
               <h3>The employer-half deduction</h3>
 
               <p>
-                CRA treats half of CPP1 — the "employer half" — as a deductible
+                CRA treats half of CPP1 — the &quot;employer half&quot; — as a deductible
                 business expense. It reduces net business income before federal and
                 provincial income tax is calculated. For an agent paying combined
                 marginal income tax rates of 35–45% (typical for net business income
@@ -381,7 +381,7 @@ export default function SelfEmployedCPPCanadaPage() {
               <h3>The employee-half credit</h3>
 
               <p>
-                The other half of CPP1 — the "employee half" — flows to a
+                The other half of CPP1 — the &quot;employee half&quot; — flows to a
                 non-refundable tax credit. This credit is claimed at the lowest
                 federal bracket rate (15%) plus the equivalent lowest provincial
                 bracket rate. The provincial portion varies — typically in the
@@ -397,7 +397,7 @@ export default function SelfEmployedCPPCanadaPage() {
                 treated differently again. CRA confirmed that CPP2 contributions are
                 fully deductible from net business income — both halves — for
                 self-employed filers. This means the net cost of CPP2 is reduced by
-                the agent's full marginal income tax rate, not split between a
+                the agent&apos;s full marginal income tax rate, not split between a
                 deduction and a credit as CPP1 is.
               </p>
 
@@ -410,7 +410,7 @@ export default function SelfEmployedCPPCanadaPage() {
                 $5,800–$6,400 range, depending on province and marginal rate. The
                 offset does not eliminate the burden, but it materially reduces it
                 compared to what a simple application of the 11.90% gross rate
-                might suggest. CRA's{" "}
+                might suggest. CRA&apos;s{" "}
                 <a
                   href="https://www.canada.ca/en/revenue-agency/services/forms-publications/forms/t1.html"
                   target="_blank"
@@ -424,7 +424,7 @@ export default function SelfEmployedCPPCanadaPage() {
 
               {/* ── Section 6 ── */}
               <h2 id="incorporation-question">
-                What incorporation does and doesn't change
+                What incorporation does and doesn&apos;t change
               </h2>
 
               <p>
@@ -471,7 +471,7 @@ export default function SelfEmployedCPPCanadaPage() {
                 T4 earnings, not dividends), provincial professional regulations,
                 and incorporation costs. The PREC question is structural and
                 situation-dependent. A qualified accountant familiar with both
-                Canadian corporate tax and the agent's provincial real estate
+                Canadian corporate tax and the agent&apos;s provincial real estate
                 regulator is the appropriate consultation. This article addresses
                 only the published CPP mechanics.
               </p>
@@ -488,12 +488,12 @@ export default function SelfEmployedCPPCanadaPage() {
               </p>
 
               <p>
-                Agent Runway's tax engine implements the 2025 CRA-published CPP1
+                Agent Runway&apos;s tax engine implements the 2025 CRA-published CPP1
                 and CPP2 schedule directly. As deals close and net business income
-                accumulates, the engine produces a running estimate of the year's
+                accumulates, the engine produces a running estimate of the year&apos;s
                 CPP contribution alongside the federal income tax estimate, the
                 provincial income tax estimate, and (where applicable) HST
-                obligation. The estimate is shown explicitly in the dashboard's tax
+                obligation. The estimate is shown explicitly in the dashboard&apos;s tax
                 readiness card and rolls into the quarterly instalment estimate the
                 engine produces for years where the instalment threshold is met.
               </p>
@@ -538,7 +538,7 @@ export default function SelfEmployedCPPCanadaPage() {
             <p className="mx-auto mt-5 max-w-xl text-base leading-relaxed text-slate-400">
               Agent Runway estimates your self-employed CPP1 and CPP2 alongside
               federal and provincial income tax — so the figure you owe in April is
-              the figure you've been watching since January. Built for Canadian
+              the figure you&apos;ve been watching since January. Built for Canadian
               real estate agents.
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
