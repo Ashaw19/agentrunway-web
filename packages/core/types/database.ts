@@ -1523,6 +1523,22 @@ export interface CorpTransaction {
   updated_at:            string;
 }
 
+// Manual cash-position snapshots (migration 00135). No bank-feed integration
+// in Phase 1; Andrew posts each observation by hand. Latest by `as_of_date`
+// is the displayed Snapshot value.
+export interface CorpCashSnapshot {
+  id:           string;
+  user_id:      string;
+
+  as_of_date:   string;          // ISO date
+  amount_cad:   number;
+  source_label: string | null;   // e.g. "RBC Business chequing"
+  notes:        string | null;
+
+  created_at:   string;
+  updated_at:   string;
+}
+
 
 // ── Organization types (re-export from dedicated module) ────────────────────
 export * from "./organizations";
