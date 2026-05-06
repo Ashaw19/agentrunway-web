@@ -109,10 +109,10 @@ export function cheatSheetDeliveryEmail({
                     </table>
 
                     <!-- Headline -->
-                    <div style="color:#f0f6ff;font-size:27px;font-weight:800;line-height:1.2;letter-spacing:-0.6px;margin-bottom:10px;">
+                    <div style="color:#ffffff;font-size:27px;font-weight:800;line-height:1.2;letter-spacing:-0.6px;margin-bottom:10px;">
                       Your cheat sheet<br/>is ready to download.
                     </div>
-                    <div style="color:#7a9ac4;font-size:14px;line-height:1.6;margin-bottom:36px;">
+                    <div style="color:#c4d9f0;font-size:14px;line-height:1.6;margin-bottom:36px;">
                       One page. Every figure cited to the CRA.
                     </div>
 
@@ -294,7 +294,7 @@ export function cheatSheetDeliveryEmail({
                           <div style="font-size:16px;font-weight:700;color:#f0f6ff;line-height:1.3;margin-bottom:8px;">
                             Want to see what your own numbers look like?
                           </div>
-                          <div style="font-size:13px;color:#7a9ac4;line-height:1.6;margin-bottom:18px;">
+                          <div style="font-size:13px;color:#c4d9f0;line-height:1.6;margin-bottom:18px;">
                             Plug in your GCI and the live tax estimator calculates your estimated federal + provincial tax, CPP, and HST &mdash; built for Canadian agents.
                           </div>
                           <table cellpadding="0" cellspacing="0" border="0">
