@@ -39,12 +39,12 @@ const ACCENT: Record<
   Accent,
   { ring: string; bar: string; text: string; glow: string; sparkStart: string; sparkStop: string }
 > = {
-  income:   { ring: "ring-emerald-500/15", bar: "bg-emerald-400",  text: "text-emerald-300",  glow: "shadow-emerald-500/10",  sparkStart: "rgb(52 211 153 / 0.55)", sparkStop: "rgb(52 211 153 / 0.00)" },
-  tax:      { ring: "ring-cyan-500/15",    bar: "bg-cyan-400",     text: "text-cyan-300",     glow: "shadow-cyan-500/10",     sparkStart: "rgb(34 211 238 / 0.55)", sparkStop: "rgb(34 211 238 / 0.00)" },
-  rd:       { ring: "ring-violet-500/15",  bar: "bg-violet-400",   text: "text-violet-300",   glow: "shadow-violet-500/10",   sparkStart: "rgb(167 139 250 / 0.55)", sparkStop: "rgb(167 139 250 / 0.00)" },
-  health:   { ring: "ring-teal-500/15",    bar: "bg-teal-400",     text: "text-teal-300",     glow: "shadow-teal-500/10",     sparkStart: "rgb(45 212 191 / 0.55)", sparkStop: "rgb(45 212 191 / 0.00)" },
-  expenses: { ring: "ring-amber-500/15",   bar: "bg-amber-400",    text: "text-amber-300",    glow: "shadow-amber-500/10",    sparkStart: "rgb(251 191 36 / 0.55)", sparkStop: "rgb(251 191 36 / 0.00)" },
-  warn:     { ring: "ring-rose-500/15",    bar: "bg-rose-400",     text: "text-rose-300",     glow: "shadow-rose-500/10",     sparkStart: "rgb(251 113 133 / 0.55)", sparkStop: "rgb(251 113 133 / 0.00)" },
+  income:   { ring: "ring-emerald-500/35", bar: "bg-emerald-400",  text: "text-emerald-300",  glow: "shadow-emerald-500/10",  sparkStart: "rgb(52 211 153 / 0.55)", sparkStop: "rgb(52 211 153 / 0.00)" },
+  tax:      { ring: "ring-cyan-500/35",    bar: "bg-cyan-400",     text: "text-cyan-300",     glow: "shadow-cyan-500/10",     sparkStart: "rgb(34 211 238 / 0.55)", sparkStop: "rgb(34 211 238 / 0.00)" },
+  rd:       { ring: "ring-violet-500/35",  bar: "bg-violet-400",   text: "text-violet-300",   glow: "shadow-violet-500/10",   sparkStart: "rgb(167 139 250 / 0.55)", sparkStop: "rgb(167 139 250 / 0.00)" },
+  health:   { ring: "ring-teal-500/35",    bar: "bg-teal-400",     text: "text-teal-300",     glow: "shadow-teal-500/10",     sparkStart: "rgb(45 212 191 / 0.55)", sparkStop: "rgb(45 212 191 / 0.00)" },
+  expenses: { ring: "ring-amber-500/35",   bar: "bg-amber-400",    text: "text-amber-300",    glow: "shadow-amber-500/10",    sparkStart: "rgb(251 191 36 / 0.55)", sparkStop: "rgb(251 191 36 / 0.00)" },
+  warn:     { ring: "ring-rose-500/35",    bar: "bg-rose-400",     text: "text-rose-300",     glow: "shadow-rose-500/10",     sparkStart: "rgb(251 113 133 / 0.55)", sparkStop: "rgb(251 113 133 / 0.00)" },
 };
 
 const fmtCAD = (n: number) =>
@@ -350,14 +350,14 @@ function Card({
       <span
         aria-hidden
         className={cn(
-          "absolute top-4 bottom-4 left-0 w-[2px] rounded-r-full opacity-60 transition-opacity duration-300 group-hover:opacity-100",
+          "absolute top-4 bottom-4 left-0 w-[5px] rounded-r-full opacity-100 transition-opacity duration-300",
           a.bar,
         )}
       />
       <span
         aria-hidden
         className={cn(
-          "pointer-events-none absolute -top-12 -right-12 h-32 w-32 rounded-full opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-30",
+          "pointer-events-none absolute -top-12 -right-12 h-32 w-32 rounded-full opacity-15 blur-2xl transition-opacity duration-500 group-hover:opacity-35",
           a.bar,
         )}
       />
