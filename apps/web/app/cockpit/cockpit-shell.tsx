@@ -28,7 +28,7 @@ export function CockpitShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="dark text-foreground relative flex min-h-svh flex-col bg-[oklch(0.235_0.055_262)] font-sans antialiased">
+    <div className="dark text-foreground relative flex min-h-svh flex-col bg-[oklch(0.235_0.055_262)] font-[var(--font-cockpit-body)] antialiased">
       {/* Layered background: dotted micro-grid + soft top-of-page aurora glow.
           The aurora gives the page a subtle sense of "sky" without competing
           with content — pure decoration. */}
