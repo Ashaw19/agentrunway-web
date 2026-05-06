@@ -10,7 +10,6 @@
 
 const LOGO_URL = "https://agentrunway.ca/logo.png";
 const BADGE_CLEARED_URL = "https://agentrunway.ca/brand/badges/cleared-for-takeoff.png";
-const MARK_CLIMB_URL = "https://agentrunway.ca/brand/marks/climb-indicator.png";
 
 interface CheatSheetDeliveryOptions {
   /** First name — falls back to "there" if unavailable */
@@ -98,7 +97,7 @@ export function cheatSheetDeliveryEmail({
               <!-- ── Hero ── -->
               <table width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
-                  <td style="background:linear-gradient(150deg,#071428 0%,#0d1f44 60%,#142d5e 100%);padding:44px 40px 0;text-align:center;">
+                  <td bgcolor="#0d1f44" style="background:linear-gradient(150deg,#071428 0%,#0d1f44 60%,#142d5e 100%);padding:44px 40px 0;text-align:center;">
 
                     <!-- Amber accent bar above badge -->
                     <table cellpadding="0" cellspacing="0" border="0" align="center" style="margin-bottom:18px;">
@@ -110,10 +109,10 @@ export function cheatSheetDeliveryEmail({
                     </table>
 
                     <!-- Headline -->
-                    <div style="color:#f0f6ff;font-size:27px;font-weight:800;line-height:1.2;letter-spacing:-0.6px;margin-bottom:10px;">
+                    <div style="color:#ffffff;font-size:27px;font-weight:800;line-height:1.2;letter-spacing:-0.6px;margin-bottom:10px;">
                       Your cheat sheet<br/>is ready to download.
                     </div>
-                    <div style="color:#7a9ac4;font-size:14px;line-height:1.6;margin-bottom:36px;">
+                    <div style="color:#c4d9f0;font-size:14px;line-height:1.6;margin-bottom:36px;">
                       One page. Every figure cited to the CRA.
                     </div>
 
@@ -276,40 +275,28 @@ export function cheatSheetDeliveryEmail({
               <table width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td style="padding:28px 40px 36px;">
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:linear-gradient(145deg,#071428 0%,#0d1f44 100%);border-radius:12px;">
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-radius:12px;">
                       <tr>
-                        <td style="padding:24px 26px 22px;">
+                        <td bgcolor="#071428" style="background:linear-gradient(145deg,#071428 0%,#0d1f44 100%);border-radius:12px;padding:24px 26px 22px;">
 
-                          <!-- Two-column: text left, climb indicator right -->
-                          <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                          <!-- Logo + label row -->
+                          <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:12px;">
                             <tr>
-                              <td style="vertical-align:middle;">
-
-                                <!-- Logo + label row -->
-                                <table cellpadding="0" cellspacing="0" border="0" style="margin-bottom:12px;">
-                                  <tr>
-                                    <td style="vertical-align:middle;padding-right:8px;">
-                                      <img src="${LOGO_URL}" width="24" height="24" alt="Agent Runway" style="display:block;border:0;border-radius:5px;" />
-                                    </td>
-                                    <td style="vertical-align:middle;">
-                                      <span style="font-size:10px;font-weight:700;color:#F0A800;text-transform:uppercase;letter-spacing:0.1em;">Free Tool</span>
-                                    </td>
-                                  </tr>
-                                </table>
-
-                                <div style="font-size:16px;font-weight:700;color:#f0f6ff;line-height:1.3;margin-bottom:8px;">
-                                  Want to see what your own numbers look like?
-                                </div>
-                                <div style="font-size:13px;color:#7a9ac4;line-height:1.6;margin-bottom:18px;">
-                                  Plug in your GCI and the live tax estimator calculates your estimated federal + provincial tax, CPP, and HST &mdash; built for Canadian agents.
-                                </div>
-
+                              <td style="vertical-align:middle;padding-right:8px;">
+                                <img src="${LOGO_URL}" width="24" height="24" alt="Agent Runway" style="display:block;border:0;border-radius:5px;" />
                               </td>
-                              <td style="width:80px;vertical-align:middle;padding-left:16px;text-align:right;">
-                                <img src="${MARK_CLIMB_URL}" width="72" height="60" alt="" style="display:block;border:0;opacity:0.85;" />
+                              <td style="vertical-align:middle;">
+                                <span style="font-size:10px;font-weight:700;color:#F0A800;text-transform:uppercase;letter-spacing:0.1em;">Free Tool</span>
                               </td>
                             </tr>
                           </table>
+
+                          <div style="font-size:16px;font-weight:700;color:#f0f6ff;line-height:1.3;margin-bottom:8px;">
+                            Want to see what your own numbers look like?
+                          </div>
+                          <div style="font-size:13px;color:#c4d9f0;line-height:1.6;margin-bottom:18px;">
+                            Plug in your GCI and the live tax estimator calculates your estimated federal + provincial tax, CPP, and HST &mdash; built for Canadian agents.
+                          </div>
                           <table cellpadding="0" cellspacing="0" border="0">
                             <tr>
                               <td style="background:#ffffff;border-radius:8px;">
