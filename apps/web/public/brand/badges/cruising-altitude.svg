@@ -1,0 +1,13 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" font-family="Inter, sans-serif">
+  <circle cx="100" cy="100" r="100" fill="#0B1220"></circle>
+  <circle cx="100" cy="100" r="99" stroke="#1E293B"></circle>
+  <g stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none" transform="translate(60 50)">
+    <path d="M 40 4 L 40 56"></path>
+    <path d="M 8 28 L 72 28"></path>
+    <path d="M 26 50 L 54 50"></path>
+    <path d="M 34 4 L 40 -4 L 46 4 Z" fill="#FFFFFF"></path>
+  </g>
+  <text x="100" y="148" fill="#FFFFFF" font-size="13" font-weight="700" letter-spacing="2" text-anchor="middle">CRUISING</text>
+  <text x="100" y="166" fill="#FFFFFF" font-size="13" font-weight="700" letter-spacing="2" text-anchor="middle">ALTITUDE</text>
+</svg>

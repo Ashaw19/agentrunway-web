@@ -1,0 +1,14 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" font-family="Inter, sans-serif">
+  <rect x="0" y="0" width="200" height="200" rx="32" fill="#0B1220"></rect>
+  <rect x="1" y="1" width="198" height="198" rx="31" stroke="#06B6D4" stroke-opacity="0.6"></rect>
+  
+  <g stroke="#06B6D4" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none" transform="translate(72 38)">
+    <path d="M 8 100 L 8 16 C 8 9.4 13.4 4 20 4 L 40 4 C 46.6 4 52 9.4 52 16 L 52 100 Z"></path>
+    <line x1="4" y1="100" x2="56" y2="100"></line>
+    <line x1="20" y1="36" x2="40" y2="36"></line>
+    <path d="M 52 44 L 64 44 L 64 78 C 64 82 70 82 70 78 L 70 28 L 60 18"></path>
+  </g>
+  <text x="100" y="160" fill="#06B6D4" font-size="13" font-weight="700" letter-spacing="2" text-anchor="middle">FUELING</text>
+  <text x="100" y="178" fill="#06B6D4" font-size="13" font-weight="700" letter-spacing="2" text-anchor="middle">GROWTH</text>
+</svg>

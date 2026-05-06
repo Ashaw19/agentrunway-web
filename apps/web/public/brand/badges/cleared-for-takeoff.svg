@@ -1,0 +1,17 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" font-family="Inter, sans-serif">
+  <defs>
+    <linearGradient id="b1-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2563EB"></stop>
+      <stop offset="100%" stop-color="#60A5FA"></stop>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="200" height="200" rx="32" fill="#0B1220"></rect>
+  <rect x="1" y="1" width="198" height="198" rx="31" stroke="#1E293B"></rect>
+  <g transform="translate(46 50) scale(0.9)">
+    <path d="M 18 18 L 50 18 L 42 70 L 10 70 Z" fill="url(#b1-grad)"></path>
+    <path d="M 70 6 L 110 6 L 100 70 L 60 70 Z" fill="url(#b1-grad)"></path>
+  </g>
+  <text x="100" y="160" fill="#FFFFFF" font-size="14" font-weight="700" letter-spacing="2" text-anchor="middle">CLEARED FOR</text>
+  <text x="100" y="178" fill="#FFFFFF" font-size="14" font-weight="700" letter-spacing="2" text-anchor="middle">TAKEOFF</text>
+</svg>

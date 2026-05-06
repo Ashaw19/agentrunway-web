@@ -1,0 +1,15 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" font-family="Inter, sans-serif">
+  <rect x="0" y="0" width="200" height="200" rx="32" fill="#0B1220"></rect>
+  <rect x="1" y="1" width="198" height="198" rx="31" stroke="#22C55E" stroke-opacity="0.5"></rect>
+  <g transform="translate(60 38)">
+    <path d="M 40 40 L 40 4 A 36 36 0 0 1 76 40 Z" fill="#22C55E" fill-opacity="0.35"></path>
+    <circle cx="40" cy="40" r="36" stroke="#22C55E" stroke-width="2"></circle>
+    <circle cx="40" cy="40" r="24" stroke="#22C55E" stroke-width="1.5"></circle>
+    <circle cx="40" cy="40" r="12" stroke="#22C55E" stroke-width="1.5"></circle>
+    <line x1="4" y1="40" x2="76" y2="40" stroke="#22C55E" stroke-width="1.5"></line>
+    <line x1="40" y1="4" x2="40" y2="76" stroke="#22C55E" stroke-width="1.5"></line>
+    <circle cx="40" cy="40" r="2" fill="#22C55E"></circle>
+  </g>
+  <text x="100" y="160" fill="#22C55E" font-size="14" font-weight="700" letter-spacing="2" text-anchor="middle">ON RADAR</text>
+</svg>
