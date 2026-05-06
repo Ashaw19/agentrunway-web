@@ -7,7 +7,7 @@
  *   idle → processing → review → saving → done
  *
  * Three capture modes (all feed into the same post-upload flow):
- *   Mode 1 — File upload       : file picker (JPEG, PNG, WEBP, HEIC)
+ *   Mode 1 — File upload       : file picker (JPEG, PNG, WebP, PDF)
  *   Mode 2 — Mobile camera     : <input capture="environment"> — opens rear camera on mobile
  *   Mode 3 — QR handoff        : desktop creates a one-time token, shows QR code,
  *                                phone opens /receipt-upload/{token} and uploads there,
