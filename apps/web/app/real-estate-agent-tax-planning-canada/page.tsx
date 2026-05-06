@@ -26,8 +26,98 @@ const JSON_LD_ARTICLE = articleSchema({
     "A practical guide to tax planning for Canadian real estate agents — quarterly instalments, deductible expenses, CPP contributions, and HST/GST registration.",
   url: "/real-estate-agent-tax-planning-canada",
   datePublished: "2025-03-15",
-  dateModified: "2026-04-15",
+  dateModified: "2026-05-06",
 });
+
+// ── CRA primary sources (audit registry) ─────────────────────────────────────
+//
+// Every numeric or mechanical claim in this article maps to one of the URLs
+// below. Inline citations are rendered via <CRACite id={n} />. URLs were
+// hand-verified live on 2026-05-06.
+
+const CRA_SOURCES = [
+  {
+    id: 1,
+    label: "CRA — CPP contribution rates, maximums and exemptions",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/payroll-deductions-contributions/canada-pension-plan-cpp/cpp-contribution-rates-maximums-exemptions.html",
+  },
+  {
+    id: 2,
+    label: "CRA — Second additional CPP contribution (CPP2) rates and maximums",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/calculating-deductions/making-deductions/second-additional-cpp-contribution-rates-maximums.html",
+  },
+  {
+    id: 3,
+    label: "CRA — Required tax instalments for individuals (overview)",
+    url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments.html",
+  },
+  {
+    id: 4,
+    label: "CRA — Required tax instalments — Who has to pay",
+    url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/who-pays-instalments.html",
+  },
+  {
+    id: 5,
+    label: "CRA — Required tax instalments — Payment due dates",
+    url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/due-dates.html",
+  },
+  {
+    id: 6,
+    label: "CRA — Required tax instalments — Options to calculate",
+    url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/options-calculate.html",
+  },
+  {
+    id: 7,
+    label: "CRA — Canadian income tax rates for individuals (current and previous years)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/canadian-income-tax-rates-individuals-current-previous-years.html",
+  },
+  {
+    id: 8,
+    label: "CRA — Line 30000: Basic personal amount",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/about-your-tax-return/tax-return/completing-a-tax-return/deductions-credits-expenses/line-30000-basic-personal-amount.html",
+  },
+  {
+    id: 9,
+    label: "CRA — Expenses section of form T2125",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/completing-form-t2125/expenses-section-form-t2125.html",
+  },
+  {
+    id: 10,
+    label: "CRA — Motor vehicle expenses (self-employed)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/small-businesses-self-employed-income/business-income-tax-reporting/business-expenses/motor-vehicle-expenses.html",
+  },
+  {
+    id: 11,
+    label: "CRA — Business-use-of-home expenses",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/completing-form-t2125/business-use-home-expenses.html",
+  },
+  {
+    id: 12,
+    label: "CRA — Line 9936: Capital cost allowance (CCA)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/completing-form-t2125/line-9936-capital-cost-allowance.html",
+  },
+  {
+    id: 13,
+    label: "CRA — Self-employed: Chapter 3 — Expenses (T4002, includes meals 50% rule)",
+    url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4002/t4002-5.html",
+  },
+] as const;
+
+function CRACite({ id }: { id: number }) {
+  const src = CRA_SOURCES.find((s) => s.id === id);
+  if (!src) return null;
+  return (
+    <a
+      href={src.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Source: ${src.label}`}
+      className="ml-0.5 align-super text-[0.65em] font-semibold text-blue-600 no-underline hover:underline"
+    >
+      [{id}]
+    </a>
+  );
+}
 
 // ── Table of contents entries ─────────────────────────────────────────────────
 
@@ -145,24 +235,28 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               <p>
                 Canada Pension Plan contributions represent one of the largest and most
                 frequently overlooked tax costs for self-employed agents. A salaried
-                employee contributes the employee share of CPP — approximately 5.95% on
-                pensionable earnings up to the Year&apos;s Maximum Pensionable Earnings
-                (YMPE), with the employer matching that amount. As a self-employed
-                professional, you pay both the employee and employer share. For 2024,
-                the combined self-employed CPP contribution rate is approximately 11.9%,
-                and the maximum total contribution reaches roughly $7,800 for the year.
+                employee contributes the employee share of CPP — 5.95% on pensionable
+                earnings up to the Year&apos;s Maximum Pensionable Earnings (YMPE)
+                <CRACite id={1} />, with the employer matching that amount. A
+                self-employed agent pays both the employee and employer share. For 2025,
+                the combined self-employed CPP1 contribution rate is 11.90%
+                <CRACite id={1} />, and the maximum total CPP1 contribution at YMPE
+                ($71,300) is $8,068.20<CRACite id={1} />.
               </p>
 
               <p>
-                The second additional CPP contribution (CPP2), introduced in 2024,
-                adds a further obligation on income between the first and second earnings
-                ceilings. The practical result is that a successful agent with $80,000 or
-                more in net business income can expect CPP contributions alone to account
-                for a meaningful share of their overall tax bill — often $6,000–$8,000 —
-                before federal or provincial income tax is considered. The full 2025
-                CPP1 and CPP2 numbers, worked examples at $80K, $120K, and $200K, and
-                the half-deduction-half-credit mechanic that offsets a portion of the
-                gross figure are all covered in the dedicated{" "}
+                The second additional CPP contribution (CPP2), introduced in 2024, adds
+                a further contribution on earnings between YMPE and the Year&apos;s
+                Additional Maximum Pensionable Earnings (YAMPE — $81,200 in 2025) at a
+                self-employed rate of 8.00%, capped at $792.00 for the year
+                <CRACite id={2} />. Combined, the 2025 maximum self-employed CPP
+                contribution is $8,860.20<CRACite id={1} /><CRACite id={2} />. An
+                agent with $80,000 or more in net business income can expect CPP
+                contributions alone to account for a meaningful share of the overall
+                tax figure before federal or provincial income tax is considered. The
+                full 2025 CPP1 and CPP2 numbers, worked examples at $80K, $120K, and
+                $200K, and the deduction-and-credit mechanic that offsets a portion of
+                the gross figure are all covered in the dedicated{" "}
                 <Link
                   href="/self-employed-cpp-real-estate-agents-canada"
                   className="font-semibold text-blue-600 underline underline-offset-2"
@@ -176,13 +270,14 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
 
               <p>
                 Self-employed agents pay federal income tax at graduated marginal rates
-                that currently reach 33% on income above $246,752 (2024 bracket). The
-                basic personal amount reduces taxable income by approximately $15,705
-                federally. Provincial income tax is assessed on top at rates that vary
-                significantly by province — Ontario, British Columbia, and Alberta have
-                meaningfully different rate structures, and the total combined marginal
-                rate for a mid-career agent earning $120,000 in net income can approach
-                40–45% depending on province.
+                that reach 33% on taxable income above $253,414 for 2025
+                <CRACite id={7} />. The basic personal amount, which reduces federal
+                taxable income at the lowest-bracket rate, is $16,129 for 2025
+                <CRACite id={8} />. Provincial income tax is assessed on top at rates
+                that vary significantly by province — Ontario, British Columbia, and
+                Alberta have meaningfully different rate structures, and the total
+                combined marginal rate for a mid-career agent earning $120,000 in net
+                income may land in the 40–45% range depending on province.
               </p>
 
               <p>
@@ -199,16 +294,18 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
 
               <p>
                 The Canada Revenue Agency does not wait until April to collect tax from
-                self-employed Canadians. If your net tax owing exceeds $3,000 for the
-                current year — and exceeded $3,000 in either of the two preceding years —
-                you are required to pay tax in quarterly instalments throughout the year.
-                For the vast majority of active real estate agents, this threshold is met.
+                self-employed Canadians. If net tax owing exceeds $3,000 for the current
+                year — and exceeded $3,000 in either of the two preceding years
+                ($1,800 for Quebec residents) — quarterly instalments apply
+                <CRACite id={4} />. For the majority of active real estate agents, this
+                threshold is met.
               </p>
 
               <h3>Instalment due dates</h3>
 
               <p>
-                The four quarterly instalment due dates for personal income tax are:
+                The four quarterly instalment due dates for personal income tax are
+                <CRACite id={5} />:
               </p>
 
               <ul>
@@ -243,26 +340,26 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               <h3>How to calculate your instalment amounts</h3>
 
               <p>
-                The CRA offers three methods for calculating instalment payments:
+                The CRA offers three options for calculating instalment payments
+                <CRACite id={6} />:
               </p>
 
               <ul>
                 <li>
-                  <strong>Prior-year method</strong> — pay one quarter of last year&apos;s
-                  net tax owing each quarter. This is the simplest approach and eliminates
-                  interest risk if you pay the full prior-year amount, even if your income
-                  grows.
-                </li>
-                <li>
-                  <strong>Current-year method</strong> — estimate your current year&apos;s
-                  tax liability and pay one quarter of that estimate each period. This
-                  requires accurate forecasting but can reduce overpayment if your income
-                  drops.
-                </li>
-                <li>
-                  <strong>No-calculation method</strong> — pay the amounts shown on the
+                  <strong>No-calculation option</strong> — pay the amounts shown on the
                   CRA&apos;s instalment reminders, which are based on a two-year look-back.
-                  This is the default if you prefer to let the CRA calculate for you.
+                  This is the default if the agent prefers the CRA-calculated figure.
+                </li>
+                <li>
+                  <strong>Prior-year option</strong> — pay one quarter of last year&apos;s
+                  net tax owing each quarter. Following this option exactly eliminates
+                  instalment-interest risk even if income grows.
+                </li>
+                <li>
+                  <strong>Current-year option</strong> — estimate the current year&apos;s
+                  tax liability and pay one quarter of that estimate each period. This
+                  approach requires forecasting and may reduce overpayment if income
+                  drops, but underestimating exposes the agent to instalment interest.
                 </li>
               </ul>
 
@@ -312,35 +409,36 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               <ul>
                 <li>
                   <strong>MLS and real estate board fees</strong> — annual membership
-                  dues, MLS access fees, and lock-box fees charged by your local board
-                  are deductible business expenses.
+                  dues, MLS access fees, and lock-box fees charged by the local board
+                  are deductible business expenses<CRACite id={9} />.
                 </li>
                 <li>
                   <strong>Errors and omissions (E&O) insurance</strong> — professional
-                  liability insurance premiums are fully deductible.
+                  liability insurance premiums are fully deductible<CRACite id={9} />.
                 </li>
                 <li>
                   <strong>Professional dues and licensing</strong> — fees paid to RECO
-                  (Ontario), RECBC (British Columbia), or your provincial regulator are
-                  deductible.
+                  (Ontario), RECBC (British Columbia), or the agent&apos;s provincial
+                  regulator are deductible<CRACite id={9} />.
                 </li>
                 <li>
                   <strong>Marketing and advertising</strong> — online advertising spend,
-                  social media promotion, print materials, signage, and any direct
-                  marketing costs are deductible.
+                  social media promotion, print materials, signage, and direct marketing
+                  costs are deductible<CRACite id={9} />.
                 </li>
                 <li>
-                  <strong>Vehicle expenses</strong> — the business-use portion of your
-                  vehicle costs (fuel, insurance, maintenance, lease payments) is
-                  deductible. The CRA requires a logbook to support the business-use
-                  percentage claimed. A kilometre log recording each business trip is the
-                  most defensible approach.
+                  <strong>Vehicle expenses</strong> — the business-use portion of vehicle
+                  costs (fuel, insurance, maintenance, lease payments) is deductible. The
+                  CRA requires a logbook to support the business-use percentage claimed
+                  <CRACite id={10} />. A kilometre log recording each business trip is
+                  the most defensible approach.
                 </li>
                 <li>
-                  <strong>Home office</strong> — if you regularly work from a dedicated
-                  home workspace, a proportional share of rent or mortgage interest,
-                  utilities, and internet may be deductible. The CRA applies specific
-                  rules about what qualifies; your accountant can advise on your situation.
+                  <strong>Home office</strong> — where an agent regularly works from a
+                  dedicated home workspace, a proportional share of rent or mortgage
+                  interest, utilities, and internet may be deductible
+                  <CRACite id={11} />. The CRA applies specific rules on what qualifies;
+                  an accountant can advise on individual situations.
                 </li>
                 <li>
                   <strong>Technology and software</strong> — CRM subscriptions, analytics
@@ -385,12 +483,13 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               <h3>What is not deductible</h3>
 
               <p>
-                Personal expenses, even those loosely related to your work, are not
+                Personal expenses, even those loosely related to work, are not
                 deductible. Meals and entertainment have a 50% deductibility cap and
-                are required by the CRA to be directly connected to business activity.
-                Capital expenditures — equipment, laptops, vehicles purchased outright
-                — are typically handled through Capital Cost Allowance (CCA) depreciation
-                schedules rather than immediate deduction.
+                are required by the CRA to be directly connected to business activity
+                <CRACite id={13} />. Capital expenditures — equipment, laptops, vehicles
+                purchased outright — are typically handled through Capital Cost Allowance
+                (CCA) depreciation schedules rather than immediate deduction
+                <CRACite id={12} />.
               </p>
 
               {/* ── Disclaimer callout ── */}
@@ -494,6 +593,39 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               </p>
 
             </article>
+
+            {/* Sources */}
+            <section
+              aria-labelledby="sources"
+              className="mt-12 border-t border-slate-200 pt-8"
+            >
+              <h2
+                id="sources"
+                className="text-base font-semibold text-slate-800"
+              >
+                Sources
+              </h2>
+              <p className="mt-2 text-xs text-slate-500">
+                Every quantitative or mechanical claim in this article is backed
+                by one of the primary sources below. Hand-verified live on
+                2026-05-06.
+              </p>
+              <ol className="mt-4 space-y-2 text-xs text-slate-500">
+                {CRA_SOURCES.map((s) => (
+                  <li key={s.id} className="flex gap-2 leading-relaxed">
+                    <span className="font-mono text-slate-400">[{s.id}]</span>
+                    <a
+                      href={s.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2 hover:text-slate-700"
+                    >
+                      {s.label}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </section>
 
             {/* Bottom disclaimer */}
             <p className="mt-12 text-center text-xs leading-relaxed text-slate-400">

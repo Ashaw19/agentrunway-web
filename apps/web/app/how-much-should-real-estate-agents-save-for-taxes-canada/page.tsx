@@ -10,11 +10,11 @@ import { articleSchema } from "@/lib/schema";
 export const metadata: Metadata = {
   title: "How Much Should Real Estate Agents Save for Taxes in Canada?",
   description:
-    "A practical guide for Canadian real estate agents on how much to set aside for federal tax, provincial tax, CPP, and HST/GST — with a free 2025 tax estimator tool.",
+    "A practical guide for Canadian real estate agents on the typical tax-portion estimate for federal tax, provincial tax, CPP, and HST/GST — with a free 2025 tax estimator tool.",
   openGraph: {
     title: "How Much Should Real Estate Agents Save for Taxes in Canada?",
     description:
-      "Practical guide for Canadian real estate agents. Federal tax, provincial tax, CPP, and HST/GST set-asides — plus a free 2025 tax estimator.",
+      "Practical guide for Canadian real estate agents. Federal tax, provincial tax, CPP, and HST/GST tax-portion estimates — plus a free 2025 tax estimator.",
     url: "https://agentrunway.ca/how-much-should-real-estate-agents-save-for-taxes-canada",
     images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
@@ -23,15 +23,66 @@ export const metadata: Metadata = {
   },
 };
 
+// ── CRA primary-source registry (self-contained per article) ────────────────
+
+const CRA_SOURCES = [
+  {
+    id: 1,
+    label: "CRA — CPP contribution rates, maximums and exemptions",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/payroll/payroll-deductions-contributions/canada-pension-plan-cpp/cpp-contribution-rates-maximums-exemptions.html",
+  },
+  {
+    id: 2,
+    label: "CRA — Canadian income tax rates for individuals",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/canadian-income-tax-rates-individuals-current-previous-years.html",
+  },
+  {
+    id: 3,
+    label: "CRA — When to register for and start charging the GST/HST",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/when-register-charge.html",
+  },
+  {
+    id: 4,
+    label: "CRA — GST/HST: charge and collect the tax — which rate to charge",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html",
+  },
+  {
+    id: 5,
+    label: "CRA — Required tax instalments: who has to pay",
+    url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/who-pays-instalments.html",
+  },
+  {
+    id: 6,
+    label: "CRA — Required tax instalments: due dates",
+    url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments/due-dates.html",
+  },
+] as const;
+
+function CRACite({ id }: { id: number }) {
+  const src = CRA_SOURCES.find((s) => s.id === id);
+  if (!src) return null;
+  return (
+    <a
+      href={src.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Source: ${src.label}`}
+      className="text-emerald-600 align-super text-[0.65em] no-underline hover:underline"
+    >
+      [{id}]
+    </a>
+  );
+}
+
 // ── JSON-LD structured data ──────────────────────────────────────────────────
 
 const JSON_LD_ARTICLE = articleSchema({
   headline: "How Much Should Real Estate Agents Save for Taxes in Canada?",
   description:
-    "A practical guide for Canadian real estate agents on how much to set aside from every commission cheque — with a free tax estimator tool.",
+    "A practical guide for Canadian real estate agents on the typical tax-portion estimate for every commission cheque — with a free tax estimator tool.",
   url: "/how-much-should-real-estate-agents-save-for-taxes-canada",
   datePublished: "2025-03-01",
-  dateModified: "2026-04-15",
+  dateModified: "2026-05-06",
 });
 
 const JSON_LD_FAQ = {
@@ -43,7 +94,7 @@ const JSON_LD_FAQ = {
       name: "How much should a real estate agent save for taxes in Canada?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Most Canadian real estate agents typically set aside between 25% and 40% of their net business income for taxes, depending on their province and total income. This covers federal income tax, provincial income tax, CPP contributions, and HST/GST remittances.",
+        text: "For Canadian real estate agents, a typical estimate of the total tax portion lands between 25% and 40% of net business income, depending on province and total income. This estimate covers federal income tax, provincial income tax, CPP contributions, and HST/GST remittances.",
       },
     },
     {
@@ -51,7 +102,7 @@ const JSON_LD_FAQ = {
       name: "Do real estate agents in Canada pay CPP?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. Self-employed real estate agents in Canada pay both the employee and employer portions of CPP — a combined rate of 11.9% on net self-employment income between $3,500 and $71,300 (2025 figures), plus CPP2 on earnings up to $79,400.",
+        text: "Yes. Self-employed real estate agents in Canada pay both the employee and employer portions of CPP — a combined rate of 11.90% on net self-employment income between $3,500 and $71,300 (2025 YMPE), plus CPP2 at 8.00% on earnings between $71,300 and $81,200 (2025 YAMPE).",
       },
     },
     {
@@ -59,7 +110,7 @@ const JSON_LD_FAQ = {
       name: "Do real estate agents charge HST or GST in Canada?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "If a real estate agent earns more than $30,000 in gross revenue over four consecutive calendar quarters, they must register for and collect HST/GST. In HST provinces like Ontario (13%) or the Maritimes (15%), this is a significant additional obligation.",
+        text: "Once a real estate agent earns more than $30,000 in gross revenue over four consecutive calendar quarters, the agent is required to register for and collect HST/GST per CRA rules. In HST provinces like Ontario (13%) or the Maritimes (15%), this is a significant additional obligation.",
       },
     },
     {
@@ -67,7 +118,7 @@ const JSON_LD_FAQ = {
       name: "How often do self-employed agents pay taxes in Canada?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "The CRA requires quarterly instalment payments (March 15, June 15, September 15, December 15) if you owe more than $3,000 in net tax for the current year or either of the two preceding years. HST/GST is typically filed annually or quarterly depending on revenue.",
+        text: "CRA requires quarterly instalment payments (March 15, June 15, September 15, December 15) when net tax owing exceeds $3,000 in the current year and in either of the two preceding years ($1,800 in Quebec). HST/GST is typically filed annually or quarterly depending on revenue.",
       },
     },
   ],
@@ -105,10 +156,10 @@ export default function TaxSavingsGuidePage() {
               How Much Should Real Estate Agents Save for Taxes in Canada?
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
-              Most agents know they should be setting money aside. Few know
-              exactly how much. This guide explains what percentage to set aside,
-              why it varies by province, and what the CRA expects — plus a free
-              tax estimator to plug in your own numbers.
+              Most agents know a tax portion of every cheque has to come off the
+              top. Few know exactly how much. This guide explains the typical
+              estimated percentage, why it varies by province, and what CRA rules
+              apply — plus a free tax estimator to plug in your own numbers.
             </p>
           </div>
         </section>
@@ -163,11 +214,13 @@ export default function TaxSavingsGuidePage() {
               <div className="mt-6 space-y-5 text-base leading-relaxed text-slate-600">
                 <p>
                   For most Canadian real estate agents earning between $80,000
-                  and $300,000 in gross commission income, the total tax
-                  set-aside lands between 25% and 40% of net business income.
-                  That range depends on your province, your brokerage split,
-                  your deductible expenses, and whether you operate through a
-                  personal corporation (PREC).
+                  and $300,000 in gross commission income, the typical estimate
+                  of the total tax portion lands between 25% and 40% of net
+                  business income. (This 25%–40% range is an Agent Runway
+                  composite estimate of federal + provincial + CPP, not a CRA
+                  figure — actual rates depend on province, brokerage split,
+                  deductible expenses, and whether the agent operates through a
+                  personal corporation (PREC).)
                 </p>
                 <p>
                   The breakdown typically includes four components:
@@ -176,21 +229,28 @@ export default function TaxSavingsGuidePage() {
                   <li>
                     <strong>Federal income tax</strong> — Progressive brackets
                     from 15% to 33% on net self-employment income
+                    <CRACite id={2} />
                   </li>
                   <li>
                     <strong>Provincial income tax</strong> — Varies by province,
                     from ~4% (Nunavut) to ~21% (Nova Scotia) at the highest
                     marginal rates
+                    <CRACite id={2} />
                   </li>
                   <li>
                     <strong>CPP contributions</strong> — Self-employed agents
-                    pay both employee and employer portions: 11.9% on income
-                    between $3,500 and $71,300 (2025), plus CPP2 up to $79,400
+                    pay both employee and employer portions: 11.90% on income
+                    between $3,500 and $71,300 (2025 YMPE), plus CPP2 at 8.00%
+                    on earnings between $71,300 and $81,200 (2025 YAMPE)
+                    <CRACite id={1} />
                   </li>
                   <li>
-                    <strong>HST/GST</strong> — If you gross over $30,000 per
-                    year, you must register and collect HST/GST. In Ontario
-                    that&apos;s 13%; in the Maritimes, 15%
+                    <strong>HST/GST</strong> — Once gross revenue exceeds
+                    $30,000 over four consecutive calendar quarters, CRA
+                    requires registration and collection of HST/GST
+                    <CRACite id={3} />. In Ontario the rate is 13%; in the
+                    Maritimes, 15%
+                    <CRACite id={4} />
                   </li>
                 </ul>
               </div>
@@ -223,9 +283,9 @@ export default function TaxSavingsGuidePage() {
                   the full amount.
                 </p>
                 <p>
-                  The fix is straightforward but requires discipline: know your
-                  estimated rate, set aside that percentage from every cheque,
-                  and pay your quarterly instalments on time. The{" "}
+                  A practical approach: know the estimated rate, earmark that
+                  percentage from every cheque as the tax portion, and pay
+                  quarterly instalments on time<CRACite id={6} />. The{" "}
                   <Link
                     href="/tools/realtor-tax-estimator"
                     className="text-blue-600 underline underline-offset-2 hover:text-blue-500"
@@ -276,12 +336,13 @@ export default function TaxSavingsGuidePage() {
                     How much should a real estate agent save for taxes in Canada?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Most Canadian real estate agents typically set aside between 25% and
-                    40% of their net business income for taxes. This covers
-                    federal income tax, provincial income tax, CPP
-                    contributions, and HST/GST remittances. The exact percentage
-                    depends on your province, total income, and deductible
-                    expenses.
+                    For Canadian real estate agents, a typical estimate of the
+                    total tax portion lands between 25% and 40% of net business
+                    income. That estimate covers federal income tax
+                    <CRACite id={2} />, provincial income tax<CRACite id={2} />,
+                    CPP contributions<CRACite id={1} />, and HST/GST remittances
+                    <CRACite id={4} />. The exact percentage depends on
+                    province, total income, and deductible expenses.
                   </p>
                 </div>
                 <div>
@@ -290,9 +351,10 @@ export default function TaxSavingsGuidePage() {
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
                     Yes. Self-employed real estate agents pay both the employee
-                    and employer portions of CPP — a combined rate of 11.9% on
+                    and employer portions of CPP — a combined rate of 11.90% on
                     net self-employment income between $3,500 and $71,300 (2025
-                    figures), plus CPP2 on earnings up to $79,400.
+                    YMPE), plus CPP2 at 8.00% on earnings between $71,300 and
+                    $81,200 (2025 YAMPE)<CRACite id={1} />.
                   </p>
                 </div>
                 <div>
@@ -300,11 +362,12 @@ export default function TaxSavingsGuidePage() {
                     Do real estate agents charge HST or GST in Canada?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    If a real estate agent earns more than $30,000 in gross
-                    revenue over four consecutive calendar quarters, they must
-                    register for and collect HST/GST. In HST provinces like
-                    Ontario (13%) or the Maritimes (15%), this is a significant
-                    additional obligation.
+                    Once a real estate agent earns more than $30,000 in gross
+                    revenue over four consecutive calendar quarters, CRA
+                    requires the agent to register for and collect HST/GST
+                    <CRACite id={3} />. In HST provinces like Ontario (13%) or
+                    the Maritimes (15%)<CRACite id={4} />, this is a
+                    significant additional obligation.
                   </p>
                 </div>
                 <div>
@@ -312,15 +375,51 @@ export default function TaxSavingsGuidePage() {
                     How often do self-employed agents pay taxes in Canada?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    The CRA requires quarterly instalment payments (March 15,
-                    June 15, September 15, December 15) if you owe more than
-                    $3,000 in net tax. HST/GST is typically filed annually or
+                    CRA requires quarterly instalment payments (March 15, June
+                    15, September 15, December 15)<CRACite id={6} /> when net
+                    tax owing exceeds $3,000 in the current year and in either
+                    of the two preceding years ($1,800 in Quebec)
+                    <CRACite id={5} />. HST/GST is typically filed annually or
                     quarterly depending on revenue. Missing instalments can
                     result in interest charges.
                   </p>
                 </div>
               </div>
             </ScrollRevealSection>
+          </div>
+        </section>
+
+        {/* ════════════════════════════════════════════════════════
+            SOURCES
+        ════════════════════════════════════════════════════════ */}
+        <section className="bg-white px-6 pt-12 pb-2 sm:px-10">
+          <div className="mx-auto max-w-3xl">
+            <section
+              aria-labelledby="sources"
+              className="border-t border-slate-200 pt-8"
+            >
+              <h2
+                id="sources"
+                className="text-base font-semibold text-slate-800"
+              >
+                Sources
+              </h2>
+              <ol className="mt-3 space-y-1 text-xs text-slate-500">
+                {CRA_SOURCES.map((s) => (
+                  <li key={s.id} className="flex gap-2">
+                    <span className="font-mono">[{s.id}]</span>
+                    <a
+                      href={s.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2 hover:text-slate-700"
+                    >
+                      {s.label}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </section>
           </div>
         </section>
 
@@ -387,7 +486,7 @@ export default function TaxSavingsGuidePage() {
               Stop guessing. Start tracking.
             </h2>
             <p className="mt-5 text-lg text-slate-400">
-              Agent Runway estimates your tax set-aside from every deal
+              Agent Runway estimates the tax portion of every deal
               automatically — federal, provincial, CPP, and HST/GST. No
               spreadsheets. No surprises at tax time.
             </p>
