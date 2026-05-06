@@ -107,7 +107,19 @@ export async function POST(
       );
     }
 
-    const mimeType = file.type && ALLOWED_MIME.has(file.type) ? file.type : "image/jpeg";
+    // Reject anything outside the allowlist. The phone-side capture page
+    // converts PDFs to JPEG before posting; an unsupported MIME here means
+    // either a direct caller or a misbehaving phone capture.
+    if (!file.type || !ALLOWED_MIME.has(file.type)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `Unsupported file type${file.type ? `: ${file.type}` : ""}. Allowed: JPEG, PNG, WebP, HEIC.`,
+        },
+        { status: 400 },
+      );
+    }
+    const mimeType = file.type;
 
     // ── 5. Read bytes ───────────────────────────────────────────────────────
     const bytes   = await file.arrayBuffer();

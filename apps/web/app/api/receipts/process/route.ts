@@ -96,8 +96,19 @@ export async function POST(
     );
   }
 
-  // Determine MIME from the file object; default to jpeg if browser sends blank
-  const mimeType = file.type && ALLOWED_MIME.has(file.type) ? file.type : "image/jpeg";
+  // Reject anything outside the image allowlist. PDFs are converted to JPEG
+  // client-side before reaching this endpoint, so a PDF arriving here is a
+  // direct caller (curl/script) — also reject.
+  if (!file.type || !ALLOWED_MIME.has(file.type)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: `Unsupported file type${file.type ? `: ${file.type}` : ""}. Allowed: JPEG, PNG, WebP.`,
+      },
+      { status: 400 },
+    );
+  }
+  const mimeType = file.type;
 
   // ── 4. Read file bytes ─────────────────────────────────────────────────────
   const bytes   = await file.arrayBuffer();

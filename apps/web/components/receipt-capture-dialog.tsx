@@ -7,7 +7,7 @@
  *   idle → processing → review → saving → done
  *
  * Three capture modes (all feed into the same post-upload flow):
- *   Mode 1 — File upload       : file picker (JPEG, PNG, WEBP, HEIC)
+ *   Mode 1 — File upload       : file picker (JPEG, PNG, WebP, PDF)
  *   Mode 2 — Mobile camera     : <input capture="environment"> — opens rear camera on mobile
  *   Mode 3 — QR handoff        : desktop creates a one-time token, shows QR code,
  *                                phone opens /receipt-upload/{token} and uploads there,
@@ -80,6 +80,25 @@ interface Props {
 const CURRENCIES     = ["CAD", "USD"];
 const QR_POLL_MS     = 3_000;   // 3 seconds between polls
 const TOKEN_TTL_MS   = 5 * 60 * 1000; // 5 minutes
+
+// Mirrors the file input's accept attribute below. Drag-drop bypasses the
+// browser's accept filter, so we re-check here. file.type can be empty for
+// files dragged from some sources, so we also check the filename extension.
+const ACCEPTED_MIMES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]);
+const ACCEPTED_EXTS = [".jpg", ".jpeg", ".png", ".webp", ".pdf"];
+const ACCEPTED_LABEL = "JPEG / PNG / WebP / PDF";
+
+function isFileAccepted(file: File): boolean {
+  if (file.type && ACCEPTED_MIMES.has(file.type)) return true;
+  const lower = file.name.toLowerCase();
+  return ACCEPTED_EXTS.some((ext) => lower.endsWith(ext));
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -311,14 +330,35 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved, context = "realto
   // Caller passes the full array (FileList → Array).  We sort PDFs and
   // images in arrival order — sequential processing avoids OCR rate-limit
   // burst and keeps the single review-form invariant intact.
+  //
+  // Filters out unsupported file types up front (drag-drop bypasses the
+  // file input's accept attribute, so a CSV/xlsx/etc. would otherwise be
+  // silently dropped — see commit history for the bug it fixed).
   const handleFiles = useCallback(async (files: File[]) => {
     const list = files.filter(Boolean);
     if (list.length === 0) return;
-    const [first, ...rest] = list;
+
+    const accepted: File[] = [];
+    const rejected: string[] = [];
+    for (const f of list) {
+      if (isFileAccepted(f)) accepted.push(f);
+      else rejected.push(f.name);
+    }
+
+    if (rejected.length > 0) {
+      const names = rejected.join(", ");
+      toast.error(
+        `File type not supported: ${names}. Accepts ${ACCEPTED_LABEL}.`,
+      );
+    }
+
+    if (accepted.length === 0) return;
+
+    const [first, ...rest] = accepted;
     if (!first) return;
     setBatchQueue(rest);
     setBatchIndex(0);
-    setBatchTotal(list.length);
+    setBatchTotal(accepted.length);
     await handleFile(first);
   }, [handleFile]);
 
@@ -669,8 +709,7 @@ export function ReceiptCaptureDialog({ open, onClose, onSaved, context = "realto
               className="hidden"
               onChange={(e) => {
                 const files = Array.from(e.target.files ?? []);
-                if (files.length > 1) void handleFiles(files);
-                else if (files.length === 1) void handleFile(files[0]);
+                if (files.length > 0) void handleFiles(files);
               }}
             />
           </div>
