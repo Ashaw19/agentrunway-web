@@ -183,7 +183,6 @@ export function PhotoCropDialog({ open, onOpenChange, imageFile, onCropComplete 
 
         {imgSrc && (
           <div className="flex justify-center max-h-[62vh] overflow-auto">
-            {/* @ts-expect-error -- ReactCrop is a class component not yet updated for React 19.2 strict JSX */}
             <ReactCrop
               crop={crop}
               onChange={(c: import("react-image-crop").Crop) => setCrop(c)}
