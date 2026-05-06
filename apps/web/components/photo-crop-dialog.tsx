@@ -17,9 +17,20 @@
  * is displayed in full with template-coloured letterbox bars where needed.
  */
 
-import { useState, useRef, useEffect, useCallback } from "react";
-import ReactCrop, { type Crop, type PixelCrop } from "react-image-crop";
+import { useState, useRef, useEffect, useCallback, type ReactNode } from "react";
+import ReactCropImpl, { type Crop, type PixelCrop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
+
+// react-image-crop ships a class component that isn't compatible with
+// @types/react 19.2's strict JSX element checks (TS2607/TS2786). Re-cast
+// as a function component shape with the props we actually use.
+const ReactCrop = ReactCropImpl as unknown as React.FC<{
+  crop?: Crop;
+  onChange?: (c: PixelCrop, p: Crop) => void;
+  onComplete?: (c: PixelCrop, p: Crop) => void;
+  className?: string;
+  children?: ReactNode;
+}>;
 import {
   Dialog,
   DialogContent,
@@ -185,8 +196,8 @@ export function PhotoCropDialog({ open, onOpenChange, imageFile, onCropComplete 
           <div className="flex justify-center max-h-[62vh] overflow-auto">
             <ReactCrop
               crop={crop}
-              onChange={(c: import("react-image-crop").Crop) => setCrop(c)}
-              onComplete={(c: import("react-image-crop").PixelCrop) => setCompletedCrop(c)}
+              onChange={(_c, p) => setCrop(p)}
+              onComplete={(c) => setCompletedCrop(c)}
               // No aspect prop — free-form crop
               className="max-h-[62vh]"
             >
