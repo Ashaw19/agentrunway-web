@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Calculator, TrendingUp, ArrowRight, Sparkles, FileText } from "lucide-react";
+import { Calculator, TrendingUp, ArrowRight, Sparkles, FileText, Home, MapPin } from "lucide-react";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
@@ -46,6 +46,24 @@ const TOOLS = [
     badge: null,
     accentColor: "emerald",
   },
+  {
+    href: "/tools/open-house-signup",
+    title: "Open House Registration Form",
+    description:
+      "A ready-made open house signup page your buyers can fill out. Submissions are captured and you're notified instantly.",
+    icon: Home,
+    badge: "Lead capture",
+    accentColor: "violet",
+  },
+  {
+    href: "/tools/listing-inquiry",
+    title: "Listing Inquiry Form",
+    description:
+      "A clean listing inquiry form for your active listings. CASL-compliant consent built in — no configuration needed.",
+    icon: MapPin,
+    badge: "Lead capture",
+    accentColor: "cyan",
+  },
 ];
 
 const ACCENT_STYLES: Record<string, { bg: string; text: string; border: string }> = {
@@ -58,6 +76,16 @@ const ACCENT_STYLES: Record<string, { bg: string; text: string; border: string }
     bg: "bg-emerald-500/10",
     text: "text-emerald-400",
     border: "border-emerald-500/30 group-hover:border-emerald-400/60",
+  },
+  violet: {
+    bg: "bg-violet-500/10",
+    text: "text-violet-400",
+    border: "border-violet-500/30 group-hover:border-violet-400/60",
+  },
+  cyan: {
+    bg: "bg-cyan-500/10",
+    text: "text-cyan-400",
+    border: "border-cyan-500/30 group-hover:border-cyan-400/60",
   },
 };
 
