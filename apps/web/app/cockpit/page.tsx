@@ -208,8 +208,12 @@ export default async function SnapshotPage() {
   }, 0);
   const monthlyBurn = burn90Total > 0 ? burn90Total / 3 : null;
 
+  // $0 cash is valid data: runway = 0 months, not "no signal". Remove the
+  // cashAmount > 0 guard so a $0 snapshot correctly shows 0 months (rose
+  // severity) rather than falling through to the "--" insufficient-inputs
+  // branch with a misleading "needs cogs/opex" reason.
   const runwayMonths =
-    cashAmount !== null && cashAmount > 0 && monthlyBurn !== null && monthlyBurn > 0
+    cashAmount !== null && monthlyBurn !== null && monthlyBurn > 0
       ? cashAmount / monthlyBurn
       : null;
 
