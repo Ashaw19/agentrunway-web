@@ -23,6 +23,67 @@ export const metadata: Metadata = {
   },
 };
 
+// -- CRA primary-source registry (self-contained per article) ----------------
+
+const CRA_SOURCES = [
+  {
+    id: 1,
+    label: "CRA — Form T2125, Statement of Business or Professional Activities",
+    url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/forms/t2125.html",
+  },
+  {
+    id: 2,
+    label: "CRA — Expenses section of Form T2125",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/completing-form-t2125/expenses-section-form-t2125.html",
+  },
+  {
+    id: 3,
+    label: "CRA — Line 9936, Capital cost allowance (T2125)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/completing-form-t2125/line-9936-capital-cost-allowance.html",
+  },
+  {
+    id: 4,
+    label: "CRA — T4002, Self-employed Business, Professional, Commission… Income — Chapter 3 (Expenses)",
+    url: "https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/t4002/t4002-5.html",
+  },
+  {
+    id: 5,
+    label: "CRA — Business-use-of-home expenses (T2125)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/completing-form-t2125/business-use-home-expenses.html",
+  },
+  {
+    id: 6,
+    label: "CRA — Calculating business-use-of-home expenses",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses/completing-form-t2125/calculating-business-use-home-expenses.html",
+  },
+  {
+    id: 7,
+    label: "CRA — Motor vehicle expenses",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/small-businesses-self-employed-income/business-income-tax-reporting/business-expenses/motor-vehicle-expenses.html",
+  },
+  {
+    id: 8,
+    label: "CRA — File a GST/HST return",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/file-gst-hst-return.html",
+  },
+] as const;
+
+function CRACite({ id }: { id: number }) {
+  const src = CRA_SOURCES.find((s) => s.id === id);
+  if (!src) return null;
+  return (
+    <a
+      href={src.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Source: ${src.label}`}
+      className="text-emerald-600 align-super text-[0.65em] no-underline hover:underline"
+    >
+      [{id}]
+    </a>
+  );
+}
+
 // -- JSON-LD structured data --------------------------------------------------
 
 const JSON_LD_ARTICLE = articleSchema({
@@ -31,7 +92,7 @@ const JSON_LD_ARTICLE = articleSchema({
     "A line-by-line guide to CRA Form T2125 for self-employed real estate agents in Canada, covering industry code, commission income, deductible expenses, and common filing mistakes.",
   url: "/t2125-guide-real-estate-agents-canada",
   datePublished: "2025-04-01",
-  dateModified: "2026-04-15",
+  dateModified: "2026-05-06",
 });
 
 const JSON_LD_FAQ = {
@@ -161,7 +222,7 @@ const EXPENSE_LINES: {
     label: "Motor vehicle expenses",
     description:
       "Gas, insurance, maintenance, lease payments, parking \u2014 multiplied by your business-use percentage from your vehicle logbook.",
-    tip: "Agent tip: You MUST keep a logbook. Without one, the CRA can deny your entire vehicle claim on audit.",
+    tip: "Agent tip: A logbook is required by CRA. Without one, the CRA can deny the entire vehicle claim on audit.",
   },
   {
     line: "9270",
@@ -211,9 +272,10 @@ export default function T2125GuidePage() {
               How to Fill Out T2125 as a Real Estate Agent in Canada
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
-              Every self-employed agent in Canada must file a T2125 with their
-              tax return. This is your line-by-line guide &mdash; written
-              specifically for agents, not accountants.
+              Every self-employed agent in Canada is required to file a T2125
+              <CRACite id={1} /> with their tax return. This is your
+              line-by-line guide &mdash; written specifically for agents, not
+              accountants.
             </p>
             <p className="mt-3 text-xs text-slate-500">10 min read</p>
           </div>
@@ -233,10 +295,10 @@ export default function T2125GuidePage() {
                   The T2125 &mdash; officially called the <em>Statement of Business
                   or Professional Activities</em> &mdash; is the CRA form where
                   self-employed individuals report their business income and
-                  expenses. As a real estate agent operating as an independent
-                  contractor (which is the vast majority of agents in Canada),
-                  you are required to complete this form and attach it to your T1
-                  personal income tax return every year.
+                  expenses<CRACite id={1} />. As a real estate agent operating
+                  as an independent contractor (which is the vast majority of
+                  agents in Canada), the form is completed and attached to the
+                  T1 personal income tax return every year<CRACite id={1} />.
                 </p>
                 <p>
                   Your fiscal period is typically January&nbsp;1 to
@@ -374,6 +436,7 @@ export default function T2125GuidePage() {
               <div className="mt-10">
                 <h3 className="text-lg font-bold text-slate-800">
                   Part 2 &mdash; Business Income (Lines 8000&ndash;8230)
+                  <CRACite id={1} />
                 </h3>
                 <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
                   <table className="w-full text-sm">
@@ -426,9 +489,20 @@ export default function T2125GuidePage() {
                   Part 3 &mdash; Business Expenses (Lines 8521&ndash;9281)
                 </h3>
                 <p className="mt-3 text-sm text-slate-500">
-                  These are the lines most relevant to real estate agents. You
-                  may not use every line &mdash; only claim what you actually
-                  spent.
+                  These are the lines most relevant to real estate agents
+                  <CRACite id={2} />. You may not use every line &mdash; only
+                  claim what you actually spent. The 50% rule on meals
+                  &amp; entertainment and the rules for capital cost allowance
+                  are described in CRA&rsquo;s T4002 self-employed guide
+                  <CRACite id={4} />.
+                </p>
+
+                <p className="mt-2 text-xs text-slate-500">
+                  Motor vehicle expenses (logbook + business-use percentage)
+                  follow CRA&rsquo;s motor-vehicle guidance<CRACite id={7} />.
+                  Capital cost allowance follows CRA&rsquo;s line-9936 rules
+                  <CRACite id={3} />. Office-in-home rules are covered above
+                  <CRACite id={5} />.
                 </p>
 
                 <div className="mt-6 space-y-4">
@@ -514,6 +588,10 @@ export default function T2125GuidePage() {
               <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
                 Common mistakes agents make on the T2125
               </h2>
+              <p className="mt-3 text-sm text-slate-500">
+                HST/GST collected sits on the GST/HST return<CRACite id={8} />
+                {" "}— not on T2125<CRACite id={1} />.
+              </p>
               <div className="mt-6 space-y-4">
                 {[
                   {
@@ -529,7 +607,7 @@ export default function T2125GuidePage() {
                   {
                     title: "Claiming 100% of home office without proper calculation",
                     detail:
-                      "You must calculate the proportional square footage of your dedicated workspace relative to your total home. Overclaiming is a common audit trigger.",
+                      "The proportional square footage of the dedicated workspace relative to total home area applies to home-office expenses, per CRA's published method. Overclaiming is a common audit trigger.",
                   },
                   {
                     title: "Declaring less income than what\u2019s on your T4A",
@@ -539,7 +617,7 @@ export default function T2125GuidePage() {
                   {
                     title: "Counting HST/GST collected as income",
                     detail:
-                      "HST/GST you collect is not business income \u2014 it\u2019s held in trust for the CRA. It should not appear on your T2125. It\u2019s reported separately on your GST/HST return.",
+                      "HST/GST collected is not business income \u2014 it\u2019s held in trust for the CRA. It does not appear on T2125. It\u2019s reported separately on the GST/HST return.",
                   },
                   {
                     title: "Claiming personal meals as business expenses",
@@ -605,11 +683,12 @@ export default function T2125GuidePage() {
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
                     Yes, if you use a dedicated space in your home regularly and
-                    exclusively for business. You can claim a proportional share
-                    of rent or mortgage interest, property tax, utilities,
-                    insurance, and internet on Line&nbsp;8810. The proportion is
-                    typically calculated by square footage of the office versus
-                    total home area.
+                    exclusively for business<CRACite id={5} />. You can claim a
+                    proportional share of rent or mortgage interest, property
+                    tax, utilities, insurance, and internet on Line&nbsp;8810
+                    <CRACite id={5} />. The proportion is typically calculated
+                    by square footage of the office versus total home area
+                    <CRACite id={6} />.
                   </p>
                 </div>
                 <div>
@@ -745,6 +824,40 @@ export default function T2125GuidePage() {
                 Try the free Canadian Realtor Tax Estimator →
               </Link>
             </p>
+          </div>
+        </section>
+
+        {/* ================================================================
+            SOURCES
+        ================================================================ */}
+        <section className="bg-white px-6 pt-12 pb-2 sm:px-10">
+          <div className="mx-auto max-w-3xl">
+            <section
+              aria-labelledby="sources"
+              className="border-t border-slate-200 pt-8"
+            >
+              <h2
+                id="sources"
+                className="text-base font-semibold text-slate-800"
+              >
+                Sources
+              </h2>
+              <ol className="mt-3 space-y-1 text-xs text-slate-500">
+                {CRA_SOURCES.map((s) => (
+                  <li key={s.id} className="flex gap-2">
+                    <span className="font-mono">[{s.id}]</span>
+                    <a
+                      href={s.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline underline-offset-2 hover:text-slate-700"
+                    >
+                      {s.label}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </section>
           </div>
         </section>
 
