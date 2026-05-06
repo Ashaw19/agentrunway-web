@@ -39,10 +39,10 @@ export interface CanadianTaxResult {
 const TAX_YEAR = 2025;
 
 // Federal (2025 confirmed — rate cut from 15% to 14% effective Jul 1, blended 14.5%)
-const FEDERAL_BPA = 16_129;
-const FEDERAL_BPA_RATE = 0.145; // blended 2025 rate (15% Jan–Jun, 14% Jul–Dec)
+export const FEDERAL_BPA = 16_129;
+export const FEDERAL_BPA_RATE = 0.145; // blended 2025 rate (15% Jan–Jun, 14% Jul–Dec)
 
-const FEDERAL_BRACKETS: [number, number][] = [
+export const FEDERAL_BRACKETS: [number, number][] = [
   [57_375,  0.145], // blended 14.5% for 2025
   [114_750, 0.205],
   [177_882, 0.260],
@@ -347,6 +347,46 @@ export function provincialInfo(province: Province): ProvincialInfo {
         ],
       };
   }
+}
+
+// ── Bracket Breakdown Helper (for transparency UI) ──────────────────────────
+
+export interface BracketSlice {
+  /** Lower bound of this bracket (inclusive). */
+  from: number;
+  /** Upper bound of this bracket (or Infinity). */
+  to: number;
+  /** Marginal rate for this bracket. */
+  rate: number;
+  /** Income that falls into this bracket. */
+  incomeInBracket: number;
+  /** Tax produced by income in this bracket. */
+  taxInBracket: number;
+}
+
+/**
+ * Decompose a `bracketTax` calculation into per-bracket slices for display.
+ * The sum of `taxInBracket` equals `bracketTax(income, brackets)`.
+ */
+export function bracketBreakdown(
+  income: number,
+  brackets: [number, number][],
+): BracketSlice[] {
+  const slices: BracketSlice[] = [];
+  let prev = 0;
+  for (const [limit, rate] of brackets) {
+    const inBracket = Math.max(0, Math.min(income, limit) - prev);
+    slices.push({
+      from: prev,
+      to: limit,
+      rate,
+      incomeInBracket: cents(inBracket),
+      taxInBracket: cents(inBracket * rate),
+    });
+    prev = limit;
+    if (income <= limit) break;
+  }
+  return slices;
 }
 
 // ── Marginal Rate Helper ────────────────────────────────────────────────────

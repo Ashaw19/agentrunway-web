@@ -2,8 +2,17 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { Calculator, Info, TrendingDown, Sparkles } from "lucide-react";
-import { calculate } from "@/lib/engines/canadian-tax-engine";
+import { Calculator, Info, TrendingDown, Sparkles, ChevronDown } from "lucide-react";
+import {
+  calculate,
+  bracketBreakdown,
+  provincialInfo,
+  gstHstRate,
+  gstHstLabel,
+  FEDERAL_BRACKETS,
+  FEDERAL_BPA,
+  FEDERAL_BPA_RATE,
+} from "@/lib/engines/canadian-tax-engine";
 import { PROVINCE_LABELS, type Province } from "@agent-runway/core/types/database";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -37,6 +46,8 @@ export function TaxEstimator() {
   const [expenses, setExpenses] = useState(30_000); // typical 20-30% of GCI
   const [province, setProvince] = useState<Province>("ontario");
   const [dealCount, setDealCount] = useState(12);
+  const [hstRegistered, setHstRegistered] = useState(true);
+  const [showCalculation, setShowCalculation] = useState(false);
 
   // Compute net income = GCI − expenses (floor at 0)
   const netIncome = Math.max(0, gci - expenses);
@@ -49,6 +60,40 @@ export function TaxEstimator() {
 
   // Derived: take-home after tax + CPP
   const takeHome = netIncome - result.totalBurden;
+
+  // ── Disclosure-panel inputs (display-only, sourced from canonical engine) ──
+  const isQuebec = province === "quebec";
+  const cppLabel = isQuebec ? "QPP" : "CPP";
+  const provInfo = useMemo(() => provincialInfo(province), [province]);
+  const fedTaxableForBrackets = useMemo(() => {
+    // Mirror the engine's federal-taxable basis: net income minus CPP deduction.
+    // CPP1 50% deductible (employer half), CPP2 100% deductible.
+    const cppDeduction =
+      result.cpp1Contribution * 0.5 + result.cpp2Contribution;
+    return Math.max(0, netIncome - cppDeduction);
+  }, [netIncome, result.cpp1Contribution, result.cpp2Contribution]);
+
+  const fedSlices = useMemo(
+    () => bracketBreakdown(fedTaxableForBrackets, FEDERAL_BRACKETS),
+    [fedTaxableForBrackets],
+  );
+  const provSlices = useMemo(
+    () => bracketBreakdown(fedTaxableForBrackets, provInfo.brackets),
+    [fedTaxableForBrackets, provInfo],
+  );
+
+  // HST display values
+  const hstRate = gstHstRate(province);
+  const hstTypeLabel = gstHstLabel(province);
+  const hstCollected = hstRegistered ? gci * hstRate : 0;
+  // Illustrative ITC estimate: HST portion of expenses at the same rate
+  // (real ITCs depend on which inputs are HST-bearing; this is shown as illustrative).
+  const itcEstimate = hstRegistered ? expenses * hstRate : 0;
+  const hstNetOwed = Math.max(0, hstCollected - itcEstimate);
+
+  // Instalment threshold: $3,000 federal ($1,800 in Quebec)
+  const instalmentThreshold = isQuebec ? 1_800 : 3_000;
+  const instalmentsRequired = result.totalBurden > instalmentThreshold;
 
   return (
     <div>
@@ -152,6 +197,24 @@ export function TaxEstimator() {
             className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-3 pr-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           />
         </div>
+      </div>
+
+      {/* ── HST registration toggle ── */}
+      <div className="mt-4 flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
+        <input
+          id="hstRegistered"
+          type="checkbox"
+          checked={hstRegistered}
+          onChange={(e) => setHstRegistered(e.target.checked)}
+          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500/20"
+        />
+        <label htmlFor="hstRegistered" className="flex-1 text-sm text-slate-700">
+          <span className="font-medium text-slate-900">I am registered for {hstTypeLabel}.</span>
+          <span className="ml-1 text-xs text-slate-500">
+            CRA requires registration once gross revenue from taxable supplies exceeds $30,000 in any
+            four consecutive calendar quarters (small-supplier threshold).
+          </span>
+        </label>
       </div>
 
       {/* ── Net income callout ── */}
@@ -273,6 +336,249 @@ export function TaxEstimator() {
           </div>
         </div>
       </details>
+
+      {/* ── Show how this was calculated ── */}
+      <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white">
+        <button
+          type="button"
+          onClick={() => setShowCalculation((v) => !v)}
+          aria-expanded={showCalculation}
+          aria-controls="tax-calc-disclosure"
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:bg-slate-50"
+        >
+          <span>Show how this was calculated</span>
+          <ChevronDown
+            className={`h-4 w-4 shrink-0 text-slate-500 transition-transform duration-200 ${
+              showCalculation ? "rotate-180" : ""
+            }`}
+            aria-hidden="true"
+          />
+        </button>
+        <div
+          id="tax-calc-disclosure"
+          className={`grid transition-[grid-template-rows] duration-300 ease-out ${
+            showCalculation ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+          }`}
+        >
+          <div className="overflow-hidden">
+            <div className="space-y-6 border-t border-slate-200 px-4 py-5 text-sm text-slate-700">
+              {/* Canonical disclaimer */}
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                <strong>This is a tax information tool only.</strong> The figures below estimate amounts that
+                may be owed for the {result.taxYear} tax year based on rules published by the CRA. For filing
+                decisions, consult a qualified tax professional or CPA.
+              </div>
+
+              {/* 1 — Federal + Provincial Bracket Math */}
+              <section>
+                <h4 className="text-sm font-semibold text-slate-900">
+                  1. Federal &amp; Provincial Bracket Math
+                </h4>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                  Income tax in Canada is progressive: each dollar is taxed at the rate of the bracket
+                  it falls into. The federal-taxable amount used below is net self-employment income
+                  ({fmt0(netIncome)}) minus the {cppLabel} deduction
+                  ({fmt0(result.cpp1Contribution * 0.5 + result.cpp2Contribution)}) ={" "}
+                  <strong>{fmt0(fedTaxableForBrackets)}</strong>.
+                </p>
+
+                <p className="mt-3 text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Federal brackets ({result.taxYear})
+                </p>
+                <div className="mt-1 overflow-hidden rounded-md border border-slate-200">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-50 text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">Bracket</th>
+                        <th className="px-3 py-2 text-right font-medium">Rate</th>
+                        <th className="px-3 py-2 text-right font-medium">Income in bracket</th>
+                        <th className="px-3 py-2 text-right font-medium">Tax</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {fedSlices.map((s, i) => (
+                        <tr key={`fed-${i}`} className={s.incomeInBracket > 0 ? "" : "text-slate-400"}>
+                          <td className="px-3 py-2">
+                            {fmt0(s.from)} – {s.to === Infinity ? "∞" : fmt0(s.to)}
+                          </td>
+                          <td className="px-3 py-2 text-right">{fmtPct(s.rate)}</td>
+                          <td className="px-3 py-2 text-right">{fmt0(s.incomeInBracket)}</td>
+                          <td className="px-3 py-2 text-right font-medium text-slate-900">
+                            {fmt0(s.taxInBracket)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                  After bracket math, the engine applies the federal Basic Personal Amount credit
+                  ({fmt0(FEDERAL_BPA)} × {fmtPct(FEDERAL_BPA_RATE)}) and the {cppLabel} employee-portion
+                  credit, then{isQuebec ? " applies the 16.5% Quebec abatement, " : " "}producing a
+                  federal tax estimate of <strong>{fmt0(result.federalTax)}</strong>.
+                </p>
+
+                <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">
+                  {PROVINCE_LABELS[province]} brackets ({result.taxYear})
+                </p>
+                <div className="mt-1 overflow-hidden rounded-md border border-slate-200">
+                  <table className="w-full text-xs">
+                    <thead className="bg-slate-50 text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">Bracket</th>
+                        <th className="px-3 py-2 text-right font-medium">Rate</th>
+                        <th className="px-3 py-2 text-right font-medium">Income in bracket</th>
+                        <th className="px-3 py-2 text-right font-medium">Tax</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {provSlices.map((s, i) => (
+                        <tr key={`prov-${i}`} className={s.incomeInBracket > 0 ? "" : "text-slate-400"}>
+                          <td className="px-3 py-2">
+                            {fmt0(s.from)} – {s.to === Infinity ? "∞" : fmt0(s.to)}
+                          </td>
+                          <td className="px-3 py-2 text-right">{fmtPct(s.rate)}</td>
+                          <td className="px-3 py-2 text-right">{fmt0(s.incomeInBracket)}</td>
+                          <td className="px-3 py-2 text-right font-medium text-slate-900">
+                            {fmt0(s.taxInBracket)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                  After applying the {PROVINCE_LABELS[province]} Basic Personal Amount
+                  ({fmt0(provInfo.basicPersonalAmount)} × {fmtPct(provInfo.lowestRate)}), the {cppLabel}
+                  employee-portion credit
+                  {province === "ontario" ? ", and the Ontario surtax" : ""}, the provincial tax
+                  estimate is <strong>{fmt0(result.provincialTax)}</strong>.
+                </p>
+                <p className="mt-2 text-[11px] italic text-slate-400">
+                  Source: CRA T1 General — federal and provincial tax tables ({result.taxYear}).
+                </p>
+              </section>
+
+              {/* 2 — CPP/QPP Self-Employment Calculation */}
+              <section>
+                <h4 className="text-sm font-semibold text-slate-900">
+                  2. {cppLabel} Self-Employment Contributions
+                </h4>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                  Self-employed individuals pay both the employee and employer halves of {cppLabel}.
+                  Contributions apply on net self-employment income above the basic exemption
+                  ($3,500), up to the year&rsquo;s maximum pensionable earnings.
+                </p>
+                <ul className="mt-2 space-y-1 text-xs text-slate-700">
+                  <li>
+                    <strong>{cppLabel} Tier 1</strong> (on earnings $3,500 – $71,300 at{" "}
+                    {isQuebec ? "12.80%" : "11.90%"} self-employed rate):{" "}
+                    <strong>{fmt0(result.cpp1Contribution)}</strong>
+                  </li>
+                  <li>
+                    <strong>{cppLabel} Tier 2</strong> (on earnings $71,300 – $81,200 at{" "}
+                    {isQuebec ? "8.00%" : "8.00%"} self-employed rate):{" "}
+                    <strong>{fmt0(result.cpp2Contribution)}</strong>
+                  </li>
+                  <li>
+                    Total {cppLabel} contribution:{" "}
+                    <strong>{fmt0(result.totalCPP)}</strong>
+                  </li>
+                </ul>
+                {isQuebec && (
+                  <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                    Quebec residents contribute to QPP (Quebec Pension Plan) instead of CPP. The QPP
+                    base rate is higher than CPP (12.80% combined vs 11.90% combined for self-employed).
+                  </p>
+                )}
+                <p className="mt-2 text-[11px] italic text-slate-400">
+                  Source: CRA Schedule 8 — {cppLabel} contributions on self-employment income (
+                  {result.taxYear}).
+                </p>
+              </section>
+
+              {/* 3 — HST/GST owed on GCI minus ITCs */}
+              {hstRegistered && (
+                <section>
+                  <h4 className="text-sm font-semibold text-slate-900">
+                    3. {hstTypeLabel} Owed on GCI Minus ITCs (illustrative)
+                  </h4>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    Registered agents collect {hstTypeLabel} on commission income and may claim Input
+                    Tax Credits ({hstTypeLabel === "GST + QST" ? "ITCs/ITRs" : "ITCs"}) on the
+                    {hstTypeLabel} paid on eligible business expenses. {hstTypeLabel} is remitted
+                    separately from income tax.
+                  </p>
+                  <ul className="mt-2 space-y-1 text-xs text-slate-700">
+                    <li>
+                      Applicable rate ({PROVINCE_LABELS[province]}):{" "}
+                      <strong>{fmtPct(hstRate)}</strong>
+                    </li>
+                    <li>
+                      {hstTypeLabel} collected on GCI: {fmt0(gci)} × {fmtPct(hstRate)} ={" "}
+                      <strong>{fmt0(hstCollected)}</strong>
+                    </li>
+                    <li>
+                      Illustrative ITC estimate (expenses × rate): {fmt0(expenses)} ×{" "}
+                      {fmtPct(hstRate)} = <strong>−{fmt0(itcEstimate)}</strong>
+                    </li>
+                    <li>
+                      Estimated net {hstTypeLabel} owed:{" "}
+                      <strong>{fmt0(hstNetOwed)}</strong>
+                    </li>
+                  </ul>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                    ITCs reduce {hstTypeLabel} owed. Common ITCs: office expenses, vehicle (business
+                    portion), software subscriptions, marketing, professional fees. The estimated ITCs
+                    shown are illustrative — actual ITCs depend on which specific expenses were
+                    {hstTypeLabel}-bearing and the business-use portion of each.
+                  </p>
+                  <p className="mt-2 text-[11px] italic text-slate-400">
+                    Source: CRA GST/HST Guide RC4022 — General Information for GST/HST Registrants.
+                  </p>
+                </section>
+              )}
+
+              {/* 4 — Instalment Base Formula */}
+              <section>
+                <h4 className="text-sm font-semibold text-slate-900">
+                  4. Quarterly Instalment Base
+                </h4>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                  CRA requires quarterly tax instalments when net tax owing exceeds{" "}
+                  {fmt0(instalmentThreshold)}
+                  {isQuebec ? " (Quebec residents — Revenu Québec threshold)" : ""} in the current
+                  year and either of the two preceding years.
+                </p>
+                <ul className="mt-2 space-y-1 text-xs text-slate-700">
+                  <li>
+                    Estimated annual tax &amp; {cppLabel} burden:{" "}
+                    <strong>{fmt0(result.totalBurden)}</strong>
+                  </li>
+                  <li>
+                    Threshold check: {fmt0(result.totalBurden)} {instalmentsRequired ? ">" : "≤"}{" "}
+                    {fmt0(instalmentThreshold)} —{" "}
+                    {instalmentsRequired
+                      ? "instalments may be required"
+                      : "instalments may not be required"}
+                  </li>
+                  <li>
+                    Quarterly instalment estimate: {fmt0(result.totalBurden)} ÷ 4 ={" "}
+                    <strong>{fmt0(result.quarterlyEstimate)}</strong>
+                  </li>
+                  <li>
+                    Due dates: <strong>March 15, June 15, September 15, December 15</strong>
+                  </li>
+                </ul>
+                <p className="mt-2 text-[11px] italic text-slate-400">
+                  Source: CRA Guide P110 — Paying Your Income Tax by Instalments; CRA Income Tax
+                  Folio S1-F2-C1 (instalment requirements).
+                </p>
+              </section>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* ── Disclaimer ── */}
       <div className="mt-5 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
