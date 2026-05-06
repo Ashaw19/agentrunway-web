@@ -361,7 +361,7 @@ export default async function Home() {
               <div className="text-center lg:text-left">
                 <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-400/10 px-4 py-1.5 text-xs font-semibold text-blue-300">
                   <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
-                  Built for Canadian Real Estate Agents
+                  Built in Saint John, NB · For Canadian real estate agents
                 </div>
 
                 <h1 className="text-6xl font-extrabold tracking-tight sm:text-7xl lg:text-[76px] lg:leading-[1.02]">
@@ -377,17 +377,37 @@ export default async function Home() {
                 </h1>
 
                 <p className="mt-4 text-2xl font-semibold text-white sm:text-3xl">
-                  Know where you stand.<br />
-                  Know what to do next.
+                  The financial side of your business,<br />
+                  finally on your side.
                 </p>
 
                 <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-slate-400 sm:text-lg lg:mx-0">
-                  Agent Runway connects your income, taxes, expenses, clients, and pipeline into one system — so every decision you make is based on what&apos;s actually happening in your business.
+                  I&apos;m Andrew — a Saint John agent who spent years guessing what CRA was going to take, what my real take-home was after splits, and whether my pipeline could actually carry me through a slow quarter. I built Agent Runway because no Canadian tool answered those questions honestly. Today it&apos;s running with a New Brunswick brokerage team, and it&apos;s the only system I&apos;d trust with my own numbers.
                 </p>
 
-                <p className="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-slate-500 lg:mx-0">
-                  Stop running your business from three tabs and a spreadsheet.
-                </p>
+                <ul className="mx-auto mt-6 max-w-lg space-y-3 text-left text-sm leading-relaxed text-slate-400 sm:text-base lg:mx-0">
+                  <li className="flex gap-3">
+                    <Check className="mt-1 h-4 w-4 flex-shrink-0 text-emerald-400" />
+                    <span>
+                      <strong className="font-semibold text-white">Know what CRA is owed before the slip arrives.</strong>{" "}
+                      Federal, provincial, CPP, and HST estimated from your real deals — every province, no spreadsheets.
+                    </span>
+                  </li>
+                  <li className="flex gap-3">
+                    <Check className="mt-1 h-4 w-4 flex-shrink-0 text-emerald-400" />
+                    <span>
+                      <strong className="font-semibold text-white">See your runway in months, not vibes.</strong>{" "}
+                      Pipeline weighted by close probability and seasonality, so you know whether to push or pull back this quarter.
+                    </span>
+                  </li>
+                  <li className="flex gap-3">
+                    <Check className="mt-1 h-4 w-4 flex-shrink-0 text-emerald-400" />
+                    <span>
+                      <strong className="font-semibold text-white">Ask your Flight Crew, get a Canadian answer.</strong>{" "}
+                      Captain orchestrates. Navigator handles the CRA-side math (T2125, instalments, HST threshold, PREC). Dispatcher tracks clients and showings. Three personas, one conversation.
+                    </span>
+                  </li>
+                </ul>
 
                 <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
                   <Link
@@ -398,25 +418,25 @@ export default async function Home() {
                       boxShadow: "0 0 30px rgba(99,102,241,0.35)",
                     }}
                   >
-                    Get Started Free
+                    Start with my numbers — free for 14 days
                     <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                   </Link>
                   <Link
                     href="/demo"
                     className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-8 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition-all hover:border-white/20 hover:bg-white/10"
                   >
-                    See the Product
+                    See a 5-minute walkthrough
                   </Link>
                 </div>
 
                 {/* Free tools — low-friction tire-kicker entry point */}
                 <p className="mt-4 text-center text-sm text-slate-500 lg:text-left">
-                  Not ready yet?{" "}
+                  Just want to kick the tires?{" "}
                   <Link
-                    href="/tools"
+                    href="/tools/realtor-tax-estimator"
                     className="font-semibold text-blue-400 underline underline-offset-2 hover:text-blue-300"
                   >
-                    Try the free tools for Canadian realtors →
+                    Try the free Canadian realtor tax estimator →
                   </Link>
                 </p>
 
