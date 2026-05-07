@@ -242,7 +242,7 @@ export function CheatSheetPDF() {
           <Row
             cells={[
               { text: "Up to $57,375", flex: 3 },
-              { text: "15.0%", flex: 1, bold: true },
+              { text: "14.5%", flex: 1, bold: true },
             ]}
           />
           <Row
@@ -273,7 +273,9 @@ export function CheatSheetPDF() {
           />
         </View>
         <Text style={S.cite}>
-          Source: CRA — Canadian income tax rates for individuals.
+          Source: CRA — Canadian income tax rates for individuals. The 14.5% bottom
+          rate for 2025 is the blended full-year rate after the mid-year reduction
+          from 15% to 14% effective July 1, 2025 (NWMM, May 27, 2025).
         </Text>
 
         {/* ── B — Provincial top-bracket snapshot (split into 2 columns) ── */}
