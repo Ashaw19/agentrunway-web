@@ -501,6 +501,21 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                 <CRACite id={12} />.
               </p>
 
+              <p>
+                Agents in PREC-eligible provinces sometimes operate through a
+                Personal Real Estate Corporation rather than as sole
+                proprietors; the structural mechanics — commission flow, tax
+                deferral, and salary versus dividend extraction — are compared
+                in the{" "}
+                <Link
+                  href="/prec-vs-sole-proprietor-real-estate-agents-canada"
+                  className="font-semibold text-blue-600 underline underline-offset-2"
+                >
+                  PREC vs sole proprietor guide
+                </Link>
+                .
+              </p>
+
               {/* ── Disclaimer callout ── */}
               <div className="not-prose rounded-2xl border border-amber-200 bg-amber-50 p-8 my-10">
                 <div className="flex items-start gap-4">
