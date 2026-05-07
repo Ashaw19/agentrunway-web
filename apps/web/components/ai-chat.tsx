@@ -111,6 +111,10 @@ const TOOL_STATUS_LABELS: Record<string, string> = {
   getClientSummary: "Loading client summary…",
   createFlightPlan: "Creating flight plan…",
   webSearch: "Searching the web…",
+  draftOutreachForClient: "Drafting outreach message…",
+  draftListingDescription: "Drafting listing description…",
+  draftNewsletter: "Drafting newsletter…",
+  draftSocialPost: "Drafting social post…",
 };
 
 /**
