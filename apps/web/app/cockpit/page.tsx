@@ -3,9 +3,12 @@ import {
   ArrowUpRight,
   Banknote,
   Calendar,
+  CheckCircle2,
+  Circle,
   Flame,
   Gauge,
   HandCoins,
+  Inbox,
   ListTodo,
   Receipt,
   Sparkles,
@@ -81,6 +84,14 @@ type CashSnapshotRow = {
   source_label: string | null;
 };
 
+type InboxRow = {
+  id: string;
+  title: string;
+  severity: "low" | "medium" | "high";
+  source: string;
+  created_at: string;
+};
+
 // Trailing-90 burn input. corp_pct applied in JS to match the
 // total_corp_portion convention used by v_corp_pl_by_account.
 type BurnRow = {
@@ -115,6 +126,7 @@ export default async function SnapshotPage() {
     cashSnapshotRes,
     burnRowsRes,
     shareholderLoanRes,
+    inboxRes,
   ] = await Promise.all([
     supabase
       .from("v_corp_gst_hst_summary")
@@ -172,6 +184,14 @@ export default async function SnapshotPage() {
       .select("amount_total")
       .eq("user_id", user.id)
       .eq("account_code", "3010"),
+    // Task inbox: top 5 unresolved items for the Snapshot card.
+    supabase
+      .from("corp_inbox_items")
+      .select("id, title, severity, source, created_at")
+      .eq("user_id", user.id)
+      .is("resolved_at", null)
+      .order("created_at", { ascending: false })
+      .limit(5),
   ]);
 
   const hst = (hstRes.data ?? null) as HstSummary | null;
@@ -184,6 +204,7 @@ export default async function SnapshotPage() {
     (sum, r) => sum + Number((r as { amount_total: number | null }).amount_total ?? 0),
     0,
   );
+  const inboxItems = (inboxRes.data ?? []) as InboxRow[];
   const lastReview = lastReviewRes.data?.ingested_at
     ? {
         ingestedAt: lastReviewRes.data.ingested_at as string,
@@ -282,6 +303,7 @@ export default async function SnapshotPage() {
       </section>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <InboxCard items={inboxItems} />
         <WeeklyReviewCard lastReview={lastReview} obligations={RECURRING_OBLIGATIONS} />
         <YtdNetCard ytdNet={ytdNet} ytdRevenue={ytdRevenue} ytdExpenses={ytdExpenses} />
         <HstCard hst={hst} />
@@ -978,6 +1000,68 @@ function WeeklyReviewCard({
             ))}
           </ul>
         </div>
+      </div>
+    </Card>
+  );
+}
+
+const SEVERITY_DOT: Record<string, string> = {
+  high:   "bg-rose-400",
+  medium: "bg-amber-400",
+  low:    "bg-white/30",
+};
+
+function InboxCard({ items }: { items: InboxRow[] }) {
+  const count = items.length;
+  if (count === 0) {
+    return (
+      <Card label="Inbox" href="/cockpit/inbox" icon={Inbox} accent="health">
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-teal-400/70" aria-hidden />
+            <p className="text-foreground/80 text-sm">All clear</p>
+          </div>
+          <p className="text-muted-foreground/70 text-xs">
+            No open items. Automated surfaces will post here when they need your input.
+          </p>
+        </div>
+      </Card>
+    );
+  }
+  return (
+    <Card label="Inbox" href="/cockpit/inbox" icon={Inbox} accent="warn">
+      <div className="space-y-3">
+        <div>
+          <p className="text-foreground font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
+            {count}
+          </p>
+          <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
+            Open item{count !== 1 ? "s" : ""} · needs your input
+          </p>
+        </div>
+        <ul className="space-y-1.5">
+          {items.slice(0, 4).map((item) => (
+            <li key={item.id} className="flex items-center gap-2 text-[12px]">
+              <span
+                aria-hidden
+                className={cn(
+                  "inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full",
+                  SEVERITY_DOT[item.severity] ?? SEVERITY_DOT.medium,
+                )}
+              />
+              <span className="text-foreground/85 truncate">{item.title}</span>
+            </li>
+          ))}
+          {count > 4 && (
+            <li className="text-muted-foreground/50 pl-3.5 text-[11px]">
+              +{count - 4} more
+            </li>
+          )}
+        </ul>
+        <p className="text-rose-300 inline-flex items-center gap-1 text-xs font-medium">
+          <Circle className="h-3 w-3" aria-hidden />
+          Review open items
+        </p>
       </div>
     </Card>
   );
