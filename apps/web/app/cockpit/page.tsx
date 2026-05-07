@@ -302,15 +302,28 @@ export default async function SnapshotPage() {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <InboxCard items={inboxItems} />
-        <WeeklyReviewCard lastReview={lastReview} obligations={RECURRING_OBLIGATIONS} />
-        <YtdNetCard ytdNet={ytdNet} ytdRevenue={ytdRevenue} ytdExpenses={ytdExpenses} />
-        <HstCard hst={hst} />
-        <SredCard refundEstimate={sredRefundEstimate} totalCorpPortion={sredTotal} fyPct={fyPct} />
-        <DeadlinesCard items={deadlines} />
-        <ExpensesCard rows={monthTopExpenses} />
-      </div>
+      {/* Filing health — compliance/obligation status + action inbox.
+          Future Phase 1 cards (Allocation, Pre-incorp) land in this section.
+          Weekly Review is last so future cards fill in before it. */}
+      <section aria-label="Filing health" className="space-y-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-foreground/90 font-[var(--font-cockpit-display)] text-xl font-normal tracking-tight">
+            Filing health
+          </h2>
+          <span className="text-muted-foreground/60 hidden text-[11px] tracking-[0.08em] uppercase sm:inline">
+            Inbox · YTD · HST · SR&amp;ED · Deadlines
+          </span>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <InboxCard items={inboxItems} />
+          <YtdNetCard ytdNet={ytdNet} ytdRevenue={ytdRevenue} ytdExpenses={ytdExpenses} />
+          <HstCard hst={hst} />
+          <SredCard refundEstimate={sredRefundEstimate} totalCorpPortion={sredTotal} fyPct={fyPct} />
+          <DeadlinesCard items={deadlines} />
+          <ExpensesCard rows={monthTopExpenses} />
+          <WeeklyReviewCard lastReview={lastReview} obligations={RECURRING_OBLIGATIONS} />
+        </div>
+      </section>
 
       <ChatPanel />
     </div>
