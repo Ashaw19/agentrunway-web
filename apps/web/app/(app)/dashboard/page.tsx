@@ -121,7 +121,6 @@ export default async function DashboardPage({
     ]);
 
   // Extract results — failed queries return empty data instead of crashing the page
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const unwrap = <T,>(r: PromiseSettledResult<T>): T =>
     r.status === "fulfilled" ? r.value : ({ data: null, count: null, error: r.reason } as T);
   const [txResult, pipelineResult, expCatResult, expItemResult, historyResult, receiptTotalsResult, tasksResult, mileageResult, ccaResult, activeClientsResult, recentActivitiesResult, briefingClientsResult, briefingActivitiesResult, briefingRecordsResult, listingResult, recurringExpResult] = [

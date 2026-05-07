@@ -14,7 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const ALLOWED_EMAILS = new Set(["andrew@andrewdshaw.ca"]);
 
-async function getAuthedUser(req: NextRequest) {
+async function getAuthedUser(_req: NextRequest) {
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return { user: null, supabase, error: "Unauthorized" };

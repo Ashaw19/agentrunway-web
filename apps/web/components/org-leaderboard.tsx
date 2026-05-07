@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useMemo } from "react";
 import {
   ChevronUp,
@@ -453,9 +454,11 @@ export function OrgLeaderboard({
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {agent.avatar_url ? (
-                          <img
+                          <Image
                             src={agent.avatar_url}
                             alt=""
+                            width={28}
+                            height={28}
                             className="h-7 w-7 rounded-full object-cover"
                           />
                         ) : (

@@ -280,7 +280,6 @@ export function FlightCrewDemoLoop() {
       cancelledRef.current = true;
       if (timeoutId !== undefined) clearTimeout(timeoutId);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId, reducedMotion]);
 
   return (

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
-import type { CorpBriefEntry, CorpBriefPriority, CorpBriefSource } from "@agent-runway/core/types/database";
+import type { CorpBriefEntry, CorpBriefPriority } from "@agent-runway/core/types/database";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

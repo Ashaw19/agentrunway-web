@@ -28,7 +28,7 @@ export default async function PipelinePage() {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const rawSettings = settingsResult.data;
+  const _rawSettings = settingsResult.data;
 
   // ── Live Supabase queries ───────────────────────────────────────────
   const year = new Date().getFullYear();

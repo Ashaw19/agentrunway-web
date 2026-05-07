@@ -185,6 +185,7 @@ export function TransactionsPipelineTab({ pipelineDeals, settings, closedTransac
         });
     }, 250);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialogOpen, clientSearch]);
   const [closeForm, setCloseForm] = useState<CloseForm>({
     client_name: "",

@@ -59,7 +59,6 @@ export async function POST(req: NextRequest) {
 
     // The execute function expects the parsed args object.
     // Pass a minimal options object — the tool only uses the args.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const executeFn = targetTool.execute as (args: unknown, options?: unknown) => Promise<unknown>;
     const result = await executeFn(args, {
       toolCallId: `approved-${Date.now()}`,

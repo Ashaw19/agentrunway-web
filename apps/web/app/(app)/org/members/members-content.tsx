@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -325,9 +326,11 @@ export function MembersContent({
               >
                 <div className="flex items-center gap-3">
                   {member.user_settings?.avatar_url ? (
-                    <img
+                    <Image
                       src={member.user_settings.avatar_url}
                       alt=""
+                      width={36}
+                      height={36}
                       className="h-9 w-9 rounded-full object-cover"
                     />
                   ) : (

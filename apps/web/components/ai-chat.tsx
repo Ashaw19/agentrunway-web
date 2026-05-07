@@ -379,7 +379,6 @@ function FormattedText({ text, onNavigate }: { text: string; onNavigate?: (href:
   let remaining = text;
   let key = 0;
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     const linkMatch = remaining.match(/\*\*([^*]+)\*\*\s*\(\/([\w/.-]+)\)/);
     const boldMatch = remaining.match(/\*\*([^*]+)\*\*/);
@@ -997,7 +996,6 @@ export function AiChat({ financialContext }: Props) {
               currentPage: pathname,
               persona: handoffTarget,
             };
-            // eslint-disable-next-line no-console
             console.info("[flight-crew] auto-handoff", {
               from: effectivePersona,
               to: handoffTarget,
@@ -1015,7 +1013,6 @@ export function AiChat({ financialContext }: Props) {
               const followupReader = followupRes.body?.getReader();
               if (followupReader) {
                 const followupText = await streamOneTurn(followupReader, followupId, handoffTarget);
-                // eslint-disable-next-line no-console
                 console.info("[flight-crew] handoff response", {
                   to: handoffTarget,
                   length: followupText.length,
@@ -1029,7 +1026,6 @@ export function AiChat({ financialContext }: Props) {
               }
             } else {
               const errBody = await followupRes.text().catch(() => "");
-              // eslint-disable-next-line no-console
               console.error("[flight-crew] handoff request failed", {
                 status: followupRes.status,
                 body: errBody.slice(0, 500),
@@ -1045,7 +1041,6 @@ export function AiChat({ financialContext }: Props) {
               ]);
             }
           } catch (handoffErr) {
-            // eslint-disable-next-line no-console
             console.error("[flight-crew] handoff threw", handoffErr);
             setMessages((prev) => [
               ...prev.slice(0, -1),

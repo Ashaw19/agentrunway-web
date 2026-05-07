@@ -102,6 +102,7 @@ export function ReceiptViewEditDialog({
         setImageUrl(data?.signedUrl && !error ? data.signedUrl : null);
         setImageLoading(false);
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [receipt?.receipt_path, open]);
 
   // ── Save ───────────────────────────────────────────────────────────────────

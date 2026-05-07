@@ -272,6 +272,7 @@ export function ScenariosContent({ seed }: { seed: ScenarioSeedData }) {
       seed.quarterPcts,
       seed.monthlyBrokerageFee,
       deductionArgs,
+      seed.ytdGCI,
     ],
   );
 

@@ -385,6 +385,7 @@ function NewsletterReviewDrawer({
     toast.success("Copied to clipboard — paste into your email tool");
     setTimeout(() => setCopied(false), 2500);
     markAsSent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, editSubject, editBody, saveEdits]);
 
   const markAsSent = useCallback(async () => {
