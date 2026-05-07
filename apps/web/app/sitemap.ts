@@ -81,6 +81,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/real-estate-agent-hst-registration-canada`,         lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/real-estate-agent-tools-canada`,                    lastModified: now, changeFrequency: "monthly", priority: 0.8 },
 
+    // ── Lead-gen funnel templates (Phase 1.2) ─────────────────────────
+    // noindex in metadata — included here so internal tools can discover them.
+    { url: `${BASE_URL}/open-house`,                                   lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${BASE_URL}/listing-inquiry`,                              lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+
     // ── Tools (hero asset: realtor tax estimator) ──────────────────────
     { url: `${BASE_URL}/tools`,                                       lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/tools/realtor-tax-estimator`,                 lastModified: now, changeFrequency: "monthly", priority: 0.9 },
