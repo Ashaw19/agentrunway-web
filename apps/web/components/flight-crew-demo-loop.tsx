@@ -5,22 +5,21 @@
  *
  * Marketing-only animated demo of a Flight Crew conversation. Pure frontend:
  * no API calls, no Supabase, no real AI. A pre-scripted sequence of user
- * messages, Captain replies, a narrated handoff seam, and a Navigator reply,
- * looping every ~30 seconds.
+ * messages, Captain replies, a narrated handoff seam, and a Dispatcher reply,
+ * looping every ~20 seconds.
  *
  * Phase 1.5 from `memory/project_hml_gap_strategy.md` — make the Flight Crew
  * visually demonstrable to anonymous visitors. The "narrated handoff" is the
  * differentiator vs HML's "6 agents" copy claim.
  *
- * Compliance: the Navigator script in this file is the canonical
- * info-not-advice voice (see memory/feedback_tax_information_not_advice.md).
- * No forbidden verbs (should/must/recommend/need to/set aside/top up). Safe
- * verbs only (estimates/approximately/may/could). The exact wording is
- * required — do not edit without re-running Audit 2.
+ * Script updated 2026-05-07: switched from tax/finance demo to a CRM client-add
+ * demo (Captain → Dispatcher). Shows natural-language client entry — the feature
+ * most likely to wow a realtor prospect on first view. No tax-advice surface in
+ * this script; info-not-advice compliance note is N/A for Dispatcher.
  *
  * Visual + accessibility spec: memory/project_flight_crew_ui_design.md
- * - Captain: Anchor icon, blue-600 accent
- * - Navigator: Compass icon, cyan-600 accent
+ * - Captain:    Anchor icon, blue-600 accent
+ * - Dispatcher: Radio icon,  violet-600 accent
  * - aria-live="polite" on message container
  * - prefers-reduced-motion: skip typewriter, fade messages in sequentially
  *
@@ -28,8 +27,8 @@
  * No new npm dependencies — only React, Tailwind, lucide-react.
  */
 
-import { Anchor, Compass, RotateCw, type LucideIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Anchor, Radio, RotateCw, type LucideIcon } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 // ── Script ────────────────────────────────────────────────────────────────────
@@ -39,8 +38,8 @@ type CaptainStep = {
   text: string;
 };
 
-type NavigatorStep = {
-  kind: "navigator";
+type DispatcherStep = {
+  kind: "dispatcher";
   text: string;
 };
 
@@ -54,45 +53,36 @@ type HandoffStep = {
   label: string;
 };
 
-type Step = UserStep | CaptainStep | NavigatorStep | HandoffStep;
+type Step = UserStep | CaptainStep | DispatcherStep | HandoffStep;
 
 /**
- * Fixed conversation script. Voice has been hand-tuned for info-not-advice
- * compliance; do not alter without an Audit 2 pass.
+ * Fixed conversation script — shows natural-language CRM client entry with a
+ * Captain → Dispatcher handoff. Demonstrates the feature most likely to wow a
+ * realtor prospect: "just talk to it and your client is in the system."
  */
 const SCRIPT: ReadonlyArray<Step> = [
   {
     kind: "user",
-    text: "How am I doing this quarter?",
+    text: "Add a new client — Matthew Smith. He's at 555 Main Street in Saint John, NB. We talked about listing his home next month around $450,000.",
   },
   {
     kind: "captain",
-    text:
-      "Your Q2 pace is at 62% of goal — realistic given your pipeline. 14 deals closed YTD with $118K GCI, on track for your $200K target. Pipeline weight is strong; expense ratio is moderate; close pace running slightly behind. Want the detail on any of these?",
-  },
-  {
-    kind: "user",
-    text: "What's my Q3 tax instalment?",
-  },
-  {
-    kind: "captain",
-    text: "Navigator handles the tax side — passing it over.",
+    text: "Client adds are Dispatcher's lane — handing it over.",
   },
   {
     kind: "handoff",
-    label: "— Navigator stepping in —",
+    label: "— Dispatcher stepping in —",
   },
   {
-    kind: "navigator",
-    text:
-      "Based on your income to date, the engine estimates your Q3 2026 CRA instalment at approximately $7,800, due September 15. This is an informational estimate — amounts are calculated from your reported income and may differ from CRA's prior-year amounts method. Confirm with your accountant before remitting.",
+    kind: "dispatcher",
+    text: "Done — Matthew Smith added to Flight Control at the Boarding stage. 555 Main Street, Saint John NB logged to his record. Listing conversation noted: ~$450K range, target next month. Should I schedule a follow-up touchpoint or draft an intro message for Matthew?",
   },
 ];
 
 // Animation timing
-const TYPE_SPEED_MS = 35;
-const PRE_MESSAGE_PAUSE_MS = 600;
-const END_OF_SCRIPT_PAUSE_MS = 4000;
+const TYPE_SPEED_MS = 20;
+const PRE_MESSAGE_PAUSE_MS = 300;
+const END_OF_SCRIPT_PAUSE_MS = 2500;
 const FADE_OUT_MS = 300;
 
 // ── Persona visual tokens ────────────────────────────────────────────────────
@@ -119,14 +109,14 @@ const CAPTAIN_TOKENS: PersonaTokens = {
   avatarIconClass: "text-blue-400",
 };
 
-const NAVIGATOR_TOKENS: PersonaTokens = {
-  name: "Navigator",
-  icon: Compass,
-  textClass: "text-cyan-400",
-  bubbleBorderClass: "border-l-[3px] border-cyan-500",
-  avatarBgClass: "bg-cyan-600/15",
-  avatarBorderClass: "border-cyan-500/25",
-  avatarIconClass: "text-cyan-400",
+const DISPATCHER_TOKENS: PersonaTokens = {
+  name: "Dispatcher",
+  icon: Radio,
+  textClass: "text-violet-400",
+  bubbleBorderClass: "border-l-[3px] border-violet-500",
+  avatarBgClass: "bg-violet-600/15",
+  avatarBorderClass: "border-violet-500/25",
+  avatarIconClass: "text-violet-400",
 };
 
 // ── Hook: prefers-reduced-motion ─────────────────────────────────────────────
@@ -157,13 +147,13 @@ function usePrefersReducedMotion(): boolean {
  * What we actually render in the message list. Each entry corresponds to one
  * SCRIPT entry that has either fully landed or is currently animating.
  *
- * For typewriter steps (captain/navigator), `text` is the partial substring
+ * For typewriter steps (captain/dispatcher), `text` is the partial substring
  * being typed; `isTyping` indicates the cursor should still blink.
  */
 type RenderedStep =
   | { id: number; kind: "user"; text: string }
   | { id: number; kind: "captain"; text: string; isTyping: boolean }
-  | { id: number; kind: "navigator"; text: string; isTyping: boolean }
+  | { id: number; kind: "dispatcher"; text: string; isTyping: boolean }
   | { id: number; kind: "handoff"; label: string };
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -225,7 +215,7 @@ export function FlightCrewDemoLoop() {
           continue;
         }
 
-        // captain | navigator — typewriter (or instant under reduced motion).
+        // captain | dispatcher — typewriter (or instant under reduced motion).
         if (reducedMotion) {
           setRendered((prev) => [
             ...prev,
@@ -261,7 +251,7 @@ export function FlightCrewDemoLoop() {
         // Stop blinking cursor on this bubble.
         setRendered((prev) =>
           prev.map((entry) =>
-            entry.id === i && (entry.kind === "captain" || entry.kind === "navigator")
+            entry.id === i && (entry.kind === "captain" || entry.kind === "dispatcher")
               ? { ...entry, isTyping: false }
               : entry,
           ),
@@ -321,7 +311,7 @@ export function FlightCrewDemoLoop() {
       <div
         aria-live="polite"
         aria-atomic="false"
-        className="flex min-h-[24rem] flex-col gap-4"
+        className="flex min-h-[18rem] flex-col gap-4"
       >
         {rendered.map((entry) => {
           if (entry.kind === "user") {
@@ -337,11 +327,11 @@ export function FlightCrewDemoLoop() {
               />
             );
           }
-          if (entry.kind === "navigator") {
+          if (entry.kind === "dispatcher") {
             return (
               <PersonaBubble
                 key={entry.id}
-                tokens={NAVIGATOR_TOKENS}
+                tokens={DISPATCHER_TOKENS}
                 text={entry.text}
                 isTyping={entry.isTyping}
               />
@@ -431,11 +421,11 @@ function HandoffSeam({ label }: { label: string }) {
       role="separator"
       aria-label={label}
     >
-      <div className="h-px flex-1 border-t border-dashed border-cyan-500/40" />
+      <div className="h-px flex-1 border-t border-dashed border-violet-500/40" />
       <span className="text-[11px] uppercase tracking-wider text-slate-500">
         {label}
       </span>
-      <div className="h-px flex-1 border-t border-dashed border-cyan-500/40" />
+      <div className="h-px flex-1 border-t border-dashed border-violet-500/40" />
     </div>
   );
 }
