@@ -94,6 +94,15 @@ export default function PricingPage() {
             <div className="orb-drift-3 absolute bottom-0 left-1/2 h-48 w-96 -translate-x-1/2 rounded-full bg-cyan-500/10 blur-[90px]" />
           </div>
 
+          {/* Flight path motif — forward motion / path to clarity */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/marks/flight-path.svg"
+            aria-hidden="true"
+            alt=""
+            className="pointer-events-none absolute bottom-6 right-8 w-[200px] select-none opacity-[0.06]"
+          />
+
           <div className="relative mx-auto max-w-3xl">
             <div className="mb-5 inline-flex items-center rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 text-xs font-semibold text-blue-400">
               ✦ No hidden fees. No surprises.
@@ -171,6 +180,15 @@ export default function PricingPage() {
         {/* ── Closing CTA ── */}
         <section className="bg-slate-950 px-6 py-24 text-center sm:px-10">
           <div className="mx-auto max-w-2xl">
+            {/* Cleared for Takeoff badge */}
+            <div className="mb-6 flex justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/brand/badges/cleared-for-takeoff.svg"
+                alt="Cleared for Takeoff"
+                className="w-[80px]"
+              />
+            </div>
             <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
               Start understanding your business today.
             </h2>
