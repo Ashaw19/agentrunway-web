@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Anchor } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DirectorChatDock } from "./director-chat-dock";
 
 const TABS = [
   { href: "/cockpit",              label: "Snapshot" },
@@ -114,6 +115,8 @@ export function CockpitShell({ children }: { children: React.ReactNode }) {
       </header>
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 lg:px-8">{children}</main>
+
+      <DirectorChatDock />
 
       <footer className="border-border/40 mt-auto border-t">
         <div className="text-muted-foreground/70 mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-4 text-[11px] sm:px-6 lg:px-8">
