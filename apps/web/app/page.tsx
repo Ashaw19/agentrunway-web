@@ -22,6 +22,7 @@ import { CharterScarcityStrip } from "@/components/charter-scarcity-strip";
 import { softwareApplicationSchema } from "@/lib/schema";
 
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
+import { FlightCrewDemoLoop } from "@/components/flight-crew-demo-loop";
 
 export const metadata: Metadata = {
   title: "Know Where Your Business Stands",
@@ -626,6 +627,29 @@ export default async function Home() {
                 </ScrollRevealSection>
               ))}
             </div>
+          </div>
+        </section>
+
+        {/* ════════════════════════════════════════════════════════
+            FLIGHT CREW IN ACTION
+        ════════════════════════════════════════════════════════ */}
+        <section className="relative px-6 py-16 sm:px-10" style={{ background: "#010D1F" }}>
+          <div className="pointer-events-none absolute left-1/2 top-0 h-96 w-96 -translate-x-1/2 rounded-full bg-cyan-500/15 blur-[120px]" />
+          <div className="relative mx-auto max-w-6xl">
+            <ScrollRevealSection className="mb-12 text-center">
+              <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+                Your crew.{" "}
+                <span style={{ background: "linear-gradient(135deg, #2563eb, #0891b2)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                  In action.
+                </span>
+              </h2>
+              <p className="mt-4 text-lg text-slate-400">
+                Ask a business question. Get a Canadian answer. Watch Captain hand off to Navigator seamlessly.
+              </p>
+            </ScrollRevealSection>
+            <ScrollRevealSection>
+              <FlightCrewDemoLoop />
+            </ScrollRevealSection>
           </div>
         </section>
 
