@@ -334,6 +334,15 @@ export default async function Home() {
             <div className="orb-drift-3 absolute bottom-0 left-1/2 h-64 w-[800px] -translate-x-1/2 rounded-full bg-cyan-500/15 blur-[80px]" />
           </div>
 
+          {/* Radar sweep motif — atmospheric, desktop-only */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/marks/radar-sweep.svg"
+            aria-hidden="true"
+            alt=""
+            className="pointer-events-none absolute -right-10 -top-6 hidden w-[440px] select-none opacity-[0.055] lg:block"
+          />
+
           {/* Dot-grid overlay */}
           <div
             className="pointer-events-none absolute inset-0 opacity-40"
@@ -636,6 +645,14 @@ export default async function Home() {
             <div className="grid items-center gap-14 lg:grid-cols-2">
 
               <ScrollRevealSection>
+                {/* Runway centerline motif — visual anchor for "runway in months" copy */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/brand/marks/runway-centerline.svg"
+                  aria-hidden="true"
+                  alt=""
+                  className="mb-5 w-12 opacity-[0.22]"
+                />
                 <h2 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl">
                   GCI is not profit.
                   <br />
@@ -814,6 +831,15 @@ export default async function Home() {
           <div className="absolute -right-20 top-1/2 h-64 w-64 -translate-y-1/2 rounded-full bg-violet-500/25 blur-[80px]" />
 
           <div className="relative mx-auto max-w-3xl text-center">
+            {/* Cleared for Takeoff badge — the signup moment */}
+            <div className="mb-5 flex justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/brand/badges/cleared-for-takeoff.svg"
+                alt="Cleared for Takeoff"
+                className="w-[88px]"
+              />
+            </div>
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-semibold text-slate-300">
               <Zap className="h-3 w-3 text-amber-400" />
               Start free · No credit card required

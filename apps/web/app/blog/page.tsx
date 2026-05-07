@@ -67,7 +67,15 @@ export default function BlogPage() {
       <main className="min-h-screen bg-slate-950">
 
         {/* ── Hero ── */}
-        <section className="px-6 pt-20 pb-14 sm:px-10">
+        <section className="relative px-6 pt-20 pb-14 sm:px-10">
+          {/* Holding pattern motif — "staying in the pattern" / circling back to learn */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/marks/holding-pattern.svg"
+            aria-hidden="true"
+            alt=""
+            className="pointer-events-none absolute right-8 top-10 hidden w-[160px] select-none opacity-[0.08] sm:block"
+          />
           <div className="mx-auto max-w-4xl text-center">
             <p className="mb-3 text-sm font-semibold uppercase tracking-widest text-brand-orange">
               Agent Runway Blog
