@@ -1569,5 +1569,31 @@ export interface CorpInboxItem {
 }
 
 
+export type CorpBriefPriority = "low" | "medium" | "high";
+
+export type CorpBriefSource =
+  | "hugo-bookkeeping"
+  | "vera-monthly-cash"
+  | "quinn-quarterly-hst"
+  | "tessa-annual-t2"
+  | "marcus-sred"
+  | "main-session"
+  | "manual";
+
+export interface CorpBriefEntry {
+  id:           string;
+  user_id:      string;
+
+  brief_date:   string; // ISO date YYYY-MM-DD
+  source:       CorpBriefSource | string;
+  title:        string;
+  content_md:   string | null;
+
+  des_priority: CorpBriefPriority;
+
+  created_at:   string;
+}
+
+
 // ── Organization types (re-export from dedicated module) ────────────────────
 export * from "./organizations";

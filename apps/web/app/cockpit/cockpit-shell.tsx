@@ -12,6 +12,7 @@ const TABS = [
   { href: "/cockpit/expenses",     label: "Expenses" },
   { href: "/cockpit/pre-incorp",   label: "Pre-incorp" },
   { href: "/cockpit/founder-comp", label: "Comp" },
+  { href: "/cockpit/brief",        label: "Brief" },
   { href: "/cockpit/hst",          label: "HST" },
   { href: "/cockpit/sred",         label: "SR&ED" },
   { href: "/cockpit/deadlines",    label: "Deadlines" },
