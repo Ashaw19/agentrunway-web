@@ -13,6 +13,7 @@ import {
   Receipt,
   Sparkles,
   Wallet,
+  GitMerge,
 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -92,6 +93,19 @@ type InboxRow = {
   created_at: string;
 };
 
+// Build #9 (Phase 2) — bank reconciliation snapshot.
+type ReconciliationSnapshotRow = {
+  statement_id: string;
+  bank_name: string;
+  period_start: string;
+  period_end: string;
+  row_count: number;
+  matched_count: number;
+  manual_count: number;
+  unmatched_count: number;
+  match_rate_pct: number | null;
+};
+
 // Snapshot subset of v_corp_upcoming_compliance — only the columns the card
 // renders. Build #8 (Phase 2).
 type ComplianceSnapshotRow = {
@@ -140,6 +154,7 @@ export default async function SnapshotPage() {
     shareholderLoanRes,
     inboxRes,
     complianceRes,
+    reconRes,
   ] = await Promise.all([
     supabase
       .from("v_corp_gst_hst_summary")
@@ -213,6 +228,14 @@ export default async function SnapshotPage() {
       .eq("user_id", user.id)
       .order("due_date", { ascending: true })
       .limit(3),
+    // Bank reconciliation: latest statement summary. Build #9 (Phase 2).
+    supabase
+      .from("v_corp_bank_reconciliation_summary")
+      .select("statement_id, bank_name, period_start, period_end, row_count, matched_count, manual_count, unmatched_count, match_rate_pct")
+      .eq("user_id", user.id)
+      .order("period_end", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const hst = (hstRes.data ?? null) as HstSummary | null;
@@ -227,6 +250,7 @@ export default async function SnapshotPage() {
   );
   const inboxItems = (inboxRes.data ?? []) as InboxRow[];
   const complianceItems = (complianceRes.data ?? []) as ComplianceSnapshotRow[];
+  const latestRecon = (reconRes.data ?? null) as ReconciliationSnapshotRow | null;
   const lastReview = lastReviewRes.data?.ingested_at
     ? {
         ingestedAt: lastReviewRes.data.ingested_at as string,
@@ -343,6 +367,7 @@ export default async function SnapshotPage() {
           <SredCard refundEstimate={sredRefundEstimate} totalCorpPortion={sredTotal} fyPct={fyPct} />
           <DeadlinesCard items={deadlines} />
           <ComplianceCard items={complianceItems} />
+          <ReconciliationCard recon={latestRecon} />
           <ExpensesCard rows={monthTopExpenses} />
           <WeeklyReviewCard lastReview={lastReview} obligations={RECURRING_OBLIGATIONS} />
         </div>
@@ -1007,6 +1032,46 @@ function ComplianceCard({ items }: { items: ComplianceSnapshotRow[] }) {
           );
         })}
       </ul>
+    </Card>
+  );
+}
+
+function ReconciliationCard({ recon }: { recon: ReconciliationSnapshotRow | null }) {
+  if (!recon) {
+    return (
+      <Card label="Bank reconciliation" href="/cockpit/reconciliation" icon={GitMerge} accent="health">
+        <p className="text-muted-foreground/70 py-2 text-sm">
+          No statements uploaded yet. Upload a bank CSV to begin reconciliation.
+        </p>
+      </Card>
+    );
+  }
+
+  const rate = recon.match_rate_pct ?? 0;
+  const rateColor = rate >= 95 ? "text-emerald-300" : rate >= 80 ? "text-amber-300" : "text-red-300";
+  const fmtDate = (iso: string) =>
+    new Date(iso + "T12:00:00").toLocaleDateString("en-CA", { month: "short", day: "numeric" });
+
+  return (
+    <Card label="Bank reconciliation" href="/cockpit/reconciliation" icon={GitMerge} accent="health">
+      <div className="flex items-baseline justify-between gap-2 mb-3">
+        <span className={cn("text-2xl font-bold tabular-nums font-mono", rateColor)}>
+          {rate.toFixed(1)}%
+        </span>
+        <span className="text-muted-foreground/50 text-xs">match rate</span>
+      </div>
+      <p className="text-muted-foreground/60 text-xs mb-2.5">
+        {recon.bank_name} · {fmtDate(recon.period_start)}–{fmtDate(recon.period_end)}
+      </p>
+      <div className="flex gap-4 text-xs">
+        <span className="text-emerald-400 tabular-nums font-mono">{recon.matched_count} matched</span>
+        {recon.manual_count > 0 && (
+          <span className="text-muted-foreground/50 tabular-nums font-mono">{recon.manual_count} skipped</span>
+        )}
+        {recon.unmatched_count > 0 && (
+          <span className="text-amber-400 tabular-nums font-mono">{recon.unmatched_count} unmatched</span>
+        )}
+      </div>
     </Card>
   );
 }

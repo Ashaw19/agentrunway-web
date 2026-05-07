@@ -1666,5 +1666,71 @@ export interface CorpUpcomingComplianceRow {
 }
 
 
+// ── Director Cockpit: corp_bank_reconciliation (Phase 2 / Build #9) ─────────
+
+export type CorpBankLineMatchStatus = "unmatched" | "matched" | "manual" | "split";
+export type CorpBankLineMatchMethod = "auto-exact" | "auto-window" | "manual";
+
+export interface CorpBankStatement {
+  id:              string;
+  user_id:         string;
+
+  bank_name:       string;           // e.g. 'RBC Business Chequing'
+  account_label:   string | null;    // e.g. '****1234'
+  period_start:    string;           // ISO date
+  period_end:      string;           // ISO date
+
+  raw_filename:    string | null;
+  row_count:       number;
+  matched_count:   number;
+  manual_count:    number;
+  unmatched_count: number;
+
+  uploaded_at:     string;
+  created_at:      string;
+  updated_at:      string;
+}
+
+export interface CorpBankLine {
+  id:               string;
+  user_id:          string;
+  statement_id:     string;
+
+  line_date:        string;                       // ISO date
+  description_raw:  string;
+  /** Signed: negative = debit (money out), positive = credit (money in). */
+  amount_cad:       number;
+  balance_cad:      number | null;
+
+  match_status:     CorpBankLineMatchStatus;
+  matched_tx_id:    string | null;
+  match_method:     CorpBankLineMatchMethod | null;
+  match_confidence: number | null;                // 0.000 – 1.000
+
+  skip_reason:      string | null;
+  notes:            string | null;
+
+  created_at:       string;
+  updated_at:       string;
+}
+
+/** Row shape returned by v_corp_bank_reconciliation_summary. */
+export interface CorpBankReconciliationSummaryRow {
+  statement_id:    string;
+  user_id:         string;
+  bank_name:       string;
+  account_label:   string | null;
+  period_start:    string;
+  period_end:      string;
+  raw_filename:    string | null;
+  row_count:       number;
+  matched_count:   number;
+  manual_count:    number;
+  unmatched_count: number;
+  match_rate_pct:  number | null;
+  uploaded_at:     string;
+  period_days:     number;
+}
+
 // ── Organization types (re-export from dedicated module) ────────────────────
 export * from "./organizations";
