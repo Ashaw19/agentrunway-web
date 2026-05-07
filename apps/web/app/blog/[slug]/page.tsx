@@ -93,7 +93,8 @@ export default async function BlogPostPage({ params }: Props) {
 
             {/* ── Post header ── */}
             <header className="mb-12">
-              <div className="mb-4 flex flex-wrap items-center gap-4">
+              {/* Date + reading time */}
+              <div className="mb-6 flex flex-wrap items-center gap-4">
                 <span className="flex items-center gap-1.5 text-sm text-slate-500">
                   <CalendarDays className="h-4 w-4" />
                   {formatPostDate(post.date)}
@@ -104,13 +105,34 @@ export default async function BlogPostPage({ params }: Props) {
                 </span>
               </div>
 
-              <h1 className="mb-5 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
-                {post.title}
-              </h1>
-
-              <p className="text-xl leading-relaxed text-slate-400">
-                {post.description}
-              </p>
+              {/* Title block — photo floated left of title + description */}
+              <div className="flex items-start gap-5">
+                {post.author === "Andrew Shaw" && (
+                  <div className="relative mt-1 h-[88px] w-[88px] flex-shrink-0 overflow-hidden rounded-full ring-2 ring-blue-500/30">
+                    <Image
+                      src="/images/andrew-shaw.jpg"
+                      alt="Andrew Shaw"
+                      fill
+                      className="object-cover object-top"
+                      sizes="88px"
+                    />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <h1 className="mb-4 text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl">
+                    {post.title}
+                  </h1>
+                  <p className="text-xl leading-relaxed text-slate-400">
+                    {post.description}
+                  </p>
+                  {post.author === "Andrew Shaw" && (
+                    <p className="mt-3 text-sm text-slate-500">
+                      <span className="font-medium text-slate-400">Andrew Shaw</span>
+                      {" · "}Licensed real estate agent · Founder, Agent Runway · Saint John, NB
+                    </p>
+                  )}
+                </div>
+              </div>
 
               {post.tags.length > 0 && (
                 <div className="mt-6 flex flex-wrap gap-2">
@@ -126,26 +148,6 @@ export default async function BlogPostPage({ params }: Props) {
                 </div>
               )}
 
-              {/* ── Author byline ── */}
-              {post.author === "Andrew Shaw" && (
-                <div className="mt-8 flex items-center gap-4">
-                  <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-full ring-2 ring-blue-500/40">
-                    <Image
-                      src="/images/andrew-shaw.jpg"
-                      alt="Andrew Shaw"
-                      fill
-                      className="object-cover object-top"
-                      sizes="56px"
-                    />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-white">Andrew Shaw</p>
-                    <p className="text-sm text-slate-400">
-                      Licensed real estate agent · Founder, Agent Runway · Saint John, NB
-                    </p>
-                  </div>
-                </div>
-              )}
             </header>
 
             {/* ── Divider ── */}
