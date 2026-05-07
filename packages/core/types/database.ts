@@ -1539,6 +1539,35 @@ export interface CorpCashSnapshot {
   updated_at:   string;
 }
 
+export type CorpInboxSeverity = "low" | "medium" | "high";
+
+export type CorpInboxSource =
+  | "manual"
+  | "hugo"
+  | "allocation-ui"
+  | "pre-incorp-ui"
+  | "founder-comp"
+  | "director-persona"
+  | "marcus";
+
+export interface CorpInboxItem {
+  id:            string;
+  user_id:       string;
+
+  title:         string;
+  body:          string | null;
+
+  source:        CorpInboxSource | string; // string allows future sources without migration
+  source_ref_id: string | null;
+  severity:      CorpInboxSeverity;
+
+  resolved_at:   string | null; // ISO timestamptz
+  resolved_note: string | null;
+
+  created_at:    string;
+  updated_at:    string;
+}
+
 
 // ── Organization types (re-export from dedicated module) ────────────────────
 export * from "./organizations";
