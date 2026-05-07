@@ -108,7 +108,7 @@ export default async function BlogPostPage({ params }: Props) {
               {/* Title block — photo floated left of title + description */}
               <div className="flex items-start gap-5">
                 {post.author === "Andrew Shaw" && (
-                  <div className="relative h-[185px] w-[148px] flex-shrink-0 overflow-hidden rounded-xl border border-slate-700/60">
+                  <div className="relative mt-4 h-[185px] w-[148px] flex-shrink-0 overflow-hidden rounded-xl border border-slate-700/60">
                     <Image
                       src="/images/andrew-shaw.jpg"
                       alt="Andrew Shaw"
