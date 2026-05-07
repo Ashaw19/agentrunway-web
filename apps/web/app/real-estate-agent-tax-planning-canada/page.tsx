@@ -369,7 +369,15 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                 the current-year method, updated as actual income accumulates through
                 the year. This requires maintaining a running projection of your annual
                 net business income — which is exactly what a tool like Agent Runway
-                calculates automatically.
+                calculates automatically. Full CRA mechanics for each method, the
+                interest rules, and the four payment channels are detailed in the{" "}
+                <Link
+                  href="/real-estate-agent-tax-instalments-canada"
+                  className="font-semibold text-blue-600 underline underline-offset-2"
+                >
+                  quarterly tax instalments guide
+                </Link>
+                .
               </p>
 
               <h3>The 30–35% tax-portion estimate</h3>
