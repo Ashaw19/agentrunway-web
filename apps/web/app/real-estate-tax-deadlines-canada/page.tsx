@@ -440,7 +440,15 @@ export default function RealEstateTaxDeadlinesPage() {
                   in February and August listing the amount it expects<CRACite id={4} />. The
                   reminder amount can be paid as-is, or the <em>prior-year</em> method (1/4 of
                   last year&apos;s total tax) or the <em>current-year</em> method (when income
-                  is expected to drop) may apply.
+                  is expected to drop) may apply. Full mechanics of the three methods, the
+                  $3,000 threshold, and the interest rules are covered in the{" "}
+                  <Link
+                    href="/real-estate-agent-tax-instalments-canada"
+                    className="font-semibold text-blue-400 underline underline-offset-2 hover:text-blue-300"
+                  >
+                    quarterly tax instalments guide
+                  </Link>
+                  .
                 </p>
               </div>
 
