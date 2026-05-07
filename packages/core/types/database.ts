@@ -1757,5 +1757,47 @@ export interface CorpDocument {
   updated_at:       string;
 }
 
+// ── Flight Status workflow library — migration 00145 ────────────────────────
+// Pre-built email draft sequences keyed to Flight Status transitions.
+// System templates have user_id = null and are seeded by the migration.
+// Drafts are agent-initiated (manual click in CRM client detail panel) — no
+// auto-trigger, no auto-send. Drafts are text the agent reviews and copies
+// into their own email client. CASL-clean.
+export type WorkflowTriggerEvent =
+  | "new_lead"               // Client enters Boarding stage
+  | "showing_scheduled"      // Client moves to Scheduled stage
+  | "listing_active"         // Seller flow — listing goes live (In-Flight)
+  | "transaction_milestone"  // Buyer flow — accepted offer (In-Flight)
+  | "anniversary"            // 1+ year after a closed transaction
+  | "closing_day";           // Client moves to Cruising — closing imminent
+
+export type WorkflowDraftStatus = "pending" | "sent" | "dismissed";
+
+export interface WorkflowTemplate {
+  id:                string;
+  user_id:           string | null;        // null = system template (seeded)
+  trigger_event:     WorkflowTriggerEvent;
+  name:              string;
+  subject_template:  string;
+  body_prompt:       string;
+  is_active:         boolean;
+  created_at:        string;
+  updated_at:        string;
+}
+
+export interface WorkflowDraft {
+  id:             string;
+  user_id:        string;
+  client_id:      string;
+  template_id:    string;
+  trigger_event:  WorkflowTriggerEvent;
+  subject:        string;
+  body:           string;
+  status:         WorkflowDraftStatus;
+  generated_at:   string;
+  created_at:     string;
+  updated_at:     string;
+}
+
 // ── Organization types (re-export from dedicated module) ────────────────────
 export * from "./organizations";
