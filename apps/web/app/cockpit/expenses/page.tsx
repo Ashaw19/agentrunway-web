@@ -8,6 +8,7 @@ import type {
 } from "@agent-runway/core/types/database";
 import { ExpensesActionsBar } from "./expenses-actions-bar";
 import { ExpensesTable, type ExpenseRow } from "./expenses-table";
+import { AllocationPanel } from "./allocation-panel";
 
 // Force dynamic — this surface always reads the live Supabase ledger and is
 // gated to a single user (Andrew) by the cockpit layout. No ISR / cache.
@@ -143,6 +144,8 @@ export default async function ExpensesPage() {
       </header>
 
       <ExpensesTable rows={rows} />
+
+      <AllocationPanel vendors={vendors} />
     </div>
   );
 }
