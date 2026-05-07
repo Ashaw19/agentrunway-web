@@ -1732,5 +1732,30 @@ export interface CorpBankReconciliationSummaryRow {
   period_days:     number;
 }
 
+// ── Corp documents ────────────────────────────────────────────────────────────
+
+export type CorpDocumentType =
+  | "minutes"
+  | "resolution"
+  | "contract"
+  | "correspondence"
+  | "other";
+
+export interface CorpDocument {
+  id:               string;
+  user_id:          string;
+  document_type:    CorpDocumentType;
+  title:            string;
+  description:      string | null;
+  document_date:    string;
+  fiscal_year:      number;
+  storage_path:     string;
+  file_name:        string;
+  file_size_bytes:  number | null;
+  mime_type:        string | null;
+  created_at:       string;
+  updated_at:       string;
+}
+
 // ── Organization types (re-export from dedicated module) ────────────────────
 export * from "./organizations";

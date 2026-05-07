@@ -14,7 +14,9 @@ import {
   Sparkles,
   Wallet,
   GitMerge,
+  PackageOpen,
 } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
@@ -368,6 +370,7 @@ export default async function SnapshotPage() {
           <DeadlinesCard items={deadlines} />
           <ComplianceCard items={complianceItems} />
           <ReconciliationCard recon={latestRecon} />
+          <ExportBundleCard />
           <ExpensesCard rows={monthTopExpenses} />
           <WeeklyReviewCard lastReview={lastReview} obligations={RECURRING_OBLIGATIONS} />
         </div>
@@ -1072,6 +1075,24 @@ function ReconciliationCard({ recon }: { recon: ReconciliationSnapshotRow | null
           <span className="text-amber-400 tabular-nums font-mono">{recon.unmatched_count} unmatched</span>
         )}
       </div>
+    </Card>
+  );
+}
+
+function ExportBundleCard() {
+  const year = new Date().getFullYear();
+  return (
+    <Card label="Accountant export bundle" href="/cockpit/documents" icon={PackageOpen} accent="health">
+      <p className="text-muted-foreground/70 mb-3 text-sm">
+        ZIP of P&amp;L · HST · SR&amp;ED · ledger · receipts · documents for FY{year}.
+      </p>
+      <Link
+        href="/cockpit/documents"
+        className="inline-flex items-center gap-1.5 rounded-md bg-emerald-700/40 px-3 py-1.5 text-xs font-medium text-emerald-300 transition hover:bg-emerald-700/60"
+      >
+        <PackageOpen className="h-3.5 w-3.5" />
+        Generate bundle
+      </Link>
     </Card>
   );
 }
