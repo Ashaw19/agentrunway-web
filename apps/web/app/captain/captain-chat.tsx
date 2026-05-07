@@ -7,8 +7,8 @@
  * Captain runs in "public mode": no user data, no tool calls, pure AR product
  * knowledge + lead qualification.
  *
- * Streaming: uses the same fetch + ReadableStream + Vercel AI data-stream
- * protocol that ai-chat.tsx uses. Parses prefix "0:" for text deltas.
+ * Streaming: fetch + ReadableStream + TextDecoder. Uses toTextStreamResponse()
+ * on the server so chunks arrive as raw text — no prefix protocol needed.
  *
  * Lead capture: after the 2nd bot response a CASL-compliant email form slides
  * in above the input. On submit, posts to /api/subscribe (source: captain_chat).
@@ -42,28 +42,9 @@ function nextId(): string {
   return `msg-${++msgIdCounter}-${Date.now()}`;
 }
 
-// ── Vercel AI data-stream parser ──────────────────────────────────────────────
-// The API returns toDataStreamResponse() which emits lines like:
-//   0:"text chunk"   — text delta
-//   e:{...}          — step-finish (ignored)
-//   d:{...}          — stream-finish (ignored)
-
-function parseDataStreamText(raw: string): string {
-  let text = "";
-  for (const line of raw.split("\n")) {
-    if (!line) continue;
-    const colonIdx = line.indexOf(":");
-    if (colonIdx < 1) continue;
-    if (line.slice(0, colonIdx) === "0") {
-      try {
-        text += JSON.parse(line.slice(colonIdx + 1));
-      } catch {
-        /* skip malformed chunk */
-      }
-    }
-  }
-  return text;
-}
+// ── Stream note ───────────────────────────────────────────────────────────────
+// The API returns toTextStreamResponse() which emits raw text chunks (no prefix
+// protocol). Chunks are accumulated directly via TextDecoder.
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -140,9 +121,8 @@ export function CaptainChat() {
           const { done, value } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
-          const delta = parseDataStreamText(chunk);
-          if (delta) {
-            text += delta;
+          if (chunk) {
+            text += chunk;
             const captured = text;
             setMessages((prev) => [
               ...prev.slice(0, -1),

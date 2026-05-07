@@ -156,5 +156,5 @@ export async function POST(req: NextRequest) {
     temperature: 0.7,
   });
 
-  return result.toDataStreamResponse();
+  return result.toTextStreamResponse();
 }
