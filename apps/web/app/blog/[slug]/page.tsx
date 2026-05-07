@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, ArrowRight, Clock, CalendarDays, Tag } from "lucide-react";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import remarkGfm from "remark-gfm";
@@ -122,6 +123,27 @@ export default async function BlogPostPage({ params }: Props) {
                       {tag}
                     </span>
                   ))}
+                </div>
+              )}
+
+              {/* ── Author byline ── */}
+              {post.author === "Andrew Shaw" && (
+                <div className="mt-8 flex items-center gap-4">
+                  <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-full ring-2 ring-blue-500/40">
+                    <Image
+                      src="/images/andrew-shaw.jpg"
+                      alt="Andrew Shaw"
+                      fill
+                      className="object-cover object-top"
+                      sizes="56px"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-white">Andrew Shaw</p>
+                    <p className="text-sm text-slate-400">
+                      Licensed real estate agent · Founder, Agent Runway · Saint John, NB
+                    </p>
+                  </div>
                 </div>
               )}
             </header>
