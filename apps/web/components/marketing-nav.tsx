@@ -17,6 +17,7 @@ import {
   ChevronDown,
   History,
   FileText,
+  Anchor,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -342,12 +343,22 @@ export function MarketingNav({
                 </Link>
               </>
             ) : (
-              <Link
-                href="/login"
-                className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800"
-              >
-                Sign In
-              </Link>
+              <>
+                {/* Talk to Captain — secondary CTA, desktop only */}
+                <Link
+                  href="/captain"
+                  className="hidden items-center gap-1.5 sm:flex rounded-lg border border-blue-600/40 px-3.5 py-2 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-600/10 hover:text-blue-300"
+                >
+                  <Anchor className="h-3.5 w-3.5" />
+                  Talk to Captain
+                </Link>
+                <Link
+                  href="/login"
+                  className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800"
+                >
+                  Sign In
+                </Link>
+              </>
             )}
 
             {/* Hamburger — mobile only */}
@@ -440,6 +451,18 @@ export function MarketingNav({
                 {label}
               </Link>
             ))}
+
+            {/* Talk to Captain — mobile, logged-out only */}
+            {!isLoggedIn && (
+              <Link
+                href="/captain"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-blue-400 transition-colors hover:bg-blue-600/10"
+              >
+                <Anchor className="h-4 w-4 shrink-0" />
+                Talk to Captain
+              </Link>
+            )}
 
             {/* App links when signed in */}
             {isLoggedIn && (
