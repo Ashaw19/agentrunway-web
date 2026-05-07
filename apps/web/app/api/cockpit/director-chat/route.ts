@@ -258,6 +258,101 @@ export async function POST(req: NextRequest) {
     }),
 
     /**
+     * Proactive governance scan: ITC documentation gaps, commingling signals,
+     * and unclassified transactions. Phase 2 / Build #12.
+     * Director calls this proactively on session start and on governance questions.
+     */
+    governanceScan: tool({
+      description:
+        "Proactive governance scan: detects ITC documentation gaps (HST claimed with no receipt), commingling signals (mixed-use transactions still flagged for review), and unclassified transactions (no account code). Call this proactively at the start of every session before answering the user's specific question.",
+      inputSchema: z.object({
+        year: z
+          .number()
+          .int()
+          .optional()
+          .describe("Calendar year to scan. Defaults to current year."),
+      }),
+      execute: async ({ year }) => {
+        const targetYear = year ?? new Date().getFullYear();
+        const startDate = `${targetYear}-01-01`;
+        const endDate = `${targetYear}-12-31`;
+
+        // ITC gaps: HST amount present but no receipt attached
+        const { data: itcGaps, error: itcErr } = await supabase
+          .from("corp_transactions")
+          .select("id, date, merchant_name, amount_pretax, gst_hst, account_code, review_reason")
+          .gte("date", startDate)
+          .lte("date", endDate)
+          .gt("gst_hst", 0)
+          .is("receipt_storage_path", null)
+          .order("gst_hst", { ascending: false })
+          .limit(20);
+
+        // Commingling: mixed-use allocations still flagged for review
+        const { data: commingling, error: commErr } = await supabase
+          .from("corp_transactions")
+          .select("id, date, merchant_name, amount_total, corp_pct, review_reason, needs_review")
+          .gte("date", startDate)
+          .lte("date", endDate)
+          .lt("corp_pct", 1)
+          .eq("needs_review", true)
+          .order("amount_total", { ascending: false })
+          .limit(20);
+
+        // Unclassified: no account code assigned
+        const { data: unclassified, error: unclassErr } = await supabase
+          .from("corp_transactions")
+          .select("id, date, merchant_name, amount_total, review_reason")
+          .gte("date", startDate)
+          .lte("date", endDate)
+          .is("account_code", null)
+          .order("date", { ascending: false })
+          .limit(10);
+
+        // Full needs-review queue
+        const { data: needsReview, error: reviewErr } = await supabase
+          .from("corp_transactions")
+          .select("id, date, merchant_name, amount_total, review_reason, corp_pct, gst_hst")
+          .gte("date", startDate)
+          .lte("date", endDate)
+          .eq("needs_review", true)
+          .order("date", { ascending: false })
+          .limit(30);
+
+        const itcRows = itcErr ? [] : (itcGaps ?? []);
+        const totalHSTAtRisk = itcRows.reduce(
+          (sum: number, r: { gst_hst?: number | null }) => sum + (r.gst_hst ?? 0),
+          0,
+        );
+
+        return {
+          year: targetYear,
+          itcDocumentationGaps: {
+            ...(itcErr ? { error: itcErr.message } : {}),
+            count: itcRows.length,
+            totalHSTAtRisk: Math.round(totalHSTAtRisk * 100) / 100,
+            topOffenders: itcRows.slice(0, 10),
+          },
+          comminglingFlags: {
+            ...(commErr ? { error: commErr.message } : {}),
+            count: commErr ? 0 : (commingling ?? []).length,
+            rows: commErr ? [] : (commingling ?? []),
+          },
+          unclassifiedTransactions: {
+            ...(unclassErr ? { error: unclassErr.message } : {}),
+            count: unclassErr ? 0 : (unclassified ?? []).length,
+            rows: unclassErr ? [] : (unclassified ?? []),
+          },
+          needsReviewQueue: {
+            ...(reviewErr ? { error: reviewErr.message } : {}),
+            count: reviewErr ? 0 : (needsReview ?? []).length,
+            rows: reviewErr ? [] : (needsReview ?? []),
+          },
+        };
+      },
+    }),
+
+    /**
      * Upcoming compliance events. Source: v_corp_upcoming_compliance.
      * Phase 2 / Build #8.
      */
