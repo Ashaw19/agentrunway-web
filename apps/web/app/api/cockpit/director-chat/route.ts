@@ -229,6 +229,35 @@ export async function POST(req: NextRequest) {
     }),
 
     /**
+     * Bank reconciliation summary. Source: v_corp_bank_reconciliation_summary.
+     * Phase 2 / Build #9.
+     */
+    bankReconciliationSummary: tool({
+      description:
+        "Read the bank reconciliation summary for the most recent uploaded bank statements. Returns match rate, row counts (total / matched / manual / unmatched), bank name, and statement period. Use this when Andrew asks about reconciliation health, unmatched bank lines, match rate, or whether the ledger is reconciled.",
+      inputSchema: z.object({
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(10)
+          .optional()
+          .describe("Number of recent statements to return. Defaults to 3."),
+      }),
+      execute: async ({ limit }) => {
+        const { data, error } = await supabase
+          .from("v_corp_bank_reconciliation_summary")
+          .select(
+            "statement_id, bank_name, account_label, period_start, period_end, row_count, matched_count, manual_count, unmatched_count, match_rate_pct, uploaded_at",
+          )
+          .order("period_end", { ascending: false })
+          .limit(limit ?? 3);
+        if (error) return { error: error.message };
+        return { rows: data ?? [] };
+      },
+    }),
+
+    /**
      * Upcoming compliance events. Source: v_corp_upcoming_compliance.
      * Phase 2 / Build #8.
      */
