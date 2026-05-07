@@ -1595,5 +1595,76 @@ export interface CorpBriefEntry {
 }
 
 
+// ── Director Cockpit: corp_compliance_events (Phase 2 / Build #8) ───────────
+
+export type CorpComplianceSeverity = "low" | "medium" | "high";
+
+export type CorpComplianceRecurringPattern =
+  | "annual"
+  | "quarterly"
+  | "monthly"
+  | "fiscal-anniversary";
+
+export type CorpComplianceKind =
+  | "cra-t2-filing"
+  | "cra-t2-payment"
+  | "cra-hst-filing"
+  | "cra-hst-instalment"
+  | "cra-payroll-t4"
+  | "cra-payroll-source-deductions"
+  | "corp-annual-return-federal"
+  | "corp-annual-return-nb"
+  | "corp-minute-book"
+  | "corp-insurance-renewal"
+  | "corp-other";
+
+/** Urgency tier surfaced by v_corp_upcoming_compliance. */
+export type CorpComplianceUrgency =
+  | "overdue"
+  | "critical"
+  | "soon"
+  | "upcoming";
+
+export interface CorpComplianceEvent {
+  id:                string;
+  user_id:           string;
+
+  title:             string;
+  kind:              CorpComplianceKind | string;
+
+  due_date:          string; // ISO date YYYY-MM-DD
+  severity:          CorpComplianceSeverity;
+
+  recurring_pattern: CorpComplianceRecurringPattern | null;
+
+  source_ref_id:     string | null;
+  notes:             string | null;
+
+  completed_at:      string | null;
+  completed_note:    string | null;
+
+  created_at:        string;
+  updated_at:        string;
+}
+
+/** Row shape returned by v_corp_upcoming_compliance. */
+export interface CorpUpcomingComplianceRow {
+  id:                string;
+  user_id:           string;
+  title:             string;
+  kind:              CorpComplianceKind | string;
+  due_date:          string;
+  severity:          CorpComplianceSeverity;
+  recurring_pattern: CorpComplianceRecurringPattern | null;
+  notes:             string | null;
+  completed_at:      string | null;
+  created_at:        string;
+
+  /** PostgreSQL `(due_date - CURRENT_DATE)` interval in days. */
+  days_until_due:    number;
+  urgency:           CorpComplianceUrgency;
+}
+
+
 // ── Organization types (re-export from dedicated module) ────────────────────
 export * from "./organizations";

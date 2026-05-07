@@ -227,6 +227,35 @@ export async function POST(req: NextRequest) {
         return { rows: data ?? [] };
       },
     }),
+
+    /**
+     * Upcoming compliance events. Source: v_corp_upcoming_compliance.
+     * Phase 2 / Build #8.
+     */
+    upcomingCompliance: tool({
+      description:
+        "Read upcoming and overdue compliance calendar events for AR Inc. — T2 filing/payment, HST/GST quarterly filings and instalments, federal and NB annual returns, T4 / source deductions, minute-book updates, insurance renewals. Each row has a due_date, an urgency tier (overdue / critical / soon / upcoming), days_until_due, severity, kind, and notes. Use this when Andrew asks 'what's due', 'what's coming up', 'when is T2', 'what's overdue', or any compliance-deadline framing.",
+      inputSchema: z.object({
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .optional()
+          .describe("Max events to return. Defaults to 20."),
+      }),
+      execute: async ({ limit }) => {
+        const { data, error } = await supabase
+          .from("v_corp_upcoming_compliance")
+          .select(
+            "id, title, kind, due_date, severity, recurring_pattern, notes, days_until_due, urgency",
+          )
+          .order("due_date", { ascending: true })
+          .limit(limit ?? 20);
+        if (error) return { error: error.message };
+        return { rows: data ?? [] };
+      },
+    }),
   };
 
   try {

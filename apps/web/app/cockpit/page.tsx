@@ -92,6 +92,18 @@ type InboxRow = {
   created_at: string;
 };
 
+// Snapshot subset of v_corp_upcoming_compliance — only the columns the card
+// renders. Build #8 (Phase 2).
+type ComplianceSnapshotRow = {
+  id: string;
+  title: string;
+  kind: string;
+  due_date: string;
+  severity: "low" | "medium" | "high";
+  days_until_due: number;
+  urgency: "overdue" | "critical" | "soon" | "upcoming";
+};
+
 // Trailing-90 burn input. corp_pct applied in JS to match the
 // total_corp_portion convention used by v_corp_pl_by_account.
 type BurnRow = {
@@ -127,6 +139,7 @@ export default async function SnapshotPage() {
     burnRowsRes,
     shareholderLoanRes,
     inboxRes,
+    complianceRes,
   ] = await Promise.all([
     supabase
       .from("v_corp_gst_hst_summary")
@@ -192,6 +205,14 @@ export default async function SnapshotPage() {
       .is("resolved_at", null)
       .order("created_at", { ascending: false })
       .limit(5),
+    // Compliance calendar: next 3 events for the Snapshot card.
+    // Build #8 (Phase 2). v_corp_upcoming_compliance applies the urgency tier.
+    supabase
+      .from("v_corp_upcoming_compliance")
+      .select("id, title, kind, due_date, severity, days_until_due, urgency")
+      .eq("user_id", user.id)
+      .order("due_date", { ascending: true })
+      .limit(3),
   ]);
 
   const hst = (hstRes.data ?? null) as HstSummary | null;
@@ -205,6 +226,7 @@ export default async function SnapshotPage() {
     0,
   );
   const inboxItems = (inboxRes.data ?? []) as InboxRow[];
+  const complianceItems = (complianceRes.data ?? []) as ComplianceSnapshotRow[];
   const lastReview = lastReviewRes.data?.ingested_at
     ? {
         ingestedAt: lastReviewRes.data.ingested_at as string,
@@ -320,6 +342,7 @@ export default async function SnapshotPage() {
           <HstCard hst={hst} />
           <SredCard refundEstimate={sredRefundEstimate} totalCorpPortion={sredTotal} fyPct={fyPct} />
           <DeadlinesCard items={deadlines} />
+          <ComplianceCard items={complianceItems} />
           <ExpensesCard rows={monthTopExpenses} />
           <WeeklyReviewCard lastReview={lastReview} obligations={RECURRING_OBLIGATIONS} />
         </div>
@@ -919,6 +942,70 @@ function DeadlinesCard({ items }: { items: Deadline[] }) {
             </span>
           </li>
         ))}
+      </ul>
+    </Card>
+  );
+}
+
+function ComplianceCard({ items }: { items: ComplianceSnapshotRow[] }) {
+  if (!items.length) {
+    return (
+      <Card label="Compliance calendar" href="/cockpit/compliance" icon={CheckCircle2} accent="health">
+        <p className="text-muted-foreground/70 py-2 text-sm">
+          No compliance events scheduled.
+        </p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card label="Compliance calendar" href="/cockpit/compliance" icon={CheckCircle2} accent="health">
+      <ul className="space-y-2.5">
+        {items.map((item) => {
+          const dot =
+            item.urgency === "overdue" || item.urgency === "critical"
+              ? "bg-red-400"
+              : item.urgency === "soon"
+                ? "bg-amber-400"
+                : "bg-muted-foreground/30";
+          const text =
+            item.urgency === "overdue" || item.urgency === "critical"
+              ? "text-red-300"
+              : item.urgency === "soon"
+                ? "text-amber-300"
+                : "text-muted-foreground/60";
+          const label =
+            item.days_until_due < 0
+              ? `+${Math.abs(item.days_until_due)}d`
+              : `T−${item.days_until_due}d`;
+          return (
+            <li
+              key={item.id}
+              className="flex items-center justify-between gap-3 border-b border-white/[0.04] pb-2 last:border-0 last:pb-0"
+            >
+              <span className="flex min-w-0 items-center gap-2.5">
+                <span
+                  aria-hidden
+                  className={cn(
+                    "inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full",
+                    dot,
+                  )}
+                />
+                <span className="text-foreground/90 truncate text-sm">
+                  {item.title}
+                </span>
+              </span>
+              <span
+                className={cn(
+                  "font-mono text-[11px] whitespace-nowrap tabular-nums",
+                  text,
+                )}
+              >
+                {label}
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </Card>
   );

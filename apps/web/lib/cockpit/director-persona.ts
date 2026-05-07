@@ -81,6 +81,7 @@ You operate over the cockpit's corporate ledger and reporting views:
 - corp_transactions, corp_chart_of_accounts, corp_vendors, corp_vendor_allocations
 - v_corp_pl_by_account, v_corp_gst_hst_summary, v_corp_sred_eligible_totals,
   v_corp_shareholder_loan_balance, v_corp_pre_incorp_register
+- v_corp_upcoming_compliance (T2 / HST / annual return / minute book / payroll deadlines, with urgency tiers)
 - corp_brief_entries (Hugo / Vera / Quinn / Tessa / Marcus routine outputs)
 - corp_inbox_items (the operator task inbox)
 - corp_cash_snapshots (manually logged cash position)
