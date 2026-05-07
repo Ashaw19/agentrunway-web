@@ -1799,5 +1799,32 @@ export interface WorkflowDraft {
   updated_at:     string;
 }
 
+// ── Client Communication Log — migration 00146 ─────────────────────────────
+// Per-client conversation timeline. Because email integration is CASA-
+// shelved (see memory/project_google_integrations.md), inbound replies
+// cannot be auto-ingested. Agents paste inbound text into a "Log reply"
+// form, or jot manual notes about phone/text conversations. Combined with
+// workflow_drafts (Phase 2.3) and outreach_queue, this assembles a full
+// timeline per client without any email integration.
+//
+// Direction:
+//   outbound — agent-sent message logged after the fact via the agent's
+//              own external channel (e.g. typed in Gmail, pasted here)
+//   inbound  — message the agent received from the client (pasted in)
+//   note     — free-form note about phone/in-person/text conversation
+export type CommunicationDirection = "outbound" | "inbound" | "note";
+
+export interface ClientCommunicationLog {
+  id:           string;
+  user_id:      string;
+  client_id:    string;
+  direction:    CommunicationDirection;
+  subject:      string | null;
+  body:         string;
+  logged_at:    string;       // ISO timestamp; defaults to insert time
+  created_at:   string;
+  updated_at:   string;
+}
+
 // ── Organization types (re-export from dedicated module) ────────────────────
 export * from "./organizations";
