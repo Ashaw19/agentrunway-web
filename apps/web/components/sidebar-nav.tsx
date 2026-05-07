@@ -23,6 +23,7 @@ import {
   Layers,
   UserPlus,
   LifeBuoy,
+  Home,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
@@ -97,6 +98,10 @@ const sidebarEntries: SidebarEntry[] = [
     type: "item", label: "Guide", href: "/guide", icon: BookOpen,
     iconActive: "text-indigo-300", iconInactive: "text-indigo-400/50", borderActive: "border-l-indigo-400", textActive: "text-indigo-200",
     dataTour: "guide-link",
+  },
+  {
+    type: "item", label: "Open House", subLabel: "Sign-In Page", href: "/open-house-setup", icon: Home,
+    iconActive: "text-emerald-300", iconInactive: "text-emerald-400/50", borderActive: "border-l-emerald-400", textActive: "text-emerald-200",
   },
 ];
 

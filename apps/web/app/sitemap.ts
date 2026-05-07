@@ -86,6 +86,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/open-house`,                                   lastModified: now, changeFrequency: "monthly", priority: 0.5 },
     { url: `${BASE_URL}/listing-inquiry`,                              lastModified: now, changeFrequency: "monthly", priority: 0.5 },
 
+    // ── Branded agent open house pages (Phase 1.3) ────────────────────
+    // Dynamic routes (/open-house/[slug]) are agent-generated and noindex'd;
+    // we list the setup page (in-app) here so internal tooling sees it.
+    // Individual slug pages are NOT enumerated here — they are dynamically
+    // served and not intended for search indexing (robots: noindex per metadata).
+
     // ── Tools (hero asset: realtor tax estimator) ──────────────────────
     { url: `${BASE_URL}/tools`,                                       lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/tools/realtor-tax-estimator`,                 lastModified: now, changeFrequency: "monthly", priority: 0.9 },
