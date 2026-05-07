@@ -1,8 +1,9 @@
 /**
  * POST /api/ai/draft-newsletter
  *
- * On-demand newsletter drafting — agent clicks "Draft with AI" in Flight Control,
- * picks a template, fills in context, and Groq produces a broadcast email.
+ * On-demand newsletter drafting — agent clicks "Draft with AI" in Flight
+ * Control OR the Flight Crew Captain calls `draftNewsletter`. Picks a
+ * template, fills in context, Claude produces a broadcast email.
  *
  * Supported template_type values:
  *   boc_rate_change  — { old_rate: number, new_rate: number, effective_date?: string, notes?: string }
@@ -10,35 +11,24 @@
  *
  * Response:
  *   201 { newsletter_id, status: "created" }   — drafted and ready
- *   202 { newsletter_id, status: "queued"  }   — inserted but Groq unavailable
+ *   202 { newsletter_id, status: "queued"  }   — inserted but Claude unavailable
  *   400 { error }                              — validation failure
  *   401                                        — unauthenticated
  *   429                                        — rate limited (10/hr)
  *   500                                        — internal error
  *
  * Rate-limited to 10 newsletters/hour per user (endpoint key: "draft_newsletter").
+ *
+ * Core drafting logic lives in @/lib/ai/draft-services. The Flight Crew
+ * `draftNewsletter` tool calls the same service helper.
  */
 
-import { generateText } from "ai";
-import { models, heliconeHeaders } from "@/lib/ai/provider";
-import { NextRequest, NextResponse }  from "next/server";
-import { createClient }               from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { requirePro } from "@/lib/require-pro";
 import type { NewsletterTemplateType } from "@agent-runway/core/types/database";
-import {
-  buildBocRateChangeNewsletterPrompt,
-  buildCustomNewsletterPrompt,
-} from "@/lib/newsletter-prompts";
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function extractFirstName(displayName: string | null): string {
-  if (displayName) return displayName.split(/\s+/)[0] ?? displayName;
-  return "your agent";
-}
-
-// ── Route handler ─────────────────────────────────────────────────────────────
+import { draftNewsletter } from "@/lib/ai/draft-services";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -48,7 +38,6 @@ export async function POST(req: NextRequest) {
   const proCheck = await requirePro(supabase, user.id);
   if (!proCheck.allowed) return proCheck.response!;
 
-  // Rate limit: 10 newsletters drafted per hour
   const rl = await checkRateLimit(user.id, "draft_newsletter", 10, 60);
   if (!rl.allowed) {
     return NextResponse.json(
@@ -57,18 +46,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // ── Parse body ────────────────────────────────────────────────────────────
-
   let body: {
     template_type?: string;
-    // boc_rate_change
-    old_rate?:       number;
-    new_rate?:       number;
+    old_rate?: number;
+    new_rate?: number;
     effective_date?: string;
-    // custom
-    topic?:          string;
-    // shared
-    notes?:          string;
+    topic?: string;
+    notes?: string;
   };
 
   try {
@@ -78,7 +62,6 @@ export async function POST(req: NextRequest) {
   }
 
   const { template_type } = body;
-
   const VALID_TYPES: NewsletterTemplateType[] = ["boc_rate_change", "custom"];
   if (!template_type || !VALID_TYPES.includes(template_type as NewsletterTemplateType)) {
     return NextResponse.json(
@@ -87,154 +70,30 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const tmplType = template_type as NewsletterTemplateType;
+  const result = await draftNewsletter({
+    supabase,
+    userId: user.id,
+    templateType: template_type as NewsletterTemplateType,
+    oldRate: body.old_rate,
+    newRate: body.new_rate,
+    effectiveDate: body.effective_date,
+    topic: body.topic,
+    notes: body.notes,
+  });
 
-  // ── Validate per-template required fields ────────────────────────────────
-
-  if (tmplType === "boc_rate_change") {
-    if (body.old_rate == null || body.new_rate == null) {
-      return NextResponse.json(
-        { error: "old_rate and new_rate are required for boc_rate_change" },
-        { status: 400 },
-      );
-    }
+  if ("error" in result) {
+    return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
-  if (tmplType === "custom") {
-    if (!body.topic?.trim()) {
-      return NextResponse.json(
-        { error: "topic is required for custom newsletters" },
-        { status: 400 },
-      );
-    }
-  }
-
-  // ── Fetch user settings ──────────────────────────────────────────────────
-
-  const settingsRes = await supabase
-    .from("user_settings")
-    .select("display_name, email_signature")
-    .eq("user_id", user.id)
-    .single();
-
-  const agentFirst     = extractFirstName(settingsRes.data?.display_name ?? null);
-  const emailSignature = (settingsRes.data?.email_signature as string) ?? "";
-
-  // ── Build template context + prompt ──────────────────────────────────────
-
-  let context: Record<string, unknown>;
-  let prompt: string;
-
-  switch (tmplType) {
-    case "boc_rate_change": {
-      const oldRate      = Number(body.old_rate);
-      const newRate      = Number(body.new_rate);
-      const effectiveDate = body.effective_date
-        ?? new Date().toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric" });
-      const notes = body.notes?.trim() || null;
-
-      context = { old_rate: oldRate, new_rate: newRate, effective_date: effectiveDate, notes };
-      prompt  = buildBocRateChangeNewsletterPrompt(agentFirst, oldRate, newRate, effectiveDate, notes);
-      break;
-    }
-
-    case "custom": {
-      const topic = body.topic!.trim();
-      const notes = body.notes?.trim() || null;
-      context = { topic, notes };
-      prompt  = buildCustomNewsletterPrompt(agentFirst, topic, notes);
-      break;
-    }
-  }
-
-  // ── Insert draft row ──────────────────────────────────────────────────────
-
-  const { data: inserted, error: insertError } = await supabase
-    .from("newsletter_queue")
-    .insert({
-      user_id:       user.id,
-      template_type: tmplType,
-      context,
-      status:        "draft",
-    })
-    .select("id")
-    .single();
-
-  if (insertError || !inserted) {
-    console.error("[draft-newsletter] Insert error:", insertError);
-    return NextResponse.json({ error: "Failed to create newsletter" }, { status: 500 });
-  }
-
-  const newsletterId = inserted.id;
-
-  // ── Draft via Groq ────────────────────────────────────────────────────────
-
-  const aiKey = process.env.ANTHROPIC_API_KEY || process.env.GROQ_API_KEY;
-  if (!aiKey) {
+  if (result.status === "queued") {
     return NextResponse.json(
-      { newsletter_id: newsletterId, status: "queued" },
+      { newsletter_id: result.newsletterId, status: "queued" },
       { status: 202, headers: rateLimitHeaders(rl) },
     );
   }
 
-  try {
-    const aiHeaders = heliconeHeaders({ userId: user.id, feature: "draft-newsletter" });
-
-    // Primary: Claude Sonnet via Vercel AI SDK, fallback to Groq Llama
-    let raw: string;
-    try {
-      const { text } = await generateText({
-        model: models.default,
-        prompt,
-        maxOutputTokens: 700,   // newsletters are longer than individual outreach
-        temperature: 0.80,
-        headers: aiHeaders,
-      });
-      raw = text.trim();
-      if (!raw) throw new Error("Empty Claude response");
-    } catch (primaryErr) {
-      console.warn("[draft-newsletter] Primary model failed, falling back to Groq:", primaryErr);
-      const { text } = await generateText({
-        model: models.fallback,
-        prompt,
-        maxOutputTokens: 700,
-        temperature: 0.80,
-        headers: aiHeaders,
-      });
-      raw = text.trim();
-      if (!raw) throw new Error("Empty fallback response");
-    }
-
-    // Parse: last line starting with "SUBJECT:" is the subject
-    const lines     = raw.split("\n");
-    const subjIdx   = [...lines].reverse().findIndex((l) =>
-      l.trimStart().toUpperCase().startsWith("SUBJECT:"),
-    );
-    if (subjIdx === -1) throw new Error("No SUBJECT line in response");
-
-    const realSubjIdx = lines.length - 1 - subjIdx;
-    const ai_subject  = lines[realSubjIdx].replace(/^SUBJECT:\s*/i, "").trim();
-    let   ai_body     = lines.slice(0, realSubjIdx).join("\n").trim();
-
-    if (emailSignature) {
-      ai_body += `\n\n${emailSignature}`;
-    }
-
-    await supabase
-      .from("newsletter_queue")
-      .update({ ai_subject, ai_body, status: "ready" })
-      .eq("id", newsletterId);
-
-    return NextResponse.json(
-      { newsletter_id: newsletterId, status: "created" },
-      { status: 201, headers: rateLimitHeaders(rl) },
-    );
-  } catch (err) {
-    console.error("[draft-newsletter] AI error:", err);
-    // Row is inserted but not drafted — cron or retry will pick it up
-    return NextResponse.json(
-      { newsletter_id: newsletterId, status: "queued" },
-      { status: 202, headers: rateLimitHeaders(rl) },
-    );
-  }
+  return NextResponse.json(
+    { newsletter_id: result.newsletterId, status: "created" },
+    { status: 201, headers: rateLimitHeaders(rl) },
+  );
 }

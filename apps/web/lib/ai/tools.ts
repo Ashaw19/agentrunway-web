@@ -54,6 +54,14 @@
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { OutreachOpportunityType, NewsletterTemplateType } from "@agent-runway/core/types/database";
+import {
+  draftOutreachForClient as draftOutreachForClientService,
+  draftListingDescription as draftListingDescriptionService,
+  draftNewsletter as draftNewsletterService,
+  draftSocialPost as draftSocialPostService,
+  type SocialPostTemplate,
+} from "@/lib/ai/draft-services";
 
 // ── Approval Gate ──────────────────────────────────────────────────────────
 // Tools in this set require explicit user confirmation before executing.
@@ -3351,6 +3359,191 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       },
     }),
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // DRAFTING TOOLS (Phase 2.2 — Captain + Dispatcher only)
+    //
+    // These four tools wrap the on-demand drafting routes so the Flight Crew
+    // can produce drafts conversationally. All four are DRAFTS ONLY — nothing
+    // is auto-sent. Outreach + newsletter writes go to their existing queue
+    // tables with status="ready", visible in Flight Control. Listing
+    // descriptions and social posts return inline (no DB persistence).
+    //
+    // Persona partitioning is enforced in createPersonaAgentTools below:
+    //   - Dispatcher: draftOutreachForClient, draftListingDescription
+    //   - Captain:    draftNewsletter, draftSocialPost
+    //
+    // Tools share their core logic with the API routes through
+    // @/lib/ai/draft-services so prompt engineering and DB writes live in
+    // exactly one place.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // ── DRAFT OUTREACH FOR CLIENT (Dispatcher) ───────────────────────────────
+    draftOutreachForClient: tool({
+      description: "Draft a personalized outreach message for a specific client based on their situation and the touchpoint type. Use searchClients first to resolve the client_id. The message is written to Flight Control as a DRAFT — it is NEVER sent automatically; the agent reviews and sends it. Choose the opportunity_type that matches the touchpoint reason (birthday, closing anniversary, mortgage renewal due/window, past-client check-in, timeframe approaching for active buyer/seller, property value milestone).",
+      inputSchema: z.object({
+        client_id: z.string().uuid().describe("The client UUID — get this from searchClients first"),
+        opportunity_type: z.enum([
+          "birthday",
+          "closing_anniversary",
+          "mortgage_renewal_due",
+          "mortgage_renewal_window",
+          "past_client_check_in",
+          "timeframe_approaching",
+          "property_value_milestone",
+        ]).describe("Which kind of touchpoint to draft"),
+      }),
+      execute: async ({ client_id, opportunity_type }) => {
+        try {
+          const result = await draftOutreachForClientService({
+            supabase,
+            userId,
+            clientId: client_id,
+            opportunityType: opportunity_type as OutreachOpportunityType,
+          });
+
+          const who = result.clientName || "this client";
+
+          if (result.status === "created") {
+            return `✓ Outreach draft created for ${who} (${opportunity_type.replace(/_/g, " ")}). Review it in **Flight Control → Outreach Queue** before sending.`;
+          }
+          if (result.status === "existing") {
+            return `An outreach draft for ${who} on this same opportunity already exists. Open **Flight Control → Outreach Queue** to review or send it.`;
+          }
+          // queued — either AI unavailable or a validation problem (no birthdate, no close date, etc.)
+          if (result.reason && !result.queueItemId) {
+            return `Couldn't draft outreach for ${who}: ${result.reason}.`;
+          }
+          return `Outreach draft for ${who} is queued — the AI service was unavailable. The cron retry will pick it up. Check **Flight Control → Outreach Queue** shortly.`;
+        } catch (err) {
+          console.error("[tool/draftOutreachForClient] error:", err);
+          return "Drafting outreach failed. Try again in a moment, or draft it manually from Flight Control.";
+        }
+      },
+    }),
+
+    // ── DRAFT LISTING DESCRIPTION (Dispatcher) ────────────────────────────────
+    draftListingDescription: tool({
+      description: "Draft a listing description and paired social post for a client's property. Pass either client_record_id (preferred — pulls specs from the transaction record) or specs (manual entry). Returns the description and social post inline. Drafts only — the agent copies the text into MLS / social platforms.",
+      inputSchema: z.object({
+        client_record_id: z.string().uuid().optional().describe("The client_records UUID — preferred path; pulls bedrooms / baths / sq ft / etc. automatically"),
+        client_id: z.string().uuid().optional().describe("Optional: client UUID for city fallback when client_record_id has no city"),
+        specs: z.object({
+          address: z.string().optional().nullable(),
+          bedrooms: z.number().optional().nullable(),
+          bathrooms: z.number().optional().nullable(),
+          square_feet: z.number().optional().nullable(),
+          lot_acres: z.number().optional().nullable(),
+          garage: z.boolean().optional().nullable(),
+          waterfront: z.boolean().optional().nullable(),
+          city: z.string().optional().nullable(),
+        }).optional().describe("Manual property specs — only use if client_record_id is unavailable. Needs at least 2 fields filled."),
+        no_emoji: z.boolean().optional().describe("Set true to suppress emojis in the social post"),
+      }),
+      execute: async ({ client_record_id, client_id, specs, no_emoji }) => {
+        try {
+          if (!client_record_id && !specs) {
+            return "Need either a client_record_id (for an existing transaction) or manual specs to draft a listing.";
+          }
+
+          const result = await draftListingDescriptionService({
+            supabase,
+            userId,
+            clientRecordId: client_record_id,
+            clientId: client_id,
+            specs,
+            noEmoji: no_emoji,
+          });
+
+          if ("error" in result) return `Couldn't draft listing: ${result.error}`;
+
+          const description = result.description?.trim() || "(no description returned)";
+          const socialPost = result.socialPost?.trim() || "";
+
+          if (socialPost) {
+            return `Listing description (drafts only — paste into your MLS / website):\n\n${description}\n\n— — —\n\nPaired social post:\n\n${socialPost}`;
+          }
+          return `Listing description:\n\n${description}`;
+        } catch (err) {
+          console.error("[tool/draftListingDescription] error:", err);
+          return "Drafting the listing description failed. Try again, or use the listing tools in CRM directly.";
+        }
+      },
+    }),
+
+    // ── DRAFT NEWSLETTER (Captain) ────────────────────────────────────────────
+    draftNewsletter: tool({
+      description: "Draft a broadcast email newsletter for the agent's client list. Use template='boc_rate_change' for Bank of Canada rate-change announcements (requires old_rate + new_rate as percent decimals like 4.25 and 4.00); use template='custom' for any other topic (requires the topic field). The newsletter is written to Flight Control as a DRAFT — it is NEVER sent automatically; the agent reviews and sends it.",
+      inputSchema: z.object({
+        template: z.enum(["boc_rate_change", "custom"]).describe("Which template to use"),
+        topic: z.string().optional().describe("Required when template='custom'. A short description of what the newsletter is about (e.g. 'spring market kickoff', 'new listing in Quispamsis')"),
+        old_rate: z.number().optional().describe("Required when template='boc_rate_change'. The previous overnight rate as a percent (e.g. 4.25)"),
+        new_rate: z.number().optional().describe("Required when template='boc_rate_change'. The new overnight rate as a percent (e.g. 4.00)"),
+        effective_date: z.string().optional().describe("Optional, boc_rate_change only. ISO date the change takes effect"),
+        notes: z.string().optional().describe("Optional. Free-form notes from the agent the AI should weave in"),
+      }),
+      execute: async ({ template, topic, old_rate, new_rate, effective_date, notes }) => {
+        try {
+          const result = await draftNewsletterService({
+            supabase,
+            userId,
+            templateType: template as NewsletterTemplateType,
+            oldRate: old_rate,
+            newRate: new_rate,
+            effectiveDate: effective_date,
+            topic,
+            notes,
+          });
+
+          if ("error" in result) return `Couldn't draft newsletter: ${result.error}`;
+
+          if (result.status === "created") {
+            return `✓ Newsletter draft created. Review it in **Flight Control → Newsletters** before sending — nothing has been sent.`;
+          }
+          return `Newsletter is queued — the AI service was unavailable. Check **Flight Control → Newsletters** shortly.`;
+        } catch (err) {
+          console.error("[tool/draftNewsletter] error:", err);
+          return "Drafting the newsletter failed. Try again, or draft it manually from Flight Control → Newsletters.";
+        }
+      },
+    }),
+
+    // ── DRAFT SOCIAL POST (Captain) ───────────────────────────────────────────
+    draftSocialPost: tool({
+      description: "Draft a social media post (LinkedIn / Facebook / Instagram). Pick the template that matches the moment: listing_announcement (new listing), just_sold (closed deal), open_house (upcoming open house), market_update (general market read), client_win (client milestone). Use template='custom' for anything else — context is required for custom posts. Returns the draft inline; the agent copies it to whichever platform.",
+      inputSchema: z.object({
+        template: z.enum([
+          "listing_announcement",
+          "just_sold",
+          "open_house",
+          "market_update",
+          "client_win",
+          "custom",
+        ]).describe("Which template to use"),
+        context: z.string().optional().describe("Optional notes the agent wants reflected. REQUIRED when template='custom'."),
+        client_name: z.string().optional().describe("Optional client name (first name preferred — only used if natural to mention)"),
+        property_address: z.string().optional().describe("Optional property address if the post is about a specific listing"),
+      }),
+      execute: async ({ template, context, client_name, property_address }) => {
+        try {
+          if (template === "custom" && !context?.trim()) {
+            return "Need a context note for a custom social post. Tell me what the post should be about.";
+          }
+          const draft = await draftSocialPostService({
+            userId,
+            template: template as SocialPostTemplate,
+            context: context?.trim() || null,
+            clientName: client_name?.trim() || null,
+            propertyAddress: property_address?.trim() || null,
+          });
+          if (!draft) return "Drafting the social post failed — the AI service may be temporarily unavailable.";
+          return `Social post draft (copy this to your platform of choice):\n\n${draft}`;
+        } catch (err) {
+          console.error("[tool/draftSocialPost] error:", err);
+          return "Drafting the social post failed. Try again in a moment.";
+        }
+      },
+    }),
+
   };
 }
 
@@ -3449,8 +3642,15 @@ export function createPersonaAgentTools(
     // Captain's "how am I doing" answers come from data injected in the
     // system prompt (runway, pace, KPIs); getQuickStats is a small backup
     // for cross-domain dashboard questions.
+    //
+    // Drafting: Captain owns BROADCAST drafts (newsletters + social posts)
+    // because those are direction-setting / content-strategy actions, not
+    // per-client touches. Per-client drafts (outreach, listing descriptions)
+    // belong to Dispatcher.
     return {
       getQuickStats: all.getQuickStats,
+      draftNewsletter: all.draftNewsletter,
+      draftSocialPost: all.draftSocialPost,
     };
   }
 
@@ -3501,5 +3701,9 @@ export function createPersonaAgentTools(
     logContactActivity: all.logContactActivity,
     createContactTask: all.createContactTask,
     updateListingAppointment: all.updateListingAppointment,
+    // Drafting — per-client (Dispatcher's lane). Broadcast drafts (newsletter,
+    // social post) live with Captain.
+    draftOutreachForClient: all.draftOutreachForClient,
+    draftListingDescription: all.draftListingDescription,
   };
 }
