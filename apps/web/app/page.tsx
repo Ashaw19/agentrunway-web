@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getApprovedTestimonials } from "@/lib/marketing/cached-queries";
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import {
   BarChart3,
@@ -23,6 +24,7 @@ import { softwareApplicationSchema } from "@/lib/schema";
 
 import { ScrollRevealSection } from "@/components/scroll-reveal-section";
 import { FlightCrewDemoLoop } from "@/components/flight-crew-demo-loop";
+import { FounderStorySection } from "@/components/founder-story-section";
 
 export const metadata: Metadata = {
   title: "Know Where Your Business Stands",
@@ -369,9 +371,20 @@ export default async function Home() {
 
               {/* ── Left: copy ── */}
               <div className="text-center lg:text-left">
-                <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-400/30 bg-blue-400/10 px-4 py-1.5 text-xs font-semibold text-blue-300">
-                  <span className="h-1.5 w-1.5 rounded-full bg-blue-400" />
-                  Built in Saint John, NB · For Canadian real estate agents
+                <div className="mb-6 flex items-center gap-3">
+                  <div className="relative h-10 w-10 flex-shrink-0 overflow-hidden rounded-full border border-slate-600/60">
+                    <Image
+                      src="/images/andrew-shaw.jpg"
+                      alt="Andrew Shaw"
+                      fill
+                      className="object-cover object-top"
+                      sizes="40px"
+                    />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-xs font-semibold text-white">Andrew Shaw, REALTOR®</p>
+                    <p className="text-xs text-slate-400">Ellis Realty · Saint John, NB · Built this for agents like us</p>
+                  </div>
                 </div>
 
                 <h1 className="text-6xl font-extrabold tracking-tight sm:text-7xl lg:text-[76px] lg:leading-[1.02]">
@@ -500,6 +513,11 @@ export default async function Home() {
             </div>
           </div>
         </div>
+
+        {/* ════════════════════════════════════════════════════════
+            FOUNDER STORY (Andrew Shaw narrative — Phase 1.1)
+        ════════════════════════════════════════════════════════ */}
+        <FounderStorySection />
 
         {/* ════════════════════════════════════════════════════════
             CHARTER SCARCITY STRIP (auto-hides when sold out)
