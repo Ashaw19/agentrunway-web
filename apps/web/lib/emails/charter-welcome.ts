@@ -12,12 +12,17 @@ interface CharterWelcomeOptions {
   firstName?: string | null;
   /** URL to the charter/waitlist page */
   waitlistUrl?: string;
+  /** Per-recipient marketing-list unsubscribe URL (CASL §11). Required for
+   *  CASL compliance — the unsubscribe mechanism must be set out clearly in
+   *  the message body, not just the SMTP List-Unsubscribe header. */
+  unsubscribeUrl: string;
 }
 
 export function charterWelcomeEmail({
   firstName,
   waitlistUrl = "https://agentrunway.ca/waitlist",
-}: CharterWelcomeOptions = {}): { subject: string; html: string; text: string } {
+  unsubscribeUrl,
+}: CharterWelcomeOptions): { subject: string; html: string; text: string } {
   const greeting = firstName ? `Hi ${firstName}` : "Hi there";
 
   const subject = "You're on the runway";
@@ -152,8 +157,11 @@ export function charterWelcomeEmail({
               <p style="margin:0 0 6px;font-size:11px;color:#cbd5e1;">
                 <a href="https://agentrunway.ca" style="color:#64748b;text-decoration:underline;">agentrunway.ca</a>
               </p>
-              <p style="margin:0;font-size:10px;color:#cbd5e1;line-height:1.5;">
-                &copy; 2026 Agent Runway Inc. &middot; Canada Corporation No. 1786542-2
+              <p style="margin:0 0 8px;font-size:10px;color:#94a3b8;line-height:1.5;">
+                Agent Runway Inc. &middot; Saint John, NB, Canada &middot; &copy; 2026 &middot; Canada Corporation No. 1786542-2
+              </p>
+              <p style="margin:0;font-size:11px;line-height:1.6;">
+                <a href="${unsubscribeUrl}" style="color:#475569;text-decoration:underline;font-weight:600;">Unsubscribe</a>
               </p>
             </td>
           </tr>
@@ -186,7 +194,9 @@ View charter details: ${waitlistUrl}
 Agent Runway - built for Canadian real estate agents.
 https://agentrunway.ca
 
-(c) 2026 Agent Runway Inc. - Canada Corporation No. 1786542-2`;
+Agent Runway Inc. - Saint John, NB, Canada - (c) 2026 - Canada Corporation No. 1786542-2
+
+Unsubscribe: ${unsubscribeUrl}`;
 
   return { subject, html, text };
 }

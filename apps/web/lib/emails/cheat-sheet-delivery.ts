@@ -20,13 +20,18 @@ interface CheatSheetDeliveryOptions {
   pdfUrl?: string;
   /** Estimator URL surfaced as a related-tool nudge */
   estimatorUrl?: string;
+  /** Per-recipient marketing-list unsubscribe URL (CASL §11). Required for
+   *  CASL compliance — the unsubscribe mechanism must be set out clearly in
+   *  the message body, not just the SMTP List-Unsubscribe header. */
+  unsubscribeUrl: string;
 }
 
 export function cheatSheetDeliveryEmail({
   firstName,
   pdfUrl = "https://agentrunway.ca/canadian-realtor-tax-cheat-sheet-2025.pdf",
   estimatorUrl = "https://agentrunway.ca/tools/realtor-tax-estimator",
-}: CheatSheetDeliveryOptions = {}): { subject: string; html: string; text: string } {
+  unsubscribeUrl,
+}: CheatSheetDeliveryOptions): { subject: string; html: string; text: string } {
   const greeting = firstName ? `Hi ${firstName}` : "Hi there";
   const subject = "Your Canadian Realtor Tax Cheat Sheet (2025)";
 
@@ -330,8 +335,13 @@ export function cheatSheetDeliveryEmail({
               <p style="margin:0 0 4px;font-size:10px;color:#94a3b8;line-height:1.6;">
                 You&rsquo;re receiving this because you requested the cheat sheet at agentrunway.ca.
               </p>
-              <p style="margin:0;font-size:10px;color:#94a3b8;line-height:1.6;">
+              <p style="margin:0 0 4px;font-size:10px;color:#94a3b8;line-height:1.6;">
                 Agent Runway Inc. &middot; Saint John, NB, Canada &middot; &copy; 2026 &middot; Canada Corporation No. 1786542-2
+              </p>
+              <p style="margin:0;font-size:11px;line-height:1.6;">
+                <a href="${unsubscribeUrl}" style="color:#475569;text-decoration:underline;font-weight:600;">Unsubscribe</a>
+                <span style="color:#cbd5e1;">&nbsp;&middot;&nbsp;</span>
+                <a href="https://agentrunway.ca" style="color:#94a3b8;text-decoration:none;">agentrunway.ca</a>
               </p>
             </td>
           </tr>
@@ -373,7 +383,9 @@ Agent Runway - built for Canadian real estate agents.
 https://agentrunway.ca
 
 You're receiving this because you requested the cheat sheet at agentrunway.ca.
-Agent Runway Inc. - Saint John, NB, Canada - (c) 2026 - Canada Corporation No. 1786542-2`;
+Agent Runway Inc. - Saint John, NB, Canada - (c) 2026 - Canada Corporation No. 1786542-2
+
+Unsubscribe: ${unsubscribeUrl}`;
 
   return { subject, html, text };
 }

@@ -46,8 +46,12 @@ export function EmailCapture({
   const isDark = variant === "dark";
 
   // CASL: clear disclosure + affirmative submit = express consent for marketing-purposed inline forms.
+  // String covers BOTH (a) the immediate fulfillment purpose (PDF / charter spot)
+  // AND (b) the ongoing marketing purpose, AND embeds the sender mailing address
+  // per CASL Regulations §3 — verbatim from the legal-compliance-champion CASL
+  // hardening review (memory/findings/legal_casl_cheat_sheet_optin_2026-05-06.md, Item 2).
   const consentLanguage =
-    "By subscribing, I agree to receive marketing emails from Agent Runway Inc. I can unsubscribe at any time.";
+    "Email me the cheat sheet, and add me to occasional Agent Runway updates for Canadian real estate agents. Unsubscribe anytime. Sent by Agent Runway Inc., Saint John, NB, Canada.";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

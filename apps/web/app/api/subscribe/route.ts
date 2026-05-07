@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { resend, FROM_ADDRESS } from "@/lib/resend";
 import { charterWelcomeEmail } from "@/lib/emails/charter-welcome";
 import { cheatSheetDeliveryEmail } from "@/lib/emails/cheat-sheet-delivery";
+import { buildMarketingUnsubscribeUrl } from "@/lib/email-tokens";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -113,10 +114,13 @@ export async function POST(request: NextRequest) {
   }
 
 
+  const normalizedEmail = email.toLowerCase().trim();
+  const unsubscribeUrl = buildMarketingUnsubscribeUrl(normalizedEmail);
+
   // Send charter welcome email for waitlist signups (awaited to prevent Vercel lambda termination)
   if (source === "waitlist_event" && resend) {
     const firstName = name?.trim()?.split(" ")[0] ?? null;
-    const { subject, html, text } = charterWelcomeEmail({ firstName });
+    const { subject, html, text } = charterWelcomeEmail({ firstName, unsubscribeUrl });
 
     try {
       await resend.emails.send({
@@ -138,7 +142,7 @@ export async function POST(request: NextRequest) {
   // cheat_sheet_inline_<article-slug> (inline CTA on tax-domain SEO articles).
   if (source.startsWith("cheat_sheet_") && resend) {
     const firstName = name?.trim()?.split(" ")[0] ?? null;
-    const { subject, html, text } = cheatSheetDeliveryEmail({ firstName });
+    const { subject, html, text } = cheatSheetDeliveryEmail({ firstName, unsubscribeUrl });
 
     try {
       await resend.emails.send({
