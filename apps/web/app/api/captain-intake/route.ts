@@ -152,7 +152,7 @@ export async function POST(req: NextRequest) {
     model:       models.default,
     system:      PUBLIC_CAPTAIN_SYSTEM_PROMPT,
     messages,
-    maxTokens:   450,
+    maxOutputTokens: 450,
     temperature: 0.7,
   });
 
