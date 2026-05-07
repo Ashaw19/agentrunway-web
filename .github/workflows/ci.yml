@@ -47,6 +47,58 @@ jobs:
       - name: Type check
         run: pnpm turbo typecheck --filter=agentrunway-web
 
+  lockfile-typecheck:
+    # Cache-busting full typecheck for PRs that modify pnpm-lock.yaml.
+    #
+    # Background: `pnpm turbo build` and `pnpm turbo typecheck` reuse turbo's
+    # per-file content-hash cache. When a dependency bump (e.g. a Dependabot
+    # PR) tightens types in unmodified files, turbo skips re-typechecking
+    # those files and CI reports green — but Vercel's fresh-build catches
+    # the regressions only as a production-deploy failure after merge.
+    #
+    # This job runs `tsc --noEmit` directly (no turbo, no cache) against the
+    # full source tree, but only when pnpm-lock.yaml has actually changed in
+    # the PR. Non-lockfile PRs are unaffected and keep the fast turbo-cached
+    # path in the `build` job above.
+    #
+    # Source: memory/findings/infra_turbo_cache_masking_dependency_regressions_2026-05-06.md
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect pnpm-lock.yaml changes
+        id: lockfile
+        run: |
+          if git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qx 'pnpm-lock.yaml'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "pnpm-lock.yaml changed in this PR — running cache-busting typecheck."
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "pnpm-lock.yaml unchanged in this PR — skipping cache-busting typecheck."
+          fi
+
+      - uses: pnpm/action-setup@v5
+        if: steps.lockfile.outputs.changed == 'true'
+
+      - uses: actions/setup-node@v6
+        if: steps.lockfile.outputs.changed == 'true'
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies (frozen)
+        if: steps.lockfile.outputs.changed == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache-busting typecheck (apps/web)
+        if: steps.lockfile.outputs.changed == 'true'
+        run: cd apps/web && npx tsc --noEmit
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 10
