@@ -16,9 +16,9 @@ that reaches production is a process failure. Read `memory/feedback_engineering_
 
 ---
 
-## The Five Mechanical Checkpoints
+## The Six Mechanical Checkpoints
 
-Every non-trivial change must clear all five. No exceptions.
+Every non-trivial change must clear all six. No exceptions.
 
 ### 1. Pre-edit grep
 
@@ -84,6 +84,25 @@ Walk the entire user flow end-to-end before declaring fixed. UI -> API ->
 engine -> DB -> back. The reported bug is rarely the only one on that path.
 
 - Source: `memory/feedback_grep_pattern_on_bugfix.md`
+
+### 6. Lockfile-change typecheck
+
+Before merging any PR that modifies `pnpm-lock.yaml` (including all
+Dependabot PRs): run a cache-busting full typecheck.
+
+```bash
+cd apps/web
+pnpm install --frozen-lockfile
+npx tsc --noEmit
+```
+
+`pnpm turbo build` reuses per-file cache and will pass even when a
+dependency bump introduces regressions in unmodified files. Vercel's
+clean-room build will catch them — but only as a production failure after
+merge. Run this locally (or verify the `lockfile-typecheck` CI job is
+green) before clicking Merge.
+
+Source: `memory/findings/infra_turbo_cache_masking_dependency_regressions_2026-05-06.md`
 
 ---
 
