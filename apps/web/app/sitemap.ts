@@ -79,6 +79,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/prec-vs-sole-proprietor-real-estate-agents-canada`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/real-estate-agent-tax-rates-nb-ns-pei`,             lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/real-estate-agent-hst-registration-canada`,         lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/real-estate-agent-tools-canada`,                    lastModified: now, changeFrequency: "monthly", priority: 0.8 },
 
     // ── Tools (hero asset: realtor tax estimator) ──────────────────────
     { url: `${BASE_URL}/tools`,                                       lastModified: now, changeFrequency: "monthly", priority: 0.8 },
