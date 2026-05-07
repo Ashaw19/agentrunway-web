@@ -278,7 +278,16 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                 that vary significantly by province — Ontario, British Columbia, and
                 Alberta have meaningfully different rate structures, and the total
                 combined marginal rate for a mid-career agent earning $120,000 in net
-                income may land in the 40–45% range depending on province.
+                income may land in the 40–45% range depending on province. The
+                verified 2025 brackets and combined marginal rates for the three
+                Maritime provinces are published in the{" "}
+                <Link
+                  href="/real-estate-agent-tax-rates-nb-ns-pei"
+                  className="font-semibold text-blue-600 underline underline-offset-2"
+                >
+                  NB, NS, and PEI provincial income tax rates article
+                </Link>
+                .
               </p>
 
               <p>
