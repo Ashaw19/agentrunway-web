@@ -6,15 +6,16 @@ import { Anchor } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
-  { href: "/cockpit",           label: "Snapshot" },
-  { href: "/cockpit/inbox",     label: "Inbox" },
-  { href: "/cockpit/cash",      label: "Cash" },
-  { href: "/cockpit/expenses",    label: "Expenses" },
-  { href: "/cockpit/pre-incorp", label: "Pre-incorp" },
-  { href: "/cockpit/hst",        label: "HST" },
-  { href: "/cockpit/sred",      label: "SR&ED" },
-  { href: "/cockpit/deadlines", label: "Deadlines" },
-  { href: "/cockpit/documents", label: "Documents" },
+  { href: "/cockpit",              label: "Snapshot" },
+  { href: "/cockpit/inbox",        label: "Inbox" },
+  { href: "/cockpit/cash",         label: "Cash" },
+  { href: "/cockpit/expenses",     label: "Expenses" },
+  { href: "/cockpit/pre-incorp",   label: "Pre-incorp" },
+  { href: "/cockpit/founder-comp", label: "Comp" },
+  { href: "/cockpit/hst",          label: "HST" },
+  { href: "/cockpit/sred",         label: "SR&ED" },
+  { href: "/cockpit/deadlines",    label: "Deadlines" },
+  { href: "/cockpit/documents",    label: "Documents" },
 ];
 
 export function CockpitShell({ children }: { children: React.ReactNode }) {
