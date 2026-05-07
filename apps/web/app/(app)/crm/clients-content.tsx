@@ -165,6 +165,7 @@ import { markMemoryStaleClient } from "@/lib/ai/mark-memory-stale";
 import { validateClient, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 import { parseMoneyLoose } from "@/lib/import/normalizers/normalize-money";
 import { normalizeDateFormats } from "@/lib/import/normalizers/normalize-dates";
+import { WorkflowSuggestionsPanel } from "@/components/workflow-suggestions-panel";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -4776,6 +4777,14 @@ export function ClientsContent({
                     </button>
                   </div>
                 </div>
+
+                {/* Flight Plan Templates — Phase 2.3 (HML gap closure) */}
+                <WorkflowSuggestionsPanel
+                  clientId={selectedClient.id}
+                  clientName={selectedClient.name}
+                  flightStatus={selectedClient.status}
+                  hasClosedRecord={clientDeals.some((d) => d.close_date)}
+                />
 
                 {/* Notes Log */}
                 <div className="rounded-2xl border border-slate-200/60 bg-slate-50/40 dark:bg-slate-900/20 p-4 space-y-3">

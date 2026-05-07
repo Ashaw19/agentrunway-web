@@ -3544,6 +3544,111 @@ export function createAgentTools(supabase: SupabaseClient, userId: string): Tool
       },
     }),
 
+    // ── GET WORKFLOW TEMPLATES (Dispatcher) ───────────────────────────────────
+    // Phase 2.3 (HML gap-closure): Flight Status workflow library. Lets
+    // Dispatcher proactively suggest a templated draft when a client has
+    // moved to a new stage. Read-only — does NOT generate the draft. The
+    // agent clicks "Draft" in the CRM client detail panel to actually
+    // generate one (or asks Dispatcher to call draftOutreachForClient for
+    // the specific opportunity).
+    getWorkflowTemplates: tool({
+      description: "List the Flight Status workflow email templates available for a specific client based on their current Flight Status stage (Boarding / Scheduled / In-Flight / Cruising) and whether they have a closed transaction on record. Also lists any pending workflow drafts already generated for this client. Use this to proactively suggest a templated draft when the agent mentions a stage transition. This tool is read-only — to actually generate a draft, the agent clicks Draft in the CRM client detail panel.",
+      inputSchema: z.object({
+        client_id: z.string().uuid().describe("The client UUID — get this from searchClients first"),
+      }),
+      execute: async ({ client_id }) => {
+        try {
+          // 1. Resolve client (ownership enforced)
+          const { data: client, error: clientErr } = await supabase
+            .from("clients")
+            .select("id, name, first_name, last_name, status")
+            .eq("id", client_id)
+            .eq("user_id", userId)
+            .is("archived_at", null)
+            .single();
+
+          if (clientErr || !client) {
+            return "Couldn't find that client (or they're archived).";
+          }
+
+          const displayName = client.name?.trim()
+            || [client.first_name, client.last_name].filter(Boolean).join(" ").trim()
+            || "this client";
+
+          // 2. Has closed record? (drives anniversary eligibility)
+          const { count: closedCount } = await supabase
+            .from("client_records")
+            .select("id", { count: "exact", head: true })
+            .eq("client_id", client_id)
+            .eq("user_id", userId)
+            .not("close_date", "is", null);
+          const hasClosedRecord = (closedCount ?? 0) > 0;
+
+          // 3. Map status → eligible trigger events (mirrors WorkflowSuggestionsPanel)
+          const status = client.status as "boarding" | "scheduled" | "in_flight" | "cruising";
+          const eligible: string[] = [];
+          if (status === "boarding") eligible.push("new_lead");
+          else if (status === "scheduled") eligible.push("showing_scheduled");
+          else if (status === "in_flight") eligible.push("listing_active", "transaction_milestone");
+          else if (status === "cruising") eligible.push("closing_day");
+          if (hasClosedRecord) eligible.push("anniversary");
+
+          if (eligible.length === 0) {
+            return `${displayName} is in the ${status} stage with no closed records — no Flight Plan templates are available right now.`;
+          }
+
+          // 4. Load templates (RLS-scoped: system rows + own rows)
+          const { data: templates, error: tmplErr } = await supabase
+            .from("workflow_templates")
+            .select("id, name, trigger_event")
+            .in("trigger_event", eligible)
+            .eq("is_active", true)
+            .order("name");
+
+          if (tmplErr) {
+            console.error("[tool/getWorkflowTemplates] templates err:", tmplErr);
+            return "Couldn't load Flight Plan templates right now.";
+          }
+
+          // 5. Pending drafts for this client
+          const { data: pendingDrafts } = await supabase
+            .from("workflow_drafts")
+            .select("id, trigger_event, subject, generated_at")
+            .eq("user_id", userId)
+            .eq("client_id", client_id)
+            .eq("status", "pending")
+            .order("generated_at", { ascending: false })
+            .limit(5);
+
+          const lines: string[] = [];
+          lines.push(`Flight Plan templates for ${displayName} (${status} stage):`);
+          if (!templates || templates.length === 0) {
+            lines.push("• None active.");
+          } else {
+            for (const t of templates) {
+              lines.push(`• **${t.name}** (${t.trigger_event.replace(/_/g, " ")})`);
+            }
+          }
+
+          if (pendingDrafts && pendingDrafts.length > 0) {
+            lines.push("");
+            lines.push(`Pending drafts already generated for ${displayName}:`);
+            for (const d of pendingDrafts) {
+              lines.push(`• "${d.subject}" — ${d.trigger_event.replace(/_/g, " ")}`);
+            }
+          }
+
+          lines.push("");
+          lines.push("To generate a draft, the agent opens the client in CRM and clicks **Draft** on the matching template — drafts only, never auto-sent.");
+
+          return lines.join("\n");
+        } catch (err) {
+          console.error("[tool/getWorkflowTemplates] error:", err);
+          return "Couldn't load Flight Plan templates right now.";
+        }
+      },
+    }),
+
   };
 }
 
@@ -3705,5 +3810,9 @@ export function createPersonaAgentTools(
     // social post) live with Captain.
     draftOutreachForClient: all.draftOutreachForClient,
     draftListingDescription: all.draftListingDescription,
+    // Flight Status workflow library (Phase 2.3) — read-only template lookup.
+    // Lets Dispatcher proactively suggest a templated draft when a client
+    // has changed stage. Generation happens in the CRM client detail panel.
+    getWorkflowTemplates: all.getWorkflowTemplates,
   };
 }

@@ -44,7 +44,12 @@ import {
   buildBocRateChangeNewsletterPrompt,
   buildCustomNewsletterPrompt,
 } from "@/lib/newsletter-prompts";
-import type { OutreachOpportunityType, NewsletterTemplateType } from "@agent-runway/core/types/database";
+import type {
+  OutreachOpportunityType,
+  NewsletterTemplateType,
+  WorkflowTemplate,
+  WorkflowTriggerEvent,
+} from "@agent-runway/core/types/database";
 
 // ─── Outreach: shared types + draftable list ──────────────────────────────────
 
@@ -1126,4 +1131,242 @@ Canadian English, no tax/financial advice, no AI-flag phrases.`;
     console.error("[draft-services/social] AI error:", err);
     return null;
   }
+}
+
+// ─── Workflow draft (Flight Status workflow library) ─────────────────────────
+//
+// A generic, prompt-driven drafter used by the Flight Status workflow library
+// (Phase 2.3). Unlike draftOutreachForClient — which is keyed to one of the
+// 7 OutreachOpportunityType slots and embeds prompt logic in the service —
+// the workflow drafter takes a free-form body_prompt from a workflow_templates
+// row and produces a draft. Subject + body are written to a new
+// workflow_drafts row owned by the agent. No auto-send, no email integration:
+// the draft is text the agent copies into their own email client.
+//
+// The same ban-list / length-cap self-review pass that the outreach drafter
+// runs is applied here, plus the standard AGENT_RUNWAY_VOICE prefix and the
+// agent's email signature appended to the body.
+
+export interface DraftWorkflowMessageInput {
+  supabase: SupabaseClient;
+  userId: string;
+  clientId: string;
+  template: WorkflowTemplate;
+}
+
+export interface DraftWorkflowMessageResult {
+  status: "created" | "error";
+  draftId?: string;
+  subject?: string;
+  body?: string;
+  clientName?: string;
+  reason?: string;
+}
+
+function renderTemplateString(
+  template: string,
+  vars: Record<string, string>,
+): string {
+  return template.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_match, key: string) => {
+    const v = vars[key.toLowerCase()];
+    return v ?? `{{${key}}}`;
+  });
+}
+
+export async function draftWorkflowMessage(
+  input: DraftWorkflowMessageInput,
+): Promise<DraftWorkflowMessageResult> {
+  const { supabase, userId, clientId, template } = input;
+
+  // ── Validate template ownership / system access ────────────────────────
+  if (template.user_id !== null && template.user_id !== userId) {
+    return { status: "error", reason: "Template not accessible" };
+  }
+  if (!template.is_active) {
+    return { status: "error", reason: "Template is inactive" };
+  }
+
+  // ── Load client (ownership enforced via user_id match) ────────────────
+  const { data: client, error: clientError } = await supabase
+    .from("clients")
+    .select("id, name, first_name, last_name, communication_tone, tags, notes")
+    .eq("id", clientId)
+    .eq("user_id", userId)
+    .is("archived_at", null)
+    .single();
+
+  if (clientError || !client) {
+    return { status: "error", reason: "Client not found or access denied" };
+  }
+
+  const trimmedName = client.name?.trim();
+  const composedName = [client.first_name, client.last_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const clientDisplayName = trimmedName || composedName || "this client";
+  const clientFirstName = client.first_name?.trim() || clientDisplayName.split(/\s+/)[0] || "there";
+
+  // ── Load agent settings for signature + voice guide ─────────────────────
+  const { data: settings } = await supabase
+    .from("user_settings")
+    .select("display_name, email_signature, ai_voice_guide")
+    .eq("user_id", userId)
+    .single();
+
+  const agentFirst = extractFirstName(settings?.display_name ?? null);
+  const emailSignature = (settings?.email_signature as string) ?? "";
+  const agentStyleGuide = (settings?.ai_voice_guide as string | null) ?? null;
+
+  // ── Render subject template ─────────────────────────────────────────────
+  const renderVars: Record<string, string> = {
+    client_name: clientDisplayName,
+    client_first_name: clientFirstName,
+    agent_first_name: agentFirst,
+  };
+  const renderedSubject = renderTemplateString(template.subject_template, renderVars);
+
+  // ── Build the AI prompt ─────────────────────────────────────────────────
+  const renderedBodyPrompt = renderTemplateString(template.body_prompt, renderVars);
+
+  const tone = (client.communication_tone as Tone) ?? "friendly";
+  const clientTags = (client.tags as string[] | null) ?? [];
+  const clientNotes = (client.notes as string | null) ?? null;
+
+  const clientContextBlock = (clientTags.length > 0 || clientNotes)
+    ? [
+        "IMPORTANT — client context (use to self-moderate tone and content):",
+        clientTags.length > 0 ? `- Tags: ${clientTags.join(", ")}` : null,
+        clientNotes ? `- Agent notes: "${clientNotes}"` : null,
+        "If any context signals a sensitive circumstance, adjust the email accordingly and avoid assumptions.",
+      ].filter(Boolean).join("\n")
+    : null;
+
+  const contextLevel = classifyClientContext(clientTags, clientNotes, {});
+  const contextLevelBlock =
+    contextLevel === "sensitive" ? SENSITIVE_INSTRUCTIONS :
+    contextLevel === "rich" ? RICH_CONTEXT_INSTRUCTIONS :
+                               SPARSE_CONTEXT_INSTRUCTIONS;
+
+  const promptHeader = `You are drafting a single email from a Canadian real estate agent (${agentFirst}) to a client (${clientDisplayName}). Tone: ${tone}.
+
+${renderedBodyPrompt}
+
+OUTPUT RULES:
+- Output the email body only. Do NOT include a subject line — the subject is handled separately.
+- Do NOT include the agent's signature — it will be appended automatically.
+- Open with a natural greeting using the client's first name. Do NOT open with "I hope this email finds you well", "just touching base", or any clichéd filler.
+- Canadian English spelling.
+- Plain prose. No headers, no markdown bullets unless genuinely useful.`;
+
+  const fullPrompt = [
+    promptHeader,
+    AGENT_RUNWAY_VOICE,
+    clientContextBlock,
+    contextLevelBlock,
+    agentStyleGuide
+      ? `AGENT VOICE GUIDE (follow closely — message must sound like the agent personally wrote it):\n${agentStyleGuide}`
+      : null,
+  ].filter(Boolean).join("\n\n");
+
+  // ── Generate via Claude with Groq fallback ─────────────────────────────
+  const aiKey = process.env.ANTHROPIC_API_KEY || process.env.GROQ_API_KEY;
+  if (!aiKey) {
+    return { status: "error", reason: "AI service not configured", clientName: clientDisplayName };
+  }
+
+  const aiHeaders = heliconeHeaders({ userId, feature: "draft-workflow-message" });
+
+  let raw: string;
+  try {
+    try {
+      const { text } = await generateText({
+        model: models.default,
+        prompt: fullPrompt,
+        maxOutputTokens: 500,
+        temperature: 0.8,
+        headers: aiHeaders,
+      });
+      raw = text.trim();
+      if (!raw) throw new Error("Empty Claude response");
+    } catch (primaryErr) {
+      console.warn("[draft-services/workflow] Primary failed, falling back to Groq:", primaryErr);
+      const { text } = await generateText({
+        model: models.fallback,
+        prompt: fullPrompt,
+        maxOutputTokens: 500,
+        temperature: 0.8,
+        headers: aiHeaders,
+      });
+      raw = text.trim();
+      if (!raw) throw new Error("Empty fallback response");
+    }
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[draft-services/workflow] AI error:", errMsg);
+    return { status: "error", reason: "Drafting failed — try again in a moment", clientName: clientDisplayName };
+  }
+
+  // ── Self-review: ban list + length cap, retry once ─────────────────────
+  const rawLower = raw.toLowerCase();
+  const hasBanned = BANNED_PHRASES.some((p) => rawLower.includes(p));
+  const wordCount = raw.split(/\s+/).filter(Boolean).length;
+  const tooLong = wordCount > 280;
+
+  if (hasBanned || tooLong) {
+    const retryNote = [
+      hasBanned ? "IMPORTANT: The previous draft contained a clichéd opener or banned phrase. Rewrite without 'I hope this email finds you well', 'just touching base', 'exciting news', or similar fillers." : null,
+      tooLong ? `IMPORTANT: The previous draft was ${wordCount} words. Tighten it under 220 words while keeping the substance.` : null,
+    ].filter(Boolean).join(" ");
+
+    try {
+      const { text: retryRaw } = await generateText({
+        model: models.default,
+        prompt: `${fullPrompt}\n\n${retryNote}`,
+        maxOutputTokens: 500,
+        temperature: 0.8,
+        headers: aiHeaders,
+      });
+      if (retryRaw?.trim()) raw = retryRaw.trim();
+    } catch (retryErr) {
+      console.warn("[draft-services/workflow] Self-review retry failed:", retryErr);
+    }
+  }
+
+  // ── Strip any accidental SUBJECT: line the model emitted (it shouldn't,
+  // per OUTPUT RULES, but safety) ────────────────────────────────────────
+  const cleanedLines = raw
+    .split("\n")
+    .filter((line) => !/^\s*subject\s*:/i.test(line));
+  let aiBody = cleanedLines.join("\n").trim();
+
+  if (emailSignature) aiBody += `\n\n${emailSignature}`;
+
+  // ── Insert workflow_drafts row ─────────────────────────────────────────
+  const { data: inserted, error: insertError } = await supabase
+    .from("workflow_drafts")
+    .insert({
+      user_id: userId,
+      client_id: clientId,
+      template_id: template.id,
+      trigger_event: template.trigger_event as WorkflowTriggerEvent,
+      subject: renderedSubject,
+      body: aiBody,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+
+  if (insertError || !inserted) {
+    console.error("[draft-services/workflow] Insert error:", insertError);
+    return { status: "error", reason: "Failed to save draft", clientName: clientDisplayName };
+  }
+
+  return {
+    status: "created",
+    draftId: inserted.id,
+    subject: renderedSubject,
+    body: aiBody,
+    clientName: clientDisplayName,
+  };
 }

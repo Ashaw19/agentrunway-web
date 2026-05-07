@@ -115,6 +115,7 @@ const TOOL_STATUS_LABELS: Record<string, string> = {
   draftListingDescription: "Drafting listing description…",
   draftNewsletter: "Drafting newsletter…",
   draftSocialPost: "Drafting social post…",
+  getWorkflowTemplates: "Checking Flight Plan templates…",
 };
 
 /**
