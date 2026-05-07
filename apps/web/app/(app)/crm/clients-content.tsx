@@ -166,6 +166,7 @@ import { validateClient, FIELD_LIMITS } from "@agent-runway/core/validation/inpu
 import { parseMoneyLoose } from "@/lib/import/normalizers/normalize-money";
 import { normalizeDateFormats } from "@/lib/import/normalizers/normalize-dates";
 import { WorkflowSuggestionsPanel } from "@/components/workflow-suggestions-panel";
+import { ClientConversationPanel } from "@/components/client-conversation-panel";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -4784,6 +4785,16 @@ export function ClientsContent({
                   clientName={selectedClient.name}
                   flightStatus={selectedClient.status}
                   hasClosedRecord={clientDeals.some((d) => d.close_date)}
+                />
+
+                {/* Message History — Phase 2.4 (HML gap closure):
+                    per-client communication timeline. Aggregates outbound
+                    drafts (workflow_drafts + outreach_queue) with manually
+                    logged inbound replies and notes. No email integration —
+                    Gmail/Workspace is CASA-shelved. */}
+                <ClientConversationPanel
+                  clientId={selectedClient.id}
+                  clientName={selectedClient.name}
                 />
 
                 {/* Notes Log */}
