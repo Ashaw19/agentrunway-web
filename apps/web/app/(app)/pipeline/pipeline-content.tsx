@@ -174,6 +174,7 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
     const todayLocal = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
     setListingForm({ ...emptyListingForm, appointment_date: todayLocal });
     setListingDialogOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const openEditListing = useCallback((item: UnifiedPipelineItem) => {
@@ -193,6 +194,7 @@ export function PipelineContent({ seed }: { seed: PipelineSeedData }) {
       notes: la.notes ?? "",
     });
     setListingDialogOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seed.listingAppointments]);
 
   const handleSaveListing = useCallback(async () => {

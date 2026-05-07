@@ -136,7 +136,7 @@ export default async function SnapshotPage() {
   const today = new Date();
   const ymd = (d: Date) => d.toISOString().slice(0, 10);
   const startOfMonth = ymd(new Date(today.getFullYear(), today.getMonth(), 1));
-  const startOfFY = ymd(new Date(today.getFullYear(), 0, 1));
+  const _startOfFY = ymd(new Date(today.getFullYear(), 0, 1));
 
   // Trailing 90 days for burn calc. Inclusive of today.
   const burnWindowStart = ymd(

@@ -169,7 +169,6 @@ export default async function OpenHouseSlugPage({
 
                 <OpenHouseSignInForm
                   slug={slug}
-                  agentEmail={page.agent_email}
                   agentName={page.agent_display_name}
                   propertyAddress={address}
                 />

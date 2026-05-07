@@ -745,6 +745,7 @@ export function ExpensesContent({
       }
     }
     return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categories]);
 
   // ── Recurring expenses grouped by parent category key ───────────────────────

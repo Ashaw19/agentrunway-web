@@ -14,21 +14,19 @@
  */
 
 import { useState } from "react";
-import { ArrowRight, CheckCircle2, Loader2, Phone } from "lucide-react";
+import { ArrowRight, CheckCircle2, Loader2 } from "lucide-react";
 
 const CONSENT_LANGUAGE =
   "I consent to be contacted about this property and to receive follow-up communications from the hosting agent. My information will be handled in accordance with PIPEDA and CASL. Unsubscribe anytime.";
 
 interface Props {
   slug:            string;
-  agentEmail:      string;
   agentName:       string;
   propertyAddress: string;
 }
 
 export function OpenHouseSignInForm({
   slug,
-  agentEmail,
   agentName,
   propertyAddress,
 }: Props) {
@@ -84,7 +82,7 @@ export function OpenHouseSignInForm({
       <div className="flex flex-col items-start gap-3">
         <div className="inline-flex items-center gap-2 text-emerald-400">
           <CheckCircle2 className="h-6 w-6 shrink-0" />
-          <span className="text-lg font-semibold">You're registered!</span>
+          <span className="text-lg font-semibold">You&apos;re registered!</span>
         </div>
         <p className="text-sm leading-relaxed text-slate-400">
           {agentName
@@ -99,7 +97,7 @@ export function OpenHouseSignInForm({
     <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-          Register for today's
+          Register for today&apos;s
           <br />
           <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
             open house.

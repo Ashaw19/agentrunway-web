@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AltimeterContent } from "./altimeter-content";
-import type { HistoryItem, Transaction, PipelineDeal, RecurringExpense } from "@/lib/types/database";
+import type { HistoryItem, RecurringExpense } from "@/lib/types/database";
 import { totalRecurringMonthly, totalRecurringYTD } from "@agent-runway/core/engines/recurring-expense-engine";
 import { computeIsPro } from "@/lib/compute-is-pro";
 

@@ -29,18 +29,14 @@ import { Button }   from "@/components/ui/button";
 import { Input }    from "@/components/ui/input";
 import { Label }    from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge }    from "@/components/ui/badge";
 import { cn }       from "@/lib/utils";
 import {
   Home,
   Copy,
   Check,
-  Eye,
-  EyeOff,
   ExternalLink,
   Loader2,
   ImagePlus,
-  X,
   ToggleLeft,
   ToggleRight,
   CalendarDays,
@@ -137,7 +133,7 @@ export function OpenHouseSetupContent({
 
   // ── Form state (agent card) ───────────────────────────────────────────────
   const [agentName,     setAgentName]     = useState(existingPage?.agent_display_name ?? displayName);
-  const [agentPhotoUrl, setAgentPhotoUrl] = useState(existingPage?.agent_photo_url    ?? avatarUrl);
+  const [agentPhotoUrl, _setAgentPhotoUrl] = useState(existingPage?.agent_photo_url    ?? avatarUrl);
   const [agentBrokerage, setAgentBrokerage]= useState(existingPage?.agent_brokerage   ?? brokerageName);
   const [agentPhone,    setAgentPhone]    = useState(existingPage?.agent_phone         ?? "");
   const [agentEmail,    setAgentEmail]    = useState(existingPage?.agent_email         ?? userEmail);
@@ -705,7 +701,7 @@ export function OpenHouseSetupContent({
           <p className="text-sm font-semibold text-blue-300">How to use your open house page</p>
           <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-400">
             <li>• Print the QR code for your sign-in table — buyers scan and register on their phone</li>
-            <li>• Share the link in your listing's social posts: <span className="font-mono text-slate-300">{publicUrl}</span></li>
+            <li>• Share the link in your listing&apos;s social posts: <span className="font-mono text-slate-300">{publicUrl}</span></li>
             <li>• Before the next open house, update the property details above and save</li>
             <li>• New registrations appear automatically in your Flight Control CRM at Boarding stage</li>
           </ul>

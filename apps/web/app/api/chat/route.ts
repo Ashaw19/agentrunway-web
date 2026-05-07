@@ -58,11 +58,11 @@ import { classifyTopic, classifyTopicMulti, PAGE_TO_TOPICS, TOPIC_ACTION_LINKS, 
 import { getPlaybooks } from "@/lib/troubleshooting-playbooks";
 import { buildDiagnostics } from "@/lib/chat-diagnostics";
 import { logChatAnalytics, countTopicFollowUps } from "@/lib/chat-analytics";
-import { models, heliconeHeaders, anthropic, TASK_BUDGETS_BETA_HEADER } from "@/lib/ai/provider";
+import { models, heliconeHeaders, TASK_BUDGETS_BETA_HEADER } from "@/lib/ai/provider";
 import { selectModelTier } from "@/lib/ai/router";
 import { buildPromptParts, injectCanary, validateNavigatorOutput } from "@/lib/ai/security";
 import { fetchMemories, addMemory } from "@/lib/ai/memory";
-import { createAgentTools, createCoreAgentTools, createPersonaAgentTools, NEEDS_APPROVAL_TOOLS, APPROVAL_DESCRIPTIONS } from "@/lib/ai/tools";
+import { createPersonaAgentTools, NEEDS_APPROVAL_TOOLS, APPROVAL_DESCRIPTIONS } from "@/lib/ai/tools";
 import type { Province, Transaction as CoreTransaction, ContactActivity } from "@agent-runway/core/types/database";
 
 /** Returns a safe user-facing message for AI stream errors without leaking internal details. */
