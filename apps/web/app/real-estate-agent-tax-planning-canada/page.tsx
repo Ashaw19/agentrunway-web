@@ -335,6 +335,17 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                 </Link>
                 {" "}for every key CRA date this year — T1 filing, HST returns, T4A issuance,
                 and RRSP contribution deadlines alongside the instalment schedule.
+                The mechanics of HST/GST registration itself — the $30,000
+                small-supplier threshold, mandatory vs voluntary registration,
+                Input Tax Credits, provincial rates, and filing frequency — are
+                covered in the{" "}
+                <Link
+                  href="/real-estate-agent-hst-registration-canada"
+                  className="font-semibold text-blue-600 underline underline-offset-2"
+                >
+                  HST/GST registration guide for Canadian real estate agents
+                </Link>
+                .
               </p>
 
               <p>
