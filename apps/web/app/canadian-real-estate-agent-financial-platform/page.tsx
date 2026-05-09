@@ -97,6 +97,12 @@ const CLUSTER_COLLECTION = collectionPageSchema({
         "Federal + provincial tax + CPP estimator covering all 13 provinces and territories.",
     },
     {
+      name: "First-Year Tax Filing for Newly-Licensed Canadian Real Estate Agents",
+      url: "/first-year-tax-filing-real-estate-agents-canada",
+      description:
+        "The CRA sequence from licence day to first T1 filing — T2125, the $30,000 HST threshold, the April 30 / June 15 deadline split, CPP, and the year-one mistakes that compound.",
+    },
+    {
       name: "What's Missing Between Your Accountant, CRM, and Spreadsheet",
       url: "/real-estate-agent-tools-canada",
       description:
@@ -742,6 +748,13 @@ export default function CanadianFinancialLayerPillar() {
                   title: "Free Canadian Realtor Tax Estimator",
                   desc: "Federal + provincial + CPP for all 13 provinces and territories.",
                   badge: "Tool",
+                },
+                {
+                  href: "/first-year-tax-filing-real-estate-agents-canada",
+                  icon: Compass,
+                  title: "First-Year Tax Filing for Newly-Licensed Canadian Agents",
+                  desc: "Licence day to first T1 — T2125, the $30K HST threshold, April 30 / June 15, CPP, and year-one mistakes.",
+                  badge: "CRA-cited",
                 },
                 {
                   href: "/real-estate-agent-tools-canada",
