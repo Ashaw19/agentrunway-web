@@ -157,6 +157,8 @@ export default async function SnapshotPage() {
     inboxRes,
     complianceRes,
     reconRes,
+    sredLabourRes,
+    minuteBookRes,
   ] = await Promise.all([
     supabase
       .from("v_corp_gst_hst_summary")
@@ -238,6 +240,20 @@ export default async function SnapshotPage() {
       .order("period_end", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    // SR&ED labour summary from corp_sred_entries. Build #14 (Phase 3).
+    supabase
+      .from("v_corp_sred_annual_summary")
+      .select("entry_count, total_hours, eligible_hours, high_hours, medium_hours, low_hours, none_hours")
+      .eq("user_id", user.id)
+      .eq("fiscal_year", today.getFullYear())
+      .maybeSingle(),
+    // Minute-book count: passed resolutions this fiscal year. Build #13 (Phase 3).
+    supabase
+      .from("corp_resolutions")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("fiscal_year", today.getFullYear())
+      .eq("status", "passed"),
   ]);
 
   const hst = (hstRes.data ?? null) as HstSummary | null;
@@ -253,6 +269,18 @@ export default async function SnapshotPage() {
   const inboxItems = (inboxRes.data ?? []) as InboxRow[];
   const complianceItems = (complianceRes.data ?? []) as ComplianceSnapshotRow[];
   const latestRecon = (reconRes.data ?? null) as ReconciliationSnapshotRow | null;
+  // SR&ED labour data from corp_sred_entries (Build #14 / Phase 3).
+  const sredLabour = (sredLabourRes.data ?? null) as {
+    entry_count: number;
+    total_hours: number;
+    eligible_hours: number;
+    high_hours: number;
+    medium_hours: number;
+    low_hours: number;
+    none_hours: number;
+  } | null;
+  // Minute-book resolution count (Build #13 / Phase 3).
+  const minuteBookCount = (minuteBookRes.count ?? 0) as number;
   const lastReview = lastReviewRes.data?.ingested_at
     ? {
         ingestedAt: lastReviewRes.data.ingested_at as string,
@@ -366,7 +394,8 @@ export default async function SnapshotPage() {
           <InboxCard items={inboxItems} />
           <YtdNetCard ytdNet={ytdNet} ytdRevenue={ytdRevenue} ytdExpenses={ytdExpenses} />
           <HstCard hst={hst} />
-          <SredCard refundEstimate={sredRefundEstimate} totalCorpPortion={sredTotal} fyPct={fyPct} />
+          <SredCard refundEstimate={sredRefundEstimate} totalCorpPortion={sredTotal} fyPct={fyPct} labour={sredLabour} />
+          <MinuteBookCard count={minuteBookCount} />
           <DeadlinesCard items={deadlines} />
           <ComplianceCard items={complianceItems} />
           <ReconciliationCard recon={latestRecon} />
@@ -842,11 +871,18 @@ function SredCard({
   refundEstimate,
   totalCorpPortion,
   fyPct,
+  labour,
 }: {
   refundEstimate: number;
   totalCorpPortion: number;
   fyPct: number;
+  labour: {
+    entry_count: number;
+    total_hours: number;
+    eligible_hours: number;
+  } | null;
 }) {
+  const labourItc = labour ? labour.eligible_hours * 80 * 0.35 : null;
   return (
     <Card label="SR&ED · YTD" href="/cockpit/sred" icon={Sparkles} accent="rd">
       <div className="space-y-4">
@@ -855,9 +891,29 @@ function SredCard({
             {fmtCAD(refundEstimate)}
           </p>
           <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
-            Refundable estimate · 50% rate (CCPC NB)
+            Eligible spend · 50% rate (CCPC NB)
           </p>
         </div>
+        {labour && labour.total_hours > 0 && (
+          <div className="border-t border-white/5 pt-3">
+            <p className="text-muted-foreground/80 mb-1 text-[10px] uppercase tracking-[0.08em]">
+              Labour log ({labour.entry_count} sessions)
+            </p>
+            <div className="flex items-baseline justify-between">
+              <span className="font-mono text-sm tabular-nums text-white">
+                {Number(labour.eligible_hours.toFixed(1))} eligible hrs
+              </span>
+              {labourItc !== null && (
+                <span className="font-mono text-[11px] tabular-nums text-violet-300">
+                  ~{fmtCAD(labourItc)} ITC est.
+                </span>
+              )}
+            </div>
+            <p className="text-muted-foreground/60 mt-0.5 text-[10px]">
+              {Number(labour.total_hours.toFixed(1))} hrs total · $80/hr · 35% federal rate
+            </p>
+          </div>
+        )}
         <div className="space-y-1.5">
           <div className="bg-white/[0.05] h-1.5 w-full overflow-hidden rounded-full ring-1 ring-inset ring-white/5">
             <div
@@ -872,6 +928,33 @@ function SredCard({
             <span className="text-violet-300 font-mono tabular-nums">{fyPct}% of FY</span>
           </div>
         </div>
+      </div>
+    </Card>
+  );
+}
+
+function MinuteBookCard({ count }: { count: number }) {
+  return (
+    <Card label="Minute book" href="/cockpit/resolutions" icon={GitMerge} accent="rd">
+      <div className="space-y-3">
+        <div>
+          <p className="text-foreground font-mono text-[2.25rem] leading-none tracking-tight tabular-nums">
+            {count}
+          </p>
+          <p className="text-muted-foreground/80 mt-1.5 text-[11px] tracking-[0.08em] uppercase">
+            Passed resolutions · FY{new Date().getFullYear()}
+          </p>
+        </div>
+        {count === 0 ? (
+          <p className="text-muted-foreground/60 text-xs">
+            No resolutions recorded yet. Log your first to start the minute book.
+          </p>
+        ) : (
+          <p className="text-muted-foreground/60 text-xs">
+            Director resolutions on record — auto-numbered{" "}
+            <span className="font-mono text-amber-300/70">{new Date().getFullYear()}-DR-NNN</span>.
+          </p>
+        )}
       </div>
     </Card>
   );
