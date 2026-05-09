@@ -746,12 +746,13 @@ function computeDeadlines(today: Date): Deadline[] {
   if (nextAnniv.getTime() < today.getTime()) nextAnniv.setFullYear(yyyy + 1);
   const annualReturnDue = new Date(nextAnniv.getTime() + 60 * dayMs);
 
-  return [
+  const items: Deadline[] = [
     { label: `HST ${nextHst.quarter} filing`,    days: daysUntil(nextHst.date),       severity: "soon", date: ymd(nextHst.date) },
     { label: "Annual return (federal)",          days: daysUntil(annualReturnDue),    severity: daysUntil(annualReturnDue) < 60 ? "soon" : "far", date: ymd(annualReturnDue) },
     { label: "T2 filing due",                   days: daysUntil(t2Due),              severity: daysUntil(t2Due) < 90 ? "soon" : "far",           date: ymd(t2Due) },
     { label: "SR&ED claim window closes",        days: daysUntil(sredClaimWindowEnd), severity: "far",  date: ymd(sredClaimWindowEnd) },
-  ].sort((a, b) => a.days - b.days);
+  ];
+  return items.sort((a, b) => a.days - b.days);
 }
 
 function DeadlinesCard({ items }: { items: Deadline[] }) {
