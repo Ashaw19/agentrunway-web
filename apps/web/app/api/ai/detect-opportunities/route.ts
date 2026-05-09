@@ -941,11 +941,11 @@ export async function detectAndDraftForUser(
 
   // ── 4. Post-close nurture sequence (Batch 1) ──────────────────────────────
   const POST_CLOSE_CONFIGS = [
-    { type: "post_close_3"   as const, days:  3, lookback: 30 },
-    { type: "post_close_14"  as const, days: 14, lookback: 30 },
+    { type: "post_close_3"   as const, days:  3, lookback:  5 },
+    { type: "post_close_14"  as const, days: 14, lookback:  7 },
     { type: "post_close_90"  as const, days: 90, lookback: 30 },
-    { type: "review_request" as const, days: 21, lookback: 30 },
-    { type: "referral_ask"   as const, days: 45, lookback: 30 },
+    { type: "review_request" as const, days: 21, lookback: 10 },
+    { type: "referral_ask"   as const, days: 45, lookback: 21 },
   ];
 
   for (const rec of records) {
@@ -1303,6 +1303,20 @@ export async function detectAndDraftForUser(
       ),
     );
   }
+
+  // ── Expire stale draft rows whose trigger windows have closed ────────────
+  // Draft rows that were never acted on and are now past their lookback window
+  // should not linger in the queue indefinitely. The tightest window across
+  // post-close types is 5 days (post_close_3 lookback). Use 35 days as a
+  // conservative floor so we never prune rows that are still valid for any type.
+  const expiryCutoff = new Date();
+  expiryCutoff.setDate(expiryCutoff.getDate() - 35);
+  await supabase
+    .from("outreach_queue")
+    .delete()
+    .eq("user_id", userId)
+    .in("status", ["draft", "ready"])
+    .lt("trigger_date", expiryCutoff.toISOString().slice(0, 10));
 
   // ── Upsert (UNIQUE constraint on user_id, client_id, type, trigger_date) ───
   // ignoreDuplicates: true ensures we never overwrite active draft/ready/sent rows.
@@ -2194,11 +2208,11 @@ export async function getTopOpportunities(
 
   // 4. Post-close nurture
   const POST_CLOSE_CONFIGS = [
-    { type: "post_close_3" as const, days: 3, lookback: 30 },
-    { type: "post_close_14" as const, days: 14, lookback: 30 },
+    { type: "post_close_3" as const, days: 3, lookback: 5 },
+    { type: "post_close_14" as const, days: 14, lookback: 7 },
     { type: "post_close_90" as const, days: 90, lookback: 30 },
-    { type: "review_request" as const, days: 21, lookback: 30 },
-    { type: "referral_ask" as const, days: 45, lookback: 30 },
+    { type: "review_request" as const, days: 21, lookback: 10 },
+    { type: "referral_ask" as const, days: 45, lookback: 21 },
   ];
   for (const rec of records) {
     if (!rec.close_date || !rec.client_id) continue;
@@ -2487,9 +2501,10 @@ export async function getTopOpportunities(
       const trigTarget = new Date(r.trigger_date + "T12:00:00");
       const today = new Date(); today.setHours(12, 0, 0, 0);
       const daysAway = Math.round((trigTarget.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysAway <= 0) priority += 12;       // overdue or today
-      else if (daysAway <= 3) priority += 8;   // within 3 days
-      else if (daysAway <= 7) priority += 4;   // within a week
+      if (daysAway >= -3 && daysAway <= 0) priority += 12; // overdue ≤3 days: most urgent
+      else if (daysAway < -3) priority += 3;              // overdue >3 days: decayed, fresh items should win
+      else if (daysAway <= 3) priority += 8;              // within 3 days
+      else if (daysAway <= 7) priority += 4;              // within a week
 
       // Boost high-value client relationships
       const gci = r.context.gci ? Number(r.context.gci) : 0;
