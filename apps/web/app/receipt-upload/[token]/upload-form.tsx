@@ -11,40 +11,12 @@
  */
 
 import { useState, useRef, useCallback } from "react";
+import { compressImage } from "@/lib/receipts/compress-image";
 
 type UploadState = "idle" | "uploading" | "success" | "error";
 
 interface Props {
   token: string;
-}
-
-/** Compress image client-side via Canvas (same as desktop dialog) */
-async function compressImage(file: File, maxWidth = 1600): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const img    = new Image();
-    const objUrl = URL.createObjectURL(file);
-
-    img.onload = () => {
-      const scale  = Math.min(1, maxWidth / Math.max(img.width, img.height));
-      const w      = Math.round(img.width  * scale);
-      const h      = Math.round(img.height * scale);
-      const canvas = document.createElement("canvas");
-      canvas.width  = w;
-      canvas.height = h;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) { reject(new Error("Canvas unavailable")); return; }
-      ctx.drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(objUrl);
-      canvas.toBlob(
-        (blob) => (blob ? resolve(blob) : reject(new Error("toBlob failed"))),
-        "image/jpeg",
-        0.85,
-      );
-    };
-
-    img.onerror = () => { URL.revokeObjectURL(objUrl); reject(new Error("Load failed")); };
-    img.src = objUrl;
-  });
 }
 
 export function UploadForm({ token }: Props) {
@@ -226,7 +198,7 @@ export function UploadForm({ token }: Props) {
       <input
         ref={fileRef}
         type="file"
-        accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,application/pdf"
+        accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf"
         className="hidden"
         onChange={(e) => handleFile(e.target.files?.[0])}
       />

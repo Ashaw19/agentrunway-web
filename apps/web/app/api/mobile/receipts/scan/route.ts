@@ -24,6 +24,12 @@ export const maxDuration = 30;
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 
+// HEIC/HEIF kept here (unlike the web upload routes) because the Expo native
+// app's ImagePicker on iOS returns HEIC by default and there is no client-side
+// canvas conversion in React Native. If/when the Expo client adds JPEG
+// conversion (`expo-image-manipulator`), tighten this allowlist to match the
+// web routes and drop HEIC. Currently Groq Vision OCR may fail for HEIC inputs
+// here — known gap.
 const ALLOWED_MIME = new Set([
   "image/jpeg",
   "image/jpg",

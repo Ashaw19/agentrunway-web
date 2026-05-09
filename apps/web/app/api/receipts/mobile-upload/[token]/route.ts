@@ -22,13 +22,16 @@ export const maxDuration = 30;
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 
+// HEIC/HEIF excluded — Groq Vision OCR can't process them. iPhone Safari
+// decodes HEIC inside <img> + canvas, so the upload page (`/r/[token]`) and
+// the React form (`receipt-upload/[token]/upload-form.tsx`) convert HEIC to
+// JPEG client-side before posting here. Anything HEIC reaching this endpoint
+// is either a direct API caller or a misbehaving capture page.
 const ALLOWED_MIME = new Set([
   "image/jpeg",
   "image/jpg",
   "image/png",
   "image/webp",
-  "image/heic",
-  "image/heif",
 ]);
 
 function extForMime(mime: string): string {
@@ -37,8 +40,6 @@ function extForMime(mime: string): string {
     "image/jpg":  "jpg",
     "image/png":  "png",
     "image/webp": "webp",
-    "image/heic": "heic",
-    "image/heif": "heif",
   };
   return map[mime] ?? "jpg";
 }
@@ -114,7 +115,7 @@ export async function POST(
       return NextResponse.json(
         {
           ok: false,
-          error: `Unsupported file type${file.type ? `: ${file.type}` : ""}. Allowed: JPEG, PNG, WebP, HEIC.`,
+          error: `Unsupported file type${file.type ? `: ${file.type}` : ""}. Allowed: JPEG, PNG, WebP. HEIC photos from iPhone are converted to JPEG by the upload page — please retry from the same device.`,
         },
         { status: 400 },
       );

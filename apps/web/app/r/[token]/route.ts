@@ -253,7 +253,7 @@ export async function GET(
 
   <!-- Hidden file inputs -->
   <input type="file" id="cameraInput" accept="image/*" capture="environment" onchange="handleFile(this)" />
-  <input type="file" id="fileInput"   accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,application/pdf" onchange="handleFile(this)" />
+  <input type="file" id="fileInput"   accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf" onchange="handleFile(this)" />
 
   <script>
     const UPLOAD_URL = ${JSON.stringify(uploadUrl)};
@@ -276,8 +276,10 @@ export async function GET(
       if (!file) return;
       show("uploading");
 
-      // Compress via canvas (images only)
-      if (file.type && file.type.startsWith("image/") && file.type !== "image/heic" && file.type !== "image/heif") {
+      // Compress via canvas (images only — including HEIC, which Safari on iOS
+      // can decode inside <img>; the canvas re-encodes the result as JPEG so
+      // Groq Vision OCR can process it server-side).
+      if (file.type && file.type.startsWith("image/")) {
         var img = new Image();
         var url = URL.createObjectURL(file);
         img.onload = function() {
