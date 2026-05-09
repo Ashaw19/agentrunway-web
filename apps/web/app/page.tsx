@@ -645,6 +645,17 @@ export default async function Home() {
                 </ScrollRevealSection>
               ))}
             </div>
+
+            {/* Pillar page link — subtle, single sentence */}
+            <ScrollRevealSection className="mt-10 text-center">
+              <Link
+                href="/canadian-real-estate-agent-financial-platform"
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 px-5 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-blue-500/50 hover:text-white"
+              >
+                See the full Canadian financial layer
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </ScrollRevealSection>
           </div>
         </section>
 

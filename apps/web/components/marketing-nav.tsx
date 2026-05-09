@@ -26,6 +26,7 @@ import { useRouter } from "next/navigation";
 
 const NAV_LINKS = [
   { label: "Features", href: "/features" },
+  { label: "For Canadian Agents", href: "/canadian-real-estate-agent-financial-platform" },
   { label: "Pricing", href: "/pricing" },
   { label: "Free Tools", href: "/tools" },
   { label: "Demo", href: "/demo" },
