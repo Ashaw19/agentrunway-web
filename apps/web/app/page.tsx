@@ -550,7 +550,7 @@ export default async function Home() {
                 </span>
               </h2>
               <p className="mt-4 text-lg text-slate-400">
-                Your income, taxes, runway, and pipeline — connected, so you see what&apos;s really happening and what to do about it.
+                Your income, taxes, runway, and pipeline — connected, so you see what&apos;s really happening and what to do about&nbsp;it.
               </p>
             </ScrollRevealSection>
 
