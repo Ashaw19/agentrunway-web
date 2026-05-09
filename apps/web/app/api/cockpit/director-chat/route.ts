@@ -7,8 +7,15 @@
  * customer-facing /api/chat (Flight Crew) — the two share NO tools and NO
  * system prompts.
  *
- * Read-only by design: tools query the corp_* tables and reporting views.
- * No INSERT, no UPDATE, no DELETE.
+ * Mostly read-only — tools query corp_* tables and reporting views — but as
+ * of Build D (2026-05-09) the Director can also INSERT directly into 5 tables
+ * via narrow write-side tools: SR&ED log entries, cash snapshots, compliance
+ * events, inbox items, and resolutions (drafts only). Writes go through the
+ * authenticated `supabase` client and are RLS-bound to Andrew's user_id.
+ *
+ * Write tools intentionally never UPDATE or DELETE — corrections still flow
+ * through the corresponding cockpit page. The Director is an entry assistant,
+ * not a record editor.
  *
  * See lib/cockpit/director-persona.ts for the system prompt and the internal
  * carve-out from the customer-facing tax-info-not-advice rule.
@@ -469,6 +476,272 @@ export async function POST(req: NextRequest) {
           recent_entries: entriesRes.data ?? [],
           note: "Eligible hours use weights: high=1.00, medium=0.50, low=0.15, none=0.00. ITC estimate: eligible_hours × $80/hr × 35% (federal CCPC). For accountant review only.",
         };
+      },
+    }),
+
+    // ── Write-side tools (Build D, 2026-05-09) ────────────────────────────
+    // Narrow INSERT-only tools so the Director can act as an entry assistant.
+    // No UPDATE, no DELETE — corrections still flow through the cockpit pages.
+    // All inserts include user_id from the authenticated supabase client and
+    // are RLS-bound. Each tool validates inputs against the same enums as the
+    // table CHECK constraints.
+
+    /**
+     * Insert a new SR&ED log entry. Build #14 / migration 00148.
+     */
+    logSredEntry: tool({
+      description:
+        "Insert a new SR&ED daily work-log entry into corp_sred_entries. Use when Andrew asks to log SR&ED time / record yesterday's work / capture an entry he forgot. Requires entry_date (YYYY-MM-DD), hours (0-24), work_summary, and sred_weight (none/low/medium/high). Optional: tech_challenges, sred_note, commits_count, pr_refs. Returns the inserted row including computed eligible_hours basis. Use safe verbs only — never tell Andrew which weight to pick; surface the categorical definition and let him choose.",
+      inputSchema: z.object({
+        entry_date: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .describe("Date the work was performed, YYYY-MM-DD."),
+        hours: z
+          .number()
+          .min(0)
+          .max(24)
+          .describe("Hours worked that day."),
+        work_summary: z
+          .string()
+          .min(3)
+          .describe("Plain-language description of the work — what was built or investigated."),
+        sred_weight: z
+          .enum(["none", "low", "medium", "high"])
+          .describe(
+            "T661 weight category: high=directly advancing technological uncertainty, medium=hybrid (architecture/debugging with novel uncertainty), low=setup/environment/tooling supporting SR&ED work, none=admin/business/content. Eligibility multipliers: high=1.0, medium=0.5, low=0.15, none=0.0.",
+          ),
+        tech_challenges: z
+          .string()
+          .nullable()
+          .optional()
+          .describe("Optional T661 narrative material on what technological challenges were addressed."),
+        sred_note: z
+          .string()
+          .nullable()
+          .optional()
+          .describe("Optional internal triage note (e.g. 'flag for accountant review')."),
+        commits_count: z
+          .number()
+          .int()
+          .min(0)
+          .nullable()
+          .optional()
+          .describe("Optional commit count for the day."),
+        pr_refs: z
+          .string()
+          .nullable()
+          .optional()
+          .describe("Optional PR / branch references (free-text)."),
+      }),
+      execute: async (input) => {
+        const { data, error } = await supabase
+          .from("corp_sred_entries")
+          .insert({
+            user_id: user.id,
+            entry_date: input.entry_date,
+            hours: input.hours,
+            work_summary: input.work_summary,
+            sred_weight: input.sred_weight,
+            tech_challenges: input.tech_challenges ?? null,
+            sred_note: input.sred_note ?? null,
+            commits_count: input.commits_count ?? null,
+            pr_refs: input.pr_refs ?? null,
+          })
+          .select()
+          .single();
+        if (error) return { error: error.message };
+        return { ok: true, entry: data };
+      },
+    }),
+
+    /**
+     * Insert a new cash-position snapshot. Migration 00135.
+     */
+    logCashSnapshot: tool({
+      description:
+        "Insert a manual cash-position snapshot into corp_cash_snapshots. Latest snapshot by as_of_date drives the Snapshot card's cash position, monthly burn calc, and SaaS runway. Use when Andrew shares a current bank balance or wants to record a cash-position checkpoint.",
+      inputSchema: z.object({
+        as_of_date: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .describe("Date the balance was observed, YYYY-MM-DD."),
+        amount_cad: z
+          .number()
+          .min(0)
+          .describe("Cash balance in CAD (combined across accounts)."),
+        source_label: z
+          .string()
+          .nullable()
+          .optional()
+          .describe("Optional source — e.g. 'RBC business chequing', 'combined ops + tax reserve'."),
+        notes: z
+          .string()
+          .nullable()
+          .optional()
+          .describe("Optional context — pending deposits / outstanding cheques / accountant note."),
+      }),
+      execute: async (input) => {
+        const { data, error } = await supabase
+          .from("corp_cash_snapshots")
+          .insert({
+            user_id: user.id,
+            as_of_date: input.as_of_date,
+            amount_cad: input.amount_cad,
+            source_label: input.source_label ?? null,
+            notes: input.notes ?? null,
+          })
+          .select()
+          .single();
+        if (error) return { error: error.message };
+        return { ok: true, snapshot: data };
+      },
+    }),
+
+    /**
+     * Insert a new compliance calendar event. Phase 2 / Build #8.
+     */
+    addComplianceEvent: tool({
+      description:
+        "Add a new event to the corporate compliance calendar (corp_compliance_events). Use when Andrew flags an upcoming deadline he wants tracked — accountant follow-up, insurance renewal, agency notice, custom T2 prep date. For seeded recurring events, use the cockpit UI instead so the seed metadata stays consistent. Requires title, due_date (YYYY-MM-DD), kind (enum), severity (low/medium/high). Optional: recurring_pattern (annual/quarterly/monthly/fiscal-anniversary), notes.",
+      inputSchema: z.object({
+        title: z.string().min(3).describe("Event title."),
+        due_date: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .describe("Due date, YYYY-MM-DD."),
+        kind: z
+          .enum([
+            "cra-t2-filing",
+            "cra-t2-payment",
+            "cra-hst-filing",
+            "cra-hst-instalment",
+            "cra-payroll-t4",
+            "cra-payroll-source-deductions",
+            "corp-annual-return-federal",
+            "corp-annual-return-nb",
+            "corp-minute-book",
+            "corp-insurance-renewal",
+            "corp-other",
+          ])
+          .describe("Event kind. Use 'corp-other' if nothing else fits."),
+        severity: z
+          .enum(["low", "medium", "high"])
+          .default("medium")
+          .describe("Filing deadlines = high; minute book = medium; insurance renewal = low."),
+        recurring_pattern: z
+          .enum(["annual", "quarterly", "monthly", "fiscal-anniversary"])
+          .nullable()
+          .optional()
+          .describe("Recurrence pattern. Omit / null for one-off events."),
+        notes: z
+          .string()
+          .nullable()
+          .optional()
+          .describe("Optional reminder text — accountant note, prep checklist."),
+      }),
+      execute: async (input) => {
+        const { data, error } = await supabase
+          .from("corp_compliance_events")
+          .insert({
+            user_id: user.id,
+            title: input.title,
+            due_date: input.due_date,
+            kind: input.kind,
+            severity: input.severity,
+            recurring_pattern: input.recurring_pattern ?? null,
+            notes: input.notes ?? null,
+          })
+          .select()
+          .single();
+        if (error) return { error: error.message };
+        return { ok: true, event: data };
+      },
+    }),
+
+    /**
+     * Insert a new task into the cockpit inbox. Migration 00139.
+     */
+    addInboxItem: tool({
+      description:
+        "Add an item to the Director Cockpit task inbox (corp_inbox_items). Use when Andrew flags something he needs to act on later — categorization decision, accountant question, follow-up call. The item appears on /cockpit/inbox until Andrew resolves it. Requires title and severity. Optional: body (longer context).",
+      inputSchema: z.object({
+        title: z.string().min(3).describe("Short actionable title."),
+        body: z
+          .string()
+          .nullable()
+          .optional()
+          .describe("Optional longer context / details."),
+        severity: z
+          .enum(["low", "medium", "high"])
+          .default("medium")
+          .describe("Action urgency. high = needs same-day; medium = within a week; low = nice-to-have."),
+      }),
+      execute: async (input) => {
+        const { data, error } = await supabase
+          .from("corp_inbox_items")
+          .insert({
+            user_id: user.id,
+            title: input.title,
+            body: input.body ?? null,
+            severity: input.severity,
+            source: "director-persona",
+          })
+          .select()
+          .single();
+        if (error) return { error: error.message };
+        return { ok: true, item: data };
+      },
+    }),
+
+    /**
+     * Draft a new corporate resolution. Build #13 / migration 00147.
+     * Inserts as status='draft' — Andrew opens /cockpit/resolutions to
+     * review and pass it. The Director never inserts a passed resolution.
+     */
+    draftResolution: tool({
+      description:
+        "Draft a new corporate resolution as a DRAFT (not passed). Andrew reviews + edits + marks passed via /cockpit/resolutions. Use when he asks 'draft a resolution for X' — e.g. salary election, dividend declaration, banking authority. resolution_number and fiscal_year are auto-assigned by the DB trigger. Body should follow proper CCPC 'BE IT RESOLVED THAT...' language.",
+      inputSchema: z.object({
+        resolution_type: z
+          .enum([
+            "salary_election",
+            "dividend_declaration",
+            "banking_authority",
+            "officer_appointment",
+            "agm_waiver",
+            "general",
+          ])
+          .describe("Resolution type."),
+        subject: z.string().min(3).describe("One-line subject line."),
+        body_md: z
+          .string()
+          .min(20)
+          .describe(
+            "Full markdown body. Should follow CCPC 'BE IT RESOLVED THAT...' resolved-language convention.",
+          ),
+        passed_date: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .describe(
+            "Intended passed_date (YYYY-MM-DD). Determines fiscal_year. Andrew can edit before marking passed.",
+          ),
+      }),
+      execute: async (input) => {
+        const { data, error } = await supabase
+          .from("corp_resolutions")
+          .insert({
+            user_id: user.id,
+            resolution_type: input.resolution_type,
+            subject: input.subject.trim(),
+            body_md: input.body_md,
+            passed_date: input.passed_date,
+            status: "draft",
+          })
+          .select()
+          .single();
+        if (error) return { error: error.message };
+        return { ok: true, resolution: data };
       },
     }),
   };
