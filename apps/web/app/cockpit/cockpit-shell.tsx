@@ -20,6 +20,7 @@ const TABS = [
   { href: "/cockpit/compliance",      label: "Compliance" },
   { href: "/cockpit/reconciliation",  label: "Reconciliation" },
   { href: "/cockpit/documents",       label: "Documents" },
+  { href: "/cockpit/resolutions",     label: "Resolutions" },
 ];
 
 export function CockpitShell({ children }: { children: React.ReactNode }) {

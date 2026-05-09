@@ -353,6 +353,53 @@ export async function POST(req: NextRequest) {
     }),
 
     /**
+     * Corporate resolutions (minute book). Source: corp_resolutions.
+     * Phase 3 / Build #13.
+     */
+    listResolutions: tool({
+      description:
+        "Read corporate resolutions (minute book) for AR Inc. Returns resolution_number, type, subject, passed_date, status, and body_md. Use when Andrew asks what resolutions have been passed, whether a salary election exists for a given year, or wants to review the minute book.",
+      inputSchema: z.object({
+        year: z
+          .number()
+          .int()
+          .optional()
+          .describe("Fiscal year to filter on. Defaults to current year."),
+        resolution_type: z
+          .enum([
+            "salary_election",
+            "dividend_declaration",
+            "banking_authority",
+            "officer_appointment",
+            "agm_waiver",
+            "general",
+          ])
+          .optional()
+          .describe("Filter by resolution type. Omit to return all types."),
+        status: z
+          .enum(["draft", "passed"])
+          .optional()
+          .describe("Filter by status. Omit to return all statuses."),
+      }),
+      execute: async ({ year, resolution_type, status: resStatus }) => {
+        let query = supabase
+          .from("corp_resolutions")
+          .select(
+            "resolution_number, resolution_type, subject, passed_date, fiscal_year, status, body_md, created_at",
+          )
+          .order("passed_date", { ascending: false });
+
+        if (year) query = query.eq("fiscal_year", year);
+        if (resolution_type) query = query.eq("resolution_type", resolution_type);
+        if (resStatus) query = query.eq("status", resStatus);
+
+        const { data, error } = await query.limit(50);
+        if (error) return { error: error.message };
+        return { rows: data ?? [] };
+      },
+    }),
+
+    /**
      * Upcoming compliance events. Source: v_corp_upcoming_compliance.
      * Phase 2 / Build #8.
      */
