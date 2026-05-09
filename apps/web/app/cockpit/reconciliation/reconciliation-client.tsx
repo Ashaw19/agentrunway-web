@@ -202,10 +202,12 @@ function LineRow({
   line,
   onSkip,
   onReopen,
+  onMatch,
 }: {
   line: CorpBankLine;
   onSkip: (id: string) => void;
   onReopen: (id: string) => void;
+  onMatch: (line: CorpBankLine) => void;
 }) {
   const isDebit = line.amount_cad < 0;
 
@@ -227,12 +229,21 @@ function LineRow({
       </span>
       <MatchPill status={line.match_status} />
       {line.match_status === "unmatched" && (
-        <button
-          onClick={() => onSkip(line.id)}
-          className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors shrink-0"
-        >
-          Skip
-        </button>
+        <>
+          <button
+            onClick={() => onMatch(line)}
+            className="text-xs text-emerald-400 hover:text-emerald-200 transition-colors shrink-0"
+          >
+            Match
+          </button>
+          <span className="text-zinc-600">·</span>
+          <button
+            onClick={() => onSkip(line.id)}
+            className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors shrink-0"
+          >
+            Skip
+          </button>
+        </>
       )}
       {line.match_status === "manual" && (
         <button
@@ -242,6 +253,249 @@ function LineRow({
           Reopen
         </button>
       )}
+      {line.match_status === "matched" && (
+        <button
+          onClick={() => onReopen(line.id)}
+          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors shrink-0"
+        >
+          Unmatch
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Manual-match modal ────────────────────────────────────────────────────────
+
+interface CandidateRow {
+  id: string;
+  date: string;
+  amount_total: number;
+  amount_pretax: number;
+  gst_hst: number;
+  vendor_name_raw: string | null;
+  description: string | null;
+  account_code: string | null;
+  source_channel: string;
+  date_distance_days: number;
+  amount_diff: number;
+}
+
+function MatchModal({
+  line,
+  onClose,
+  onMatched,
+}: {
+  line: CorpBankLine;
+  onClose: () => void;
+  onMatched: (matched_tx_id: string) => void;
+}) {
+  const [candidates, setCandidates] = useState<CandidateRow[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [searchWindow, setSearchWindow] = useState<{
+    start: string;
+    end: string;
+    amount_min: number;
+    amount_max: number;
+  } | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/cockpit/bank-lines/${line.id}/candidates`);
+      const json = await res.json();
+      if (!json.ok) {
+        setError(json.error ?? "Failed to load candidates");
+        setLoading(false);
+        return;
+      }
+      setCandidates(json.candidates ?? []);
+      setSearchWindow(json.search_window ?? null);
+    } catch {
+      setError("Network error.");
+    } finally {
+      setLoading(false);
+    }
+  }, [line.id]);
+
+  // Load on mount
+  const loadedRef = useRef<string | null>(null);
+  if (loadedRef.current !== line.id) {
+    loadedRef.current = line.id;
+    void load();
+  }
+
+  const pick = async (txId: string) => {
+    setSubmitting(txId);
+    try {
+      const res = await fetch("/api/cockpit/bank-lines", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: line.id,
+          match_status: "matched",
+          matched_tx_id: txId,
+        }),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        setError(json.error ?? "Match failed");
+        setSubmitting(null);
+        return;
+      }
+      onMatched(txId);
+    } catch {
+      setError("Network error.");
+      setSubmitting(null);
+    }
+  };
+
+  const isDebit = line.amount_cad < 0;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 p-4 pt-[8vh]"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-2xl rounded-xl border border-zinc-800 bg-zinc-950 p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-medium text-zinc-100">Match bank line to ledger</h2>
+            <p className="mt-1 text-xs text-zinc-400">
+              {fmtDate(line.line_date)}
+              <span className="mx-1.5 text-zinc-600">·</span>
+              <span className={cn("font-mono tabular-nums", isDebit ? "text-red-400" : "text-emerald-400")}>
+                {fmtAmt(line.amount_cad)}
+              </span>
+              <span className="mx-1.5 text-zinc-600">·</span>
+              <span className="text-zinc-300">{line.description_raw}</span>
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-zinc-500 hover:text-zinc-300"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        {searchWindow && (
+          <p className="mb-3 text-[11px] text-zinc-500">
+            Searching ±14 days ({searchWindow.start} → {searchWindow.end}) and ${searchWindow.amount_min.toFixed(2)} – ${searchWindow.amount_max.toFixed(2)}.
+            Already-matched transactions hidden.
+          </p>
+        )}
+
+        {error && (
+          <p className="mb-3 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+            {error}
+          </p>
+        )}
+
+        {loading && <p className="px-2 py-4 text-sm text-zinc-500">Searching for candidates…</p>}
+
+        {!loading && candidates && candidates.length === 0 && (
+          <div className="rounded-md border border-zinc-800 bg-zinc-900/40 p-4 text-center">
+            <p className="text-sm text-zinc-400">No matching transactions in the search window.</p>
+            <p className="mt-1 text-xs text-zinc-500">
+              Either the corp_transaction wasn&apos;t logged yet, or the date / amount drifted outside ±14d / ±5%.
+              Add the receipt via /cockpit/expenses, then re-match.
+            </p>
+          </div>
+        )}
+
+        {!loading && candidates && candidates.length > 0 && (
+          <div className="max-h-[60vh] overflow-y-auto rounded-md border border-zinc-800">
+            {candidates.map((c) => (
+              <CandidateLine
+                key={c.id}
+                candidate={c}
+                disabled={submitting !== null}
+                submitting={submitting === c.id}
+                onPick={() => pick(c.id)}
+              />
+            ))}
+          </div>
+        )}
+
+        <div className="mt-4 flex items-center justify-end border-t border-zinc-800 pt-3">
+          <button
+            onClick={onClose}
+            disabled={submitting !== null}
+            className="rounded-md px-3 py-1.5 text-sm text-zinc-400 hover:text-zinc-200"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CandidateLine({
+  candidate,
+  disabled,
+  submitting,
+  onPick,
+}: {
+  candidate: CandidateRow;
+  disabled: boolean;
+  submitting: boolean;
+  onPick: () => void;
+}) {
+  const exact = candidate.date_distance_days === 0 && candidate.amount_diff === 0;
+  const closeEnough = candidate.date_distance_days <= 1 && Math.abs(candidate.amount_diff) <= 0.5;
+
+  return (
+    <div className="flex items-center gap-3 border-b border-zinc-800/60 px-3 py-2.5 last:border-0">
+      <div className="flex-1 min-w-0">
+        <p className="truncate text-sm text-zinc-200">
+          {candidate.vendor_name_raw ?? candidate.description ?? "(no vendor)"}
+        </p>
+        <p className="mt-0.5 text-[11px] text-zinc-500">
+          {fmtDate(candidate.date)}
+          {candidate.date_distance_days > 0 && (
+            <span className="ml-1 text-amber-500/70">
+              · {candidate.date_distance_days}d off
+            </span>
+          )}
+          <span className="mx-1.5 text-zinc-600">·</span>
+          {candidate.account_code ?? "(no account)"}
+          <span className="mx-1.5 text-zinc-600">·</span>
+          {candidate.source_channel}
+        </p>
+      </div>
+      <div className="flex flex-col items-end whitespace-nowrap">
+        <span className="font-mono text-sm tabular-nums text-zinc-200">
+          ${candidate.amount_total.toFixed(2)}
+        </span>
+        {candidate.amount_diff !== 0 && (
+          <span className="text-[10px] text-amber-500/70">
+            {candidate.amount_diff > 0 ? "+" : ""}${candidate.amount_diff.toFixed(2)} off
+          </span>
+        )}
+      </div>
+      <button
+        onClick={onPick}
+        disabled={disabled}
+        className={cn(
+          "shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50",
+          exact
+            ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25"
+            : closeEnough
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+              : "border-zinc-700 bg-zinc-800/50 text-zinc-300 hover:bg-zinc-800",
+        )}
+      >
+        {submitting ? "Matching…" : exact ? "Exact match" : "Match"}
+      </button>
     </div>
   );
 }
@@ -253,6 +507,7 @@ function LinesPanel({ statementId }: { statementId: string }) {
   const [filter, setFilter] = useState<"all" | "unmatched" | "matched" | "manual">("unmatched");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [matchingLine, setMatchingLine] = useState<CorpBankLine | null>(null);
   const loadedRef = useRef<string | null>(null);
 
   const loadLines = useCallback(async (f: string) => {
@@ -293,7 +548,24 @@ function LinesPanel({ statementId }: { statementId: string }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, match_status: "unmatched", skip_reason: null }),
     });
-    setLines(prev => prev?.map(l => l.id === id ? { ...l, match_status: "unmatched", skip_reason: null } : l) ?? null);
+    setLines(prev =>
+      prev?.map(l =>
+        l.id === id
+          ? { ...l, match_status: "unmatched", skip_reason: null, matched_tx_id: null, match_method: null, match_confidence: null }
+          : l,
+      ) ?? null,
+    );
+  };
+
+  const handleMatched = (lineId: string, matched_tx_id: string) => {
+    setLines(prev =>
+      prev?.map(l =>
+        l.id === lineId
+          ? { ...l, match_status: "matched", matched_tx_id, match_method: "manual", match_confidence: 1.0 }
+          : l,
+      ) ?? null,
+    );
+    setMatchingLine(null);
   };
 
   const FILTERS: { key: "all" | "unmatched" | "matched" | "manual"; label: string }[] = [
@@ -340,9 +612,18 @@ function LinesPanel({ statementId }: { statementId: string }) {
             line={line}
             onSkip={handleSkip}
             onReopen={handleReopen}
+            onMatch={(l) => setMatchingLine(l)}
           />
         ))}
       </div>
+
+      {matchingLine && (
+        <MatchModal
+          line={matchingLine}
+          onClose={() => setMatchingLine(null)}
+          onMatched={(txId) => handleMatched(matchingLine.id, txId)}
+        />
+      )}
     </div>
   );
 }
