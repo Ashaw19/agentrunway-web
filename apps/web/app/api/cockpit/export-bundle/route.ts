@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { zip, filenameBase, reportCount, txnCount, receiptCount, docCount, errors } =
+    const { zip, filenameBase, reportCount, txnCount, receiptCount, docCount, resolutionCount, errors } =
       await buildExportBundle(supabase, user.id, year);
 
     if (errors.length > 0) {
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       );
     } else {
       log.info(
-        { requestId, year, reportCount, txnCount, receiptCount, docCount },
+        { requestId, year, reportCount, txnCount, receiptCount, docCount, resolutionCount },
         "[cockpit/export-bundle] Bundle generated successfully",
       );
     }
@@ -79,6 +79,7 @@ export async function GET(req: NextRequest) {
         "x-txn-count": String(txnCount),
         "x-receipt-count": String(receiptCount),
         "x-doc-count": String(docCount),
+        "x-resolution-count": String(resolutionCount),
         "x-error-count": String(errors.length),
       },
     });

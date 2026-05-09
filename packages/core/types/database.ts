@@ -1757,6 +1757,33 @@ export interface CorpDocument {
   updated_at:       string;
 }
 
+// ── Corp resolutions / minute book — migration 00147 ────────────────────────
+// Internal Director Cockpit only. Auto-numbered {year}-DR-{NNN} by DB trigger.
+export type CorpResolutionType =
+  | "salary_election"
+  | "dividend_declaration"
+  | "banking_authority"
+  | "officer_appointment"
+  | "agm_waiver"
+  | "general";
+
+export type CorpResolutionStatus = "draft" | "passed";
+
+export interface CorpResolution {
+  id:                string;
+  user_id:           string;
+  resolution_number: string;
+  resolution_type:   CorpResolutionType;
+  subject:           string;
+  body_md:           string;
+  passed_date:       string;
+  fiscal_year:       number;
+  status:            CorpResolutionStatus;
+  is_unanimous:      boolean;
+  created_at:        string;
+  updated_at:        string;
+}
+
 // ── Flight Status workflow library — migration 00145 ────────────────────────
 // Pre-built email draft sequences keyed to Flight Status transitions.
 // System templates have user_id = null and are seeded by the migration.

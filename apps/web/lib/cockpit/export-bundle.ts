@@ -54,13 +54,14 @@ function csvEscape(value: string): string {
 // ── Export result ────────────────────────────────────────────────────────────
 
 export interface ExportBundleResult {
-  zip:           JSZip;
-  filenameBase:  string;   // e.g. "AR-Inc-FY2026-export-2026-05-07"
-  reportCount:   number;
-  txnCount:      number;
-  receiptCount:  number;
-  docCount:      number;
-  errors:        string[];
+  zip:              JSZip;
+  filenameBase:     string;   // e.g. "AR-Inc-FY2026-export-2026-05-07"
+  reportCount:      number;
+  txnCount:         number;
+  receiptCount:     number;
+  docCount:         number;
+  resolutionCount:  number;
+  errors:           string[];
 }
 
 // ── Main builder ─────────────────────────────────────────────────────────────
@@ -76,6 +77,7 @@ export async function buildExportBundle(
   let txnCount = 0;
   let receiptCount = 0;
   let docCount = 0;
+  let resolutionCount = 0;
 
   const today = new Date().toISOString().slice(0, 10);
   const filenameBase = `AR-Inc-FY${year}-export-${today}`;
@@ -250,18 +252,57 @@ export async function buildExportBundle(
     errors.push(`documents: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  // ── 5. README.txt ────────────────────────────────────────────────────────────
+  // ── 5. Resolutions → resolutions/ ────────────────────────────────────────────
+
+  try {
+    const { data: resolutions } = await supabase
+      .from("corp_resolutions")
+      .select(
+        "resolution_number, resolution_type, subject, body_md, passed_date, fiscal_year, status",
+      )
+      .eq("fiscal_year", year)
+      .eq("status", "passed")
+      .order("passed_date", { ascending: true });
+
+    for (const res of resolutions ?? []) {
+      const slug = (res.subject as string)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_|_$/g, "")
+        .slice(0, 50);
+      const filename = `${res.resolution_number}_${slug}.md`;
+      const content = [
+        `# ${res.resolution_number} — ${res.subject}`,
+        ``,
+        `**Type:** ${res.resolution_type}`,
+        `**Date passed:** ${res.passed_date}`,
+        `**Fiscal year:** ${res.fiscal_year}`,
+        `**Status:** ${res.status}`,
+        ``,
+        `---`,
+        ``,
+        res.body_md as string,
+      ].join("\n");
+      zip.folder("resolutions")!.file(filename, content);
+      resolutionCount++;
+    }
+  } catch (e) {
+    errors.push(`resolutions: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // ── 6. README.txt ────────────────────────────────────────────────────────────
 
   const readme = buildReadme(year, today, {
     reportCount,
     txnCount,
     receiptCount,
     docCount,
+    resolutionCount,
     errors,
   });
   zip.file("README.txt", readme);
 
-  return { zip, filenameBase, reportCount, txnCount, receiptCount, docCount, errors };
+  return { zip, filenameBase, reportCount, txnCount, receiptCount, docCount, resolutionCount, errors };
 }
 
 // ── README generator ─────────────────────────────────────────────────────────
@@ -270,11 +311,12 @@ function buildReadme(
   year: number,
   exportDate: string,
   counts: {
-    reportCount: number;
-    txnCount: number;
-    receiptCount: number;
-    docCount: number;
-    errors: string[];
+    reportCount:     number;
+    txnCount:        number;
+    receiptCount:    number;
+    docCount:        number;
+    resolutionCount: number;
+    errors:          string[];
   },
 ): string {
   return `AGENT RUNWAY INC. — YEAR-END ACCOUNTANT EXPORT BUNDLE
@@ -307,6 +349,10 @@ documents/  (${counts.docCount} files)
   Governance documents uploaded to the Director Cockpit:
   minute-book entries, board resolutions, signed contracts, correspondence.
   Named: YYYY-MM-DD_type_Title.ext
+
+resolutions/  (${counts.resolutionCount} files)
+  Passed corporate director resolutions for FY${year} in Markdown format.
+  Named: {year}-DR-{NNN}_{subject_slug}.md
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ALSO PROVIDE TO YOUR ACCOUNTANT (NOT IN THIS BUNDLE)
