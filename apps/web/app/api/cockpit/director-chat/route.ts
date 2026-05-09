@@ -427,6 +427,50 @@ export async function POST(req: NextRequest) {
         return { rows: data ?? [] };
       },
     }),
+
+    sredSummary: tool({
+      description:
+        "Retrieve SR&ED work-log summary and recent entries for AR Inc. Returns annual totals (total hours, eligible hours, weight breakdown) plus up to 30 recent log entries. Use this when Andrew asks about SR&ED progress, eligible hours, T661 preparation, SR&ED ITC estimates, or how much SR&ED work has been logged.",
+      inputSchema: z.object({
+        year: z
+          .number()
+          .int()
+          .min(2026)
+          .max(2100)
+          .optional()
+          .describe("Fiscal year. Defaults to current year."),
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(50)
+          .optional()
+          .describe("Max recent entries to return. Defaults to 20."),
+      }),
+      execute: async ({ year, limit }) => {
+        const fiscalYear = year ?? new Date().getFullYear();
+        const [summaryRes, entriesRes] = await Promise.all([
+          supabase
+            .from("v_corp_sred_annual_summary")
+            .select("*")
+            .eq("fiscal_year", fiscalYear)
+            .single(),
+          supabase
+            .from("corp_sred_entries")
+            .select("entry_date, hours, sred_weight, work_summary, tech_challenges, sred_note, pr_refs")
+            .gte("entry_date", `${fiscalYear}-01-01`)
+            .lte("entry_date", `${fiscalYear}-12-31`)
+            .order("entry_date", { ascending: false })
+            .limit(limit ?? 20),
+        ]);
+        return {
+          fiscal_year: fiscalYear,
+          summary: summaryRes.data ?? null,
+          recent_entries: entriesRes.data ?? [],
+          note: "Eligible hours use weights: high=1.00, medium=0.50, low=0.15, none=0.00. ITC estimate: eligible_hours × $80/hr × 35% (federal CCPC). For accountant review only.",
+        };
+      },
+    }),
   };
 
   try {

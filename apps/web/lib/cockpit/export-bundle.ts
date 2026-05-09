@@ -61,6 +61,7 @@ export interface ExportBundleResult {
   receiptCount:     number;
   docCount:         number;
   resolutionCount:  number;
+  sredCount:        number;
   errors:           string[];
 }
 
@@ -78,6 +79,7 @@ export async function buildExportBundle(
   let receiptCount = 0;
   let docCount = 0;
   let resolutionCount = 0;
+  let sredCount = 0;
 
   const today = new Date().toISOString().slice(0, 10);
   const filenameBase = `AR-Inc-FY${year}-export-${today}`;
@@ -290,7 +292,73 @@ export async function buildExportBundle(
     errors.push(`resolutions: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  // ── 6. README.txt ────────────────────────────────────────────────────────────
+  // ── 6. SR&ED work-log → sred/ ────────────────────────────────────────────────
+
+  try {
+    const { data: sredEntries, error: sredErr } = await supabase
+      .from("corp_sred_entries")
+      .select("*")
+      .gte("entry_date", `${year}-01-01`)
+      .lte("entry_date", `${year}-12-31`)
+      .order("entry_date", { ascending: true });
+
+    if (sredErr) {
+      errors.push(`sred: ${sredErr.message}`);
+    } else {
+      const WEIGHT_FACTORS: Record<string, number> = {
+        high: 1.00, medium: 0.50, low: 0.15, none: 0.00,
+      };
+      const WEIGHT_LABELS: Record<string, string> = {
+        high: "High (1.00)", medium: "Medium (0.50)", low: "Low (0.15)", none: "None (0.00)",
+      };
+
+      const csvHeaders = [
+        "Date", "Hours", "SR&ED Weight", "Eligible Hours",
+        "Work Summary (T661 Narrative)", "Technological Challenges",
+        "SR&ED Characterization", "Commits", "PR / Branch Refs",
+      ];
+      const csvLines: string[] = [csvHeaders.map(csvEscape).join(",")];
+      let totalHours = 0;
+      let totalEligible = 0;
+
+      for (const row of (sredEntries ?? []) as Array<Record<string, unknown>>) {
+        const weight = row.sred_weight as string;
+        const hrs = Number(row.hours);
+        const factor = WEIGHT_FACTORS[weight] ?? 0;
+        const eligible = Number((hrs * factor).toFixed(2));
+        totalHours += hrs;
+        totalEligible += eligible;
+        csvLines.push([
+          csvEscape(serializeCell(row.entry_date)),
+          csvEscape(serializeCell(hrs)),
+          csvEscape(serializeCell(WEIGHT_LABELS[weight] ?? weight)),
+          csvEscape(serializeCell(eligible)),
+          csvEscape(serializeCell(row.work_summary)),
+          csvEscape(serializeCell(row.tech_challenges)),
+          csvEscape(serializeCell(row.sred_note)),
+          csvEscape(serializeCell(row.commits_count)),
+          csvEscape(serializeCell(row.pr_refs)),
+        ].join(","));
+      }
+
+      // Totals row
+      csvLines.push([
+        csvEscape(serializeCell(`FY${year} TOTALS`)),
+        csvEscape(serializeCell(Number(totalHours.toFixed(2)))),
+        "", csvEscape(serializeCell(Number(totalEligible.toFixed(2)))),
+        csvEscape(serializeCell(`${(sredEntries ?? []).length} entries`)),
+        "", "", "", "",
+      ].join(","));
+
+      const sredFolder = zip.folder("sred")!;
+      sredFolder.file(`corp_sred_entries_FY${year}.csv`, csvLines.join("\r\n"));
+      sredCount = (sredEntries ?? []).length;
+    }
+  } catch (e) {
+    errors.push(`sred: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  // ── 7. README.txt ────────────────────────────────────────────────────────────
 
   const readme = buildReadme(year, today, {
     reportCount,
@@ -298,11 +366,12 @@ export async function buildExportBundle(
     receiptCount,
     docCount,
     resolutionCount,
+    sredCount,
     errors,
   });
   zip.file("README.txt", readme);
 
-  return { zip, filenameBase, reportCount, txnCount, receiptCount, docCount, resolutionCount, errors };
+  return { zip, filenameBase, reportCount, txnCount, receiptCount, docCount, resolutionCount, sredCount, errors };
 }
 
 // ── README generator ─────────────────────────────────────────────────────────
@@ -316,6 +385,7 @@ function buildReadme(
     receiptCount:    number;
     docCount:        number;
     resolutionCount: number;
+    sredCount:       number;
     errors:          string[];
   },
 ): string {
@@ -354,14 +424,21 @@ resolutions/  (${counts.resolutionCount} files)
   Passed corporate director resolutions for FY${year} in Markdown format.
   Named: {year}-DR-{NNN}_{subject_slug}.md
 
+sred/  (1 file, ${counts.sredCount} entries)
+  corp_sred_entries_FY${year}.csv
+  SR&ED daily work-log for T661 preparation. Columns: Date, Hours, SR&ED Weight,
+  Eligible Hours (weight-adjusted), Work Summary, Technological Challenges,
+  SR&ED Characterization, Commits, PR/Branch Refs. Eligible-hours weights:
+  High=1.00, Medium=0.50, Low=0.15, None=0.00. For SR&ED specialist review.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ALSO PROVIDE TO YOUR ACCOUNTANT (NOT IN THIS BUNDLE)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-SR&ED Daily Work Log
+SR&ED Flat-File Historical Log (pre-DB)
   Agent Runway SR&ED Daily Work Log - 2026.md
   Located on Andrew's desktop under Agent Runway - Grant Applications/.
-  Required for T661 SR&ED claim preparation. Provide separately.
+  Contains entries prior to the DB migration. Provide alongside sred/ CSV above.
 
 Bank Statements
   Upload bank CSV files via the Cockpit Reconciliation tab to match
