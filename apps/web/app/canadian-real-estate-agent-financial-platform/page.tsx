@@ -179,6 +179,12 @@ const CLUSTER_COLLECTION = collectionPageSchema({
       url: "/how-much-should-real-estate-agents-save-for-taxes-canada",
       description: "What CRA rates indicate for Canadian agent earnings.",
     },
+    {
+      name: "Capital Gains Tax for Canadian Real Estate Agents Who Invest Personally",
+      url: "/capital-gains-real-estate-agents-canada",
+      description:
+        "Flip-vs-hold classification, the principal residence exemption, the 365-day anti-flipping rule, section 45 change-of-use elections, CCA recapture, the QSBC lifetime exemption, and the current 50% inclusion rate.",
+    },
   ],
 });
 
@@ -853,6 +859,13 @@ export default function CanadianFinancialLayerPillar() {
                   icon: Calculator,
                   title: "How Much to Save for Taxes (Canada)",
                   desc: "What CRA rates indicate for Canadian agent earnings.",
+                  badge: "CRA-cited",
+                },
+                {
+                  href: "/capital-gains-real-estate-agents-canada",
+                  icon: TrendingUp,
+                  title: "Capital Gains Tax for Agents Who Invest Personally",
+                  desc: "Flip-vs-hold, the PRE, the 365-day anti-flipping rule, section 45 elections, CCA recapture, the QSBC LCGE, and the 50% inclusion rate.",
                   badge: "CRA-cited",
                 },
               ].map((item) => {
