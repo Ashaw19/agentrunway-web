@@ -8,6 +8,7 @@ import {
   Calculator,
   Layers,
   Map as MapIcon,
+  Home,
   FileText,
   Building2,
   Receipt,
@@ -143,6 +144,12 @@ const CLUSTER_COLLECTION = collectionPageSchema({
       url: "/vehicle-expenses-real-estate-agents-canada",
       description:
         "Logbook, Class 10.1 ceiling, lease and interest caps, and the 90% GST/HST ITC threshold for sole proprietors.",
+    },
+    {
+      name: "Business-Use-of-Home Expenses for Real Estate Agents in Canada",
+      url: "/business-use-of-home-real-estate-agents-canada",
+      description:
+        "T2125 Line 9945, the two qualifying tests, the loss-limit carryforward, and the principal-residence CCA trap.",
     },
     {
       name: "Real Estate Tax Deadlines in Canada",
@@ -791,6 +798,13 @@ export default function CanadianFinancialLayerPillar() {
                   icon: MapIcon,
                   title: "Vehicle Expenses for Real Estate Agents in Canada",
                   desc: "Logbook, CCA caps, and the 90% GST/HST ITC threshold.",
+                  badge: "CRA-cited",
+                },
+                {
+                  href: "/business-use-of-home-real-estate-agents-canada",
+                  icon: Home,
+                  title: "Business-Use-of-Home Expenses for Real Estate Agents",
+                  desc: "T2125 Line 9945, qualifying tests, and the principal-residence CCA trap.",
                   badge: "CRA-cited",
                 },
                 {
