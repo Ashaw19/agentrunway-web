@@ -1784,6 +1784,47 @@ export interface CorpResolution {
   updated_at:        string;
 }
 
+// ── SR&ED daily work-log entries — migration 00148 ──────────────────────────
+// Internal Director Cockpit only. One row per work session.
+// sred_weight drives eligible-hours calculation for T661.
+export type SredWeight = "none" | "low" | "medium" | "high";
+
+/** Weight multipliers applied to hours for T661 eligible-hours quantum. */
+export const SRED_WEIGHT_FACTORS: Record<SredWeight, number> = {
+  high:   1.00,
+  medium: 0.50,
+  low:    0.15,
+  none:   0.00,
+};
+
+export interface CorpSredEntry {
+  id:               string;
+  user_id:          string;
+  entry_date:       string;     // YYYY-MM-DD
+  hours:            number;
+  work_summary:     string;     // T661 narrative material
+  tech_challenges:  string | null;
+  sred_note:        string | null;  // weight rationale
+  sred_weight:      SredWeight;
+  commits_count:    number | null;
+  pr_refs:          string | null;  // comma-sep PR references
+  created_at:       string;
+  updated_at:       string;
+}
+
+/** Shape of v_corp_sred_annual_summary rows. */
+export interface CorpSredAnnualSummary {
+  user_id:       string;
+  fiscal_year:   number;
+  entry_count:   number;
+  total_hours:   number;
+  eligible_hours: number;
+  high_hours:    number;
+  medium_hours:  number;
+  low_hours:     number;
+  none_hours:    number;
+}
+
 // ── Flight Status workflow library — migration 00145 ────────────────────────
 // Pre-built email draft sequences keyed to Flight Status transitions.
 // System templates have user_id = null and are seeded by the migration.
