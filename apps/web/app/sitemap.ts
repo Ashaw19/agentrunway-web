@@ -75,6 +75,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${BASE_URL}/real-estate-commission-calculator-canada`,    lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/real-estate-agent-business-expenses-canada`,  lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/vehicle-expenses-real-estate-agents-canada`,  lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${BASE_URL}/business-use-of-home-real-estate-agents-canada`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/self-employed-cpp-real-estate-agents-canada`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/real-estate-agent-tax-instalments-canada`,          lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     { url: `${BASE_URL}/prec-vs-sole-proprietor-real-estate-agents-canada`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
