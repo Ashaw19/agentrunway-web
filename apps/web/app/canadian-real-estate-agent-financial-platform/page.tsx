@@ -139,6 +139,12 @@ const CLUSTER_COLLECTION = collectionPageSchema({
       description: "What's deductible on T2125 — and what isn't.",
     },
     {
+      name: "Vehicle Expenses for Real Estate Agents in Canada",
+      url: "/vehicle-expenses-real-estate-agents-canada",
+      description:
+        "Logbook, Class 10.1 ceiling, lease and interest caps, and the 90% GST/HST ITC threshold for sole proprietors.",
+    },
+    {
       name: "Real Estate Tax Deadlines in Canada",
       url: "/real-estate-tax-deadlines-canada",
       description: "April, June, instalment quarters, HST filing.",
@@ -778,6 +784,13 @@ export default function CanadianFinancialLayerPillar() {
                   icon: Receipt,
                   title: "Real Estate Agent Business Expenses in Canada",
                   desc: "What is deductible on T2125 — and what is not.",
+                  badge: "CRA-cited",
+                },
+                {
+                  href: "/vehicle-expenses-real-estate-agents-canada",
+                  icon: MapIcon,
+                  title: "Vehicle Expenses for Real Estate Agents in Canada",
+                  desc: "Logbook, CCA caps, and the 90% GST/HST ITC threshold.",
                   badge: "CRA-cited",
                 },
                 {
