@@ -12,6 +12,7 @@ import {
   FileText,
   Building2,
   Receipt,
+  Percent,
   Clock,
   Shield,
   Sparkles,
@@ -150,6 +151,12 @@ const CLUSTER_COLLECTION = collectionPageSchema({
       url: "/business-use-of-home-real-estate-agents-canada",
       description:
         "T2125 Line 9945, the two qualifying tests, the loss-limit carryforward, and the principal-residence CCA trap.",
+    },
+    {
+      name: "GST/HST Quick Method for Canadian Real Estate Agents",
+      url: "/gst-hst-quick-method-real-estate-agents-canada",
+      description:
+        "$400K turnover ceiling, service-provider remittance rates, the 1% credit on first $30K, GST74 election, and the operating-expense ITC trade-off.",
     },
     {
       name: "Real Estate Tax Deadlines in Canada",
@@ -805,6 +812,13 @@ export default function CanadianFinancialLayerPillar() {
                   icon: Home,
                   title: "Business-Use-of-Home Expenses for Real Estate Agents",
                   desc: "T2125 Line 9945, qualifying tests, and the principal-residence CCA trap.",
+                  badge: "CRA-cited",
+                },
+                {
+                  href: "/gst-hst-quick-method-real-estate-agents-canada",
+                  icon: Percent,
+                  title: "GST/HST Quick Method for Canadian Real Estate Agents",
+                  desc: "$400K ceiling, service-provider rates by province, the 1% credit, and the ITC trade-off.",
                   badge: "CRA-cited",
                 },
                 {
