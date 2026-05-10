@@ -82,7 +82,7 @@ const JSON_LD_ARTICLE = articleSchema({
     "A practical guide for Canadian real estate agents on the typical tax-portion estimate for every commission cheque — with a free tax estimator tool.",
   url: "/how-much-should-real-estate-agents-save-for-taxes-canada",
   datePublished: "2025-03-01",
-  dateModified: "2026-05-06",
+  dateModified: "2026-05-10",
 });
 
 const JSON_LD_FAQ = {
@@ -283,16 +283,20 @@ export default function TaxSavingsGuidePage() {
                   the full amount.
                 </p>
                 <p>
-                  A practical approach: know the estimated rate, earmark that
-                  percentage from every cheque as the tax portion, and pay
-                  quarterly instalments on time<CRACite id={6} />. The{" "}
+                  One framing many agents use: estimate the tax portion of each
+                  commission cheque ahead of time, and reconcile it against
+                  CRA&apos;s published quarterly instalment dates of March 15,
+                  June 15, September 15, and December 15<CRACite id={6} />.
+                  Whether instalments apply in a given year depends on the
+                  $3,000 net-tax-owing threshold described in CRA&apos;s
+                  instalment rules<CRACite id={5} />. The{" "}
                   <Link
                     href="/tools/realtor-tax-estimator"
                     className="text-blue-600 underline underline-offset-2 hover:text-blue-500"
                   >
                     free tax estimator
                   </Link>{" "}
-                  gives you a starting point with your own numbers. For a
+                  produces a starting estimate from your own numbers. For a
                   deeper look, see our{" "}
                   <Link
                     href="/real-estate-agent-tax-planning-canada"
