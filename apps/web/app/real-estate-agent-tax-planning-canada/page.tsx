@@ -27,7 +27,7 @@ const JSON_LD_ARTICLE = articleSchema({
     "A practical guide to tax planning for Canadian real estate agents — quarterly instalments, deductible expenses, CPP contributions, and HST/GST registration.",
   url: "/real-estate-agent-tax-planning-canada",
   datePublished: "2025-03-15",
-  dateModified: "2026-05-06",
+  dateModified: "2026-05-10",
 });
 
 // ── CRA primary sources (audit registry) ─────────────────────────────────────
@@ -155,12 +155,12 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               Real Estate Agent Tax Planning in Canada
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
-              No employer withholds tax for you. No HR department sends you a T4.
-              As a self-employed real estate agent in Canada, your tax planning is
-              entirely your own responsibility — and the agents who treat it seriously
-              avoid costly surprises at filing time. This guide covers the essentials:
-              CPP obligations, quarterly instalments, deductible expenses, and how to
-              stay on top of it all through the year.
+              No employer withholds tax for self-employed agents and no T4 is issued.
+              As a self-employed real estate agent in Canada, the responsibility for
+              tracking, estimating, and remitting tax sits with the agent. This guide
+              surfaces the rules published by the CRA on the topics that touch
+              real-estate agents most often: CPP obligations, quarterly instalments,
+              deductible expenses, and the year-round cadence those rules imply.
             </p>
             <p className="mt-3 text-xs text-slate-500">8 min read</p>
           </div>
@@ -174,10 +174,9 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
             <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
               <p className="text-xs leading-relaxed text-amber-700">
                 <strong className="text-amber-800">General information only — not tax advice.</strong>{" "}
-                This article provides general planning awareness for Canadian self-employed real estate agents.
-                Tax rules change frequently, rates vary by province, and individual circumstances differ.
-                Always consult a qualified accountant or tax professional and verify current rules with the CRA
-                or your provincial tax authority.{" "}
+                This article surfaces rules published by the CRA and produces general planning estimates only. Tax
+                rules change frequently, rates vary by province, and individual circumstances differ. Verify with a
+                qualified accountant or tax professional before making any filing or financial decision.{" "}
                 <a href="/terms" className="underline underline-offset-2 hover:text-amber-900">Terms of Service</a>.
               </p>
             </div>
@@ -350,12 +349,13 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
 
               <p>
                 Missing an instalment date does not result in an immediate penalty, but
-                the CRA charges instalment interest at the prescribed rate — currently
-                elevated — on any amounts that were due but not paid. If you underpay
-                significantly, you may also face a penalty on top of the interest. The
-                practical impact is that chronically ignoring instalments is expensive,
-                and the February-to-April scramble to cover a full year&apos;s tax in
-                one payment can create serious cash flow strain.
+                the CRA charges instalment interest at the prescribed rate
+                <CRACite id={3} /> on any amounts that were due but not paid. Where the
+                underpayment is significant, an additional penalty may apply on top of
+                the interest<CRACite id={3} />. The practical effect is that compressing
+                a full year of tax obligation into a single February-to-April payment
+                may create cash-flow strain that quarterly instalments are designed to
+                avoid.
               </p>
 
               <h3>How to calculate your instalment amounts</h3>
@@ -403,21 +403,22 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               <h3>The 30–35% tax-portion estimate</h3>
 
               <p>
-                A common reference point for Canadian real estate agents: roughly
-                30–35% of every commission payment is estimated as the tax portion,
-                covering combined federal and provincial income tax, CPP contributions,
-                and a margin for the variable nature of the exact obligation. Agents
-                who track this proportion consistently tend to find that their
-                instalment payments come from accumulated reserves rather than from
-                emergency savings.
+                A common framing among Canadian real estate agents: roughly 30–35% of
+                every commission payment is estimated as the tax portion, covering
+                combined federal and provincial income tax<CRACite id={7} /> and CPP
+                contributions<CRACite id={1} />. The exact figure depends on the
+                province, projected annual income, applicable deductions, and the
+                CPP1 and CPP2 schedules<CRACite id={1} /><CRACite id={2} />.
               </p>
 
               <p>
-                For agents in higher-tax provinces or with higher income levels, the
-                estimated tax-portion rate may be closer to 38–40%. The exact number
-                depends on your province, your projected annual income, and your
-                applicable deductions — all factors that Agent Runway tracks and
-                calculates for you in real time.
+                In higher-tax provinces or at higher income levels, the estimated
+                tax-portion rate may sit closer to 38–40%. Agent Runway computes
+                the projection from the agent&apos;s own province, income trajectory,
+                and tracked deductions, and surfaces the estimate in real time.
+                Numbers shown are estimates based on rules published by the CRA;
+                verify with an accountant before making any filing or financial
+                decision.
               </p>
 
               {/* ── Section 3: Deductible Expenses ── */}
@@ -459,8 +460,9 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                   <strong>Vehicle expenses</strong> — the business-use portion of vehicle
                   costs (fuel, insurance, maintenance, lease payments) is deductible. The
                   CRA requires a logbook to support the business-use percentage claimed
-                  <CRACite id={10} />. A kilometre log recording each business trip is
-                  the most defensible approach.
+                  <CRACite id={10} />. The CRA describes the logbook as a record of each
+                  business trip&apos;s date, destination, purpose, and kilometres travelled
+                  <CRACite id={10} />.
                 </li>
                 <li>
                   <strong>Home office</strong> — where an agent regularly works from a
@@ -545,13 +547,12 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
                       Not Tax Advice
                     </p>
                     <p className="mt-1 text-sm leading-relaxed text-amber-700">
-                      The information on this page is provided for general planning
-                      awareness only. Tax rules change, individual circumstances vary,
-                      and the CRA applies its own interpretation to specific situations.
-                      Agent Runway provides estimates for planning purposes and is not
-                      a substitute for professional tax advice. Always consult a qualified
-                      accountant or tax professional for guidance specific to your
-                      situation.
+                      This page surfaces rules published by the CRA and produces
+                      planning estimates only. Tax rules change, individual
+                      circumstances vary, and the CRA applies its own
+                      interpretation to specific situations. Verify with a
+                      qualified accountant or tax professional before making any
+                      filing or financial decision.
                     </p>
                   </div>
                 </div>
@@ -663,7 +664,7 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
               <p className="mt-2 text-xs text-slate-500">
                 Every quantitative or mechanical claim in this article is backed
                 by one of the primary sources below. Hand-verified live on
-                2026-05-06.
+                2026-05-10.
               </p>
               <ol className="mt-4 space-y-2 text-xs text-slate-500">
                 {CRA_SOURCES.map((s) => (
@@ -684,11 +685,11 @@ export default function RealEstateAgentTaxPlanningCanadaPage() {
 
             {/* Bottom disclaimer */}
             <p className="mt-12 text-center text-xs leading-relaxed text-slate-400">
-              This article is for general information and planning awareness only — not financial,
-              tax, or professional advice. Tax laws change frequently and rates vary by province.
-              Always consult a qualified accountant or tax professional and verify current rules
-              with CRA or your provincial tax authority. Agent Runway assumes no liability for tax
-              filing outcomes.{" "}
+              This article is for general information only and is not financial, tax, or professional
+              advice. Numbers shown are estimates based on rules published by the CRA. Tax laws change
+              frequently and rates vary by province. Verify with a qualified accountant or tax
+              professional before making any filing or financial decision. Agent Runway assumes no
+              liability for tax filing outcomes.{" "}
               <a href="/terms" className="underline underline-offset-2 hover:text-slate-600">
                 Terms of Service
               </a>.
