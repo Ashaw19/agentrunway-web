@@ -627,7 +627,7 @@ interface Props {
 
 const DEFAULT_SUGGESTIONS = [
   "Am I on pace to hit my annual goal?",
-  "How much should I set aside for taxes?",
+  "What's my estimated tax burden this year?",
   "What's my biggest business risk right now?",
   "How does my performance compare to other agents?",
 ];
@@ -637,7 +637,7 @@ const PAGE_SUGGESTIONS: Record<string, string[]> = {
     "Am I on pace to hit my annual goal?",
     "How is my Runway Score calculated?",
     "What's my biggest business risk right now?",
-    "How much should I set aside for taxes?",
+    "What's my estimated tax burden this year?",
   ],
   "/transactions": [
     "What's my average deal size this year?",
@@ -653,7 +653,7 @@ const PAGE_SUGGESTIONS: Record<string, string[]> = {
   ],
   "/forecast": [
     "How are probability bands calculated?",
-    "What should I set aside for taxes per deal?",
+    "How does the engine estimate tax per deal?",
     "How does the 5-year projection work?",
     "What is my effective tax rate?",
   ],
