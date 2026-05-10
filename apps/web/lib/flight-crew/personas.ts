@@ -18,7 +18,15 @@
  * - memory/feedback_tax_information_not_advice.md — Navigator's tax posture
  */
 
-import { Anchor, Compass, Radio, type LucideIcon } from "lucide-react";
+import { Compass, Radio, type LucideIcon } from "lucide-react";
+import type { ComponentType, SVGProps } from "react";
+import { Tailfin } from "@/components/icons/brand-icons";
+
+/**
+ * An icon component compatible with both lucide-react icons and AR's custom
+ * brand-mark components. Both accept `className` and render as a sized SVG.
+ */
+type IconComponent = LucideIcon | ComponentType<SVGProps<SVGSVGElement>>;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,8 +47,8 @@ export interface PersonaMeta {
   name: string;
   /** Short one-line domain description, shown beside the name in menus. */
   domain: string;
-  /** lucide-react icon component. */
-  icon: LucideIcon;
+  /** Icon component (lucide-react or AR brand mark). */
+  icon: IconComponent;
   /** Tailwind token for solid accent (borders, strong text). */
   accent: string;
   /** Tailwind token for subtle background tint (avatar fill, message bg). */
@@ -55,7 +63,7 @@ export const CAPTAIN: PersonaMeta = {
   id: "captain",
   name: "Captain",
   domain: "strategic overview — default",
-  icon: Anchor,
+  icon: Tailfin,
   accent: "border-blue-600",
   accentBg: "bg-blue-600/10",
   accentText: "text-blue-400",

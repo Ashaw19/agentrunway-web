@@ -12,7 +12,8 @@
 
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Anchor, ArrowRight, Calculator, BarChart3 } from "lucide-react";
+import { ArrowRight, Calculator, BarChart3 } from "lucide-react";
+import { Tailfin } from "@/components/icons/brand-icons";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { CaptainChat } from "./captain-chat";
@@ -55,7 +56,7 @@ export default function CaptainPage() {
           {/* ── Hero ── */}
           <div className="mb-8 text-center">
             <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600/20 ring-1 ring-blue-600/30">
-              <Anchor className="h-7 w-7 text-blue-400" />
+              <Tailfin className="h-7 w-7 text-blue-400" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
               Talk to Captain

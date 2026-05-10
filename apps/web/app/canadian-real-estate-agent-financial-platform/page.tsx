@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowRight,
-  Anchor,
   Compass,
   Radio,
   Calculator,
@@ -22,6 +21,7 @@ import {
   Gauge,
   TrendingUp,
 } from "lucide-react";
+import { Tailfin } from "@/components/icons/brand-icons";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import {
@@ -235,7 +235,7 @@ const CAPABILITIES: Capability[] = [
     link: { href: "/tools/realtor-tax-estimator", label: "Try the free tax estimator" },
   },
   {
-    icon: Anchor,
+    icon: Tailfin,
     iconClass: "text-cyan-600",
     bgClass: "bg-cyan-50",
     name: "Flight Crew",
@@ -382,7 +382,7 @@ export default function CanadianFinancialLayerPillar() {
                 href="/captain"
                 className="inline-flex items-center rounded-lg bg-blue-600 px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
               >
-                <Anchor className="mr-2 h-4 w-4" />
+                <Tailfin className="mr-2 h-4 w-4" />
                 Talk to Captain
               </Link>
               <Link
@@ -672,7 +672,7 @@ export default function CanadianFinancialLayerPillar() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               {[
                 {
-                  icon: Anchor,
+                  icon: Tailfin,
                   iconClass: "text-blue-600",
                   bgClass: "bg-blue-50",
                   name: "Captain",
@@ -722,7 +722,7 @@ export default function CanadianFinancialLayerPillar() {
                 href="/captain"
                 className="inline-flex items-center rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
               >
-                <Anchor className="mr-2 h-4 w-4" />
+                <Tailfin className="mr-2 h-4 w-4" />
                 Talk to Captain — no account required
               </Link>
             </div>
@@ -929,7 +929,7 @@ export default function CanadianFinancialLayerPillar() {
                 href="/captain"
                 className="inline-flex items-center rounded-lg border border-slate-700 px-8 py-3 text-sm font-semibold text-slate-200 transition-colors hover:bg-slate-800"
               >
-                <Anchor className="mr-2 h-4 w-4" />
+                <Tailfin className="mr-2 h-4 w-4" />
                 Talk to Captain
               </Link>
             </div>

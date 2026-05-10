@@ -1,7 +1,42 @@
 /**
- * Brand icons removed from lucide-react v1.
- * Hand-rolled SVGs matching the original lucide paths.
+ * Brand icons not provided by lucide-react. Includes third-party marks (Instagram,
+ * Facebook) and AR's own brand marks (Tailfin) used as Lucide-shaped components
+ * so they drop into existing icon slots without API changes.
  */
+
+import { forwardRef, type SVGProps } from "react";
+
+/**
+ * Tailfin — AR brand mark used as the Captain persona icon.
+ * Stroke-only mono version of /public/brand/marks/tailfin-monogram.svg so it
+ * inherits text color and reads cleanly at 12-32px. Cheatline stroke evokes
+ * the airline livery on a vertical stabilizer. Uses forwardRef so it's
+ * structurally compatible with lucide-react's LucideIcon (ForwardRefExoticComponent)
+ * and drops into existing icon slots without type changes.
+ */
+export const Tailfin = forwardRef<SVGSVGElement, SVGProps<SVGSVGElement>>(
+  function Tailfin({ className, ...props }, ref) {
+    return (
+      <svg
+        ref={ref}
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={className}
+        {...props}
+      >
+        <path d="M4 20 L10 4 L20 4 L20 20 Z" />
+        <path d="M8 13 L20 13" />
+      </svg>
+    );
+  },
+);
 
 export function Instagram({ className }: { className?: string }) {
   return (

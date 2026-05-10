@@ -86,8 +86,8 @@ import {
   ArrowDownRight,
   Minus,
   Compass,
-  Anchor,
 } from "lucide-react";
+import { Tailfin } from "@/components/icons/brand-icons";
 import Link from "next/link";
 import { fmtCurrency, fmtCompact, fmtPct } from "@/lib/formatters";
 import { cn } from "@/lib/utils";
@@ -1037,7 +1037,7 @@ export function DashboardContent({
         {/* Captain accent header */}
         <div className="flex items-center gap-2 border-b border-blue-100 bg-blue-50/60 px-4 py-2.5">
           <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600/10">
-            <Anchor className="h-3 w-3 text-blue-600" />
+            <Tailfin className="h-3 w-3 text-blue-600" />
           </div>
           <p className="text-[11px] font-bold uppercase tracking-wider text-blue-600">Captain&apos;s Morning Brief</p>
           <span className="ml-auto text-[10px] text-slate-400">{dateLabel}</span>
