@@ -92,7 +92,7 @@ const JSON_LD_ARTICLE = articleSchema({
     "A line-by-line guide to CRA Form T2125 for self-employed real estate agents in Canada, covering industry code, commission income, deductible expenses, and common filing mistakes.",
   url: "/t2125-guide-real-estate-agents-canada",
   datePublished: "2025-04-01",
-  dateModified: "2026-05-06",
+  dateModified: "2026-05-10",
 });
 
 const JSON_LD_FAQ = {
@@ -278,6 +278,37 @@ export default function T2125GuidePage() {
               accountants.
             </p>
             <p className="mt-3 text-xs text-slate-500">10 min read</p>
+          </div>
+        </section>
+
+        {/* ================================================================
+            TOP DISCLAIMER
+        ================================================================ */}
+        <section className="bg-white px-6 pt-16 sm:px-10">
+          <div className="mx-auto max-w-3xl">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+              <p className="text-xs leading-relaxed text-amber-700">
+                <strong className="text-amber-800">General information only — not tax advice.</strong>{" "}
+                This article describes the CRA-published mechanics of Form
+                T2125 for self-employed real estate agents. Line numbers,
+                eligible expense categories, and CCA classes are reviewed by
+                CRA annually and may change. Individual circumstances vary.
+                Always verify current rules against{" "}
+                <a
+                  href="https://www.canada.ca/en/revenue-agency/services/forms-publications/forms/t2125.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2 hover:text-amber-900"
+                >
+                  CRA&apos;s Form T2125 page
+                </a>{" "}
+                and consult a qualified accountant or tax professional before
+                making any filing decision.{" "}
+                <a href="/terms" className="underline underline-offset-2 hover:text-amber-900">
+                  Terms of Service
+                </a>.
+              </p>
+            </div>
           </div>
         </section>
 
