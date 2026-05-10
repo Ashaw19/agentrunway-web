@@ -92,7 +92,7 @@ const JSON_LD_ARTICLE = articleSchema({
     "A practical guide to every deduction available to self-employed Canadian real estate agents — organized by CRA category, with T2125 line references.",
   url: "/real-estate-agent-business-expenses-canada",
   datePublished: "2025-04-01",
-  dateModified: "2026-05-06",
+  dateModified: "2026-05-10",
 });
 
 const JSON_LD_FAQ = {
@@ -101,42 +101,42 @@ const JSON_LD_FAQ = {
   mainEntity: [
     {
       "@type": "Question",
-      name: "Can I deduct my brokerage split as a business expense?",
+      name: "Is the brokerage split a deductible business expense?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. The portion of your gross commission that goes to your brokerage is a deductible business expense. It is reported on Line 8871 (Management and admin fees) of the T2125 form. If your brokerage keeps 20% of your GCI, that 20% is an expense.",
+        text: "Per CRA's expense classifications, the portion of gross commission paid to a brokerage is a deductible business expense, reported on Line 8871 (Management and admin fees) of the T2125. A brokerage split that retains 20% of GCI produces an expense equal to 20% of GCI on Line 8871.",
       },
     },
     {
       "@type": "Question",
-      name: "What is a reasonable expense ratio for a real estate agent?",
+      name: "What expense ratio is typical for a Canadian real estate agent?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Most successful Canadian real estate agents have a total expense ratio between 25% and 30% of their gross commission income. This includes brokerage splits, marketing, vehicle costs, board dues, and all other business expenses. Ratios significantly above 30% may indicate overspending or trigger CRA scrutiny.",
+        text: "Total expense ratios for active Canadian real estate agents commonly fall in the 25 to 30 percent range of gross commission income, covering brokerage splits, marketing, vehicle costs, board dues, and other business expenses. Ratios materially above that range may attract closer CRA review. The 25 to 30 percent figure is a descriptive observation, not a CRA-published threshold.",
       },
     },
     {
       "@type": "Question",
-      name: "Do I need to keep receipts for every business expense?",
+      name: "Are receipts required for every business expense?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes. The CRA requires supporting documentation for every business expense claimed. Receipts, invoices, bank statements, and contracts are required to be retained for at least six years from the end of the tax year. Digital copies are acceptable as long as they are legible and complete.",
+        text: "CRA's record-keeping rule indicates that supporting documentation is retained for every business expense claimed. Receipts, invoices, bank statements, and contracts are retained for at least six years from the end of the tax year. Digital copies that are legible and complete are accepted.",
       },
     },
     {
       "@type": "Question",
-      name: "Can I deduct my phone if I use it for both personal and business?",
+      name: "How does CRA treat a phone used for both personal and business?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Yes, but only the business-use portion. If one phone is used for both personal and business purposes, the agent determines a reasonable business-use percentage. For most active real estate agents, 60% to 80% business use is considered reasonable by the CRA. The percentage applies only if the agent can justify it if audited.",
+        text: "Per CRA, only the business-use portion of a mixed-use phone is deductible. The business-use percentage is determined on a reasonable basis. For active real estate agents, percentages in the 60 to 80 percent range are commonly considered reasonable, subject to CRA's facts-and-circumstances review — the percentage applies only when it can be supported in audit.",
       },
     },
     {
       "@type": "Question",
-      name: "What happens if I can't prove a business expense to CRA?",
+      name: "What happens when supporting documentation for an expense is missing?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "If you cannot provide supporting documentation for an expense during a CRA audit or review, the deduction will be denied. This increases your net business income, which means you will owe additional tax plus interest on the underpayment. In some cases, penalties may also apply. The CRA can reassess up to three years back for most returns, or six years if they suspect negligence.",
+        text: "Per CRA's published audit treatment, an expense without supporting documentation may be disallowed in a review. A disallowed expense increases net business income, which results in additional tax plus interest on the underpayment, and penalties may apply in some cases. CRA may reassess up to three years back for most returns, or six years where negligence is suspected.",
       },
     },
   ],
@@ -164,7 +164,7 @@ const EXPENSE_CATEGORIES = [
       "Clothing purchased for photo shoots",
       "Personal branding that is not business-related",
     ],
-    tip: "Digital marketing costs are fully deductible and often the largest single expense category for modern agents.",
+    tip: "Digital marketing costs are fully deductible per CRA's expense list and are often the largest single category for active agents.",
   },
   {
     name: "Business Taxes, Fees & Licenses",
@@ -182,7 +182,7 @@ const EXPENSE_CATEGORIES = [
       "Income tax payments",
       "Penalties or fines",
     ],
-    tip: "Your CREA/board dues alone can be $2,000\u20134,000/year depending on your province.",
+    tip: "CREA and provincial board dues commonly fall in the $2,000\u20134,000 per year range, depending on the province.",
   },
   {
     name: "Management & Admin Fees",
@@ -198,7 +198,7 @@ const EXPENSE_CATEGORIES = [
       "Your own salary draws or owner distributions",
       "Personal assistant costs unrelated to business",
     ],
-    tip: "THIS is where your brokerage split goes. If your brokerage keeps 20% of your GCI, that 20% is an expense on Line 8871.",
+    tip: "Line 8871 is where the brokerage commission split is reported. If the brokerage retains 20% of GCI, that 20% is an expense on Line 8871.",
   },
   {
     name: "Office Expenses",
@@ -215,7 +215,7 @@ const EXPENSE_CATEGORIES = [
       "Personal phone plan (only business portion)",
       "Home furnishings not used exclusively for business",
     ],
-    tip: "Track every subscription. Most agents underestimate their SaaS costs.",
+    tip: "SaaS subscriptions are commonly underreported. A complete software inventory captures every recurring deductible cost.",
   },
   {
     name: "Vehicle Expenses",
@@ -235,8 +235,8 @@ const EXPENSE_CATEGORIES = [
       "Traffic tickets and fines",
     ],
     critical:
-      "A vehicle logbook is required by CRA. Without it, CRA can deny the entire vehicle claim. Record date, destination, client/purpose, and km for every business trip.",
-    tip: "Most agents have 50\u201370% business use. CRA may challenge anything above 80%.",
+      "CRA's published expectation for the vehicle claim is a logbook. Without supporting records, the deduction may be disallowed. CRA's logbook entries cover date, destination, client or business purpose, and kilometres for each business trip.",
+    tip: "Reported business-use percentages for active agents commonly fall in the 50\u201370% range. Percentages above 80% may attract closer CRA review.",
   },
   {
     name: "Home Office",
@@ -255,8 +255,8 @@ const EXPENSE_CATEGORIES = [
       "Furniture not used exclusively for business",
     ],
     calculation:
-      "Square footage of office \u00f7 total home square footage \u00d7 eligible expenses = your deduction.",
-    tip: "The home office deduction is valuable but attracts CRA attention. Keep floor plan measurements documented.",
+      "Square footage of the office \u00f7 total home square footage \u00d7 eligible expenses = the deductible portion (per CRA's business-use-of-home calculation method).",
+    tip: "The home office deduction can be material, and CRA reviews it closely. Documented floor-plan measurements support the claim if it is reviewed.",
   },
   {
     name: "Meals & Entertainment",
@@ -272,7 +272,7 @@ const EXPENSE_CATEGORIES = [
       "Alcohol at personal events",
       "Meals with no documented business purpose",
     ],
-    tip: "Keep the receipt AND note who you met and the business purpose. \u2018Lunch\u2019 is not enough.",
+    tip: "CRA's documentation expectation for meals covers the receipt plus the attendees and business purpose. A receipt labelled only 'lunch' may not satisfy the supporting-documentation requirement.",
   },
   {
     name: "Professional Fees",
@@ -287,7 +287,7 @@ const EXPENSE_CATEGORIES = [
       "Personal legal matters (divorce, estate, etc.)",
       "Personal financial planning fees",
     ],
-    tip: "Your accountant\u2019s fee is itself a deductible expense. Factor this in when deciding whether professional tax help is worth it.",
+    tip: "Accountant and tax-preparation fees are themselves deductible business expenses, which lowers the effective cost of professional tax help.",
   },
   {
     name: "Education & Training",
@@ -303,7 +303,7 @@ const EXPENSE_CATEGORIES = [
       "Initial licensing courses (capital expense)",
       "Courses unrelated to real estate",
     ],
-    tip: "Continuing education is fully deductible and keeps you competitive. Conference travel costs (flights, hotels) are also deductible separately.",
+    tip: "Continuing-education fees are fully deductible. Conference travel costs (flights, hotels) are deductible separately on the travel line.",
   },
   {
     name: "Telephone & Internet",
@@ -318,7 +318,7 @@ const EXPENSE_CATEGORIES = [
       "Personal phone plan (only business portion is deductible)",
       "Streaming services",
     ],
-    tip: "If you use one phone for everything, a reasonable business-use percentage is 60\u201380%.",
+    tip: "When a single phone is used for both personal and business purposes, business-use percentages in the 60\u201380% range are commonly considered reasonable for active real estate agents, subject to CRA's facts-and-circumstances review.",
   },
   {
     name: "Travel",
@@ -334,7 +334,7 @@ const EXPENSE_CATEGORIES = [
       "Commuting to your regular office",
       "Travel for personal errands",
     ],
-    tip: "If a trip has both business and personal components, only the business portion is deductible. Keep a clear itinerary.",
+    tip: "Per CRA, only the business portion of a mixed business-and-personal trip is deductible. A documented itinerary supports the apportionment if the claim is reviewed.",
   },
   {
     name: "Capital Cost Allowance (CCA)",
@@ -350,7 +350,7 @@ const EXPENSE_CATEGORIES = [
       "Items under ~$500 (expense these immediately as office supplies)",
       "Land (land does not depreciate)",
     ],
-    tip: "Small items under $500 can often be expensed immediately as office supplies rather than capitalized.",
+    tip: "Small items under approximately $500 are commonly expensed as office supplies rather than capitalized, per CRA's published treatment for low-value assets.",
   },
 ];
 
@@ -415,34 +415,38 @@ export default function BusinessExpensesGuidePage() {
               </h2>
               <div className="mt-6 space-y-5 text-base leading-relaxed text-slate-600">
                 <p>
-                  As a self-employed real estate agent, you can deduct any expense
-                  that was incurred to earn business income<CRACite id={2} />.
-                  The CRA expects expenses to be <strong>reasonable</strong>,{" "}
-                  <strong>documented</strong>, and{" "}
-                  <strong>directly related to your real estate business</strong>.
+                  For a self-employed real estate agent, CRA states an expense
+                  is deductible when it was incurred to earn business income
+                  <CRACite id={2} />. CRA expects expenses to be{" "}
+                  <strong>reasonable</strong>, <strong>documented</strong>, and{" "}
+                  <strong>directly related to the real estate business</strong>
+                  <CRACite id={2} />.
                 </p>
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-6 py-5">
                   <p className="text-sm font-semibold text-emerald-800">
-                    The key rule
+                    The general principle CRA applies
                   </p>
                   <p className="mt-1 text-base text-emerald-700">
-                    If you wouldn&apos;t have spent the money without the
-                    business, it&apos;s likely deductible.
+                    An expense that would not have been incurred without the
+                    business may meet CRA&apos;s deductibility test
+                    <CRACite id={2} />. Whether a specific expense qualifies
+                    depends on facts an accountant would verify.
                   </p>
                 </div>
                 <p>
-                  <strong>Industry benchmark:</strong> Most successful agents have
-                  an expense ratio between{" "}
-                  <strong>25&ndash;30% of their gross commission income</strong>.
-                  This includes everything from brokerage splits and board dues to
-                  marketing, vehicle costs, and software subscriptions.
+                  <strong>Observed industry pattern:</strong> total expense
+                  ratios for active Canadian real estate agents commonly fall
+                  between <strong>25&ndash;30% of gross commission income</strong>.
+                  That range covers brokerage splits, board dues, marketing,
+                  vehicle costs, and software subscriptions. The figure is a
+                  descriptive observation, not a CRA-published benchmark.
                 </p>
                 <p>
-                  All of these expenses are reported on the{" "}
+                  These expenses are reported on the{" "}
                   <strong>T2125 &mdash; Statement of Business or Professional Activities</strong>
-                  <CRACite id={1} />, which is filed with your personal T1 tax
-                  return. The sections below cover every major category, with the
-                  specific T2125 line references<CRACite id={2} />.
+                  <CRACite id={1} />, which is filed with the personal T1 tax
+                  return. The sections below cover each major category with the
+                  specific T2125 line reference<CRACite id={2} />.
                 </p>
               </div>
             </ScrollRevealSection>
@@ -589,50 +593,60 @@ export default function BusinessExpensesGuidePage() {
           <div className="mx-auto max-w-3xl">
             <ScrollRevealSection>
               <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                What CRA looks for in an audit
+                What CRA looks for in a review
               </h2>
               <p className="mt-4 text-base leading-relaxed text-slate-600">
-                Real estate agents are among the most frequently audited
-                self-employed professionals in Canada. The best defence is
-                thorough, consistent record-keeping.
+                Real estate agents are among the more frequently reviewed
+                self-employed taxpayers in Canada. The published documentation
+                expectations below reduce the risk that a deduction is
+                disallowed for lack of supporting records.
               </p>
               <ul className="mt-6 space-y-4">
                 <li className="flex items-start gap-3 text-base text-slate-700">
                   <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-slate-400" />
                   <span>
-                    <strong>Keep all receipts</strong> (digital or physical) for a
-                    minimum of <strong>6 years</strong> from the end of the tax
-                    year<CRACite id={8} />.
+                    <strong>Receipt retention.</strong> CRA's published
+                    record-keeping rule indicates supporting documents
+                    (digital or physical) are retained for a minimum of{" "}
+                    <strong>6 years</strong> from the end of the tax year
+                    <CRACite id={8} />.
                   </span>
                 </li>
                 <li className="flex items-start gap-3 text-base text-slate-700">
                   <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-slate-400" />
                   <span>
-                    <strong>Maintain a vehicle logbook</strong>
-                    <CRACite id={3} /> &mdash; this is the single most important
-                    piece of documentation for the vehicle claim.
+                    <strong>Vehicle logbook.</strong> CRA&apos;s motor vehicle
+                    expense guidance indicates a logbook is the central piece
+                    of supporting documentation for a vehicle claim
+                    <CRACite id={3} />.
                   </span>
                 </li>
                 <li className="flex items-start gap-3 text-base text-slate-700">
                   <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-slate-400" />
                   <span>
-                    <strong>Document the business purpose</strong> of every
-                    expense &mdash; especially meals, entertainment, and travel.
+                    <strong>Business-purpose documentation.</strong> CRA's
+                    published expectation is that the business purpose of each
+                    expense is documented &mdash; particularly for meals,
+                    entertainment, and travel<CRACite id={7} />.
                   </span>
                 </li>
                 <li className="flex items-start gap-3 text-base text-slate-700">
                   <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-slate-400" />
                   <span>
-                    <strong>Don&apos;t round numbers</strong> &mdash; use exact
-                    amounts from receipts. Rounded figures are a red flag.
+                    <strong>Exact amounts.</strong> Figures recorded from
+                    receipts at exact amounts may carry more weight in review
+                    than rounded estimates, which CRA reviewers commonly
+                    flag.
                   </span>
                 </li>
                 <li className="flex items-start gap-3 text-base text-slate-700">
                   <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-slate-400" />
                   <span>
-                    <strong>Keep your expense ratio reasonable</strong> &mdash;
-                    25&ndash;30% of GCI is typical for real estate agents. Ratios
-                    well above this range attract scrutiny.
+                    <strong>Expense ratio context.</strong> Total expense
+                    ratios for active Canadian real estate agents commonly
+                    fall in the 25&ndash;30% of GCI range. Ratios materially
+                    above that range may attract closer review &mdash; the
+                    figure is descriptive, not a CRA threshold.
                   </span>
                 </li>
               </ul>
@@ -652,66 +666,70 @@ export default function BusinessExpensesGuidePage() {
               <div className="mt-8 space-y-8">
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">
-                    Can I deduct my brokerage split as a business expense?
+                    Is the brokerage split a deductible business expense?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Yes. The portion of your gross commission that goes to your
-                    brokerage is a deductible business expense, reported on Line
-                    8871 (Management and admin fees) of the T2125. If your
-                    brokerage keeps 20% of your GCI, that 20% is an expense.
+                    Per CRA's expense classifications<CRACite id={2} />, the
+                    portion of gross commission paid to a brokerage is a
+                    deductible business expense, reported on Line 8871
+                    (Management and admin fees) of the T2125<CRACite id={1} />.
+                    A brokerage split that retains 20% of GCI produces an
+                    expense equal to 20% of GCI on Line 8871.
                   </p>
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">
-                    What is a reasonable expense ratio for a real estate agent?
+                    What expense ratio is typical for a Canadian real estate agent?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Most successful Canadian real estate agents have a total
-                    expense ratio between 25% and 30% of their gross commission
-                    income. This includes brokerage splits, marketing, vehicle
-                    costs, board dues, and all other business expenses. Ratios
-                    significantly above 30% may indicate overspending or trigger
-                    CRA scrutiny.
+                    Total expense ratios for active Canadian real estate agents
+                    commonly fall in the 25&ndash;30% range of gross commission
+                    income, covering brokerage splits, marketing, vehicle
+                    costs, board dues, and other business expenses. Ratios
+                    materially above that range may attract closer CRA review.
+                    The 25&ndash;30% figure is a descriptive observation, not a
+                    CRA-published threshold.
                   </p>
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">
-                    Do I need to keep receipts for every business expense?
+                    Are receipts required for every business expense?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Yes. The CRA requires supporting documentation for every
-                    business expense claimed<CRACite id={8} />. Receipts, invoices,
-                    bank statements, and contracts are required to be retained
-                    for at least six years from the end of the tax year
-                    <CRACite id={8} />. Digital copies are acceptable as long as
-                    they are legible and complete.
+                    CRA's record-keeping rule indicates that supporting
+                    documentation is retained for every business expense
+                    claimed<CRACite id={8} />. Receipts, invoices, bank
+                    statements, and contracts are retained for at least six
+                    years from the end of the tax year<CRACite id={8} />.
+                    Digital copies that are legible and complete are accepted.
                   </p>
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">
-                    Can I deduct my phone if I use it for both personal and
-                    business?
+                    How does CRA treat a phone used for both personal and business?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Yes, but only the business-use portion<CRACite id={2} />. If
-                    one phone is used for both personal and business purposes,
-                    the agent determines a reasonable business-use percentage.
-                    For most active real estate agents, 60% to 80% business use
-                    is considered reasonable by the CRA. The percentage applies
-                    only if the agent can justify it if audited.
+                    Per CRA, only the business-use portion of a mixed-use phone
+                    is deductible<CRACite id={2} />. The business-use
+                    percentage is determined on a reasonable basis. For active
+                    real estate agents, percentages in the 60&ndash;80% range
+                    are commonly considered reasonable, subject to CRA's
+                    facts-and-circumstances review &mdash; the percentage
+                    applies only when it can be supported in audit.
                   </p>
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900">
-                    What happens if I can&apos;t prove a business expense to CRA?
+                    What happens when supporting documentation for an expense is missing?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    If you cannot provide supporting documentation during a CRA
-                    audit, the deduction will be denied. This increases your net
-                    business income, meaning you will owe additional tax plus
-                    interest on the underpayment. In some cases, penalties may also
-                    apply. The CRA can reassess up to three years back for most
-                    returns, or six years if they suspect negligence.
+                    Per CRA's published audit treatment, an expense without
+                    supporting documentation may be disallowed in a review
+                    <CRACite id={8} />. A disallowed expense increases net
+                    business income, which results in additional tax plus
+                    interest on the underpayment, and penalties may apply in
+                    some cases. CRA may reassess up to three years back for
+                    most returns, or six years where negligence is suspected.
                   </p>
                 </div>
               </div>
@@ -788,7 +806,7 @@ export default function BusinessExpensesGuidePage() {
               <p className="mt-2 text-xs text-slate-500">
                 Every quantitative or mechanical claim in this article is backed
                 by one of the primary sources below. Hand-verified live on
-                2026-05-06.
+                2026-05-10.
               </p>
               <ol className="mt-3 space-y-1 text-xs text-slate-500">
                 {CRA_SOURCES.map((s) => (
