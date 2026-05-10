@@ -16,7 +16,8 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Anchor, Send, Loader2, X, CheckCircle2 } from "lucide-react";
+import { Send, Loader2, X, CheckCircle2 } from "lucide-react";
+import { Tailfin } from "@/components/icons/brand-icons";
 import { cn } from "@/lib/utils";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -206,7 +207,7 @@ export function CaptainChat() {
       {/* ── Header ── */}
       <div className="flex items-center gap-3 border-b border-slate-800 bg-slate-900/80 px-5 py-3.5 backdrop-blur">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600">
-          <Anchor className="h-4 w-4 text-white" />
+          <Tailfin className="h-4 w-4 text-white" />
         </div>
         <div>
           <p className="text-sm font-semibold text-white">Captain</p>
@@ -223,7 +224,7 @@ export function CaptainChat() {
           >
             {message.role === "assistant" && (
               <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600">
-                <Anchor className="h-3.5 w-3.5 text-white" />
+                <Tailfin className="h-3.5 w-3.5 text-white" />
               </div>
             )}
             <div

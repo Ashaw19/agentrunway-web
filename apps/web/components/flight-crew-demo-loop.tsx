@@ -18,8 +18,8 @@
  * this script; info-not-advice compliance note is N/A for Dispatcher.
  *
  * Visual + accessibility spec: memory/project_flight_crew_ui_design.md
- * - Captain:    Anchor icon, blue-600 accent
- * - Dispatcher: Radio icon,  violet-600 accent
+ * - Captain:    Tailfin icon, blue-600 accent
+ * - Dispatcher: Radio icon,   violet-600 accent
  * - aria-live="polite" on message container
  * - prefers-reduced-motion: skip typewriter, fade messages in sequentially
  *
@@ -27,7 +27,11 @@
  * No new npm dependencies — only React, Tailwind, lucide-react.
  */
 
-import { Anchor, Radio, RotateCw, type LucideIcon } from "lucide-react";
+import { Radio, RotateCw, type LucideIcon } from "lucide-react";
+import type { ComponentType, SVGProps } from "react";
+import { Tailfin } from "@/components/icons/brand-icons";
+
+type IconComponent = LucideIcon | ComponentType<SVGProps<SVGSVGElement>>;
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -89,7 +93,7 @@ const FADE_OUT_MS = 300;
 
 interface PersonaTokens {
   name: string;
-  icon: LucideIcon;
+  icon: IconComponent;
   // Tailwind classes — pre-composed so Tailwind's JIT picks them up.
   textClass: string;
   bubbleBorderClass: string;
@@ -100,7 +104,7 @@ interface PersonaTokens {
 
 const CAPTAIN_TOKENS: PersonaTokens = {
   name: "Captain",
-  icon: Anchor,
+  icon: Tailfin,
   textClass: "text-blue-400",
   // 3px left border in the persona accent color
   bubbleBorderClass: "border-l-[3px] border-blue-500",

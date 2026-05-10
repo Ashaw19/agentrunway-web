@@ -8,10 +8,10 @@ import {
   FileSpreadsheet,
   Users,
   Layers,
-  Anchor,
   Compass,
   Radio,
 } from "lucide-react";
+import { Tailfin } from "@/components/icons/brand-icons";
 import { MarketingNav } from "@/components/marketing-nav";
 import { MarketingFooter } from "@/components/marketing-footer";
 import { articleSchema, breadcrumbSchema } from "@/lib/schema";
@@ -526,7 +526,7 @@ export default function RealEstateAgentToolsCanada() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               {[
                 {
-                  icon: Anchor,
+                  icon: Tailfin,
                   iconClass: "text-blue-600",
                   bgClass: "bg-blue-50",
                   name: "Captain",
