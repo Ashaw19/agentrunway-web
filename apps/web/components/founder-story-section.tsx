@@ -15,8 +15,8 @@ export function FounderStorySection() {
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-blue-400">
               From a working REALTOR in New Brunswick
             </p>
-            <h2 className="text-balance text-center text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
-              I built Agent Runway because I <span className="underline underline-offset-4">needed</span>&nbsp;it.
+            <h2 className="text-4xl font-extrabold tracking-tight text-white sm:text-5xl">
+              I built Agent Runway because <span className="underline underline-offset-4">I</span> needed&nbsp;it.
             </h2>
 
             <div className="mt-6 space-y-5 text-base leading-relaxed text-slate-300 sm:text-lg">
