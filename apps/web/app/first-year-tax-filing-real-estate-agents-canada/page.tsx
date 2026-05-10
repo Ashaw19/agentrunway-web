@@ -45,14 +45,14 @@ const JSON_LD_ARTICLE = articleSchema({
     "A first-year tax guide for newly-licensed Canadian real estate agents — the published CRA sequence from licence day to first T1 filing, why agents are self-employed (T2125, not T4), how to register a business number, the two $30,000 HST tests, T2125 line-by-line for year one, the June 15 filing extension that does not extend the April 30 payment deadline, the year-one mistakes that compound (commingling, missing logbooks, late HST registration), and the role of an accountant. CRA-cited.",
   url: "/first-year-tax-filing-real-estate-agents-canada",
   datePublished: "2026-05-09",
-  dateModified: "2026-05-09",
+  dateModified: "2026-05-10",
 });
 
 // ─── CRA primary sources (audit registry) ─────────────────────────────────────
 //
 // Every numeric or mechanical claim in this article is backed by one of the
 // URLs below. Inline citations are rendered via <CRACite id={n} />. URLs were
-// hand-verified live on 2026-05-09.
+// hand-verified live on 2026-05-10.
 
 const CRA_SOURCES = [
   {
@@ -101,13 +101,13 @@ const CRA_SOURCES = [
     id: 8,
     label:
       "CRA — Motor vehicle expenses and the requirement to keep a logbook (full and simplified)",
-    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/small-businesses-self-employed-income/business-income-tax-reporting/business-expenses/motor-vehicle-expenses/motor-vehicle-records.html",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/business-expenses/motor-vehicle-expenses/motor-vehicle-records.html",
   },
   {
     id: 9,
     label:
       "CRA — Pay (or remit) instalments — the $3,000 net-tax-owing threshold and the no-prior-year baseline rule for new self-employed filers",
-    url: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/about-your-tax-return/tax-return/completing-a-tax-return/payments-cra/instalments.html",
+    url: "https://www.canada.ca/en/revenue-agency/services/payments/payments-cra/individual-payments/income-tax-instalments.html",
   },
   {
     id: 10,
@@ -118,14 +118,14 @@ const CRA_SOURCES = [
   {
     id: 11,
     label:
-      "CRA — Line 13500 Business income (T1 reporting line for net business income flowed from T2125)",
-    url: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/about-your-tax-return/tax-return/completing-a-tax-return/personal-income/line-13500-business-income.html",
+      "CRA — Lines 13499 to 14300 Self-employment income (T1 reporting lines for gross and net business income flowed from T2125, including Line 13500)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/about-your-tax-return/tax-return/completing-a-tax-return/personal-income/self-employment-income-lines-13499-14299-gross-income-lines-13500-14300-net-income.html",
   },
   {
     id: 12,
     label:
-      "CRA — Interest and penalties (interest on overdue tax from May 1; late-filing penalty mechanic)",
-    url: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/about-your-tax-return/tax-return/completing-a-tax-return/personal-income/return-due-dates/interest-penalties.html",
+      "CRA — Late-filing penalty (5% of balance owing plus 1% per full month late, up to 12 months; higher rate for repeat late filers)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/about-your-tax-return/interest-penalties/late-filing-penalty.html",
   },
   {
     id: 13,
@@ -206,7 +206,7 @@ export default function FirstYearTaxFilingRealEstateAgentsCanadaPage() {
               mechanical step cited.
             </p>
             <p className="mt-3 text-xs text-slate-500">
-              16 min read · CRA-cited · Updated 2026-05-09
+              16 min read · CRA-cited · Updated 2026-05-10
             </p>
           </div>
         </section>
@@ -1295,7 +1295,7 @@ export default function FirstYearTaxFilingRealEstateAgentsCanadaPage() {
               <p className="mt-2 text-xs text-slate-500">
                 Every quantitative or mechanical claim in this article
                 is backed by one of the primary sources below. Hand-
-                verified live on 2026-05-09.
+                verified live on 2026-05-10.
               </p>
               <ol className="mt-4 space-y-2 text-xs text-slate-500">
                 {CRA_SOURCES.map((s) => (

@@ -45,14 +45,14 @@ const JSON_LD_ARTICLE = articleSchema({
     "How the GST/HST Quick Method works for self-employed Canadian real estate agents — the $400,000 turnover threshold, the service-provider remittance rates by province, the 1% credit on the first $30,000 of eligible supplies, the GST74 election mechanic, and the operating-expense ITC trade-off that decides whether the Quick Method actually saves money for an agent.",
   url: "/gst-hst-quick-method-real-estate-agents-canada",
   datePublished: "2026-05-09",
-  dateModified: "2026-05-09",
+  dateModified: "2026-05-10",
 });
 
 // ─── CRA primary sources (audit registry) ─────────────────────────────────────
 //
 // Every numeric or mechanical claim in this article is backed by one of the
 // URLs below. Inline citations are rendered via <CRACite id={n} />. URLs were
-// hand-verified live on 2026-05-09.
+// hand-verified live on 2026-05-10.
 
 const CRA_SOURCES = [
   {
@@ -95,7 +95,7 @@ const CRA_SOURCES = [
     id: 7,
     label:
       "CRA — Input tax credits (ITC eligibility, capital property versus operating expenses)",
-    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/complete-file-return/calculate-net-tax/input-tax-credits.html",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/calculate-prepare-report/input-tax-credit.html",
   },
   {
     id: 8,
@@ -174,7 +174,7 @@ export default function GstHstQuickMethodRealEstateAgentsCanadaPage() {
               This article walks the published 2026 mechanic.
             </p>
             <p className="mt-3 text-xs text-slate-500">
-              12 min read · CRA-cited · Updated 2026-05-09
+              12 min read · CRA-cited · Updated 2026-05-10
             </p>
           </div>
         </section>
@@ -1002,7 +1002,7 @@ export default function GstHstQuickMethodRealEstateAgentsCanadaPage() {
               <p className="mt-2 text-xs text-slate-500">
                 Every quantitative or mechanical claim in this article is
                 backed by one of the primary sources below. Hand-verified
-                live on 2026-05-09.
+                live on 2026-05-10.
               </p>
               <ol className="mt-4 space-y-2 text-xs text-slate-500">
                 {CRA_SOURCES.map((s) => (

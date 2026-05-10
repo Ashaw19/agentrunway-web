@@ -43,14 +43,14 @@ const JSON_LD_ARTICLE = articleSchema({
     "A plain-language breakdown of how a Personal Real Estate Corporation (PREC) differs from sole proprietorship for Canadian agents — tax deferral, salary vs dividend, and what changes.",
   url: "/prec-vs-sole-proprietor-real-estate-agents-canada",
   datePublished: "2026-05-06",
-  dateModified: "2026-05-06",
+  dateModified: "2026-05-10",
 });
 
 // ─── CRA primary sources (audit registry) ─────────────────────────────────────
 //
 // Every numeric or mechanical claim in this article is backed by one of the
 // URLs below. Inline citations are rendered via <CRACite id={n} />. URLs were
-// hand-verified live on 2026-05-06.
+// hand-verified live on 2026-05-10.
 
 const CRA_SOURCES = [
   {
@@ -60,14 +60,15 @@ const CRA_SOURCES = [
   },
   {
     id: 2,
-    label: "CRA — Small business deduction (lower rate)",
-    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/corporations/corporation-tax-rates/lower-rate.html",
+    label:
+      "CRA — Corporation tax rates (federal lower rate / small business deduction and general rate)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/corporations/corporation-tax-rates.html",
   },
   {
     id: 3,
     label:
-      "CRA — Line 12000: Taxable amount of dividends from taxable Canadian corporations",
-    url: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/about-your-tax-return/tax-return/completing-a-tax-return/personal-income/line-12000-taxable-amount-dividends-taxable-canadian-corporations.html",
+      "CRA — Lines 12000 and 12010: Taxable amount of dividends (eligible and other than eligible) from taxable Canadian corporations",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/individuals/topics/about-your-tax-return/tax-return/completing-a-tax-return/personal-income/line-12000-taxable-amount-dividends-eligible-other-than-eligible-taxable-canadian-corporations.html",
   },
   {
     id: 4,
@@ -88,8 +89,9 @@ const CRA_SOURCES = [
   },
   {
     id: 7,
-    label: "CRA — Charge and collect the tax: Who has to register for a GST/HST account",
-    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate/who-charge.html",
+    label:
+      "CRA — Charge and collect the GST/HST: Which rate to charge (registration and rate-by-province overview)",
+    url: "https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/charge-collect-which-rate.html",
   },
 ] as const;
 
@@ -642,7 +644,7 @@ export default function PRECvsSoleProprietorPage() {
               <p className="mt-2 text-xs text-slate-500">
                 Every quantitative or mechanical claim in this article is
                 backed by one of the primary sources below. Hand-verified
-                live on 2026-05-06.
+                live on 2026-05-10.
               </p>
               <ol className="mt-4 space-y-2 text-xs text-slate-500">
                 {CRA_SOURCES.map((s) => (
