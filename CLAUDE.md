@@ -85,7 +85,22 @@ engine -> DB -> back. The reported bug is rarely the only one on that path.
 
 - Source: `memory/feedback_grep_pattern_on_bugfix.md`
 
-### 6. Lockfile-change typecheck
+### 6. Working-tree isolation
+
+Before any edit, verify your working directory matches your champion's assigned
+worktree (see the **Working-tree isolation** section at the bottom of this file).
+
+```bash
+pwd           # must match your champion's entry in the worktree table
+git status    # must be clean — no untracked files from a sibling session
+```
+
+If `pwd` is the primary tree (`agentrunway-web/`) and you are a champion
+subagent doing feature work, **stop and `cd` to your assigned worktree first.**
+
+Source: `memory/findings/infra_branch_contamination_root_cause_2026-05-10.md`
+
+### 7. Lockfile-change typecheck
 
 Before merging any PR that modifies `pnpm-lock.yaml` (including all
 Dependabot PRs): run a cache-busting full typecheck.
@@ -146,6 +161,49 @@ call.
   — PII folder. See `memory/feedback_pii_protection.md`.
 - **Never use the `.com` domain.** It is `agentrunway.ca`. See
   `memory/feedback_domain_is_ca.md`.
+- **Never run `git checkout`, `git add`, or `git commit` from the primary
+  `agentrunway-web/` working tree during a champion subagent session.** That
+  tree is reserved for main-line maintenance and hot-fix sessions. Champion
+  feature work goes in the assigned worktree (`worktrees/<slug>/`). Violating
+  this is the root cause of the 2026-05-09 branch-contamination incidents.
+  See `memory/findings/infra_branch_contamination_root_cause_2026-05-10.md`.
+
+---
+
+## Working-tree isolation
+
+Four linked worktrees exist alongside the primary tree. Each parallel champion
+session gets its own directory so staging areas never bleed across sessions.
+
+| Champion(s) | Worktree path |
+|---|---|
+| `tax-expenses-champion`, `gtm-growth-champion` (SEO articles, content) | `../worktrees/seo/` |
+| `corporate-finance-champion` (Director Cockpit) | `../worktrees/cockpit/` |
+| `ai-flight-crew-champion` (personas, system prompts, chat UI) | `../worktrees/flight-crew/` |
+| `infra-platform-champion` (migrations, RLS, CI, Vercel) | `../worktrees/infra/` |
+| Primary tree (`agentrunway-web/`) | Hot-fixes, main-line merges, main session |
+
+**First action of every champion session:**
+
+```bash
+cd "/Users/b/Desktop/Agent Runway Website/Project Home/02 - Web App Code/worktrees/<slug>"
+git fetch origin
+git checkout -b feat/<your-feature-name>   # branch OFF worktree/seo (or equivalent)
+```
+
+**Never create a feature branch inside `agentrunway-web/` during champion
+work** — that is the contamination vector. If you find yourself in that
+directory, `cd` to your worktree before touching git.
+
+When your PR merges, reset the worktree back to tracking HEAD for the next
+session:
+
+```bash
+git checkout worktree/<slug>
+git reset --hard origin/main
+```
+
+Source: `memory/findings/infra_branch_contamination_root_cause_2026-05-10.md`
 
 ---
 
