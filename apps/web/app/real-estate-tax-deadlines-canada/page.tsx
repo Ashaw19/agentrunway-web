@@ -19,13 +19,13 @@ const URL = "https://agentrunway.ca/real-estate-tax-deadlines-canada";
 export const metadata: Metadata = {
   title: "Canadian Real Estate Agent Tax Deadlines 2026",
   description:
-    "Every tax deadline Canadian real estate agents need to know for 2026 — quarterly instalments, T1 filing, HST/GST, T4A, RRSP. Built for self-employed realtors.",
+    "Every CRA tax deadline that applies to Canadian real estate agents in 2026 — quarterly instalments, T1 filing, HST/GST, T4A, RRSP. Built for self-employed realtors.",
   openGraph: {
     type: "article",
     url: URL,
     title: "Canadian Real Estate Agent Tax Deadlines 2026",
     description:
-      "Every tax deadline Canadian real estate agents need to know for 2026 — quarterly instalments, T1, HST/GST, T4A, RRSP.",
+      "Every CRA tax deadline that applies to Canadian real estate agents in 2026 — quarterly instalments, T1, HST/GST, T4A, RRSP.",
     images: [{ url: "/og-image-v2.png", width: 1200, height: 630 }],
   },
   alternates: { canonical: URL },
@@ -38,10 +38,10 @@ export const metadata: Metadata = {
 const JSON_LD_ARTICLE = articleSchema({
   headline: "Canadian Real Estate Agent Tax Deadlines 2026",
   description:
-    "Every CRA tax deadline self-employed Canadian real estate agents need to know for 2026, including quarterly instalments, T1 filing, HST/GST, T4A, and RRSP contributions.",
+    "Every CRA tax deadline that applies to self-employed Canadian real estate agents in 2026, including quarterly instalments, T1 filing, HST/GST, T4A, and RRSP contributions.",
   url: "/real-estate-tax-deadlines-canada",
   datePublished: "2026-04-15",
-  dateModified: "2026-05-06",
+  dateModified: "2026-05-10",
 });
 
 const JSON_LD_BREADCRUMB = breadcrumbSchema([
@@ -71,7 +71,7 @@ const FAQS = [
       "The RRSP contribution deadline is March 2, 2026 (the first 60 days of 2026). Contributions made on or before that date can be deducted against your 2025 taxable income. Your 2025 RRSP deduction limit is on your 2024 Notice of Assessment.",
   },
   {
-    question: "When do real estate agents need to file HST/GST returns?",
+    question: "When are HST/GST returns due for real estate agents?",
     answer:
       "Once gross commission income exceeds $30,000 over four consecutive calendar quarters, CRA requires the agent to register for GST/HST. Most small suppliers file annually with returns due three months after fiscal year-end — so for a December 31 year-end, the return is due April 30. Instalment payments apply when net tax owing exceeded $3,000 in the prior year, due quarterly on the last day of each quarter following year-end.",
   },
@@ -301,12 +301,12 @@ export default function RealEstateTaxDeadlinesPage() {
               </span>
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
-              Every CRA tax deadline self-employed Canadian realtors need to know — quarterly
+              Every CRA tax deadline that applies to self-employed Canadian realtors — quarterly
               instalments, T1 filing, HST/GST returns, T4A issuance, and RRSP contributions.
               Updated for the 2026 tax year.
             </p>
             <p className="mt-3 text-xs text-slate-500">
-              Last updated April 15, 2026 · Written by{" "}
+              Last updated May 10, 2026 · Written by{" "}
               <Link href="/about" className="text-slate-400 underline underline-offset-2 hover:text-slate-300">
                 Andrew Shaw
               </Link>
@@ -343,7 +343,7 @@ export default function RealEstateTaxDeadlinesPage() {
               Upcoming deadlines for 2026
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-400">
-              Today is April 15, 2026. These deadlines are still ahead of you this tax year.
+              As of May 10, 2026, these CRA deadlines are still ahead in the 2026 tax year.
             </p>
 
             <div className="mt-8 space-y-3">
@@ -387,8 +387,10 @@ export default function RealEstateTaxDeadlinesPage() {
               Deadlines already passed in 2026
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-slate-500">
-              Missed any? Contact the CRA immediately — late instalments accrue interest from
-              the missed date, but late-filing penalties only apply after your filing deadline.
+              Per CRA rules, late instalments accrue interest from the missed instalment
+              date<CRACite id={4} />, while late-filing penalties only apply after the T1
+              filing deadline<CRACite id={1} />. Agents who have missed a deadline can verify
+              current interest and penalty figures with the CRA or an accountant.
             </p>
 
             <div className="mt-6 space-y-2">
@@ -435,13 +437,14 @@ export default function RealEstateTaxDeadlinesPage() {
                   </p>
                 </div>
                 <p className="mt-3 text-sm leading-relaxed text-slate-400">
-                  For most agents in their second year of decent commission income, instalments
-                  apply<CRACite id={3} />. The CRA sends an <em>instalment reminder</em> notice
-                  in February and August listing the amount it expects<CRACite id={4} />. The
-                  reminder amount can be paid as-is, or the <em>prior-year</em> method (1/4 of
-                  last year&apos;s total tax) or the <em>current-year</em> method (when income
-                  is expected to drop) may apply. Full mechanics of the three methods, the
-                  $3,000 threshold, and the interest rules are covered in the{" "}
+                  Instalments apply once the $3,000 net-tax-owing threshold is met in the
+                  current year and either of the two preceding years<CRACite id={3} />. The
+                  CRA sends an <em>instalment reminder</em> notice in February and August
+                  listing the amount it expects<CRACite id={4} />. The reminder amount may be
+                  paid as-is, or the <em>prior-year</em> method (1/4 of last year&apos;s total
+                  tax) or the <em>current-year</em> method (based on projected income) may
+                  apply<CRACite id={4} />. Full mechanics of the three methods, the $3,000
+                  threshold, and the interest rules are covered in the{" "}
                   <Link
                     href="/real-estate-agent-tax-instalments-canada"
                     className="font-semibold text-blue-400 underline underline-offset-2 hover:text-blue-300"
@@ -467,10 +470,10 @@ export default function RealEstateTaxDeadlinesPage() {
                   </p>
                 </div>
                 <p className="mt-3 text-sm leading-relaxed text-slate-400">
-                  Many agents misunderstand this. The extra time to file is a concession
-                  because T2125 calculations take longer — it is not an extension of the
-                  payment deadline. If you expect to owe, pay an estimated amount by April 30
-                  and reconcile on June 15 when you file.
+                  The extra six weeks granted to self-employed filers is a filing-only
+                  concession — it does not extend the April 30 payment deadline
+                  <CRACite id={1} />. Interest on any unpaid balance begins accruing
+                  May 1<CRACite id={1} />.
                 </p>
               </div>
 
@@ -526,9 +529,10 @@ export default function RealEstateTaxDeadlinesPage() {
                     General information — not tax advice
                   </p>
                   <p className="mt-2 text-sm leading-relaxed text-slate-300">
-                    This page is informational. Tax rules change frequently, rates vary by
-                    province, and individual circumstances differ. Always consult a qualified
-                    accountant and verify current dates on{" "}
+                    This page is an estimate based on rules published by the CRA. Verify
+                    with your accountant before making any filing or financial decision.
+                    Tax rules change frequently, rates vary by province, and individual
+                    circumstances differ. Current dates can be confirmed on{" "}
                     <a
                       href="https://www.canada.ca/en/revenue-agency.html"
                       target="_blank"
