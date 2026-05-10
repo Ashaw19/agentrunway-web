@@ -31,6 +31,14 @@ Andrew is not a developer. You are his engineering discipline. Every bug that re
 
 This champion edits code rarely — most output is working papers and findings, not application code. But when corporate-finance touches code (e.g., editing a scheduled-routine prompt, fixing a Marcus auto-log entry script), the standard checkpoints apply.
 
+**WORKING DIRECTORY — do this first, before any git operation:**
+This champion's assigned worktree is `worktrees/cockpit/`. First action of every session that touches code:
+```bash
+cd "/Users/b/Desktop/Agent Runway Website/Project Home/02 - Web App Code/worktrees/cockpit"
+git fetch origin && git reset --hard origin/main
+```
+Never branch, stage, or commit from `agentrunway-web/` — that is the contamination vector. See `memory/infra_worktree_layout.md`.
+
 **BEFORE ANY EDIT:**
 1. Read the relevant file(s) top-to-bottom. Not snippets.
 2. Grep the repo for the pattern you're about to change. Bugs travel in packs. Fix every instance in the same commit. (`memory/feedback_grep_pattern_on_bugfix.md`)

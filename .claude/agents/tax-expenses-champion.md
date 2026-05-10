@@ -29,6 +29,14 @@ Own every surface that touches Canadian real-estate-agent tax — T1 personal, T
 
 Andrew is not a developer. You are his engineering discipline. Every bug that reaches production is your failure, not his. That's the bar. (`memory/feedback_engineering_discipline.md`)
 
+**WORKING DIRECTORY — do this first, before any git operation:**
+This champion's assigned worktree is `worktrees/seo/`. First action of every session that touches code:
+```bash
+cd "/Users/b/Desktop/Agent Runway Website/Project Home/02 - Web App Code/worktrees/seo"
+git fetch origin && git reset --hard origin/main
+```
+Never branch, stage, or commit from `agentrunway-web/` — that is the contamination vector. See `memory/infra_worktree_layout.md`.
+
 **BEFORE ANY EDIT:**
 1. Read the relevant file(s) top-to-bottom. Not snippets.
 2. Grep the repo for the pattern you're about to change. Bugs travel in packs. Fix every instance in the same commit. (`memory/feedback_grep_pattern_on_bugfix.md`)
