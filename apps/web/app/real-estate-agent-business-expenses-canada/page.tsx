@@ -605,7 +605,7 @@ export default function BusinessExpensesGuidePage() {
                 <li className="flex items-start gap-3 text-base text-slate-700">
                   <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-slate-400" />
                   <span>
-                    <strong>Receipt retention.</strong> CRA's published
+                    <strong>Receipt retention.</strong> CRA&apos;s published
                     record-keeping rule indicates supporting documents
                     (digital or physical) are retained for a minimum of{" "}
                     <strong>6 years</strong> from the end of the tax year
@@ -624,7 +624,7 @@ export default function BusinessExpensesGuidePage() {
                 <li className="flex items-start gap-3 text-base text-slate-700">
                   <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-slate-400" />
                   <span>
-                    <strong>Business-purpose documentation.</strong> CRA's
+                    <strong>Business-purpose documentation.</strong> CRA&apos;s
                     published expectation is that the business purpose of each
                     expense is documented &mdash; particularly for meals,
                     entertainment, and travel<CRACite id={7} />.
@@ -669,7 +669,7 @@ export default function BusinessExpensesGuidePage() {
                     Is the brokerage split a deductible business expense?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Per CRA's expense classifications<CRACite id={2} />, the
+                    Per CRA&apos;s expense classifications<CRACite id={2} />, the
                     portion of gross commission paid to a brokerage is a
                     deductible business expense, reported on Line 8871
                     (Management and admin fees) of the T2125<CRACite id={1} />.
@@ -696,7 +696,7 @@ export default function BusinessExpensesGuidePage() {
                     Are receipts required for every business expense?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    CRA's record-keeping rule indicates that supporting
+                    CRA&apos;s record-keeping rule indicates that supporting
                     documentation is retained for every business expense
                     claimed<CRACite id={8} />. Receipts, invoices, bank
                     statements, and contracts are retained for at least six
@@ -713,7 +713,7 @@ export default function BusinessExpensesGuidePage() {
                     is deductible<CRACite id={2} />. The business-use
                     percentage is determined on a reasonable basis. For active
                     real estate agents, percentages in the 60&ndash;80% range
-                    are commonly considered reasonable, subject to CRA's
+                    are commonly considered reasonable, subject to CRA&apos;s
                     facts-and-circumstances review &mdash; the percentage
                     applies only when it can be supported in audit.
                   </p>
@@ -723,7 +723,7 @@ export default function BusinessExpensesGuidePage() {
                     What happens when supporting documentation for an expense is missing?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    Per CRA's published audit treatment, an expense without
+                    Per CRA&apos;s published audit treatment, an expense without
                     supporting documentation may be disallowed in a review
                     <CRACite id={8} />. A disallowed expense increases net
                     business income, which results in additional tax plus
