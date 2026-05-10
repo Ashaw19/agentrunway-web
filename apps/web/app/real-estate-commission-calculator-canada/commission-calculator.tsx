@@ -97,9 +97,11 @@ export function CommissionCalculator() {
     <div>
       {/* Anchor text */}
       <p className="mb-8 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-600">
-        On a typical Canadian real estate deal, agents keep roughly{" "}
-        <strong className="text-slate-900">40&ndash;60% of the gross commission</strong>{" "}
-        after splits, fees, and taxes.
+        For common Canadian inputs, this calculator estimates net take-home
+        in roughly the{" "}
+        <strong className="text-slate-900">40&ndash;60% range of the gross commission</strong>{" "}
+        after brokerage split, transaction fees, HST/GST remitted to the CRA,
+        and an estimated income-tax portion.
       </p>
 
       <div className="mb-8 flex items-center gap-3">
@@ -108,7 +110,7 @@ export function CommissionCalculator() {
         </div>
         <div>
           <h2 className="text-xl font-bold text-slate-900">Per-Deal Commission Calculator</h2>
-          <p className="text-sm text-slate-500">Estimate based on 2025 Canadian rates</p>
+          <p className="text-sm text-slate-500">Estimate based on 2026 published CRA rates</p>
         </div>
       </div>
 
@@ -279,16 +281,18 @@ export function CommissionCalculator() {
         <div className="mt-5 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
           <p className="text-xs leading-relaxed text-slate-500">
-            Income tax estimate uses a ~30% blended rate. Your actual rate depends
-            on your total annual income. For a precise estimate based on your
-            province and income level, use our{" "}
+            Income tax estimate uses a ~30% blended rate. Actual rate
+            depends on total annual income and province. For a more precise
+            estimate, see our{" "}
             <Link
               href="/how-much-should-real-estate-agents-save-for-taxes-canada"
               className="text-blue-600 underline underline-offset-2 hover:text-blue-500"
             >
               tax calculator
             </Link>
-            .
+            . This is an estimate based on rules published by the CRA.
+            Verify with your accountant before making any filing or
+            financial decision.
           </p>
         </div>
       </div>
