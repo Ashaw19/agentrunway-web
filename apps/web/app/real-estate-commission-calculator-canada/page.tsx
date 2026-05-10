@@ -34,7 +34,7 @@ const JSON_LD_ARTICLE = {
   author: { "@type": "Person", name: "Andrew Shaw" },
   publisher: { "@type": "Organization", name: "Agent Runway", url: "https://agentrunway.ca" },
   datePublished: "2025-04-01",
-  dateModified: "2026-05-06",
+  dateModified: "2026-05-10",
   url: "https://agentrunway.ca/real-estate-commission-calculator-canada",
   mainEntityOfPage: {
     "@type": "WebPage",
@@ -59,7 +59,7 @@ const JSON_LD_FAQ = {
       name: "Do I have to pay HST on my commission?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "If your gross revenue exceeds $30,000 over four consecutive calendar quarters, the CRA requires HST/GST registration and collection. In Ontario that's 13%, in the Maritimes 15%, and in GST-only provinces like Alberta it's 5%. Most active agents exceed this threshold quickly.",
+        text: "Per the CRA, once gross revenue exceeds $30,000 over four consecutive calendar quarters, GST/HST registration and collection applies. The rate charged depends on the province where the supply is made: 13% in Ontario, 15% in New Brunswick, Nova Scotia, PEI, and Newfoundland & Labrador, and 5% GST in provinces without HST such as Alberta, BC, Saskatchewan, and Manitoba. A single average-priced Canadian transaction's commission often surpasses $30,000 on its own.",
       },
     },
     {
@@ -67,7 +67,7 @@ const JSON_LD_FAQ = {
       name: "How much does a real estate agent actually keep per deal?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "After brokerage splits, transaction fees, HST/GST, and income tax, most Canadian real estate agents take home roughly 40% to 60% of their gross commission. On a $500,000 sale at 2.5% commission, that means keeping approximately $5,000 to $7,500 of the $12,500 gross.",
+        text: "After brokerage splits, transaction fees, HST/GST, and income tax, the calculator estimates net take-home in roughly the 40% to 60% range of gross commission for common input combinations. As an illustration, a $500,000 sale at 2.5% commission produces $12,500 gross, with the calculator estimating a net of approximately $5,000 to $7,500 depending on split, fees, province, and marginal tax rate.",
       },
     },
     {
@@ -86,7 +86,7 @@ const JSON_LD_FAQ = {
 // Every CRA-mechanical claim in this article (HST $30K threshold, provincial
 // HST/GST rates, GST/HST filing) maps to one of the URLs below. Inline
 // citations are rendered via <CRACite id={n} />. URLs were hand-verified live
-// on 2026-05-06.
+// on 2026-05-10.
 
 const CRA_SOURCES = [
   {
@@ -148,7 +148,7 @@ export default function CommissionCalculatorPage() {
           <div className="mx-auto max-w-3xl">
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-semibold text-emerald-400">
               <Calculator className="h-3.5 w-3.5" />
-              Commission Calculator &middot; 2025
+              Commission Calculator &middot; 2026
             </div>
             <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
               Real Estate Commission Calculator — Canada
@@ -196,12 +196,16 @@ export default function CommissionCalculatorPage() {
                   <CRACite id={2} />, plus income tax on what&apos;s left.
                 </p>
                 <p>
-                  The result? A $500,000 sale at 2.5% commission sounds like
-                  $12,500 — but after splits and taxes,{" "}
+                  As an illustration: a $500,000 sale at 2.5% commission
+                  produces $12,500 gross. After an 80/20 brokerage split, a
+                  $500 transaction fee, 13% HST collected and remitted, and a
+                  30% blended income-tax estimate, the calculator below
+                  estimates{" "}
                   <strong className="text-slate-900">
-                    many agents take home less than $6,000
+                    a net take-home in the $5,000&ndash;$6,000 range
                   </strong>
-                  .
+                  . Actual outcomes vary with split, fees, province, and
+                  marginal tax rate.
                 </p>
               </div>
             </ScrollRevealSection>
@@ -281,12 +285,16 @@ export default function CommissionCalculatorPage() {
                     Do I have to pay HST on my commission?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    If your gross revenue exceeds $30,000 over four consecutive
-                    calendar quarters, the CRA requires HST/GST registration and
-                    collection<CRACite id={1} />. In Ontario that&apos;s 13%, in
-                    the Maritimes 15%, and in GST-only provinces like Alberta
-                    it&apos;s 5%<CRACite id={2} />. Most active agents exceed
-                    this threshold quickly.
+                    Per the CRA, once gross revenue exceeds $30,000 over four
+                    consecutive calendar quarters, GST/HST registration and
+                    collection applies<CRACite id={1} />. The rate charged
+                    depends on the province where the supply is made: 13% in
+                    Ontario, 15% in New Brunswick, Nova Scotia, PEI, and
+                    Newfoundland &amp; Labrador, and 5% GST in provinces
+                    without HST such as Alberta, BC, Saskatchewan, and
+                    Manitoba<CRACite id={2} />. A single average-priced
+                    Canadian transaction&apos;s commission often surpasses
+                    $30,000 on its own.
                   </p>
                 </div>
                 <div>
@@ -294,11 +302,14 @@ export default function CommissionCalculatorPage() {
                     How much does a real estate agent actually keep per deal?
                   </h3>
                   <p className="mt-2 text-base leading-relaxed text-slate-600">
-                    After brokerage splits, transaction fees, HST/GST, and income
-                    tax, most Canadian real estate agents take home roughly 40% to
-                    60% of their gross commission. On a $500,000 sale at 2.5%
-                    commission, that means keeping approximately $5,000 to $7,500
-                    of the $12,500 gross.
+                    After brokerage splits, transaction fees, HST/GST, and
+                    income tax, the calculator estimates net take-home in
+                    roughly the 40% to 60% range of gross commission for
+                    common input combinations. As an illustration, a $500,000
+                    sale at 2.5% commission produces $12,500 gross, with the
+                    calculator estimating a net of approximately $5,000 to
+                    $7,500 depending on split, fees, province, and marginal
+                    tax rate.
                   </p>
                 </div>
                 <div>
@@ -361,8 +372,8 @@ export default function CommissionCalculatorPage() {
                     Tax Planning Guide
                   </p>
                   <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                    Quarterly instalments, deductions, and strategies to reduce
-                    your tax bill.
+                    Quarterly instalments, common deductions claimed by
+                    self-employed agents, and how CRA rules apply.
                   </p>
                 </Link>
               </div>
@@ -389,7 +400,7 @@ export default function CommissionCalculatorPage() {
                 Every CRA-mechanical claim in this article (HST registration
                 threshold, provincial HST/GST rates, GST/HST filing) is backed
                 by one of the primary sources below. Hand-verified live on
-                2026-05-06.
+                2026-05-10.
               </p>
               <ol className="mt-4 space-y-2 text-xs text-slate-500">
                 {CRA_SOURCES.map((s) => (
@@ -418,13 +429,14 @@ export default function CommissionCalculatorPage() {
             <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
               <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
               <p className="text-xs leading-relaxed text-amber-800">
-                <strong>Disclaimer:</strong> This calculator provides estimates
-                for educational purposes only and does not constitute tax,
-                legal, or financial advice. Commission structures, tax rates,
-                and fees vary based on individual circumstances. Consult a
-                qualified accountant or tax professional for advice specific to
-                your situation. Agent Runway assumes no liability for
-                financial decisions based on these estimates.
+                <strong>Disclaimer:</strong> This is an estimate based on
+                rules published by the CRA. Verify with your accountant
+                before making any filing or financial decision. The
+                calculator provides estimates for educational purposes only
+                and does not constitute tax, legal, or financial advice.
+                Commission structures, tax rates, and fees vary based on
+                individual circumstances. Agent Runway assumes no liability
+                for financial decisions based on these estimates.
               </p>
             </div>
           </div>
