@@ -15,6 +15,6 @@
   },
   "devDependencies": {
     "tsx": "^4.21.0",
-    "turbo": "^2.9.8"
+    "turbo": "^2.9.12"
   }
 }
