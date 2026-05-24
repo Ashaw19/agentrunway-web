@@ -28,83 +28,42 @@ No DB migration. No memory/findings entries unless the spike surfaces something 
 
 ---
 
-## Pre-Implementation: Verification Spike
+## Pre-Implementation: Verification Spike (COMPLETED 2026-05-24)
 
-**Purpose:** Confirm the unofficial realtor.ca API is reachable and the photo CDN hotlinks correctly BEFORE building production code. Outputs a captured fixture that Task 2's tests use as ground truth.
+The spike confirmed the upstream approach before any production code was written.
 
-**This is a research step, not a commit.** Outputs go into the workspace but only the captured fixture file gets committed (as part of Task 2).
+**Findings:**
 
-- [ ] **Spike Step 1: Pick a known live listing**
+1. ❌ **Unofficial JSON API blocked** — `api2.realtor.ca/Listing.svc/PropertyDetails`
+   is gated by Imperva/Incapsula's JavaScript challenge. Returns 302 → bot-wall iframe.
 
-Open `https://www.realtor.ca/` in a browser and find any active listing. Copy the URL.
-Note the listing ID (the digits between `/real-estate/` and the slug).
+2. ✅ **HTML page + JSON-LD works** — the user-facing listing page (e.g.
+   `https://www.realtor.ca/real-estate/29789475/...`) embeds a Schema.org `Product`
+   block with `name`, `image[]`, `description`, `sku`, and `offers[0].price`. All
+   fields we need are present.
 
-- [ ] **Spike Step 2: Probe the API directly**
+3. ✅ **Photo CDN hotlinks cleanly** — `https://cdn.realtor.ca/...` returns 200 with
+   any (or no) Referer header. CloudFront-cached. Verified with multiple referer values.
 
-Run from a terminal:
+4. ⚠️ **Bot wall is rate-sensitive** — rapid back-to-back requests trigger Incapsula.
+   Fresh sessions + full browser-like headers + reasonable cadence (≥10s between
+   requests) clear it. Production must:
+   - Use a real-browser User-Agent + complete header set
+   - Open a fresh HTTP request per call (no cookie jar persistence)
+   - Detect "no JSON-LD Product block found" as `upstream_unavailable`
 
-```bash
-LISTING_ID="<paste-the-id-here>"
-curl -i -H "Accept: application/json" \
-  "https://api2.realtor.ca/Listing.svc/PropertyDetails?ApplicationId=1&CultureId=1&PropertyID=${LISTING_ID}"
-```
+5. ⚠️ **Vercel-IP risk** — the spike ran from a residential IP. Whether Vercel's
+   AWS-datacenter IPs clear Incapsula won't be known until post-deploy. Documented
+   fallback: swap input from URL to screenshot, route through the existing
+   `/api/ai/extract-property` route (Claude vision).
 
-Expected: HTTP 200 + a JSON body with property details (address, price, photos, description).
+**Fixture captured:**
+`apps/web/lib/realtor-ca/__tests__/fixtures/sample-listing.html` — full 227 KB HTML
+of listing 29789475 (2394 Loch Lomond Road, Saint John, NB). Used as ground truth for
+Task 2's normalizer tests.
 
-If 200 + JSON: continue. Save the body for Step 3.
-If 4xx/5xx or HTML: STOP. The API is not directly accessible. Spike outcome 2 applies (fallback to HTML + JSON-LD scraping); pause and surface to Andrew before continuing.
-
-- [ ] **Spike Step 3: Capture the fixture**
-
-Save the JSON response body to:
-`apps/web/lib/realtor-ca/__tests__/fixtures/sample-response.json`
-
-Make the directory first if needed:
-```bash
-mkdir -p apps/web/lib/realtor-ca/__tests__/fixtures
-curl -s -H "Accept: application/json" \
-  "https://api2.realtor.ca/Listing.svc/PropertyDetails?ApplicationId=1&CultureId=1&PropertyID=${LISTING_ID}" \
-  > apps/web/lib/realtor-ca/__tests__/fixtures/sample-response.json
-```
-
-Verify with:
-```bash
-head -c 300 apps/web/lib/realtor-ca/__tests__/fixtures/sample-response.json
-```
-
-Expected: First few hundred characters of valid JSON.
-
-- [ ] **Spike Step 4: Identify field paths**
-
-Open the fixture file and identify the JSON path for each field we need. Document them inline in a comment block in the fixture file's sibling `fetch-listing.ts` (will be created in Task 2). Expected paths (likely but verify):
-- Address text: `Results[0].Property.Address.AddressText` (typically `"123 Main St|City, Province PostalCode"` — needs splitting)
-- Price (numeric): `Results[0].Property.PriceUnformattedValue` OR `Results[0].Property.Price` (string with `$` and commas)
-- Photos: `Results[0].Property.Photo` — array; pick `[0].HighResPath`
-- Public remarks: `Results[0].PublicRemarks`
-
-Write down the actual paths you observe — they will drive the normalizer in Task 2.
-
-- [ ] **Spike Step 5: Verify photo hotlinking**
-
-Take the first photo URL from the response. Test it loads from a non-realtor.ca origin:
-
-```bash
-PHOTO_URL="<paste-photo-url-here>"
-curl -s -o /dev/null -w "%{http_code}\n" \
-  -H "Referer: https://agentrunway.ca/" \
-  -H "User-Agent: Mozilla/5.0" \
-  "${PHOTO_URL}"
-```
-
-Expected: `200`.
-
-If `200`: hotlinking works. Proceed with Task 1.
-If `403`/`404`: hotlinking is referer-blocked. STOP. Spec recommends pivoting to re-upload — surface to Andrew before proceeding.
-
-- [ ] **Spike Step 6: Decision point**
-
-If both Step 2 and Step 5 pass: proceed to Task 1.
-If either fails: stop, document the failure mode, surface to Andrew, do not start Task 1.
+The spike code is research only — not committed. The fixture file IS committed as part
+of Task 2.
 
 ---
 
@@ -268,134 +227,196 @@ EOF
 
 ---
 
-## Task 2: Fetcher + Normalizer
+## Task 2: HTML Fetcher + JSON-LD Normalizer
 
 **Files:**
 - Create: `apps/web/lib/realtor-ca/fetch-listing.ts`
 - Create: `apps/web/lib/realtor-ca/__tests__/fetch-listing.test.ts`
-- Commit: `apps/web/lib/realtor-ca/__tests__/fixtures/sample-response.json` (captured in Spike Step 3)
+- Commit: `apps/web/lib/realtor-ca/__tests__/fixtures/sample-listing.html` (already captured by the spike, 227 KB)
 
-**Goal:** Wrap the realtor.ca API call + response normalization in a typed function. Tests use the captured fixture for the happy path and mock `fetch` for failure paths.
+**Goal:** Fetch the listing's HTML page with full browser-like headers, extract the JSON-LD `Product` block, parse it, and return a clean `ListingData`. Tests use the captured HTML for the happy path and mock `fetch` for failure paths.
 
-**Important:** Confirm the field paths from Spike Step 4 before writing the normalizer. The code below assumes the standard shape (`Results[0].Property.*`) — adjust if the spike found something different.
+**Important:** This task uses the HTML + JSON-LD approach (NOT the unofficial JSON API). The spike confirmed the API is bot-walled and the HTML approach works with proper headers.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Sketch the contract**
 
-Create `apps/web/lib/realtor-ca/__tests__/fetch-listing.test.ts`:
+The module exports two functions and two types. Tests in Step 2 hit both.
+
+```ts
+// Public types
+export type ListingData = {
+  address:     string;
+  city:        string;
+  province:    string;     // 2-letter code if known ("NB"), else full name
+  price:       number | null;
+  photoUrl:    string;     // hotlink URL; "" if no photo
+  description: string;     // truncated to 600 chars
+};
+
+export type FetchListingResult =
+  | { ok: true;  data: ListingData }
+  | { ok: false; reason: "upstream_unavailable" | "upstream_shape_changed"; detail?: string };
+
+// Public functions
+export async function fetchRealtorListing(listingId: string): Promise<FetchListingResult>;
+export function parseListingFromHtml(html: string): FetchListingResult;
+```
+
+Note: `not_found` is NOT in the reason union for `fetch-listing.ts` — realtor.ca returns 200 for missing listings (we found this in the spike). The API route in Task 3 will detect "no Product JSON-LD" via the `upstream_unavailable` reason and map it to a friendly user message.
+
+- [ ] **Step 2: Write the failing tests**
+
+Create `apps/web/lib/realtor-ca/__tests__/fetch-listing.test.ts`. Tests are split between `parseListingFromHtml` (pure, takes HTML string) and `fetchRealtorListing` (async, mocks `fetch`):
 
 ```ts
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import sampleResponse from "./fixtures/sample-response.json";
-import { fetchRealtorListing, normalizeUpstream } from "../fetch-listing";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fetchRealtorListing, parseListingFromHtml } from "../fetch-listing";
 
-describe("normalizeUpstream", () => {
-  it("extracts all fields from a real captured response", () => {
-    const result = normalizeUpstream(sampleResponse);
+const fixtureHtml = readFileSync(
+  path.resolve(__dirname, "fixtures/sample-listing.html"),
+  "utf-8",
+);
+
+// Helper: wrap a JSON-LD object in a minimal HTML page
+function htmlWithProductJsonLd(product: object): string {
+  return `<html><head><script type="application/ld+json">${JSON.stringify(product)}</script></head><body></body></html>`;
+}
+
+describe("parseListingFromHtml", () => {
+  it("extracts every field from the real captured listing", () => {
+    const result = parseListingFromHtml(fixtureHtml);
     expect(result.ok).toBe(true);
-    if (!result.ok) return; // type guard
+    if (!result.ok) return;
 
-    // These exact values come from whatever listing the spike captured.
-    // Update them to match the fixture after Spike Step 3.
-    expect(result.data.address).toBeTruthy();
-    expect(result.data.city).toBeTruthy();
-    expect(result.data.province).toBeTruthy();
-    expect(result.data.price === null || typeof result.data.price === "number").toBe(true);
-    expect(typeof result.data.photoUrl).toBe("string");
-    expect(typeof result.data.description).toBe("string");
+    // From listing 29789475 captured 2026-05-24
+    expect(result.data.address).toBe("2394 Loch Lomond Road");
+    expect(result.data.city).toBe("Saint John");
+    expect(result.data.province).toBe("NB");
+    expect(result.data.price).toBe(339900);
+    expect(result.data.photoUrl).toMatch(/^https:\/\/cdn\.realtor\.ca\/listings\//);
+    expect(result.data.description).toMatch(/Welcome to this charming/);
     expect(result.data.description.length).toBeLessThanOrEqual(600);
   });
 
-  it("returns upstream_shape_changed for a non-object input", () => {
-    const result = normalizeUpstream("not an object");
-    expect(result).toEqual({
-      ok: false,
-      reason: "upstream_shape_changed",
-      detail: expect.any(String),
-    });
-  });
-
-  it("returns upstream_shape_changed when Results is missing", () => {
-    const result = normalizeUpstream({ Paging: {} });
+  it("returns upstream_unavailable when HTML has no JSON-LD blocks", () => {
+    const result = parseListingFromHtml("<html><body>nothing here</body></html>");
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.reason).toBe("upstream_shape_changed");
+    expect(result.reason).toBe("upstream_unavailable");
   });
 
-  it("returns upstream_shape_changed when Results array is empty", () => {
-    const result = normalizeUpstream({ Results: [] });
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.reason).toBe("upstream_shape_changed");
-  });
-
-  it("returns empty string for missing photo gracefully", () => {
-    const minimal = {
-      Results: [{
-        Property: {
-          Address: { AddressText: "123 Main St|Saint John, NB E2L 1A1" },
-          PriceUnformattedValue: "450000",
-          Photo: [],
-        },
-        PublicRemarks: "",
-      }],
+  it("returns upstream_unavailable when JSON-LD has no Product schema", () => {
+    const breadcrumbOnly = {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [],
     };
-    const result = normalizeUpstream(minimal);
+    const html = htmlWithProductJsonLd(breadcrumbOnly);
+    const result = parseListingFromHtml(html);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe("upstream_unavailable");
+  });
+
+  it("returns upstream_unavailable on Incapsula bot-wall HTML", () => {
+    const wallHtml = `<html><body><iframe src="/_Incapsula_Resource">incident_id: 123</iframe></body></html>`;
+    const result = parseListingFromHtml(wallHtml);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toBe("upstream_unavailable");
+  });
+
+  it("handles a Product schema with all expected fields", () => {
+    const product = {
+      "@context": "http://schema.org/",
+      "@type": "Product",
+      name: "123 Main Street, Saint John, New Brunswick E2L 1A1",
+      image: ["https://cdn.realtor.ca/abc/highres.jpg", "https://cdn.realtor.ca/abc/medres.jpg"],
+      description: "A lovely home.",
+      sku: "12345678",
+      offers: [{ "@type": "Offer", priceCurrency: "CAD", price: "450000.00" }],
+    };
+    const result = parseListingFromHtml(htmlWithProductJsonLd(product));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.address).toBe("123 Main Street");
+    expect(result.data.city).toBe("Saint John");
+    expect(result.data.province).toBe("NB");
+    expect(result.data.price).toBe(450000);
+    expect(result.data.photoUrl).toBe("https://cdn.realtor.ca/abc/highres.jpg");
+    expect(result.data.description).toBe("A lovely home.");
+  });
+
+  it("returns empty photo when image array is empty", () => {
+    const product = {
+      "@type": "Product",
+      name: "123 Main Street, Saint John, New Brunswick E2L 1A1",
+      image: [],
+      description: "No photos.",
+      offers: [{ price: "100000.00" }],
+    };
+    const result = parseListingFromHtml(htmlWithProductJsonLd(product));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.photoUrl).toBe("");
   });
 
-  it("returns null price when price is missing", () => {
-    const minimal = {
-      Results: [{
-        Property: {
-          Address: { AddressText: "123 Main St|Saint John, NB E2L 1A1" },
-          Photo: [{ HighResPath: "https://cdn.realtor.ca/abc.jpg" }],
-        },
-        PublicRemarks: "",
-      }],
+  it("returns null price when offers is missing or empty", () => {
+    const product = {
+      "@type": "Product",
+      name: "123 Main Street, Saint John, New Brunswick E2L 1A1",
+      image: ["https://cdn.realtor.ca/x.jpg"],
+      description: "No price set.",
     };
-    const result = normalizeUpstream(minimal);
+    const result = parseListingFromHtml(htmlWithProductJsonLd(product));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.price).toBeNull();
   });
 
-  it("truncates long descriptions to 600 chars", () => {
-    const longRemarks = "A".repeat(800);
-    const input = {
-      Results: [{
-        Property: {
-          Address: { AddressText: "123 Main St|Saint John, NB E2L 1A1" },
-          PriceUnformattedValue: "450000",
-          Photo: [{ HighResPath: "https://cdn.realtor.ca/abc.jpg" }],
-        },
-        PublicRemarks: longRemarks,
-      }],
+  it("truncates descriptions over 600 chars", () => {
+    const longDesc = "A".repeat(800);
+    const product = {
+      "@type": "Product",
+      name: "123 Main Street, Saint John, New Brunswick E2L 1A1",
+      image: ["https://cdn.realtor.ca/x.jpg"],
+      description: longDesc,
+      offers: [{ price: "100000.00" }],
     };
-    const result = normalizeUpstream(input);
+    const result = parseListingFromHtml(htmlWithProductJsonLd(product));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.data.description.length).toBe(600);
   });
 
-  it("splits combined address text into address + city + province", () => {
-    const input = {
-      Results: [{
-        Property: {
-          Address: { AddressText: "123 Main St|Saint John, NB E2L 1A1" },
-          PriceUnformattedValue: "450000",
-          Photo: [{ HighResPath: "https://cdn.realtor.ca/abc.jpg" }],
-        },
-        PublicRemarks: "Nice house",
-      }],
+  it("maps French province names to codes", () => {
+    const product = {
+      "@type": "Product",
+      name: "123 Rue Principale, Montréal, Québec H2X 1Y1",
+      image: ["https://cdn.realtor.ca/x.jpg"],
+      description: "Belle maison.",
+      offers: [{ price: "500000.00" }],
     };
-    const result = normalizeUpstream(input);
+    const result = parseListingFromHtml(htmlWithProductJsonLd(product));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.data.address).toBe("123 Main St");
-    expect(result.data.city).toBe("Saint John");
-    expect(result.data.province).toBe("NB");
+    expect(result.data.province).toBe("QC");
+  });
+
+  it("falls back to full province name when not in the lookup map", () => {
+    const product = {
+      "@type": "Product",
+      name: "1 Some Street, Some City, Made Up Province X1X 1X1",
+      image: [],
+      description: "Edge case.",
+      offers: [{ price: "100000.00" }],
+    };
+    const result = parseListingFromHtml(htmlWithProductJsonLd(product));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.province).toBe("Made Up Province");
   });
 });
 
@@ -408,80 +429,82 @@ describe("fetchRealtorListing", () => {
     globalThis.fetch = realFetch;
   });
 
-  it("returns ok on a 200 + valid response", async () => {
+  it("returns ok on a 200 + valid HTML", async () => {
     (globalThis.fetch as any).mockResolvedValue(
-      new Response(JSON.stringify(sampleResponse), { status: 200 }),
+      new Response(fixtureHtml, { status: 200, headers: { "content-type": "text/html" } }),
     );
-    const result = await fetchRealtorListing("27254789");
+    const result = await fetchRealtorListing("29789475");
     expect(result.ok).toBe(true);
   });
 
-  it("returns not_found on a 404", async () => {
-    (globalThis.fetch as any).mockResolvedValue(
-      new Response("", { status: 404 }),
-    );
-    const result = await fetchRealtorListing("27254789");
-    expect(result).toEqual({ ok: false, reason: "not_found" });
+  it("sends browser-like headers (no bot-wall fingerprint)", async () => {
+    const mock = vi.fn().mockResolvedValue(new Response(fixtureHtml, { status: 200 }));
+    globalThis.fetch = mock;
+    await fetchRealtorListing("29789475");
+    const call = mock.mock.calls[0];
+    const headers = call[1].headers;
+    expect(headers["User-Agent"]).toMatch(/Mozilla\/5\.0/);
+    expect(headers["Accept"]).toMatch(/text\/html/);
+    expect(headers["Accept-Language"]).toBeDefined();
   });
 
-  it("returns upstream_unavailable on a 500", async () => {
-    (globalThis.fetch as any).mockResolvedValue(
-      new Response("", { status: 500 }),
-    );
-    const result = await fetchRealtorListing("27254789");
+  it("returns upstream_unavailable on a 5xx", async () => {
+    (globalThis.fetch as any).mockResolvedValue(new Response("", { status: 503 }));
+    const result = await fetchRealtorListing("29789475");
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.reason).toBe("upstream_unavailable");
   });
 
-  it("returns upstream_unavailable when fetch throws (network error)", async () => {
+  it("returns upstream_unavailable when fetch throws (network error or timeout)", async () => {
     (globalThis.fetch as any).mockRejectedValue(new Error("network down"));
-    const result = await fetchRealtorListing("27254789");
+    const result = await fetchRealtorListing("29789475");
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.reason).toBe("upstream_unavailable");
   });
 
-  it("returns upstream_shape_changed when body is not JSON", async () => {
+  it("returns upstream_unavailable when response HTML has no Product schema", async () => {
     (globalThis.fetch as any).mockResolvedValue(
-      new Response("<html>bot wall</html>", { status: 200 }),
+      new Response("<html><body>nothing</body></html>", { status: 200 }),
     );
-    const result = await fetchRealtorListing("27254789");
+    const result = await fetchRealtorListing("29789475");
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.reason).toBe("upstream_shape_changed");
+    expect(result.reason).toBe("upstream_unavailable");
   });
 });
 ```
 
-- [ ] **Step 2: Run the test and confirm it fails**
+- [ ] **Step 3: Run the test and confirm it fails**
 
 ```bash
 cd apps/web && pnpm vitest run lib/realtor-ca/__tests__/fetch-listing.test.ts
 ```
 
-Expected: FAIL with `Failed to resolve import "../fetch-listing"` and/or `./fixtures/sample-response.json` (one or both missing). Confirm `sample-response.json` was captured in Spike Step 3.
+Expected: FAIL with `Failed to resolve import "../fetch-listing"` (file doesn't exist).
 
-- [ ] **Step 3: Implement the fetcher and normalizer**
+- [ ] **Step 4: Implement the fetcher and normalizer**
 
 Create `apps/web/lib/realtor-ca/fetch-listing.ts`:
 
 ```ts
 /**
- * Fetches a single listing from realtor.ca's unofficial JSON API and
- * normalizes the response shape into a clean ListingData payload.
+ * Fetches a realtor.ca listing HTML page and extracts property data from
+ * the embedded JSON-LD Product schema.
  *
- * The upstream endpoint is undocumented and may change without notice.
- * The normalizer treats every field path as optional and returns
- * `upstream_shape_changed` on unexpected structure rather than throwing —
- * the API route maps that to a 502 with a clear error to the user.
+ * Why HTML + JSON-LD instead of the JSON API:
+ * The unofficial JSON API at api2.realtor.ca is gated by Imperva/Incapsula's
+ * JavaScript challenge and is not reachable from server-side fetchers. The
+ * user-facing HTML pages embed a Schema.org Product block with everything
+ * we need: name (address), image[] (photos), description (public remarks),
+ * offers[0].price (asking price). Schema.org is a public standard, so this
+ * surface is more stable than an undocumented internal API.
  *
- * Field paths confirmed by the spike (Pre-Implementation section of plan):
- *   Address (combined):  Results[0].Property.Address.AddressText
- *                        Format: "<street>|<city>, <province> <postal>"
- *   Price (numeric):     Results[0].Property.PriceUnformattedValue (string)
- *   Photo (high-res):    Results[0].Property.Photo[0].HighResPath
- *   Public remarks:      Results[0].PublicRemarks
+ * Bot-wall caveat (spike 2026-05-24): rapid requests still trigger Incapsula.
+ * Production must use a real-browser UA + full standard headers, open a
+ * fresh request per call (no cookie jar), and treat "no Product block found"
+ * as upstream_unavailable. Vercel-IP risk documented in the design spec.
  */
 
 export type ListingData = {
@@ -495,150 +518,139 @@ export type ListingData = {
 
 export type FetchListingResult =
   | { ok: true;  data: ListingData }
-  | { ok: false; reason: "not_found" | "upstream_unavailable" | "upstream_shape_changed"; detail?: string };
+  | { ok: false; reason: "upstream_unavailable" | "upstream_shape_changed"; detail?: string };
 
-const REALTOR_API_BASE     = "https://api2.realtor.ca/Listing.svc/PropertyDetails";
-const UPSTREAM_TIMEOUT_MS  = 5000;
+const UPSTREAM_TIMEOUT_MS  = 10_000;
 const DESCRIPTION_MAX_CHARS = 600;
 
+// Real-browser headers so we don't look like a bot to Incapsula
+const BROWSER_HEADERS: Record<string, string> = {
+  "User-Agent":               "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+  "Accept":                   "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language":          "en-US,en;q=0.5",
+  "Accept-Encoding":          "gzip, deflate, br",
+  "Upgrade-Insecure-Requests":"1",
+  "Sec-Fetch-Dest":           "document",
+  "Sec-Fetch-Mode":           "navigate",
+  "Sec-Fetch-Site":           "none",
+  "Sec-Fetch-User":           "?1",
+};
+
+const PROVINCE_CODES: Record<string, string> = {
+  "Alberta":                   "AB",
+  "British Columbia":          "BC",
+  "Manitoba":                  "MB",
+  "New Brunswick":             "NB",
+  "Newfoundland and Labrador": "NL",
+  "Northwest Territories":     "NT",
+  "Nova Scotia":               "NS",
+  "Nunavut":                   "NU",
+  "Ontario":                   "ON",
+  "Prince Edward Island":      "PE",
+  "Quebec":                    "QC",
+  "Québec":                    "QC",
+  "Saskatchewan":              "SK",
+  "Yukon":                     "YT",
+};
+
 export async function fetchRealtorListing(listingId: string): Promise<FetchListingResult> {
-  const url = `${REALTOR_API_BASE}?ApplicationId=1&CultureId=1&PropertyID=${encodeURIComponent(listingId)}`;
+  // Canonical URL — slug doesn't matter, realtor.ca serves the page from any slug
+  const url = `https://www.realtor.ca/real-estate/${encodeURIComponent(listingId)}/listing`;
 
   let response: Response;
   try {
     response = await fetch(url, {
       signal:  AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-      headers: { "Accept": "application/json" },
+      headers: BROWSER_HEADERS,
+      redirect: "follow",
     });
   } catch (err) {
-    return { ok: false, reason: "upstream_unavailable", detail: String(err) };
+    return { ok: false, reason: "upstream_unavailable", detail: `fetch failed: ${String(err)}` };
   }
 
-  if (response.status === 404) {
-    return { ok: false, reason: "not_found" };
-  }
   if (!response.ok) {
     return { ok: false, reason: "upstream_unavailable", detail: `HTTP ${response.status}` };
   }
 
-  let raw: unknown;
-  try {
-    raw = await response.json();
-  } catch (err) {
-    return { ok: false, reason: "upstream_shape_changed", detail: `JSON parse failed: ${String(err)}` };
-  }
-
-  return normalizeUpstream(raw);
+  const html = await response.text();
+  return parseListingFromHtml(html);
 }
 
-export function normalizeUpstream(raw: unknown): FetchListingResult {
-  if (!raw || typeof raw !== "object") {
-    return { ok: false, reason: "upstream_shape_changed", detail: "Response is not an object" };
+export function parseListingFromHtml(html: string): FetchListingResult {
+  // Extract all JSON-LD blocks
+  const matches = [...html.matchAll(
+    /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi,
+  )];
+
+  if (matches.length === 0) {
+    return { ok: false, reason: "upstream_unavailable", detail: "No JSON-LD blocks in response (likely bot wall or missing listing)" };
   }
 
-  const root = raw as Record<string, unknown>;
-  const results = root.Results;
-  if (!Array.isArray(results) || results.length === 0) {
-    return { ok: false, reason: "upstream_shape_changed", detail: "Missing or empty Results array" };
+  // Find the Product block
+  let product: Record<string, unknown> | null = null;
+  for (const m of matches) {
+    try {
+      const parsed = JSON.parse(m[1]) as Record<string, unknown>;
+      if (parsed && parsed["@type"] === "Product") {
+        product = parsed;
+        break;
+      }
+    } catch {
+      // skip blocks that don't parse
+      continue;
+    }
   }
 
-  const first = results[0] as Record<string, unknown> | undefined;
-  if (!first || typeof first !== "object") {
-    return { ok: false, reason: "upstream_shape_changed", detail: "Results[0] is not an object" };
+  if (!product) {
+    return { ok: false, reason: "upstream_unavailable", detail: "No Product JSON-LD found" };
   }
 
-  const property = (first.Property ?? {}) as Record<string, unknown>;
-  const address  = (property.Address  ?? {}) as Record<string, unknown>;
-  const photos   = Array.isArray(property.Photo) ? property.Photo : [];
+  // Address — from `name` field, format "Street, City, Province PostalCode"
+  const name = typeof product.name === "string" ? product.name : "";
+  const { address, city, province } = parseProductName(name);
 
-  // Parse combined address text "123 Main St|Saint John, NB E2L 1A1"
-  const addressText = typeof address.AddressText === "string" ? address.AddressText : "";
-  const { street, city, province } = splitCombinedAddress(addressText);
+  // Photo — first entry in `image` array
+  const images = Array.isArray(product.image) ? product.image : [];
+  const photoUrl = typeof images[0] === "string" ? images[0] : "";
 
-  // Price — try numeric first, fall back to parsing the formatted string
-  const price = parsePrice(property);
+  // Description — `description` field, truncated
+  const rawDescription = typeof product.description === "string" ? product.description : "";
+  const description = rawDescription.length > DESCRIPTION_MAX_CHARS
+    ? rawDescription.slice(0, DESCRIPTION_MAX_CHARS)
+    : rawDescription;
 
-  // Photo — first high-res path if any
-  const firstPhoto = photos[0] as Record<string, unknown> | undefined;
-  const photoUrl   = typeof firstPhoto?.HighResPath === "string" ? firstPhoto.HighResPath : "";
-
-  // Description — public remarks, truncated
-  const remarks = typeof first.PublicRemarks === "string" ? first.PublicRemarks : "";
-  const description = remarks.length > DESCRIPTION_MAX_CHARS
-    ? remarks.slice(0, DESCRIPTION_MAX_CHARS)
-    : remarks;
+  // Price — `offers[0].price` as string
+  const offers = Array.isArray(product.offers) ? product.offers : [];
+  const firstOffer = offers[0] as Record<string, unknown> | undefined;
+  const priceRaw = firstOffer && typeof firstOffer.price === "string" ? firstOffer.price : null;
+  const priceNum = priceRaw !== null ? parseFloat(priceRaw) : NaN;
+  const price = Number.isFinite(priceNum) ? Math.round(priceNum) : null;
 
   return {
     ok: true,
-    data: {
-      address: street,
-      city,
-      province,
-      price,
-      photoUrl,
-      description,
-    },
+    data: { address, city, province, price, photoUrl, description },
   };
 }
 
-function splitCombinedAddress(text: string): { street: string; city: string; province: string } {
-  // Expected: "123 Main St|Saint John, NB E2L 1A1"
-  // Some responses use newline instead of pipe — handle both.
-  const parts = text.split(/[|\n]/).map((p) => p.trim()).filter(Boolean);
-  const street = parts[0] ?? "";
-  const tail   = parts[1] ?? "";
+function parseProductName(name: string): { address: string; city: string; province: string } {
+  // Examples:
+  //   "2394 Loch Lomond Road, Saint John, New Brunswick E2N1A4"
+  //   "123 Rue Principale, Montréal, Québec H2X 1Y1"
+  const parts = name.split(",").map((p) => p.trim()).filter(Boolean);
+  if (parts.length < 3) {
+    return { address: name, city: "", province: "" };
+  }
 
-  // "Saint John, NB E2L 1A1" → city = "Saint John", province = "NB"
-  // (Postal code is dropped; we don't have a field for it.)
-  const tailMatch = tail.match(/^(.+?),\s*([A-Z]{2})\b/);
-  const city     = tailMatch?.[1]?.trim() ?? "";
-  const province = tailMatch?.[2] ?? "";
+  const address = parts[0];
+  const city    = parts[1];
+  const tail    = parts.slice(2).join(", "); // handle stray commas in tail
 
-  return { street, city, province };
+  // Strip postal code (A1A 1A1 or A1A1A1) from the end of the tail
+  const provinceName = tail.replace(/\s+[A-Z]\d[A-Z]\s?\d[A-Z]\d\s*$/i, "").trim();
+  const province = PROVINCE_CODES[provinceName] ?? provinceName;
+
+  return { address, city, province };
 }
-
-function parsePrice(property: Record<string, unknown>): number | null {
-  // Prefer the unformatted numeric field if present
-  const unformatted = property.PriceUnformattedValue;
-  if (typeof unformatted === "string" && /^\d+(\.\d+)?$/.test(unformatted)) {
-    const n = Number(unformatted);
-    return Number.isFinite(n) ? Math.round(n) : null;
-  }
-  if (typeof unformatted === "number" && Number.isFinite(unformatted)) {
-    return Math.round(unformatted);
-  }
-
-  // Fall back to the formatted display string: "$450,000"
-  const formatted = property.Price;
-  if (typeof formatted === "string") {
-    const cleaned = formatted.replace(/[$,]/g, "").trim();
-    const n = Number(cleaned);
-    return Number.isFinite(n) ? Math.round(n) : null;
-  }
-
-  return null;
-}
-```
-
-- [ ] **Step 4: Update happy-path test assertions with real fixture values**
-
-Open `apps/web/lib/realtor-ca/__tests__/fixtures/sample-response.json` and read the actual address, city, province, price, photo URL, and description for the listing the spike captured. Then update the FIRST test in `fetch-listing.test.ts` (the "extracts all fields from a real captured response" test) to assert exact values rather than just truthy/typeof. Example update:
-
-```ts
-it("extracts all fields from a real captured response", () => {
-  const result = normalizeUpstream(sampleResponse);
-  expect(result.ok).toBe(true);
-  if (!result.ok) return;
-
-  // Values are from the fixture captured by the spike for the listing
-  // whose URL the spike used. Update to match the actual fixture content.
-  expect(result.data.address).toBe("123 Main Street");
-  expect(result.data.city).toBe("Saint John");
-  expect(result.data.province).toBe("NB");
-  expect(result.data.price).toBe(450000);
-  expect(result.data.photoUrl).toMatch(/^https:\/\/cdn\.realtor\.ca\//);
-  expect(result.data.description.length).toBeGreaterThan(0);
-});
 ```
 
 - [ ] **Step 5: Run the tests and confirm they pass**
@@ -647,9 +659,9 @@ it("extracts all fields from a real captured response", () => {
 cd apps/web && pnpm vitest run lib/realtor-ca/__tests__/fetch-listing.test.ts
 ```
 
-Expected: PASS — 13 tests passed (8 normalizer + 5 fetcher).
+Expected: PASS — 15 tests passed (10 parser + 5 fetcher).
 
-If the happy-path test fails because the fixture's address shape differs from the assumed split-on-pipe format, inspect the actual `AddressText` value and adjust `splitCombinedAddress` accordingly. The other tests should pass without changes.
+If the fixture happy-path test fails, the captured HTML's Product schema may differ from the assumed shape — inspect with `grep -A 30 'application/ld+json' apps/web/lib/realtor-ca/__tests__/fixtures/sample-listing.html` and adjust the assertions or parser accordingly.
 
 - [ ] **Step 6: Commit**
 
@@ -657,18 +669,24 @@ If the happy-path test fails because the fixture's address shape differs from th
 cd "/Users/b/Desktop/Agent Runway Website/Project Home/02 - Web App Code/agentrunway-web"
 git add apps/web/lib/realtor-ca/fetch-listing.ts \
         apps/web/lib/realtor-ca/__tests__/fetch-listing.test.ts \
-        apps/web/lib/realtor-ca/__tests__/fixtures/sample-response.json
+        apps/web/lib/realtor-ca/__tests__/fixtures/sample-listing.html
 git commit -m "$(cat <<'EOF'
-feat(realtor-ca): add API fetcher and response normalizer
+feat(realtor-ca): add HTML fetcher and JSON-LD normalizer
 
-Calls realtor.ca's unofficial PropertyDetails endpoint with a 5s timeout
-and normalizes the response to a clean ListingData shape. Returns a
-discriminated union — never throws. Handles missing photo, missing price,
-long descriptions, combined address text splitting, network errors, and
-shape changes.
+Fetches the realtor.ca listing HTML page with full browser-like headers
+and extracts property data from the embedded Schema.org Product block.
+Returns a discriminated union — never throws. Handles missing photo,
+missing price, long descriptions (truncated to 600 chars), combined
+address text parsing with province name->code mapping, network errors,
+bot-wall HTML, and missing Product schema.
 
-Fixture in __tests__/fixtures/ is a real captured response used for the
-happy-path test; mocked fetch covers all failure paths.
+Why HTML, not the JSON API: the unofficial api2.realtor.ca endpoint is
+gated by Imperva/Incapsula's JavaScript challenge and is not reachable
+from server-side fetchers (confirmed by spike). The user-facing HTML
+pages have Schema.org Product JSON-LD with everything we need.
+
+Fixture in __tests__/fixtures/ is a real captured listing page used for
+the happy-path test; mocked fetch covers all failure paths.
 
 Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
 EOF
@@ -707,7 +725,6 @@ type ErrorCode =
   | "unauthenticated"
   | "invalid_url"
   | "not_a_listing"
-  | "listing_not_found"
   | "upstream_unavailable"
   | "upstream_shape_changed";
 
@@ -715,16 +732,14 @@ const ERROR_MESSAGES: Record<ErrorCode, string> = {
   unauthenticated:        "Session expired — please refresh",
   invalid_url:            "Paste a realtor.ca listing URL",
   not_a_listing:          "That doesn't look like a listing page — paste the URL from the listing itself",
-  listing_not_found:      "Listing not found — it may have been sold or removed",
-  upstream_unavailable:   "Couldn't reach realtor.ca — enter details manually or try again",
-  upstream_shape_changed: "Couldn't reach realtor.ca — enter details manually or try again",
+  upstream_unavailable:   "Couldn't load that listing — it may have been removed, or realtor.ca blocked the request. Enter details manually.",
+  upstream_shape_changed: "Couldn't load that listing — please enter details manually.",
 };
 
 const ERROR_STATUS: Record<ErrorCode, number> = {
   unauthenticated:        401,
   invalid_url:            400,
   not_a_listing:          400,
-  listing_not_found:      404,
   upstream_unavailable:   502,
   upstream_shape_changed: 502,
 };
@@ -755,13 +770,12 @@ export async function GET(req: NextRequest) {
     return errorResponse(parsed.reason);
   }
 
-  // 3. Fetch + normalize
+  // 3. Fetch HTML + extract JSON-LD
+  // Note: fetcher returns `upstream_unavailable` for both bot-wall hits AND
+  // truly missing listings — we can't distinguish from the response alone.
+  // Same UX in both cases: tell the user to enter manually.
   const result = await fetchRealtorListing(parsed.listingId);
   if (!result.ok) {
-    if (result.reason === "not_found") {
-      return errorResponse("listing_not_found");
-    }
-    // upstream_unavailable | upstream_shape_changed — log for triage
     console.error("[api/realtor-listing] upstream failure", {
       listingId: parsed.listingId,
       reason:    result.reason,

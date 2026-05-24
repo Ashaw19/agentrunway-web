@@ -3,6 +3,10 @@
 **Date:** 2026-05-24
 **Surface:** Open House Setup (`/open-house-setup`)
 **Status:** Approved by Andrew Shaw (section-by-section, 2026-05-24)
+**Spike outcome (2026-05-24):** Unofficial JSON API blocked by Incapsula bot wall.
+HTML page + JSON-LD `Product` schema works cleanly (confirmed: address, description,
+photo URLs, price all present). Photo CDN hotlinks from any origin. Implementation uses
+the HTML + JSON-LD path — see "Upstream approach" below.
 
 ---
 
@@ -43,10 +47,36 @@ Three pieces, all within existing patterns:
 
 - `GET /api/realtor-listing?url=<encoded>` — single endpoint
 - Requires authenticated session (returns 401 otherwise)
-- Validates the URL, extracts the listing ID, calls the realtor.ca internal API
+- Validates the URL, fetches the realtor.ca HTML listing page, extracts and parses the
+  embedded JSON-LD `Product` schema
 - Normalizes the upstream response to a clean `ListingData` shape
 - Returns 200 + JSON on success, structured errors otherwise (see error matrix below)
-- Runs on the standard Vercel Node runtime (not Edge) — keeps the spike + fallback simple
+- Runs on the standard Vercel Node runtime (not Edge) — needed for the larger HTML payload
+
+### Upstream approach (confirmed by spike)
+
+The unofficial JSON API at `api2.realtor.ca` is blocked by Imperva/Incapsula bot
+protection — server-side requests are met with a JavaScript challenge that we cannot
+solve from Vercel. The user-facing HTML pages have no such wall.
+
+Every realtor.ca listing page embeds a `<script type="application/ld+json">` block
+containing a Schema.org `Product` with all the fields we need:
+
+```json
+{
+  "@type": "Product",
+  "name": "2394 Loch Lomond Road, Saint John, New Brunswick E2N1A4",
+  "image": ["https://cdn.realtor.ca/.../highres/.../NB135428_1.jpg", "..."],
+  "description": "Welcome to this charming and well-maintained 1.5-storey home...",
+  "sku": "29789475",
+  "offers": [{ "@type": "Offer", "priceCurrency": "CAD", "price": "339900.00" }]
+}
+```
+
+The normalizer fetches the URL with a real-browser User-Agent, regex-extracts the
+JSON-LD block, JSON-parses it, and maps fields. Heavier payload than a JSON API
+(~230 KB HTML vs ~10 KB JSON) but more stable: Schema.org is a public standard, not
+an undocumented internal endpoint.
 
 ### 2. Form update — `apps/web/app/(app)/open-house-setup/open-house-setup-content.tsx`
 
@@ -170,24 +200,17 @@ Captured group 1 is the listing ID.
 
 ---
 
-## Photo Hotlinking — Risk and Fallback
+## Photo Hotlinking — VERIFIED working
 
-**Known risk:** realtor.ca's CDN may serve images only when the `Referer` request header
-is `realtor.ca`. If true, our hotlinked `<img src="...">` tags will 404 in the browser
-(browsers send the open house page's URL as Referer, not realtor.ca's).
+**Spike confirmed (2026-05-24):** realtor.ca's CDN (Azure Blob Storage fronted by
+CloudFront) serves images with no referer or origin restrictions. Tested HTTP 200
+responses with:
+- `Referer: https://agentrunway.ca/...` → 200, 141 KB JPEG
+- No `Referer` header → 200
+- `Referer: https://www.realtor.ca/` (baseline) → 200
 
-**Verification step at start of implementation (spike):**
-1. Fetch a real listing's photo URL via the unofficial API or page scrape.
-2. Render it in a test page on agentrunway.ca.
-3. Confirm in DevTools Network tab that the image loads with 200, not 403/404.
-
-**If hotlinking works:** ship as designed. No further action.
-
-**If hotlinking is referer-blocked:** stop. Surface the finding to Andrew before pivoting.
-Recommended pivot is to re-upload to Supabase Storage (matches existing upload flow,
-adds ~1–2s to import latency, reliable forever). Alternative (image proxy through our own
-API route that strips Referer) is technically possible but adds a permanent hot-path we'd
-have to maintain — not recommended unless storage costs become a real concern.
+Response headers include `x-cache: Hit from cloudfront` — these are public,
+CDN-cached, hotlink-friendly images. Photos ship as designed.
 
 ---
 
@@ -270,25 +293,40 @@ Not building it preemptively.
 
 ---
 
-## Implementation Spike (First Commit)
+## Implementation Spike (COMPLETED 2026-05-24)
 
-Before building the full route, a research spike to answer two questions:
+The spike answered two questions before production code lands:
 
-1. **Is realtor.ca's unofficial API reachable from Vercel?**
-   Candidate endpoint: `https://api2.realtor.ca/Listing.svc/PropertyDetails?ApplicationId=1&CultureId=1&PropertyID={id}`
-   Test: from a local Next.js dev server AND from a deployed Vercel preview, call the
-   endpoint with a known listing ID. Confirm 200 + JSON response with usable fields.
+1. **Is realtor.ca's unofficial API reachable from a server?** — NO. The
+   `api2.realtor.ca/Listing.svc/PropertyDetails` endpoint is gated by Imperva/Incapsula's
+   JavaScript challenge. Server-side requests get a "Request unsuccessful" iframe wall.
 
-2. **Does the photo URL hotlink correctly?**
-   Test: take the first photo URL from the response, render `<img src="...">` on an
-   agentrunway.ca page, confirm it loads (Network tab shows 200).
+2. **Does the photo URL hotlink correctly?** — YES. The CDN (Azure Blob via CloudFront)
+   serves images with no referer or origin restrictions. See "Photo Hotlinking" section.
 
-**Spike outcomes:**
-- **Both pass:** proceed with unofficial-API approach as designed.
-- **API blocked, photo OK:** swap to HTML + JSON-LD scraping for the data; keep hotlink for photo.
-- **API works, photo blocked:** keep API for data; surface finding to Andrew, recommend
-  re-upload pivot, await direction.
-- **Both blocked:** stop and reassess feasibility with Andrew before continuing.
+**Outcome applied:** HTML + JSON-LD scraping is the upstream approach. Photo hotlinks
+as designed. URL parser, API route, and UI are unchanged from the original design.
+
+**Additional finding (rate-limit sensitivity):** The HTML page IS Incapsula-protected at
+high request rates. Fresh sessions with full browser headers + reasonable cadence (one
+fetch per minute or slower) clear the wall. Production implementation must:
+- Use a real-browser User-Agent + full standard request headers (Accept, Accept-Language,
+  Sec-Fetch-*, Upgrade-Insecure-Requests)
+- Open a new HTTP session per request (no cookie jar persistence between requests)
+- Detect "no JSON-LD `Product` block found" as `upstream_unavailable` (could be bot wall
+  or genuinely missing listing — we can't distinguish, treat the same and let agent fall
+  back to manual entry)
+
+## Vercel-IP Risk + Documented Fallback
+
+Vercel runs on AWS datacenter IPs, which Incapsula flags more aggressively than
+residential IPs. We won't know if Vercel can clear the bot wall until the feature
+deploys to production. If post-deploy testing shows Vercel requests being blocked, the
+documented fallback is to swap the URL-import surface for the existing
+`/api/ai/extract-property` route — which takes a listing screenshot and uses Claude
+vision to extract structured property data. That route is already shipped and proven
+working for the Showings Ledger, so the fallback is "swap the input mechanism, keep
+everything else the same."
 
 ---
 
