@@ -139,6 +139,10 @@ export function OpenHouseSetupContent({
   const [agentEmail,    setAgentEmail]    = useState(existingPage?.agent_email         ?? userEmail);
   const [isActive,      setIsActive]      = useState(existingPage?.is_active ?? true);
 
+  // ── Realtor.ca import state (scratchpad — not persisted to DB) ───────────
+  const [realtorUrl, setRealtorUrl] = useState("");
+  const [importing,  setImporting]  = useState(false);
+
   // ── UI state ──────────────────────────────────────────────────────────────
   const [saving,          setSaving]          = useState(false);
   const [uploadingPhoto,  setUploadingPhoto]  = useState(false);
@@ -198,6 +202,46 @@ export function OpenHouseSetupContent({
       if (e.target) e.target.value = "";
     }
   }, [userId, supabase]);
+
+  // ── Realtor.ca import ─────────────────────────────────────────────────────
+  // Fetches the listing's HTML via /api/realtor-listing, then populates the
+  // property fields. URL field is a scratchpad — not persisted to the DB.
+  // All fields remain editable after import so the agent can tune anything.
+  const handleImportFromRealtor = useCallback(async () => {
+    const url = realtorUrl.trim();
+    if (!url) {
+      toast.error("Paste a realtor.ca listing URL");
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const response = await fetch(
+        `/api/realtor-listing?url=${encodeURIComponent(url)}`,
+      );
+      const body = await response.json();
+
+      if (!response.ok) {
+        toast.error(body.error ?? "Couldn't import listing — please try again");
+        return;
+      }
+
+      // Populate form fields from response (all fields remain editable)
+      setPropertyAddress(body.address ?? "");
+      setPropertyCity(body.city ?? "");
+      setPropertyProvince(body.province ?? "");
+      setPropertyPrice(body.price != null ? String(body.price) : "");
+      setPropertyPhotoUrl(body.photoUrl ?? "");
+      setDescription(body.description ?? "");
+
+      toast.success("Imported from realtor.ca ✓");
+    } catch (err) {
+      console.error("[open-house-setup] realtor import failed:", err);
+      toast.error("Couldn't reach the import service — please try again");
+    } finally {
+      setImporting(false);
+    }
+  }, [realtorUrl]);
 
   // ── Save ──────────────────────────────────────────────────────────────────
   const handleSave = useCallback(async () => {
@@ -377,6 +421,47 @@ export function OpenHouseSetupContent({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+
+          {/* Quick start: import from realtor.ca */}
+          <div className="rounded-lg border border-blue-500/20 bg-blue-600/5 p-3">
+            <Label
+              htmlFor="realtor-url"
+              className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-blue-300"
+            >
+              <Link2 className="h-3 w-3" />
+              Quick start: import from realtor.ca
+            </Label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                id="realtor-url"
+                value={realtorUrl}
+                onChange={(e) => setRealtorUrl(e.target.value)}
+                disabled={importing}
+                placeholder="https://www.realtor.ca/real-estate/..."
+                className="flex-1 bg-slate-800 text-white placeholder-slate-500"
+                aria-label="Realtor.ca listing URL"
+              />
+              <Button
+                type="button"
+                onClick={handleImportFromRealtor}
+                disabled={importing || !realtorUrl.trim()}
+                className="bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-60 sm:w-auto"
+                aria-busy={importing}
+              >
+                {importing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    Importing…
+                  </>
+                ) : (
+                  "Import"
+                )}
+              </Button>
+            </div>
+            <p className="mt-1.5 text-xs text-slate-500">
+              Paste your listing URL — we&apos;ll fill in the address, price, photo, and description. All fields stay editable.
+            </p>
+          </div>
 
           {/* Property photo */}
           <div className="flex flex-col gap-2">
