@@ -16,7 +16,7 @@ export default async function OpenHouseSetupPage() {
   const [{ data: settings }, { data: existingPage }] = await Promise.all([
     supabase
       .from("user_settings")
-      .select("display_name, brokerage_name, avatar_url")
+      .select("display_name, brokerage_name, avatar_url, phone")
       .eq("user_id", user.id)
       .maybeSingle(),
     supabase
@@ -32,6 +32,7 @@ export default async function OpenHouseSetupPage() {
       userEmail={user.email ?? ""}
       displayName={settings?.display_name ?? ""}
       brokerageName={settings?.brokerage_name ?? ""}
+      phone={settings?.phone ?? ""}
       avatarUrl={settings?.avatar_url ?? ""}
       existingPage={existingPage}
     />

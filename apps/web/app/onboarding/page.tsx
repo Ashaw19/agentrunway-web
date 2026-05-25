@@ -147,6 +147,7 @@ export default function OnboardingPage() {
   const [province, setProvince] = useState<Province>("ontario");
   const [displayName, setDisplayName] = useState("");
   const [brokerageName, setBrokerageName] = useState("");
+  const [phone, setPhone] = useState("");
   const [splitPreset, setSplitPreset] = useState<SplitPreset>("p80_20");
   const [monthlyFee, setMonthlyFee] = useState("");
   const [txFeeRate, setTxFeeRate] = useState("");
@@ -263,6 +264,7 @@ export default function OnboardingPage() {
           province,
           display_name: displayName.trim(),
           brokerage_name: brokerageName.trim(),
+          phone: phone.trim(),
           split_preset: splitPreset,
           monthly_brokerage_fee: parseFloat(monthlyFee) || 0,
           tx_fee_rate_pct: parseFloat(txFeeRate)
@@ -476,6 +478,21 @@ export default function OnboardingPage() {
                   />
                   <p className="text-xs text-white/35">
                     Your work family. For better or for worse.
+                  </p>
+                </div>
+                <div className="grid gap-2">
+                  <Label className="text-white/80">Your phone number</Label>
+                  <Input
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    placeholder="(506) 555-0100"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    className="border-white/20 bg-white/5 text-white placeholder:text-white/30 focus-visible:ring-white/30"
+                  />
+                  <p className="text-xs text-white/35">
+                    Used on your Open House sign-in page and anywhere else clients need to reach you.
                   </p>
                 </div>
               </div>

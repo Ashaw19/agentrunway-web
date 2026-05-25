@@ -150,6 +150,7 @@ export function createTestSettings(
     // Profile display
     display_name: "Sarah Chen",
     brokerage_name: "",
+    phone: "",
     color_theme: "blue",
 
     // Profile media

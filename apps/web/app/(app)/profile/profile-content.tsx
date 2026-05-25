@@ -121,11 +121,12 @@ export function ProfileContent({
   // ── Identity ──────────────────────────────────────────────────────────────
   const [displayName, setDisplayName] = useState(settings?.display_name ?? "");
   const [brokerageName, setBrokerageName] = useState(settings?.brokerage_name ?? "");
+  const [phone, setPhone] = useState(settings?.phone ?? "");
   const [editingIdentity, setEditingIdentity] = useState(false);
   const [savingIdentity, setSavingIdentity] = useState(false);
   const [savedIdentity, setSavedIdentity] = useState(false);
   // Track last-saved values so cancel resets to the saved state, not stale props
-  const lastSavedIdentity = useRef({ displayName: settings?.display_name ?? "", brokerageName: settings?.brokerage_name ?? "" });
+  const lastSavedIdentity = useRef({ displayName: settings?.display_name ?? "", brokerageName: settings?.brokerage_name ?? "", phone: settings?.phone ?? "" });
 
   // ── Theme ─────────────────────────────────────────────────────────────────
   const [colorTheme, setColorTheme] = useState(settings?.color_theme ?? "blue");
@@ -183,10 +184,11 @@ export function ProfileContent({
         .update({
           display_name: displayName.trim(),
           brokerage_name: brokerageName.trim(),
+          phone: phone.trim(),
         })
         .eq("user_id", user.id);
       if (error) { toast.error("Failed to save — please try again."); return; }
-      lastSavedIdentity.current = { displayName: displayName.trim(), brokerageName: brokerageName.trim() };
+      lastSavedIdentity.current = { displayName: displayName.trim(), brokerageName: brokerageName.trim(), phone: phone.trim() };
       setEditingIdentity(false);
       setSavedIdentity(true);
       setTimeout(() => setSavedIdentity(false), 2500);
@@ -423,6 +425,18 @@ export function ProfileContent({
                       className="border-white/20 bg-white/5 text-white placeholder:text-white/30 h-9"
                     />
                   </div>
+                  <div className="grid gap-1.5">
+                    <Label className="text-white/70 text-xs">Phone</Label>
+                    <Input
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="(506) 555-0100"
+                      className="border-white/20 bg-white/5 text-white placeholder:text-white/30 h-9"
+                    />
+                  </div>
                   <div className="flex gap-2">
                     <Button
                       size="sm"
@@ -445,6 +459,7 @@ export function ProfileContent({
                         setEditingIdentity(false);
                         setDisplayName(lastSavedIdentity.current.displayName);
                         setBrokerageName(lastSavedIdentity.current.brokerageName);
+                        setPhone(lastSavedIdentity.current.phone);
                       }}
                       className="text-white/50 hover:text-white hover:bg-white/10 h-8 text-xs"
                     >
