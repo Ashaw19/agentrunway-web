@@ -591,8 +591,13 @@ export function TaxEstimator() {
         </p>
       </div>
 
+      {/* ── Powered by ── */}
+      <p className="mt-4 text-center text-[11px] text-slate-400">
+        Powered by Claude from Anthropic. Every calculation cites the CRA source it came from.
+      </p>
+
       {/* ── CTA ── */}
-      <div className="mt-8 rounded-xl border border-blue-500/30 bg-gradient-to-br from-blue-950 to-slate-950 p-6 text-white">
+      <div className="mt-6 rounded-xl border border-blue-500/30 bg-gradient-to-br from-blue-950 to-slate-950 p-6 text-white">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-500">
             <Sparkles className="h-5 w-5 text-white" />
