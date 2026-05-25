@@ -275,10 +275,10 @@ export function OpenHouseSetupContent({
       {/* ── Page header ─────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">
+          <h1 className="text-2xl font-bold tracking-tight">
             Open House Page
           </h1>
-          <p className="mt-1 text-sm text-slate-400">
+          <p className="mt-1 text-sm text-muted-foreground">
             Your persistent sign-in page. Update the property details before each open house — the URL never changes.
           </p>
         </div>
@@ -287,7 +287,7 @@ export function OpenHouseSetupContent({
             href={publicUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800/60 px-3 py-1.5 text-xs text-slate-300 transition-colors hover:border-slate-600 hover:text-white sm:mt-0"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-md border bg-card px-3 py-1.5 text-xs text-foreground transition-colors hover:bg-muted sm:mt-0"
           >
             <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
             Preview page
@@ -297,28 +297,28 @@ export function OpenHouseSetupContent({
 
       {/* ── Status banner — link to share ────────────────────────────────── */}
       {hasPublished && (
-        <div className="flex items-center justify-between rounded-xl border border-slate-700/60 bg-slate-800/40 px-4 py-3">
-          <div className="flex items-center gap-2 text-sm text-slate-300">
+        <div className="flex items-center justify-between rounded-xl border bg-card px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-foreground">
             <span
               className={cn(
                 "inline-block h-2 w-2 rounded-full",
                 isActive
-                  ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]"
-                  : "bg-slate-500",
+                  ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]"
+                  : "bg-muted-foreground",
               )}
             />
-            <span className="font-mono text-xs text-slate-400 sm:text-sm">
+            <span className="font-mono text-xs text-muted-foreground sm:text-sm">
               {publicUrl}
             </span>
           </div>
           <button
             type="button"
             onClick={copyLink}
-            className="ml-3 flex-shrink-0 rounded-md p-1.5 text-slate-400 transition-colors hover:text-white"
+            className="ml-3 flex-shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:text-foreground"
             aria-label="Copy link"
           >
             {copied ? (
-              <Check className="h-4 w-4 text-emerald-400" />
+              <Check className="h-4 w-4 text-emerald-500" />
             ) : (
               <Copy className="h-4 w-4" />
             )}
@@ -327,13 +327,13 @@ export function OpenHouseSetupContent({
       )}
 
       {/* ── URL Slug ─────────────────────────────────────────────────────── */}
-      <Card className="border-slate-700/60 bg-slate-900/60">
+      <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base text-white">
-            <Link2 className="h-4 w-4 text-blue-400" aria-hidden="true" />
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Link2 className="h-4 w-4 text-primary" aria-hidden="true" />
             Your Page URL
           </CardTitle>
-          <CardDescription className="text-slate-400">
+          <CardDescription>
             {slugLocked
               ? "Your URL is locked — it won't change between open houses."
               : "Auto-generated from your name. You can edit it once before publishing."}
@@ -341,7 +341,7 @@ export function OpenHouseSetupContent({
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-2">
-            <span className="shrink-0 text-sm text-slate-500">
+            <span className="shrink-0 text-sm text-muted-foreground">
               agentrunway.ca/open-house/
             </span>
             <Input
@@ -351,13 +351,13 @@ export function OpenHouseSetupContent({
               maxLength={60}
               placeholder="your-name"
               className={cn(
-                "bg-slate-800 text-white placeholder-slate-500",
+                "bg-background",
                 slugLocked && "cursor-default opacity-60",
               )}
             />
           </div>
           {slugLocked && (
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
               <AlertCircle className="h-3 w-3" />
               URL is locked after first publish to keep your sign-in links working.
             </p>
@@ -366,13 +366,13 @@ export function OpenHouseSetupContent({
       </Card>
 
       {/* ── Property details ─────────────────────────────────────────────── */}
-      <Card className="border-slate-700/60 bg-slate-900/60">
+      <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base text-white">
-            <Home className="h-4 w-4 text-blue-400" aria-hidden="true" />
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Home className="h-4 w-4 text-primary" aria-hidden="true" />
             Current Property
           </CardTitle>
-          <CardDescription className="text-slate-400">
+          <CardDescription>
             Update these details before each open house.
           </CardDescription>
         </CardHeader>
@@ -380,7 +380,7 @@ export function OpenHouseSetupContent({
 
           {/* Property photo */}
           <div className="flex flex-col gap-2">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Property Photo
             </Label>
             <div className="relative">
@@ -415,7 +415,7 @@ export function OpenHouseSetupContent({
                 </div>
               ) : (
                 <label className={cn(
-                  "flex h-[140px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-700 bg-slate-800/40 text-slate-500 transition-colors hover:border-slate-600 hover:text-slate-400",
+                  "flex h-[140px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed bg-muted/40 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
                   uploadingPhoto && "pointer-events-none opacity-60",
                 )}>
                   {uploadingPhoto ? (
@@ -442,7 +442,7 @@ export function OpenHouseSetupContent({
           {/* Address */}
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="property-address" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <Label htmlFor="property-address" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <MapPin className="h-3 w-3" />
                 Street Address
               </Label>
@@ -452,11 +452,11 @@ export function OpenHouseSetupContent({
                 onChange={(e) => setPropertyAddress(e.target.value)}
                 placeholder="123 Main Street"
                 maxLength={200}
-                className="bg-slate-800 text-white placeholder-slate-500"
+                className="bg-background"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="property-city" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <Label htmlFor="property-city" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 City
               </Label>
               <Input
@@ -465,11 +465,11 @@ export function OpenHouseSetupContent({
                 onChange={(e) => setPropertyCity(e.target.value)}
                 placeholder="Moncton"
                 maxLength={100}
-                className="bg-slate-800 text-white placeholder-slate-500"
+                className="bg-background"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="property-province" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <Label htmlFor="property-province" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Province
               </Label>
               <Input
@@ -478,11 +478,11 @@ export function OpenHouseSetupContent({
                 onChange={(e) => setPropertyProvince(e.target.value)}
                 placeholder="NB"
                 maxLength={50}
-                className="bg-slate-800 text-white placeholder-slate-500"
+                className="bg-background"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="property-price" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <Label htmlFor="property-price" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <DollarSign className="h-3 w-3" />
                 Asking Price (optional)
               </Label>
@@ -492,7 +492,7 @@ export function OpenHouseSetupContent({
                 onChange={(e) => setPropertyPrice(e.target.value)}
                 placeholder="$450,000"
                 maxLength={20}
-                className="bg-slate-800 text-white placeholder-slate-500"
+                className="bg-background"
               />
             </div>
           </div>
@@ -500,7 +500,7 @@ export function OpenHouseSetupContent({
           {/* Date & Time */}
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="open-house-date" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <Label htmlFor="open-house-date" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <CalendarDays className="h-3 w-3" />
                 Date
               </Label>
@@ -509,11 +509,11 @@ export function OpenHouseSetupContent({
                 type="date"
                 value={openHouseDate}
                 onChange={(e) => setOpenHouseDate(e.target.value)}
-                className="bg-slate-800 text-white placeholder-slate-500 [color-scheme:dark]"
+                className="bg-background"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="open-house-start" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <Label htmlFor="open-house-start" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <Clock className="h-3 w-3" />
                 Start Time
               </Label>
@@ -522,11 +522,11 @@ export function OpenHouseSetupContent({
                 type="time"
                 value={openHouseStart}
                 onChange={(e) => setOpenHouseStart(e.target.value)}
-                className="bg-slate-800 text-white placeholder-slate-500 [color-scheme:dark]"
+                className="bg-background"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="open-house-end" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <Label htmlFor="open-house-end" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <Clock className="h-3 w-3" />
                 End Time
               </Label>
@@ -535,14 +535,14 @@ export function OpenHouseSetupContent({
                 type="time"
                 value={openHouseEnd}
                 onChange={(e) => setOpenHouseEnd(e.target.value)}
-                className="bg-slate-800 text-white placeholder-slate-500 [color-scheme:dark]"
+                className="bg-background"
               />
             </div>
           </div>
 
           {/* Description */}
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="description" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <Label htmlFor="description" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Property Description (optional)
             </Label>
             <Textarea
@@ -552,20 +552,20 @@ export function OpenHouseSetupContent({
               placeholder="3-bedroom bungalow with open-concept kitchen, finished basement, and large backyard..."
               rows={3}
               maxLength={600}
-              className="resize-none bg-slate-800 text-white placeholder-slate-500"
+              className="resize-none bg-background"
             />
           </div>
         </CardContent>
       </Card>
 
       {/* ── Agent card ────────────────────────────────────────────────────── */}
-      <Card className="border-slate-700/60 bg-slate-900/60">
+      <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base text-white">
-            <User className="h-4 w-4 text-blue-400" aria-hidden="true" />
+          <CardTitle className="flex items-center gap-2 text-base">
+            <User className="h-4 w-4 text-primary" aria-hidden="true" />
             Your Agent Card
           </CardTitle>
-          <CardDescription className="text-slate-400">
+          <CardDescription>
             Visitors see your name, photo, and brokerage on the sign-in page.
             Your profile photo and brokerage are pre-filled from your AR profile.
           </CardDescription>
@@ -580,12 +580,12 @@ export function OpenHouseSetupContent({
                 alt="Agent photo"
                 width={64}
                 height={64}
-                className="h-16 w-16 rounded-full object-cover ring-2 ring-slate-700"
+                className="h-16 w-16 rounded-full object-cover ring-2 ring-border"
                 unoptimized
               />
-              <div className="text-sm text-slate-400">
+              <div className="text-sm text-muted-foreground">
                 Profile photo from your AR account.{" "}
-                <a href="/profile" className="text-blue-400 underline underline-offset-4 hover:text-blue-300">
+                <a href="/profile" className="text-primary underline underline-offset-4 hover:opacity-80">
                   Update in Profile →
                 </a>
               </div>
@@ -594,9 +594,9 @@ export function OpenHouseSetupContent({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="agent-name" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <Label htmlFor="agent-name" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <User className="h-3 w-3" />
-                Display Name <span className="text-red-400">*</span>
+                Display Name <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="agent-name"
@@ -604,11 +604,11 @@ export function OpenHouseSetupContent({
                 onChange={(e) => setAgentName(e.target.value)}
                 placeholder="Jane Smith"
                 maxLength={120}
-                className="bg-slate-800 text-white placeholder-slate-500"
+                className="bg-background"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="agent-brokerage" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <Label htmlFor="agent-brokerage" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <Building2 className="h-3 w-3" />
                 Brokerage
               </Label>
@@ -618,11 +618,11 @@ export function OpenHouseSetupContent({
                 onChange={(e) => setAgentBrokerage(e.target.value)}
                 placeholder="Royal LePage Atlantic"
                 maxLength={120}
-                className="bg-slate-800 text-white placeholder-slate-500"
+                className="bg-background"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="agent-phone" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <Label htmlFor="agent-phone" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <Phone className="h-3 w-3" />
                 Phone
               </Label>
@@ -632,11 +632,11 @@ export function OpenHouseSetupContent({
                 onChange={(e) => setAgentPhone(e.target.value)}
                 placeholder="(506) 555-0100"
                 maxLength={30}
-                className="bg-slate-800 text-white placeholder-slate-500"
+                className="bg-background"
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="agent-email" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              <Label htmlFor="agent-email" className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <Mail className="h-3 w-3" />
                 Reply-to Email
               </Label>
@@ -647,7 +647,7 @@ export function OpenHouseSetupContent({
                 onChange={(e) => setAgentEmail(e.target.value)}
                 placeholder="jane@brokerage.ca"
                 maxLength={254}
-                className="bg-slate-800 text-white placeholder-slate-500"
+                className="bg-background"
               />
             </div>
           </div>
@@ -660,20 +660,20 @@ export function OpenHouseSetupContent({
         <button
           type="button"
           onClick={() => setIsActive((v) => !v)}
-          className="flex items-center gap-2 text-sm text-slate-400 transition-colors hover:text-white"
+          className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
           aria-pressed={isActive}
         >
           {isActive ? (
             <>
-              <ToggleRight className="h-6 w-6 text-emerald-400" aria-hidden="true" />
-              <span className="font-medium text-emerald-400">Page is live</span>
-              <span className="text-slate-500">— visible to visitors</span>
+              <ToggleRight className="h-6 w-6 text-emerald-600" aria-hidden="true" />
+              <span className="font-medium text-emerald-600">Page is live</span>
+              <span className="text-muted-foreground">— visible to visitors</span>
             </>
           ) : (
             <>
               <ToggleLeft className="h-6 w-6" aria-hidden="true" />
               <span className="font-medium">Page is inactive</span>
-              <span className="text-slate-500">— hidden from public</span>
+              <span className="text-muted-foreground">— hidden from public</span>
             </>
           )}
         </button>
@@ -682,7 +682,7 @@ export function OpenHouseSetupContent({
         <Button
           onClick={handleSave}
           disabled={saving}
-          className="bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-60 sm:min-w-[130px]"
+          className="disabled:opacity-60 sm:min-w-[130px]"
         >
           {saving ? (
             <>
@@ -697,11 +697,11 @@ export function OpenHouseSetupContent({
 
       {/* ── Share instructions (post-publish) ────────────────────────────── */}
       {hasPublished && isActive && (
-        <div className="rounded-xl border border-blue-500/20 bg-blue-600/5 p-4">
-          <p className="text-sm font-semibold text-blue-300">How to use your open house page</p>
-          <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-slate-400">
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+          <p className="text-sm font-semibold text-primary">How to use your open house page</p>
+          <ul className="mt-2 space-y-1.5 text-xs leading-relaxed text-muted-foreground">
             <li>• Print the QR code for your sign-in table — buyers scan and register on their phone</li>
-            <li>• Share the link in your listing&apos;s social posts: <span className="font-mono text-slate-300">{publicUrl}</span></li>
+            <li>• Share the link in your listing&apos;s social posts: <span className="font-mono text-foreground">{publicUrl}</span></li>
             <li>• Before the next open house, update the property details above and save</li>
             <li>• New registrations appear automatically in your Flight Control CRM at Boarding stage</li>
           </ul>
@@ -709,7 +709,7 @@ export function OpenHouseSetupContent({
             <button
               type="button"
               onClick={copyLink}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-blue-600/10 px-3 py-1.5 text-xs font-semibold text-blue-300 transition-colors hover:bg-blue-600/20"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
             >
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               {copied ? "Copied!" : "Copy link"}
@@ -718,7 +718,7 @@ export function OpenHouseSetupContent({
               href={publicUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
+              className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted"
             >
               <ExternalLink className="h-3.5 w-3.5" />
               Open page
