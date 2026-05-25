@@ -255,6 +255,7 @@ export interface UserSettings {
   // Profile display
   display_name: string;
   brokerage_name: string;
+  phone: string; // canonical agent phone — pre-fills Open House Setup, Showings Ledger, etc.
   color_theme: string; // 'blue' | 'violet' | 'emerald' | 'orange' | 'rose'
 
   // Profile media (Supabase Storage — profile-media bucket)

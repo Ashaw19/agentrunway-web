@@ -208,6 +208,7 @@ const DEMO_SETTINGS: UserSettings = {
   user_id: "demo",
   display_name: "Sarah Mitchell",
   brokerage_name: "Royal LePage Toronto",
+  phone: "",
   province: "ontario",
   split_preset: "p80_20",
   monthly_brokerage_fee: 1200,

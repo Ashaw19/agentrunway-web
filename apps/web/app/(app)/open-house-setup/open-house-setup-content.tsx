@@ -103,6 +103,7 @@ interface Props {
   userEmail:    string;
   displayName:  string;
   brokerageName: string;
+  phone:        string;
   avatarUrl:    string;
   existingPage: AgentOpenHouse | null;
 }
@@ -114,6 +115,7 @@ export function OpenHouseSetupContent({
   userEmail,
   displayName,
   brokerageName,
+  phone,
   avatarUrl,
   existingPage,
 }: Props) {
@@ -135,7 +137,7 @@ export function OpenHouseSetupContent({
   const [agentName,     setAgentName]     = useState(existingPage?.agent_display_name ?? displayName);
   const [agentPhotoUrl, _setAgentPhotoUrl] = useState(existingPage?.agent_photo_url    ?? avatarUrl);
   const [agentBrokerage, setAgentBrokerage]= useState(existingPage?.agent_brokerage   ?? brokerageName);
-  const [agentPhone,    setAgentPhone]    = useState(existingPage?.agent_phone         ?? "");
+  const [agentPhone,    setAgentPhone]    = useState(existingPage?.agent_phone         ?? phone);
   const [agentEmail,    setAgentEmail]    = useState(existingPage?.agent_email         ?? userEmail);
   const [isActive,      setIsActive]      = useState(existingPage?.is_active ?? true);
 
