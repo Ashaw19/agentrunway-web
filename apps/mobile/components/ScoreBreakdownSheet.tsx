@@ -15,6 +15,7 @@ import {
 import { Sheet } from "@/components/ui";
 import { useColors, Space, Radius, Type } from "@/lib/theme";
 import { useDataStore } from "@/stores/data-store";
+import { bandColorHexForScore } from "@agent-runway/core/engines/runway-score-engine";
 
 // Map component labels from the web snapshot to icons and colors
 const COMPONENT_META: Record<
@@ -28,7 +29,17 @@ const COMPONENT_META: Record<
   Survival: { key: "survival", icon: Shield, color: "#8B5CF6" },
 };
 
-function scoreColor(score: number): string {
+/**
+ * Color band for a COMPONENT sub-score (Goal Pace, Pipeline, Expenses,
+ * Benchmark, Survival — each 0-100). This is a DIFFERENT metric class from
+ * the composite Runway Score; component bands have their own thresholds
+ * (75/50/30) pending a formal scheme from `metrics-design-champion` (see
+ * `memory/spec_runway_score_canonical_bands.md` §7 question 1).
+ *
+ * DO NOT use this for the composite score color — that must follow the
+ * canonical stateLabel band via `bandColorHexForScore()` from the engine.
+ */
+function componentScoreColor(score: number): string {
   if (score >= 75) return "#10B981";
   if (score >= 50) return "#3B5EF6";
   if (score >= 30) return "#F59E0B";
@@ -56,7 +67,7 @@ export function ScoreBreakdownSheet({
           style={{
             fontSize: 48,
             fontWeight: "800",
-            color: scoreColor(totalScore),
+            color: bandColorHexForScore(totalScore),
             letterSpacing: -1,
           }}
         >
@@ -139,7 +150,7 @@ export function ScoreBreakdownSheet({
                       style={{
                         fontSize: 16,
                         fontWeight: "800",
-                        color: scoreColor(comp.score),
+                        color: componentScoreColor(comp.score),
                       }}
                     >
                       {comp.score}
@@ -161,7 +172,7 @@ export function ScoreBreakdownSheet({
                         height: 4,
                         borderRadius: 2,
                         width: `${barWidth}%` as DimensionValue,
-                        backgroundColor: scoreColor(comp.score),
+                        backgroundColor: componentScoreColor(comp.score),
                       }}
                     />
                   </View>

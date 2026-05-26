@@ -9,6 +9,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
 import { useDataStore } from "@/stores/data-store";
+import {
+  bandColorHexForScore,
+  stateLabel as runwayStateLabel,
+} from "@agent-runway/core/engines/runway-score-engine";
 import Svg, {
   Circle,
   Text as SvgText,
@@ -56,11 +60,28 @@ const PROVINCE_LABELS: Record<string, string> = {
 
 // ── Runway Score Helpers ─────────────────────────────────────────────────────
 
-function getRunwayScoreMeta(score: number, t: (key: string) => string) {
+// Canonical band thresholds (81/61/41) and colors come from
+// `packages/core/engines/runway-score-engine.ts` — single source of truth across
+// web + mobile + MCP. See `memory/spec_runway_score_canonical_bands.md` §4.5.
+// Snapshot.stateLabel is preferred (written by web engine as of PR #147);
+// engine fallback covers legacy snapshots and any race during the migration.
+const PROFILE_LABEL_KEY: Record<"Strong" | "On Track" | "Building" | "At Risk", string> = {
+  "Strong": "runwayScore.strong",
+  "On Track": "runwayScore.onTrack",
+  "Building": "runwayScore.building",
+  "At Risk": "runwayScore.atRisk",
+};
+
+function getRunwayScoreMeta(
+  score: number,
+  snapshotStateLabel: "Strong" | "On Track" | "Building" | "At Risk" | undefined,
+  t: (key: string) => string,
+) {
+  const labelKey = PROFILE_LABEL_KEY[snapshotStateLabel ?? runwayStateLabel(score)];
   return {
     score,
-    label: score >= 80 ? t("runwayScore.strong") : score >= 60 ? t("runwayScore.onTrack") : score >= 40 ? t("runwayScore.building") : t("runwayScore.atRisk"),
-    color: score >= 80 ? "#10B981" : score >= 60 ? "#3B5EF6" : score >= 40 ? "#F59E0B" : "#EF4444",
+    label: t(labelKey),
+    color: bandColorHexForScore(score),
   };
 }
 
@@ -114,7 +135,11 @@ export default function ProfileScreen() {
   const goalGci = settings?.goal_gci ?? 0;
   const goalPct = goalGci > 0 ? Math.round((ytdGci / goalGci) * 100) : null;
 
-  const runway = getRunwayScoreMeta(store.runwayScore(), t);
+  const runway = getRunwayScoreMeta(
+    store.runwayScore(),
+    settings?.runway_score_snapshot?.stateLabel,
+    t,
+  );
 
   const isDark = mode === "dark";
 

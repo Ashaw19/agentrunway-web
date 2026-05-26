@@ -94,6 +94,13 @@ export interface UserSettings {
   runway_score_snapshot: {
     score: number;
     grade?: string;
+    /**
+     * Optional. Written by the web snapshot writer as of PR #147 (engine
+     * canonicalization). Legacy snapshots predating that commit will not have
+     * this field — callers must fall back to `stateLabel(score)` from
+     * `@agent-runway/core/engines/runway-score-engine`.
+     */
+    stateLabel?: "Strong" | "On Track" | "Building" | "At Risk";
     month: string;
     components?: { label: string; score: number; weight: number }[];
   } | null;
@@ -210,11 +217,17 @@ interface DataStore {
   /** Count of all pipeline deals */
   pipelineCount: () => number;
   /**
-   * 0-100 runway score:
-   *   40% pace (ytdGci vs prorated goal)
-   *   30% pipeline coverage vs remaining goal
-   *   30% client activity (contacted in last 30 days)
-   * Clamped to [0, 100].
+   * 0-100 composite Runway Score.
+   *
+   * Reads the precomputed snapshot from
+   * `user_settings.runway_score_snapshot` JSONB (written by the web engine
+   * at `apps/web/app/(app)/dashboard/dashboard-content.tsx`). NO local
+   * recomputation — parity with the web engine is guaranteed by
+   * construction. See `packages/core/engines/runway-score-engine.ts` for the
+   * canonical computation (component weights, band thresholds, version).
+   *
+   * Returns 0 if no snapshot exists yet (user has never opened the web
+   * dashboard).
    */
   runwayScore: () => number;
 
