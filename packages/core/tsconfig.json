@@ -18,6 +18,7 @@
   "include": [
     "engines/**/*.ts",
     "types/**/*.ts",
+    "tax-copy/**/*.ts",
     "formatters.ts"
   ],
   "exclude": [

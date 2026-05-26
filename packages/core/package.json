@@ -9,7 +9,11 @@
     "./types/organizations": "./types/organizations.ts",
     "./formatters": "./formatters.ts",
     "./validation/input-guards": "./validation/input-guards.ts",
-    "./schemas/ai-outputs": "./schemas/ai-outputs.ts"
+    "./schemas/ai-outputs": "./schemas/ai-outputs.ts",
+    "./tax-copy": "./tax-copy/index.ts",
+    "./tax-copy/disclaimer": "./tax-copy/disclaimer.ts",
+    "./tax-copy/forbidden-verbs": "./tax-copy/forbidden-verbs.ts",
+    "./tax-copy/validate": "./tax-copy/validate.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
