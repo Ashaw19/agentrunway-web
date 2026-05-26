@@ -654,6 +654,10 @@ export function DashboardContent({
     const snapshot = {
       score: runwayScore.score,
       grade: runwayScore.grade,
+      // Canonical prose band — mobile reads this directly instead of
+      // re-deriving from `score`. Parity-by-construction per
+      // memory/spec_runway_score_canonical_bands.md §3.2.
+      stateLabel: runwayScore.stateLabel,
       month: currentMonthKey,
       updated_at: new Date().toISOString(),
       components: runwayScore.components.map((c) => ({

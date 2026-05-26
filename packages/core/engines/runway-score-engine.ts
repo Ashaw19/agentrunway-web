@@ -47,6 +47,55 @@ export interface RunwayScoreResult {
   hasEnoughData: boolean;
 }
 
+// ── Canonical Band Tables ───────────────────────────────────────────────────
+
+/**
+ * Canonical Runway Score band tables. Single source of truth for every
+ * surface that derives a label, glyph, or color from the composite score.
+ *
+ * Two parallel schemes — both authoritative, different roles:
+ *
+ * - `stateLabel` (prose band): "Strong / On Track / Building / At Risk".
+ *   The ONLY scheme allowed in user-facing prose (chat, email body, insight
+ *   cards, Flight Crew dialog, push text, dashboard pill, mobile profile,
+ *   MCP tool outputs).
+ *
+ * - `grade` (visual-shorthand glyph): "A+ / A / B / C / D / F". Retained
+ *   ONLY for compact visual shorthand (dashboard letter badge, PDF hero,
+ *   weekly-digest email badge, mobile home gauge chip). Never in prose.
+ *
+ * Bands are ordered descending by `min`. Comparison is inclusive lower-bound
+ * (>=). Hex colors mirror the dashboard pill family — emerald/blue/amber/red
+ * — and are exported for any surface (mobile, PDF, email) that needs a color
+ * alongside the label.
+ *
+ * Spec: memory/spec_runway_score_canonical_bands.md §3.1.
+ */
+export const RUNWAY_SCORE_BANDS = {
+  stateLabel: [
+    { min: 81, label: "Strong"   as const, hex: "#10B981" },
+    { min: 61, label: "On Track" as const, hex: "#3B5EF6" },
+    { min: 41, label: "Building" as const, hex: "#F59E0B" },
+    { min:  0, label: "At Risk"  as const, hex: "#EF4444" },
+  ],
+  grade: [
+    { min: 92, glyph: "A+" as const },
+    { min: 85, glyph: "A"  as const },
+    { min: 75, glyph: "B"  as const },
+    { min: 62, glyph: "C"  as const },
+    { min: 50, glyph: "D"  as const },
+    { min:  0, glyph: "F"  as const },
+  ],
+} as const;
+
+/**
+ * Slate-500. Returned by `bandColorHexForScore()` when the score is
+ * non-finite (NaN, Infinity, -Infinity). Distinct from the four band colors
+ * so a broken score input renders as "no data" rather than impersonating
+ * "At Risk".
+ */
+const NON_FINITE_COLOR_HEX = "#6B7280";
+
 // ── Health Report Input ─────────────────────────────────────────────────────
 
 export interface BusinessHealthReport {
@@ -71,12 +120,11 @@ function grade(score: number): string {
   // Defensive: NaN/Infinity slips past every comparison and falls to "F",
   // which silently mislabels broken inputs as a graded score.
   if (!isFinite(score)) return "—";
-  if (score >= 92) return "A+";
-  if (score >= 85) return "A";
-  if (score >= 75) return "B";
-  if (score >= 62) return "C";
-  if (score >= 50) return "D";
-  return "F";
+  for (const band of RUNWAY_SCORE_BANDS.grade) {
+    if (score >= band.min) return band.glyph;
+  }
+  // Unreachable — the last band has min: 0 — but kept for exhaustiveness.
+  return RUNWAY_SCORE_BANDS.grade[RUNWAY_SCORE_BANDS.grade.length - 1].glyph;
 }
 
 /**
@@ -88,10 +136,32 @@ function grade(score: number): string {
  * Boundaries: ≥81 Strong, ≥61 On Track, ≥41 Building, else At Risk.
  */
 export function stateLabel(score: number): RunwayStateLabel {
-  if (score >= 81) return "Strong";
-  if (score >= 61) return "On Track";
-  if (score >= 41) return "Building";
-  return "At Risk";
+  for (const band of RUNWAY_SCORE_BANDS.stateLabel) {
+    if (score >= band.min) return band.label;
+  }
+  // Unreachable — the last band has min: 0 — but kept for exhaustiveness.
+  return RUNWAY_SCORE_BANDS.stateLabel[RUNWAY_SCORE_BANDS.stateLabel.length - 1].label;
+}
+
+/**
+ * Canonical band color (hex) for a Runway Score. Aligns with the `stateLabel`
+ * band — i.e. color follows the prose label, not the academic grade. Mobile,
+ * PDF, and email surfaces import this directly; web (dashboard pill) uses
+ * Tailwind tokens but the semantic mapping is identical.
+ *
+ * Non-finite scores (NaN, Infinity) return the slate-500 "no data" color
+ * rather than impersonating an "At Risk" red, so a broken upstream chain is
+ * visually distinguishable from a genuine low score.
+ *
+ * Spec: memory/spec_runway_score_canonical_bands.md §3.1.
+ */
+export function bandColorHexForScore(score: number): string {
+  if (!isFinite(score)) return NON_FINITE_COLOR_HEX;
+  for (const band of RUNWAY_SCORE_BANDS.stateLabel) {
+    if (score >= band.min) return band.hex;
+  }
+  // Unreachable — the last band has min: 0 — but kept for exhaustiveness.
+  return RUNWAY_SCORE_BANDS.stateLabel[RUNWAY_SCORE_BANDS.stateLabel.length - 1].hex;
 }
 
 // ── Compute ─────────────────────────────────────────────────────────────────
