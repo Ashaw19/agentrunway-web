@@ -31,6 +31,24 @@ updates:
         update-types:
           - "version-update:semver-major"
 
+      # ───────────────────────────────────────────────────────────────────────
+      # Expo SDK-pinned packages — bump manually with `npx expo install`
+      # ───────────────────────────────────────────────────────────────────────
+      # These packages are pinned to versions baked into the Expo Go runtime
+      # for the current SDK (apps/mobile/node_modules/expo/bundledNativeModules.json).
+      # React Native is pre-1.0, so a "minor" bump (e.g. 0.81 -> 0.85) slips
+      # through the major-only ignore rule above and breaks Expo Go's JS<->native
+      # ABI. Same hazard for React itself and every native module that ships
+      # JSI/Fabric bindings. When the SDK ticks, bump these manually by
+      # running `npx expo install --check` from apps/mobile/.
+      - dependency-name: "react"
+      - dependency-name: "react-dom"
+      - dependency-name: "react-native"
+      - dependency-name: "react-native-*"
+      - dependency-name: "expo"
+      - dependency-name: "expo-*"
+      - dependency-name: "@expo/*"
+
   # ─────────────────────────────────────────────────────────────────────────────
   # GitHub Actions — weekly, no major bumps
   # ─────────────────────────────────────────────────────────────────────────────
