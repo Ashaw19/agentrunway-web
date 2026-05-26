@@ -16,6 +16,11 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
 import { useDataStore } from "@/stores/data-store";
 import type { Client, BriefingItem } from "@/stores/data-store";
+import {
+  RUNWAY_SCORE_BANDS,
+  bandColorHexForScore,
+  stateLabel as runwayStateLabel,
+} from "@agent-runway/core/engines/runway-score-engine";
 import { BriefingRow } from "@/components/BriefingRow";
 import { ScoreBreakdownSheet } from "@/components/ScoreBreakdownSheet";
 import { useOfflineQueueStore } from "@/stores/offline-queue";
@@ -72,14 +77,47 @@ function formatLastSyncedKey(ts: number): { key: string; count?: number } {
   return { key: "status.updatedMinAgo", count: mins };
 }
 
-// Web status badges: Strong (emerald), On Track (blue), Building (amber), At Risk (red)
-function runwayScoreMeta(score: number) {
-  if (score >= 92) return { grade: "A+", labelKey: "score.strong", color: "#10B981" };
-  if (score >= 85) return { grade: "A", labelKey: "score.strong", color: "#10B981" };
-  if (score >= 75) return { grade: "B", labelKey: "score.onTrack", color: "#3B5EF6" };
-  if (score >= 62) return { grade: "C", labelKey: "score.building", color: "#F59E0B" };
-  if (score >= 50) return { grade: "D", labelKey: "score.building", color: "#F59E0B" };
-  return { grade: "F", labelKey: "score.atRisk", color: "#EF4444" };
+// Two parallel band schemes — both derived from canonical engine constants in
+// `packages/core/engines/runway-score-engine.ts`. See
+// `memory/spec_runway_score_canonical_bands.md` §4.4 for why.
+//
+// - `grade` (visual-shorthand glyph: A+ / A / B / C / D / F) is keyed off
+//   stricter thresholds (92/85/75/62/50). Allowed ONLY in the gauge chip.
+// - `label` (prose: Strong / On Track / Building / At Risk) is keyed off
+//   stateLabel thresholds (81/61/41). The ONLY scheme allowed in prose, and
+//   the scheme the band COLOR follows.
+//
+// Score 76 → grade "B" + label "On Track" + blue color (not Strong/emerald).
+// Score 80 → grade "B" + label "On Track" + blue (boundary case — intentional).
+const SCORE_LABEL_KEY: Record<"Strong" | "On Track" | "Building" | "At Risk", string> = {
+  "Strong": "score.strong",
+  "On Track": "score.onTrack",
+  "Building": "score.building",
+  "At Risk": "score.atRisk",
+};
+
+function gradeGlyph(score: number): string {
+  if (!isFinite(score)) return "—";
+  for (const band of RUNWAY_SCORE_BANDS.grade) {
+    if (score >= band.min) return band.glyph;
+  }
+  return RUNWAY_SCORE_BANDS.grade[RUNWAY_SCORE_BANDS.grade.length - 1].glyph;
+}
+
+function runwayScoreMeta(
+  score: number,
+  snapshotGrade: string | undefined,
+  snapshotStateLabel: "Strong" | "On Track" | "Building" | "At Risk" | undefined,
+): { grade: string; labelKey: string; color: string } {
+  // Prefer the values the web engine emitted into the snapshot. Fall back to
+  // engine-backed derivation when reading a legacy snapshot pre-PR #147.
+  const grade = snapshotGrade ?? gradeGlyph(score);
+  const label = snapshotStateLabel ?? runwayStateLabel(score);
+  return {
+    grade,
+    labelKey: SCORE_LABEL_KEY[label],
+    color: bandColorHexForScore(score),
+  };
 }
 
 // ── Runway Score Gauge (Hero — 140px, gold ring matching web) ──────────────
@@ -493,7 +531,8 @@ export default function DashboardScreen() {
   const displayName = settings?.display_name ?? user?.email?.split("@")[0] ?? "Agent";
   const outreachCount = outreachReadyCount;
   const score = runwayScore();
-  const meta = runwayScoreMeta(score);
+  const snapshot = settings?.runway_score_snapshot;
+  const meta = runwayScoreMeta(score, snapshot?.grade, snapshot?.stateLabel);
 
   const { pendingCount: offlinePending, isOnline } = useOfflineQueueStore();
 
