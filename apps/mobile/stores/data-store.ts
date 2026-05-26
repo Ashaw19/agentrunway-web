@@ -11,6 +11,7 @@ import { storage } from "../lib/mmkv";
 import { useToastStore } from "./toast-store";
 import { useOfflineQueueStore } from "./offline-queue";
 import { safeDateMs } from "../lib/safe-date";
+import { isExpectedAuthBootstrapError } from "../lib/auth-context";
 // Score is read directly from the web dashboard's snapshot in user_settings.
 // No local recomputation needed — guarantees exact parity.
 
@@ -322,10 +323,21 @@ export const useDataStore = create<DataStore>((set, get) => {
     fetchAll: async () => {
       set({ loading: true, isLoading: true });
       try {
+        // Guard against running pre-login: getSession() never throws on
+        // missing session, but getUser() can throw AuthApiError on stale
+        // tokens. Bail early when there's no session at all.
+        const { data: sess } = await supabase.auth.getSession();
+        if (!sess.session) {
+          set({ loading: false, isLoading: false });
+          return;
+        }
         const {
           data: { user },
         } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+          set({ loading: false, isLoading: false });
+          return;
+        }
 
         const currentYear = new Date().getFullYear();
 
@@ -384,6 +396,14 @@ export const useDataStore = create<DataStore>((set, get) => {
         set(newState);
         saveCache(newState);
       } catch (err) {
+        // Stale-refresh-token / no-session bootstrap errors are expected
+        // on first launch (and after a server-side rotation). Don't show
+        // a scary toast — auth-context will silently sign-out + redirect
+        // to /login. Just bail out of the fetch.
+        if (isExpectedAuthBootstrapError(err)) {
+          set({ loading: false, isLoading: false });
+          return;
+        }
         console.error("fetchAll error:", err);
         const toast = useToastStore.getState();
         const msg = err instanceof Error && err.message === "Network timeout"
