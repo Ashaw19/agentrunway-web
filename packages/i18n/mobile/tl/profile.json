@@ -15,6 +15,8 @@
   },
   "tools": {
     "title": "Tools",
+    "flightCrew": "Flight Crew",
+    "flightCrewDesc": "Chat with Captain, Navigator & Dispatcher",
     "briefing": "Today's Briefing",
     "briefingDesc": "Your daily priorities and action items",
     "flightControl": "Flight Control",
@@ -32,7 +34,7 @@
     "language": "Language",
     "languageDesc": "Change app language",
     "subscription": "Subscription",
-    "subscriptionPro": "Professional \u00b7 Active",
+    "subscriptionPro": "Professional · Active",
     "subscriptionFree": "Free plan",
     "subscriptionManage": "Manage your subscription on the web dashboard.",
     "goals": "Goals & Settings",
@@ -42,7 +44,7 @@
     "notificationsDesc": "Morning briefing, deal alerts, follow-ups"
   },
   "signOut": "Sign Out",
-  "version": "Agent Runway \u00b7 v{{version}}",
+  "version": "Agent Runway · v{{version}}",
   "province": {
     "yrsExp": "{{years}} yrs exp"
   },
@@ -93,7 +95,7 @@
     "score": "Score",
     "ytdGci": "YTD GCI",
     "deals": "Deals",
-    "goalProgress": "Goal progress \u00b7 Day {{day}}/365",
+    "goalProgress": "Goal progress · Day {{day}}/365",
     "percentOfGoal": "{{percent}}% of goal",
     "aheadOfPace": "Ahead of pace",
     "behindPace": "{{amount}} behind pace"
@@ -105,7 +107,7 @@
     "clients": "CLIENTS",
     "deals": "DEALS",
     "transactions": "TRANSACTIONS",
-    "noResults": "No results for \u201c{{query}}\u201d",
+    "noResults": "No results for “{{query}}”",
     "noResultsHint": "Try a different search term, or add a new client",
     "quickActions": "QUICK ACTIONS",
     "addClient": "Add Client",

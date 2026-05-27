@@ -3,6 +3,8 @@ import { NextRequest } from "next/server";
 
 export const maxDuration = 120;
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient as createJsClient, type SupabaseClient } from "@supabase/supabase-js";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { log } from "@/lib/logger";
 import { KNOWLEDGE_BASE } from "@/lib/knowledge-base";
@@ -80,8 +82,47 @@ export async function POST(req: NextRequest) {
   const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
 
   // ── 1. Auth guard ────────────────────────────────────────────────────────
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // Cookie-based auth (web) is the primary path. Mobile clients (Expo) hit
+  // this same endpoint with a `Authorization: Bearer <access_token>` header
+  // — fall back to admin-client token validation when no cookie session is
+  // present. Mobile uses the admin client only for `auth.getUser(token)`;
+  // subsequent DB reads continue to flow through `supabase` (cookie client)
+  // for the web path, and through a token-scoped client for the mobile path
+  // so RLS still applies.
+  // See `memory/project_mobile_parity_audit_2026-05-26.md` gap #1.
+  const cookieClient = await createClient();
+  // eslint-disable-next-line prefer-const
+  let { data: { user } } = await cookieClient.auth.getUser();
+  // Use the broader @supabase/supabase-js SupabaseClient type since both the
+  // cookie-based (@supabase/ssr) client and the bearer-scoped JS client
+  // implement the same query surface (.from / .rpc / .auth.getUser).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let supabase: SupabaseClient = cookieClient as any;
+
+  if (!user) {
+    const authHeader = req.headers.get("authorization");
+    if (authHeader?.startsWith("Bearer ")) {
+      const accessToken = authHeader.slice(7);
+      const admin = createAdminClient();
+      const { data: { user: bearerUser } } = await admin.auth.getUser(accessToken);
+      if (bearerUser) {
+        user = bearerUser;
+        // Token-scoped client: RLS evaluated as the authenticated user, not
+        // service-role. Matches the pattern used by /api/mobile/* routes —
+        // subsequent .from() reads respect the same row-level policies the
+        // cookie path enforces.
+        supabase = createJsClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          {
+            global: { headers: { Authorization: `Bearer ${accessToken}` } },
+            auth: { persistSession: false, autoRefreshToken: false },
+          },
+        );
+      }
+    }
+  }
+
   if (!user) {
     return new Response("Unauthorized", { status: 401 });
   }
