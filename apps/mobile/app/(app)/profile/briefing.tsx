@@ -319,7 +319,9 @@ export default function BriefingScreen() {
     clients,
     pipeline,
     tasks,
+    briefings,
     fetchAll,
+    fetchBriefing,
     smartListCounts,
     runwayScore,
     ytdGci,
@@ -331,7 +333,9 @@ export default function BriefingScreen() {
 
   const briefing = useMemo(
     () => todayBriefing(),
-    [clients, pipeline, tasks]
+    // `briefings` is the engine-fetched cache; include it so the memo
+    // recomputes when /api/mobile/briefing resolves (audit red flag #3).
+    [clients, pipeline, tasks, briefings, todayBriefing]
   );
   const groups = useMemo(() => groupBySeverity(briefing), [briefing]);
   const counts = useMemo(() => smartListCounts(), [clients, pipeline]);
@@ -342,7 +346,10 @@ export default function BriefingScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchAll();
+    // Refresh both the local data and the engine-emitted briefing in
+    // parallel — the engine fetch is fire-and-forget on cold start but
+    // explicit on pull-to-refresh. See audit red flag #3.
+    await Promise.all([fetchAll(), fetchBriefing()]);
     setRefreshing(false);
   };
 

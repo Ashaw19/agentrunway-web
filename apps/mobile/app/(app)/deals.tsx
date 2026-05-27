@@ -52,19 +52,16 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useTranslation } from "react-i18next";
 import { validateSalePrice, validateCommissionPct, parsePercent, parseDollar } from "@agent-runway/core/validation/input-guards";
+import { PIPELINE_STAGE_DEFAULTS } from "@agent-runway/core/types/database";
 
 type Tab = "pipeline" | "closed" | "pending";
 
 const STAGE_ORDER = ["lead", "showing", "offer", "conditional", "firm", "closed"] as const;
 
-const DEFAULT_PROBABILITIES: Record<string, number> = {
-  lead: 0.1,
-  showing: 0.25,
-  offer: 0.5,
-  conditional: 0.75,
-  firm: 0.9,
-  closed: 1.0,
-};
+// Canonical default-probability map shared with the pipeline-forecast engine.
+// Sourced from `@agent-runway/core/types/database`'s `PIPELINE_STAGE_DEFAULTS`
+// so mobile cannot silently drift from web. See audit red flag #4.
+const DEFAULT_PROBABILITIES: Record<string, number> = PIPELINE_STAGE_DEFAULTS;
 
 // ── Deals Skeleton ──────────────────────────────────────────────────────────
 

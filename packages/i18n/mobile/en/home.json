@@ -11,7 +11,7 @@
     "onTrack": "On Track",
     "building": "Building",
     "atRisk": "At Risk",
-    "tapForDetails": "{{label}} \u00b7 Tap for details",
+    "tapForDetails": "{{label}} · Tap for details",
     "description": "Based on goal pace, pipeline coverage, expenses, and cash reserves"
   },
   "scoreBar": {
@@ -44,10 +44,10 @@
     "allCaughtUp": "All caught up"
   },
   "sync": {
-    "offline": "Offline \u2014 changes saved locally",
+    "offline": "Offline — changes saved locally",
     "pendingSync": "{{count}} change pending sync",
     "pendingSync_plural": "{{count}} changes pending sync",
-    "updating": "Updating\u2026"
+    "updating": "Updating…"
   },
   "streak": {
     "loggedToday": "{{count}} logged today",
@@ -57,7 +57,28 @@
     "title": "TODAY'S FOCUS",
     "noBriefing": "No briefing items today",
     "itemCount": "{{count}} item",
-    "itemCount_plural": "{{count}} items"
+    "itemCount_plural": "{{count}} items",
+    "types": {
+      "vip_overdue": "VIP overdue",
+      "uncontacted_lead": "Uncontacted lead",
+      "in_flight_stale": "Active deal silent",
+      "birthday_today": "Birthday today",
+      "birthday_soon": "Birthday soon",
+      "closing_anniversary": "Closing anniversary",
+      "mortgage_renewal_window": "Mortgage renewal window",
+      "mortgage_renewal_due": "Mortgage renewal due",
+      "past_client_check_in": "Past-client check-in",
+      "timeframe_approaching": "Timeframe approaching",
+      "property_value_milestone": "Property value milestone",
+      "no_contact_info": "Missing contact info",
+      "possible_duplicate": "Possible duplicate",
+      "listing_appointment_overdue": "Listing appointment overdue",
+      "listing_stale": "Listing stale",
+      "hot_pipeline": "Hot pipeline",
+      "task_due_today": "Task due today",
+      "overdue_followup": "Overdue follow-up",
+      "unknown": "Action needed"
+    }
   },
   "goal": {
     "annualGoal": "ANNUAL GOAL",

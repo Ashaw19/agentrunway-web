@@ -195,13 +195,44 @@ export interface OutreachItem {
 }
 
 // ── Briefing Types ───────────────────────────────────────────────────────────
+//
+// All `engine-*` types are emitted by the canonical
+// `computeIntelligenceBriefing` engine in
+// `packages/core/engines/crm-analytics-engine.ts` and served via
+// `/api/mobile/briefing`. Mobile is the consumer — when web adds a new
+// `BriefingItemType` to the engine, mobile picks it up automatically
+// (unknown types render with a generic icon + the engine-supplied
+// title/detail). See audit red flag #3 /
+// `memory/project_mobile_parity_audit_2026-05-26.md`.
+//
+// `hot_pipeline` and `task_due_today` are mobile-only locally-computed
+// supplements — neither is in the engine today. They survive here so the
+// existing Today's Focus surfaces don't regress; if web ever wants them,
+// move the rule to the engine and drop the local computation here.
 
-export type BriefingType =
-  | "overdue_followup"
+export type EngineBriefingType =
+  | "vip_overdue"
   | "uncontacted_lead"
+  | "in_flight_stale"
+  | "birthday_today"
+  | "birthday_soon"
+  | "closing_anniversary"
+  | "mortgage_renewal_window"
+  | "mortgage_renewal_due"
+  | "past_client_check_in"
+  | "timeframe_approaching"
+  | "property_value_milestone"
+  | "no_contact_info"
+  | "possible_duplicate"
+  | "listing_appointment_overdue"
+  | "listing_stale";
+
+export type LocalBriefingType =
   | "hot_pipeline"
   | "task_due_today"
-  | "birthday_soon";
+  | "overdue_followup"; // legacy fallback when offline + no cached engine result
+
+export type BriefingType = EngineBriefingType | LocalBriefingType | string;
 
 export interface BriefingItem {
   id: string;
@@ -212,6 +243,8 @@ export interface BriefingItem {
   title: string;
   detail: string;
   actionLabel: string;
+  /** Optional engine-emitted day count (used by the BriefingRow for context). */
+  daysValue?: number;
 }
 
 export interface SmartListCounts {
@@ -324,7 +357,28 @@ interface DataStore {
   runwayScore: () => number;
 
   // Smart Lists & Today's Briefing
+  /**
+   * Returns the current briefing — engine-emitted items (from
+   * `/api/mobile/briefing`, cached in `briefings`) merged with
+   * mobile-only `hot_pipeline` + `task_due_today` supplements derived
+   * locally. When offline AND no cached engine result exists, falls back
+   * to a narrow legacy heuristic so the user still sees something.
+   */
   todayBriefing: () => BriefingItem[];
+  /**
+   * Engine-fetched briefing cache. Populated by `fetchBriefing`; consumed
+   * by `todayBriefing`. Persisted with the rest of the store cache so the
+   * last-seen briefing is available offline.
+   */
+  briefings: BriefingItem[];
+  /** ms timestamp of last successful briefing fetch (null = never). */
+  briefingsFetchedAt: number | null;
+  /**
+   * Calls `/api/mobile/briefing` with Bearer auth, populates `briefings`,
+   * and persists to cache. No-op when offline. 15s timeout via
+   * `withTimeout` like other fetches.
+   */
+  fetchBriefing: () => Promise<void>;
   smartListCounts: () => SmartListCounts;
   overdueFollowupClients: () => Client[];
   uncontactedLeadClients: () => Client[];
@@ -345,7 +399,8 @@ interface DataStore {
 }
 
 // Cache key — bump version when schema changes to avoid stale data crashes
-const CACHE_VERSION = 2;
+// v3 (2026-05-27): added `briefings` + `briefingsFetchedAt` (audit red flag #3)
+const CACHE_VERSION = 3;
 const CACHE_KEY = "data_store_cache";
 const CACHE_VERSION_KEY = "data_store_cache_version";
 
@@ -379,6 +434,53 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 const FETCH_TIMEOUT_MS = 15_000; // 15-second network timeout
 
+/**
+ * Maps a briefing item type → the action-button CTA. Engine items don't
+ * carry `actionLabel` (it's a presentation concern), so mobile derives
+ * one per type. Unknown types fall back to a neutral "Review" label so
+ * future engine additions don't crash the UI.
+ */
+function actionLabelForType(type: string): string {
+  switch (type) {
+    case "vip_overdue":
+    case "overdue_followup":
+      return "Follow Up";
+    case "uncontacted_lead":
+      return "Reach Out";
+    case "in_flight_stale":
+      return "Check In";
+    case "birthday_today":
+      return "Wish";
+    case "birthday_soon":
+      return "Plan";
+    case "closing_anniversary":
+      return "Acknowledge";
+    case "mortgage_renewal_window":
+    case "mortgage_renewal_due":
+      return "Reach Out";
+    case "past_client_check_in":
+      return "Check In";
+    case "timeframe_approaching":
+      return "Follow Up";
+    case "property_value_milestone":
+      return "Share";
+    case "no_contact_info":
+      return "Complete";
+    case "possible_duplicate":
+      return "Review";
+    case "listing_appointment_overdue":
+      return "Follow Up";
+    case "listing_stale":
+      return "Review";
+    case "task_due_today":
+      return "Do It";
+    case "hot_pipeline":
+      return "View";
+    default:
+      return "Review";
+  }
+}
+
 /** Simple mutex to prevent duplicate concurrent mutations (e.g. double-tap). */
 const _mutationLocks = new Set<string>();
 function withMutationGuard<T>(key: string, fn: () => Promise<T>, fallback: T): Promise<T> {
@@ -399,6 +501,8 @@ function saveCache(state: Partial<DataStore>) {
         tasks: state.tasks,
         settings: state.settings,
         receipts: state.receipts,
+        briefings: state.briefings,
+        briefingsFetchedAt: state.briefingsFetchedAt,
       })
     );
   } catch {
@@ -417,6 +521,8 @@ export const useDataStore = create<DataStore>((set, get) => {
     settings: (cached.settings as UserSettings | null) ?? null,
     outreachQueue: [],
     receipts: (cached.receipts as ReceiptExpense[]) ?? [],
+    briefings: (cached.briefings as BriefingItem[]) ?? [],
+    briefingsFetchedAt: (cached.briefingsFetchedAt as number | null) ?? null,
     clientActivities: {},
     _clientActivitiesFetchedAt: {},
     loading: false,
@@ -500,6 +606,11 @@ export const useDataStore = create<DataStore>((set, get) => {
 
         set(newState);
         saveCache(newState);
+
+        // Kick off the engine briefing fetch in the background — don't
+        // await it, the main UI doesn't block on Today's Focus.
+        // (audit red flag #3)
+        void get().fetchBriefing();
       } catch (err) {
         // Stale-refresh-token / no-session bootstrap errors are expected
         // on first launch (and after a server-side rotation). Don't show
@@ -520,6 +631,62 @@ export const useDataStore = create<DataStore>((set, get) => {
     },
 
     fetch: async () => get().fetchAll(),
+
+    fetchBriefing: async () => {
+      // Engine-fetched briefing — see audit red flag #3. Calls
+      // /api/mobile/briefing which runs the canonical
+      // `computeIntelligenceBriefing` engine server-side and returns
+      // engine-shaped items. Offline → no-op (cached briefings stay
+      // visible; the local-heuristic fallback in `todayBriefing` covers
+      // the cold-start offline case).
+      try {
+        if (!useOfflineQueueStore.getState().isOnline) return;
+        const { data: sess } = await supabase.auth.getSession();
+        if (!sess.session?.access_token) return;
+
+        const API_URL =
+          process.env.EXPO_PUBLIC_API_URL ?? "https://agentrunway.ca";
+
+        const res = await withTimeout(
+          fetch(`${API_URL}/api/mobile/briefing`, {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${sess.session.access_token}`,
+            },
+          }),
+          FETCH_TIMEOUT_MS,
+        );
+
+        if (!res.ok) {
+          // Silent failure — the UI keeps showing the last cached
+          // briefing. Don't toast: this is a background fetch.
+          return;
+        }
+        const json = await res.json();
+        const items = Array.isArray(json.items)
+          ? (json.items as BriefingItem[])
+          : [];
+
+        // Engine items don't carry `actionLabel` — derive it client-side
+        // from the type so each row gets a sensible CTA.
+        const decorated: BriefingItem[] = items.map((it) => ({
+          ...it,
+          actionLabel: actionLabelForType(it.type),
+        }));
+
+        const newState = {
+          briefings: decorated,
+          briefingsFetchedAt: Date.now(),
+        };
+        set(newState);
+        saveCache(get());
+      } catch (err) {
+        if (isExpectedAuthBootstrapError(err)) return;
+        // Background fetch — log but don't surface to the user. The
+        // cached briefing (or local fallback) keeps the UI useful.
+        console.warn("fetchBriefing error:", err);
+      }
+    },
 
     fetchClients: async () => {
       const {
@@ -1041,6 +1208,76 @@ export const useDataStore = create<DataStore>((set, get) => {
 
     todayBriefing: () => {
       const state = get();
+
+      // Preferred path: engine-emitted briefings from /api/mobile/briefing
+      // (see audit red flag #3). When we have them, supplement with the
+      // mobile-only `task_due_today` + `hot_pipeline` rules that aren't
+      // in the engine yet.
+      if (state.briefings.length > 0) {
+        const items: BriefingItem[] = [...state.briefings];
+        const DAY = 86400000;
+
+        // Mobile-only: tasks due today (engine doesn't surface tasks)
+        const todayStr = new Date().toISOString().split("T")[0];
+        const dueTasks = state.tasks.filter(
+          (t) => t.due_date && t.due_date.startsWith(todayStr),
+        );
+        for (const task of dueTasks.slice(0, 2)) {
+          items.push({
+            id: `task_${task.id}`,
+            type: "task_due_today",
+            severity: task.priority === "high" ? "urgent" : "attention",
+            clientName: task.title,
+            title: task.title,
+            detail:
+              task.priority === "high"
+                ? "High priority · Due today"
+                : "Due today",
+            actionLabel: "Do It",
+          });
+        }
+
+        // Mobile-only: hot pipeline (offer / conditional / firm)
+        const hot = state.pipeline.filter(
+          (d) =>
+            d.stage === "offer" ||
+            d.stage === "conditional" ||
+            d.stage === "firm",
+        );
+        for (const deal of hot.slice(0, 2)) {
+          const p = deal.estimated_price;
+          const priceStr =
+            p >= 1_000_000
+              ? `$${(p / 1_000_000).toFixed(1)}M`
+              : p >= 1_000
+                ? `$${(p / 1_000).toFixed(0)}K`
+                : `$${Math.round(p)}`;
+          items.push({
+            id: `hot_${deal.id}`,
+            type: "hot_pipeline",
+            severity: "attention",
+            clientName: deal.client_name ?? "Pipeline Deal",
+            title: deal.address ?? deal.client_name ?? "Pipeline Deal",
+            detail: `${deal.stage.charAt(0).toUpperCase() + deal.stage.slice(1)} · ${priceStr}`,
+            actionLabel: "View",
+          });
+        }
+
+        const order: Record<string, number> = {
+          urgent: 0,
+          attention: 1,
+          upcoming: 2,
+        };
+        items.sort((a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3));
+        // Silence unused-var warning from the `now`/`DAY` reservations in
+        // the legacy fallback below — keep them scoped down there only.
+        void DAY;
+        return items.slice(0, 9);
+      }
+
+      // Fallback: legacy local heuristic. Only triggers when the engine
+      // briefing hasn't loaded yet (cold start / offline first-launch).
+      // Mirrors the pre-2026-05-27 behavior. See audit red flag #3.
       const items: BriefingItem[] = [];
       const now = Date.now();
       const DAY = 86400000;
