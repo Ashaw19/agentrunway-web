@@ -1,7 +1,7 @@
 {
   "greeting": {
     "morning": "Bonjour",
-    "afternoon": "Bon apr\u00e8s-midi",
+    "afternoon": "Bon après-midi",
     "evening": "Bonsoir"
   },
   "score": {
@@ -10,15 +10,15 @@
     "strong": "Solide",
     "onTrack": "En bonne voie",
     "building": "En construction",
-    "atRisk": "\u00c0 risque",
-    "tapForDetails": "{{label}} \u00b7 Appuyez pour les d\u00e9tails",
-    "description": "Bas\u00e9 sur le rythme de l'objectif, la couverture du pipeline, les d\u00e9penses et les r\u00e9serves"
+    "atRisk": "À risque",
+    "tapForDetails": "{{label}} · Appuyez pour les détails",
+    "description": "Basé sur le rythme de l'objectif, la couverture du pipeline, les dépenses et les réserves"
   },
   "scoreBar": {
     "pace": "Rythme",
     "pipeline": "Pipeline",
-    "expenses": "D\u00e9penses",
-    "bench": "R\u00e9serve",
+    "expenses": "Dépenses",
+    "bench": "Réserve",
     "survival": "Survie"
   },
   "metrics": {
@@ -32,41 +32,62 @@
     "clients": "Clients",
     "pending": "En attente",
     "deals": "{{count}} transactions",
-    "needFollowUp": "{{count}} \u00e0 relancer"
+    "needFollowUp": "{{count}} à relancer"
   },
   "actions": {
     "overdue": "en retard",
-    "ready": "pr\u00eats",
+    "ready": "prêts",
     "pending": "en attente",
     "followUps": "suivis",
     "newLeads": "Nouveaux prospects",
     "pendingDeals": "Transactions en attente",
-    "allCaughtUp": "Tout est \u00e0 jour"
+    "allCaughtUp": "Tout est à jour"
   },
   "sync": {
-    "offline": "Hors ligne \u2014 modifications enregistr\u00e9es localement",
+    "offline": "Hors ligne — modifications enregistrées localement",
     "pendingSync": "{{count}} modification en attente de sync",
     "pendingSync_plural": "{{count}} modifications en attente de sync",
-    "updating": "Mise \u00e0 jour\u2026"
+    "updating": "Mise à jour…"
   },
   "streak": {
-    "loggedToday": "{{count}} enregistr\u00e9(s) aujourd'hui",
-    "dayStreak": "S\u00e9rie de {{count}} jours"
+    "loggedToday": "{{count}} enregistré(s) aujourd'hui",
+    "dayStreak": "Série de {{count}} jours"
   },
   "briefing": {
     "title": "FOCUS DU JOUR",
-    "noBriefing": "Aucun \u00e9l\u00e9ment de briefing aujourd'hui",
-    "itemCount": "{{count}} \u00e9l\u00e9ment",
-    "itemCount_plural": "{{count}} \u00e9l\u00e9ments"
+    "noBriefing": "Aucun élément de briefing aujourd'hui",
+    "itemCount": "{{count}} élément",
+    "itemCount_plural": "{{count}} éléments",
+    "types": {
+      "vip_overdue": "VIP en retard",
+      "uncontacted_lead": "Lead non contacté",
+      "in_flight_stale": "Transaction active silencieuse",
+      "birthday_today": "Anniversaire aujourd'hui",
+      "birthday_soon": "Anniversaire à venir",
+      "closing_anniversary": "Anniversaire de clôture",
+      "mortgage_renewal_window": "Fenêtre de renouvellement hypothécaire",
+      "mortgage_renewal_due": "Renouvellement hypothécaire dû",
+      "past_client_check_in": "Suivi ancien client",
+      "timeframe_approaching": "Échéance approche",
+      "property_value_milestone": "Étape de valeur immobilière",
+      "no_contact_info": "Coordonnées manquantes",
+      "possible_duplicate": "Doublon possible",
+      "listing_appointment_overdue": "Rendez-vous d'inscription en retard",
+      "listing_stale": "Inscription inactive",
+      "hot_pipeline": "Pipeline actif",
+      "task_due_today": "Tâche due aujourd'hui",
+      "overdue_followup": "Suivi en retard",
+      "unknown": "Action requise"
+    }
   },
   "goal": {
     "annualGoal": "OBJECTIF ANNUEL",
     "ofGoal": "{{current}} de {{goal}}"
   },
   "nextUp": {
-    "title": "PROCHAINE T\u00c2CHE",
+    "title": "PROCHAINE TÂCHE",
     "overdue": "En retard",
-    "high": "\u00c9LEV\u00c9E"
+    "high": "ÉLEVÉE"
   },
   "pipelinePreview": {
     "title": "PIPELINE",
@@ -79,7 +100,7 @@
     "typeLabel": "TYPE",
     "notesLabel": "NOTES",
     "searchClient": "Rechercher un client...",
-    "notesPlaceholder": "Que s'est-il pass\u00e9 ?",
+    "notesPlaceholder": "Que s'est-il passé ?",
     "activityTypes": {
       "call": "Appel",
       "text": "Texto",

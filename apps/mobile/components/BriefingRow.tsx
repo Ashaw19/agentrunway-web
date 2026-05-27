@@ -17,6 +17,17 @@ import {
   Gift,
   CheckSquare,
   AlertCircle,
+  Star,
+  PlaneTakeoff,
+  CakeSlice,
+  Award,
+  Banknote,
+  PhoneCall,
+  CalendarClock,
+  Home,
+  Contact,
+  Copy,
+  MapPinned,
 } from "lucide-react-native";
 import { useColors, Space, Radius, Type } from "@/lib/theme";
 import type { BriefingItem } from "@/stores/data-store";
@@ -27,12 +38,35 @@ const SEVERITY_COLORS: Record<string, string> = {
   upcoming: "#3B5EF6",
 };
 
+// Icon map covers every type emitted by the canonical engine
+// (`computeIntelligenceBriefing` in
+// `packages/core/engines/crm-analytics-engine.ts`) plus the mobile-only
+// `hot_pipeline` + `task_due_today` supplements. Unknown types fall back
+// to `AlertCircle` so future engine additions don't crash the UI — they
+// render with the engine-supplied title/detail and a neutral icon.
+// See audit red flag #3.
 const TYPE_ICONS: Record<string, typeof Clock> = {
-  overdue_followup: Clock,
+  // engine
+  vip_overdue: Star,
   uncontacted_lead: UserPlus,
-  hot_pipeline: TrendingUp,
+  in_flight_stale: PlaneTakeoff,
+  birthday_today: CakeSlice,
   birthday_soon: Gift,
+  closing_anniversary: Award,
+  mortgage_renewal_window: Banknote,
+  mortgage_renewal_due: Banknote,
+  past_client_check_in: PhoneCall,
+  timeframe_approaching: CalendarClock,
+  property_value_milestone: Home,
+  no_contact_info: Contact,
+  possible_duplicate: Copy,
+  listing_appointment_overdue: MapPinned,
+  listing_stale: MapPinned,
+  // mobile-only supplements
+  hot_pipeline: TrendingUp,
   task_due_today: CheckSquare,
+  // legacy fallback path (offline cold-start)
+  overdue_followup: Clock,
 };
 
 const SPRING = { damping: 15, stiffness: 400, mass: 0.8 };

@@ -483,7 +483,7 @@ export default function DashboardScreen() {
 
   const {
     fetchAll, fetchOutreach, fetchReceipts, isLoading, lastFetched,
-    settings, transactions, pipeline, tasks, clients,
+    settings, transactions, pipeline, tasks, clients, briefings,
     outreachReadyCount, ytdGci, ytdDealCount, pipelineValue, runwayScore,
     todayBriefing, todayActivityCount, contactStreak,
   } = useDataStore();
@@ -556,7 +556,12 @@ export default function DashboardScreen() {
     return items;
   }, [overdueTasks.length, outreachCount, pending, followUpsDue]);
 
-  const briefing = useMemo(() => todayBriefing(), [clients, pipeline, tasks]);
+  const briefing = useMemo(
+    () => todayBriefing(),
+    // `briefings` is the engine-fetched cache; include so the memo
+    // recomputes when /api/mobile/briefing resolves (audit red flag #3).
+    [clients, pipeline, tasks, briefings, todayBriefing]
+  );
   const streak = contactStreak();
   const todayCount = todayActivityCount();
 

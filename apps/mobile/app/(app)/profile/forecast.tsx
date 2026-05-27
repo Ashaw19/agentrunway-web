@@ -17,6 +17,7 @@ import {
   Zap,
 } from "lucide-react-native";
 import { useDataStore } from "@/stores/data-store";
+import { PIPELINE_STAGE_DEFAULTS } from "@agent-runway/core/types/database";
 import { useT } from "@/lib/useT";
 import {
   useColors,
@@ -59,7 +60,7 @@ export default function ForecastScreen() {
     // Pipeline contribution (weighted)
     const pipelineWeighted = store.pipeline.reduce((sum, d) => {
       const prob = d.probability_override ??
-        ({ lead: 0.1, showing: 0.25, offer: 0.5, conditional: 0.75, firm: 0.9, closed: 1.0 }[d.stage] ?? 0.5);
+        (PIPELINE_STAGE_DEFAULTS[d.stage as keyof typeof PIPELINE_STAGE_DEFAULTS] ?? 0.5);
       return sum + d.estimated_price * d.estimated_commission_pct * prob;
     }, 0);
 

@@ -229,12 +229,36 @@ describe("Pipeline Deal Computations", () => {
       expect(computeProbability(low)).toBe(0);
     });
 
-    it("covers all 5 pipeline stage defaults", () => {
+    it("covers all 6 pipeline stage defaults", () => {
+      // Canonical default-probability map — shared between web engine,
+      // pipeline-forecast engine, and mobile `apps/mobile/app/(app)/deals.tsx`
+      // + `apps/mobile/app/(app)/profile/forecast.tsx`. If you change any
+      // value here, every surface picks it up automatically. See audit
+      // red flag #4 (memory/project_mobile_parity_audit_2026-05-26.md).
       expect(PIPELINE_STAGE_DEFAULTS.lead).toBe(0.1);
       expect(PIPELINE_STAGE_DEFAULTS.showing).toBe(0.25);
       expect(PIPELINE_STAGE_DEFAULTS.offer).toBe(0.5);
       expect(PIPELINE_STAGE_DEFAULTS.conditional).toBe(0.75);
       expect(PIPELINE_STAGE_DEFAULTS.firm).toBe(0.9);
+      expect(PIPELINE_STAGE_DEFAULTS.closed).toBe(1.0);
+    });
+
+    it("has a probability for every PipelineStage (shape completeness)", () => {
+      const allStages: Array<keyof typeof PIPELINE_STAGE_DEFAULTS> = [
+        "lead",
+        "showing",
+        "offer",
+        "conditional",
+        "firm",
+        "closed",
+      ];
+      for (const stage of allStages) {
+        const prob = PIPELINE_STAGE_DEFAULTS[stage];
+        expect(typeof prob).toBe("number");
+        expect(prob).toBeGreaterThanOrEqual(0);
+        expect(prob).toBeLessThanOrEqual(1);
+      }
+      expect(Object.keys(PIPELINE_STAGE_DEFAULTS).length).toBe(allStages.length);
     });
   });
 
