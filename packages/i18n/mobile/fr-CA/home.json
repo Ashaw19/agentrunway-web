@@ -94,6 +94,13 @@
     "seeAll": "Tout voir",
     "pipelineDeal": "Transaction pipeline"
   },
+  "quickAccess": {
+    "label": "ACCÈS RAPIDE",
+    "briefing": "Briefing",
+    "outreach": "Contrôle de vol",
+    "forecast": "Prévision",
+    "receipt": "Reçu"
+  },
   "quickCapture": {
     "title": "Capture rapide",
     "clientLabel": "CLIENT",
