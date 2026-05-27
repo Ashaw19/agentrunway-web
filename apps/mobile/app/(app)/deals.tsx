@@ -108,8 +108,15 @@ function DealsSkeleton() {
 // ── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function DealsScreen() {
-  const { transactions, pipeline, fetchAll, addTransaction, advancePipelineStage, isLoading } =
-    useDataStore();
+  const {
+    transactions,
+    pipeline,
+    fetchAll,
+    addTransaction,
+    advancePipelineStage,
+    updatePipelineDeal,
+    isLoading,
+  } = useDataStore();
   const c = useColors();
   const { mode } = useTheme();
   const sh = shadows(mode);
@@ -442,6 +449,15 @@ export default function DealsScreen() {
               prev ? { ...prev, stage: nextStage } : null
             );
           }
+        }}
+        onUpdate={async (dealId, updates) => {
+          const ok = await updatePipelineDeal(dealId, updates);
+          if (ok) {
+            setSelectedDeal((prev) =>
+              prev && prev.id === dealId ? { ...prev, ...updates } : prev
+            );
+          }
+          return ok;
         }}
       />
 
@@ -797,14 +813,66 @@ function DealDetailSheet({
   deal,
   onClose,
   onAdvance,
+  onUpdate,
 }: {
   deal: PipelineDeal | null;
   onClose: () => void;
   onAdvance: (deal: PipelineDeal) => Promise<void>;
+  onUpdate: (
+    dealId: string,
+    updates: Partial<
+      Pick<
+        PipelineDeal,
+        | "address"
+        | "client_name"
+        | "estimated_price"
+        | "estimated_commission_pct"
+        | "stage"
+        | "expected_close_date"
+        | "probability_override"
+        | "notes"
+      >
+    >,
+  ) => Promise<boolean>;
 }) {
   const c = useColors();
   const { t } = useTranslation("deals");
+  const { t: tCommon } = useTranslation("common");
   const [advancing, setAdvancing] = useState(false);
+
+  // ── Edit mode state ──────────────────────────────────────────────────────
+  const [editing, setEditing] = useState(false);
+  const [editAddress, setEditAddress] = useState("");
+  const [editClientName, setEditClientName] = useState("");
+  const [editPrice, setEditPrice] = useState("");
+  const [editCommPct, setEditCommPct] = useState("");
+  const [editStage, setEditStage] = useState<PipelineDeal["stage"]>("lead");
+  const [editExpectedClose, setEditExpectedClose] = useState("");
+  const [editProbOverride, setEditProbOverride] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // Reset edit form when deal changes / sheet opens
+  useEffect(() => {
+    if (!deal) return;
+    setEditAddress(deal.address ?? "");
+    setEditClientName(deal.client_name ?? "");
+    setEditPrice(deal.estimated_price > 0 ? String(deal.estimated_price) : "");
+    setEditCommPct(
+      deal.estimated_commission_pct > 0
+        ? (deal.estimated_commission_pct * 100).toFixed(2).replace(/\.?0+$/, "")
+        : "",
+    );
+    setEditStage(deal.stage);
+    setEditExpectedClose(deal.expected_close_date ?? "");
+    setEditProbOverride(
+      deal.probability_override != null
+        ? String(Math.round(deal.probability_override * 100))
+        : "",
+    );
+    setEditNotes(deal.notes ?? "");
+    setEditing(false);
+  }, [deal?.id]);
 
   if (!deal) return null;
 
@@ -818,71 +886,310 @@ function DealDetailSheet({
     setAdvancing(false);
   };
 
+  const handleSaveEdit = async () => {
+    // ── Parse + validate numeric fields (mirrors validatePipelineDeal in core) ──
+    const trimPrice = editPrice.replace(/[$,\s]/g, "");
+    const priceNum = trimPrice === "" ? NaN : Number(trimPrice);
+    if (!Number.isFinite(priceNum) || priceNum < 0) {
+      Alert.alert(tCommon("status.error"), t("edit.invalidPrice"));
+      return;
+    }
+
+    const commTrim = editCommPct.replace(/[%\s]/g, "");
+    const commNum = commTrim === "" ? 0 : Number(commTrim);
+    if (!Number.isFinite(commNum) || commNum < 0 || commNum > 50) {
+      Alert.alert(tCommon("status.error"), t("edit.invalidCommission"));
+      return;
+    }
+
+    let probOverride: number | null = null;
+    if (editProbOverride.trim() !== "") {
+      const probTrim = editProbOverride.replace(/[%\s]/g, "");
+      const probNum = Number(probTrim);
+      if (!Number.isFinite(probNum) || probNum < 0 || probNum > 100) {
+        Alert.alert(
+          tCommon("status.error"),
+          t("edit.invalidProbability"),
+        );
+        return;
+      }
+      probOverride = probNum / 100;
+    }
+
+    // ── Expected close date — accept "" or YYYY-MM-DD ──
+    let expectedCloseDate: string | null = null;
+    const ecdTrim = editExpectedClose.trim();
+    if (ecdTrim !== "") {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(ecdTrim)) {
+        Alert.alert(tCommon("status.error"), t("edit.invalidDate"));
+        return;
+      }
+      expectedCloseDate = ecdTrim;
+    }
+
+    setSavingEdit(true);
+    const ok = await onUpdate(deal.id, {
+      address: editAddress.trim() || null,
+      client_name: editClientName.trim() || null,
+      estimated_price: priceNum,
+      estimated_commission_pct: commNum / 100,
+      stage: editStage,
+      expected_close_date: expectedCloseDate,
+      probability_override: probOverride,
+      notes: editNotes.trim() || null,
+    });
+    setSavingEdit(false);
+    if (ok) setEditing(false);
+  };
+
   return (
-    <Sheet visible={!!deal} onClose={onClose} title={t("detail.title")}>
-      <View style={{ gap: Space.lg, paddingBottom: Space.lg }}>
-        {/* Address / title */}
-        <Text style={{ ...Type.h2, color: c.text }}>
-          {deal.address ?? deal.client_name ?? t("pipeline.untitledDeal")}
-        </Text>
-
-        {/* Info rows */}
-        {deal.client_name && (
-          <InfoRow label={t("detail.client")} value={deal.client_name} />
-        )}
-        {deal.address && deal.client_name && (
-          <InfoRow label={t("detail.address")} value={deal.address} />
-        )}
-        <InfoRow label={t("detail.estimatedPrice")} value={fmtCurrency(deal.estimated_price)} />
-        <View style={styles.infoRow}>
-          <Text style={{ ...Type.label, color: c.textMuted }}>{t("detail.stage")}</Text>
-          <Badge label={deal.stage.toUpperCase()} color={sc} size="sm" />
+    <Sheet
+      visible={!!deal}
+      onClose={onClose}
+      title={editing ? t("edit.title") : t("detail.title")}
+      maxHeight="95%"
+    >
+      {/* Edit button when viewing */}
+      {!editing && (
+        <View
+          style={{
+            position: "absolute",
+            top: Space.md,
+            right: Space.xl + 44,
+            zIndex: 10,
+          }}
+        >
+          <Pressable
+            onPress={() => setEditing(true)}
+            hitSlop={8}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: Space.xs,
+              paddingHorizontal: Space.md,
+              height: 32,
+              borderRadius: Radius.pill,
+              backgroundColor: c.primaryDim,
+            }}
+            accessibilityLabel={t("edit.edit")}
+          >
+            <Ionicons name="create-outline" size={16} color={c.primary} />
+            <Text style={[Type.caption, { color: c.primary, fontWeight: "700" }]}>
+              {t("edit.edit")}
+            </Text>
+          </Pressable>
         </View>
-        <InfoRow
-          label={t("detail.probability")}
-          value={`${Math.round(prob * 100)}%`}
-        />
-        {deal.expected_close_date && (
-          <InfoRow
-            label={t("detail.expectedClose")}
-            value={new Date(deal.expected_close_date).toLocaleDateString("en-CA", {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-            })}
+      )}
+
+      {editing ? (
+        /* ── Edit mode ── */
+        <View style={{ gap: Space.md, paddingBottom: Space.lg }}>
+          <Input
+            label={t("addDeal.addressLabel")}
+            value={editAddress}
+            onChange={setEditAddress}
+            placeholder={t("addDeal.addressPlaceholder")}
           />
-        )}
-        {deal.estimated_commission_pct > 0 && (
-          <InfoRow
-            label={t("transaction.commission")}
-            value={`${(deal.estimated_commission_pct * 100).toFixed(1)}%`}
+          <Input
+            label={t("detail.client")}
+            value={editClientName}
+            onChange={setEditClientName}
+            placeholder={t("edit.clientPlaceholder")}
           />
-        )}
-        {deal.notes && (
+          <Input
+            label={t("addDeal.priceLabel")}
+            value={editPrice}
+            onChange={setEditPrice}
+            placeholder={t("addDeal.pricePlaceholder")}
+            keyboardType="numeric"
+          />
+          <Input
+            label={t("addDeal.commissionLabel")}
+            value={editCommPct}
+            onChange={setEditCommPct}
+            placeholder={t("addDeal.commissionPlaceholder")}
+            keyboardType="numeric"
+          />
+
+          {/* Stage picker — replaces one-way "advance" with arbitrary edit (matches web) */}
           <View style={{ gap: Space.xs }}>
-            <Text style={{ ...Type.label, color: c.textMuted }}>{t("detail.notes")}</Text>
-            <Text style={{ ...Type.body, color: c.text }}>{deal.notes}</Text>
+            <Text style={[Type.caption, { color: c.textMuted, marginLeft: Space.xs }]}>
+              {t("detail.stage")}
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Space.sm }}>
+              {STAGE_ORDER.map((s) => {
+                const isSelected = editStage === s;
+                const pillColor = STAGE_COLORS[s] ?? c.textDim;
+                return (
+                  <Pressable
+                    key={s}
+                    onPress={() => setEditStage(s)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: Space.xs,
+                      paddingHorizontal: Space.md,
+                      height: 34,
+                      borderRadius: Radius.pill,
+                      borderWidth: 1,
+                      backgroundColor: isSelected ? pillColor + "20" : c.card,
+                      borderColor: isSelected ? pillColor + "50" : c.cardBorder,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 4,
+                        backgroundColor: pillColor,
+                      }}
+                    />
+                    <Text
+                      style={[
+                        Type.caption,
+                        {
+                          color: isSelected ? pillColor : c.textDim,
+                          fontWeight: isSelected ? "700" : "500",
+                        },
+                      ]}
+                    >
+                      {t(`stages.${s}`)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
-        )}
 
-        {/* Advance Stage button */}
-        <View style={{ marginTop: Space.sm }}>
-          <Button
-            label={
-              advancing
-                ? t("detail.updating")
-                : isLastStage
-                  ? t("detail.markClosed")
-                  : t("detail.advanceTo", { stage: t(`stages.${STAGE_ORDER[STAGE_ORDER.indexOf(deal.stage) + 1]}`) })
-            }
-            variant="primary"
-            icon={isLastStage ? "checkmark-circle" : "arrow-forward"}
-            onPress={handleAdvance}
-            loading={advancing}
-            disabled={isLastStage}
+          <Input
+            label={t("edit.expectedCloseLabel")}
+            value={editExpectedClose}
+            onChange={setEditExpectedClose}
+            placeholder="YYYY-MM-DD"
+            keyboardType="numbers-and-punctuation"
           />
+          <Input
+            label={t("edit.probabilityOverrideLabel")}
+            value={editProbOverride}
+            onChange={setEditProbOverride}
+            placeholder={t("edit.probabilityOverridePlaceholder", {
+              defaultProb: Math.round((DEFAULT_PROBABILITIES[editStage] ?? 0.5) * 100),
+            })}
+            keyboardType="numeric"
+          />
+          <Input
+            label={t("detail.notes")}
+            value={editNotes}
+            onChange={setEditNotes}
+            placeholder={t("edit.notesPlaceholder")}
+            multiline
+          />
+
+          <View style={{ marginTop: Space.sm, gap: Space.sm }}>
+            <Button
+              label={savingEdit ? t("edit.saving") : t("edit.save")}
+              onPress={handleSaveEdit}
+              loading={savingEdit}
+              variant="primary"
+              icon="checkmark-circle"
+            />
+            <Pressable
+              onPress={() => setEditing(false)}
+              style={{ paddingVertical: Space.md }}
+            >
+              <Text
+                style={[
+                  Type.bodyBold,
+                  { color: c.textMuted, textAlign: "center" },
+                ]}
+              >
+                {tCommon("nav.cancel")}
+              </Text>
+            </Pressable>
+          </View>
         </View>
-      </View>
+      ) : (
+        /* ── View mode (existing) ── */
+        <View style={{ gap: Space.lg, paddingBottom: Space.lg }}>
+          {/* Address / title */}
+          <Text style={{ ...Type.h2, color: c.text }}>
+            {deal.address ?? deal.client_name ?? t("pipeline.untitledDeal")}
+          </Text>
+
+          {/* Info rows */}
+          {deal.client_name && (
+            <InfoRow label={t("detail.client")} value={deal.client_name} />
+          )}
+          {deal.address && deal.client_name && (
+            <InfoRow label={t("detail.address")} value={deal.address} />
+          )}
+          <InfoRow
+            label={t("detail.estimatedPrice")}
+            value={fmtCurrency(deal.estimated_price)}
+          />
+          <View style={styles.infoRow}>
+            <Text style={{ ...Type.label, color: c.textMuted }}>
+              {t("detail.stage")}
+            </Text>
+            <Badge label={deal.stage.toUpperCase()} color={sc} size="sm" />
+          </View>
+          <InfoRow
+            label={t("detail.probability")}
+            value={`${Math.round(prob * 100)}%${
+              deal.probability_override != null ? ` (${t("edit.overrideTag")})` : ""
+            }`}
+          />
+          {deal.expected_close_date && (
+            <InfoRow
+              label={t("detail.expectedClose")}
+              value={new Date(deal.expected_close_date).toLocaleDateString(
+                "en-CA",
+                {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                },
+              )}
+            />
+          )}
+          {deal.estimated_commission_pct > 0 && (
+            <InfoRow
+              label={t("transaction.commission")}
+              value={`${(deal.estimated_commission_pct * 100).toFixed(1)}%`}
+            />
+          )}
+          {deal.notes && (
+            <View style={{ gap: Space.xs }}>
+              <Text style={{ ...Type.label, color: c.textMuted }}>
+                {t("detail.notes")}
+              </Text>
+              <Text style={{ ...Type.body, color: c.text }}>{deal.notes}</Text>
+            </View>
+          )}
+
+          {/* Advance Stage button */}
+          <View style={{ marginTop: Space.sm }}>
+            <Button
+              label={
+                advancing
+                  ? t("detail.updating")
+                  : isLastStage
+                    ? t("detail.markClosed")
+                    : t("detail.advanceTo", {
+                        stage: t(
+                          `stages.${STAGE_ORDER[STAGE_ORDER.indexOf(deal.stage) + 1]}`,
+                        ),
+                      })
+              }
+              variant="primary"
+              icon={isLastStage ? "checkmark-circle" : "arrow-forward"}
+              onPress={handleAdvance}
+              loading={advancing}
+              disabled={isLastStage}
+            />
+          </View>
+        </View>
+      )}
     </Sheet>
   );
 }

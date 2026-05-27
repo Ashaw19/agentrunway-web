@@ -20,7 +20,7 @@
     "offer": "Offer",
     "conditional": "Conditional",
     "firm": "Firm",
-    "closed": "\u5df2\u5173\u95ed",
+    "closed": "已关闭",
     "breakdown": "STAGE BREAKDOWN"
   },
   "pipeline": {
@@ -94,5 +94,21 @@
   },
   "transactionDetail": {
     "title": "Transaction Details"
+  },
+  "edit": {
+    "title": "Edit Deal",
+    "edit": "Edit",
+    "save": "Save Changes",
+    "saving": "Saving...",
+    "clientPlaceholder": "Client name",
+    "expectedCloseLabel": "Expected Close Date",
+    "probabilityOverrideLabel": "Probability Override (%)",
+    "probabilityOverridePlaceholder": "Default {{defaultProb}}%",
+    "notesPlaceholder": "Add notes...",
+    "overrideTag": "manual",
+    "invalidPrice": "Enter a valid price (numbers only).",
+    "invalidCommission": "Commission must be between 0 and 50%.",
+    "invalidProbability": "Probability must be between 0 and 100%.",
+    "invalidDate": "Use the format YYYY-MM-DD."
   }
 }

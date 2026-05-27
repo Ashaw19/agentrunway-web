@@ -21,44 +21,44 @@
     "conditional": "Conditionnel",
     "firm": "Ferme",
     "closed": "Fermé",
-    "breakdown": "R\u00c9PARTITION PAR \u00c9TAPE"
+    "breakdown": "RÉPARTITION PAR ÉTAPE"
   },
   "pipeline": {
     "empty": {
       "title": "Aucune transaction en pipeline",
-      "subtitle": "Ajoutez des transactions pour suivre vos commissions \u00e0 venir",
+      "subtitle": "Ajoutez des transactions pour suivre vos commissions à venir",
       "actionLabel": "Ajouter une transaction"
     },
-    "probability": "{{pct}} % de probabilit\u00e9",
-    "estimatedGci": "RBC estim\u00e9",
-    "advanceStage": "Avancer l'\u00e9tape",
-    "close": "Cl\u00f4ture :",
+    "probability": "{{pct}} % de probabilité",
+    "estimatedGci": "RBC estimé",
+    "advanceStage": "Avancer l'étape",
+    "close": "Clôture :",
     "untitledDeal": "Transaction sans titre"
   },
   "transaction": {
     "closedDate": "Conclue le {{date}}",
-    "pendingDate": "Pr\u00e9vue le {{date}}",
+    "pendingDate": "Prévue le {{date}}",
     "gci": "RBC",
     "salePrice": "Prix de vente",
     "sale": "Vente :",
     "commission": "Commission",
     "commissionPct": "{{pct}} % de commission",
-    "side": "C\u00f4t\u00e9",
+    "side": "Côté",
     "status": "STATUT",
     "date": "Date",
     "transactionLabel": "Transaction"
   },
   "closedEmpty": {
-    "title": "Aucune transaction conclue cette ann\u00e9e",
-    "subtitle": "Les transactions conclues appara\u00eetront ici"
+    "title": "Aucune transaction conclue cette année",
+    "subtitle": "Les transactions conclues apparaîtront ici"
   },
   "pendingEmpty": {
     "title": "Aucune transaction en attente",
-    "subtitle": "Les transactions en cours de cl\u00f4ture appara\u00eetront ici"
+    "subtitle": "Les transactions en cours de clôture apparaîtront ici"
   },
   "searchEmpty": {
     "title": "Aucune correspondance",
-    "subtitle": "Aucune transaction ne correspond \u00e0 \u00ab {{query}} \u00bb"
+    "subtitle": "Aucune transaction ne correspond à « {{query}} »"
   },
   "addDeal": {
     "title": "Enregistrer une transaction",
@@ -70,29 +70,45 @@
     "pricePlaceholder": "650 000",
     "commissionLabel": "Commission %",
     "commissionPlaceholder": "2,5",
-    "stageLabel": "\u00c9tape",
-    "typeLabel": "C\u00f4t\u00e9",
+    "stageLabel": "Étape",
+    "typeLabel": "Côté",
     "buy": "Acheteur",
     "sell": "Vendeur",
     "save": "Enregistrer la transaction",
     "saving": "Enregistrement..."
   },
   "detail": {
-    "title": "D\u00e9tails de la transaction",
+    "title": "Détails de la transaction",
     "address": "Adresse",
     "client": "Client",
-    "stage": "\u00c9TAPE",
-    "estimatedPrice": "Prix estim\u00e9",
+    "stage": "ÉTAPE",
+    "estimatedPrice": "Prix estimé",
     "price": "Prix",
-    "probability": "Probabilit\u00e9",
-    "expectedClose": "Cl\u00f4ture pr\u00e9vue",
-    "closingDate": "Date de cl\u00f4ture",
+    "probability": "Probabilité",
+    "expectedClose": "Clôture prévue",
+    "closingDate": "Date de clôture",
     "notes": "NOTES",
-    "advanceTo": "Avancer \u00e0 {{stage}}",
+    "advanceTo": "Avancer à {{stage}}",
     "markClosed": "Marquer comme conclue",
-    "updating": "Mise \u00e0 jour..."
+    "updating": "Mise à jour..."
   },
   "transactionDetail": {
-    "title": "D\u00e9tails de la transaction"
+    "title": "Détails de la transaction"
+  },
+  "edit": {
+    "title": "Modifier la transaction",
+    "edit": "Modifier",
+    "save": "Enregistrer",
+    "saving": "Enregistrement...",
+    "clientPlaceholder": "Nom du client",
+    "expectedCloseLabel": "Date de clôture prévue",
+    "probabilityOverrideLabel": "Probabilité manuelle (%)",
+    "probabilityOverridePlaceholder": "Par défaut {{defaultProb}} %",
+    "notesPlaceholder": "Ajouter des notes...",
+    "overrideTag": "manuel",
+    "invalidPrice": "Entrez un prix valide (chiffres seulement).",
+    "invalidCommission": "La commission doit être entre 0 et 50 %.",
+    "invalidProbability": "La probabilité doit être entre 0 et 100 %.",
+    "invalidDate": "Utilisez le format AAAA-MM-JJ."
   }
 }
