@@ -37,6 +37,9 @@ import {
   ArrowRight,
   Briefcase,
   Users,
+  Sparkles,
+  Send,
+  Receipt,
 } from "lucide-react-native";
 import {
   useColors,
@@ -147,6 +150,77 @@ function RunwayGauge({ score, textColor, dimColor, mode }: { score: number; text
         </SvgText>
       </Svg>
     </View>
+  );
+}
+
+// ── Quick Access Shortcut Tile ──────────────────────────────────────────────
+//
+// Surfaces high-frequency screens currently buried two-deep under the More
+// tab (Profile → sub-route). Cheap option for parity-audit red flag #5 —
+// purely additive navigation, the long-path More-tab routes still work.
+
+function QuickAccessTile({
+  label,
+  icon: Icon,
+  color,
+  onPress,
+  accessibilityLabel,
+  c,
+  sh,
+}: {
+  label: string;
+  icon: typeof Sparkles;
+  color: string;
+  onPress: () => void;
+  accessibilityLabel: string;
+  c: ReturnType<typeof useColors>;
+  sh: ReturnType<typeof shadows>;
+}) {
+  return (
+    <Pressable
+      onPress={() => {
+        try { Haptics.selectionAsync(); } catch {}
+        onPress();
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      style={({ pressed }) => [
+        {
+          flex: 1,
+          minHeight: 64, // > 44pt tap target floor
+          backgroundColor: c.card,
+          borderRadius: Radius.lg,
+          borderWidth: 1,
+          borderColor: c.cardBorder,
+          paddingVertical: Space.md,
+          paddingHorizontal: Space.sm,
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+        },
+        sh.card,
+        pressed && { opacity: 0.85, transform: [{ scale: 0.96 }] },
+      ]}
+    >
+      <View
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: 14,
+          backgroundColor: color + "22",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Icon size={15} color={color} strokeWidth={2.2} />
+      </View>
+      <Text
+        style={{ fontSize: 11, fontWeight: "700", color: c.text, letterSpacing: 0.2 }}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -731,6 +805,50 @@ export default function DashboardScreen() {
             )}
           </View>
         )}
+
+        {/* ── 2c. Quick Access Row (audit red flag #5 cheap option) ─── */}
+        {/* Surfaces high-frequency screens buried two-deep under More    */}
+        {/* tab. Purely additive — long-path Profile routes still work.   */}
+        <FadeIn delay={50}>
+          <View style={{ flexDirection: "row", gap: Space.sm, marginBottom: Space.xl }}>
+            <QuickAccessTile
+              label={t("quickAccess.briefing")}
+              icon={Sparkles}
+              color={c.primary}
+              accessibilityLabel={t("quickAccess.briefing")}
+              onPress={() => router.push("/profile/briefing")}
+              c={c}
+              sh={sh}
+            />
+            <QuickAccessTile
+              label={t("quickAccess.outreach")}
+              icon={Send}
+              color="#6366F1"
+              accessibilityLabel={t("quickAccess.outreach")}
+              onPress={() => router.push("/profile/outreach")}
+              c={c}
+              sh={sh}
+            />
+            <QuickAccessTile
+              label={t("quickAccess.forecast")}
+              icon={TrendingUp}
+              color={c.gold}
+              accessibilityLabel={t("quickAccess.forecast")}
+              onPress={() => router.push("/profile/forecast")}
+              c={c}
+              sh={sh}
+            />
+            <QuickAccessTile
+              label={t("quickAccess.receipt")}
+              icon={Receipt}
+              color={c.success}
+              accessibilityLabel={t("quickAccess.receipt")}
+              onPress={() => router.push("/profile/expenses")}
+              c={c}
+              sh={sh}
+            />
+          </View>
+        </FadeIn>
 
         {/* ── 3. Runway Score Hero Card (tap to see breakdown) ── */}
         <FadeIn delay={100}>
