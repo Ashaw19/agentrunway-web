@@ -63,6 +63,13 @@ import { Card, Sheet, Badge, Avatar, Button, Input, EmptyState } from "@/compone
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useTranslation } from "react-i18next";
 import { validateClient, FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
+import {
+  ClientFormFields,
+  EMPTY_CLIENT_FORM,
+  buildClientPayload,
+  clientToFormState,
+  type ClientFormState,
+} from "@/components/ClientFormFields";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -935,7 +942,9 @@ function ClientDetailSheet({
   onCall: (c: Client) => void;
   onText: (c: Client) => void;
   onEmail: (c: Client) => void;
-  onUpdate: (updates: Partial<Pick<Client, 'name' | 'email' | 'phone' | 'status' | 'notes'>>) => Promise<boolean>;
+  onUpdate: (
+    updates: Partial<Omit<Client, "id" | "created_at" | "last_contact_at">>,
+  ) => Promise<boolean>;
 }) {
   const c = useColors();
   const { t } = useTranslation("clients");
@@ -953,47 +962,66 @@ function ClientDetailSheet({
 
   const [activitiesLoading, setActivitiesLoading] = useState(true);
 
-  // Edit mode state
+  // Edit mode state — wraps the shared ClientFormFields plus the existing
+  // status pill row + the new archive controls.
   const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState(client.name);
-  const [editPhone, setEditPhone] = useState(client.phone ?? "");
-  const [editEmail, setEditEmail] = useState(client.email ?? "");
+  const [editForm, setEditForm] = useState<ClientFormState>(() =>
+    clientToFormState(client),
+  );
   const [editStatus, setEditStatus] = useState(client.status);
-  const [editNotes, setEditNotes] = useState(client.notes ?? "");
+  const [editArchived, setEditArchived] = useState<boolean>(
+    !!client.archived_at,
+  );
+  const [editArchiveReason, setEditArchiveReason] =
+    useState<NonNullable<Client["archive_reason"]>>(
+      client.archive_reason ?? "do_not_contact",
+    );
   const [savingEdit, setSavingEdit] = useState(false);
 
   // Reset edit form when client changes
   useEffect(() => {
-    setEditName(client.name);
-    setEditPhone(client.phone ?? "");
-    setEditEmail(client.email ?? "");
+    setEditForm(clientToFormState(client));
     setEditStatus(client.status);
-    setEditNotes(client.notes ?? "");
+    setEditArchived(!!client.archived_at);
+    setEditArchiveReason(client.archive_reason ?? "do_not_contact");
   }, [client]);
 
+  const patchEdit = useCallback(
+    (p: Partial<ClientFormState>) =>
+      setEditForm((prev) => ({ ...prev, ...p })),
+    [],
+  );
+
   const handleCancelEdit = useCallback(() => {
-    setEditName(client.name);
-    setEditPhone(client.phone ?? "");
-    setEditEmail(client.email ?? "");
+    setEditForm(clientToFormState(client));
     setEditStatus(client.status);
-    setEditNotes(client.notes ?? "");
+    setEditArchived(!!client.archived_at);
+    setEditArchiveReason(client.archive_reason ?? "do_not_contact");
     setEditing(false);
   }, [client]);
 
   const handleSaveEdit = useCallback(async () => {
-    if (!editName.trim()) return;
+    // Compose canonical name from first/last (mirrors web)
+    const fullName =
+      `${editForm.first_name.trim()} ${editForm.last_name.trim()}`.trim() ||
+      client.name;
+    if (!fullName) return;
     setSavingEdit(true);
-    const updates: Partial<Pick<Client, 'name' | 'email' | 'phone' | 'status' | 'notes'>> = {
-      name: editName.trim(),
-      email: editEmail.trim() || null,
-      phone: editPhone.trim() || null,
+
+    const payload = buildClientPayload(editForm);
+    const updates: Partial<Omit<Client, "id" | "created_at" | "last_contact_at">> = {
+      name: fullName.slice(0, FIELD_LIMITS.clientName),
       status: editStatus,
-      notes: editNotes.trim() || null,
+      ...payload,
+      archived_at: editArchived
+        ? client.archived_at ?? new Date().toISOString()
+        : null,
+      archive_reason: editArchived ? editArchiveReason : null,
     };
     const ok = await onUpdate(updates);
     setSavingEdit(false);
     if (ok) setEditing(false);
-  }, [editName, editEmail, editPhone, editStatus, editNotes, onUpdate]);
+  }, [editForm, editStatus, editArchived, editArchiveReason, onUpdate, client]);
 
   // Fetch activities when sheet opens
   useEffect(() => {
@@ -1037,28 +1065,7 @@ function ClientDetailSheet({
       {editing ? (
         /* ── Edit Mode ── */
         <View style={{ gap: Space.md }}>
-          <Input
-            label={t("editClient.nameLabel")}
-            value={editName}
-            onChange={setEditName}
-            placeholder={t("editClient.namePlaceholder")}
-          />
-          <Input
-            label={t("editClient.phoneLabel")}
-            value={editPhone}
-            onChange={setEditPhone}
-            placeholder="+1 (555) 123-4567"
-            keyboardType="phone-pad"
-          />
-          <Input
-            label={t("editClient.emailLabel")}
-            value={editEmail}
-            onChange={setEditEmail}
-            placeholder="email@example.com"
-            keyboardType="email-address"
-          />
-
-          {/* Flight status pills */}
+          {/* Flight status pills — kept at the top because it's the most-edited field */}
           <View style={{ gap: Space.xs }}>
             <Text style={[Type.caption, { color: c.textMuted, marginLeft: Space.xs }]}>
               {t("detail.flightStatus")}
@@ -1102,13 +1109,87 @@ function ClientDetailSheet({
             </View>
           </View>
 
-          <Input
-            label={t("editClient.notesLabel")}
-            value={editNotes}
-            onChange={setEditNotes}
-            placeholder={t("editClient.notesPlaceholder")}
-            multiline
-          />
+          <ClientFormFields state={editForm} setState={patchEdit} />
+
+          {/* ── Archive ── */}
+          <View
+            style={{
+              gap: Space.sm,
+              padding: Space.md,
+              borderRadius: Radius.md,
+              borderWidth: 1,
+              borderColor: c.cardBorder,
+              backgroundColor: c.card,
+            }}
+          >
+            <Pressable
+              onPress={() => setEditArchived((a) => !a)}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                gap: Space.sm,
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              <View
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 4,
+                  borderWidth: 2,
+                  borderColor: editArchived ? c.warning : c.cardBorder,
+                  backgroundColor: editArchived ? c.warning : "transparent",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {editArchived && (
+                  <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                )}
+              </View>
+              <Text style={[Type.bodyBold, { color: c.text, flex: 1 }]}>
+                {t("editClient.archiveLabel")}
+              </Text>
+            </Pressable>
+            {editArchived && (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: Space.xs }}>
+                {(["deceased", "moved_away", "do_not_contact", "other"] as const).map(
+                  (r) => {
+                    const selected = editArchiveReason === r;
+                    return (
+                      <Pressable
+                        key={r}
+                        onPress={() => setEditArchiveReason(r)}
+                        style={({ pressed }) => ({
+                          paddingHorizontal: Space.md,
+                          height: 30,
+                          borderRadius: Radius.pill,
+                          borderWidth: 1,
+                          borderColor: selected ? c.warning : c.cardBorder,
+                          backgroundColor: selected ? c.warningDim : "transparent",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          opacity: pressed ? 0.7 : 1,
+                        })}
+                      >
+                        <Text
+                          style={[
+                            Type.caption,
+                            {
+                              color: selected ? c.warning : c.textSecondary,
+                              fontWeight: selected ? "700" : "500",
+                            },
+                          ]}
+                        >
+                          {t(`editClient.archiveReasons.${r}`)}
+                        </Text>
+                      </Pressable>
+                    );
+                  },
+                )}
+              </View>
+            )}
+          </View>
 
           {/* Save / Cancel */}
           <View style={{ marginTop: Space.sm, gap: Space.sm }}>
@@ -1116,7 +1197,9 @@ function ClientDetailSheet({
               label={savingEdit ? t("editClient.saving") : t("editClient.save")}
               onPress={handleSaveEdit}
               loading={savingEdit}
-              disabled={!editName.trim()}
+              disabled={
+                !(editForm.first_name.trim() || editForm.last_name.trim() || client.name)
+              }
               variant="primary"
               icon="checkmark-circle"
             />
@@ -1501,71 +1584,66 @@ function AddClientSheet({
 }: {
   visible: boolean;
   onClose: () => void;
-  onAdd: (c: Omit<Client, "id" | "created_at">) => Promise<boolean>;
+  onAdd: (
+    c: Partial<Omit<Client, "id" | "created_at">> & {
+      name: string;
+      status: string;
+      tags: string[];
+    },
+  ) => Promise<boolean>;
 }) {
   const c = useColors();
   const { t } = useTranslation("clients");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
+  const [form, setForm] = useState<ClientFormState>(EMPTY_CLIENT_FORM);
   const [saving, setSaving] = useState(false);
 
+  const patch = useCallback(
+    (p: Partial<ClientFormState>) => setForm((prev) => ({ ...prev, ...p })),
+    [],
+  );
+
+  // Derived name (display + dedup key on the server)
+  const fullName = `${form.first_name.trim()} ${form.last_name.trim()}`.trim();
+
   const handleSubmit = async () => {
+    // ── Validate the high-impact fields (email + phone) ─────────────────
     const v = validateClient({
-      name: name,
-      email: email.trim() || null,
-      phone: phone.trim() || null,
+      name: fullName,
+      email: form.email.trim() || null,
+      phone: form.phone.trim() || null,
     });
-    if (!v.valid) { Alert.alert("Invalid", v.errors[0]); return; }
+    if (!v.valid) {
+      Alert.alert("Invalid", v.errors[0]);
+      return;
+    }
+    if (!fullName) {
+      Alert.alert("Invalid", t("addClient.missingName"));
+      return;
+    }
     setSaving(true);
+    const payload = buildClientPayload(form);
     const ok = await onAdd({
-      name: name.trim().slice(0, FIELD_LIMITS.clientName),
-      email: email.trim().slice(0, FIELD_LIMITS.email) || null,
-      phone: phone.trim().slice(0, FIELD_LIMITS.phone) || null,
+      name: fullName.slice(0, FIELD_LIMITS.clientName),
       status: "boarding",
-      tags: [] as string[],
-      lead_source: null,
-      last_contact_at: null,
-      notes: null,
-      birthdate: null,
+      tags: [],
+      ...payload,
     });
     setSaving(false);
     if (ok) {
-      setName("");
-      setEmail("");
-      setPhone("");
+      setForm(EMPTY_CLIENT_FORM);
     }
   };
 
   return (
-    <Sheet visible={visible} onClose={onClose} title={t("addClient.title")}>
-      <View style={{ gap: Space.md }}>
-        <Input
-          label={t("addClient.nameLabel")}
-          value={name}
-          onChange={setName}
-          placeholder={t("addClient.namePlaceholder")}
-        />
-        <Input
-          label={t("addClient.emailLabel")}
-          value={email}
-          onChange={setEmail}
-          placeholder={t("addClient.emailPlaceholder")}
-          keyboardType="email-address"
-        />
-        <Input
-          label={t("addClient.phoneLabel")}
-          value={phone}
-          onChange={setPhone}
-          placeholder={t("addClient.phonePlaceholder")}
-          keyboardType="phone-pad"
-        />
+    <Sheet visible={visible} onClose={onClose} title={t("addClient.title")} maxHeight="95%">
+      <View style={{ gap: Space.md, paddingBottom: Space.lg }}>
+        <ClientFormFields state={form} setState={patch} />
         <View style={{ marginTop: Space.sm }}>
           <Button
             label={saving ? t("addClient.adding") : t("addClient.save")}
             onPress={handleSubmit}
             loading={saving}
-            disabled={!name.trim()}
+            disabled={!fullName}
             variant="primary"
             icon="person-add"
           />

@@ -3,7 +3,7 @@
   "filters": {
     "all": "Tous",
     "active": "Actifs",
-    "cruising": "Croisi\u00e8re"
+    "cruising": "Croisière"
   },
   "smartLists": {
     "overdueFollowups": "En retard",
@@ -11,13 +11,13 @@
     "hotDeals": "Transactions chaudes"
   },
   "search": {
-    "placeholder": "Rechercher par nom, courriel ou t\u00e9l\u00e9phone..."
+    "placeholder": "Rechercher par nom, courriel ou téléphone..."
   },
   "status": {
     "boarding": "Embarquement",
-    "scheduled": "Planifi\u00e9",
+    "scheduled": "Planifié",
     "in_flight": "En vol",
-    "cruising": "Croisi\u00e8re"
+    "cruising": "Croisière"
   },
   "contact": {
     "logCall": "Enregistrer un appel",
@@ -26,8 +26,8 @@
     "call": "Appeler",
     "text": "Texter",
     "email": "Courriel",
-    "noPhone": "Aucun num\u00e9ro de t\u00e9l\u00e9phone",
-    "noPhoneBody": "Ajoutez un num\u00e9ro de t\u00e9l\u00e9phone pour ce client d'abord.",
+    "noPhone": "Aucun numéro de téléphone",
+    "noPhoneBody": "Ajoutez un numéro de téléphone pour ce client d'abord.",
     "noEmail": "Aucun courriel",
     "noEmailBody": "Ajoutez un courriel pour ce client d'abord."
   },
@@ -43,13 +43,13 @@
     "daysAgo": "il y a {{count}} j",
     "today": "Aujourd'hui",
     "never": "Jamais",
-    "neverContacted": "Jamais contact\u00e9",
+    "neverContacted": "Jamais contacté",
     "flightStatus": "STATUT DE VOL",
-    "recentActivity": "ACTIVIT\u00c9 R\u00c9CENTE",
-    "noActivity": "Aucune activit\u00e9 enregistr\u00e9e",
+    "recentActivity": "ACTIVITÉ RÉCENTE",
+    "noActivity": "Aucune activité enregistrée",
     "notes": "NOTES",
     "deals": "TRANSACTIONS",
-    "noLinkedDeals": "Aucune transaction li\u00e9e",
+    "noLinkedDeals": "Aucune transaction liée",
     "noAddress": "Pas d'adresse",
     "estimated": "Est. {{amount}}",
     "gciAmount": "RBC {{amount}}"
@@ -57,9 +57,9 @@
   "quickLog": {
     "title": "JOURNAL RAPIDE",
     "justCalled": "Appel fait",
-    "justTexted": "Texto envoy\u00e9",
+    "justTexted": "Texto envoyé",
     "voicemail": "Messagerie vocale",
-    "logged": "Enregistr\u00e9 !"
+    "logged": "Enregistré !"
   },
   "addClient": {
     "title": "Ajouter un client",
@@ -67,43 +67,137 @@
     "namePlaceholder": "Jeanne Tremblay",
     "emailLabel": "Courriel",
     "emailPlaceholder": "jeanne@exemple.com",
-    "phoneLabel": "T\u00e9l\u00e9phone",
+    "phoneLabel": "Téléphone",
     "phonePlaceholder": "+1 (555) 123-4567",
     "save": "Ajouter le client",
-    "adding": "Ajout en cours..."
+    "adding": "Ajout en cours...",
+    "missingName": "Ajoutez un prénom ou un nom pour enregistrer le client."
   },
   "editClient": {
     "title": "Modifier le client",
     "nameLabel": "Nom complet",
     "namePlaceholder": "Nom du client",
-    "phoneLabel": "T\u00e9l\u00e9phone",
+    "phoneLabel": "Téléphone",
     "emailLabel": "Courriel",
     "notesLabel": "Notes",
     "notesPlaceholder": "Ajouter des notes...",
     "save": "Enregistrer les modifications",
     "saving": "Enregistrement...",
-    "edit": "Modifier"
+    "edit": "Modifier",
+    "archiveLabel": "Archiver ce client",
+    "archiveReasons": {
+      "deceased": "Décédé(e)",
+      "moved_away": "Déménagé(e)",
+      "do_not_contact": "Ne pas contacter",
+      "other": "Autre"
+    }
   },
   "postContact": {
-    "title": "Comment \u00e7a s'est pass\u00e9 ?",
-    "activityType": "TYPE D'ACTIVIT\u00c9",
+    "title": "Comment ça s'est passé ?",
+    "activityType": "TYPE D'ACTIVITÉ",
     "notesLabel": "Notes",
-    "notesPlaceholder": "De quoi avez-vous discut\u00e9 ?",
-    "tapToUse": "Appuyez pour utiliser : \u00ab {{note}} \u00bb",
+    "notesPlaceholder": "De quoi avez-vous discuté ?",
+    "tapToUse": "Appuyez pour utiliser : « {{note}} »",
     "logAndClose": "Enregistrer et fermer",
     "logging": "Enregistrement...",
     "skipLabel": "Passer",
     "saveLabel": "Enregistrer la note",
-    "contactedToday": "Vous l'avez contact\u00e9 plus t\u00f4t aujourd'hui",
+    "contactedToday": "Vous l'avez contacté plus tôt aujourd'hui",
     "contactedYesterday": "Dernier contact hier",
     "firstContactIn": "Premier contact en {{count}} jours",
     "firstEverContact": "Premier contact avec ce client"
   },
   "empty": {
-    "title": "Aucun client trouv\u00e9",
+    "title": "Aucun client trouvé",
     "noMatchTitle": "Aucune correspondance",
-    "noMatchSubtitle": "Aucun client ne correspond \u00e0 \u00ab {{query}} \u00bb",
+    "noMatchSubtitle": "Aucun client ne correspond à « {{query}} »",
     "subtitle": "Ajoutez votre premier client pour commencer le suivi",
     "actionLabel": "Ajouter un client"
+  },
+  "form": {
+    "sections": {
+      "identity": "Identité",
+      "contact": "Coordonnées",
+      "address": "Adresse",
+      "preferences": "Préférences",
+      "buyer": "Profil acheteur",
+      "notes": "Notes"
+    },
+    "firstName": "Prénom",
+    "firstNamePlaceholder": "Jeanne",
+    "lastName": "Nom",
+    "lastNamePlaceholder": "Tremblay",
+    "birthdate": "Anniversaire",
+    "leadSource": "Source du lead",
+    "email": "Courriel",
+    "phone": "Téléphone",
+    "phoneType": "Type de téléphone",
+    "phoneTypeOptions": {
+      "mobile": "Mobile",
+      "home": "Maison",
+      "work": "Travail",
+      "other": "Autre"
+    },
+    "secondaryEmail": "Courriel secondaire",
+    "secondaryPhone": "Téléphone secondaire",
+    "secondaryPhoneType": "Type de téléphone secondaire",
+    "preferredContact": "Contact préféré",
+    "preferredContactOptions": {
+      "phone": "Téléphone",
+      "email": "Courriel",
+      "text": "Texto"
+    },
+    "streetAddress": "Adresse",
+    "streetAddressPlaceholder": "123 rue Principale",
+    "unitNumber": "Unité / App.",
+    "unitNumberPlaceholder": "Suite 4B",
+    "city": "Ville",
+    "cityPlaceholder": "Saint-Jean",
+    "provinceRegion": "Province / Région",
+    "provinceRegionPlaceholder": "NB",
+    "postalCode": "Code postal",
+    "country": "Pays",
+    "communicationTone": "Ton de communication",
+    "communicationToneOptions": {
+      "casual": "Décontracté",
+      "friendly": "Amical",
+      "professional": "Professionnel",
+      "formal": "Formel"
+    },
+    "propertyInterest": "Montant d’intérêt",
+    "propertyInterestPlaceholder": "650000",
+    "propertyInterestType": "Type d’intérêt",
+    "propertyInterestTypeOptions": {
+      "budget": "Budget acheteur",
+      "listing": "Prix d’inscription"
+    },
+    "timeframe": "Échéance",
+    "timeframeOptions": {
+      "asap": "Dès que possible",
+      "1_3_months": "1–3 mois",
+      "3_6_months": "3–6 mois",
+      "6_12_months": "6–12 mois",
+      "12_plus": "12+ mois",
+      "unknown": "Inconnu"
+    },
+    "buyerPreApproved": "Pré-approuvé",
+    "buyerPreApprovedOptions": {
+      "unknown": "Inconnu",
+      "yes": "Oui",
+      "no": "Non"
+    },
+    "buyerPreApprovalAmount": "Montant de pré-approbation",
+    "buyerFinancingType": "Type de financement",
+    "buyerFinancingOptions": {
+      "mortgage": "Hypothèque",
+      "cash": "Comptant",
+      "bridge": "Prêt-relais",
+      "unknown": "À déterminer"
+    },
+    "buyerTargetCloseDate": "Date de clôture visée",
+    "buyerTargetArea": "Secteur visé",
+    "buyerTargetAreaPlaceholder": "Ville ou quartier",
+    "notes": "Notes",
+    "notesPlaceholder": "Autres détails à retenir..."
   }
 }

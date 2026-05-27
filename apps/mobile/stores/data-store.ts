@@ -45,19 +45,79 @@ export interface PipelineDeal {
   created_at: string;
 }
 
+/**
+ * Mobile client shape — kept in lock-step with the canonical `Client`
+ * interface in `packages/core/types/database.ts`. Every nullable field on
+ * the canonical Client is mirrored here so mobile's add/edit forms can
+ * capture and edit the same data web does (mobile parity audit gap #7,
+ * `memory/project_mobile_parity_audit_2026-05-26.md`).
+ *
+ * Defaults applied at insert (status="boarding", country="Canada",
+ * communication_tone="friendly", preferred_contact="phone", phone_type="mobile")
+ * match the web `handleAddClient` payload at
+ * `apps/web/app/(app)/crm/clients-content.tsx`.
+ *
+ * fetchClients uses `select("*")` so all columns are already returned —
+ * this type just exposes them to mobile callers.
+ */
 export interface Client {
   id: string;
   name: string;
+  first_name: string | null;
+  last_name: string | null;
   email: string | null;
   phone: string | null;
+  phone_type: "mobile" | "home" | "work" | "other";
+  secondary_email: string | null;
+  secondary_phone: string | null;
+  secondary_phone_type: "mobile" | "home" | "work" | "other";
+  preferred_contact: "phone" | "email" | "text";
+  communication_tone: "casual" | "friendly" | "professional" | "formal";
   status: string;
   tags: string[];
   lead_source: string | null;
   last_contact_at: string | null;
   notes: string | null;
   birthdate: string | null;
+
+  // Full address (matches web `handleAddClient` payload)
+  street_address: string | null;
+  unit_number: string | null;
+  city: string | null;
+  province_region: string | null;
+  postal_code: string | null;
+  country: string;
+
+  // Property interest + timeframe
+  property_interest: number | null;
+  property_interest_type: "budget" | "listing";
+  timeframe: string | null; // ClientTimeframe value
+
+  // Buyer profile (migration 00049)
+  buyer_pre_approved: boolean | null;
+  buyer_pre_approval_amount: number | null;
+  buyer_financing_type: string | null;
+  buyer_target_close_date: string | null;
+  buyer_target_area: string | null;
+
+  // Archive (migration 00037)
+  archived_at: string | null;
+  archive_reason: "deceased" | "moved_away" | "do_not_contact" | "other" | null;
+
   created_at: string;
 }
+
+/**
+ * The minimum required to insert a client. Everything else is optional
+ * (defaults applied by Postgres or by `addClient` itself). Used by
+ * `addClient(client)` so callers don't have to provide every nullable
+ * column.
+ */
+export type NewClientInput = Pick<
+  Client,
+  "name" | "status" | "tags"
+> &
+  Partial<Omit<Client, "id" | "created_at" | "name" | "status" | "tags">>;
 
 export interface ContactActivity {
   id: string;
@@ -220,9 +280,17 @@ interface DataStore {
       >
     >,
   ) => Promise<boolean>;
-  addClient: (client: Omit<Client, "id" | "created_at">) => Promise<boolean>;
+  addClient: (client: NewClientInput) => Promise<boolean>;
   addActivity: (activity: Omit<ContactActivity, "id" | "created_at">) => Promise<boolean>;
-  updateClient: (clientId: string, updates: Partial<Pick<Client, 'name' | 'email' | 'phone' | 'status' | 'notes'>>) => Promise<boolean>;
+  /**
+   * Updates any subset of the canonical Client fields. Web counterpart:
+   * `apps/web/app/(app)/crm/clients-content.tsx` `handleSaveProfileEdit`
+   * and inline edit handlers — same Supabase RLS write contract.
+   */
+  updateClient: (
+    clientId: string,
+    updates: Partial<Omit<Client, "id" | "created_at" | "last_contact_at">>,
+  ) => Promise<boolean>;
   updateOutreachDraft: (id: string, subject: string, body: string) => Promise<boolean>;
   skipOutreach: (id: string) => Promise<boolean>;
 
@@ -629,10 +697,50 @@ export const useDataStore = create<DataStore>((set, get) => {
       } = await supabase.auth.getUser();
       if (!user) return false;
 
+      // Apply the same defaults the web `handleAddClient` uses, so the
+      // optimistic row matches what the DB will write. Anything the caller
+      // passed in overrides these.
+      const defaults = {
+        first_name: null,
+        last_name: null,
+        email: null,
+        phone: null,
+        phone_type: "mobile" as const,
+        secondary_email: null,
+        secondary_phone: null,
+        secondary_phone_type: "mobile" as const,
+        preferred_contact: "phone" as const,
+        communication_tone: "friendly" as const,
+        lead_source: null,
+        last_contact_at: null,
+        notes: null,
+        birthdate: null,
+        street_address: null,
+        unit_number: null,
+        city: null,
+        province_region: null,
+        postal_code: null,
+        country: "Canada",
+        property_interest: null,
+        property_interest_type: "budget" as const,
+        timeframe: null,
+        buyer_pre_approved: null,
+        buyer_pre_approval_amount: null,
+        buyer_financing_type: null,
+        buyer_target_close_date: null,
+        buyer_target_area: null,
+        archived_at: null,
+        archive_reason: null,
+      };
+      const merged: Omit<Client, "id" | "created_at"> = {
+        ...defaults,
+        ...client,
+      };
+
       // Optimistic insert
       const tempId = `temp_${Date.now()}`;
       const tempClient: Client = {
-        ...client,
+        ...merged,
         id: tempId,
         created_at: new Date().toISOString(),
       };
@@ -643,7 +751,7 @@ export const useDataStore = create<DataStore>((set, get) => {
       // Fire Supabase insert in background
       const { error } = await supabase
         .from("clients")
-        .insert({ ...client, user_id: user.id });
+        .insert({ ...merged, user_id: user.id });
 
       if (error) {
         console.error("addClient error:", error);
