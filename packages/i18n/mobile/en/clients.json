@@ -70,7 +70,8 @@
     "phoneLabel": "Phone",
     "phonePlaceholder": "+1 (555) 123-4567",
     "save": "Add Client",
-    "adding": "Adding..."
+    "adding": "Adding...",
+    "missingName": "Add a first or last name to save this client."
   },
   "editClient": {
     "title": "Edit Client",
@@ -82,7 +83,14 @@
     "notesPlaceholder": "Add notes...",
     "save": "Save Changes",
     "saving": "Saving...",
-    "edit": "Edit"
+    "edit": "Edit",
+    "archiveLabel": "Archive this client",
+    "archiveReasons": {
+      "deceased": "Deceased",
+      "moved_away": "Moved away",
+      "do_not_contact": "Do not contact",
+      "other": "Other"
+    }
   },
   "postContact": {
     "title": "How did it go?",
@@ -105,5 +113,91 @@
     "noMatchSubtitle": "No clients match \"{{query}}\"",
     "subtitle": "Add your first client to start tracking",
     "actionLabel": "Add Client"
+  },
+  "form": {
+    "sections": {
+      "identity": "Identity",
+      "contact": "Contact",
+      "address": "Address",
+      "preferences": "Preferences",
+      "buyer": "Buyer Profile",
+      "notes": "Notes"
+    },
+    "firstName": "First name",
+    "firstNamePlaceholder": "Jane",
+    "lastName": "Last name",
+    "lastNamePlaceholder": "Smith",
+    "birthdate": "Birthday",
+    "leadSource": "Lead source",
+    "email": "Email",
+    "phone": "Phone",
+    "phoneType": "Phone type",
+    "phoneTypeOptions": {
+      "mobile": "Mobile",
+      "home": "Home",
+      "work": "Work",
+      "other": "Other"
+    },
+    "secondaryEmail": "Secondary email",
+    "secondaryPhone": "Secondary phone",
+    "secondaryPhoneType": "Secondary phone type",
+    "preferredContact": "Preferred contact",
+    "preferredContactOptions": {
+      "phone": "Phone",
+      "email": "Email",
+      "text": "Text"
+    },
+    "streetAddress": "Street address",
+    "streetAddressPlaceholder": "123 Main St",
+    "unitNumber": "Unit / Apt",
+    "unitNumberPlaceholder": "Suite 4B",
+    "city": "City",
+    "cityPlaceholder": "Saint John",
+    "provinceRegion": "Province / Region",
+    "provinceRegionPlaceholder": "NB",
+    "postalCode": "Postal code",
+    "country": "Country",
+    "communicationTone": "Communication tone",
+    "communicationToneOptions": {
+      "casual": "Casual",
+      "friendly": "Friendly",
+      "professional": "Professional",
+      "formal": "Formal"
+    },
+    "propertyInterest": "Property interest amount",
+    "propertyInterestPlaceholder": "650000",
+    "propertyInterestType": "Interest type",
+    "propertyInterestTypeOptions": {
+      "budget": "Buyer budget",
+      "listing": "Listing price"
+    },
+    "timeframe": "Timeframe",
+    "timeframeOptions": {
+      "asap": "ASAP",
+      "1_3_months": "1–3 months",
+      "3_6_months": "3–6 months",
+      "6_12_months": "6–12 months",
+      "12_plus": "12+ months",
+      "unknown": "Unknown"
+    },
+    "buyerPreApproved": "Pre-approved",
+    "buyerPreApprovedOptions": {
+      "unknown": "Unknown",
+      "yes": "Yes",
+      "no": "No"
+    },
+    "buyerPreApprovalAmount": "Pre-approval amount",
+    "buyerFinancingType": "Financing type",
+    "buyerFinancingOptions": {
+      "mortgage": "Mortgage",
+      "cash": "Cash",
+      "bridge": "Bridge",
+      "unknown": "TBD"
+    },
+    "buyerTargetCloseDate": "Target close date",
+    "buyerTargetArea": "Target area",
+    "buyerTargetAreaPlaceholder": "City or neighbourhood",
+    "notes": "Notes",
+    "notesPlaceholder": "Anything else worth remembering..."
   }
 }
