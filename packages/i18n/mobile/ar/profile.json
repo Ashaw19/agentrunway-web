@@ -41,7 +41,9 @@
     "goalsDesc": "Set your annual targets",
     "goalsWithValue": "GCI goal: {{value}}",
     "notifications": "Notifications",
-    "notificationsDesc": "Morning briefing, deal alerts, follow-ups"
+    "notificationsDesc": "Morning briefing, deal alerts, follow-ups",
+    "legal": "Legal & Privacy",
+    "legalDesc": "Privacy policy, terms, cookies, acceptable use"
   },
   "signOut": "Sign Out",
   "version": "Agent Runway · v{{version}}",
@@ -125,5 +127,48 @@
       "showing": "Showing",
       "meeting": "Meeting"
     }
+  },
+  "legal": {
+    "title": "Legal & Privacy",
+    "subtitle": "Read the policies that govern your use of Agent Runway and manage your privacy choices.",
+    "openErrorTitle": "Could not open page",
+    "openErrorBody": "Try again, or visit agentrunway.ca/privacy in your browser.",
+    "footer": "These documents are served from agentrunway.ca. If counsel updates them, this app shows the new version automatically.",
+    "links": {
+      "privacy": {
+        "label": "Privacy Policy",
+        "description": "How we handle your data — PIPEDA-aligned"
+      },
+      "terms": {
+        "label": "Terms of Service",
+        "description": "The agreement between you and Agent Runway"
+      },
+      "cookiePolicy": {
+        "label": "Cookie Policy",
+        "description": "What we store on your device, and why"
+      },
+      "acceptableUse": {
+        "label": "Acceptable Use",
+        "description": "What you can and cannot do with the platform"
+      }
+    },
+    "consent": {
+      "section": "PRIVACY CHOICES",
+      "title": "Cookie & Analytics Consent",
+      "description": "Choose whether Agent Runway may use optional analytics to improve the product. Essential services (sign-in, crash recovery) always run.",
+      "statusLabel": "Current choice",
+      "statusAccepted": "Accepted",
+      "statusDeclined": "Declined",
+      "statusUnset": "Not set",
+      "accept": "Accept",
+      "decline": "Decline"
+    }
+  },
+  "cookieConsent": {
+    "title": "Privacy choice",
+    "body": "Agent Runway uses essential services for sign-in and crash recovery. Optional analytics may also be used.",
+    "privacyLink": "Privacy Policy",
+    "accept": "Accept",
+    "decline": "Decline"
   }
 }

@@ -34,6 +34,7 @@ import {
   Sunrise,
   Globe,
   MessagesSquare,
+  Shield,
 } from "lucide-react-native";
 import { getLocaleName, type SupportedLocale } from "@agent-runway/i18n";
 import { useT } from "@/lib/useT";
@@ -497,6 +498,15 @@ export default function ProfileScreen() {
               label={t("account.notifications")}
               description={t("account.notificationsDesc")}
               onPress={() => router.push("/profile/notification-settings")}
+              c={c}
+            />
+            <Divider c={c} />
+            <MenuItem
+              icon={<Shield size={18} color={c.textSecondary} />}
+              iconBg={c.cardBorder}
+              label={t("account.legal")}
+              description={t("account.legalDesc")}
+              onPress={() => router.push("/profile/legal")}
               c={c}
             />
           </Card>
