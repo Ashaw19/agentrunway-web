@@ -33,6 +33,7 @@ import {
   Bell,
   Sunrise,
   Globe,
+  MessagesSquare,
 } from "lucide-react-native";
 import { getLocaleName, type SupportedLocale } from "@agent-runway/i18n";
 import { useT } from "@/lib/useT";
@@ -331,6 +332,15 @@ export default function ProfileScreen() {
             {t("tools.title")}
           </Text>
           <Card style={{ padding: 0, marginHorizontal: 0 }}>
+            <MenuItem
+              icon={<MessagesSquare size={18} color={c.primary} />}
+              iconBg={c.primaryDim}
+              label={t("tools.flightCrew")}
+              description={t("tools.flightCrewDesc")}
+              onPress={() => router.push("/profile/chat")}
+              c={c}
+            />
+            <Divider c={c} />
             <MenuItem
               icon={<Sunrise size={18} color={c.gold} />}
               iconBg={c.goldDim}
