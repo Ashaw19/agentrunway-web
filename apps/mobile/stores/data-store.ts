@@ -256,6 +256,30 @@ interface DataStore {
   fetchReceipts: () => Promise<void>;
   addTransaction: (tx: Omit<Transaction, "id" | "created_at">) => Promise<boolean>;
   advancePipelineStage: (dealId: string, newStage: PipelineDeal["stage"]) => Promise<boolean>;
+  /**
+   * Field-by-field edit for a pipeline deal. Mirrors `updateClient`'s
+   * contract — optimistic update, Supabase round-trip, rollback + toast on
+   * failure. The web edit form lives at
+   * `apps/web/app/(app)/transactions/transactions-pipeline-tab.tsx`
+   * (`handleSave` function). Mobile uses the same write contract through
+   * Supabase RLS — no new engine, no new edge function.
+   */
+  updatePipelineDeal: (
+    dealId: string,
+    updates: Partial<
+      Pick<
+        PipelineDeal,
+        | "address"
+        | "client_name"
+        | "estimated_price"
+        | "estimated_commission_pct"
+        | "stage"
+        | "expected_close_date"
+        | "probability_override"
+        | "notes"
+      >
+    >,
+  ) => Promise<boolean>;
   addClient: (client: NewClientInput) => Promise<boolean>;
   addActivity: (activity: Omit<ContactActivity, "id" | "created_at">) => Promise<boolean>;
   /**
@@ -628,6 +652,43 @@ export const useDataStore = create<DataStore>((set, get) => {
       toast.show("Stage updated \u2713", "success");
       return true;
     }, false),
+
+    updatePipelineDeal: async (dealId, updates) => {
+      const toast = useToastStore.getState();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      // Optimistic update \u2014 mirrors `updateClient` shape exactly.
+      const prevPipeline = get().pipeline;
+      set({
+        pipeline: prevPipeline.map((d) =>
+          d.id === dealId ? { ...d, ...updates } : d
+        ),
+      });
+      saveCache(get());
+
+      const { error } = await supabase
+        .from("pipeline_deals")
+        .update(updates)
+        .eq("id", dealId)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("updatePipelineDeal error:", error);
+        // Rollback \u2014 same pattern as updateClient (clear toast lets the user retry)
+        set({ pipeline: prevPipeline });
+        saveCache(get());
+        toast.show("Failed to update deal \u2014 tap to retry", "error", () =>
+          get().updatePipelineDeal(dealId, updates),
+        );
+        return false;
+      }
+
+      toast.show("Deal updated \u2713", "success");
+      return true;
+    },
 
     addClient: (client) => withMutationGuard("addClient", async () => {
       const toast = useToastStore.getState();

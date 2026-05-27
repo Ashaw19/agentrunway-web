@@ -10,21 +10,21 @@
     "strong": "Solide",
     "onTrack": "En bonne voie",
     "building": "En construction",
-    "atRisk": "\u00c0 risque",
-    "description": "Bas\u00e9 sur le rythme de l'objectif, la couverture du pipeline, les d\u00e9penses et les r\u00e9serves"
+    "atRisk": "À risque",
+    "description": "Basé sur le rythme de l'objectif, la couverture du pipeline, les dépenses et les réserves"
   },
   "tools": {
     "title": "Outils",
     "flightCrew": "Équipage de vol",
     "flightCrewDesc": "Discutez avec Captain, Navigator et Dispatcher",
     "briefing": "Briefing du jour",
-    "briefingDesc": "Vos priorit\u00e9s et actions du jour",
-    "flightControl": "Contr\u00f4le de vol",
-    "flightControlDesc": "Examiner et envoyer les messages automatis\u00e9s",
-    "forecast": "Pr\u00e9visions de revenus",
-    "forecastDesc": "Projections et rythme de fin d'ann\u00e9e",
-    "scanReceipt": "Num\u00e9riser un re\u00e7u",
-    "scanReceiptDesc": "Capturer et enregistrer les d\u00e9penses"
+    "briefingDesc": "Vos priorités et actions du jour",
+    "flightControl": "Contrôle de vol",
+    "flightControlDesc": "Examiner et envoyer les messages automatisés",
+    "forecast": "Prévisions de revenus",
+    "forecastDesc": "Projections et rythme de fin d'année",
+    "scanReceipt": "Numériser un reçu",
+    "scanReceiptDesc": "Capturer et enregistrer les dépenses"
   },
   "account": {
     "title": "Compte",
@@ -34,17 +34,19 @@
     "language": "Langue",
     "languageDesc": "Changer la langue de l'application",
     "subscription": "Abonnement",
-    "subscriptionPro": "Professionnel \u00b7 Actif",
+    "subscriptionPro": "Professionnel · Actif",
     "subscriptionFree": "Forfait gratuit",
-    "subscriptionManage": "G\u00e9rez votre abonnement depuis le tableau de bord web.",
-    "goals": "Objectifs et param\u00e8tres",
-    "goalsDesc": "D\u00e9finir vos cibles annuelles",
+    "subscriptionManage": "Gérez votre abonnement depuis le tableau de bord web.",
+    "goals": "Objectifs et paramètres",
+    "goalsDesc": "Définir vos cibles annuelles",
     "goalsWithValue": "Objectif RBC : {{value}}",
     "notifications": "Notifications",
-    "notificationsDesc": "Briefing matinal, alertes de transactions, suivis"
+    "notificationsDesc": "Briefing matinal, alertes de transactions, suivis",
+    "legal": "Mentions légales et confidentialité",
+    "legalDesc": "Politique de confidentialité, conditions, témoins, usage acceptable"
   },
-  "signOut": "D\u00e9connexion",
-  "version": "Agent Runway \u00b7 v{{version}}",
+  "signOut": "Déconnexion",
+  "version": "Agent Runway · v{{version}}",
   "province": {
     "yrsExp": "{{years}} ans exp"
   },
@@ -53,26 +55,26 @@
     "free": "Gratuit"
   },
   "forecast": {
-    "projectedYearEndGci": "RBC PROJET\u00c9 EN FIN D'ANN\u00c9E",
-    "basedOnPace": "Bas\u00e9 sur votre rythme actuel de {{amount}}/mois",
-    "earned": "{{amount}} gagn\u00e9",
+    "projectedYearEndGci": "RBC PROJETÉ EN FIN D'ANNÉE",
+    "basedOnPace": "Basé sur votre rythme actuel de {{amount}}/mois",
+    "earned": "{{amount}} gagné",
     "percentOfGoal": "{{percent}} % de {{goal}}",
     "gciPace": "Rythme RBC",
     "dealPace": "Rythme transactions",
     "onTrack": "En bonne voie",
     "behind": "En retard",
-    "keyNumbers": "CHIFFRES CL\u00c9S",
-    "projectedYearEnd": "Projection fin d'ann\u00e9e",
+    "keyNumbers": "CHIFFRES CLÉS",
+    "projectedYearEnd": "Projection fin d'année",
     "conservativePipeline": "Conservateur (+ pipeline)",
-    "weightedPipelineGci": "RBC pond\u00e9r\u00e9 du pipeline",
+    "weightedPipelineGci": "RBC pondéré du pipeline",
     "remainingToGoal": "Restant pour l'objectif",
     "goalMet": "Objectif atteint !",
     "monthlyPaceRequired": "RYTHME MENSUEL REQUIS",
     "currentAvg": "Moyenne actuelle",
-    "needed": "N\u00e9cessaire",
+    "needed": "Nécessaire",
     "deals": "{{count}} transactions",
     "increaseWarning": "Vous devez augmenter votre RBC mensuel de {{amount}} pour atteindre votre objectif",
-    "thisYearSoFar": "CETTE ANN\u00c9E JUSQU'\u00c0 PR\u00c9SENT",
+    "thisYearSoFar": "CETTE ANNÉE JUSQU'À PRÉSENT",
     "dealsClosed": "Transactions conclues",
     "daysLeft": "Jours restants",
     "pipelineDeals": "Transactions en pipeline"
@@ -80,39 +82,39 @@
   "briefing": {
     "greeting": "Votre briefing du {{timeOfDay}}",
     "morning": "matin",
-    "afternoon": "apr\u00e8s-midi",
+    "afternoon": "après-midi",
     "evening": "soir",
-    "atAGlance": "EN UN COUP D'\u0152IL",
+    "atAGlance": "EN UN COUP D'ŒIL",
     "overdueFollowUps": "suivis en retard",
     "newLeads": "nouveaux prospects",
     "hotDeals": "transactions urgentes",
-    "needsAttention": "N\u00e9cessite votre attention",
-    "worthALook": "M\u00e9rite un coup d'\u0153il",
-    "comingUp": "\u00c0 venir",
+    "needsAttention": "Nécessite votre attention",
+    "worthALook": "Mérite un coup d'œil",
+    "comingUp": "À venir",
     "allClear": "Tout est en ordre",
-    "noUrgentItems": "Aucun \u00e9l\u00e9ment urgent pour le moment. Revenez plus tard ou continuez \u00e0 d\u00e9velopper votre pipeline.",
-    "footerTip": "Votre briefing se met \u00e0 jour au fil de la journ\u00e9e lorsque vous enregistrez des activit\u00e9s et concluez des transactions. Tirez vers le bas pour actualiser.",
+    "noUrgentItems": "Aucun élément urgent pour le moment. Revenez plus tard ou continuez à développer votre pipeline.",
+    "footerTip": "Votre briefing se met à jour au fil de la journée lorsque vous enregistrez des activités et concluez des transactions. Tirez vers le bas pour actualiser.",
     "score": "Score",
     "ytdGci": "RBC cumul",
     "deals": "Transactions",
-    "goalProgress": "Progression de l'objectif \u00b7 Jour {{day}}/365",
+    "goalProgress": "Progression de l'objectif · Jour {{day}}/365",
     "percentOfGoal": "{{percent}} % de l'objectif",
     "aheadOfPace": "En avance sur le rythme",
     "behindPace": "{{amount}} en retard sur le rythme"
   },
   "search": {
     "placeholder": "Rechercher clients, transactions...",
-    "recentSearches": "RECHERCHES R\u00c9CENTES",
+    "recentSearches": "RECHERCHES RÉCENTES",
     "clear": "Effacer",
     "clients": "CLIENTS",
     "deals": "TRANSACTIONS",
     "transactions": "TRANSACTIONS CONCLUES",
-    "noResults": "Aucun r\u00e9sultat pour \u00ab {{query}} \u00bb",
+    "noResults": "Aucun résultat pour « {{query}} »",
     "noResultsHint": "Essayez un autre terme de recherche ou ajoutez un nouveau client",
     "quickActions": "ACTIONS RAPIDES",
     "addClient": "Ajouter un client",
     "addDeal": "Ajouter une transaction",
-    "scanReceipt": "Num\u00e9riser un re\u00e7u",
+    "scanReceipt": "Numériser un reçu",
     "quickNote": "Note rapide",
     "quickNotePlaceholder": "Note rapide...",
     "save": "Enregistrer",
@@ -123,7 +125,50 @@
       "call": "Appel",
       "text": "Texto",
       "showing": "Visite",
-      "meeting": "R\u00e9union"
+      "meeting": "Réunion"
     }
+  },
+  "legal": {
+    "title": "Mentions légales et confidentialité",
+    "subtitle": "Consultez les politiques qui régissent votre utilisation d’Agent Runway et gérez vos choix de confidentialité.",
+    "openErrorTitle": "Impossible d’ouvrir la page",
+    "openErrorBody": "Réessayez ou visitez agentrunway.ca/privacy dans votre navigateur.",
+    "footer": "Ces documents proviennent de agentrunway.ca. Toute mise à jour effectuée par le service juridique s’affiche automatiquement ici.",
+    "links": {
+      "privacy": {
+        "label": "Politique de confidentialité",
+        "description": "Comment nous traitons vos données — conforme à la LPRPDE"
+      },
+      "terms": {
+        "label": "Conditions d’utilisation",
+        "description": "L’entente entre vous et Agent Runway"
+      },
+      "cookiePolicy": {
+        "label": "Politique sur les témoins",
+        "description": "Ce qui est stocké sur votre appareil, et pourquoi"
+      },
+      "acceptableUse": {
+        "label": "Usage acceptable",
+        "description": "Ce que vous pouvez et ne pouvez pas faire sur la plateforme"
+      }
+    },
+    "consent": {
+      "section": "CHOIX DE CONFIDENTIALITÉ",
+      "title": "Consentement aux témoins et à l’analytique",
+      "description": "Choisissez si Agent Runway peut utiliser de l’analytique facultative pour améliorer le produit. Les services essentiels (connexion, récupération après plantage) fonctionnent toujours.",
+      "statusLabel": "Choix actuel",
+      "statusAccepted": "Accepté",
+      "statusDeclined": "Refusé",
+      "statusUnset": "Non défini",
+      "accept": "Accepter",
+      "decline": "Refuser"
+    }
+  },
+  "cookieConsent": {
+    "title": "Choix de confidentialité",
+    "body": "Agent Runway utilise des services essentiels pour la connexion et la récupération après plantage. De l’analytique facultative peut aussi être utilisée.",
+    "privacyLink": "Politique de confidentialité",
+    "accept": "Accepter",
+    "decline": "Refuser"
   }
 }

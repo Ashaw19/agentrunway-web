@@ -6,6 +6,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { useTheme, useColors } from "@/lib/theme";
 import Toast from "@/components/Toast";
+import { CookieConsentBanner } from "@/components/CookieConsentBanner";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import "react-native-reanimated";
 import "@/lib/i18n"; // Initialize i18next before app renders
@@ -72,6 +73,11 @@ function RootLayoutNav() {
       <StatusBar style={c.statusBarStyle} />
       <Slot />
       <Toast />
+      {/* First-launch cookie/consent disclosure — shown only when authed so
+          the login flow stays clean. No behavior change today (no trackers
+          wired); the surface exists for App Store privacy nutrition label
+          compliance + future-proofing. */}
+      {session && <CookieConsentBanner />}
     </View>
   );
 }

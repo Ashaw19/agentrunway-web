@@ -23,6 +23,7 @@ export default function ProfileLayout() {
       <Stack.Screen name="notification-settings" options={{ title: "Notifications" }} />
       <Stack.Screen name="briefing" options={{ title: "Today's Briefing" }} />
       <Stack.Screen name="chat" options={{ title: "Flight Crew" }} />
+      <Stack.Screen name="legal" options={{ title: "Legal & Privacy" }} />
     </Stack>
   );
 }
