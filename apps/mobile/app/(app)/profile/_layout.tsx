@@ -25,6 +25,7 @@ export default function ProfileLayout() {
       <Stack.Screen name="chat" options={{ title: "Flight Crew" }} />
       <Stack.Screen name="legal" options={{ title: "Legal & Privacy" }} />
       <Stack.Screen name="voice-quiz" options={{ title: "AI Voice Quiz" }} />
+      <Stack.Screen name="business-identity" options={{ title: "Business Identity" }} />
     </Stack>
   );
 }

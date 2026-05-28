@@ -43,6 +43,9 @@
     "voiceQuiz": "Quiz de voix IA",
     "voiceQuizDesc": "Apprenez à votre IA comment vous parlez vraiment — 3 min",
     "voiceQuizCompleted": "Complété · Touchez pour mettre à jour",
+    "businessIdentity": "Identité d’affaires",
+    "businessIdentityDesc": "Spécialité, marché, modèle d’affaires — 2 min",
+    "businessIdentityCompleted": "Configuré · Touchez pour mettre à jour",
     "notifications": "Notifications",
     "notificationsDesc": "Briefing matinal, alertes de transactions, suivis",
     "legal": "Mentions légales et confidentialité",
@@ -210,5 +213,65 @@
     "saving": "Enregistrement…",
     "saveErrorTitle": "Échec de l’enregistrement",
     "saveErrorBody": "Impossible d’enregistrer votre profil vocal. Veuillez réessayer."
+  },
+  "businessIdentity": {
+    "title": "Identité d’affaires",
+    "subtitle": "Dites-nous quel genre d’agent vous êtes. Votre IA s’en sert pour vous offrir des conseils pertinents.",
+    "completionLabel": "{{count}} sections sur 6 configurées",
+    "specialtyLabel": "Spécialité",
+    "specialtyHint": "Sélectionnez tout ce qui s’applique",
+    "marketTypeLabel": "Type de marché",
+    "marketTypeHint": "Sélectionnez tout ce qui s’applique",
+    "businessModelLabel": "Modèle d’affaires",
+    "businessModelHint": "Sélectionnez une option",
+    "leadSourcesLabel": "Sources de clients",
+    "leadSourcesHint": "Sélectionnez tout ce qui s’applique",
+    "yearsExperienceLabel": "Années d’expérience",
+    "yearsExperienceHint": "Sélectionnez une option",
+    "priceRangeLabel": "Fourchette de prix moyenne",
+    "priceRangeHint": "Sélectionnez une option",
+    "save": "Enregistrer l’identité d’affaires",
+    "saving": "Enregistrement…",
+    "saveSuccessTitle": "Enregistré",
+    "saveSuccessBody": "Votre identité d’affaires a été mise à jour.",
+    "saveErrorTitle": "Échec de l’enregistrement",
+    "saveErrorBody": "Impossible d’enregistrer votre identité d’affaires. Veuillez réessayer.",
+    "specialtyOptions": {
+      "buyer": "Axé acheteur",
+      "listing": "Axé inscription",
+      "both": "Les deux"
+    },
+    "marketTypeOptions": {
+      "urban_condo": "Urbain / Condo",
+      "suburban": "Banlieue",
+      "rural": "Rural",
+      "luxury": "Luxe",
+      "new_construction": "Construction neuve"
+    },
+    "businessModelOptions": {
+      "solo_agent": "Agent solo",
+      "team_lead": "Chef d’équipe",
+      "team_member": "Membre d’équipe"
+    },
+    "leadSourcesOptions": {
+      "referrals": "Références",
+      "sphere": "Sphère d’influence",
+      "cold_outreach": "Prospection à froid",
+      "social": "Médias sociaux",
+      "farming": "Prospection géographique"
+    },
+    "yearsExperienceOptions": {
+      "0_2": "0–2",
+      "3_5": "3–5",
+      "5_10": "5–10",
+      "10_plus": "10+"
+    },
+    "priceRangeOptions": {
+      "under_300k": "Moins de 300 000 $",
+      "300_500k": "300–500 000 $",
+      "500_800k": "500–800 000 $",
+      "800k_1m": "800 000 $ – 1 M $",
+      "over_1m": "1 M $ et plus"
+    }
   }
 }

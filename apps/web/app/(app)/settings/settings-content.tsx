@@ -50,6 +50,15 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceQuizModal } from "./voice-quiz-modal";
 import { DataExportCard } from "./data-export";
+import {
+  SPECIALTY_OPTIONS,
+  MARKET_TYPE_OPTIONS,
+  BUSINESS_MODEL_OPTIONS,
+  LEAD_SOURCE_OPTIONS,
+  YEARS_EXPERIENCE_OPTIONS,
+  PRICE_RANGE_OPTIONS,
+  computeBusinessIdentityCompleted,
+} from "@agent-runway/core/business-identity";
 import { cn } from "@/lib/utils";
 
 type GoogleConnection = {
@@ -302,11 +311,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
     setSavingAiProfile(true);
     const updatedBiz: BusinessIdentity = {
       ...businessIdentity,
-      completed: !!(
-        businessIdentity.specialty.length > 0 &&
-        businessIdentity.market_type.length > 0 &&
-        businessIdentity.business_model
-      ),
+      completed: computeBusinessIdentityCompleted(businessIdentity),
     };
     const updatedGoals: AgentGoals = {
       ...agentGoals,
@@ -843,7 +848,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
               <div className="space-y-2">
                 <Label className="text-sm">Specialty</Label>
                 <div className="flex flex-wrap gap-2">
-                  {(["buyer", "listing", "both"] as const).map((val) => (
+                  {SPECIALTY_OPTIONS.map(({ val, label }) => (
                     <button
                       key={val}
                       type="button"
@@ -855,7 +860,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
                           : "border-border bg-card text-muted-foreground hover:border-violet-400",
                       )}
                     >
-                      {val === "buyer" ? "Buyer-Focused" : val === "listing" ? "Listing-Focused" : "Both"}
+                      {label}
                     </button>
                   ))}
                 </div>
@@ -865,13 +870,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
               <div className="space-y-2">
                 <Label className="text-sm">Market Type <span className="text-xs text-muted-foreground font-normal">(multi-select)</span></Label>
                 <div className="flex flex-wrap gap-2">
-                  {([
-                    { val: "urban_condo", label: "Urban / Condo" },
-                    { val: "suburban", label: "Suburban" },
-                    { val: "rural", label: "Rural" },
-                    { val: "luxury", label: "Luxury" },
-                    { val: "new_construction", label: "New Construction" },
-                  ] as const).map(({ val, label }) => (
+                  {MARKET_TYPE_OPTIONS.map(({ val, label }) => (
                     <button
                       key={val}
                       type="button"
@@ -893,11 +892,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
               <div className="space-y-2">
                 <Label className="text-sm">Business Model</Label>
                 <div className="flex flex-wrap gap-2">
-                  {([
-                    { val: "solo_agent", label: "Solo Agent" },
-                    { val: "team_lead", label: "Team Lead" },
-                    { val: "team_member", label: "Team Member" },
-                  ] as const).map(({ val, label }) => (
+                  {BUSINESS_MODEL_OPTIONS.map(({ val, label }) => (
                     <button
                       key={val}
                       type="button"
@@ -919,13 +914,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
               <div className="space-y-2">
                 <Label className="text-sm">Lead Sources <span className="text-xs text-muted-foreground font-normal">(multi-select)</span></Label>
                 <div className="flex flex-wrap gap-2">
-                  {([
-                    { val: "referrals", label: "Referrals" },
-                    { val: "sphere", label: "Sphere of Influence" },
-                    { val: "cold_outreach", label: "Cold Outreach" },
-                    { val: "social", label: "Social Media" },
-                    { val: "farming", label: "Geo Farming" },
-                  ] as const).map(({ val, label }) => (
+                  {LEAD_SOURCE_OPTIONS.map(({ val, label }) => (
                     <button
                       key={val}
                       type="button"
@@ -947,12 +936,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
               <div className="space-y-2">
                 <Label className="text-sm">Years of Experience</Label>
                 <div className="flex flex-wrap gap-2">
-                  {([
-                    { val: "0_2", label: "0–2" },
-                    { val: "3_5", label: "3–5" },
-                    { val: "5_10", label: "5–10" },
-                    { val: "10_plus", label: "10+" },
-                  ] as const).map(({ val, label }) => (
+                  {YEARS_EXPERIENCE_OPTIONS.map(({ val, label }) => (
                     <button
                       key={val}
                       type="button"
@@ -974,13 +958,7 @@ export function SettingsContent({ settings, plaidItems: initialPlaidItems = [], 
               <div className="space-y-2">
                 <Label className="text-sm">Average Price Range</Label>
                 <div className="flex flex-wrap gap-2">
-                  {([
-                    { val: "under_300k", label: "Under $300K" },
-                    { val: "300_500k", label: "$300–500K" },
-                    { val: "500_800k", label: "$500–800K" },
-                    { val: "800k_1m", label: "$800K–$1M" },
-                    { val: "over_1m", label: "$1M+" },
-                  ] as const).map(({ val, label }) => (
+                  {PRICE_RANGE_OPTIONS.map(({ val, label }) => (
                     <button
                       key={val}
                       type="button"

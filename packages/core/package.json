@@ -14,7 +14,8 @@
     "./tax-copy/disclaimer": "./tax-copy/disclaimer.ts",
     "./tax-copy/forbidden-verbs": "./tax-copy/forbidden-verbs.ts",
     "./tax-copy/validate": "./tax-copy/validate.ts",
-    "./voice-quiz": "./voice-quiz/index.ts"
+    "./voice-quiz": "./voice-quiz/index.ts",
+    "./business-identity": "./business-identity/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
