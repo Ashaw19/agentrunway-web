@@ -13,7 +13,8 @@
     "./tax-copy": "./tax-copy/index.ts",
     "./tax-copy/disclaimer": "./tax-copy/disclaimer.ts",
     "./tax-copy/forbidden-verbs": "./tax-copy/forbidden-verbs.ts",
-    "./tax-copy/validate": "./tax-copy/validate.ts"
+    "./tax-copy/validate": "./tax-copy/validate.ts",
+    "./voice-quiz": "./voice-quiz/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

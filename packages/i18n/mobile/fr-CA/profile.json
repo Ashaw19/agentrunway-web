@@ -40,6 +40,9 @@
     "goals": "Objectifs et paramètres",
     "goalsDesc": "Définir vos cibles annuelles",
     "goalsWithValue": "Objectif RBC : {{value}}",
+    "voiceQuiz": "Quiz de voix IA",
+    "voiceQuizDesc": "Apprenez à votre IA comment vous parlez vraiment — 3 min",
+    "voiceQuizCompleted": "Complété · Touchez pour mettre à jour",
     "notifications": "Notifications",
     "notificationsDesc": "Briefing matinal, alertes de transactions, suivis",
     "legal": "Mentions légales et confidentialité",
@@ -170,5 +173,42 @@
     "privacyLink": "Politique de confidentialité",
     "accept": "Accepter",
     "decline": "Refuser"
+  },
+  "voiceQuiz": {
+    "title": "Trouvons votre voix",
+    "subtitle": "12 questions rapides. Aucune mauvaise réponse. Ça prend 3 minutes.",
+    "progress": "Question {{current}} sur {{total}}",
+    "percentComplete": "{{percent}} % complété",
+    "selectAll": "Sélectionnez tout ce qui s’applique",
+    "back": "Retour",
+    "next": "Suivant",
+    "seeResults": "Voir mes résultats",
+    "summaryTitle": "Voici votre voix",
+    "summarySubtitle": "Votre IA utilisera ceci pour communiquer exactement comme vous.",
+    "traitsLabel": "VOS TRAITS DE VOIX",
+    "humor": "Humour",
+    "directness": "Franchise",
+    "style": "Style",
+    "humorValue": {
+      "none": "Aucun",
+      "light": "Léger",
+      "moderate": "Modéré",
+      "frequent": "Fréquent"
+    },
+    "directnessValue": {
+      "low": "Faible",
+      "medium": "Moyen",
+      "high": "Élevé"
+    },
+    "verbosityValue": {
+      "concise": "Concis",
+      "balanced": "Équilibré",
+      "thorough": "Détaillé"
+    },
+    "aiIntroLabel": "COMMENT VOTRE IA SE PRÉSENTERA",
+    "save": "Parfait, enregistrer",
+    "saving": "Enregistrement…",
+    "saveErrorTitle": "Échec de l’enregistrement",
+    "saveErrorBody": "Impossible d’enregistrer votre profil vocal. Veuillez réessayer."
   }
 }
