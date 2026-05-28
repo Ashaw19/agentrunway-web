@@ -40,6 +40,9 @@
     "goals": "Goals & Settings",
     "goalsDesc": "Set your annual targets",
     "goalsWithValue": "GCI goal: {{value}}",
+    "voiceQuiz": "AI Voice Quiz",
+    "voiceQuizDesc": "Teach your AI how you actually talk — 3 min",
+    "voiceQuizCompleted": "Completed · Tap to update",
     "notifications": "Notifications",
     "notificationsDesc": "Morning briefing, deal alerts, follow-ups",
     "legal": "Legal & Privacy",
@@ -170,5 +173,42 @@
     "privacyLink": "Privacy Policy",
     "accept": "Accept",
     "decline": "Decline"
+  },
+  "voiceQuiz": {
+    "title": "Let's find your voice",
+    "subtitle": "12 quick questions. No wrong answers. Takes 3 minutes.",
+    "progress": "Question {{current}} of {{total}}",
+    "percentComplete": "{{percent}}% complete",
+    "selectAll": "Select all that apply",
+    "back": "Back",
+    "next": "Next",
+    "seeResults": "See my results",
+    "summaryTitle": "Here's your voice",
+    "summarySubtitle": "Your AI will use this to communicate exactly like you.",
+    "traitsLabel": "YOUR VOICE TRAITS",
+    "humor": "Humor",
+    "directness": "Directness",
+    "style": "Style",
+    "humorValue": {
+      "none": "None",
+      "light": "Light",
+      "moderate": "Moderate",
+      "frequent": "Frequent"
+    },
+    "directnessValue": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "verbosityValue": {
+      "concise": "Concise",
+      "balanced": "Balanced",
+      "thorough": "Thorough"
+    },
+    "aiIntroLabel": "HOW YOUR AI WILL INTRODUCE ITSELF",
+    "save": "Looks good, save it",
+    "saving": "Saving…",
+    "saveErrorTitle": "Could not save",
+    "saveErrorBody": "Failed to save your voice profile. Please try again."
   }
 }

@@ -138,6 +138,19 @@ export interface ContactTask {
   completed_at: string | null;
 }
 
+/**
+ * Mobile UserSettings — superset of what the dashboard needs PLUS the
+ * fields the Settings screens edit. Stays narrower than the canonical
+ * `UserSettings` interface in `packages/core/types/database.ts` (which
+ * carries 50+ web-only columns); when a new mobile-equal field lands,
+ * extend this type AND the `select()` in `fetchAll`.
+ *
+ * Per the parity audit gap #14 close-out (PR closing 2026-05-27), mobile
+ * now edits Voice Quiz + Business Identity + Signature Phrases + Hard
+ * No-Gos + Province + Split + Cash Reserve + GCI/transaction goals. The
+ * JSONB blobs land here as their canonical shapes from
+ * `@agent-runway/core/types/database`.
+ */
 export interface UserSettings {
   user_id: string;
   display_name: string | null;
@@ -151,6 +164,28 @@ export interface UserSettings {
   cash_reserve: number | null;
   growth_goal_year_pcts: number[] | null;
   monthly_brokerage_fee: number | null;
+  /**
+   * AI Voice & Identity blobs. Defined in
+   * `packages/core/types/database.ts`. Mobile reads them through the
+   * canonical types but stores them as nullable on the row.
+   */
+  communication_profile:
+    | import("@agent-runway/core/types/database").CommunicationProfile
+    | null;
+  business_identity:
+    | import("@agent-runway/core/types/database").BusinessIdentity
+    | null;
+  agent_goals:
+    | import("@agent-runway/core/types/database").AgentGoals
+    | null;
+  /**
+   * Plain-text summary the Flight Crew personas inject into their
+   * system prompt. Web writes this whenever the Voice Quiz saves
+   * (mirror of `communication_profile.ai_voice_summary`); mobile keeps
+   * it in lock-step so the prompt assembly works whether the user saved
+   * the quiz on web or on mobile.
+   */
+  ai_voice_guide: string | null;
   runway_score_snapshot: {
     score: number;
     grade?: string;
@@ -400,7 +435,11 @@ interface DataStore {
 
 // Cache key — bump version when schema changes to avoid stale data crashes
 // v3 (2026-05-27): added `briefings` + `briefingsFetchedAt` (audit red flag #3)
-const CACHE_VERSION = 3;
+// v4 (2026-05-27): added `communication_profile` + `business_identity`
+//   + `agent_goals` + `ai_voice_guide` on `settings` (parity gap #14 — mobile
+//   Voice Quiz close-out). Bumping forces a one-time cache flush so returning
+//   users repopulate `settings` from the broader `select()` in `fetchAll`.
+const CACHE_VERSION = 4;
 const CACHE_KEY = "data_store_cache";
 const CACHE_VERSION_KEY = "data_store_cache_version";
 
@@ -582,7 +621,11 @@ export const useDataStore = create<DataStore>((set, get) => {
               supabase
                 .from("user_settings")
                 .select(
-                  "user_id, display_name, avatar_url, goal_gci, goal_transactions, split_preset, province, experience_years, subscription_tier, cash_reserve, growth_goal_year_pcts, monthly_brokerage_fee, runway_score_snapshot"
+                  // Columns added 2026-05-27 for Settings parity (gap #14):
+                  // communication_profile, business_identity, agent_goals,
+                  // ai_voice_guide. CACHE_VERSION bumped to 4 in tandem so
+                  // returning users repopulate from the wider select.
+                  "user_id, display_name, avatar_url, goal_gci, goal_transactions, split_preset, province, experience_years, subscription_tier, cash_reserve, growth_goal_year_pcts, monthly_brokerage_fee, runway_score_snapshot, communication_profile, business_identity, agent_goals, ai_voice_guide"
                 )
                 .eq("user_id", user.id)
                 .single(),

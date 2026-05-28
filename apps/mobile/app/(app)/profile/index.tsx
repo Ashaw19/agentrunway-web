@@ -35,6 +35,7 @@ import {
   Globe,
   MessagesSquare,
   Shield,
+  Sparkles,
 } from "lucide-react-native";
 import { getLocaleName, type SupportedLocale } from "@agent-runway/i18n";
 import { useT } from "@/lib/useT";
@@ -489,6 +490,19 @@ export default function ProfileScreen() {
                   : t("account.goalsDesc")
               }
               onPress={() => router.push("/profile/settings")}
+              c={c}
+            />
+            <Divider c={c} />
+            <MenuItem
+              icon={<Sparkles size={18} color={c.purple} />}
+              iconBg={c.purpleDim}
+              label={t("account.voiceQuiz")}
+              description={
+                settings?.communication_profile?.completed
+                  ? t("account.voiceQuizCompleted")
+                  : t("account.voiceQuizDesc")
+              }
+              onPress={() => router.push("/profile/voice-quiz")}
               c={c}
             />
             <Divider c={c} />
