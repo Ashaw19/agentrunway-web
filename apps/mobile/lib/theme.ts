@@ -52,46 +52,51 @@ function palette(mode: ThemeMode) {
     bg:             dark ? "#131326" : "#FFFFFF",
     bgElevated:     dark ? "#171733" : "#FAFAFE",
     card:           dark ? "#1E1E3A" : "#FFFFFF",
-    cardBorder:     dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)",
-    cardHighBorder: dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.10)",
+    cardBorder:     dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
+    cardHighBorder: dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.14)",
 
     // Brand — web: Runway Blue oklch(0.57, 0.240, 261) ≈ #3B5EF6
+    // Light-mode tints bumped from ~8% to ~16% so colored chips & icon
+    // backgrounds read as distinct objects on white, not afterthoughts.
     primary:        "#3B5EF6",
     primaryLight:   "#6380F8",
-    primaryDim:     dark ? "rgba(59,94,246,0.12)" : "rgba(59,94,246,0.08)",
-    primaryBorder:  dark ? "rgba(59,94,246,0.25)" : "rgba(59,94,246,0.20)",
+    primaryDim:     dark ? "rgba(59,94,246,0.12)" : "rgba(59,94,246,0.16)",
+    primaryBorder:  dark ? "rgba(59,94,246,0.25)" : "rgba(59,94,246,0.35)",
 
     // Commission Gold — web: oklch(0.75, 0.19, 73) ≈ #F0A800
     gold:           "#F0A800",
     goldLight:      "#F5BE3A",
-    goldDim:        dark ? "rgba(240,168,0,0.14)" : "rgba(240,168,0,0.08)",
+    goldDim:        dark ? "rgba(240,168,0,0.14)" : "rgba(240,168,0,0.18)",
 
     // Semantic — chart colors from web
     success:        "#10B981",  // Chart-1 emerald
     successLight:   "#34D399",
-    successDim:     dark ? "rgba(16,185,129,0.12)" : "rgba(16,185,129,0.08)",
+    successDim:     dark ? "rgba(16,185,129,0.12)" : "rgba(16,185,129,0.16)",
     warning:        "#F59E0B",  // Warning amber
     warningLight:   "#FBBF24",
-    warningDim:     dark ? "rgba(245,158,11,0.12)" : "rgba(245,158,11,0.08)",
+    warningDim:     dark ? "rgba(245,158,11,0.12)" : "rgba(245,158,11,0.16)",
     danger:         "#EF4444",  // Critical red
-    dangerDim:      dark ? "rgba(239,68,68,0.12)" : "rgba(239,68,68,0.08)",
+    dangerDim:      dark ? "rgba(239,68,68,0.12)" : "rgba(239,68,68,0.16)",
     cyan:           "#06B6D4",  // Chart-4 teal
-    cyanDim:        dark ? "rgba(6,182,212,0.12)" : "rgba(6,182,212,0.08)",
+    cyanDim:        dark ? "rgba(6,182,212,0.12)" : "rgba(6,182,212,0.16)",
     purple:         "#8B5CF6",  // Chart-2 violet
-    purpleDim:      dark ? "rgba(139,92,246,0.12)" : "rgba(139,92,246,0.08)",
+    purpleDim:      dark ? "rgba(139,92,246,0.12)" : "rgba(139,92,246,0.16)",
     blue:           "#3B82F6",  // Info blue
-    blueDim:        dark ? "rgba(59,130,246,0.12)" : "rgba(59,130,246,0.08)",
+    blueDim:        dark ? "rgba(59,130,246,0.12)" : "rgba(59,130,246,0.16)",
 
     // Text — web: oklch(0.984) light-on-dark, oklch(0.129) dark-on-light
+    // Light-mode ramp tightened toward WCAG-AA: body ~13:1, secondary ~8:1,
+    // muted ~7:1 (section headers stay scannable), dim ~4.7:1 (still visible
+    // on white). Dark-mode values unchanged.
     text:           dark ? "#F5F5FA" : "#111827",
     textSecondary:  dark ? "#D1D5E0" : "#374151",
-    textMuted:      dark ? "#9CA3B8" : "#6B7280",
-    textDim:        dark ? "#6B728A" : "#9CA3AF",
-    textFaint:      dark ? "#3A3F55" : "#D1D5DB",
+    textMuted:      dark ? "#9CA3B8" : "#4B5563",
+    textDim:        dark ? "#6B728A" : "#6B7280",
+    textFaint:      dark ? "#3A3F55" : "#9CA3AF",
 
     // Elevated surfaces — 3-layer depth system (research: premium apps use layered darkness)
     cardElevated:   dark ? "#242450" : "#FFFFFF",
-    cardElevatedBorder: dark ? "rgba(255,255,255,0.13)" : "rgba(0,0,0,0.08)",
+    cardElevatedBorder: dark ? "rgba(255,255,255,0.13)" : "rgba(0,0,0,0.12)",
     surfaceGlass:   dark ? "rgba(30,30,70,0.75)" : "rgba(255,255,255,0.85)",
 
     // Misc

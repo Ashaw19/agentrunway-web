@@ -133,11 +133,15 @@ function RunwayGauge({ score, textColor, dimColor, mode }: { score: number; text
   const offset = circ * (1 - score / 100);
   const cx = size / 2;
   const cy = size / 2;
+  // Track must be visible even when the arc is near zero. In light mode the
+  // hero card sits on a near-white gradient, so a low-opacity gold ring
+  // disappears entirely — use a neutral gray track that reads on both modes.
+  const trackStroke = mode === "light" ? "rgba(0,0,0,0.10)" : "rgba(240,168,0,0.10)";
   // Web uses Commission Gold gradient for the score ring
   return (
     <View style={{ ...shadows(mode as "light" | "dark").goldGlow }}>
       <Svg width={size} height={size}>
-        <Circle cx={cx} cy={cy} r={r} stroke="rgba(240,168,0,0.08)" strokeWidth={sw} fill="none" />
+        <Circle cx={cx} cy={cy} r={r} stroke={trackStroke} strokeWidth={sw} fill="none" />
         <Circle cx={cx} cy={cy} r={r} stroke="#F0A800" strokeWidth={sw} fill="none"
           strokeDasharray={circ} strokeDashoffset={offset}
           strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`}
@@ -207,7 +211,8 @@ function QuickAccessTile({
           width: 28,
           height: 28,
           borderRadius: 14,
-          backgroundColor: color + "22",
+          // ~22% tint — distinct colored object on white; still subtle on dark.
+          backgroundColor: color + "38",
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -246,14 +251,16 @@ function ActionPill({
         {
           height: 36,
           borderRadius: 18,
-          backgroundColor: color + "20",
+          // ~22% tint + ~40% border — pills now read as clickable objects on
+          // light backgrounds; on dark they still feel subtle but defined.
+          backgroundColor: color + "38",
           flexDirection: "row",
           alignItems: "center",
           paddingHorizontal: Space.md,
           gap: 6,
           marginRight: Space.sm,
           borderWidth: 1,
-          borderColor: color + "30",
+          borderColor: color + "66",
         },
         pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] },
       ]}
@@ -272,13 +279,13 @@ function AllCaughtUpPill({ color, label }: { color: string; label: string }) {
       style={{
         height: 36,
         borderRadius: 18,
-        backgroundColor: color + "20",
+        backgroundColor: color + "38",
         flexDirection: "row",
         alignItems: "center",
         paddingHorizontal: Space.md,
         gap: 6,
         borderWidth: 1,
-        borderColor: color + "30",
+        borderColor: color + "66",
       }}
     >
       <CheckCircle2 size={13} color={color} />
@@ -706,7 +713,7 @@ export default function DashboardScreen() {
           <View style={{ paddingTop: Space.lg }}>
             {/* Agent Runway brand mark */}
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: Space.sm }}>
-              <Text style={{ fontSize: 10, fontWeight: "500", letterSpacing: 1.5, color: "#8CA4C8" }}>
+              <Text style={{ fontSize: 10, fontWeight: "700", letterSpacing: 1.5, color: c.textMuted }}>
                 AGENT
               </Text>
               <Text style={{ fontSize: 10, fontWeight: "700", letterSpacing: 1.5, color: c.primary, marginLeft: 4 }}>
@@ -760,7 +767,7 @@ export default function DashboardScreen() {
                   paddingVertical: Space.xs + 1,
                   borderRadius: Radius.pill,
                   borderWidth: 1,
-                  borderColor: "rgba(16,185,129,0.20)",
+                  borderColor: "rgba(16,185,129,0.40)",
                 }}
               >
                 <CheckCircle2 size={12} color={c.success} />
@@ -786,7 +793,7 @@ export default function DashboardScreen() {
                   paddingVertical: Space.xs + 1,
                   borderRadius: Radius.pill,
                   borderWidth: 1,
-                  borderColor: "rgba(240,168,0,0.20)",
+                  borderColor: "rgba(240,168,0,0.40)",
                 }}
               >
                 <Text style={{ fontSize: 11 }}>
@@ -872,11 +879,13 @@ export default function DashboardScreen() {
             <RunwayGauge score={score} textColor={c.text} dimColor={c.textDim} mode={mode} />
             <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, marginTop: Space.md }}>
               <Text style={{ ...Type.h3, color: c.text }}>{t("score.runwayScore")}</Text>
-              <View style={{ backgroundColor: meta.color + "22", paddingHorizontal: Space.sm + 2, paddingVertical: 3, borderRadius: Radius.sm }}>
-                <Text style={{ color: meta.color, fontSize: 11, fontWeight: "800" }}>{meta.grade}</Text>
+              {/* Solid grade chip — pastel tint disappeared on white. Full
+                  saturation + white text reads on both modes. */}
+              <View style={{ backgroundColor: meta.color, paddingHorizontal: Space.sm + 2, paddingVertical: 3, borderRadius: Radius.sm }}>
+                <Text style={{ color: "#FFFFFF", fontSize: 11, fontWeight: "800" }}>{meta.grade}</Text>
               </View>
             </View>
-            <Text style={{ ...Type.caption, color: c.textDim, marginTop: Space.xs }}>{t("score.tapForDetails", { label: t(meta.labelKey) })}</Text>
+            <Text style={{ ...Type.caption, color: c.textSecondary, marginTop: Space.xs }}>{t("score.tapForDetails", { label: t(meta.labelKey) })}</Text>
 
             {/* Score component mini-bar */}
             <View style={{ flexDirection: "row", marginTop: Space.lg, gap: Space.xs, width: "100%" }}>
@@ -1216,8 +1225,9 @@ function MetricCard({
 function ScoreBar({ label, pct, color, c }: { label: string; pct: number; color: string; c: ReturnType<typeof useColors> }) {
   return (
     <View style={{ flex: pct, alignItems: "center" }}>
-      <View style={{ height: 4, width: "100%", borderRadius: 2, backgroundColor: color, opacity: 0.7 }} />
-      <Text style={{ fontSize: 9, fontWeight: "600", color: c.textDim, marginTop: 4, letterSpacing: 0.2 }}>{label}</Text>
+      {/* Full saturation — pale bars were unreadable on light hero card. */}
+      <View style={{ height: 4, width: "100%", borderRadius: 2, backgroundColor: color }} />
+      <Text style={{ fontSize: 9, fontWeight: "700", color: c.textSecondary, marginTop: 4, letterSpacing: 0.2 }}>{label}</Text>
     </View>
   );
 }
