@@ -43,6 +43,9 @@
     "voiceQuiz": "AI Voice Quiz",
     "voiceQuizDesc": "Teach your AI how you actually talk — 3 min",
     "voiceQuizCompleted": "Completed · Tap to update",
+    "businessIdentity": "Business Identity",
+    "businessIdentityDesc": "Specialty, market, business model — 2 min",
+    "businessIdentityCompleted": "Configured · Tap to update",
     "notifications": "Notifications",
     "notificationsDesc": "Morning briefing, deal alerts, follow-ups",
     "legal": "Legal & Privacy",
@@ -210,5 +213,65 @@
     "saving": "Saving…",
     "saveErrorTitle": "Could not save",
     "saveErrorBody": "Failed to save your voice profile. Please try again."
+  },
+  "businessIdentity": {
+    "title": "Business Identity",
+    "subtitle": "Tell us what kind of agent you are. Your AI uses this to give relevant guidance.",
+    "completionLabel": "{{count}} of 6 sections set",
+    "specialtyLabel": "Specialty",
+    "specialtyHint": "Select all that apply",
+    "marketTypeLabel": "Market Type",
+    "marketTypeHint": "Select all that apply",
+    "businessModelLabel": "Business Model",
+    "businessModelHint": "Select one",
+    "leadSourcesLabel": "Lead Sources",
+    "leadSourcesHint": "Select all that apply",
+    "yearsExperienceLabel": "Years of Experience",
+    "yearsExperienceHint": "Select one",
+    "priceRangeLabel": "Average Price Range",
+    "priceRangeHint": "Select one",
+    "save": "Save Business Identity",
+    "saving": "Saving…",
+    "saveSuccessTitle": "Saved",
+    "saveSuccessBody": "Your business identity has been updated.",
+    "saveErrorTitle": "Could not save",
+    "saveErrorBody": "Failed to save your business identity. Please try again.",
+    "specialtyOptions": {
+      "buyer": "Buyer-Focused",
+      "listing": "Listing-Focused",
+      "both": "Both"
+    },
+    "marketTypeOptions": {
+      "urban_condo": "Urban / Condo",
+      "suburban": "Suburban",
+      "rural": "Rural",
+      "luxury": "Luxury",
+      "new_construction": "New Construction"
+    },
+    "businessModelOptions": {
+      "solo_agent": "Solo Agent",
+      "team_lead": "Team Lead",
+      "team_member": "Team Member"
+    },
+    "leadSourcesOptions": {
+      "referrals": "Referrals",
+      "sphere": "Sphere of Influence",
+      "cold_outreach": "Cold Outreach",
+      "social": "Social Media",
+      "farming": "Geo Farming"
+    },
+    "yearsExperienceOptions": {
+      "0_2": "0–2",
+      "3_5": "3–5",
+      "5_10": "5–10",
+      "10_plus": "10+"
+    },
+    "priceRangeOptions": {
+      "under_300k": "Under $300K",
+      "300_500k": "$300–500K",
+      "500_800k": "$500–800K",
+      "800k_1m": "$800K–$1M",
+      "over_1m": "$1M+"
+    }
   }
 }

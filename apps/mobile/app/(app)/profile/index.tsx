@@ -36,6 +36,7 @@ import {
   MessagesSquare,
   Shield,
   Sparkles,
+  Briefcase,
 } from "lucide-react-native";
 import { getLocaleName, type SupportedLocale } from "@agent-runway/i18n";
 import { useT } from "@/lib/useT";
@@ -503,6 +504,19 @@ export default function ProfileScreen() {
                   : t("account.voiceQuizDesc")
               }
               onPress={() => router.push("/profile/voice-quiz")}
+              c={c}
+            />
+            <Divider c={c} />
+            <MenuItem
+              icon={<Briefcase size={18} color={c.purple} />}
+              iconBg={c.purpleDim}
+              label={t("account.businessIdentity")}
+              description={
+                settings?.business_identity?.completed
+                  ? t("account.businessIdentityCompleted")
+                  : t("account.businessIdentityDesc")
+              }
+              onPress={() => router.push("/profile/business-identity")}
               c={c}
             />
             <Divider c={c} />
