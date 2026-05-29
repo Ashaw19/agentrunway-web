@@ -49,8 +49,13 @@ function palette(mode: ThemeMode) {
   const dark = mode === "dark";
   return {
     // Backgrounds — web: oklch(0.129, 0.042, 264.695) dark, oklch(1,0,0) light
-    bg:             dark ? "#131326" : "#FFFFFF",
-    bgElevated:     dark ? "#171733" : "#FAFAFE",
+    // Light-mode canvas is a cool slate (#EEF2F7), NOT white, so the white
+    // cards/pills lift off the screen (instrument-panel POV — cards float on a
+    // slate backdrop). Cards stay #FFFFFF; the lightness gap + shadow + border
+    // is what creates the "pop". Dark mode already floats (card #1E1E3A is
+    // lighter than bg #131326), so only the light canvas changes.
+    bg:             dark ? "#131326" : "#EEF2F7",
+    bgElevated:     dark ? "#171733" : "#FFFFFF",
     card:           dark ? "#1E1E3A" : "#FFFFFF",
     cardBorder:     dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)",
     cardHighBorder: dark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.14)",
@@ -133,7 +138,10 @@ export function gradients(mode: ThemeMode) {
   const dark = mode === "dark";
   return {
     // Web: --gradient-runway (navy → blue)
-    heroCard:    dark ? ["#161640", "#111126"] : ["#EEF0FF", "#FFFFFF"],
+    // Light heroCard top lifted from #EEF0FF → #F5F7FF so the gauge card reads
+    // as a near-white floating surface, distinct from the new #EEF2F7 slate
+    // canvas (the old value was nearly identical to the canvas and blended).
+    heroCard:    dark ? ["#161640", "#111126"] : ["#F5F7FF", "#FFFFFF"],
     // Web: --gradient-growth (emerald → teal)
     growthCard:  dark ? ["#0A2A1A", "#0E1420"] : ["#ECFDF5", "#FFFFFF"],
     tabBar:      dark ? ["#111126", "#0E0E1A"] : ["#FFFFFF", "#F8F9FB"],
