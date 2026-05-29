@@ -24,7 +24,16 @@ import {
 import { BriefingRow } from "@/components/BriefingRow";
 import { ScoreBreakdownSheet } from "@/components/ScoreBreakdownSheet";
 import { useOfflineQueueStore } from "@/stores/offline-queue";
-import Svg, { Circle, Text as SvgText } from "react-native-svg";
+import { AnimatedGauge } from "@/components/ui/AnimatedGauge";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withDelay,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import {
   AlertCircle,
   Clock,
@@ -46,6 +55,7 @@ import {
   useTheme,
   gradients,
   shadows,
+  shiftHex,
   Space,
   Radius,
   Type,
@@ -123,37 +133,35 @@ function runwayScoreMeta(
   };
 }
 
-// ── Runway Score Gauge (Hero — 140px, gold ring matching web) ──────────────
+// ── Runway Score Gauge ────────────────────────────────────────────────────
+//
+// The cockpit instrument. Thin wrapper over AnimatedGauge so the hero card
+// call-site stays declarative. The gauge arc gradient + glow follow the
+// canonical band color (was a fixed gold ring pre-redesign — now band-aware
+// so the instrument reads "amber/Building" vs "blue/On Track" at a glance).
+// All motion + reduced-motion handling lives in AnimatedGauge.
 
-function RunwayGauge({ score, textColor, dimColor, mode }: { score: number; textColor: string; dimColor: string; mode: string }) {
-  const size = 140;
-  const sw = 9;
-  const r = (size - sw) / 2;
-  const circ = 2 * Math.PI * r;
-  const offset = circ * (1 - score / 100);
-  const cx = size / 2;
-  const cy = size / 2;
-  // Track must be visible even when the arc is near zero. In light mode the
-  // hero card sits on a near-white gradient, so a low-opacity gold ring
-  // disappears entirely — use a neutral gray track that reads on both modes.
-  const trackStroke = mode === "light" ? "rgba(0,0,0,0.10)" : "rgba(240,168,0,0.10)";
-  // Web uses Commission Gold gradient for the score ring
+function RunwayGauge({
+  score,
+  bandColor,
+  textColor,
+  dimColor,
+  mode,
+}: {
+  score: number;
+  bandColor: string;
+  textColor: string;
+  dimColor: string;
+  mode: "light" | "dark";
+}) {
   return (
-    <View style={{ ...shadows(mode as "light" | "dark").goldGlow }}>
-      <Svg width={size} height={size}>
-        <Circle cx={cx} cy={cy} r={r} stroke={trackStroke} strokeWidth={sw} fill="none" />
-        <Circle cx={cx} cy={cy} r={r} stroke="#F0A800" strokeWidth={sw} fill="none"
-          strokeDasharray={circ} strokeDashoffset={offset}
-          strokeLinecap="round" transform={`rotate(-90 ${cx} ${cy})`}
-        />
-        <SvgText x={cx} y={cy - 2} textAnchor="middle" fill={textColor} fontSize="42" fontWeight="800">
-          {score}
-        </SvgText>
-        <SvgText x={cx} y={cy + 18} textAnchor="middle" fill={dimColor} fontSize="13" fontWeight="600">
-          /100
-        </SvgText>
-      </Svg>
-    </View>
+    <AnimatedGauge
+      score={score}
+      bandColor={bandColor}
+      textColor={textColor}
+      dimColor={dimColor}
+      mode={mode}
+    />
   );
 }
 
@@ -163,12 +171,17 @@ function RunwayGauge({ score, textColor, dimColor, mode }: { score: number; text
 // tab (Profile → sub-route). Cheap option for parity-audit red flag #5 —
 // purely additive navigation, the long-path More-tab routes still work.
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+const TILE_STAGGER_MS = 60;
+
 function QuickAccessTile({
   label,
   icon: Icon,
   color,
   onPress,
   accessibilityLabel,
+  index,
   c,
   sh,
 }: {
@@ -177,18 +190,51 @@ function QuickAccessTile({
   color: string;
   onPress: () => void;
   accessibilityLabel: string;
+  index: number;
   c: ReturnType<typeof useColors>;
   sh: ReturnType<typeof shadows>;
 }) {
+  const reduceMotion = useReducedMotion();
+  // Entrance: fade + translateY up, staggered by index.
+  const enter = useSharedValue(reduceMotion ? 1 : 0);
+  // Press: spring scale-down for tactile feedback.
+  const pressScale = useSharedValue(1);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      enter.value = 1;
+      return;
+    }
+    enter.value = 0;
+    enter.value = withDelay(
+      index * TILE_STAGGER_MS,
+      withTiming(1, { duration: 360, easing: Easing.out(Easing.cubic) })
+    );
+  }, [reduceMotion, index, enter]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    opacity: enter.value,
+    transform: [
+      { translateY: (1 - enter.value) * 12 },
+      { scale: pressScale.value },
+    ],
+  }));
+
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={() => {
         try { Haptics.selectionAsync(); } catch {}
         onPress();
       }}
+      onPressIn={() => {
+        if (!reduceMotion) pressScale.value = withSpring(0.96, { damping: 15, stiffness: 400 });
+      }}
+      onPressOut={() => {
+        if (!reduceMotion) pressScale.value = withSpring(1, { damping: 12, stiffness: 320 });
+      }}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      style={({ pressed }) => [
+      style={[
         {
           flex: 1,
           minHeight: 64, // > 44pt tap target floor
@@ -203,29 +249,32 @@ function QuickAccessTile({
           gap: 6,
         },
         sh.card,
-        pressed && { opacity: 0.85, transform: [{ scale: 0.96 }] },
+        animStyle,
       ]}
     >
-      <View
+      {/* Icon chip with a subtle gradient (band tint → deeper) for inner depth
+          instead of a flat tint disc. */}
+      <LinearGradient
+        colors={[color + "44", color + "22"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
         style={{
           width: 28,
           height: 28,
           borderRadius: 14,
-          // ~22% tint — distinct colored object on white; still subtle on dark.
-          backgroundColor: color + "38",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
         <Icon size={15} color={color} strokeWidth={2.2} />
-      </View>
+      </LinearGradient>
       <Text
         style={{ fontSize: 11, fontWeight: "700", color: c.text, letterSpacing: 0.2 }}
         numberOfLines={1}
       >
         {label}
       </Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -244,33 +293,51 @@ function ActionPill({
   icon: typeof AlertCircle;
   onPress: () => void;
 }) {
+  const reduceMotion = useReducedMotion();
+  const pressScale = useSharedValue(1);
+  const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: pressScale.value }] }));
+
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
-      style={({ pressed }) => [
+      onPressIn={() => {
+        if (!reduceMotion) pressScale.value = withSpring(0.95, { damping: 15, stiffness: 400 });
+      }}
+      onPressOut={() => {
+        if (!reduceMotion) pressScale.value = withSpring(1, { damping: 12, stiffness: 320 });
+      }}
+      style={[
         {
           height: 36,
           borderRadius: 18,
-          // Pass 2: pills still floated on white. ~33% tint + ~50% border lifts
-          // them into clearly-clickable territory; on dark the deeper saturation
-          // is still subtle against the bg.
-          backgroundColor: color + "55",
+          overflow: "hidden",
+          marginRight: Space.sm,
+          borderWidth: 1,
+          borderColor: color + "99",
+        },
+        pressStyle,
+      ]}
+    >
+      {/* Gradient tint (deeper → lighter band sibling) so the pill reads as a
+          lit control surface, not a flat chip. */}
+      <LinearGradient
+        colors={[color + "66", color + "33"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          flex: 1,
           flexDirection: "row",
           alignItems: "center",
           paddingHorizontal: Space.md,
           gap: 6,
-          marginRight: Space.sm,
-          borderWidth: 1,
-          borderColor: color + "80",
-        },
-        pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] },
-      ]}
-    >
-      <Icon size={13} color={color} />
-      <Text style={{ color, fontSize: 12, fontWeight: "700" }}>
-        {count} {label}
-      </Text>
-    </Pressable>
+        }}
+      >
+        <Icon size={13} color={color} />
+        <Text style={{ color, fontSize: 12, fontWeight: "800" }}>
+          {count} {label}
+        </Text>
+      </LinearGradient>
+    </AnimatedPressable>
   );
 }
 
@@ -280,17 +347,26 @@ function AllCaughtUpPill({ color, label }: { color: string; label: string }) {
       style={{
         height: 36,
         borderRadius: 18,
-        backgroundColor: color + "55",
-        flexDirection: "row",
-        alignItems: "center",
-        paddingHorizontal: Space.md,
-        gap: 6,
+        overflow: "hidden",
         borderWidth: 1,
-        borderColor: color + "80",
+        borderColor: color + "99",
       }}
     >
-      <CheckCircle2 size={13} color={color} />
-      <Text style={{ color, fontSize: 12, fontWeight: "700" }}>{label}</Text>
+      <LinearGradient
+        colors={[color + "66", color + "33"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          flex: 1,
+          flexDirection: "row",
+          alignItems: "center",
+          paddingHorizontal: Space.md,
+          gap: 6,
+        }}
+      >
+        <CheckCircle2 size={13} color={color} />
+        <Text style={{ color, fontSize: 12, fontWeight: "800" }}>{label}</Text>
+      </LinearGradient>
     </View>
   );
 }
@@ -825,6 +901,7 @@ export default function DashboardScreen() {
               color={c.primary}
               accessibilityLabel={t("quickAccess.briefing")}
               onPress={() => router.push("/profile/briefing")}
+              index={0}
               c={c}
               sh={sh}
             />
@@ -834,6 +911,7 @@ export default function DashboardScreen() {
               color="#6366F1"
               accessibilityLabel={t("quickAccess.outreach")}
               onPress={() => router.push("/profile/outreach")}
+              index={1}
               c={c}
               sh={sh}
             />
@@ -843,6 +921,7 @@ export default function DashboardScreen() {
               color={c.gold}
               accessibilityLabel={t("quickAccess.forecast")}
               onPress={() => router.push("/profile/forecast")}
+              index={2}
               c={c}
               sh={sh}
             />
@@ -852,6 +931,7 @@ export default function DashboardScreen() {
               color={c.success}
               accessibilityLabel={t("quickAccess.receipt")}
               onPress={() => router.push("/profile/expenses")}
+              index={3}
               c={c}
               sh={sh}
             />
@@ -877,7 +957,7 @@ export default function DashboardScreen() {
             end={{ x: 1, y: 1 }}
             style={{ paddingVertical: Space.xxl, paddingHorizontal: Space.xxl, alignItems: "center" }}
           >
-            <RunwayGauge score={score} textColor={c.text} dimColor={c.textDim} mode={mode} />
+            <RunwayGauge score={score} bandColor={meta.color} textColor={c.text} dimColor={c.textDim} mode={mode} />
             <View style={{ flexDirection: "row", alignItems: "center", gap: Space.sm, marginTop: Space.md }}>
               <Text style={{ ...Type.h3, color: c.text }}>{t("score.runwayScore")}</Text>
               {/* Solid grade chip — pastel tint disappeared on white. Full
@@ -890,11 +970,11 @@ export default function DashboardScreen() {
 
             {/* Score component mini-bar */}
             <View style={{ flexDirection: "row", marginTop: Space.lg, gap: Space.xs, width: "100%" }}>
-              <ScoreBar label={t("scoreBar.pace")} pct={35} color="#6366F1" c={c} />
-              <ScoreBar label={t("scoreBar.pipeline")} pct={25} color="#818CF8" c={c} />
-              <ScoreBar label={t("scoreBar.expenses")} pct={15} color="#10B981" c={c} />
-              <ScoreBar label={t("scoreBar.bench")} pct={10} color="#06B6D4" c={c} />
-              <ScoreBar label={t("scoreBar.survival")} pct={15} color="#8B5CF6" c={c} />
+              <ScoreBar label={t("scoreBar.pace")} pct={35} color="#6366F1" index={0} c={c} />
+              <ScoreBar label={t("scoreBar.pipeline")} pct={25} color="#818CF8" index={1} c={c} />
+              <ScoreBar label={t("scoreBar.expenses")} pct={15} color="#10B981" index={2} c={c} />
+              <ScoreBar label={t("scoreBar.bench")} pct={10} color="#06B6D4" index={3} c={c} />
+              <ScoreBar label={t("scoreBar.survival")} pct={15} color="#8B5CF6" index={4} c={c} />
             </View>
           </LinearGradient>
         </Pressable>
@@ -1223,11 +1303,67 @@ function MetricCard({
   );
 }
 
-function ScoreBar({ label, pct, color, c }: { label: string; pct: number; color: string; c: ReturnType<typeof useColors> }) {
+// Cockpit-instrument component band: a gradient fill that sweeps left→right on
+// mount, staggered by `index` (band 1 first, band 5 last, ~80ms apart). The
+// gradient (band color → deeper sibling) gives each band depth instead of the
+// flat saturated stroke from pass-2. Reduced motion → full bar, no sweep.
+const BAND_STAGGER_MS = 80;
+const BAND_FILL_MS = 600;
+
+function ScoreBar({
+  label,
+  pct,
+  color,
+  index,
+  c,
+}: {
+  label: string;
+  pct: number;
+  color: string;
+  index: number;
+  c: ReturnType<typeof useColors>;
+}) {
+  const reduceMotion = useReducedMotion();
+  const fill = useSharedValue(reduceMotion ? 1 : 0);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      fill.value = 1;
+      return;
+    }
+    fill.value = 0;
+    fill.value = withDelay(
+      index * BAND_STAGGER_MS,
+      withTiming(1, { duration: BAND_FILL_MS, easing: Easing.out(Easing.cubic) })
+    );
+  }, [reduceMotion, index, fill]);
+
+  const fillStyle = useAnimatedStyle(() => ({
+    width: `${fill.value * 100}%`,
+  }));
+
   return (
     <View style={{ flex: pct, alignItems: "center" }}>
-      {/* Full saturation — pale bars were unreadable on light hero card. */}
-      <View style={{ height: 4, width: "100%", borderRadius: 2, backgroundColor: color }} />
+      {/* Track + animated gradient fill, masked by overflow:hidden so the
+          gradient reveals left→right as the wrapper width grows. */}
+      <View
+        style={{
+          height: 5,
+          width: "100%",
+          borderRadius: 2.5,
+          backgroundColor: c.divider,
+          overflow: "hidden",
+        }}
+      >
+        <Animated.View style={[{ height: 5 }, fillStyle]}>
+          <LinearGradient
+            colors={[shiftHex(color, 0.14), shiftHex(color, -0.18)]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{ flex: 1, borderRadius: 2.5 }}
+          />
+        </Animated.View>
+      </View>
       <Text style={{ fontSize: 9, fontWeight: "700", color: c.textSecondary, marginTop: 4, letterSpacing: 0.2 }}>{label}</Text>
     </View>
   );
