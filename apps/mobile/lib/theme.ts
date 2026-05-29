@@ -85,14 +85,17 @@ function palette(mode: ThemeMode) {
     blueDim:        dark ? "rgba(59,130,246,0.12)" : "rgba(59,130,246,0.16)",
 
     // Text — web: oklch(0.984) light-on-dark, oklch(0.129) dark-on-light
-    // Light-mode ramp tightened toward WCAG-AA: body ~13:1, secondary ~8:1,
-    // muted ~7:1 (section headers stay scannable), dim ~4.7:1 (still visible
-    // on white). Dark-mode values unchanged.
+    // Pass-2 light-mode ramp: slid one step darker across the board after the
+    // first pass still felt washed out on "Updated just now", section headers,
+    // and card subtext ("50d old — speed to lead"). Ramp preserved, just
+    // shifted: textSecondary→gray-800, textMuted→gray-700, textDim→gray-600,
+    // textFaint→gray-500. Contrast: secondary ~14:1, muted ~9:1, dim ~7:1,
+    // faint ~4.7:1 (still visible on white). Dark-mode values unchanged.
     text:           dark ? "#F5F5FA" : "#111827",
-    textSecondary:  dark ? "#D1D5E0" : "#374151",
-    textMuted:      dark ? "#9CA3B8" : "#4B5563",
-    textDim:        dark ? "#6B728A" : "#6B7280",
-    textFaint:      dark ? "#3A3F55" : "#9CA3AF",
+    textSecondary:  dark ? "#D1D5E0" : "#1F2937",
+    textMuted:      dark ? "#9CA3B8" : "#374151",
+    textDim:        dark ? "#6B728A" : "#4B5563",
+    textFaint:      dark ? "#3A3F55" : "#6B7280",
 
     // Elevated surfaces — 3-layer depth system (research: premium apps use layered darkness)
     cardElevated:   dark ? "#242450" : "#FFFFFF",
@@ -154,12 +157,16 @@ export function shadows(mode: ThemeMode) {
   const dark = mode === "dark";
   return {
     // Web: --shadow-sm (contact + light lift)
+    // Pass 2: light-mode elevation deepened so cards lift off the white bg
+    // rather than sitting flush. Slate-900 shadow color reads cooler than
+    // gray-600 and matches the cool-toned AR palette. Andrew flagged the
+    // pass-1 tiles as floating without depth.
     card: Platform.select({
       ios: {
-        shadowColor: dark ? "#000" : "#4B5563",
-        shadowOffset: { width: 0, height: 1 },
+        shadowColor: dark ? "#000" : "#0F172A",
+        shadowOffset: { width: 0, height: dark ? 1 : 4 },
         shadowOpacity: dark ? 0.25 : 0.06,
-        shadowRadius: 6,
+        shadowRadius: dark ? 6 : 12,
       },
       android: { elevation: dark ? 3 : 2 },
       default: {},

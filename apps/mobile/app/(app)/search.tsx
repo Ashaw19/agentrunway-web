@@ -300,7 +300,7 @@ export default function SearchScreen() {
           />
           {query.length > 0 && (
             <Pressable onPress={handleClear} hitSlop={12} style={styles.clearBtn}>
-              <View style={[styles.clearCircle, { backgroundColor: c.textDim + "30" }]}>
+              <View style={[styles.clearCircle, { backgroundColor: c.textDim + "55" }]}>
                 <X size={14} color={c.textMuted} strokeWidth={2.5} />
               </View>
             </Pressable>
@@ -425,7 +425,7 @@ function DealRowView({
         { backgroundColor: pressed ? c.primaryDim : "transparent" },
       ]}
     >
-      <View style={[styles.dealIcon, { backgroundColor: stageColor + "20" }]}>
+      <View style={[styles.dealIcon, { backgroundColor: stageColor + "38" }]}>
         <Handshake size={18} color={stageColor} strokeWidth={2} />
       </View>
       <View style={styles.rowContent}>
@@ -469,7 +469,7 @@ function TransactionRowView({
         { backgroundColor: pressed ? c.primaryDim : "transparent" },
       ]}
     >
-      <View style={[styles.dealIcon, { backgroundColor: statusColor + "20" }]}>
+      <View style={[styles.dealIcon, { backgroundColor: statusColor + "38" }]}>
         <Receipt size={18} color={statusColor} strokeWidth={2} />
       </View>
       <View style={styles.rowContent}>
