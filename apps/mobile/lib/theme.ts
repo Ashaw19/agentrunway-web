@@ -298,6 +298,28 @@ export function getInitials(name: string): string {
   return name.split(" ").slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("");
 }
 
+// ── Color shift ────────────────────────────────────────────────────────────
+// Lighten / darken a #RRGGBB hex by a percentage (-1..1). Used to derive a
+// gradient sibling for an instrument arc (e.g. amber → deep-orange) from a
+// single band color, so the cockpit gauge gradient stays in-family with the
+// canonical band color rather than hardcoding a second hue.
+export function shiftHex(hex: string, amount: number): string {
+  const m = hex.replace("#", "");
+  if (m.length !== 6) return hex;
+  const num = parseInt(m, 16);
+  let r = (num >> 16) & 0xff;
+  let g = (num >> 8) & 0xff;
+  let b = num & 0xff;
+  const adj = (ch: number) =>
+    amount >= 0
+      ? Math.round(ch + (255 - ch) * amount)
+      : Math.round(ch * (1 + amount));
+  r = Math.max(0, Math.min(255, adj(r)));
+  g = Math.max(0, Math.min(255, adj(g)));
+  b = Math.max(0, Math.min(255, adj(b)));
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+
 export function dayOfYear(): number {
   const now = new Date();
   const start = new Date(now.getFullYear(), 0, 0);
