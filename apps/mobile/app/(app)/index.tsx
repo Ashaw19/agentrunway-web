@@ -251,16 +251,17 @@ function ActionPill({
         {
           height: 36,
           borderRadius: 18,
-          // ~22% tint + ~40% border — pills now read as clickable objects on
-          // light backgrounds; on dark they still feel subtle but defined.
-          backgroundColor: color + "38",
+          // Pass 2: pills still floated on white. ~33% tint + ~50% border lifts
+          // them into clearly-clickable territory; on dark the deeper saturation
+          // is still subtle against the bg.
+          backgroundColor: color + "55",
           flexDirection: "row",
           alignItems: "center",
           paddingHorizontal: Space.md,
           gap: 6,
           marginRight: Space.sm,
           borderWidth: 1,
-          borderColor: color + "66",
+          borderColor: color + "80",
         },
         pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] },
       ]}
@@ -279,13 +280,13 @@ function AllCaughtUpPill({ color, label }: { color: string; label: string }) {
       style={{
         height: 36,
         borderRadius: 18,
-        backgroundColor: color + "38",
+        backgroundColor: color + "55",
         flexDirection: "row",
         alignItems: "center",
         paddingHorizontal: Space.md,
         gap: 6,
         borderWidth: 1,
-        borderColor: color + "66",
+        borderColor: color + "80",
       }}
     >
       <CheckCircle2 size={13} color={color} />

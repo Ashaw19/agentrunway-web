@@ -386,12 +386,12 @@ export default function ClientsScreen() {
                     gap: 6,
                     backgroundColor:
                       smartFilter === "overdue"
-                        ? "#EF4444" + "20"
+                        ? "#EF4444" + "38"
                         : c.card,
                     borderWidth: 1,
                     borderColor:
                       smartFilter === "overdue"
-                        ? "#EF4444" + "40"
+                        ? "#EF4444" + "66"
                         : c.cardBorder,
                   },
                   pressed && { opacity: 0.7 },
@@ -422,12 +422,12 @@ export default function ClientsScreen() {
                     gap: 6,
                     backgroundColor:
                       smartFilter === "uncontacted"
-                        ? "#F59E0B" + "20"
+                        ? "#F59E0B" + "38"
                         : c.card,
                     borderWidth: 1,
                     borderColor:
                       smartFilter === "uncontacted"
-                        ? "#F59E0B" + "40"
+                        ? "#F59E0B" + "66"
                         : c.cardBorder,
                   },
                   pressed && { opacity: 0.7 },
@@ -1081,8 +1081,8 @@ function ClientDetailSheet({
                     style={[
                       styles.statusPill,
                       {
-                        backgroundColor: isSelected ? pillColor + "20" : c.card,
-                        borderColor: isSelected ? pillColor + "50" : c.cardBorder,
+                        backgroundColor: isSelected ? pillColor + "38" : c.card,
+                        borderColor: isSelected ? pillColor + "80" : c.cardBorder,
                       },
                     ]}
                   >
@@ -1313,9 +1313,9 @@ function ClientDetailSheet({
                   gap: 4,
                   paddingVertical: Space.sm + 2,
                   borderRadius: Radius.md,
-                  backgroundColor: quickLogging === q.key ? q.color + "30" : q.color + "12",
+                  backgroundColor: quickLogging === q.key ? q.color + "55" : q.color + "26",
                   borderWidth: 1,
-                  borderColor: q.color + "25",
+                  borderColor: q.color + "55",
                 },
                 pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] },
               ]}
@@ -1562,8 +1562,8 @@ function ActionButton({
         style={[
           styles.actionBtn,
           {
-            backgroundColor: color + "18",
-            borderColor: color + "30",
+            backgroundColor: color + "38",
+            borderColor: color + "66",
             transform: [{ scale: scaleAnim }],
           },
         ]}
