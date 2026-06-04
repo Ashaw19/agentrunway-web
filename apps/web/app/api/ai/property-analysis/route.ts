@@ -95,13 +95,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body = await req.json();
-  const { image, clientId, showingId, context } = body as {
+  let body: {
     image:     string;
     clientId?: string;
     showingId?: string;
     context?:  string;
   };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+  const { image, clientId, showingId, context } = body;
 
   if (!image || typeof image !== "string") {
     return NextResponse.json(

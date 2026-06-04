@@ -40,8 +40,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body = await req.json();
-  const { clientId } = body as { clientId: string };
+  let body: { clientId: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+  const { clientId } = body;
   if (!clientId) {
     return NextResponse.json({ error: "Missing clientId" }, { status: 400 });
   }

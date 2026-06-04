@@ -175,7 +175,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body: RewardSuggestionRequest = await req.json();
+  let body: RewardSuggestionRequest;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
   const { clientName, location, province, dealGCI, avgGCI, generosity, budget } = body;
 
   if (!clientName || !dealGCI || !budget) {

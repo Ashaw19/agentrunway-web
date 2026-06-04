@@ -23,12 +23,13 @@ export async function POST(req: NextRequest) {
   if (!user) return new Response("Unauthorized", { status: 401 });
 
   // Verify org admin/owner/team_leader
-  const body = await req.json();
-  const { org_id, report_type, report_data } = body as {
-    org_id: string;
-    report_type: string;
-    report_data: object;
-  };
+  let body: { org_id: string; report_type: string; report_data: object };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+  const { org_id, report_type, report_data } = body;
 
   if (!org_id || !report_type || !report_data) {
     return NextResponse.json(
