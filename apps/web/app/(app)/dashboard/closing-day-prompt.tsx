@@ -256,7 +256,7 @@ export function ClosingDayPrompt({ dealsClosingToday, settings, ytdTransactions 
                   <KpiTile icon={<TrendingUp className="h-4 w-4" />} label="Est. GCI" value={fmtCurrency(gci)} color="emerald" />
                 </div>
                 <div className="rounded-xl bg-muted/50 divide-y divide-border/50 text-sm">
-                  <DetailRow icon={<BadgePercent className="h-3.5 w-3.5 text-muted-foreground" />} label="Commission" value={`${(current.estimated_commission_pct * 100).toFixed(2)}%`} />
+                  <DetailRow icon={<BadgePercent className="h-3.5 w-3.5 text-muted-foreground" />} label="Commission" value={current.estimated_commission_pct != null ? `${(current.estimated_commission_pct * 100).toFixed(2)}%` : "—"} />
                   <DetailRow icon={<CalendarCheck className="h-3.5 w-3.5 text-muted-foreground" />} label="Scheduled Close" value={current.expected_close_date ? formatDate(current.expected_close_date) : "—"} />
                   {current.notes && <DetailRow icon={<StickyNote className="h-3.5 w-3.5 text-muted-foreground" />} label="Notes" value={current.notes} />}
                 </div>
