@@ -2445,7 +2445,7 @@ export function DashboardContent({
                 <div className="flex items-center gap-1">
                   <span className="flex items-center gap-1">
                     <p className="text-sm font-semibold text-slate-400">Runway Score</p>
-                    <MetricInfo tip="A composite score across 5 factors: pace vs goal (35%), pipeline health (25%), expense ratio (15%), cash survival (15%), and benchmark ranking (10%)." />
+                    <MetricInfo tip="A composite score across 5 factors: pace vs goal (35%), pipeline health (30%), expense ratio (15%), cash survival (15%), and benchmark ranking (5%)." />
                     <GuideLink anchor="runway-score" label="Runway Score explained in Guide" />
                     {isPro && hasData && <ExplainButton question="How is my Runway Score calculated and what can I do to improve it?" />}
                   </span>

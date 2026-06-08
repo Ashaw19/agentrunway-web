@@ -1871,8 +1871,8 @@ export function BusinessReportPDF({
               {gradeLabel(runwayScore.grade)} Business Health
             </Text>
             <Text style={s.scoreSub}>
-              Composite score across 5 weighted components: Goal Pace (35%), Pipeline (25%),
-              Expenses (15%), Survival (15%), Benchmark (10%).
+              Composite score across 5 weighted components: Goal Pace (35%), Pipeline (30%),
+              Expenses (15%), Survival (15%), Benchmark (5%).
             </Text>
           </View>
         </View>
