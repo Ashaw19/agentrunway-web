@@ -37,10 +37,15 @@ export async function POST(req: NextRequest) {
   if (!proCheck.allowed) return proCheck.response!;
 
   // ── Parse body ────────────────────────────────────────────────────────────
-  const body = (await req.json()) as {
+  let body: {
     action?: string;
     client_id?: string;
   };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
   const { action, client_id } = body;
 

@@ -147,7 +147,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { messages, currentPage, persona: personaRaw } = await req.json();
+  let parsedBody: { messages?: unknown; currentPage?: unknown; persona?: unknown };
+  try {
+    parsedBody = await req.json();
+  } catch {
+    return new Response("Invalid request body", { status: 400 });
+  }
+  const { messages, currentPage, persona: personaRaw } = parsedBody;
 
   if (!Array.isArray(messages)) {
     return new Response("Invalid request body", { status: 400 });
