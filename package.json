@@ -14,7 +14,7 @@
     "build:mcp-shared": "node scripts/build-mcp-shared.js"
   },
   "devDependencies": {
-    "tsx": "^4.21.0",
-    "turbo": "^2.9.8"
+    "tsx": "^4.22.4",
+    "turbo": "^2.9.16"
   }
 }
