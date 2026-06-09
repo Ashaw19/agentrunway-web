@@ -623,7 +623,18 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
 
       } else if (fileType === "csv") {
         // ── CSV: read as plain text ──────────────────────────────────────────
-        textContent = (await file.text()).replace(/\uFEFF/g, ""); // strip UTF-8 BOM
+        textContent = (await file.text()).replace(/^\uFEFF/, ""); // strip UTF-8 BOM
+        // Detect potential Latin-1 / Windows-1252 encoding: UTF-8 decode failures
+        // produce U+FFFD replacement chars. Common with CSVs from older Canadian
+        // real-estate software (Lone Wolf, RE/MAX legacy exports). Mirrors the
+        // sibling importer at history-content.tsx so accented client names don't
+        // corrupt silently on import.
+        if (textContent.includes("\uFFFD")) {
+          toast.warning(
+            "This file may not be saved as UTF-8 \u2014 accented characters (\u00E9, \u00E0, \u00E7) may appear incorrectly in client names. For best results, re-save as UTF-8 CSV before importing.",
+            { duration: 9000 },
+          );
+        }
       }
 
       setImportStatus("extracting");
