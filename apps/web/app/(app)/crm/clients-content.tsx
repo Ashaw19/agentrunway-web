@@ -2106,9 +2106,7 @@ export function ClientsContent({
         tags: newClientTags,
         birthdate: newClientBirthdate || null,
         notes: notesValue || null,
-        property_interest: newClientBudget
-          ? parseFloat(newClientBudget.replace(/[$,]/g, "")) || null
-          : null,
+        property_interest: newClientBudget ? parseMoneyLoose(newClientBudget) : null,
         preferred_contact: newClientPreferredContact || "phone",
         timeframe: newClientTimeframe || null,
         street_address: streetValue || null,
@@ -2961,12 +2959,15 @@ export function ClientsContent({
     for (let rowIdx = 0; rowIdx < csvRows.length; rowIdx++) {
       const row = csvRows[rowIdx];
       const rowNum = rowIdx + 2; // +2 for 1-indexed header row
-      const rawName = cleanImportValue((row[mapName] ?? "").trim());
+      const rawName = cleanImportValue((row[mapName] ?? "").trim()).slice(0, FIELD_LIMITS.clientName);
       if (!rawName) { skipped++; errorMessages.push(`Row ${rowNum}: skipped — no name`); continue; }
       const nameSearch = toNameSearch(rawName);
 
-      let email    = mapEmail    !== "__none__" ? cleanImportValue((row[mapEmail]    ?? "").trim()) || null : null;
-      const phone    = mapPhone    !== "__none__" ? cleanImportValue((row[mapPhone]    ?? "").trim()) || null : null;
+      // Cap imported text fields to their DB column limits so a single
+      // over-length value can't fail an entire 200-row upsert batch (which
+      // would silently drop ~200 contacts). Mirrors handleAddClient.
+      let email    = mapEmail    !== "__none__" ? cleanImportValue((row[mapEmail]    ?? "").trim()).slice(0, FIELD_LIMITS.email) || null : null;
+      const phone    = mapPhone    !== "__none__" ? cleanImportValue((row[mapPhone]    ?? "").trim()).slice(0, FIELD_LIMITS.phone) || null : null;
 
       // Basic email format check — warn but don't reject
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -2974,7 +2975,7 @@ export function ClientsContent({
         email = null;
       }
       const city     = mapCity     !== "__none__" ? cleanImportValue((row[mapCity]     ?? "").trim()) || null : null;
-      const street   = mapStreet   !== "__none__" ? cleanImportValue((row[mapStreet]   ?? "").trim()) || null : null;
+      const street   = mapStreet   !== "__none__" ? cleanImportValue((row[mapStreet]   ?? "").trim()).slice(0, FIELD_LIMITS.address) || null : null;
       const postal   = mapPostal   !== "__none__" ? cleanImportValue((row[mapPostal]   ?? "").trim()) || null : null;
       const leadSource = mapSource !== "__none__" ? cleanImportValue((row[mapSource]   ?? "").trim()) || null : null;
       // Province: strip trailing commas (FUB exports "ON," sometimes)

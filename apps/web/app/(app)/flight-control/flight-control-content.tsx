@@ -355,14 +355,24 @@ function ReviewDrawer({
   const markAsSent = useCallback(async () => {
     if (!item) return;
     try {
+      const payload: Record<string, unknown> = {
+        status:  "sent",
+        sent_at: new Date().toISOString(),
+      };
+      // Honour the same optimistic lock saveEdits uses, so marking a draft
+      // sent can't silently clobber an edit made elsewhere since load.
+      if (updatedAtRef.current) {
+        payload.expected_updated_at = updatedAtRef.current;
+      }
       const res = await fetch(`/api/ai/outreach-queue/${item.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status:  "sent",
-          sent_at: new Date().toISOString(),
-        }),
+        body: JSON.stringify(payload),
       });
+      if (res.status === 409) {
+        toast.error("This draft was edited elsewhere — please refresh the page");
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       onSent(item.id);
       onClose();
