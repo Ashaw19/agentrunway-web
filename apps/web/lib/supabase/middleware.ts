@@ -30,6 +30,7 @@ const PROTECTED_PREFIXES = [
   "/org",
   "/consent",
   "/flight-control",
+  "/open-house-setup",
   "/altimeter",
   "/bank-sync",
   "/drive",
