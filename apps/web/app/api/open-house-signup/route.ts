@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import { createClient }              from "@supabase/supabase-js";
 import { resend, FROM_ADDRESS }      from "@/lib/resend";
+import { FIELD_LIMITS }              from "@agent-runway/core/validation/input-guards";
 
 /**
  * POST /api/open-house-signup
@@ -209,7 +210,10 @@ export async function POST(request: NextRequest) {
   }
 
   // ── 4. Upsert client to agent's CRM (Boarding stage) ─────────────────────
-  const nameSearch = name.toLowerCase().trim();
+  // Cap to the clients.name DB constraint (chk_cl_name_length <= 200) so an
+  // overlong public-form submission never aborts the insert.
+  const cappedName = name.slice(0, FIELD_LIMITS.clientName);
+  const nameSearch = cappedName.toLowerCase().trim();
 
   const { data: existingClient } = await supabase
     .from("clients")
@@ -220,15 +224,15 @@ export async function POST(request: NextRequest) {
 
   if (!existingClient) {
     // Split name heuristically into first / last for the CRM record
-    const parts     = name.trim().split(/\s+/);
+    const parts     = cappedName.trim().split(/\s+/);
     const firstName = parts.length > 1 ? parts.slice(0, -1).join(" ") : null;
-    const lastName  = parts[parts.length - 1] ?? name.trim();
+    const lastName  = parts[parts.length - 1] ?? cappedName.trim();
 
     const { error: clientError } = await supabase
       .from("clients")
       .insert({
         user_id:          agentUserId,
-        name:             name.trim(),
+        name:             cappedName.trim(),
         name_search:      nameSearch,
         first_name:       firstName,
         last_name:        lastName,

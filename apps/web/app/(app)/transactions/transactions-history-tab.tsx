@@ -3,6 +3,7 @@
 import React, { useState, useRef, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { FIELD_LIMITS } from "@agent-runway/core/validation/input-guards";
 import {
   Card,
   CardContent,
@@ -765,7 +766,10 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
 
       if (uniqueNames.length > 0) {
         await supabase.from("clients").upsert(
-          uniqueNames.map((name) => ({ user_id: user.id, name, name_search: name.toLowerCase() })),
+          uniqueNames.map((rawName) => {
+            const name = rawName.slice(0, FIELD_LIMITS.clientName);
+            return { user_id: user.id, name, name_search: name.toLowerCase() };
+          }),
           { onConflict: "user_id,name_search", ignoreDuplicates: true },
         );
       }
@@ -979,7 +983,10 @@ export function TransactionsHistoryTab({ historyItems: initial, transactions, se
       const uniqueYearNames = [...new Set(agentClientNames.filter(Boolean))];
       if (uniqueYearNames.length > 0) {
         await supabase.from("clients").upsert(
-          uniqueYearNames.map((name) => ({ user_id: user.id, name, name_search: name.toLowerCase() })),
+          uniqueYearNames.map((rawName) => {
+            const name = rawName.slice(0, FIELD_LIMITS.clientName);
+            return { user_id: user.id, name, name_search: name.toLowerCase() };
+          }),
           { onConflict: "user_id,name_search", ignoreDuplicates: true },
         );
       }
