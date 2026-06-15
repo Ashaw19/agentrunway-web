@@ -324,7 +324,10 @@ function computeAggregates(
       const isAccounting = s.startsWith("(") && s.endsWith(")");
       if (isAccounting) s = s.slice(1, -1);
       const n = Number(s);
-      if (isNaN(n)) return null;
+      // Reject NaN AND ±Infinity ("1e400", "Infinity") — isNaN(Infinity) is false,
+      // so a bare isNaN guard lets Infinity through into numeric DB columns. Match
+      // the Number.isFinite guard used in parseMoneyLoose / parseDollar / parsePercent.
+      if (!Number.isFinite(n)) return null;
       return isAccounting ? -n : n;
     };
     const salePrice        = toNum(d.sale_price);

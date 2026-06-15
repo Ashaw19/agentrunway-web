@@ -30,9 +30,12 @@ export async function POST(request: Request) {
   }
 
   // ── Resolve price ID based on current pricing tier ───────────────────────────
-  const { billing } = (await request.json()) as {
-    billing: "monthly" | "annual";
-  };
+  let billing: "monthly" | "annual";
+  try {
+    ({ billing } = (await request.json()) as { billing: "monthly" | "annual" });
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
 
   // Count paid individual subscribers to determine tier
   const admin = createAdminClient();

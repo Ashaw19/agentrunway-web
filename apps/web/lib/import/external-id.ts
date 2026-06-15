@@ -79,3 +79,23 @@ export function computeImportExternalId(input: ExternalIdInput): string {
 
   return `v1|${year}|${date}|${addr}|${names}`;
 }
+
+/**
+ * Collapse an upsert payload to one row per `import_external_id`, last-wins.
+ *
+ * Postgres rejects an `ON CONFLICT DO UPDATE` payload that contains two rows
+ * with the same conflict key ("command cannot affect row a second time"),
+ * which aborts the ENTIRE batch. The header trade-off note above ("in practice
+ * this cannot happen") is wrong for a common real-world tracker shape: two
+ * distinct same-client deals on the same day with a blank address collapse to
+ * one ID. Without this guard the whole year's import fails. Always pipe an
+ * array through here immediately before `.upsert(..., { onConflict:
+ * "user_id,import_external_id" })`.
+ */
+export function dedupeByImportExternalId<T extends { import_external_id: string }>(
+  rows: T[],
+): T[] {
+  const seen = new Map<string, T>();
+  for (const row of rows) seen.set(row.import_external_id, row); // last occurrence wins
+  return Array.from(seen.values());
+}
